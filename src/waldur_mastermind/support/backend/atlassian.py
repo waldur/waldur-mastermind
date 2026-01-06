@@ -23,7 +23,7 @@ from waldur_core.core.models import User
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_mastermind.support import models
 
-from . import SupportBackend
+from . import SupportBackend, SupportBackendType
 
 PADDING = 3
 CHARS_LIMIT = 255
@@ -258,8 +258,54 @@ class CommentSynchronizer:
     def stale_comments_ids(self):
         return self.current_comments_ids - self.backend_comments_ids
 
+    @cached_property
+    def new_comments_ids(self):
+        return self.backend_comments_ids - self.current_comments_ids
+
+    @cached_property
+    def existing_comments_ids(self):
+        return self.current_comments_ids & self.backend_comments_ids
+
+    def perform_update(self):
+        """
+        Synchronize comments from backend to Waldur.
+        - Delete comments that exist in Waldur but not in backend
+        - Create comments that exist in backend but not in Waldur
+        - Update existing comments
+        """
+        # Delete stale comments
+        self.delete_old_comments()
+
+        # Create new comments
+        for comment_id in self.new_comments_ids:
+            backend_comment = self.get_backend_comment(comment_id)
+            comment = models.Comment(
+                issue=self.current_issue,
+                backend_id=comment_id,
+                state=CoreStates.OK,
+            )
+            self.backend._backend_comment_to_comment(backend_comment, comment)
+            try:
+                comment.save()
+            except IntegrityError:
+                logger.debug(
+                    "Unable to create comment issue_id=%s, backend_id=%s, "
+                    "because it already exists in Waldur.",
+                    self.current_issue.id,
+                    comment_id,
+                )
+
+        # Update existing comments
+        for comment_id in self.existing_comments_ids:
+            current_comment = self.get_current_comment(comment_id)
+            backend_comment = self.get_backend_comment(comment_id)
+            self.backend._backend_comment_to_comment(backend_comment, current_comment)
+            current_comment.save()
+
 
 class ServiceDeskBackend(SupportBackend):
+    backend_name = SupportBackendType.ATLASSIAN
+
     def __init__(self):
         self.settings = Settings(
             backend_url=config.ATLASSIAN_API_URL
@@ -325,9 +371,15 @@ class ServiceDeskBackend(SupportBackend):
 
     def _create_api_token_client(self, base_kwargs):
         """Create ServiceDesk client with API Token (Cloud)."""
+        # For Atlassian Cloud, use email as username if username is not set
+        username = self.settings.username or self.settings.email
+        if not username:
+            logger.error(
+                "API Token authentication requires username or email to be set"
+            )
         logger.info("Using API Token authentication for Atlassian Cloud ServiceDesk")
         return ServiceDesk(
-            username=self.settings.username,
+            username=username,
             password=self.settings.token,
             cloud=True,
             **base_kwargs,
@@ -562,18 +614,21 @@ class ServiceDeskBackend(SupportBackend):
                 "Issue is not created because caller user does not have email."
             )
 
-        # Apply type mapping from frontend types to backend types
-        type_mapping = config.ATLASSIAN_SUPPORT_TYPE_MAPPING or {}
-        backend_type = type_mapping.get(issue.type, issue.type)
+        # Get request type directly by name (no mapping)
+        request_type = models.RequestType.objects.filter(
+            name=issue.type, is_active=True
+        ).first()
 
-        if not models.RequestType.objects.filter(name=backend_type).count():
+        if not request_type:
+            # Try to pull request types and retry
             self.pull_request_types()
-
-        request_type = models.RequestType.objects.filter(name=backend_type).first()
+            request_type = models.RequestType.objects.filter(
+                name=issue.type, is_active=True
+            ).first()
 
         if not request_type:
             raise ServiceBackendError(
-                f"Issue is not created because request type is not found for issue type {issue.type} (mapped to {backend_type})."
+                f"Issue is not created because request type '{issue.type}' is not found or not active."
             )
 
         logger.info("Creating customer request in JIRA")
@@ -963,6 +1018,11 @@ class ServiceDeskBackend(SupportBackend):
         issue.key = backend_issue["issueKey"]
         issue.backend_id = backend_issue["issueKey"]
 
+        # Get the current status from the Service Desk response
+        current_status = backend_issue.get("currentStatus", {}).get("status", "")
+        issue.status = current_status
+
+        # Check for resolution (only present when issue is resolved)
         resolution = (
             self.manager.get(
                 f"/rest/api/{self.api_version}/issue/{issue.key}?fields=resolution"
@@ -972,13 +1032,8 @@ class ServiceDeskBackend(SupportBackend):
         )
 
         if resolution:
-            resolution_name = resolution.get("name", "")
-            # When resolved, store the resolution name in status and current status in resolution
-            issue.status = resolution_name
-            issue.resolution = backend_issue["currentStatus"]["status"]
+            issue.resolution = resolution.get("name", "")
         else:
-            # When not resolved, both fields should be empty
-            issue.status = ""
             issue.resolution = ""
         issue.link = backend_issue["_links"].get("agent") or backend_issue[
             "_links"
@@ -1027,10 +1082,16 @@ class ServiceDeskBackend(SupportBackend):
         self._update_resource_backend_id_from_custom_fields(issue)
 
     def get_or_create_support_user(self, user_id):
-        author, _ = models.SupportUser.objects.get_or_create(
+        # Use filter().first() to handle potential duplicates gracefully
+        author = models.SupportUser.objects.filter(
             backend_id=user_id,
             backend_name=self.backend_name,
-        )
+        ).first()
+        if not author:
+            author = models.SupportUser.objects.create(
+                backend_id=user_id,
+                backend_name=self.backend_name,
+            )
         return author
 
     def _backend_comment_to_comment(self, backend_comment, comment: models.Comment):
@@ -1313,6 +1374,60 @@ class ServiceDeskBackend(SupportBackend):
     def delete_old_comments(self, issue):
         customer_request = self.manager.get_customer_request(issue.backend_id)
         CommentSynchronizer(self, issue, customer_request).delete_old_comments()
+
+    @reraise_exceptions
+    def sync_comments_from_jira(self, issue):
+        """
+        Synchronize all comments for an issue from Jira.
+        Creates new comments, updates existing ones, and deletes stale ones.
+        """
+        customer_request = self.manager.get_customer_request(issue.backend_id)
+        CommentSynchronizer(self, issue, customer_request).perform_update()
+
+    def sync_single_issue(self, issue):
+        """
+        Synchronize a single issue's data, comments, and attachments from Jira.
+
+        This method is used by both webhooks and manual sync to ensure
+        consistent behavior across all sync triggers.
+
+        Args:
+            issue: The Issue model instance to sync.
+        """
+        logger.info(f"Syncing issue {issue.key} (id={issue.id})")
+
+        # Update issue data from Jira
+        self.update_issue_from_jira(issue)
+
+        # Sync attachments
+        self.update_attachment_from_jira(issue)
+
+        # Sync comments
+        self.sync_comments_from_jira(issue)
+
+        logger.info(f"Successfully synced issue {issue.key}")
+
+    def sync_issues(self, issue_id=None):
+        """
+        Synchronize issue data, comments, and attachments from Jira.
+
+        Args:
+            issue_id: Optional issue ID to sync a single issue.
+                      If None, syncs all issues with this backend.
+        """
+        issues = models.Issue.objects.filter(backend_name=self.backend_name)
+
+        if issue_id:
+            issues = issues.filter(id=issue_id)
+
+        for issue in issues:
+            try:
+                self.sync_single_issue(issue)
+            except Exception as e:
+                logger.exception(f"Failed to sync issue {issue.key}: {e}")
+                # Re-raise for single issue sync so caller knows it failed
+                if issue_id:
+                    raise
 
     def _update_resource_backend_id_from_custom_fields(self, issue):
         """

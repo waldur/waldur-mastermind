@@ -1,7 +1,7 @@
 from rest_framework import status
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.support import models, utils
+from waldur_mastermind.support import models
 from waldur_mastermind.support.backend.zammad_utils import Issue
 from waldur_mastermind.support.tests import factories, zammad_base
 
@@ -18,11 +18,11 @@ class IssueCreateTest(zammad_base.BaseTest):
 
     def _get_valid_payload(self, **additional):
         is_reported_manually = additional.get("is_reported_manually")
-        issue_type = utils.get_atlassian_issue_type()
-        factories.RequestTypeFactory(issue_type_name=issue_type)
+        # Create RequestType first, then use its name
+        request_type = factories.RequestTypeFactory()
         payload = {
             "summary": "test_issue",
-            "type": issue_type,
+            "type": request_type.name,
         }
 
         if is_reported_manually:

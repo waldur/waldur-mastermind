@@ -277,6 +277,18 @@ class SmaxServiceBackend(SupportBackend):
             logger.error(f"Error updating issue {issue.id} from SMAX: {str(e)}")
             raise
 
+    def sync_single_issue(self, issue):
+        """
+        Synchronize a single issue's data from SMAX.
+
+        This method is used by both webhooks and manual sync to ensure
+        consistent behavior across all sync triggers.
+
+        Args:
+            issue: The Issue model instance to sync.
+        """
+        self.update_waldur_issue_from_smax(issue)
+
     def sync_issues(self, issue_id=None):
         issues = models.Issue.objects.filter(backend_name=self.backend_name)
 
@@ -284,7 +296,13 @@ class SmaxServiceBackend(SupportBackend):
             issues = issues.filter(id=issue_id)
 
         for issue in issues:
-            self.update_waldur_issue_from_smax(issue)
+            try:
+                self.sync_single_issue(issue)
+            except Exception as e:
+                logger.exception(f"Failed to sync issue {issue.key}: {e}")
+                # Re-raise for single issue sync so caller knows it failed
+                if issue_id:
+                    raise
 
     def pull_support_users(self):
         # placeholder, traversing all SMAX users might be overly costly

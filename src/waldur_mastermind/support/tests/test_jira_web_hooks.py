@@ -261,11 +261,11 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
         self.assertEqual(self.issue.resolution, "")
 
     def test_update_issue_status(self):
-        # The status field in the Issue model actually stores the resolution name
-        # due to how the _backend_issue_to_issue method works
+        # The status field gets the currentStatus.status from Service Desk API
         self.update_issue_from_jira()
-        # Since resolution is None by default, status should be empty string
-        self.assertEqual(self.issue.status, "")
+        # The status comes from currentStatus.status in the backend_issue_dict,
+        # which defaults to "Open" in our test setup
+        self.assertEqual(self.issue.status, "Open")
 
     def test_web_hook_does_not_trigger_issue_update_email_if_the_issue_was_not_updated(
         self,

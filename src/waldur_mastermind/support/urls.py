@@ -1,12 +1,32 @@
-from django.urls import re_path
+from django.urls import include, re_path
+from rest_framework.routers import SimpleRouter
 
 from waldur_mastermind.support import views
+
+# Create a dedicated router for settings discovery
+# This creates the hierarchical URL structure: /api/support/settings/atlassian/
+settings_router = SimpleRouter()
+settings_router.register(
+    r"atlassian",
+    views.AtlassianSettingsDiscoveryViewSet,
+    basename="support-settings-atlassian",
+)
 
 
 def register_in(router):
     router.register(r"support-issues", views.IssueViewSet, basename="support-issue")
     router.register(
         r"support-priorities", views.PriorityViewSet, basename="support-priority"
+    )
+    router.register(
+        r"support-request-types",
+        views.RequestTypeViewSet,
+        basename="support-request-type",
+    )
+    router.register(
+        r"support-request-types-admin",
+        views.RequestTypeAdminViewSet,
+        basename="support-request-type-admin",
     )
     router.register(
         r"support-comments", views.CommentViewSet, basename="support-comment"
@@ -31,6 +51,8 @@ def register_in(router):
 
 
 urlpatterns = [
+    # Settings discovery endpoints under /api/support/settings/
+    re_path(r"^api/support/settings/", include(settings_router.urls)),
     re_path(
         r"^api/support-jira-webhook/$",
         views.WebHookReceiverView.as_view(),

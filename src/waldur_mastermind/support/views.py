@@ -1,6 +1,8 @@
 import logging
 from datetime import date, datetime
 
+from constance import config
+from django.core.cache import cache
 from django.db import transaction
 from django.db.models import Avg, Count, Q
 from django.http import JsonResponse
@@ -33,6 +35,11 @@ from waldur_core.structure import (
     permissions as structure_permissions,
 )
 from waldur_mastermind.notifications.models import BroadcastMessage
+from waldur_mastermind.support.backend.atlassian_discovery import (
+    AtlassianDiscoveryError,
+    AtlassianDiscoveryService,
+    TemporaryCredentials,
+)
 from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from waldur_mastermind.support.backend.zammad import ZammadServiceBackend
 
@@ -162,6 +169,74 @@ class PriorityViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = serializers.PrioritySerializer
     filterset_class = filters.PriorityFilter
     lookup_field = "uuid"
+
+
+class RequestTypeViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    API endpoint for listing active request types.
+
+    Only returns request types that are marked as active.
+    Order is determined by the 'order' field (lowest first).
+    """
+
+    queryset = models.RequestType.objects.filter(is_active=True)
+    serializer_class = serializers.RequestTypeSerializer
+    lookup_field = "uuid"
+
+
+class RequestTypeAdminViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
+    """
+    Admin endpoint for managing request types.
+
+    Staff only. Returns all request types (active and inactive).
+    Supports full CRUD operations plus activate/deactivate actions.
+    """
+
+    queryset = models.RequestType.objects.all()
+    serializer_class = serializers.RequestTypeAdminSerializer
+    lookup_field = "uuid"
+    filterset_class = filters.RequestTypeFilter
+
+    def get_queryset(self):
+        return models.RequestType.objects.all().order_by("order", "name")
+
+    list_permissions = retrieve_permissions = create_permissions = (
+        update_permissions
+    ) = partial_update_permissions = destroy_permissions = [
+        structure_permissions.is_staff
+    ]
+
+    @decorators.action(detail=True, methods=["post"])
+    def activate(self, request, uuid=None):
+        """Activate a request type so it appears in issue creation."""
+        instance = self.get_object()
+        instance.is_active = True
+        instance.save(update_fields=["is_active"])
+        return response.Response({"status": "activated"})
+
+    activate_permissions = [structure_permissions.is_staff]
+
+    @decorators.action(detail=True, methods=["post"])
+    def deactivate(self, request, uuid=None):
+        """Deactivate a request type so it no longer appears in issue creation."""
+        instance = self.get_object()
+        instance.is_active = False
+        instance.save(update_fields=["is_active"])
+        return response.Response({"status": "deactivated"})
+
+    deactivate_permissions = [structure_permissions.is_staff]
+
+    @decorators.action(detail=False, methods=["post"])
+    def reorder(self, request):
+        """Bulk update order for multiple request types."""
+        items = request.data.get("items", [])
+        for item in items:
+            models.RequestType.objects.filter(uuid=item["uuid"]).update(
+                order=item["order"]
+            )
+        return response.Response({"status": "reordered"})
+
+    reorder_permissions = [structure_permissions.is_staff]
 
 
 class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
@@ -545,9 +620,9 @@ class SmaxWebHookReceiverView(CheckExtensionMixin, generics.GenericAPIView):
             backend_name=SmaxServiceBackend.backend_name,
         )
         logger.info(
-            f"Updating issue {issue.key} based on data from ticket with id {issue_id}."
+            f"Syncing issue {issue.key} based on data from ticket with id {issue_id}."
         )
-        SmaxServiceBackend().update_waldur_issue_from_smax(issue)
+        SmaxServiceBackend().sync_single_issue(issue)
 
         # Update order output if issue is linked to an order (fail-safe)
         try:
@@ -621,3 +696,463 @@ class IssueStatusViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     ]
     lookup_field = "uuid"
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsStaff]
+
+
+class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
+    """
+    ViewSet for Atlassian settings discovery and configuration.
+
+    Allows staff users to:
+    1. Validate Atlassian credentials without saving
+    2. Discover available projects, request types, custom fields, priorities
+    3. Preview and save selected configuration to constance
+    """
+
+    queryset = models.Issue.objects.none()  # No model, stateless operations
+    serializer_class = EmptySerializer
+
+    def is_staff(request, view, obj=None):
+        if not request.user.is_staff:
+            raise rf_exceptions.PermissionDenied()
+
+    def _get_discovery_service(self, credentials_data: dict):
+        """Create discovery service from validated credentials."""
+        creds = TemporaryCredentials(
+            api_url=credentials_data["api_url"],
+            auth_method=credentials_data["auth_method"],
+            email=credentials_data.get("email"),
+            token=credentials_data.get("token"),
+            personal_access_token=credentials_data.get("personal_access_token"),
+            username=credentials_data.get("username"),
+            password=credentials_data.get("password"),
+            verify_ssl=credentials_data.get("verify_ssl", True),
+        )
+        return AtlassianDiscoveryService(creds)
+
+    @extend_schema(
+        request=serializers.AtlassianCredentialsSerializer,
+        responses={200: None},
+        description="Validate Atlassian credentials without saving them.",
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def validate_credentials(self, request):
+        """Validate Atlassian credentials without saving."""
+        serializer = serializers.AtlassianCredentialsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        service = self._get_discovery_service(serializer.validated_data)
+        result = service.validate_credentials()
+
+        return response.Response(result, status=status.HTTP_200_OK)
+
+    validate_credentials_serializer_class = serializers.AtlassianCredentialsSerializer
+    validate_credentials_permissions = [is_staff]
+
+    @extend_schema(
+        request=serializers.DiscoverProjectsRequestSerializer,
+        responses={200: serializers.AtlassianProjectResponseSerializer(many=True)},
+        description="Discover available Service Desk projects.",
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def discover_projects(self, request):
+        """Discover available Service Desk projects."""
+        serializer = serializers.DiscoverProjectsRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        service = self._get_discovery_service(serializer.validated_data)
+        try:
+            projects = service.discover_projects()
+        except AtlassianDiscoveryError as e:
+            return response.Response(
+                {"error": str(e)}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        response_serializer = serializers.AtlassianProjectResponseSerializer(
+            projects, many=True
+        )
+        return response.Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    discover_projects_serializer_class = serializers.DiscoverProjectsRequestSerializer
+    discover_projects_permissions = [is_staff]
+
+    @extend_schema(
+        request=serializers.DiscoverRequestTypesRequestSerializer,
+        responses={200: serializers.AtlassianRequestTypeResponseSerializer(many=True)},
+        description="Discover request types for a selected project.",
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def discover_request_types(self, request):
+        """Discover request types for a selected project."""
+        serializer = serializers.DiscoverRequestTypesRequestSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+
+        service = self._get_discovery_service(serializer.validated_data)
+        try:
+            request_types = service.discover_request_types(
+                serializer.validated_data["project_id"]
+            )
+        except AtlassianDiscoveryError as e:
+            return response.Response(
+                {"error": str(e)}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        response_serializer = serializers.AtlassianRequestTypeResponseSerializer(
+            request_types, many=True
+        )
+        return response.Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    discover_request_types_serializer_class = (
+        serializers.DiscoverRequestTypesRequestSerializer
+    )
+    discover_request_types_permissions = [is_staff]
+
+    @extend_schema(
+        request=serializers.DiscoverCustomFieldsRequestSerializer,
+        responses={200: serializers.AtlassianCustomFieldResponseSerializer(many=True)},
+        description="Discover available custom fields.",
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def discover_custom_fields(self, request):
+        """Discover available custom fields."""
+        serializer = serializers.DiscoverCustomFieldsRequestSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+
+        service = self._get_discovery_service(serializer.validated_data)
+        try:
+            fields = service.discover_custom_fields(
+                project_id=serializer.validated_data.get("project_id"),
+                request_type_id=serializer.validated_data.get("request_type_id"),
+            )
+        except AtlassianDiscoveryError as e:
+            return response.Response(
+                {"error": str(e)}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        response_serializer = serializers.AtlassianCustomFieldResponseSerializer(
+            fields, many=True
+        )
+        return response.Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    discover_custom_fields_serializer_class = (
+        serializers.DiscoverCustomFieldsRequestSerializer
+    )
+    discover_custom_fields_permissions = [is_staff]
+
+    @extend_schema(
+        request=serializers.DiscoverPrioritiesRequestSerializer,
+        responses={200: serializers.AtlassianPriorityResponseSerializer(many=True)},
+        description="Discover available priorities.",
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def discover_priorities(self, request):
+        """Discover available priorities."""
+        serializer = serializers.DiscoverPrioritiesRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        service = self._get_discovery_service(serializer.validated_data)
+        try:
+            priorities = service.discover_priorities()
+        except AtlassianDiscoveryError as e:
+            return response.Response(
+                {"error": str(e)}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        response_serializer = serializers.AtlassianPriorityResponseSerializer(
+            priorities, many=True
+        )
+        return response.Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    discover_priorities_serializer_class = (
+        serializers.DiscoverPrioritiesRequestSerializer
+    )
+    discover_priorities_permissions = [is_staff]
+
+    @extend_schema(
+        request=serializers.AtlassianSettingsPreviewSerializer,
+        responses={200: None},
+        description="Generate preview of settings to be saved.",
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def preview_settings(self, request):
+        """Generate preview of settings to be saved."""
+        serializer = serializers.AtlassianSettingsPreviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Validate credentials first
+        service = self._get_discovery_service(serializer.validated_data)
+        validation = service.validate_credentials()
+
+        if not validation.get("valid"):
+            return response.Response(
+                {
+                    "valid": False,
+                    "error": validation.get("error", "Invalid credentials"),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Build preview of settings
+        data = serializer.validated_data
+        preview = {
+            "ATLASSIAN_API_URL": data["api_url"],
+            "ATLASSIAN_PROJECT_ID": data["project_id"],
+            "ATLASSIAN_VERIFY_SSL": data.get("verify_ssl", True),
+            "ATLASSIAN_USE_OLD_API": data.get("use_old_api", False),
+            "ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED": data.get(
+                "custom_field_mapping_enabled", True
+            ),
+        }
+
+        # Auth-specific settings based on method
+        if data["auth_method"] == "api_token":
+            preview["ATLASSIAN_EMAIL"] = data["email"]
+            preview["ATLASSIAN_TOKEN"] = "***HIDDEN***"
+        elif data["auth_method"] == "personal_access_token":
+            preview["ATLASSIAN_PERSONAL_ACCESS_TOKEN"] = "***HIDDEN***"
+        else:
+            preview["ATLASSIAN_USERNAME"] = data["username"]
+            preview["ATLASSIAN_PASSWORD"] = "***HIDDEN***"
+
+        # Request types are now stored in database
+        if data.get("issue_types"):
+            preview["ACTIVE_REQUEST_TYPES"] = ", ".join(data["issue_types"])
+            preview["_note_request_types"] = (
+                "Selected types will be activated in the RequestType database table"
+            )
+        if data.get("reporter_field"):
+            preview["ATLASSIAN_REPORTER_FIELD"] = data["reporter_field"]
+        if data.get("impact_field"):
+            preview["ATLASSIAN_IMPACT_FIELD"] = data["impact_field"]
+        if data.get("organisation_field"):
+            preview["ATLASSIAN_ORGANISATION_FIELD"] = data["organisation_field"]
+        if data.get("project_field"):
+            preview["ATLASSIAN_PROJECT_FIELD"] = data["project_field"]
+        if data.get("affected_resource_field"):
+            preview["ATLASSIAN_AFFECTED_RESOURCE_FIELD"] = data[
+                "affected_resource_field"
+            ]
+        if data.get("caller_field"):
+            preview["ATLASSIAN_CALLER_FIELD"] = data["caller_field"]
+        if data.get("template_field"):
+            preview["ATLASSIAN_TEMPLATE_FIELD"] = data["template_field"]
+        if data.get("sla_field"):
+            preview["ATLASSIAN_SLA_FIELD"] = data["sla_field"]
+        if data.get("resolution_sla_field"):
+            preview["ATLASSIAN_RESOLUTION_SLA_FIELD"] = data["resolution_sla_field"]
+        if data.get("satisfaction_field"):
+            preview["ATLASSIAN_SATISFACTION_FIELD"] = data["satisfaction_field"]
+        if data.get("request_feedback_field"):
+            preview["ATLASSIAN_REQUEST_FEEDBACK_FIELD"] = data["request_feedback_field"]
+        if data.get("waldur_backend_id_field"):
+            preview["ATLASSIAN_WALDUR_BACKEND_ID_FIELD"] = data[
+                "waldur_backend_id_field"
+            ]
+
+        return response.Response(
+            {
+                "preview": preview,
+                "message": "Review settings and call save_settings with confirm_save=True",
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    preview_settings_serializer_class = serializers.AtlassianSettingsPreviewSerializer
+    preview_settings_permissions = [is_staff]
+
+    @extend_schema(
+        request=serializers.AtlassianSettingsSaveSerializer,
+        responses={200: None},
+        description="Save selected settings to constance.",
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def save_settings(self, request):
+        """Save selected settings to constance."""
+        serializer = serializers.AtlassianSettingsSaveSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Validate credentials first
+        service = self._get_discovery_service(serializer.validated_data)
+        validation = service.validate_credentials()
+
+        if not validation.get("valid"):
+            return response.Response(
+                {
+                    "saved": False,
+                    "error": validation.get("error", "Invalid credentials"),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        data = serializer.validated_data
+
+        # Save settings to constance
+        try:
+            # URL and options
+            setattr(config, "ATLASSIAN_API_URL", data["api_url"])
+            setattr(config, "ATLASSIAN_VERIFY_SSL", data.get("verify_ssl", True))
+
+            # Auth credentials based on method
+            if data["auth_method"] == "api_token":
+                setattr(config, "ATLASSIAN_EMAIL", data["email"])
+                setattr(config, "ATLASSIAN_TOKEN", data["token"])
+                # Clear other auth methods
+                setattr(config, "ATLASSIAN_PERSONAL_ACCESS_TOKEN", "")
+                setattr(config, "ATLASSIAN_USERNAME", "")
+                setattr(config, "ATLASSIAN_PASSWORD", "")
+            elif data["auth_method"] == "personal_access_token":
+                setattr(
+                    config,
+                    "ATLASSIAN_PERSONAL_ACCESS_TOKEN",
+                    data["personal_access_token"],
+                )
+                # Clear other auth methods
+                setattr(config, "ATLASSIAN_EMAIL", "")
+                setattr(config, "ATLASSIAN_TOKEN", "")
+                setattr(config, "ATLASSIAN_USERNAME", "")
+                setattr(config, "ATLASSIAN_PASSWORD", "")
+            else:
+                setattr(config, "ATLASSIAN_USERNAME", data["username"])
+                setattr(config, "ATLASSIAN_PASSWORD", data["password"])
+                # Clear other auth methods
+                setattr(config, "ATLASSIAN_EMAIL", "")
+                setattr(config, "ATLASSIAN_TOKEN", "")
+                setattr(config, "ATLASSIAN_PERSONAL_ACCESS_TOKEN", "")
+
+            # Project settings
+            setattr(config, "ATLASSIAN_PROJECT_ID", data["project_id"])
+            setattr(config, "ATLASSIAN_USE_OLD_API", data.get("use_old_api", False))
+            setattr(
+                config,
+                "ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED",
+                data.get("custom_field_mapping_enabled", True),
+            )
+
+            # Activate selected request types in database
+            if data.get("issue_types"):
+                # Deactivate all request types first
+                models.RequestType.objects.update(is_active=False)
+                # Activate selected ones and set order
+                for idx, name in enumerate(data["issue_types"]):
+                    models.RequestType.objects.filter(name=name).update(
+                        is_active=True, order=idx
+                    )
+
+            # Optional field mappings
+            if data.get("reporter_field"):
+                setattr(config, "ATLASSIAN_REPORTER_FIELD", data["reporter_field"])
+            if data.get("impact_field"):
+                setattr(config, "ATLASSIAN_IMPACT_FIELD", data["impact_field"])
+            if data.get("organisation_field"):
+                setattr(
+                    config, "ATLASSIAN_ORGANISATION_FIELD", data["organisation_field"]
+                )
+            if data.get("project_field"):
+                setattr(config, "ATLASSIAN_PROJECT_FIELD", data["project_field"])
+            if data.get("affected_resource_field"):
+                setattr(
+                    config,
+                    "ATLASSIAN_AFFECTED_RESOURCE_FIELD",
+                    data["affected_resource_field"],
+                )
+            if data.get("caller_field"):
+                setattr(config, "ATLASSIAN_CALLER_FIELD", data["caller_field"])
+            if data.get("template_field"):
+                setattr(config, "ATLASSIAN_TEMPLATE_FIELD", data["template_field"])
+            if data.get("sla_field"):
+                setattr(config, "ATLASSIAN_SLA_FIELD", data["sla_field"])
+            if data.get("resolution_sla_field"):
+                setattr(
+                    config,
+                    "ATLASSIAN_RESOLUTION_SLA_FIELD",
+                    data["resolution_sla_field"],
+                )
+            if data.get("satisfaction_field"):
+                setattr(
+                    config, "ATLASSIAN_SATISFACTION_FIELD", data["satisfaction_field"]
+                )
+            if data.get("request_feedback_field"):
+                setattr(
+                    config,
+                    "ATLASSIAN_REQUEST_FEEDBACK_FIELD",
+                    data["request_feedback_field"],
+                )
+            if data.get("waldur_backend_id_field"):
+                setattr(
+                    config,
+                    "ATLASSIAN_WALDUR_BACKEND_ID_FIELD",
+                    data["waldur_backend_id_field"],
+                )
+
+            # Clear API configuration cache
+            cache.delete("API_CONFIGURATION")
+
+            return response.Response(
+                {
+                    "saved": True,
+                    "message": "Atlassian settings saved successfully",
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            logger.exception("Failed to save Atlassian settings")
+            return response.Response(
+                {
+                    "saved": False,
+                    "error": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    save_settings_serializer_class = serializers.AtlassianSettingsSaveSerializer
+    save_settings_permissions = [is_staff]
+
+    @extend_schema(
+        responses={200: None},
+        description="Get current Atlassian settings (masked secrets).",
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def current_settings(self, request):
+        """Get current Atlassian settings (masked secrets)."""
+        # Get active request types from database
+        active_request_types = list(
+            models.RequestType.objects.filter(is_active=True)
+            .order_by("order", "name")
+            .values_list("name", flat=True)
+        )
+
+        settings_data = {
+            "ATLASSIAN_API_URL": config.ATLASSIAN_API_URL,
+            "ATLASSIAN_PROJECT_ID": config.ATLASSIAN_PROJECT_ID,
+            "ATLASSIAN_VERIFY_SSL": config.ATLASSIAN_VERIFY_SSL,
+            "ATLASSIAN_USE_OLD_API": config.ATLASSIAN_USE_OLD_API,
+            # Issue types are now stored in RequestType model
+            "ATLASSIAN_ISSUE_TYPES": active_request_types,
+            "ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED": config.ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED,
+            "ATLASSIAN_REPORTER_FIELD": config.ATLASSIAN_REPORTER_FIELD,
+            "ATLASSIAN_IMPACT_FIELD": config.ATLASSIAN_IMPACT_FIELD,
+            "ATLASSIAN_ORGANISATION_FIELD": config.ATLASSIAN_ORGANISATION_FIELD,
+            "ATLASSIAN_PROJECT_FIELD": config.ATLASSIAN_PROJECT_FIELD,
+            "ATLASSIAN_AFFECTED_RESOURCE_FIELD": config.ATLASSIAN_AFFECTED_RESOURCE_FIELD,
+            "ATLASSIAN_CALLER_FIELD": config.ATLASSIAN_CALLER_FIELD,
+            "ATLASSIAN_TEMPLATE_FIELD": config.ATLASSIAN_TEMPLATE_FIELD,
+            "ATLASSIAN_SLA_FIELD": config.ATLASSIAN_SLA_FIELD,
+            "ATLASSIAN_RESOLUTION_SLA_FIELD": config.ATLASSIAN_RESOLUTION_SLA_FIELD,
+            "ATLASSIAN_SATISFACTION_FIELD": config.ATLASSIAN_SATISFACTION_FIELD,
+            "ATLASSIAN_REQUEST_FEEDBACK_FIELD": config.ATLASSIAN_REQUEST_FEEDBACK_FIELD,
+            "ATLASSIAN_WALDUR_BACKEND_ID_FIELD": config.ATLASSIAN_WALDUR_BACKEND_ID_FIELD,
+            # Masked credentials - just show if configured
+            "auth_configured": bool(
+                config.ATLASSIAN_TOKEN
+                or config.ATLASSIAN_PERSONAL_ACCESS_TOKEN
+                or config.ATLASSIAN_PASSWORD
+            ),
+        }
+
+        return response.Response(settings_data, status=status.HTTP_200_OK)
+
+    current_settings_permissions = [is_staff]

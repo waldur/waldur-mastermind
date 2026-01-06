@@ -299,8 +299,8 @@ class GetUsersTest(BaseBackendTest):
         self.assertEqual(users[1].backend_id, "user-456")
 
 
-class TypeMappingTest(BaseBackendTest):
-    """Test type mapping functionality for ATLASSIAN_SUPPORT_TYPE_MAPPING."""
+class RequestTypeLookupTest(BaseBackendTest):
+    """Test direct request type lookup functionality (no mapping)."""
 
     def setUp(self):
         super().setUp()
@@ -316,15 +316,16 @@ class TypeMappingTest(BaseBackendTest):
             "_links": {"agent": "http://example.com/TST-101"},
         }
 
-    @override_config(ATLASSIAN_SUPPORT_TYPE_MAPPING={"Informational": "Get IT help"})
-    def test_create_issue_uses_type_mapping(self):
-        """Test that create_issue maps frontend types to backend types using ATLASSIAN_SUPPORT_TYPE_MAPPING."""
-        # Create RequestType for the mapped backend type
-        factories.RequestTypeFactory(name="Get IT help", issue_type_name="Get IT help")
+    def test_create_issue_uses_direct_type_lookup(self):
+        """Test that create_issue looks up request type directly by name."""
+        # Create active RequestType
+        factories.RequestTypeFactory(
+            name="Get IT help", issue_type_name="Get IT help", is_active=True
+        )
 
-        # Create issue with frontend type
+        # Create issue with type matching RequestType name
         issue = self.fixture.issue
-        issue.type = "Informational"  # Frontend type
+        issue.type = "Get IT help"
         issue.save()
 
         # Call create_issue
@@ -333,7 +334,7 @@ class TypeMappingTest(BaseBackendTest):
         # Verify create_customer_request was called
         self.mocked_jira.create_customer_request.assert_called_once()
 
-        # Verify the correct RequestType was used (backend type should be "Get IT help")
+        # Verify the correct RequestType was used
         call_args = self.mocked_jira.create_customer_request.call_args
         request_type_id = call_args[0][1]  # Second argument is request_type.backend_id
 
@@ -341,50 +342,42 @@ class TypeMappingTest(BaseBackendTest):
         used_request_type = models.RequestType.objects.get(backend_id=request_type_id)
         self.assertEqual(used_request_type.name, "Get IT help")
 
-    @override_config(ATLASSIAN_SUPPORT_TYPE_MAPPING={})
-    def test_create_issue_without_mapping_uses_original_type(self):
-        """Test that create_issue uses original type when no mapping is configured."""
-        # Create RequestType for the original type
-        factories.RequestTypeFactory(
-            name="Informational", issue_type_name="Informational"
-        )
+    def test_create_issue_fails_when_type_not_found(self):
+        """Test that create_issue raises error when request type doesn't exist."""
+        # Don't create the RequestType - should fail
 
-        # Create issue with frontend type
+        # Create issue with type
         issue = self.fixture.issue
-        issue.type = "Informational"
-        issue.save()
-
-        # Call create_issue
-        self.backend.create_issue(issue)
-
-        # Verify create_customer_request was called
-        self.mocked_jira.create_customer_request.assert_called_once()
-
-        # Verify the original type was used
-        call_args = self.mocked_jira.create_customer_request.call_args
-        request_type_id = call_args[0][1]
-
-        used_request_type = models.RequestType.objects.get(backend_id=request_type_id)
-        self.assertEqual(used_request_type.name, "Informational")
-
-    @override_config(ATLASSIAN_SUPPORT_TYPE_MAPPING={"Informational": "Get IT help"})
-    def test_create_issue_fails_when_mapped_type_not_found(self):
-        """Test that create_issue raises error when mapped type doesn't exist in DB."""
-        # Don't create the mapped RequestType - should fail
-
-        # Create issue with frontend type
-        issue = self.fixture.issue
-        issue.type = "Informational"
+        issue.type = "Nonexistent Type"
         issue.save()
 
         # Call create_issue and expect error
         with self.assertRaises(ServiceBackendError) as cm:
             self.backend.create_issue(issue)
 
-        # Verify the error message mentions both types
+        # Verify the error message mentions the type
         error_message = str(cm.exception)
-        self.assertIn("Informational", error_message)
-        self.assertIn("Get IT help", error_message)
+        self.assertIn("Nonexistent Type", error_message)
+
+    def test_create_issue_fails_when_type_not_active(self):
+        """Test that create_issue raises error when request type is not active."""
+        # Create inactive RequestType
+        factories.RequestTypeFactory(
+            name="Inactive Type", issue_type_name="Inactive Type", is_active=False
+        )
+
+        # Create issue with type
+        issue = self.fixture.issue
+        issue.type = "Inactive Type"
+        issue.save()
+
+        # Call create_issue and expect error
+        with self.assertRaises(ServiceBackendError) as cm:
+            self.backend.create_issue(issue)
+
+        # Verify the error message mentions the type
+        error_message = str(cm.exception)
+        self.assertIn("Inactive Type", error_message)
 
 
 class PullRequestTypesTest(BaseBackendTest):

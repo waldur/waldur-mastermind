@@ -25,8 +25,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
 from waldur_mastermind.support.enums import SupportWebhookEvent
 
-from . import backend, models, utils
-from .backend import SupportBackendType
+from . import backend, models
 
 logger = logging.getLogger(__name__)
 
@@ -223,59 +222,39 @@ class IssueSerializer(
                 del fields["processing_log"]
 
         if "type" in fields:
+            # Get active request types from database
+            active_types = list(
+                models.RequestType.objects.filter(is_active=True).values_list(
+                    "name", flat=True
+                )
+            )
+            default_type = active_types[0] if active_types else ""
+
             fields["type"] = serializers.ChoiceField(
-                choices=[
-                    (t.strip(), t.strip())
-                    for t in config.ATLASSIAN_ISSUE_TYPES.split(",")
-                ],
-                initial=utils.get_atlassian_issue_type(),
-                default=utils.get_atlassian_issue_type(),
+                choices=[(t, t) for t in active_types],
+                initial=default_type,
+                default=default_type,
             )
 
         return fields
 
     def validate_type(self, issue_type: str):
-        allowed_types = [t.strip() for t in config.ATLASSIAN_ISSUE_TYPES.split(",")]
-        if issue_type not in allowed_types:
+        # Validate against active RequestTypes from database
+        active_types = models.RequestType.objects.filter(is_active=True)
+
+        if not active_types.filter(name=issue_type).exists():
+            allowed_names = ", ".join(active_types.values_list("name", flat=True))
             raise serializers.ValidationError(
-                _("Issue type must be one of the following: %s.")
-                % config.ATLASSIAN_ISSUE_TYPES
+                _("Issue type must be one of the following: %s.") % allowed_names
             )
+
+        # If issue_type is empty, use the first active type
         if not issue_type:
-            issue_type = allowed_types[0]
+            first_type = active_types.first()
+            if first_type:
+                issue_type = first_type.name
 
-        active_backend = backend.get_active_backend()
-
-        # Different backends handle issue types differently
-        if active_backend.backend_name == SupportBackendType.ATLASSIAN:
-            # Atlassian uses type mapping from frontend types to backend types
-            type_mapping = config.ATLASSIAN_SUPPORT_TYPE_MAPPING or {}
-            backend_type = type_mapping.get(issue_type, issue_type)
-
-            # Check if mapped type exists in backend, try to pull if not
-            if not models.RequestType.objects.filter(name=backend_type).exists():
-                try:
-                    active_backend.pull_request_types()
-                except Exception as e:
-                    logger.warning(f"Failed to pull request types: {e}")
-
-            # Validate the mapped type exists in backend
-            if not models.RequestType.objects.filter(name=backend_type).exists():
-                raise serializers.ValidationError(
-                    _(
-                        "Issue type '%(frontend_type)s' maps to '%(backend_type)s' which is not available."
-                    )
-                    % {
-                        "frontend_type": issue_type,
-                        "backend_type": backend_type,
-                    }
-                )
-            return backend_type
-        else:
-            # Other backends (SMAX, Zammad) use issue type directly
-            # For SMAX, the validation will happen in the backend when creating the issue
-            # Return the original issue type without mapping
-            return issue_type
+        return issue_type
 
     def get_resource_type(self, obj: models.Issue) -> str:
         if (
@@ -459,6 +438,50 @@ class PrioritySerializer(
         }
 
 
+class RequestTypeSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
+    url = serializers.HyperlinkedIdentityField(
+        view_name="support-request-type-detail",
+        lookup_field="uuid",
+    )
+
+    class Meta:
+        model = models.RequestType
+        fields = ("url", "uuid", "name", "issue_type_name", "order")
+
+
+class RequestTypeAdminSerializer(
+    core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
+):
+    """Admin serializer for managing request types with full CRUD."""
+
+    url = serializers.HyperlinkedIdentityField(
+        view_name="support-request-type-admin-detail",
+        lookup_field="uuid",
+    )
+    is_synced = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.RequestType
+        fields = (
+            "url",
+            "uuid",
+            "name",
+            "issue_type_name",
+            "backend_id",
+            "backend_name",
+            "is_active",
+            "order",
+            "is_synced",
+        )
+        read_only_fields = ("backend_id", "backend_name", "is_synced")
+
+    def get_is_synced(self, obj: models.RequestType) -> bool:
+        """Returns True if the request type was synced from a backend."""
+        return obj.backend_id is not None
+
+
 class CommentSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
@@ -598,7 +621,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
         event_type = dict(self.Event.CHOICES).get(validated_data["webhookEvent"])
         logger.info("Processing webhook event type: %s", event_type)
 
-        fields = validated_data["issue"]["fields"]
         key = validated_data["issue"]["key"]
         logger.debug("Processing issue key: %s", key)
 
@@ -606,76 +628,14 @@ class WebHookReceiverSerializer(serializers.Serializer):
         issue: models.Issue = self.get_issue(key)
         logger.info("Loaded issue %s from database", issue)
 
-        if fields.get("comment", False):
-            # The processing of hooks requests for the old and new Jira versions is different.
-            # The main difference is that in the old version, when changing comments,
-            # jira:issue_updated event is sent to the new comment_X event.
-            old_jira = validated_data.get("issue_event_type_name", True)
-            logger.debug(
-                "Using old Jira format: %s, event type: %s",
-                old_jira,
-                validated_data.get("issue_event_type_name"),
-            )
-        else:
-            old_jira = False
-
-        if event_type == self.Event.ISSUE_UPDATE:
-            logger.info("Processing issue update for key: %s", key)
-            if old_jira:
-                if old_jira == "issue_commented":
-                    comment_backend_id = validated_data["comment"]["id"]
-                    logger.debug(
-                        "Creating comment from Jira, comment ID: %s", comment_backend_id
-                    )
-                    backend.create_comment_from_jira(issue, comment_backend_id)
-
-                if old_jira == "issue_comment_edited":
-                    comment_backend_id = validated_data["comment"]["id"]
-                    comment = self.get_comment(issue, comment_backend_id, False)
-                    backend.update_comment_from_jira(comment)
-
-                if old_jira == "issue_comment_deleted":
-                    backend.delete_old_comments(issue)
-
-                if old_jira in ("issue_updated", "issue_generic"):
-                    items = validated_data["changelog"]["items"]
-                    if any(item["field"] == "Attachment" for item in items):
-                        backend.update_attachment_from_jira(issue)
-
-                    backend.update_issue_from_jira(issue)
-
-            else:
-                backend.update_issue_from_jira(issue)
-                backend.update_attachment_from_jira(issue)
-
-        elif event_type == self.Event.ISSUE_DELETE:
+        if event_type == self.Event.ISSUE_DELETE:
             logger.info("Processing issue deletion for key: %s", key)
             backend.delete_issue_from_jira(issue)
-
-        elif event_type in self.Event.COMMENT_ACTIONS:
-            logger.info("Processing comment action: %s for issue: %s", event_type, key)
-            try:
-                comment_backend_id = validated_data["comment"]["id"]
-            except KeyError:
-                logger.error("Missing comment ID in webhook data")
-                raise serializers.ValidationError(
-                    "Request not include fields.comment.id"
-                )
-
-            create_comment = event_type == self.Event.COMMENT_CREATE
-            comment = self.get_comment(issue, comment_backend_id, create_comment)
-
-            if not comment and create_comment:
-                backend.create_comment_from_jira(issue, comment_backend_id)
-                backend.update_attachment_from_jira(issue)
-
-            if event_type == self.Event.COMMENT_UPDATE:
-                backend.update_comment_from_jira(comment)
-                backend.update_attachment_from_jira(issue)
-
-            if event_type == self.Event.COMMENT_DELETE:
-                backend.delete_comment_from_jira(comment)
-                backend.update_attachment_from_jira(issue)
+        else:
+            # For all other events (issue updates, comment actions),
+            # perform a full sync to ensure consistency
+            logger.info("Performing full sync for issue: %s", key)
+            backend.sync_single_issue(issue)
 
         logger.debug("Webhook processing completed for issue: %s", key)
         return validated_data
@@ -687,19 +647,6 @@ class WebHookReceiverSerializer(serializers.Serializer):
             raise serializers.ValidationError("Issue with id %s does not exist." % key)
 
         return issue
-
-    def get_comment(self, issue, key, create):
-        comment = None
-
-        try:
-            comment = models.Comment.objects.get(issue=issue, backend_id=key)
-        except models.Comment.DoesNotExist:
-            if not create:
-                raise serializers.ValidationError(
-                    "Comment with id %s does not exist." % key
-                )
-
-        return comment
 
 
 class AttachmentSerializer(
@@ -903,3 +850,237 @@ class IssueStatusSerializer(serializers.HyperlinkedModelSerializer):
 
 class SmaxWebHookReceiverSerializer(serializers.Serializer):
     id = serializers.CharField()
+
+
+# ==========================================
+# Atlassian Settings Discovery Serializers
+# ==========================================
+
+
+class AtlassianCredentialsSerializer(serializers.Serializer):
+    """Serializer for Atlassian credentials - accepts temporary credentials."""
+
+    api_url = serializers.URLField(
+        required=True,
+        help_text="Atlassian API URL (e.g., https://your-domain.atlassian.net)",
+    )
+    auth_method = serializers.ChoiceField(
+        choices=[
+            ("api_token", "API Token (Cloud)"),
+            ("personal_access_token", "Personal Access Token (Server)"),
+            ("basic", "Basic Authentication"),
+        ],
+        required=True,
+        help_text="Authentication method to use",
+    )
+
+    # API Token authentication (Cloud)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    token = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+    # Personal Access Token authentication (Server)
+    personal_access_token = serializers.CharField(
+        required=False, allow_blank=True, write_only=True
+    )
+
+    # Basic authentication
+    username = serializers.CharField(required=False, allow_blank=True)
+    password = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+    # Optional SSL verification toggle
+    verify_ssl = serializers.BooleanField(default=True)
+
+    def validate(self, attrs):
+        auth_method = attrs.get("auth_method")
+
+        if auth_method == "api_token":
+            if not attrs.get("email") or not attrs.get("token"):
+                raise serializers.ValidationError(
+                    {
+                        "email": "Email is required for API Token authentication",
+                        "token": "Token is required for API Token authentication",
+                    }
+                )
+        elif auth_method == "personal_access_token":
+            if not attrs.get("personal_access_token"):
+                raise serializers.ValidationError(
+                    {"personal_access_token": "Personal Access Token is required"}
+                )
+        elif auth_method == "basic":
+            if not attrs.get("username") or not attrs.get("password"):
+                raise serializers.ValidationError(
+                    {
+                        "username": "Username is required for Basic authentication",
+                        "password": "Password is required for Basic authentication",
+                    }
+                )
+
+        return attrs
+
+
+class DiscoverProjectsRequestSerializer(AtlassianCredentialsSerializer):
+    """Request serializer for project discovery - credentials only."""
+
+    pass
+
+
+class DiscoverRequestTypesRequestSerializer(AtlassianCredentialsSerializer):
+    """Request serializer for request type discovery."""
+
+    project_id = serializers.CharField(
+        required=True, help_text="Service Desk project ID or key"
+    )
+
+
+class DiscoverCustomFieldsRequestSerializer(AtlassianCredentialsSerializer):
+    """Request serializer for custom field discovery."""
+
+    project_id = serializers.CharField(required=False, allow_blank=True)
+    request_type_id = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Optional: Filter fields by request type",
+    )
+
+
+class DiscoverPrioritiesRequestSerializer(AtlassianCredentialsSerializer):
+    """Request serializer for priority discovery - credentials only."""
+
+    pass
+
+
+# Response serializers for discovered data
+
+
+class AtlassianProjectResponseSerializer(serializers.Serializer):
+    """Response serializer for discovered projects."""
+
+    id = serializers.CharField()
+    key = serializers.CharField()
+    name = serializers.CharField()
+    description = serializers.CharField(allow_blank=True, required=False)
+
+
+class AtlassianRequestTypeResponseSerializer(serializers.Serializer):
+    """Response serializer for discovered request types."""
+
+    id = serializers.CharField()
+    name = serializers.CharField()
+    description = serializers.CharField(allow_blank=True, required=False)
+    issue_type_id = serializers.CharField(required=False)
+
+
+class AtlassianCustomFieldResponseSerializer(serializers.Serializer):
+    """Response serializer for discovered custom fields."""
+
+    id = serializers.CharField()
+    name = serializers.CharField()
+    clause_names = serializers.ListField(child=serializers.CharField(), required=False)
+    field_type = serializers.CharField(required=False)
+    required = serializers.BooleanField(default=False)
+
+
+class AtlassianPriorityResponseSerializer(serializers.Serializer):
+    """Response serializer for discovered priorities."""
+
+    id = serializers.CharField()
+    name = serializers.CharField()
+    description = serializers.CharField(allow_blank=True, required=False)
+    icon_url = serializers.URLField(required=False, allow_blank=True)
+
+
+# Preview and Save serializers
+
+
+class AtlassianSettingsPreviewSerializer(serializers.Serializer):
+    """Request serializer for previewing settings to be saved."""
+
+    # Credentials (inline, not nested for easier API usage)
+    api_url = serializers.URLField(required=True)
+    auth_method = serializers.ChoiceField(
+        choices=[
+            ("api_token", "API Token (Cloud)"),
+            ("personal_access_token", "Personal Access Token (Server)"),
+            ("basic", "Basic Authentication"),
+        ],
+        required=True,
+    )
+    email = serializers.EmailField(required=False, allow_blank=True)
+    token = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    personal_access_token = serializers.CharField(
+        required=False, allow_blank=True, write_only=True
+    )
+    username = serializers.CharField(required=False, allow_blank=True)
+    password = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    verify_ssl = serializers.BooleanField(default=True)
+
+    # Selected configuration
+    project_id = serializers.CharField(required=True)
+    issue_types = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list
+    )
+    support_type_mapping = serializers.DictField(
+        child=serializers.CharField(),
+        required=False,
+        help_text="Mapping from frontend types to backend request types",
+    )
+
+    # Custom field mappings (field name in Atlassian)
+    reporter_field = serializers.CharField(required=False, allow_blank=True)
+    impact_field = serializers.CharField(required=False, allow_blank=True)
+    organisation_field = serializers.CharField(required=False, allow_blank=True)
+    project_field = serializers.CharField(required=False, allow_blank=True)
+    affected_resource_field = serializers.CharField(required=False, allow_blank=True)
+    caller_field = serializers.CharField(required=False, allow_blank=True)
+    template_field = serializers.CharField(required=False, allow_blank=True)
+    sla_field = serializers.CharField(required=False, allow_blank=True)
+    resolution_sla_field = serializers.CharField(required=False, allow_blank=True)
+    satisfaction_field = serializers.CharField(required=False, allow_blank=True)
+    request_feedback_field = serializers.CharField(required=False, allow_blank=True)
+    waldur_backend_id_field = serializers.CharField(required=False, allow_blank=True)
+
+    # Options
+    use_old_api = serializers.BooleanField(default=False)
+    custom_field_mapping_enabled = serializers.BooleanField(default=True)
+
+    def validate(self, attrs):
+        auth_method = attrs.get("auth_method")
+
+        if auth_method == "api_token":
+            if not attrs.get("email") or not attrs.get("token"):
+                raise serializers.ValidationError(
+                    {
+                        "email": "Email is required for API Token authentication",
+                        "token": "Token is required for API Token authentication",
+                    }
+                )
+        elif auth_method == "personal_access_token":
+            if not attrs.get("personal_access_token"):
+                raise serializers.ValidationError(
+                    {"personal_access_token": "Personal Access Token is required"}
+                )
+        elif auth_method == "basic":
+            if not attrs.get("username") or not attrs.get("password"):
+                raise serializers.ValidationError(
+                    {
+                        "username": "Username is required for Basic authentication",
+                        "password": "Password is required for Basic authentication",
+                    }
+                )
+
+        return attrs
+
+
+class AtlassianSettingsSaveSerializer(AtlassianSettingsPreviewSerializer):
+    """Request serializer for saving settings to constance."""
+
+    confirm_save = serializers.BooleanField(
+        required=True, help_text="Must be True to confirm saving settings"
+    )
+
+    def validate_confirm_save(self, value):
+        if not value:
+            raise serializers.ValidationError(
+                "You must set confirm_save to True to save settings."
+            )
+        return value

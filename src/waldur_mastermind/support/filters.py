@@ -149,6 +149,15 @@ class PriorityFilter(structure_filters.NameFilterSet):
         fields = ("name", "name_exact")
 
 
+class RequestTypeFilter(django_filters.FilterSet):
+    is_active = django_filters.BooleanFilter()
+    name = django_filters.CharFilter(lookup_expr="icontains")
+
+    class Meta:
+        model = models.RequestType
+        fields = ["is_active", "name"]
+
+
 class IssueResourceFilterBackend(core_filters.GenericKeyFilterBackend):
     content_type_field = "resource_content_type"
     object_id_field = "resource_object_id"
