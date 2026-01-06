@@ -16,7 +16,7 @@ from waldur_core.core import views as core_views
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 
-from . import enums, filters
+from . import enums, filters, tasks
 from .models import (
     OnboardingCountryChecklistConfiguration,
     OnboardingJustification,
@@ -327,6 +327,7 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
         response_serializer = OnboardingJustificationSerializer(
             justification, context=self.get_serializer_context()
         )
+        tasks.send_justification_review_notification.delay(justification.uuid)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
     approve_serializer_class = OnboardingJustificationReviewSerializer
@@ -355,6 +356,7 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
         response_serializer = OnboardingJustificationSerializer(
             justification, context=self.get_serializer_context()
         )
+        tasks.send_justification_review_notification.delay(justification.uuid)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
     reject_serializer_class = OnboardingJustificationReviewSerializer

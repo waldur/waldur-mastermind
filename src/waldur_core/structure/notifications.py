@@ -962,3 +962,34 @@ class ProposalSection(NotificationSection):
         description="Notifies call managers when all required reviews for a proposal have been submitted, providing a summary.",
         context_model=ReviewsCompleteContext,
     )
+
+
+class JustificationReviewNotificationContext(BaseModel):
+    """Context for onboarding justification review notifications."""
+
+    user_full_name: str = Field(
+        description="Full name of the user who submitted the justification."
+    )
+    organization_name: str = Field(
+        description="Name or identifier of the organization being onboarded."
+    )
+    created_at: str = Field(
+        description="Date and time when the verification was created."
+    )
+    site_name: str = Field(description="Name of the site/platform.")
+    link_to_homeport_dashboard: str = Field(
+        description="URL link to the user's homeport dashboard."
+    )
+
+
+class OnboardingSection(NotificationSection):
+    """Notifications related to customer onboarding and verification."""
+
+    class Meta:
+        key = "onboarding"
+
+    justification_review_notification = Notification(
+        key="justification_review_notification",
+        description="Notifies users when their onboarding justification has been reviewed.",
+        context_model=JustificationReviewNotificationContext,
+    )

@@ -1,7 +1,9 @@
 from datetime import timedelta
 
-from django.test import TestCase
+from django.core import mail
+from django.test import TestCase, override_settings
 from django.utils import timezone
+from rest_framework.test import APITestCase
 
 from waldur_core.onboarding import enums, tasks
 from waldur_core.onboarding.models import OnboardingVerification
@@ -198,3 +200,58 @@ class DeleteOldVerificationsTest(TestCase):
         self.assertTrue(
             OnboardingVerification.objects.filter(pk=recent_failed.pk).exists()
         )
+
+
+class SendJustificationReviewNotificationTest(APITestCase):
+    def setUp(self):
+        structure_factories.NotificationFactory(
+            key="onboarding.justification_review_notification"
+        )
+        self.user = structure_factories.UserFactory(
+            email="test@example.com", full_name="Test User"
+        )
+        self.verification = factories.OnboardingVerificationFactory(
+            user=self.user,
+            status=enums.VerificationStatus.PENDING,
+            legal_person_identifier="12345678",
+            legal_name="Test Company",
+        )
+
+        self.justification = factories.OnboardingJustificationFactory(
+            verification=self.verification,
+            user_justification="Test justification",
+        )
+        self.approve_url = factories.OnboardingJustificationFactory.get_url(
+            justification=self.justification, action="approve"
+        )
+        self.reject_url = factories.OnboardingJustificationFactory.get_url(
+            justification=self.justification, action="reject"
+        )
+        self.staff = structure_factories.UserFactory(is_staff=True)
+
+    @override_settings(task_always_eager=True)
+    def test_send_notification_for_approved_justification(self):
+        """Test that notification is sent when justification is approved."""
+        self.client.force_authenticate(self.staff)
+        self.client.post(self.approve_url)
+
+        self.assertEqual(len(mail.outbox), 1)
+        sent_email = mail.outbox[0]
+
+        self.assertIn("organization onboarding application", sent_email.subject.lower())
+        self.assertEqual(sent_email.to, ["test@example.com"])
+        self.assertIn("Test User", sent_email.body)
+        self.assertIn("Test Company", sent_email.body)
+
+    @override_settings(task_always_eager=True)
+    def test_send_notification_for_rejected_justification(self):
+        """Test that notification is sent when justification is rejected."""
+        self.client.force_authenticate(self.staff)
+        self.client.post(self.reject_url)
+
+        self.assertEqual(len(mail.outbox), 1)
+        sent_email = mail.outbox[0]
+
+        self.assertEqual(sent_email.to, ["test@example.com"])
+        self.assertIn("Test User", sent_email.body)
+        self.assertIn("Test Company", sent_email.body)
