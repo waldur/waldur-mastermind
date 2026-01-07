@@ -471,11 +471,16 @@ class OfferingUserPullTask(BackgroundPullTask):
                 client=client, offering_uuid=[UUID(local_offering.backend_id)]
             )
         }
-        local_offering_users = {
-            offering_user.user.username: offering_user.username
+        # Build lookup dicts upfront to avoid N+1 queries
+        local_offering_user_objects = {
+            offering_user.user.username: offering_user
             for offering_user in models.OfferingUser.objects.filter(
                 offering=local_offering
             ).select_related("user")
+        }
+        local_offering_users = {
+            username: offering_user.username
+            for username, offering_user in local_offering_user_objects.items()
         }
         usernames = set(remote_offering_users.keys()) | set(local_offering_users.keys())
         user_map = {
@@ -517,11 +522,8 @@ class OfferingUserPullTask(BackgroundPullTask):
                         local_username,
                     )
                     continue
-            # Handle other stale users
-            user = user_map[local_username]
-            offering_user = models.OfferingUser.objects.get(
-                user=user, offering=local_offering
-            )
+            # O(1) lookup instead of database query
+            offering_user = local_offering_user_objects[local_username]
             offering_user.delete()
 
         common = set(local_offering_users.keys()) & set(remote_offering_users.keys())
@@ -529,10 +531,8 @@ class OfferingUserPullTask(BackgroundPullTask):
             remote_username = remote_offering_users[local_username]
             if local_offering_users[local_username] == remote_username:
                 continue
-            user = user_map[local_username]
-            offering_user = models.OfferingUser.objects.get(
-                user=user, offering=local_offering
-            )
+            # O(1) lookup instead of database query
+            offering_user = local_offering_user_objects[local_username]
             offering_user.username = remote_username
             offering_user.save(update_fields=["username"])
 
@@ -794,7 +794,12 @@ class UsagePullTask(BackgroundPullTask):
             self.on_pull_success(instance)
 
     def pull(self, local_resource: models.Resource, from_creation_date=False):
-        """Pull resource usage either from 4 month ago or since resource creation date."""
+        """Pull resource usage either from 4 month ago or since resource creation date.
+
+        Optimized to fetch all user usages upfront to avoid N+1 API calls.
+        Previously, this method made N+1 API calls per resource (1 for component usages,
+        N for user usages per component). Now it makes only 2 API calls total.
+        """
         client = get_client_for_offering(local_resource.offering)
         today = datetime.today()
         if from_creation_date:
@@ -803,24 +808,58 @@ class UsagePullTask(BackgroundPullTask):
             start_date = month_start(today - relativedelta(months=4))
 
         logger.info("Pulling resource %s usages from %s", local_resource, start_date)
+
+        # Fetch remote component usages (1 API call)
         remote_usages = marketplace_component_usages_list.sync_all(
             client=client,
             resource_uuid=local_resource.backend_id,
             date_after=start_date.date(),
         )
+
+        usage_count = len(remote_usages) if remote_usages else 0
+        logger.info("Processing %d usages for resource %s", usage_count, local_resource)
+
+        # Fetch ALL user usages for this resource upfront (1 API call)
+        # This replaces N API calls with 1, significantly reducing remote API load
+        all_user_usages = marketplace_component_user_usages_list.sync_all(
+            client=client,
+            resource_uuid=local_resource.backend_id,
+            date_after=start_date.date(),
+        )
+
+        # Group user usages by (billing_period, component_type) for O(1) lookup
+        user_usages_by_key = collections.defaultdict(list)
+        for user_usage in all_user_usages or []:
+            key = (user_usage.billing_period, user_usage.component_type)
+            user_usages_by_key[key].append(user_usage)
+
+        logger.info(
+            "Fetched %d user usages for resource %s",
+            len(all_user_usages) if all_user_usages else 0,
+            local_resource,
+        )
+
+        # Pre-fetch offering components to avoid repeated DB queries
+        offering_components = {
+            oc.type: oc
+            for oc in models.OfferingComponent.objects.filter(
+                offering=local_resource.offering
+            )
+        }
+
+        processed_count = 0
         for remote_usage in remote_usages:
-            try:
-                offering_component = models.OfferingComponent.objects.get(
-                    offering=local_resource.offering, type=remote_usage.type_
-                )
-            except ObjectDoesNotExist:
+            offering_component = offering_components.get(remote_usage.type_)
+            if not offering_component:
                 continue
+
             usage_date = remote_usage.date
             if usage_date < local_resource.created:
                 logger.info(
                     f"Invalid component usage date detected for resource {local_resource.id}"
                 )
                 continue
+
             defaults = {
                 "usage": remote_usage.usage,
                 "description": remote_usage.description,
@@ -838,32 +877,50 @@ class UsagePullTask(BackgroundPullTask):
                 defaults=defaults,
             )
 
-            remote_user_usages = marketplace_component_user_usages_list.sync_all(
-                client=client,
-                resource_uuid=local_resource.backend_id,
-                component_usage_billing_period=component_usage.billing_period,
-                type_=remote_usage.type_,
-            )
+            # Look up user usages from pre-fetched dict (O(1) instead of API call)
+            key = (remote_usage.billing_period, remote_usage.type_)
+            remote_user_usages = user_usages_by_key.get(key, [])
             if remote_user_usages:
-                for remote_user_usage in remote_user_usages:
-                    if not remote_user_usage.username:
-                        continue
-                    if not remote_user_usage.usage:
-                        usage = Decimal(0)
-                    else:
-                        usage = Decimal(remote_user_usage.usage)
-                    offering_user = models.OfferingUser.objects.filter(
-                        offering=local_resource.offering,
-                        username=remote_user_usage.username,
-                    ).first()
-                    models.ComponentUserUsage.objects.update_or_create(
-                        component_usage=component_usage,
-                        username=remote_user_usage.username,
-                        defaults={
-                            "usage": usage,
-                            "user": offering_user,
-                        },
-                    )
+                self._process_user_usages(
+                    local_resource, component_usage, remote_user_usages
+                )
+
+            processed_count += 1
+            if processed_count % 50 == 0:
+                logger.info(
+                    "Processed %d/%d usages for resource %s",
+                    processed_count,
+                    usage_count,
+                    local_resource,
+                )
+
+        logger.info(
+            "Completed pulling %d usages for resource %s",
+            processed_count,
+            local_resource,
+        )
+
+    def _process_user_usages(self, local_resource, component_usage, remote_user_usages):
+        """Process user usages for a component usage."""
+        for remote_user_usage in remote_user_usages:
+            if not remote_user_usage.username:
+                continue
+            if not remote_user_usage.usage:
+                usage = Decimal(0)
+            else:
+                usage = Decimal(remote_user_usage.usage)
+            offering_user = models.OfferingUser.objects.filter(
+                offering=local_resource.offering,
+                username=remote_user_usage.username,
+            ).first()
+            models.ComponentUserUsage.objects.update_or_create(
+                component_usage=component_usage,
+                username=remote_user_usage.username,
+                defaults={
+                    "usage": usage,
+                    "user": offering_user,
+                },
+            )
 
 
 class UsageListPullTask(BackgroundListPullTask):
@@ -1040,7 +1097,11 @@ class ResourceRobotAccountPullTask(BackgroundPullTask):
         )
         local_accounts = models.RobotAccount.objects.filter(resource=local_resource)
 
-        local_ids = {item.backend_id for item in local_accounts}
+        # Build lookup dict upfront to avoid N+1 queries
+        local_accounts_by_backend_id = {
+            item.backend_id: item for item in local_accounts
+        }
+        local_ids = set(local_accounts_by_backend_id.keys())
         remote_ids = {item.uuid.hex for item in remote_accounts}
 
         new_ids = remote_ids - local_ids
@@ -1072,9 +1133,8 @@ class ResourceRobotAccountPullTask(BackgroundPullTask):
             account for account in remote_accounts if account.uuid.hex in existing_ids
         ]
         for remote_account in existing_accounts:
-            local_account = local_accounts.get(
-                backend_id=remote_account.uuid.hex,
-            )
+            # O(1) lookup instead of database query
+            local_account = local_accounts_by_backend_id[remote_account.uuid.hex]
             modified = set()
             if local_account.type != remote_account.type_:
                 local_account.type = remote_account.type_
@@ -1212,7 +1272,10 @@ def update_remote_customer_permissions(
         else expiration_time
     )
 
-    for project in structure_models.Project.available_objects.filter(customer=customer):
+    # Use iterator for memory efficiency with customers having many projects
+    for project in structure_models.Project.available_objects.filter(
+        customer=customer
+    ).iterator(chunk_size=50):
         sync_project_permission(grant, project, role_name, user, new_expiration_time)
 
 
@@ -1226,14 +1289,37 @@ def sync_remote_project_permissions():
     local and remote Waldur instances when eduTEAMS sync is enabled.
     It creates remote projects if needed and manages user role assignments.
     Runs every 6 hours via celery beat.
+
+    Optimization: Caches remote user UUIDs per API endpoint to avoid
+    redundant lookups when the same user appears across multiple projects/offerings.
     """
     if not settings.WALDUR_AUTH_SOCIAL["ENABLE_EDUTEAMS_SYNC"]:
         return
+
+    # Cache remote user UUIDs by (api_url, username) to avoid redundant API calls
+    # when same user appears in multiple projects/offerings on the same remote instance
+    remote_user_uuid_cache: dict[tuple[str, str], str] = {}
+
+    def get_cached_remote_user_uuid(client, api_url: str, username: str) -> str | None:
+        """Get remote user UUID with caching to avoid redundant API calls."""
+        cache_key = (api_url, username)
+        if cache_key in remote_user_uuid_cache:
+            return remote_user_uuid_cache[cache_key]
+
+        try:
+            remote_user_uuid = get_remote_eduteams_user.sync(
+                client=client, body=RemoteEduteamsRequest(cuid=username)
+            ).uuid.hex
+            remote_user_uuid_cache[cache_key] = remote_user_uuid
+            return remote_user_uuid
+        except (UnexpectedStatus, TimeoutException):
+            return None
 
     for project, offerings in utils.get_projects_with_remote_offerings().items():
         for offering in offerings:
             local_permissions = utils.collect_local_permissions(offering, project)
             client = utils.get_client_for_offering(offering)
+            api_url = offering.secret_options.get("api_url", "")
 
             try:
                 remote_project = utils.get_remote_project(offering, project, client)
@@ -1283,15 +1369,19 @@ def sync_remote_project_permissions():
                     remote_permission.expiration_time,
                     remote_permission.user_uuid.hex,
                 )
+                # Also cache UUIDs from remote permissions to avoid lookups for existing users
+                remote_user_uuid_cache[(api_url, remote_permission.user_username)] = (
+                    remote_permission.user_uuid.hex
+                )
 
             for username, (new_role, new_expiration_time) in local_permissions.items():
-                try:
-                    remote_user_uuid = get_remote_eduteams_user.sync(
-                        client=client, body=RemoteEduteamsRequest(cuid=username)
-                    ).uuid.hex
-                except (UnexpectedStatus, TimeoutException) as e:
+                # Use cached lookup - avoids API call if user was seen before
+                remote_user_uuid = get_cached_remote_user_uuid(
+                    client, api_url, username
+                )
+                if not remote_user_uuid:
                     logger.warning(
-                        f"Unable to fetch remote user {username} in offering {offering}: {e}"
+                        f"Unable to fetch remote user {username} in offering {offering}"
                     )
                     continue
 
@@ -1817,24 +1907,54 @@ class MaintenanceAnnouncementPullTask(BackgroundPullTask):
             return
         local_maintenance.affected_offerings.all().delete()
 
-        for remote_affected in remote_affected_offerings:
-            try:
-                if (
-                    hasattr(remote_affected, "offering_name")
-                    and remote_affected.offering_name
-                ):
-                    local_offering = models.Offering.objects.get(
-                        customer=local_maintenance.service_provider.customer,
-                        name=remote_affected.offering_name,
-                    )
-                else:
-                    logger.warning(
-                        "Cannot identify remote offering for maintenance '%s': no offering_name",
-                        local_maintenance.name,
-                    )
-                    continue
+        # Collect all offering names from remote affected offerings
+        offering_names = [
+            remote_affected.offering_name
+            for remote_affected in remote_affected_offerings
+            if hasattr(remote_affected, "offering_name")
+            and remote_affected.offering_name
+        ]
 
-                models.MaintenanceAnnouncementOffering.objects.create(
+        if not offering_names:
+            logger.warning(
+                "No valid offering names found for maintenance '%s'",
+                local_maintenance.name,
+            )
+            return
+
+        # Bulk fetch all local offerings in one query
+        local_offerings_by_name = {
+            offering.name: offering
+            for offering in models.Offering.objects.filter(
+                customer=local_maintenance.service_provider.customer,
+                name__in=offering_names,
+            )
+        }
+
+        # Build list of objects to create
+        affected_offerings_to_create = []
+        for remote_affected in remote_affected_offerings:
+            if not (
+                hasattr(remote_affected, "offering_name")
+                and remote_affected.offering_name
+            ):
+                logger.warning(
+                    "Cannot identify remote offering for maintenance '%s': no offering_name",
+                    local_maintenance.name,
+                )
+                continue
+
+            local_offering = local_offerings_by_name.get(remote_affected.offering_name)
+            if not local_offering:
+                logger.warning(
+                    "Cannot sync affected offering '%s' for maintenance '%s': offering not found locally",
+                    remote_affected.offering_name,
+                    local_maintenance.name,
+                )
+                continue
+
+            affected_offerings_to_create.append(
+                models.MaintenanceAnnouncementOffering(
                     maintenance=local_maintenance,
                     offering=local_offering,
                     impact_level=getattr(remote_affected, "impact_level", 2),
@@ -1842,12 +1962,13 @@ class MaintenanceAnnouncementPullTask(BackgroundPullTask):
                         remote_affected, "impact_description", ""
                     ),
                 )
+            )
 
-            except ObjectDoesNotExist:
-                logger.warning(
-                    "Cannot sync affected offering for maintenance '%s': offering not found locally",
-                    local_maintenance.name,
-                )
+        # Bulk create all affected offerings
+        if affected_offerings_to_create:
+            models.MaintenanceAnnouncementOffering.objects.bulk_create(
+                affected_offerings_to_create
+            )
 
 
 class MaintenanceAnnouncementListPullTask(BackgroundListPullTask):

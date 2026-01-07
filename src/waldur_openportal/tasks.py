@@ -389,10 +389,17 @@ def sync_remote_usage():
     logger.info("OpenPortal task.sync_remote_usage")
     now = datetime.datetime.now()
     fail_count = 0
+    processed_count = 0
 
-    for allocation in models.RemoteAllocation.objects.filter(is_active=True):
+    # Use iterator() to avoid loading all RemoteAllocation objects into memory at once
+    for allocation in models.RemoteAllocation.objects.filter(is_active=True).iterator(
+        chunk_size=100
+    ):
         try:
             sync_remote_allocation_usage(allocation)
+            processed_count += 1
+            if processed_count % 50 == 0:
+                logger.info(f"Processed {processed_count} remote allocations")
         except Exception as e:
             logger.error(f"Failed to sync usage for {allocation}: {e}")
             fail_count += 1
@@ -403,6 +410,8 @@ def sync_remote_usage():
             elif (datetime.datetime.now() - now).seconds > 3600:
                 logger.error("sync_remote_usage took too long - aborting")
                 return
+
+    logger.info(f"sync_remote_usage completed: processed {processed_count} allocations")
 
 
 @shared_task(name="waldur_openportal.sync_customer_allocations")
@@ -473,8 +482,12 @@ def sync_allocation_limits():
     """
     logger.info("OpenPortal task.sync_allocation_limits")
     now = datetime.datetime.now()
+    processed_count = 0
 
-    for project_credit in invoice_models.ProjectCredit.objects.all():
+    # Use iterator() to avoid loading all ProjectCredit objects into memory at once
+    for project_credit in invoice_models.ProjectCredit.objects.select_related(
+        "project"
+    ).iterator(chunk_size=100):
         project = project_credit.project
 
         # Skip fully removed projects
@@ -572,6 +585,15 @@ def sync_allocation_limits():
             if (datetime.datetime.now() - now).seconds > 3600:
                 logger.error("sync_allocation_limits took too long - aborting")
                 return
+
+        # Memory cleanup after processing each project
+        processed_count += 1
+        if processed_count % 100 == 0:
+            logger.info(f"Processed {processed_count} project credits")
+
+    logger.info(
+        f"sync_allocation_limits completed: processed {processed_count} credits"
+    )
 
 
 @shared_task(name="waldur_openportal.sync_remote")

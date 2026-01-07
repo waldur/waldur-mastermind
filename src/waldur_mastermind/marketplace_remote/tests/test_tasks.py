@@ -1348,12 +1348,11 @@ class UsagePullTest(testcases.TransactionTestCase):
         ).respond(200, json=usages)
 
     def mock_component_user_usages(self, usages):
+        # Mock the upfront fetch of ALL user usages for the resource
+        # This matches the optimized API call that fetches all user usages at once
         respx.get(
             f"{self.api_url}/api/marketplace-component-user-usages/",
-            params={
-                "resource_uuid": self.resource.backend_id,
-                "component_usage__billing_period": "2024-03-01",
-            },
+            params={"resource_uuid": self.resource.backend_id},
         ).respond(200, json=usages)
 
     def test_component_usage_and_user_usage_are_created(self):
@@ -1377,6 +1376,7 @@ class UsagePullTest(testcases.TransactionTestCase):
             "username": "test_user",
             "usage": 50,
             "component_type": "cpu_k_hours",
+            "billing_period": "2024-03-01",  # Must match component usage billing_period for grouping
         }
         user = UserFactory(username="test_user")
         offering_user = models.OfferingUser.objects.create(
@@ -1422,6 +1422,7 @@ class UsagePullTest(testcases.TransactionTestCase):
             "billing_period": "2024-03-01",
         }
         self.mock_component_usages([usage_data])
+        self.mock_component_user_usages([])  # No user usages
 
         tasks.UsagePullTask().pull(self.resource)
 
@@ -1470,40 +1471,22 @@ class UsagePullTest(testcases.TransactionTestCase):
 
         self.mock_component_usages([cpu_usage_data, gpu_usage_data])
 
-        respx.get(
-            f"{self.api_url}/api/marketplace-component-user-usages/",
-            params={
-                "resource_uuid": self.resource.backend_id,
-                "component_usage__billing_period": "2024-03-01",
-                "type": "cpu_k_hours",
-            },
-        ).respond(
-            200,
-            json=[
+        # Mock ALL user usages in a single call (optimized N+1 fix)
+        self.mock_component_user_usages(
+            [
                 {
                     "username": "testuserusername",
                     "usage": 11.37,
                     "component_type": "cpu_k_hours",
+                    "billing_period": "2024-03-01",
                 },
-            ],
-        )
-
-        respx.get(
-            f"{self.api_url}/api/marketplace-component-user-usages/",
-            params={
-                "resource_uuid": self.resource.backend_id,
-                "component_usage__billing_period": "2024-03-01",
-                "type": "gpu_hours",
-            },
-        ).respond(
-            200,
-            json=[
                 {
                     "username": "testuserusername",
                     "usage": 0.00,
                     "component_type": "gpu_hours",
+                    "billing_period": "2024-03-01",
                 },
-            ],
+            ]
         )
 
         user = UserFactory(username="testuserusername")
@@ -1548,6 +1531,142 @@ class UsagePullTest(testcases.TransactionTestCase):
         self.assertEqual(cpu_user_usage.user, offering_user)
         self.assertEqual(gpu_user_usage.user, offering_user)
 
+    def test_user_usages_fetched_in_single_api_call(self):
+        """
+        Test that user usages are fetched in a single API call (N+1 optimization).
+
+        Previously, the pull() method made N+1 API calls - one per component usage.
+        After optimization, it should make only 2 API calls total:
+        1. One for component usages
+        2. One for ALL user usages (grouped in memory by billing_period + type)
+        """
+        cpu_component = models.OfferingComponent.objects.create(
+            offering=self.resource.offering,
+            type="cpu_k_hours",
+            name="CPU k hours",
+        )
+        gpu_component = models.OfferingComponent.objects.create(
+            offering=self.resource.offering,
+            type="gpu_hours",
+            name="GPU hours",
+        )
+        mem_component = models.OfferingComponent.objects.create(
+            offering=self.resource.offering,
+            type="mem_gb_hours",
+            name="Memory GB hours",
+        )
+
+        # Create 3 component usages - previously would trigger 3 user usage API calls
+        cpu_usage = {
+            "uuid": uuid.uuid4().hex,
+            "type": "cpu_k_hours",
+            "usage": 100,
+            "description": "CPU",
+            "created": "2024-03-01T00:00:00Z",
+            "date": "2024-04-01T00:00:00Z",
+            "recurring": False,
+            "billing_period": "2024-03-01",
+        }
+        gpu_usage = {
+            "uuid": uuid.uuid4().hex,
+            "type": "gpu_hours",
+            "usage": 50,
+            "description": "GPU",
+            "created": "2024-03-01T00:00:00Z",
+            "date": "2024-04-01T00:00:00Z",
+            "recurring": False,
+            "billing_period": "2024-03-01",
+        }
+        mem_usage = {
+            "uuid": uuid.uuid4().hex,
+            "type": "mem_gb_hours",
+            "usage": 200,
+            "description": "Memory",
+            "created": "2024-03-01T00:00:00Z",
+            "date": "2024-04-01T00:00:00Z",
+            "recurring": False,
+            "billing_period": "2024-03-01",
+        }
+
+        self.mock_component_usages([cpu_usage, gpu_usage, mem_usage])
+
+        # Mock ALL user usages in a single response - this proves the optimization
+        # If N+1 bug still existed, this mock wouldn't be hit (different params)
+        all_user_usages = [
+            {
+                "username": "user1",
+                "usage": 30,
+                "component_type": "cpu_k_hours",
+                "billing_period": "2024-03-01",
+            },
+            {
+                "username": "user2",
+                "usage": 70,
+                "component_type": "cpu_k_hours",
+                "billing_period": "2024-03-01",
+            },
+            {
+                "username": "user1",
+                "usage": 50,
+                "component_type": "gpu_hours",
+                "billing_period": "2024-03-01",
+            },
+            {
+                "username": "user1",
+                "usage": 200,
+                "component_type": "mem_gb_hours",
+                "billing_period": "2024-03-01",
+            },
+        ]
+        self.mock_component_user_usages(all_user_usages)
+
+        user1 = UserFactory(username="user1")
+        user2 = UserFactory(username="user2")
+        models.OfferingUser.objects.create(
+            offering=self.resource.offering, username="user1", user=user1
+        )
+        models.OfferingUser.objects.create(
+            offering=self.resource.offering, username="user2", user=user2
+        )
+
+        tasks.UsagePullTask().pull(self.resource)
+
+        # Verify component usages created
+        self.assertEqual(
+            models.ComponentUsage.objects.filter(resource=self.resource).count(),
+            3,
+            "Should have 3 component usages",
+        )
+
+        # Verify user usages correctly distributed (grouped from single API response)
+        cpu_component_usage = models.ComponentUsage.objects.get(
+            resource=self.resource, component=cpu_component
+        )
+        gpu_component_usage = models.ComponentUsage.objects.get(
+            resource=self.resource, component=gpu_component
+        )
+        mem_component_usage = models.ComponentUsage.objects.get(
+            resource=self.resource, component=mem_component
+        )
+
+        # CPU should have 2 user usages (user1, user2)
+        cpu_user_usages = models.ComponentUserUsage.objects.filter(
+            component_usage=cpu_component_usage
+        )
+        self.assertEqual(cpu_user_usages.count(), 2)
+
+        # GPU should have 1 user usage (user1)
+        gpu_user_usages = models.ComponentUserUsage.objects.filter(
+            component_usage=gpu_component_usage
+        )
+        self.assertEqual(gpu_user_usages.count(), 1)
+
+        # Memory should have 1 user usage (user1)
+        mem_user_usages = models.ComponentUserUsage.objects.filter(
+            component_usage=mem_component_usage
+        )
+        self.assertEqual(mem_user_usages.count(), 1)
+
     def test_missing_plan_period_is_created_during_sync(self):
         """
         Test that missing ResourcePlanPeriod is automatically created during usage sync.
@@ -1576,15 +1695,7 @@ class UsagePullTest(testcases.TransactionTestCase):
         }
 
         self.mock_component_usages([usage_data])
-
-        respx.get(
-            f"{self.api_url}/api/marketplace-component-user-usages/",
-            params={
-                "resource_uuid": self.resource.backend_id,
-                "component_usage__billing_period": "2024-03-01",
-                "type": "cpu_k_hours",
-            },
-        ).respond(200, json=[])
+        self.mock_component_user_usages([])
 
         tasks.UsagePullTask().pull(self.resource)
 
@@ -1630,15 +1741,7 @@ class UsagePullTest(testcases.TransactionTestCase):
         }
 
         self.mock_component_usages([usage_data])
-
-        respx.get(
-            f"{self.api_url}/api/marketplace-component-user-usages/",
-            params={
-                "resource_uuid": self.resource.backend_id,
-                "component_usage__billing_period": "2024-03-01",
-                "type": "cpu_k_hours",
-            },
-        ).respond(200, json=[])
+        self.mock_component_user_usages([])
 
         tasks.UsagePullTask().pull(self.resource)
 
@@ -1687,15 +1790,7 @@ class UsagePullTest(testcases.TransactionTestCase):
         }
 
         self.mock_component_usages([usage_data])
-
-        respx.get(
-            f"{self.api_url}/api/marketplace-component-user-usages/",
-            params={
-                "resource_uuid": self.resource.backend_id,
-                "component_usage__billing_period": "2024-03-01",
-                "type": "cpu_k_hours",
-            },
-        ).respond(200, json=[])
+        self.mock_component_user_usages([])
 
         tasks.UsagePullTask().pull(self.resource)
 

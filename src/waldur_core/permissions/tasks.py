@@ -52,8 +52,10 @@ def sync_user_deactivation_status():
     deactivated_count = 0
     reactivated_count = 0
 
-    # Process all non-staff/non-support users
-    for user in User.objects.filter(is_staff=False, is_support=False):
+    # Process all non-staff/non-support users with iterator for memory efficiency
+    for user in User.objects.filter(is_staff=False, is_support=False).iterator(
+        chunk_size=100
+    ):
         if should_deactivate_user(user):
             deactivate_user_with_logging(user, "Periodic sync - no active roles")
             deactivated_count += 1
