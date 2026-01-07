@@ -9,6 +9,7 @@ class CoreConfig(AppConfig):
     verbose_name = "Core"
 
     def ready(self):
+        from health_check.plugins import plugin_dir
         from rest_framework.authtoken.models import Token
 
         import waldur_core.core.openapi_extensions  # noqa
@@ -16,6 +17,7 @@ class CoreConfig(AppConfig):
             checks,  # noqa
             handlers,
         )
+        from waldur_core.core.health_checks import CeleryWorkersHealthCheck
         from waldur_core.core.models import StateMixin, User
 
         SshPublicKey = self.get_model("SshPublicKey")
@@ -76,3 +78,6 @@ class CoreConfig(AppConfig):
                 sender=model,
                 dispatch_uid=f"waldur_core.core.handlers.delete_error_message_{model.__name__}_{index}",
             )
+
+        # Register custom Celery health check
+        plugin_dir.register(CeleryWorkersHealthCheck)
