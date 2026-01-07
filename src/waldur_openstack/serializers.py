@@ -1004,6 +1004,9 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
         default=False,
         write_only=True,
     )
+    skip_creation_of_default_router = serializers.BooleanField(
+        default=False,
+    )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Tenant
@@ -1018,6 +1021,7 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
             "default_volume_type_name",
             "security_groups",
             "skip_creation_of_default_subnet",
+            "skip_creation_of_default_router",
         )
         read_only_fields = (
             structure_serializers.BaseResourceSerializer.Meta.read_only_fields

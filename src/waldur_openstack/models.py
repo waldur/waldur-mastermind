@@ -120,6 +120,10 @@ class Tenant(
         null=True,
         help_text=_("Timestamp of when tenant update was last triggered"),
     )
+    skip_creation_of_default_router = models.BooleanField(
+        default=False,
+        help_text=_("If True, default router will not be created for this tenant"),
+    )
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
