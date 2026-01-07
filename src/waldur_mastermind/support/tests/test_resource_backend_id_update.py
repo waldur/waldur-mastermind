@@ -13,7 +13,11 @@ from waldur_mastermind.support.tests import fixtures
 
 @override_config(ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED=True)
 class ResourceBackendIdUpdateTest(TestCase):
-    """Test resource backend_id update functionality when custom field mapping is enabled."""
+    """Test resource backend_id update functionality when custom field mapping is enabled.
+
+    When an Issue is connected to an Order, the backend_id should be updated on
+    the Order's marketplace Resource, not on the Order itself.
+    """
 
     def setUp(self):
         super().setUp()
@@ -29,8 +33,10 @@ class ResourceBackendIdUpdateTest(TestCase):
         self.mocked_service_desk = mocked_service_desk_class.return_value
         self.backend.manager = self.mocked_service_desk
 
-        # Create a real order for testing
+        # Create a real order with an associated marketplace resource for testing
         self.order = marketplace_factories.OrderFactory()
+        # The order has a connected marketplace Resource via order.resource
+        self.marketplace_resource = self.order.resource
 
         # Set up issue connected to the order
         self.issue = self.fixture.issue
@@ -40,7 +46,7 @@ class ResourceBackendIdUpdateTest(TestCase):
         self.issue.resource_object_id = self.order.id
 
         # Store original backend_id for comparison
-        self.original_backend_id = self.order.backend_id
+        self.original_backend_id = self.marketplace_resource.backend_id
 
         # Default custom field value
         self.waldur_backend_id_value = "test-backend-id-123"
@@ -86,73 +92,73 @@ class ResourceBackendIdUpdateTest(TestCase):
         super().tearDown()
         mock.patch.stopall()
 
-    def test_resource_backend_id_updated_when_custom_field_has_value(self):
-        """Test that resource backend_id is updated when waldur_backend_id custom field has a value."""
+    def test_marketplace_resource_backend_id_updated_when_custom_field_has_value(self):
+        """Test that marketplace resource backend_id is updated when waldur_backend_id custom field has a value."""
         self.waldur_backend_id_value = "new-backend-id-456"
 
         self.backend._update_resource_backend_id_from_custom_fields(self.issue)
 
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.backend_id, "new-backend-id-456")
+        self.marketplace_resource.refresh_from_db()
+        self.assertEqual(self.marketplace_resource.backend_id, "new-backend-id-456")
 
-    def test_resource_backend_id_not_updated_when_values_match(self):
-        """Test that resource backend_id is not updated when it already matches the custom field."""
+    def test_marketplace_resource_backend_id_not_updated_when_values_match(self):
+        """Test that marketplace resource backend_id is not updated when it already matches the custom field."""
         matching_id = "matching-backend-id"
-        self.order.backend_id = matching_id
-        self.order.save()
+        self.marketplace_resource.backend_id = matching_id
+        self.marketplace_resource.save()
         self.waldur_backend_id_value = matching_id
 
         self.backend._update_resource_backend_id_from_custom_fields(self.issue)
 
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.backend_id, matching_id)
+        self.marketplace_resource.refresh_from_db()
+        self.assertEqual(self.marketplace_resource.backend_id, matching_id)
 
-    def test_resource_backend_id_not_updated_when_custom_field_empty(self):
-        """Test that resource backend_id is not updated when custom field is empty."""
+    def test_marketplace_resource_backend_id_not_updated_when_custom_field_empty(self):
+        """Test that marketplace resource backend_id is not updated when custom field is empty."""
         self.waldur_backend_id_value = ""
-        original_backend_id = self.order.backend_id
+        original_backend_id = self.marketplace_resource.backend_id
 
         self.backend._update_resource_backend_id_from_custom_fields(self.issue)
 
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.backend_id, original_backend_id)
+        self.marketplace_resource.refresh_from_db()
+        self.assertEqual(self.marketplace_resource.backend_id, original_backend_id)
 
-    def test_resource_backend_id_not_updated_when_custom_field_none(self):
-        """Test that resource backend_id is not updated when custom field is None."""
+    def test_marketplace_resource_backend_id_not_updated_when_custom_field_none(self):
+        """Test that marketplace resource backend_id is not updated when custom field is None."""
         self.waldur_backend_id_value = None
-        original_backend_id = self.order.backend_id
+        original_backend_id = self.marketplace_resource.backend_id
 
         self.backend._update_resource_backend_id_from_custom_fields(self.issue)
 
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.backend_id, original_backend_id)
+        self.marketplace_resource.refresh_from_db()
+        self.assertEqual(self.marketplace_resource.backend_id, original_backend_id)
 
-    def test_resource_backend_id_handles_whitespace_in_custom_field(self):
+    def test_marketplace_resource_backend_id_handles_whitespace_in_custom_field(self):
         """Test that whitespace in custom field value is stripped."""
         self.waldur_backend_id_value = "  backend-id-with-spaces  "
 
         self.backend._update_resource_backend_id_from_custom_fields(self.issue)
 
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.backend_id, "backend-id-with-spaces")
+        self.marketplace_resource.refresh_from_db()
+        self.assertEqual(self.marketplace_resource.backend_id, "backend-id-with-spaces")
 
     def test_skips_update_when_issue_not_connected_to_resource(self):
         """Test that update is skipped when issue is not connected to a resource."""
         self.issue.resource_content_type = None
         self.issue.resource_object_id = None
-        original_backend_id = self.order.backend_id
+        original_backend_id = self.marketplace_resource.backend_id
 
         # Should not raise an exception
         self.backend._update_resource_backend_id_from_custom_fields(self.issue)
 
-        # Order should not be affected
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.backend_id, original_backend_id)
+        # Marketplace resource should not be affected
+        self.marketplace_resource.refresh_from_db()
+        self.assertEqual(self.marketplace_resource.backend_id, original_backend_id)
 
     def test_handles_exception_when_getting_jira_issue(self):
         """Test that exceptions are handled gracefully when getting Jira issue data."""
         self.mocked_service_desk.get.side_effect = Exception("API error")
-        original_backend_id = self.order.backend_id
+        original_backend_id = self.marketplace_resource.backend_id
 
         # Should not raise an exception, should log warning
         with mock.patch(
@@ -161,9 +167,9 @@ class ResourceBackendIdUpdateTest(TestCase):
             self.backend._update_resource_backend_id_from_custom_fields(self.issue)
             mock_logger.warning.assert_called_once()
 
-        # Order should not be changed
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.backend_id, original_backend_id)
+        # Marketplace resource should not be changed
+        self.marketplace_resource.refresh_from_db()
+        self.assertEqual(self.marketplace_resource.backend_id, original_backend_id)
 
     def test_fallback_to_known_field_id_when_field_lookup_fails(self):
         """Test fallback to known field ID when get_field_id_by_name fails."""
@@ -177,8 +183,10 @@ class ResourceBackendIdUpdateTest(TestCase):
         self.backend._update_resource_backend_id_from_custom_fields(self.issue)
 
         # Should still work using the fallback field ID
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.backend_id, self.waldur_backend_id_value)
+        self.marketplace_resource.refresh_from_db()
+        self.assertEqual(
+            self.marketplace_resource.backend_id, self.waldur_backend_id_value
+        )
 
 
 @override_config(ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED=False)
@@ -191,8 +199,9 @@ class ResourceBackendIdUpdateDisabledTest(TestCase):
         self.fixture = fixtures.SupportFixture()
         self.backend = ServiceDeskBackend()
 
-        # Create a real order for testing
+        # Create a real order with associated marketplace resource for testing
         self.order = marketplace_factories.OrderFactory()
+        self.marketplace_resource = self.order.resource
 
         # Set up issue connected to the order
         self.issue = self.fixture.issue
@@ -202,18 +211,18 @@ class ResourceBackendIdUpdateDisabledTest(TestCase):
 
     def test_skips_update_when_custom_field_mapping_disabled(self):
         """Test that update is skipped when custom field mapping is disabled."""
-        original_backend_id = self.order.backend_id
+        original_backend_id = self.marketplace_resource.backend_id
 
         self.backend._update_resource_backend_id_from_custom_fields(self.issue)
 
         # Should not change the backend_id
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.backend_id, original_backend_id)
+        self.marketplace_resource.refresh_from_db()
+        self.assertEqual(self.marketplace_resource.backend_id, original_backend_id)
 
 
 @override_config(ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED=True)
 class ResourceBackendIdIntegrationTest(TestCase):
-    """Test integration of resource backend_id update with issue synchronization."""
+    """Test integration of marketplace resource backend_id update with issue synchronization."""
 
     def setUp(self):
         super().setUp()
@@ -229,8 +238,9 @@ class ResourceBackendIdIntegrationTest(TestCase):
         self.mocked_service_desk = mocked_service_desk_class.return_value
         self.backend.manager = self.mocked_service_desk
 
-        # Create real marketplace order for integration test
+        # Create real marketplace order with associated resource for integration test
         self.order = marketplace_factories.OrderFactory()
+        self.marketplace_resource = self.order.resource
 
         # Create issue connected to the order
         self.issue = self.fixture.issue
@@ -284,18 +294,20 @@ class ResourceBackendIdIntegrationTest(TestCase):
         super().tearDown()
         mock.patch.stopall()
 
-    def test_resource_backend_id_updated_during_issue_sync(self):
-        """Test that resource backend_id is updated during issue synchronization."""
+    def test_marketplace_resource_backend_id_updated_during_issue_sync(self):
+        """Test that marketplace resource backend_id is updated during issue synchronization."""
         # Store original backend_id
-        original_backend_id = self.order.backend_id
+        original_backend_id = self.marketplace_resource.backend_id
 
         # Call _backend_issue_to_issue which should trigger the update
         self.backend._backend_issue_to_issue(self.backend_issue, self.issue)
 
-        # Check that the order's backend_id was updated
-        self.order.refresh_from_db()
-        self.assertEqual(self.order.backend_id, "integration-test-backend-id")
-        self.assertNotEqual(self.order.backend_id, original_backend_id)
+        # Check that the marketplace resource's backend_id was updated
+        self.marketplace_resource.refresh_from_db()
+        self.assertEqual(
+            self.marketplace_resource.backend_id, "integration-test-backend-id"
+        )
+        self.assertNotEqual(self.marketplace_resource.backend_id, original_backend_id)
 
     def test_update_resource_backend_id_method_called_during_sync(self):
         """Test that _update_resource_backend_id_from_custom_fields is called during sync."""

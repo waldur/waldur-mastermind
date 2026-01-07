@@ -21,6 +21,7 @@ from waldur_core.media import models as media_models
 from waldur_core.structure import models as structure_models
 
 from . import managers
+from .enums import ISSUE_STATUS_TYPE_CHOICES, IssueStatusTypes
 
 logger = logging.getLogger(__name__)
 
@@ -531,19 +532,14 @@ class IssueStatus(core_models.UuidMixin, models.Model):
     The field of resolution does not give an exact answer since may be the same in both cases.
     """
 
-    class Types:
-        RESOLVED = 0
-        CANCELED = 1
-
-    TYPE_CHOICES = (
-        (Types.RESOLVED, "Resolved"),
-        (Types.CANCELED, "Canceled"),
-    )
+    Types = IssueStatusTypes  # Alias for backwards compatibility
 
     name = models.CharField(
         max_length=255, help_text="Status name in Jira.", unique=True
     )
-    type = FSMIntegerField(default=Types.RESOLVED, choices=TYPE_CHOICES)
+    type = FSMIntegerField(
+        default=IssueStatusTypes.RESOLVED, choices=ISSUE_STATUS_TYPE_CHOICES
+    )
 
     @classmethod
     def check_success_status(cls, status):

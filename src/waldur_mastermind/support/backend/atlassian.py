@@ -1433,7 +1433,12 @@ class ServiceDeskBackend(SupportBackend):
         """
         Update connected resource's backend_id from custom fields if custom field mapping is enabled
         and the issue is connected to a resource.
+
+        If the issue is connected to an Order, updates the Order's marketplace Resource backend_id.
+        Otherwise, updates the directly connected resource's backend_id.
         """
+        from waldur_mastermind.marketplace import models as marketplace_models
+
         # Only proceed if custom field mapping is enabled
         if not config.ATLASSIAN_CUSTOM_ISSUE_FIELD_MAPPING_ENABLED:
             return
@@ -1443,10 +1448,21 @@ class ServiceDeskBackend(SupportBackend):
             return
 
         try:
-            # Get the connected resource
-            resource = issue.resource_content_type.get_object_for_this_type(
+            # Get the connected object (could be Order or Resource)
+            connected_object = issue.resource_content_type.get_object_for_this_type(
                 pk=issue.resource_object_id
             )
+
+            # If connected to an Order, get the Order's marketplace Resource
+            if isinstance(connected_object, marketplace_models.Order):
+                resource = connected_object.resource
+                if not resource:
+                    logger.debug(
+                        f"Order {connected_object} does not have a connected marketplace Resource, skipping update"
+                    )
+                    return
+            else:
+                resource = connected_object
 
             # Check if resource has a backend_id field (most Waldur resources do)
             if not hasattr(resource, "backend_id"):

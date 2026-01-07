@@ -20,6 +20,7 @@ from waldur_mastermind.proposal.enums import (
     RequestedOfferingStates,
     RoundStatuses,
 )
+from waldur_mastermind.support.enums import ISSUE_STATUS_TYPE_CHOICES
 from waldur_rancher.enums import (
     RANCHER_TEMPLATE_QUESTION_TYPE,
     ROLE_CHOICES,
@@ -73,6 +74,7 @@ SPECTACULAR_SETTINGS = {
         "AgentServiceState": AgentServiceState.VALUES,
         # Rename Rancher role enum to avoid conflict with permissions RoleEnum
         "RancherNodeRoleEnum": ROLE_CHOICES,
+        "IssueStatusType": ISSUE_STATUS_TYPE_CHOICES,
     },
     "VERSION": None,
 }
