@@ -2,6 +2,7 @@ from unittest import mock
 
 from django.test import TestCase, override_settings
 
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_openportal import tasks
 
 
@@ -102,3 +103,207 @@ class TaskIntegrationTest(TestCase):
         """Test that sync_board respects ENABLED=False setting"""
         tasks.sync_board()
         mock_fetch.assert_not_called()
+
+
+class SyncAllocationLimitsTest(TestCase):
+    """Tests for sync_allocation_limits task with memory optimization."""
+
+    def setUp(self):
+        # Create test project and customer
+        self.project = structure_factories.ProjectFactory()
+
+    @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
+    @mock.patch("waldur_openportal.tasks.invoice_models.ProjectCredit.objects")
+    def test_sync_allocation_limits_uses_iterator(self, mock_queryset, mock_lock):
+        """Test that sync_allocation_limits uses iterator() for memory efficiency."""
+        # Setup lock to allow task execution
+        mock_lock.return_value = (mock.MagicMock(last_run=None), True)
+
+        # Setup mock queryset chain
+        mock_qs = mock.MagicMock()
+        mock_qs.select_related.return_value = mock_qs
+        mock_qs.iterator.return_value = iter([])  # Empty iterator
+        mock_queryset.select_related.return_value = mock_qs
+
+        tasks.sync_allocation_limits()
+
+        # Verify select_related was called with "project"
+        mock_queryset.select_related.assert_called_once_with("project")
+        # Verify iterator was called with chunk_size
+        mock_qs.iterator.assert_called_once_with(chunk_size=100)
+
+    @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
+    @mock.patch("waldur_openportal.tasks.models.Allocation.objects.filter")
+    @mock.patch("waldur_openportal.tasks.invoice_models.ProjectCredit.objects")
+    def test_sync_allocation_limits_processes_active_projects(
+        self, mock_credit_qs, mock_allocation_filter, mock_lock
+    ):
+        """Test that sync_allocation_limits processes active projects correctly."""
+        mock_lock.return_value = (mock.MagicMock(last_run=None), True)
+
+        # Create a mock project credit with an active project
+        mock_project = mock.MagicMock()
+        mock_project.is_removed = False
+        mock_project.is_in_grace_period = False
+        mock_project.is_expired = False
+
+        mock_credit = mock.MagicMock()
+        mock_credit.project = mock_project
+        mock_credit.value = 100
+
+        # Setup queryset chain
+        mock_qs = mock.MagicMock()
+        mock_qs.select_related.return_value = mock_qs
+        mock_qs.iterator.return_value = iter([mock_credit])
+        mock_credit_qs.select_related.return_value = mock_qs
+
+        # No allocations for this project
+        mock_allocation_filter.return_value = []
+
+        tasks.sync_allocation_limits()
+
+        # Verify allocation filter was called for the project
+        mock_allocation_filter.assert_called_once_with(
+            project=mock_project, is_active=True
+        )
+
+    @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
+    @mock.patch("waldur_openportal.tasks.invoice_models.ProjectCredit.objects")
+    def test_sync_allocation_limits_skips_removed_projects(
+        self, mock_credit_qs, mock_lock
+    ):
+        """Test that sync_allocation_limits skips removed projects."""
+        mock_lock.return_value = (mock.MagicMock(last_run=None), True)
+
+        # Create a mock project credit with a removed project
+        mock_project = mock.MagicMock()
+        mock_project.is_removed = True
+
+        mock_credit = mock.MagicMock()
+        mock_credit.project = mock_project
+
+        mock_qs = mock.MagicMock()
+        mock_qs.select_related.return_value = mock_qs
+        mock_qs.iterator.return_value = iter([mock_credit])
+        mock_credit_qs.select_related.return_value = mock_qs
+
+        with mock.patch(
+            "waldur_openportal.tasks.models.Allocation.objects.filter"
+        ) as mock_filter:
+            tasks.sync_allocation_limits()
+            # Should not query allocations for removed project
+            mock_filter.assert_not_called()
+
+    @mock.patch("waldur_openportal.tasks.logger")
+    @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
+    @mock.patch("waldur_openportal.tasks.invoice_models.ProjectCredit.objects")
+    def test_sync_allocation_limits_logs_completion(
+        self, mock_credit_qs, mock_lock, mock_logger
+    ):
+        """Test that sync_allocation_limits logs completion with count."""
+        mock_lock.return_value = (mock.MagicMock(last_run=None), True)
+
+        mock_qs = mock.MagicMock()
+        mock_qs.select_related.return_value = mock_qs
+        mock_qs.iterator.return_value = iter([])
+        mock_credit_qs.select_related.return_value = mock_qs
+
+        tasks.sync_allocation_limits()
+
+        # Check that completion log was called
+        mock_logger.info.assert_any_call(
+            "sync_allocation_limits completed: processed 0 credits"
+        )
+
+
+class SyncRemoteUsageTest(TestCase):
+    """Tests for sync_remote_usage task with memory optimization."""
+
+    @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
+    @mock.patch("waldur_openportal.tasks.models.RemoteAllocation.objects.filter")
+    def test_sync_remote_usage_uses_iterator(self, mock_filter, mock_lock):
+        """Test that sync_remote_usage uses iterator() for memory efficiency."""
+        mock_lock.return_value = (mock.MagicMock(last_run=None), True)
+
+        # Setup mock queryset chain
+        mock_qs = mock.MagicMock()
+        mock_qs.iterator.return_value = iter([])
+        mock_filter.return_value = mock_qs
+
+        tasks.sync_remote_usage()
+
+        # Verify filter was called with is_active=True
+        mock_filter.assert_called_once_with(is_active=True)
+        # Verify iterator was called with chunk_size
+        mock_qs.iterator.assert_called_once_with(chunk_size=100)
+
+    @mock.patch("waldur_openportal.tasks.sync_remote_allocation_usage")
+    @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
+    @mock.patch("waldur_openportal.tasks.models.RemoteAllocation.objects.filter")
+    def test_sync_remote_usage_processes_allocations(
+        self, mock_filter, mock_lock, mock_sync_usage
+    ):
+        """Test that sync_remote_usage processes each allocation."""
+        mock_lock.return_value = (mock.MagicMock(last_run=None), True)
+
+        # Create mock allocations
+        allocation1 = mock.MagicMock()
+        allocation2 = mock.MagicMock()
+
+        mock_qs = mock.MagicMock()
+        mock_qs.iterator.return_value = iter([allocation1, allocation2])
+        mock_filter.return_value = mock_qs
+
+        tasks.sync_remote_usage()
+
+        # Verify sync was called for each allocation
+        self.assertEqual(mock_sync_usage.call_count, 2)
+        mock_sync_usage.assert_any_call(allocation1)
+        mock_sync_usage.assert_any_call(allocation2)
+
+    @mock.patch("waldur_openportal.tasks.logger")
+    @mock.patch("waldur_openportal.tasks.sync_remote_allocation_usage")
+    @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
+    @mock.patch("waldur_openportal.tasks.models.RemoteAllocation.objects.filter")
+    def test_sync_remote_usage_handles_errors_gracefully(
+        self, mock_filter, mock_lock, mock_sync_usage, mock_logger
+    ):
+        """Test that sync_remote_usage handles errors and continues processing."""
+        mock_lock.return_value = (mock.MagicMock(last_run=None), True)
+
+        allocation1 = mock.MagicMock()
+        allocation2 = mock.MagicMock()
+
+        mock_qs = mock.MagicMock()
+        mock_qs.iterator.return_value = iter([allocation1, allocation2])
+        mock_filter.return_value = mock_qs
+
+        # First call fails, second succeeds
+        mock_sync_usage.side_effect = [Exception("Test error"), None]
+
+        tasks.sync_remote_usage()
+
+        # Both allocations should be attempted
+        self.assertEqual(mock_sync_usage.call_count, 2)
+        # Error should be logged
+        mock_logger.error.assert_called()
+
+    @mock.patch("waldur_openportal.tasks.logger")
+    @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
+    @mock.patch("waldur_openportal.tasks.models.RemoteAllocation.objects.filter")
+    def test_sync_remote_usage_logs_completion(
+        self, mock_filter, mock_lock, mock_logger
+    ):
+        """Test that sync_remote_usage logs completion with count."""
+        mock_lock.return_value = (mock.MagicMock(last_run=None), True)
+
+        mock_qs = mock.MagicMock()
+        mock_qs.iterator.return_value = iter([])
+        mock_filter.return_value = mock_qs
+
+        tasks.sync_remote_usage()
+
+        # Check that completion log was called
+        mock_logger.info.assert_any_call(
+            "sync_remote_usage completed: processed 0 allocations"
+        )

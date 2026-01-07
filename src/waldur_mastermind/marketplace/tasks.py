@@ -248,10 +248,11 @@ def terminate_resources_if_project_end_date_has_been_reached():
     today = timezone.datetime.today().date()
 
     # Find projects where the effective end date (including grace period) has passed
+    # Use iterator for memory efficiency with large project counts
     expired_projects = []
     for project in structure_models.Project.available_objects.exclude(
         end_date__isnull=True
-    ):
+    ).iterator(chunk_size=100):
         if (
             project.get_effective_end_date()
             and project.get_effective_end_date() <= today
