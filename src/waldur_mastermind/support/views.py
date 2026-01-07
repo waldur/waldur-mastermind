@@ -690,12 +690,17 @@ def sync_issues(request):
 class IssueStatusViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     queryset = models.IssueStatus.objects.all().order_by("name")
     serializer_class = serializers.IssueStatusSerializer
+    create_serializer_class = serializers.IssueStatusCreateSerializer
+    update_serializer_class = serializers.IssueStatusCreateSerializer
     filter_backends = [
         DjangoFilterBackend,
         structure_filters.GenericRoleFilter,
     ]
     lookup_field = "uuid"
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsStaff]
+    create_permissions = [core_permissions.IsStaff]
+    update_permissions = [core_permissions.IsStaff]
+    destroy_permissions = [core_permissions.IsStaff]
 
 
 class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
@@ -1086,6 +1091,12 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
                     "ATLASSIAN_WALDUR_BACKEND_ID_FIELD",
                     data["waldur_backend_id_field"],
                 )
+            if data.get("default_offering_issue_type"):
+                setattr(
+                    config,
+                    "ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE",
+                    data["default_offering_issue_type"],
+                )
 
             # Clear API configuration cache
             cache.delete("API_CONFIGURATION")
@@ -1145,7 +1156,20 @@ class AtlassianSettingsDiscoveryViewSet(CheckExtensionMixin, core_views.ActionsV
             "ATLASSIAN_SATISFACTION_FIELD": config.ATLASSIAN_SATISFACTION_FIELD,
             "ATLASSIAN_REQUEST_FEEDBACK_FIELD": config.ATLASSIAN_REQUEST_FEEDBACK_FIELD,
             "ATLASSIAN_WALDUR_BACKEND_ID_FIELD": config.ATLASSIAN_WALDUR_BACKEND_ID_FIELD,
-            # Masked credentials - just show if configured
+            "ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE": config.ATLASSIAN_DEFAULT_OFFERING_ISSUE_TYPE,
+            # Credentials info for pre-filling (secrets are not returned)
+            "ATLASSIAN_EMAIL": config.ATLASSIAN_EMAIL,
+            "ATLASSIAN_USERNAME": config.ATLASSIAN_USERNAME,
+            # Determine which auth method is configured
+            "auth_method": (
+                "api_token"
+                if config.ATLASSIAN_TOKEN
+                else (
+                    "personal_access_token"
+                    if config.ATLASSIAN_PERSONAL_ACCESS_TOKEN
+                    else ("basic" if config.ATLASSIAN_PASSWORD else None)
+                )
+            ),
             "auth_configured": bool(
                 config.ATLASSIAN_TOKEN
                 or config.ATLASSIAN_PERSONAL_ACCESS_TOKEN

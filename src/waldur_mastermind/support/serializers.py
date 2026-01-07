@@ -23,7 +23,10 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.registry import get_resource_type
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.support.backend.atlassian import ServiceDeskBackend
-from waldur_mastermind.support.enums import SupportWebhookEvent
+from waldur_mastermind.support.enums import (
+    JIRA_WEBHOOK_EVENT_MAP,
+    SupportWebhookEvent,
+)
 
 from . import backend, models
 
@@ -111,6 +114,10 @@ class IssueSerializer(
     destroy_is_available = serializers.SerializerMethodField()
     add_comment_is_available = serializers.SerializerMethodField()
     add_attachment_is_available = serializers.SerializerMethodField()
+    order_uuid = serializers.SerializerMethodField()
+    order_project_uuid = serializers.SerializerMethodField()
+    order_customer_uuid = serializers.SerializerMethodField()
+    order_resource_name = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Issue
@@ -157,6 +164,10 @@ class IssueSerializer(
             "add_comment_is_available",
             "add_attachment_is_available",
             "processing_log",
+            "order_uuid",
+            "order_project_uuid",
+            "order_customer_uuid",
+            "order_resource_name",
         )
         read_only_fields = (
             "key",
@@ -277,6 +288,32 @@ class IssueSerializer(
 
     def get_add_attachment_is_available(self, obj: models.Issue) -> bool:
         return backend.get_active_backend().attachment_create_is_available(obj)
+
+    def get_order_uuid(self, obj: models.Issue) -> str | None:
+        """Return order UUID if the issue's resource is an Order."""
+        if isinstance(obj.resource, marketplace_models.Order):
+            return obj.resource.uuid.hex
+        return None
+
+    def get_order_project_uuid(self, obj: models.Issue) -> str | None:
+        """Return order's project UUID if the issue's resource is an Order."""
+        if isinstance(obj.resource, marketplace_models.Order):
+            return obj.resource.project.uuid.hex
+        return None
+
+    def get_order_customer_uuid(self, obj: models.Issue) -> str | None:
+        """Return order's customer UUID if the issue's resource is an Order."""
+        if isinstance(obj.resource, marketplace_models.Order):
+            return obj.resource.project.customer.uuid.hex
+        return None
+
+    def get_order_resource_name(self, obj: models.Issue) -> str | None:
+        """Return order's resource name if the issue's resource is an Order."""
+        if isinstance(obj.resource, marketplace_models.Order):
+            order = obj.resource
+            if order.resource:
+                return order.resource.name
+        return None
 
     def validate(self, attrs):
         if self.instance is not None:
@@ -604,10 +641,7 @@ class JiraIssueSerializer(serializers.Serializer):
 
 
 class WebHookReceiverSerializer(serializers.Serializer):
-    class Event(SupportWebhookEvent):
-        pass
-
-    webhookEvent = serializers.ChoiceField(choices=Event.CHOICES)
+    webhookEvent = serializers.CharField()
     issue = JiraIssueSerializer()
     comment = JiraCommentSerializer(required=False)
     changelog = JiraChangelogSerializer(required=False)
@@ -618,7 +652,13 @@ class WebHookReceiverSerializer(serializers.Serializer):
     def create(self, validated_data):
         logger.debug("Processing webhook with data: %s", validated_data)
 
-        event_type = dict(self.Event.CHOICES).get(validated_data["webhookEvent"])
+        webhook_event = validated_data["webhookEvent"]
+        if webhook_event not in JIRA_WEBHOOK_EVENT_MAP:
+            raise serializers.ValidationError(
+                f"Unknown webhook event type: {webhook_event}"
+            )
+
+        event_type = JIRA_WEBHOOK_EVENT_MAP[webhook_event]
         logger.info("Processing webhook event type: %s", event_type)
 
         key = validated_data["issue"]["key"]
@@ -628,7 +668,7 @@ class WebHookReceiverSerializer(serializers.Serializer):
         issue: models.Issue = self.get_issue(key)
         logger.info("Loaded issue %s from database", issue)
 
-        if event_type == self.Event.ISSUE_DELETE:
+        if event_type == SupportWebhookEvent.ISSUE_DELETE:
             logger.info("Processing issue deletion for key: %s", key)
             backend.delete_issue_from_jira(issue)
         else:
@@ -848,6 +888,25 @@ class IssueStatusSerializer(serializers.HyperlinkedModelSerializer):
         return obj.get_type_display()
 
 
+class IssueStatusCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating and updating IssueStatus entries."""
+
+    class Meta:
+        model = models.IssueStatus
+        fields = ("name", "type")
+
+    def validate_name(self, value):
+        """Ensure name is unique (case-insensitive check for better UX)."""
+        queryset = models.IssueStatus.objects.filter(name__iexact=value)
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+        if queryset.exists():
+            raise serializers.ValidationError(
+                "Issue status with this name already exists."
+            )
+        return value
+
+
 class SmaxWebHookReceiverSerializer(serializers.Serializer):
     id = serializers.CharField()
 
@@ -1038,6 +1097,11 @@ class AtlassianSettingsPreviewSerializer(serializers.Serializer):
     satisfaction_field = serializers.CharField(required=False, allow_blank=True)
     request_feedback_field = serializers.CharField(required=False, allow_blank=True)
     waldur_backend_id_field = serializers.CharField(required=False, allow_blank=True)
+    default_offering_issue_type = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Default issue type for marketplace request-based orders",
+    )
 
     # Options
     use_old_api = serializers.BooleanField(default=False)
