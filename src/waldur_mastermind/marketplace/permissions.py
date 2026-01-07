@@ -45,6 +45,7 @@ def order_should_not_be_reviewed_by_consumer(order: models.Order):
         )
 
     # Skip approval of public offering belonging to the same organization under which the request is done
+    # UNLESS the offering has disabled auto-approval
     if (
         order.offering.shared
         and order.offering.customer == order.project.customer
@@ -52,6 +53,7 @@ def order_should_not_be_reviewed_by_consumer(order: models.Order):
             "auto_approve_in_service_provider_projects"
         )
         is True
+        and not order.offering.plugin_options.get("disable_autoapprove", False)
     ):
         return True
 

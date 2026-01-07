@@ -2,7 +2,7 @@ import datetime
 from unittest import mock
 
 from constance.test.unittest import override_config as override_constance_config
-from ddt import data, ddt
+from ddt import data, ddt, unpack
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -510,6 +510,64 @@ class OrderNotificationCreateTest(BaseOrderCreateTest):
             or "pending-consumer",
         )
         if auto_approve_in_service_provider_projects:
+            mocked_task.assert_not_called()
+
+    @data(
+        (True, False, "executing"),  # auto_approve=True, disable=False -> auto-approved
+        (
+            True,
+            True,
+            "pending-consumer",
+        ),  # auto_approve=True, disable=True -> manual approval
+        (
+            False,
+            False,
+            "pending-consumer",
+        ),  # auto_approve=False, disable=False -> manual approval
+        (
+            False,
+            True,
+            "pending-consumer",
+        ),  # auto_approve=False, disable=True -> manual approval
+    )
+    @unpack
+    def test_disable_autoapprove_overrides_auto_approval(
+        self, auto_approve, disable_autoapprove, expected_state, mocked_task
+    ):
+        """Test that disable_autoapprove flag correctly overrides auto-approval logic."""
+        consumer_fixture = provider_fixture = fixtures.ProjectFixture()
+        public_offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            shared=True,
+            billable=True,
+            customer=provider_fixture.customer,
+            type="TEST_TYPE",
+            plugin_options={
+                "auto_approve_in_service_provider_projects": auto_approve,
+                "disable_autoapprove": disable_autoapprove,
+            },
+        )
+
+        response = self.create_order(
+            consumer_fixture.admin,
+            public_offering,
+            add_payload={
+                "project": structure_factories.ProjectFactory.get_url(
+                    consumer_fixture.project
+                ),
+                "attributes": {"name": "test"},
+                "plan": factories.PlanFactory.get_public_url(
+                    factories.PlanFactory(offering=public_offering)
+                ),
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(response.data["state"], expected_state)
+
+        # Verify notification task is called only when manual approval is required
+        if expected_state == "pending-consumer":
+            mocked_task.assert_called()
+        else:
             mocked_task.assert_not_called()
 
 

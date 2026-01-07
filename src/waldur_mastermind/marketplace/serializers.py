@@ -137,6 +137,10 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="Skip approval of public offering belonging to the same organization under which the request is done",
     )
+    disable_autoapprove = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, orders for this offering will always require manual approval, overriding auto_approve_in_service_provider_projects",
+    )
     supports_downscaling = serializers.BooleanField(
         required=False,
         help_text="If set to True, it will be possible to downscale resources",
