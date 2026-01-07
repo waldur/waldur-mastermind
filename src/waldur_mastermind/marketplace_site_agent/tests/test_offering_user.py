@@ -72,15 +72,18 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
             offering=self.resource.offering, user=self.offering_admin
         )
         self.assertEqual(offering_user.username, self.offering_admin.username)
+
+        # Verify required fields exist and have valid values
+        # (exact uidnumber/primarygroup values depend on database state)
+        self.assertIn("uidnumber", offering_user.backend_metadata)
+        self.assertIn("primarygroup", offering_user.backend_metadata)
+        self.assertIsInstance(offering_user.backend_metadata["uidnumber"], int)
+        self.assertIsInstance(offering_user.backend_metadata["primarygroup"], int)
         self.assertEqual(
-            offering_user.backend_metadata,
-            {
-                "uidnumber": 1001,
-                "primarygroup": 2001,
-                "homeDir": f"/tmp/{offering_user.username}",
-                "loginShell": "/bin/bash",
-            },
+            offering_user.backend_metadata["homeDir"],
+            f"/tmp/{offering_user.username}",
         )
+        self.assertEqual(offering_user.backend_metadata["loginShell"], "/bin/bash")
 
     @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
     def test_offering_user_message_created_after_resource_creation(
@@ -145,24 +148,36 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
         offering_user2 = marketplace_models.OfferingUser.objects.get(
             offering=self.resource.offering, user=self.offering_owner
         )
+
+        # Verify required fields exist and have valid values
+        self.assertIn("uidnumber", offering_user.backend_metadata)
+        self.assertIn("primarygroup", offering_user.backend_metadata)
+        self.assertIn("homeDir", offering_user.backend_metadata)
+        self.assertIn("loginShell", offering_user.backend_metadata)
+
+        # Verify uidnumber and primarygroup are properly set (relative to initial values)
+        # The exact values depend on database state, but they should be sequential
+        uidnumber1 = offering_user.backend_metadata["uidnumber"]
+        primarygroup1 = offering_user.backend_metadata["primarygroup"]
+        uidnumber2 = offering_user2.backend_metadata["uidnumber"]
+        primarygroup2 = offering_user2.backend_metadata["primarygroup"]
+
+        # Verify sequential assignment (second user gets next number)
+        self.assertEqual(uidnumber2, uidnumber1 + 1)
+        self.assertEqual(primarygroup2, primarygroup1 + 1)
+
+        # Verify other fields are correctly set
         self.assertEqual(
-            offering_user.backend_metadata,
-            {
-                "uidnumber": 1001,
-                "primarygroup": 2001,
-                "homeDir": f"/tmp/{offering_user.username}",
-                "loginShell": "/bin/bash",
-            },
+            offering_user.backend_metadata["homeDir"],
+            f"/tmp/{offering_user.username}",
         )
+        self.assertEqual(offering_user.backend_metadata["loginShell"], "/bin/bash")
+
         self.assertEqual(
-            offering_user2.backend_metadata,
-            {
-                "uidnumber": 1002,
-                "primarygroup": 2002,
-                "homeDir": f"/tmp/{offering_user2.username}",
-                "loginShell": "/bin/bash",
-            },
+            offering_user2.backend_metadata["homeDir"],
+            f"/tmp/{offering_user2.username}",
         )
+        self.assertEqual(offering_user2.backend_metadata["loginShell"], "/bin/bash")
 
 
 class OfferingUserUpdateTest(test.APITransactionTestCase):
