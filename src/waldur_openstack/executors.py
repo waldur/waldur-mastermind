@@ -132,7 +132,6 @@ class PushSecurityGroupRulesExecutor(core_executors.ActionExecutor):
 def get_tenant_create_tasks(
     tenant: models.Tenant,
     skip_connection_extnet=False,
-    skip_creation_of_default_router=False,
 ):
     serialized_tenant = core_utils.serialize_instance(tenant)
     creation_tasks = [
@@ -155,19 +154,14 @@ def get_tenant_create_tasks(
             "sync_default_security_group",
         ),
     ]
-    if not skip_creation_of_default_router:
+    if not tenant.skip_creation_of_default_router:
         for router in tenant.routers.all():
             creation_tasks.append(RouterCreateExecutor.as_signature(router))
             creation_tasks.append(RouterSetRoutesExecutor.as_signature(router))
     for network in tenant.networks.all():
         creation_tasks.append(NetworkCreateExecutor.as_signature(network))
         for subnet in network.subnets.all():
-            creation_tasks.append(
-                SubNetCreateExecutor.as_signature(
-                    subnet,
-                    skip_creation_of_default_router=skip_creation_of_default_router,
-                )
-            )
+            creation_tasks.append(SubNetCreateExecutor.as_signature(subnet))
     security_groups = utils.reorder_security_groups_topologically(
         list(tenant.security_groups.exclude(name="default"))
     )
@@ -177,7 +171,7 @@ def get_tenant_create_tasks(
     if (
         external_network_id
         and not skip_connection_extnet
-        and not skip_creation_of_default_router
+        and not tenant.skip_creation_of_default_router
     ):
         creation_tasks.append(
             core_tasks.BackendMethodTask().si(
@@ -219,9 +213,6 @@ class TenantCreateExecutor(core_executors.BaseExecutor):
         return get_tenant_create_tasks(
             tenant,
             skip_connection_extnet=kwargs.get("skip_connection_extnet", False),
-            skip_creation_of_default_router=kwargs.get(
-                "skip_creation_of_default_router", False
-            ),
         )
 
     @classmethod
@@ -716,13 +707,9 @@ class SetMtuExecutor(core_executors.ActionExecutor):
 class SubNetCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, subnet, serialized_subnet, **kwargs):
-        skip_creation_of_default_router = kwargs.get(
-            "skip_creation_of_default_router", False
-        )
         return core_tasks.BackendMethodTask().si(
             serialized_subnet,
             "create_subnet",
-            skip_creation_of_default_router=skip_creation_of_default_router,
             state_transition="begin_creating",
         )
 

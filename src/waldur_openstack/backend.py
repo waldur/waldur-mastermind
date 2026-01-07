@@ -2652,9 +2652,7 @@ class OpenStackBackend(ServiceBackend):
         self.pull_subnets(network=network)
 
     @log_backend_action()
-    def create_subnet(
-        self, subnet: models.SubNet, skip_creation_of_default_router=False
-    ):
+    def create_subnet(self, subnet: models.SubNet):
         session = get_tenant_session(subnet.tenant)
         neutron = get_neutron_client(session)
 
@@ -2684,7 +2682,7 @@ class OpenStackBackend(ServiceBackend):
                 subnet.gateway_ip = backend_subnet["gateway_ip"]
 
             # Automatically create router for subnet
-            if not skip_creation_of_default_router:
+            if not subnet.tenant.skip_creation_of_default_router:
                 self.connect_subnet(subnet)
         except neutron_exceptions.NeutronException as e:
             raise OpenStackBackendError(e)
@@ -2765,6 +2763,13 @@ class OpenStackBackend(ServiceBackend):
             )
 
     def connect_subnet(self, subnet: models.SubNet):
+        if subnet.tenant.skip_creation_of_default_router:
+            logger.info(
+                "Skipping router connection for subnet %s: tenant has skip_creation_of_default_router=True",
+                subnet.name,
+            )
+            return
+
         self.connect_router(
             subnet.network.tenant,
             subnet.network.name,
@@ -3140,6 +3145,13 @@ class OpenStackBackend(ServiceBackend):
         external=False,
         network_id=None,
     ):
+        if tenant.skip_creation_of_default_router:
+            logger.info(
+                "Skipping router connection for tenant %s: skip_creation_of_default_router=True",
+                tenant.name,
+            )
+            return None
+
         router_name = f"{network_name}-router"
         router = self._get_router(tenant) or self._create_router(tenant, router_name)
         self._connect_network_to_router(tenant, router, external, network_id, subnet_id)
