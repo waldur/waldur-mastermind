@@ -1062,27 +1062,49 @@ class ResourceInvoiceListPullTask(BackgroundListPullTask):
         )
 
 
-# Monkey-patch the API client's RobotAccountStates to handle string values
+# Monkey-patch the API client's RobotAccountStates to handle different enum versions
+# Some versions use IntEnum with integer values (VALUE_1=1, VALUE_2=2, etc.)
+# Other versions use StrEnum with string values (OK="OK", CREATING="Creating", etc.)
 _original_new = ApiRobotAccountStates.__new__
+_is_int_enum = issubclass(ApiRobotAccountStates, int)
+
+# Mapping from display strings to both integer and string enum values
+_STATE_DISPLAY_TO_INT = {
+    "Requested": 1,
+    "Creating": 2,
+    "OK": 3,
+    "Requested deletion": 4,
+    "Deleted": 5,
+    "Error": 6,
+}
+_STATE_INT_TO_DISPLAY = {v: k for k, v in _STATE_DISPLAY_TO_INT.items()}
 
 
 def _patched_new(cls, value):
-    """Handle both string display values and integer values for RobotAccountStates."""
-    if isinstance(value, str):
-        # Map string display values to integer constants
-        state_mapping = {
-            "Requested": 1,
-            "Creating": 2,
-            "OK": 3,
-            "Requested deletion": 4,
-            "Deleted": 5,
-            "Error": 6,
-        }
-        if value in state_mapping:
-            value = state_mapping[value]
-        elif value.isdigit():
-            # Handle numeric strings like "3" returned by some API versions
-            value = int(value)
+    """Handle both IntEnum and StrEnum versions of RobotAccountStates.
+
+    Fixes PUHURI-PORTALS-DC4: ValueError: 3 is not a valid RobotAccountStates
+    """
+    if _is_int_enum:
+        # IntEnum version expects integer values
+        if isinstance(value, str):
+            if value in _STATE_DISPLAY_TO_INT:
+                # Convert display string to integer
+                value = _STATE_DISPLAY_TO_INT[value]
+            elif value.isdigit():
+                # Handle numeric strings like "3"
+                value = int(value)
+    else:
+        # StrEnum version expects string values
+        if isinstance(value, int):
+            # Convert integer to display string
+            if value in _STATE_INT_TO_DISPLAY:
+                value = _STATE_INT_TO_DISPLAY[value]
+        elif isinstance(value, str) and value.isdigit():
+            # Handle numeric strings like "3" - convert to display string
+            int_value = int(value)
+            if int_value in _STATE_INT_TO_DISPLAY:
+                value = _STATE_INT_TO_DISPLAY[int_value]
     return _original_new(cls, value)
 
 

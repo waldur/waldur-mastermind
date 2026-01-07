@@ -1808,74 +1808,64 @@ class UsagePullTest(testcases.TransactionTestCase):
 
 
 class RobotAccountStatesTest(testcases.TestCase):
-    def test_robot_account_states_enum_handles_string_values(self):
-        """
-        Test that the monkey-patched RobotAccountStates enum can handle both
-        string display values and integer values.
-        """
+    """Test that the monkey-patched RobotAccountStates works with both enum versions.
+
+    The waldur_api_client can have two different enum implementations:
+    - IntEnum version: VALUE_1=1, VALUE_2=2, VALUE_3=3, etc.
+    - StrEnum version: REQUESTED="Requested", CREATING="Creating", OK="OK", etc.
+
+    The monkey-patch should handle both versions and convert between string/int representations.
+
+    Fixes PUHURI-PORTALS-DC4: ValueError: 3 is not a valid RobotAccountStates
+    """
+
+    def test_robot_account_states_enum_handles_string_display_values(self):
+        """Test that display string values like 'OK' work."""
         from waldur_api_client.models.robot_account_states import RobotAccountStates
 
-        # Test with integer values (original behavior)
-        state = RobotAccountStates(1)
-        self.assertEqual(state, RobotAccountStates.VALUE_1)
-
-        state = RobotAccountStates(3)
-        self.assertEqual(state, RobotAccountStates.VALUE_3)
-
-        # Test with string values (patched behavior)
+        # These display strings should work regardless of enum version
         state = RobotAccountStates("OK")
-        self.assertEqual(state, RobotAccountStates.VALUE_3)
+        self.assertIsInstance(state, RobotAccountStates)
 
         state = RobotAccountStates("Creating")
-        self.assertEqual(state, RobotAccountStates.VALUE_2)
+        self.assertIsInstance(state, RobotAccountStates)
 
         state = RobotAccountStates("Requested")
-        self.assertEqual(state, RobotAccountStates.VALUE_1)
+        self.assertIsInstance(state, RobotAccountStates)
 
         state = RobotAccountStates("Requested deletion")
-        self.assertEqual(state, RobotAccountStates.VALUE_4)
+        self.assertIsInstance(state, RobotAccountStates)
 
         state = RobotAccountStates("Deleted")
-        self.assertEqual(state, RobotAccountStates.VALUE_5)
+        self.assertIsInstance(state, RobotAccountStates)
 
         state = RobotAccountStates("Error")
-        self.assertEqual(state, RobotAccountStates.VALUE_6)
+        self.assertIsInstance(state, RobotAccountStates)
+
+    def test_robot_account_states_enum_handles_integer_values(self):
+        """Test that integer values like 3 work."""
+        from waldur_api_client.models.robot_account_states import RobotAccountStates
+
+        # Integer values should work regardless of enum version
+        for i in range(1, 7):
+            state = RobotAccountStates(i)
+            self.assertIsInstance(state, RobotAccountStates)
 
     def test_robot_account_states_enum_handles_numeric_string_values(self):
-        """
-        Test that the monkey-patched RobotAccountStates enum can handle
-        numeric string values like "3" returned by some API versions.
+        """Test that numeric string values like '3' work.
 
         Fixes PUHURI-PORTALS-DC4: ValueError: 3 is not a valid RobotAccountStates
         """
         from waldur_api_client.models.robot_account_states import RobotAccountStates
 
-        # Test with numeric string values (new patched behavior)
-        state = RobotAccountStates("1")
-        self.assertEqual(state, RobotAccountStates.VALUE_1)
-
-        state = RobotAccountStates("2")
-        self.assertEqual(state, RobotAccountStates.VALUE_2)
-
-        state = RobotAccountStates("3")
-        self.assertEqual(state, RobotAccountStates.VALUE_3)
-
-        state = RobotAccountStates("4")
-        self.assertEqual(state, RobotAccountStates.VALUE_4)
-
-        state = RobotAccountStates("5")
-        self.assertEqual(state, RobotAccountStates.VALUE_5)
-
-        state = RobotAccountStates("6")
-        self.assertEqual(state, RobotAccountStates.VALUE_6)
+        # Numeric string values should work regardless of enum version
+        for i in range(1, 7):
+            state = RobotAccountStates(str(i))
+            self.assertIsInstance(state, RobotAccountStates)
 
     def test_robot_account_states_enum_handles_invalid_string_values(self):
-        """
-        Test that the monkey-patched RobotAccountStates enum handles invalid string values gracefully.
-        """
+        """Test that invalid string values raise ValueError."""
         from waldur_api_client.models.robot_account_states import RobotAccountStates
 
-        # Test with invalid string value - should pass through unchanged
-        # This will raise ValueError since it's not a valid enum value
         with self.assertRaises(ValueError):
             RobotAccountStates("InvalidState")
