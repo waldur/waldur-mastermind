@@ -75,7 +75,8 @@ INSTALLED_APPS = (
     "health_check.cache",
     "health_check.storage",
     "health_check.contrib.migrations",
-    "health_check.contrib.celery_ping",
+    # Note: We use waldur_core.core.health_checks.CeleryWorkersHealthCheck instead of
+    # health_check.contrib.celery_ping for better performance (connection pooling + targeted pings)
     "dbtemplates",
     "netfields",
     "constance",
