@@ -5,7 +5,7 @@ from unittest import mock
 from rest_framework import test
 
 from waldur_openstack.backend import OpenStackBackend
-from waldur_openstack.tests import fixtures
+from waldur_openstack.tests import factories, fixtures
 
 
 class ExternalNetworkAutoRecoveryTest(test.APITransactionTestCase):
@@ -180,6 +180,35 @@ class ExternalNetworkAutoRecoveryTest(test.APITransactionTestCase):
             # Verify auto-recovery was NOT attempted
             mock_connect.assert_not_called()
 
+    @mock.patch("waldur_openstack.backend.get_tenant_session")
+    @mock.patch("waldur_openstack.backend.get_neutron_client")
+    def test_detect_external_network_selects_specified_router_when_provided(
+        self, mock_neutron_client, mock_session
+    ):
+        factories.RouterFactory(tenant=self.tenant, backend_id="router-1")
+        router2 = factories.RouterFactory(tenant=self.tenant, backend_id="router-2")
+
+        mock_neutron_client().list_routers.return_value = {
+            "routers": [
+                {
+                    "id": "router-1",
+                    "external_gateway_info": {"network_id": "ext-net-1"},
+                },
+                {
+                    "id": "router-2",
+                    "external_gateway_info": {"network_id": "ext-net-2"},
+                },
+            ]
+        }
+
+        self.tenant.external_network_id = ""
+        self.tenant.save()
+
+        self.backend.detect_external_network(self.tenant, router=router2)
+
+        self.tenant.refresh_from_db()
+        self.assertEqual(self.tenant.external_network_id, "ext-net-2")
+
 
 class FloatingIPCreationRecoveryTest(test.APITransactionTestCase):
     """Test auto-recovery during floating IP creation."""
@@ -227,7 +256,7 @@ class FloatingIPCreationRecoveryTest(test.APITransactionTestCase):
             self.backend.create_floating_ip(self.floating_ip)
 
             # Verify recovery was attempted
-            mock_detect.assert_called_once_with(self.tenant)
+            mock_detect.assert_called_once_with(self.tenant, router=None)
 
             # Verify floating IP was created with external network from settings
             mock_client.create_floatingip.assert_called_once()

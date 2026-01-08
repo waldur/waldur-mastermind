@@ -2460,7 +2460,9 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e.message)
 
     @log_backend_action()
-    def detect_external_network(self, tenant: models.Tenant):
+    def detect_external_network(
+        self, tenant: models.Tenant, router: models.Router | None = None
+    ):
         """
         Detect and recover external network configuration for tenant.
         If no external network is found but one is configured in settings, attempt auto-recovery.
@@ -2474,16 +2476,37 @@ class OpenStackBackend(ServiceBackend):
 
         # Check if router exists with external gateway
         if bool(routers):
-            router = routers[0]
-            ext_gw = router.get("external_gateway_info", {})
+            if router:
+                router_backend_id = router.backend_id
+                selected_router = None
+                for r in routers:
+                    if r["id"] == router_backend_id:
+                        selected_router = r
+                        break
+
+                if not selected_router:
+                    logger.warning(
+                        "Router %s (backend_id: %s) not found in tenant %s routers. "
+                        "Falling back to first router.",
+                        router,
+                        router_backend_id,
+                        tenant,
+                    )
+                    selected_router = routers[0]
+            else:
+                selected_router = routers[0]
+
+            ext_gw = selected_router.get("external_gateway_info", {})
             if ext_gw and "network_id" in ext_gw:
                 tenant.external_network_id = ext_gw["network_id"]
                 tenant.save()
                 logger.info(
-                    "Found and set external network with id %s for tenant %s (PK: %s)",
+                    "Found and set external network with id %s for tenant %s (PK: %s) "
+                    "using router %s",
                     ext_gw["network_id"],
                     tenant,
                     tenant.pk,
+                    selected_router.get("id", "unknown"),
                 )
                 return
 
@@ -2936,8 +2959,14 @@ class OpenStackBackend(ServiceBackend):
             )
 
     @log_backend_action("create floating ip")
-    def create_floating_ip(self, floating_ip: models.FloatingIP):
+    def create_floating_ip(
+        self, floating_ip: models.FloatingIP, serialized_router=None, **kwargs
+    ):
         external_network_id = get_external_network_id(floating_ip.tenant)
+
+        router = None
+        if serialized_router:
+            router = core_utils.deserialize_instance(serialized_router)
 
         # If external_network_id from settings but not on tenant, attempt recovery
         if external_network_id and not floating_ip.tenant.external_network_id:
@@ -2946,7 +2975,7 @@ class OpenStackBackend(ServiceBackend):
                 floating_ip.tenant,
             )
             try:
-                self.detect_external_network(floating_ip.tenant)
+                self.detect_external_network(floating_ip.tenant, router=router)
                 floating_ip.tenant.refresh_from_db()
                 # Re-check after recovery attempt
                 external_network_id = get_external_network_id(floating_ip.tenant)

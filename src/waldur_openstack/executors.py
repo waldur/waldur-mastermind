@@ -416,10 +416,17 @@ class TenantAllocateFloatingIPExecutor(core_executors.ActionExecutor):
 class FloatingIPCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, floating_ip, serialized_floating_ip, **kwargs):
+        task_kwargs = {"state_transition": "begin_creating"}
+
+        router = kwargs.get("router")
+        if router:
+            serialized_router = core_utils.serialize_instance(router)
+            task_kwargs["serialized_router"] = serialized_router
+
         return core_tasks.BackendMethodTask().si(
             serialized_floating_ip,
             "create_floating_ip",
-            state_transition="begin_creating",
+            **task_kwargs,
         )
 
 

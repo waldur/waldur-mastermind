@@ -360,6 +360,15 @@ class OpenStackFloatingIPSerializer(structure_serializers.BaseResourceActionSeri
     )
 
     port_fixed_ips = OpenStackFixedIpField(source="port.fixed_ips", read_only=True)
+    router = serializers.HyperlinkedRelatedField(
+        view_name="openstack-router-detail",
+        lookup_field="uuid",
+        queryset=models.Router.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+        help_text=_("Optional router to use for external network detection"),
+    )
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.FloatingIP
@@ -373,6 +382,7 @@ class OpenStackFloatingIPSerializer(structure_serializers.BaseResourceActionSeri
             "port",
             "external_address",
             "port_fixed_ips",
+            "router",
         )
         related_paths = ("tenant",)
         read_only_fields = (
@@ -402,6 +412,13 @@ class OpenStackFloatingIPSerializer(structure_serializers.BaseResourceActionSeri
         attrs["tenant"] = tenant = self.context["view"].get_object()
         attrs["service_settings"] = tenant.service_settings
         attrs["project"] = tenant.project
+
+        router = attrs.get("router")
+        if router and router.tenant != tenant:
+            raise serializers.ValidationError(
+                {"router": _("Router must belong to the same tenant.")}
+            )
+
         return super().validate(attrs)
 
 
