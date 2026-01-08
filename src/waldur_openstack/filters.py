@@ -124,7 +124,7 @@ class VolumeTypeFilter(
 class RouterFilter(TenantFilterSet, structure_filters.NameFilterSet):
     class Meta:
         model = models.Router
-        fields = ()
+        fields = ("state",)
 
 
 class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
