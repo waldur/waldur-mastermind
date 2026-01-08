@@ -635,6 +635,23 @@ class TenantCreateFloatingIPTest(BaseTenantActionsTest):
         self.assertEqual(self.tenant.floating_ips.count(), 0)
         self.assertFalse(mocked_task.called)
 
+    def test_create_floating_ip_with_router_passes_serialized_router_to_task(
+        self, mocked_task
+    ):
+        router = factories.RouterFactory(tenant=self.tenant)
+        router_url = factories.RouterFactory.get_url(router)
+
+        response = self.client.post(self.url, {"router": router_url})
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        mocked_task.assert_called_once()
+
+        call_args = mocked_task.call_args
+        executor_kwargs = call_args[1]
+
+        self.assertIn("router", executor_kwargs)
+        self.assertEqual(executor_kwargs["router"], router)
+
 
 @patch("waldur_openstack.executors.NetworkCreateExecutor.execute")
 class TenantCreateNetworkTest(BaseTenantActionsTest):

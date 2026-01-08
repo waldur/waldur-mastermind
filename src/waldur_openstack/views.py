@@ -634,7 +634,12 @@ On successful completion the task will synchronize quotas with the backend.
         serializer.is_valid(raise_exception=True)
         floating_ip = serializer.save()
 
-        executors.FloatingIPCreateExecutor.execute(floating_ip)
+        router = serializer.validated_data.get("router")
+        executor_kwargs = {}
+        if router:
+            executor_kwargs["router"] = router
+
+        executors.FloatingIPCreateExecutor.execute(floating_ip, **executor_kwargs)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
 
     create_floating_ip_validators = [
