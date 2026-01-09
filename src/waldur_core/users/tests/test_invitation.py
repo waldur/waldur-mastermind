@@ -2139,6 +2139,52 @@ class InvitationUpdateTest(BaseInvitationTest):
         self.assertEqual(self.invitation.role, CustomerRole.SUPPORT)
 
 
+class IsPermanentWebhookErrorTest(test.APITransactionTestCase):
+    def test_returns_true_for_4xx_errors(self):
+        """4xx HTTP errors are permanent and should not be retried."""
+        test_cases = [
+            'Invitation sending has failed: 400, {"error": "Bad request"}',
+            "Invitation sending has failed: 401, Unauthorized",
+            "Invitation sending has failed: 403, Forbidden",
+            "Invitation sending has failed: 404, Not Found",
+            'Invitation sending has failed: 409, {"errorType":"error","message":"User is disabled"}',
+            "Invitation sending has failed: 410, Gone",
+            "Invitation sending has failed: 422, Unprocessable Entity",
+        ]
+        for error_message in test_cases:
+            with self.subTest(error_message=error_message):
+                self.assertTrue(tasks.is_permanent_webhook_error(error_message))
+
+    def test_returns_false_for_5xx_errors(self):
+        """5xx HTTP errors are temporary and should be retried."""
+        test_cases = [
+            "Invitation sending has failed: 500, Internal Server Error",
+            "Invitation sending has failed: 502, Bad Gateway",
+            "Invitation sending has failed: 503, Service Unavailable",
+            "Invitation sending has failed: 504, Gateway Timeout",
+        ]
+        for error_message in test_cases:
+            with self.subTest(error_message=error_message):
+                self.assertFalse(tasks.is_permanent_webhook_error(error_message))
+
+    def test_returns_false_for_empty_or_none(self):
+        """Empty or None error messages should not be treated as permanent errors."""
+        self.assertFalse(tasks.is_permanent_webhook_error(""))
+        self.assertFalse(tasks.is_permanent_webhook_error(None))
+
+    def test_returns_false_for_non_http_errors(self):
+        """Non-HTTP error messages should not be treated as permanent errors."""
+        test_cases = [
+            "Connection refused",
+            "Unable to fetch access token",
+            "Network timeout",
+            "SMTP error",
+        ]
+        for error_message in test_cases:
+            with self.subTest(error_message=error_message):
+                self.assertFalse(tasks.is_permanent_webhook_error(error_message))
+
+
 class InvitationResendStuckTaskTest(test.APITransactionTestCase):
     def setUp(self):
         self.sender = structure_factories.UserFactory()
@@ -2196,6 +2242,35 @@ class InvitationResendStuckTaskTest(test.APITransactionTestCase):
         with mock.patch("waldur_core.users.tasks.process_invitation") as process:
             tasks.resend_stuck_invitations()
             process.delay.assert_not_called()
+
+    def test_skips_invitations_with_permanent_webhook_errors(self):
+        """Invitations with 4xx HTTP errors from webhooks should not be retried."""
+        factories.ProjectInvitationFactory(
+            state=InvitationState.PENDING,
+            execution_state=models.Invitation.ExecutionState.ERRED,
+            created_by=self.sender,
+            error_message='Invitation sending has failed: 409, {"errorType":"error","message":"User with email test@example.com is disabled","data":null}',
+        )
+
+        with mock.patch("waldur_core.users.tasks.process_invitation") as process:
+            tasks.resend_stuck_invitations()
+            process.delay.assert_not_called()
+
+    def test_retries_invitations_with_temporary_webhook_errors(self):
+        """Invitations with 5xx HTTP errors from webhooks should be retried."""
+        invitation = factories.ProjectInvitationFactory(
+            state=InvitationState.PENDING,
+            execution_state=models.Invitation.ExecutionState.ERRED,
+            created_by=self.sender,
+            error_message="Invitation sending has failed: 500, Internal Server Error",
+        )
+
+        with mock.patch("waldur_core.users.tasks.process_invitation") as process:
+            tasks.resend_stuck_invitations()
+            process.delay.assert_called_once_with(
+                invitation.uuid.hex,
+                self.sender.full_name or self.sender.username,
+            )
 
 
 class InvitationWebhookScopeTest(test.APITransactionTestCase):
