@@ -76,7 +76,7 @@ class QuestionsAdminView(core_views.ActionsViewSet):
 
 
 class QuestionOptionAdminViewSet(core_views.ActionsViewSet):
-    queryset = models.QuestionOption.objects.all().order_by(
+    queryset = models.QuestionOption.objects.select_related("question").order_by(
         "question__checklist", "question"
     )
     serializer_class = serializers.QuestionOptionsAdminSerializer

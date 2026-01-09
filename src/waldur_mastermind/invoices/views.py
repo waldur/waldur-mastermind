@@ -380,7 +380,13 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
 
 class InvoiceItemViewSet(core_views.ActionsViewSet):
     disabled_actions = ["create"]
-    queryset = models.InvoiceItem.objects.all().order_by("start")
+    queryset = models.InvoiceItem.objects.select_related(
+        "invoice",
+        "resource",
+        "resource__offering",
+        "plan_component",
+        "plan_component__component",
+    ).order_by("start")
     serializer_class = serializers.InvoiceItemDetailSerializer
     lookup_field = "uuid"
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
