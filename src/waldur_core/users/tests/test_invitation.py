@@ -2196,3 +2196,61 @@ class InvitationResendStuckTaskTest(test.APITransactionTestCase):
         with mock.patch("waldur_core.users.tasks.process_invitation") as process:
             tasks.resend_stuck_invitations()
             process.delay.assert_not_called()
+
+
+class InvitationWebhookScopeTest(test.APITransactionTestCase):
+    """Tests for webhook scope filtering - webhooks only support project invitations."""
+
+    def setUp(self):
+        self.sender = structure_factories.UserFactory()
+
+    @override_waldur_core_settings(
+        INVITATION_USE_WEBHOOKS=True,
+        INVITATION_WEBHOOK_URL="https://example.com/webhook",
+    )
+    def test_project_invitation_uses_webhook_when_enabled(self):
+        """Project invitations should be sent via webhook when webhooks are enabled."""
+        invitation = factories.ProjectInvitationFactory(
+            state=InvitationState.PENDING,
+            created_by=self.sender,
+        )
+
+        with mock.patch("waldur_core.users.utils.post_invitation_to_url") as mock_post:
+            tasks.send_invitation_created(invitation.uuid.hex, self.sender.full_name)
+            mock_post.assert_called_once()
+
+    @override_waldur_core_settings(INVITATION_USE_WEBHOOKS=True)
+    def test_customer_invitation_falls_back_to_email_when_webhooks_enabled(self):
+        """Customer invitations should fall back to email even when webhooks are enabled."""
+        invitation = factories.CustomerInvitationFactory(
+            state=InvitationState.PENDING,
+            created_by=self.sender,
+        )
+
+        with (
+            mock.patch(
+                "waldur_core.users.utils.post_invitation_to_url"
+            ) as mock_webhook,
+            mock.patch("waldur_core.users.tasks.broadcast_mail") as mock_email,
+        ):
+            tasks.send_invitation_created(invitation.uuid.hex, self.sender.full_name)
+            mock_webhook.assert_not_called()
+            mock_email.assert_called_once()
+
+    @override_waldur_core_settings(INVITATION_USE_WEBHOOKS=False)
+    def test_project_invitation_uses_email_when_webhooks_disabled(self):
+        """Project invitations should use email when webhooks are disabled."""
+        invitation = factories.ProjectInvitationFactory(
+            state=InvitationState.PENDING,
+            created_by=self.sender,
+        )
+
+        with (
+            mock.patch(
+                "waldur_core.users.utils.post_invitation_to_url"
+            ) as mock_webhook,
+            mock.patch("waldur_core.users.tasks.broadcast_mail") as mock_email,
+        ):
+            tasks.send_invitation_created(invitation.uuid.hex, self.sender.full_name)
+            mock_webhook.assert_not_called()
+            mock_email.assert_called_once()
