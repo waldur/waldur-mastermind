@@ -30,6 +30,12 @@ logger = logging.getLogger(__name__)
 def get_invitation_context(invitation: models.Invitation, sender):
     context = {"extra_invitation_text": invitation.extra_invitation_text}
 
+    if invitation.scope is None:
+        raise ValueError(
+            f"Invitation {invitation.uuid} has no scope - "
+            "the related object may have been deleted"
+        )
+
     context.update(
         dict(
             type=str(
