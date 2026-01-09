@@ -1,4 +1,5 @@
 import logging
+import re
 import traceback
 from datetime import timedelta
 from smtplib import SMTPException
@@ -242,6 +243,27 @@ def send_reminder_for_pending_invitations():
         )
 
 
+def is_permanent_webhook_error(error_message: str) -> bool:
+    """
+    Check if the error message indicates a permanent failure that shouldn't be retried.
+
+    HTTP 4xx errors (client errors) are typically permanent failures:
+    - 400 Bad Request: The request is invalid
+    - 401/403 Unauthorized/Forbidden: Authentication/authorization issues
+    - 404 Not Found: Resource doesn't exist
+    - 409 Conflict: Conflict with current state (e.g., user disabled)
+    - 410 Gone: Resource no longer available
+
+    HTTP 5xx errors (server errors) are typically temporary and can be retried.
+    """
+    if not error_message:
+        return False
+
+    # Match patterns like "has failed: 4XX" where XX is any two digits
+    pattern = r"has failed: 4\d{2}"
+    return bool(re.search(pattern, error_message))
+
+
 @shared_task(name="waldur_core.users.resend_stuck_invitations")
 def resend_stuck_invitations():
     """
@@ -264,6 +286,15 @@ def resend_stuck_invitations():
             logger.warning(
                 "Skipping stuck invitation %s: scope was deleted",
                 invitation.uuid,
+            )
+            continue
+
+        # Skip invitations with permanent errors (4xx HTTP status codes)
+        if is_permanent_webhook_error(invitation.error_message):
+            logger.debug(
+                "Skipping invitation %s due to permanent error: %s",
+                invitation.uuid.hex,
+                invitation.error_message,
             )
             continue
 
