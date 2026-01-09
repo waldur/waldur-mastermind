@@ -97,7 +97,14 @@ def send_invitation_created(invitation_uuid, sender):
     site_link = format_homeport_link()
     context["site_host"] = urlparse(site_link).hostname
 
-    if settings.WALDUR_CORE["INVITATION_USE_WEBHOOKS"]:
+    # Webhooks only support project invitations. For other scope types (customer,
+    # organization, call), fall back to email.
+    is_project_invitation = isinstance(invitation.scope, structure_models.Project)
+    use_webhook = (
+        settings.WALDUR_CORE["INVITATION_USE_WEBHOOKS"] and is_project_invitation
+    )
+
+    if use_webhook:
         webhook_url = settings.WALDUR_CORE["INVITATION_WEBHOOK_URL"]
 
         if webhook_url == "":
