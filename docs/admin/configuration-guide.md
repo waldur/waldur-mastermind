@@ -1477,6 +1477,8 @@ Brand color is used for button background.
 
 Toggler to disable dark theme.
 
+### Login page
+
 #### LOGIN_PAGE_LAYOUT
 
 **Type:** str
@@ -1980,6 +1982,116 @@ Toggler for SSL verification
 **Default value:** 7
 
 Review duration in days.
+
+#### REVIEWER_PROFILES_ENABLED
+
+**Type:** bool
+
+**Default value:** True
+
+Enable reviewer profile management features.
+
+#### COI_DETECTION_ENABLED
+
+**Type:** bool
+
+**Default value:** True
+
+Enable conflict of interest detection features.
+
+#### COI_DISCLOSURE_REQUIRED
+
+**Type:** bool
+
+Require reviewers to submit COI disclosure before reviewing proposals.
+
+#### AUTOMATED_MATCHING_ENABLED
+
+**Type:** bool
+
+**Default value:** True
+
+Enable automated reviewer-proposal matching algorithms.
+
+#### COI_COAUTHORSHIP_LOOKBACK_YEARS
+
+**Type:** int
+
+**Default value:** 5
+
+Default number of years to look back for co-authorship COI detection.
+
+#### COI_COAUTHORSHIP_THRESHOLD_PAPERS
+
+**Type:** int
+
+**Default value:** 2
+
+Default number of co-authored papers to trigger a COI.
+
+#### COI_INSTITUTIONAL_LOOKBACK_YEARS
+
+**Type:** int
+
+**Default value:** 3
+
+Default number of years after leaving institution before COI expires.
+
+### ORCID integration settings
+
+#### ORCID_CLIENT_ID
+
+**Type:** str
+
+ORCID OAuth2 Client ID for reviewer profile integration.
+
+#### ORCID_CLIENT_SECRET
+
+**Type:** secret_field
+
+ORCID OAuth2 Client Secret.
+
+#### ORCID_REDIRECT_URI
+
+**Type:** url_field
+
+ORCID OAuth2 Redirect URI. Typically {HOMEPORT_URL}/orcid-callback/
+
+#### ORCID_API_URL
+
+**Type:** url_field
+
+**Default value:** <https://pub.orcid.org/v3.0>
+
+ORCID API Base URL. Use https://pub.sandbox.orcid.org/v3.0 for testing.
+
+#### ORCID_AUTH_URL
+
+**Type:** url_field
+
+**Default value:** <https://orcid.org/oauth>
+
+ORCID OAuth Authorization URL. Use https://sandbox.orcid.org/oauth for testing.
+
+#### ORCID_SANDBOX_MODE
+
+**Type:** bool
+
+Use ORCID sandbox environment for testing. When enabled, uses sandbox URLs automatically.
+
+### Publication API settings
+
+#### SEMANTIC_SCHOLAR_API_KEY
+
+**Type:** secret_field
+
+Semantic Scholar API Key for publication imports. Optional but recommended for higher rate limits.
+
+#### CROSSREF_MAILTO
+
+**Type:** email_field
+
+Email address for CrossRef API polite pool. Provides higher rate limits.
 
 ### Table settings
 

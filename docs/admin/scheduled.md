@@ -36,8 +36,6 @@ td:nth-child(4) {
 | `cleanup-orphaned-answers` | `waldur_core.checklist.cleanup_orphaned_answers` | 1 day | Task not found in registry |
 | `cleanup_stale_offering_users` | `waldur_mastermind.marketplace.cleanup_stale_offering_users` | 1 day | Periodic task to clean up offering users who no longer have project access. |
 | `core-reset-updating-resources` | `waldur_core.reset_updating_resources` | 10 minutes | Reset resources stuck in UPDATING state when their Celery tasks are completed. |
-| `create-reviews-if-strategy-is-after-proposal` | `waldur_mastermind.proposal.create_reviews_if_strategy_is_after_proposal` | 1 hour | Create reviews for active rounds with 'after proposal' review strategy. |
-| `create-reviews-if-strategy-is-after-round` | `waldur_mastermind.proposal.create_reviews_if_strategy_is_after_round` | 1 hour | Create reviews for active rounds with 'after round' review strategy. |
 | `create_customer_permission_reviews` | `waldur_core.structure.create_customer_permission_reviews` | 1 day | Create customer permission reviews for customers that need periodic review of user permissions. |
 | `create_project_permission_reviews` | `waldur_core.structure.create_project_permission_reviews` | 1 day | Create project permission reviews for projects that need periodic review of user permissions. |
 | `delete-dangling-event-subscriptions` | `waldur_core.logging.delete_dangling_event_subscriptions` | 1 hour | No description available |
@@ -45,6 +43,7 @@ td:nth-child(4) {
 | `delete-stale-event-subscriptions` | `waldur_core.logging.delete_stale_event_subscriptions` | 1 day | No description available |
 | `expire-stale-verifications` | `waldur_core.onboarding.expire_stale_verifications` | 1 hour | This task runs hourly to check for verifications that have passed their<br> expiration date while still in PENDING or ESCALATED status. |
 | `expired-reviews-should-be-cancelled` | `waldur_mastermind.proposal.expired_reviews_should_be_cancelled` | 1 hour | Cancel reviews that have expired. |
+| `mark-expired-assignment-batches` | `waldur_mastermind.proposal.mark_expired_assignment_batches` | 15 minutes | Mark assignment batches as EXPIRED when their deadline passes. |
 | `mark-offering-backend-as-disconnected-after-timeout` | `waldur_mastermind.marketplace_site_agent.mark_offering_backend_as_disconnected_after_timeout` | 1 hour | No description available |
 | `mark_agent_services_as_inactive` | `waldur_mastermind.marketplace_site_agent.mark_agent_services_as_inactive` | 5 minutes | No description available |
 | `mark_resources_as_erred_after_timeout` | `waldur_mastermind.marketplace.mark_resources_as_erred_after_timeout` | 2 hours | Mark stale orders and their resources as erred if they have been executing for more than 2 hours. |
@@ -52,6 +51,7 @@ td:nth-child(4) {
 | `marketplace-openstack.refresh-instance-backend-metadata` | `waldur_mastermind.marketplace_openstack.refresh_instance_backend_metadata` | 1 day | Refresh metadata for OpenStack instances from backend to ensure marketplace resources have up-to-date information. |
 | `notification_about_project_ending` | `waldur_mastermind.marketplace.notification_about_project_ending` | Cron: `0 10 * * * (m/h/dM/MY/d)` | Send notifications about projects ending in 1 day and 7 days. |
 | `notification_about_resource_ending` | `waldur_mastermind.marketplace.notification_about_resource_ending` | Cron: `0 10 * * * (m/h/dM/MY/d)` | Send notifications about resources ending in 1 day and 7 days. |
+| `notify-managers-of-expired-batches` | `waldur_mastermind.proposal.notify_managers_of_expired_batches` | 30 minutes | Notify call managers when batches expire without response. |
 | `notify_about_stale_resource` | `waldur_mastermind.marketplace.notify_about_stale_resource` | Cron: `0 15 5 * * (m/h/dM/MY/d)` | Notify customers about resources that have not generated invoice items in the last 3 months. |
 | `notify_manager_on_round_cutoff` | `waldur_mastermind.proposal.notify_manager_on_round_cutoff` | 1 hour | No description available |
 | `notify_reviewer_on_round_start` | `waldur_mastermind.proposal.notify_reviewer_on_round_start` | 1 day | No description available |
@@ -76,6 +76,7 @@ td:nth-child(4) {
 | `resend-stuck-invitations` | `waldur_core.users.resend_stuck_invitations` | 1 hour | Reconcile stuck invitations that were never sent due to errors or broker/worker downtime. |
 | `revoke_outdated_consents` | `waldur_mastermind.marketplace.revoke_outdated_consents` | 1 day | Revoke consents for users who haven't re-consented within grace period.<br><br> Finds all active ToS with requires_reconsent=True where grace period has expired,<br> and revokes all consents that don't match the current active ToS version. |
 | `send-action-digest-notifications` | `waldur_core.user_actions.send_action_digest_notifications` | Cron: `0 9 * * * (m/h/dM/MY/d)` | Send daily digest notifications to users with pending actions |
+| `send-assignment-expiry-reminders` | `waldur_mastermind.proposal.send_assignment_expiry_reminders` | 1 day | Send reminder to reviewers before their assignment expires. |
 | `send-messages-about-pending-orders` | `waldur_mastermind.marketplace_site_agent.send_messages_about_pending_orders` | 1 hour | Send a message about pending orders created 1 hour ago to MQTT |
 | `send-monthly-invoicing-reports-about-customers` | `invoices.send_monthly_invoicing_reports_about_customers` | Cron: `0 0 2 * * (m/h/dM/MY/d)` | Send monthly invoicing reports via email to configured recipients. |
 | `send-notifications-about-upcoming-ends` | `invoices.send_notifications_about_upcoming_ends` | 1 day | Send notifications about upcoming end dates of fixed payment profiles. |
