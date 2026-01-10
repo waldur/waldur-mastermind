@@ -65,7 +65,7 @@ Detailed guides are in `docs/guides/`:
 
 ```bash
 # Run tests
-DJANGO_SETTINGS_MODULE=waldur_core.server.my_test_settings uv run pytest
+DJANGO_SETTINGS_MODULE=waldur_core.server.test_settings_local uv run pytest
 
 # Lint/format
 uv run pre-commit run --all-files

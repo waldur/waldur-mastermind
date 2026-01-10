@@ -45,6 +45,8 @@ from waldur_mastermind.marketplace.models import (
     ServiceProvider,
 )
 from waldur_mastermind.proposal.models import (
+    AssignmentBatch,
+    AssignmentItem,
     Call,
     CallManagingOrganisation,
     CallResourceTemplate,
@@ -246,6 +248,12 @@ class Command(BaseCommand):
                 "requested_resources", self.export_requested_resources
             ),
             "reviews": self.log_export_step("reviews", self.export_reviews),
+            "assignment_batches": self.log_export_step(
+                "assignment_batches", self.export_assignment_batches
+            ),
+            "assignment_items": self.log_export_step(
+                "assignment_items", self.export_assignment_items
+            ),
         }
 
         export_elapsed = time.time() - export_start_time
@@ -1764,3 +1772,68 @@ class Command(BaseCommand):
                 }
             )
         return reviews
+
+    def export_assignment_batches(self):
+        """Export assignment batch data."""
+        batches = []
+        for batch in AssignmentBatch.objects.select_related(
+            "call", "reviewer_pool_entry", "reviewer_pool_entry__reviewer", "created_by"
+        ).order_by("call__name", "created"):
+            batches.append(
+                {
+                    "uuid": batch.uuid.hex,
+                    "call_uuid": batch.call.uuid.hex,
+                    "call_name": batch.call.name,
+                    "reviewer_pool_entry_uuid": batch.reviewer_pool_entry.uuid.hex,
+                    "reviewer_uuid": batch.reviewer_pool_entry.reviewer.uuid.hex
+                    if batch.reviewer_pool_entry.reviewer
+                    else None,
+                    "status": batch.status,
+                    "sent_at": batch.sent_at.isoformat() if batch.sent_at else None,
+                    "expires_at": batch.expires_at.isoformat()
+                    if batch.expires_at
+                    else None,
+                    "responded_at": batch.responded_at.isoformat()
+                    if batch.responded_at
+                    else None,
+                    "source": batch.source,
+                    "created_by_uuid": batch.created_by.uuid.hex
+                    if batch.created_by
+                    else None,
+                    "invitation_token": batch.invitation_token,
+                    "manager_notes": batch.manager_notes,
+                    "created": batch.created.isoformat() if batch.created else None,
+                    "modified": batch.modified.isoformat() if batch.modified else None,
+                }
+            )
+        return batches
+
+    def export_assignment_items(self):
+        """Export assignment item data."""
+        items = []
+        for item in AssignmentItem.objects.select_related(
+            "batch", "batch__call", "proposal", "review", "reassigned_from"
+        ).order_by("batch__call__name", "batch__created", "proposal__name"):
+            items.append(
+                {
+                    "uuid": item.uuid.hex,
+                    "batch_uuid": item.batch.uuid.hex,
+                    "proposal_uuid": item.proposal.uuid.hex,
+                    "proposal_name": item.proposal.name,
+                    "status": item.status,
+                    "affinity_score": item.affinity_score,
+                    "has_coi": item.has_coi,
+                    "responded_at": item.responded_at.isoformat()
+                    if item.responded_at
+                    else None,
+                    "decline_reason": item.decline_reason,
+                    "review_uuid": item.review.uuid.hex if item.review else None,
+                    "reassigned_from_uuid": item.reassigned_from.uuid.hex
+                    if item.reassigned_from
+                    else None,
+                    "reassign_count": item.reassign_count,
+                    "created": item.created.isoformat() if item.created else None,
+                    "modified": item.modified.isoformat() if item.modified else None,
+                }
+            )
+        return items

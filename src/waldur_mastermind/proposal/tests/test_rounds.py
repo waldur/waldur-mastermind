@@ -250,7 +250,12 @@ class RoundCloseTest(test.APITransactionTestCase):
         self.url = factories.RoundFactory.get_url(
             self.fixture.call, self.round, "close"
         )
-        self.proposal = factories.ProposalFactory(
+        self.draft_proposal = factories.ProposalFactory(
+            round=self.round,
+            state=ProposalStates.DRAFT,
+            project=self.fixture.proposal_project,
+        )
+        self.submitted_proposal = factories.ProposalFactory(
             round=self.round,
             state=ProposalStates.SUBMITTED,
             project=self.fixture.proposal_project,
@@ -261,10 +266,16 @@ class RoundCloseTest(test.APITransactionTestCase):
         "call_manager",
     )
     def test_user_can_close_round(self, user):
-        self.assertEqual(self.proposal.review_set.count(), 0)
+        """Closing a round cancels draft proposals but does not auto-create reviews.
+        Reviews are created through the assignment batch workflow."""
         response = self.close_round(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(self.proposal.review_set.count(), 1)
+        # Draft proposals are canceled
+        self.draft_proposal.refresh_from_db()
+        self.assertEqual(self.draft_proposal.state, ProposalStates.CANCELED)
+        # Submitted proposals remain submitted (reviews created via assignment workflow)
+        self.submitted_proposal.refresh_from_db()
+        self.assertEqual(self.submitted_proposal.state, ProposalStates.SUBMITTED)
 
     @data(
         "user",

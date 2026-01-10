@@ -49,6 +49,71 @@ def register_in(router):
         views.ProposalProjectRoleMappingViewSet,
         basename="call-proposal-project-role-mapping",
     )
+    # Reviewer Profile endpoints
+    router.register(
+        r"reviewer-profiles",
+        views.ReviewerProfileViewSet,
+        basename="reviewer-profile",
+    )
+    router.register(
+        r"expertise-categories",
+        views.ExpertiseCategoryViewSet,
+        basename="expertise-category",
+    )
+    # COI endpoints
+    router.register(
+        r"conflicts-of-interest",
+        views.ConflictOfInterestViewSet,
+        basename="conflict-of-interest",
+    )
+    router.register(
+        r"coi-disclosures",
+        views.COIDisclosureViewSet,
+        basename="coi-disclosure",
+    )
+    router.register(
+        r"call-reviewer-pools",
+        views.CallReviewerPoolViewSet,
+        basename="call-reviewer-pool",
+    )
+    router.register(
+        r"coi-detection-jobs",
+        views.COIDetectionJobViewSet,
+        basename="coi-detection-job",
+    )
+    # Reviewer bids
+    router.register(
+        r"reviewer-bids",
+        views.ReviewerBidViewSet,
+        basename="reviewer-bid",
+    )
+    # Reviewer suggestions
+    router.register(
+        r"reviewer-suggestions",
+        views.ReviewerSuggestionViewSet,
+        basename="reviewer-suggestion",
+    )
+    # Assignment batches and items
+    router.register(
+        r"assignment-batches",
+        views.AssignmentBatchViewSet,
+        basename="assignment-batch",
+    )
+    router.register(
+        r"assignment-items",
+        views.AssignmentItemViewSet,
+        basename="assignment-item",
+    )
+    router.register(
+        r"call-assignment-configurations",
+        views.CallAssignmentConfigurationViewSet,
+        basename="call-assignment-configuration",
+    )
+    router.register(
+        r"my-assignment-batches",
+        views.MyAssignmentBatchViewSet,
+        basename="my-assignment-batch",
+    )
 
 
 urlpatterns = [
@@ -91,4 +156,23 @@ urlpatterns += [
         views.ProtectedCallViewSet.as_view({"post": "close_round"}),
         name="proposal-call-close_round",
     )
+]
+
+# Public reviewer invitation endpoints (token-based, no auth required)
+urlpatterns += [
+    re_path(
+        r"^api/reviewer-invitations/(?P<token>[a-zA-Z0-9_-]+)/$",
+        views.PublicReviewerInvitationViewSet.as_view({"get": "retrieve"}),
+        name="reviewer-invitation-detail",
+    ),
+    re_path(
+        r"^api/reviewer-invitations/(?P<token>[a-zA-Z0-9_-]+)/accept/$",
+        views.PublicReviewerInvitationViewSet.as_view({"post": "accept"}),
+        name="reviewer-invitation-accept",
+    ),
+    re_path(
+        r"^api/reviewer-invitations/(?P<token>[a-zA-Z0-9_-]+)/decline/$",
+        views.PublicReviewerInvitationViewSet.as_view({"post": "decline"}),
+        name="reviewer-invitation-decline",
+    ),
 ]

@@ -433,6 +433,75 @@ CONSTANCE_CONFIG = {
     ),
     # Proposal settings
     "PROPOSAL_REVIEW_DURATION": (7, "Review duration in days."),
+    # ORCID integration settings
+    "ORCID_CLIENT_ID": (
+        "",
+        "ORCID OAuth2 Client ID for reviewer profile integration.",
+    ),
+    "ORCID_CLIENT_SECRET": (
+        "",
+        "ORCID OAuth2 Client Secret.",
+        "secret_field",
+    ),
+    "ORCID_REDIRECT_URI": (
+        "",
+        "ORCID OAuth2 Redirect URI. Typically {HOMEPORT_URL}/orcid-callback/",
+        "url_field",
+    ),
+    "ORCID_API_URL": (
+        "https://pub.orcid.org/v3.0",
+        "ORCID API Base URL. Use https://pub.sandbox.orcid.org/v3.0 for testing.",
+        "url_field",
+    ),
+    "ORCID_AUTH_URL": (
+        "https://orcid.org/oauth",
+        "ORCID OAuth Authorization URL. Use https://sandbox.orcid.org/oauth for testing.",
+        "url_field",
+    ),
+    "ORCID_SANDBOX_MODE": (
+        False,
+        "Use ORCID sandbox environment for testing. When enabled, uses sandbox URLs automatically.",
+    ),
+    # External publication API settings
+    "SEMANTIC_SCHOLAR_API_KEY": (
+        "",
+        "Semantic Scholar API Key for publication imports. Optional but recommended for higher rate limits.",
+        "secret_field",
+    ),
+    "CROSSREF_MAILTO": (
+        "",
+        "Email address for CrossRef API polite pool. Provides higher rate limits.",
+        "email_field",
+    ),
+    # Reviewer profile settings
+    "REVIEWER_PROFILES_ENABLED": (
+        True,
+        "Enable reviewer profile management features.",
+    ),
+    "COI_DETECTION_ENABLED": (
+        True,
+        "Enable conflict of interest detection features.",
+    ),
+    "COI_DISCLOSURE_REQUIRED": (
+        False,
+        "Require reviewers to submit COI disclosure before reviewing proposals.",
+    ),
+    "AUTOMATED_MATCHING_ENABLED": (
+        True,
+        "Enable automated reviewer-proposal matching algorithms.",
+    ),
+    "COI_COAUTHORSHIP_LOOKBACK_YEARS": (
+        5,
+        "Default number of years to look back for co-authorship COI detection.",
+    ),
+    "COI_COAUTHORSHIP_THRESHOLD_PAPERS": (
+        2,
+        "Default number of co-authored papers to trigger a COI.",
+    ),
+    "COI_INSTITUTIONAL_LOOKBACK_YEARS": (
+        3,
+        "Default number of years after leaving institution before COI expires.",
+    ),
     "USER_TABLE_COLUMNS": ("", "Comma-separated list of columns for users table."),
     "AUTO_APPROVE_USER_TOS": (
         False,
@@ -767,6 +836,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SIDEBAR_STYLE",
         "BRAND_COLOR",
         "DISABLE_DARK_THEME",
+    ),
+    "Login page": (
         "LOGIN_PAGE_LAYOUT",
         "LOGIN_PAGE_VIDEO_URL",
         "LOGIN_PAGE_STATS",
@@ -850,7 +921,28 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SMAX_CREATION_SOURCE_NAME",
         "SMAX_VERIFY_SSL",
     ),
-    "Proposal settings": ("PROPOSAL_REVIEW_DURATION",),
+    "Proposal settings": (
+        "PROPOSAL_REVIEW_DURATION",
+        "REVIEWER_PROFILES_ENABLED",
+        "COI_DETECTION_ENABLED",
+        "COI_DISCLOSURE_REQUIRED",
+        "AUTOMATED_MATCHING_ENABLED",
+        "COI_COAUTHORSHIP_LOOKBACK_YEARS",
+        "COI_COAUTHORSHIP_THRESHOLD_PAPERS",
+        "COI_INSTITUTIONAL_LOOKBACK_YEARS",
+    ),
+    "ORCID integration settings": (
+        "ORCID_CLIENT_ID",
+        "ORCID_CLIENT_SECRET",
+        "ORCID_REDIRECT_URI",
+        "ORCID_API_URL",
+        "ORCID_AUTH_URL",
+        "ORCID_SANDBOX_MODE",
+    ),
+    "Publication API settings": (
+        "SEMANTIC_SCHOLAR_API_KEY",
+        "CROSSREF_MAILTO",
+    ),
     "Table settings": ("USER_TABLE_COLUMNS",),
     "Localization": ("LANGUAGE_CHOICES",),
     "User settings": (

@@ -27,16 +27,6 @@ class ProposalExtension(WaldurExtension):
     @staticmethod
     def celery_tasks():
         return {
-            "create-reviews-if-strategy-is-after-round": {
-                "task": "waldur_mastermind.proposal.create_reviews_if_strategy_is_after_round",
-                "schedule": timedelta(hours=1),
-                "args": (),
-            },
-            "create-reviews-if-strategy-is-after-proposal": {
-                "task": "waldur_mastermind.proposal.create_reviews_if_strategy_is_after_proposal",
-                "schedule": timedelta(hours=1),
-                "args": (),
-            },
             "proposals-for-ended-rounds-should-be-cancelled": {
                 "task": "waldur_mastermind.proposal.proposals_for_ended_rounds_should_be_cancelled",
                 "schedule": timedelta(hours=1),
@@ -55,6 +45,21 @@ class ProposalExtension(WaldurExtension):
             "notify_manager_on_round_cutoff": {
                 "task": "waldur_mastermind.proposal.notify_manager_on_round_cutoff",
                 "schedule": timedelta(hours=1),
+                "args": (),
+            },
+            "mark-expired-assignment-batches": {
+                "task": "waldur_mastermind.proposal.mark_expired_assignment_batches",
+                "schedule": timedelta(minutes=15),
+                "args": (),
+            },
+            "send-assignment-expiry-reminders": {
+                "task": "waldur_mastermind.proposal.send_assignment_expiry_reminders",
+                "schedule": timedelta(hours=24),
+                "args": (),
+            },
+            "notify-managers-of-expired-batches": {
+                "task": "waldur_mastermind.proposal.notify_managers_of_expired_batches",
+                "schedule": timedelta(minutes=30),
                 "args": (),
             },
         }

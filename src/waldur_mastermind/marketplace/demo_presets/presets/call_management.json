@@ -1,13 +1,24 @@
 {
   "_metadata": {
     "title": "Call Management",
-    "description": "Research proposal management system with calls for proposals, peer review processes, and resource allocation workflows.",
-    "version": "1.0.0",
+    "description": "Research proposal management system with calls for proposals, peer review processes, COI detection, and resource allocation workflows.",
+    "version": "2.0.0",
     "scenarios": [
       "Research council managing competitive grants",
       "Peer review and proposal evaluation",
       "Resource allocation based on reviews",
-      "Multi-round proposal submission"
+      "Multi-round proposal submission",
+      "Reviewer profile discovery and algorithm-based suggestions",
+      "Direct email invitations for reviewers without profiles",
+      "Two-stage reviewer workflow: invitation acceptance then proposal assignment",
+      "COI disclosure at assignment stage (not invitation)",
+      "Automated and self-disclosed conflict of interest management",
+      "Assignment batch lifecycle: draft, sent, responded, expired, cancelled",
+      "Assignment item states: pending, accepted, declined, expired, coi_blocked, reassigned",
+      "Reviewer performance tracking with stats and quality ratings",
+      "Financial interest disclosure and compliance certification",
+      "Affinity-based reviewer-proposal matching with cached scores",
+      "Algorithm-generated assignments with deployment workflow"
     ]
   },
   "users": [
@@ -160,6 +171,39 @@
       "phone_number": "+37256004008",
       "organization": "Environmental Sciences Institute",
       "job_title": "Principal Investigator"
+    },
+    {
+      "uuid": "a4000000000000000000000000000009",
+      "username": "reviewer_math",
+      "email": "math.reviewer@princeton.edu",
+      "first_name": "John",
+      "last_name": "von Neumann",
+      "is_active": true,
+      "phone_number": "+37256004009",
+      "organization": "Princeton University",
+      "job_title": "Professor of Mathematics"
+    },
+    {
+      "uuid": "a400000000000000000000000000000a",
+      "username": "reviewer_biology",
+      "email": "biology.reviewer@harvard.edu",
+      "first_name": "Barbara",
+      "last_name": "McClintock",
+      "is_active": true,
+      "phone_number": "+37256004010",
+      "organization": "Harvard University",
+      "job_title": "Professor of Genetics"
+    },
+    {
+      "uuid": "a400000000000000000000000000000b",
+      "username": "reviewer_astronomy",
+      "email": "astronomy.reviewer@caltech.edu",
+      "first_name": "Vera",
+      "last_name": "Rubin",
+      "is_active": true,
+      "phone_number": "+37256004011",
+      "organization": "Carnegie Institution",
+      "job_title": "Professor of Astronomy"
     }
   ],
   "customers": [
@@ -610,6 +654,442 @@
       "depends_on_question_uuid": "cb200000000000000000000000000110",
       "required_answer_value": true,
       "operator": "equals"
+    }
+  ],
+  "checklist_completions": [
+    {
+      "uuid": "cc100000000000000000000000000001",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca600000000000000000000000000001",
+      "is_complete": true,
+      "_comment": "Research Ethics checklist for Quantum Error Correction proposal"
+    },
+    {
+      "uuid": "cc100000000000000000000000000002",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca600000000000000000000000000001",
+      "is_complete": true,
+      "_comment": "Admin Eligibility checklist for Quantum Error Correction proposal"
+    },
+    {
+      "uuid": "cc100000000000000000000000000003",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca600000000000000000000000000002",
+      "is_complete": true,
+      "_comment": "Research Ethics checklist for Battery Materials proposal"
+    },
+    {
+      "uuid": "cc100000000000000000000000000004",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca600000000000000000000000000002",
+      "is_complete": true,
+      "_comment": "Admin Eligibility checklist for Battery Materials proposal"
+    },
+    {
+      "uuid": "cc100000000000000000000000000005",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca600000000000000000000000000006",
+      "is_complete": true,
+      "_comment": "Research Ethics checklist for Molecular Dynamics proposal (accepted)"
+    },
+    {
+      "uuid": "cc100000000000000000000000000006",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca600000000000000000000000000006",
+      "is_complete": true,
+      "_comment": "Admin Eligibility checklist for Molecular Dynamics proposal (accepted)"
+    },
+    {
+      "uuid": "cc100000000000000000000000000007",
+      "checklist_uuid": "cb100000000000000000000000000001",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca600000000000000000000000000004",
+      "is_complete": true,
+      "_comment": "Research Ethics checklist for LLM Fine-tuning proposal"
+    },
+    {
+      "uuid": "cc100000000000000000000000000008",
+      "checklist_uuid": "cb100000000000000000000000000002",
+      "scope_content_type": "proposal.proposal",
+      "scope_object_uuid": "ca600000000000000000000000000004",
+      "is_complete": true,
+      "_comment": "Admin Eligibility checklist for LLM Fine-tuning proposal"
+    }
+  ],
+  "answers": [
+    {
+      "uuid": "ca100000000000000000000000000001",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000001",
+      "completion_uuid": "cc100000000000000000000000000001",
+      "answer_data": false,
+      "_comment": "Quantum Error Correction: No human subjects involved"
+    },
+    {
+      "uuid": "ca100000000000000000000000000002",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000004",
+      "completion_uuid": "cc100000000000000000000000000001",
+      "answer_data": ["cb300000000000000000000000000001"],
+      "_comment": "Quantum Error Correction: No personal data"
+    },
+    {
+      "uuid": "ca100000000000000000000000000003",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000006",
+      "completion_uuid": "cc100000000000000000000000000001",
+      "answer_data": false,
+      "_comment": "Quantum Error Correction: No international data transfer"
+    },
+    {
+      "uuid": "ca100000000000000000000000000004",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000101",
+      "completion_uuid": "cc100000000000000000000000000002",
+      "answer_data": "cb300000000000000000000000000101",
+      "_comment": "Quantum Error Correction: University institution type"
+    },
+    {
+      "uuid": "ca100000000000000000000000000005",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000102",
+      "completion_uuid": "cc100000000000000000000000000002",
+      "answer_data": true,
+      "_comment": "Quantum Error Correction: Eligible country"
+    },
+    {
+      "uuid": "ca100000000000000000000000000006",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000104",
+      "completion_uuid": "cc100000000000000000000000000002",
+      "answer_data": 1920,
+      "_comment": "Quantum Error Correction: Institution founded in 1920"
+    },
+    {
+      "uuid": "ca100000000000000000000000000007",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000105",
+      "completion_uuid": "cc100000000000000000000000000002",
+      "answer_data": "2020-06-15",
+      "_comment": "Quantum Error Correction: Accreditation date"
+    },
+    {
+      "uuid": "ca100000000000000000000000000008",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000107",
+      "completion_uuid": "cc100000000000000000000000000002",
+      "answer_data": false,
+      "_comment": "Quantum Error Correction: No existing funding"
+    },
+    {
+      "uuid": "ca100000000000000000000000000009",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000109",
+      "completion_uuid": "cc100000000000000000000000000002",
+      "answer_data": ["cb300000000000000000000000000201", "cb300000000000000000000000000203"],
+      "_comment": "Quantum Error Correction: Physics and Computer Science research areas"
+    },
+    {
+      "uuid": "ca10000000000000000000000000000a",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000110",
+      "completion_uuid": "cc100000000000000000000000000002",
+      "answer_data": false,
+      "_comment": "Quantum Error Correction: No dual submissions"
+    },
+    {
+      "uuid": "ca10000000000000000000000000000b",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000113",
+      "completion_uuid": "cc100000000000000000000000000002",
+      "answer_data": true,
+      "_comment": "Quantum Error Correction: Eligibility confirmation"
+    },
+    {
+      "uuid": "ca100000000000000000000000000101",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000001",
+      "completion_uuid": "cc100000000000000000000000000003",
+      "answer_data": false,
+      "_comment": "Battery Materials: No human subjects"
+    },
+    {
+      "uuid": "ca100000000000000000000000000102",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000004",
+      "completion_uuid": "cc100000000000000000000000000003",
+      "answer_data": ["cb300000000000000000000000000001"],
+      "_comment": "Battery Materials: No personal data"
+    },
+    {
+      "uuid": "ca100000000000000000000000000103",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000006",
+      "completion_uuid": "cc100000000000000000000000000003",
+      "answer_data": false,
+      "_comment": "Battery Materials: No international data transfer"
+    },
+    {
+      "uuid": "ca100000000000000000000000000104",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000101",
+      "completion_uuid": "cc100000000000000000000000000004",
+      "answer_data": "cb300000000000000000000000000101",
+      "_comment": "Battery Materials: University institution"
+    },
+    {
+      "uuid": "ca100000000000000000000000000105",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000102",
+      "completion_uuid": "cc100000000000000000000000000004",
+      "answer_data": true,
+      "_comment": "Battery Materials: Eligible country"
+    },
+    {
+      "uuid": "ca100000000000000000000000000106",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000104",
+      "completion_uuid": "cc100000000000000000000000000004",
+      "answer_data": 1891,
+      "_comment": "Battery Materials: Caltech founded 1891"
+    },
+    {
+      "uuid": "ca100000000000000000000000000107",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000105",
+      "completion_uuid": "cc100000000000000000000000000004",
+      "answer_data": "2019-01-10",
+      "_comment": "Battery Materials: Accreditation date"
+    },
+    {
+      "uuid": "ca100000000000000000000000000108",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000107",
+      "completion_uuid": "cc100000000000000000000000000004",
+      "answer_data": true,
+      "_comment": "Battery Materials: Has existing funding"
+    },
+    {
+      "uuid": "ca100000000000000000000000000109",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000108",
+      "completion_uuid": "cc100000000000000000000000000004",
+      "answer_data": "NSF DMR-2034567: $500,000 for theoretical materials modeling (2024-2027). DOE BES grant: $200,000 for battery research collaboration (2023-2025).",
+      "_comment": "Battery Materials: Existing funding details"
+    },
+    {
+      "uuid": "ca10000000000000000000000000010a",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000109",
+      "completion_uuid": "cc100000000000000000000000000004",
+      "answer_data": ["cb300000000000000000000000000202", "cb300000000000000000000000000204"],
+      "_comment": "Battery Materials: Chemistry and Materials Science research areas"
+    },
+    {
+      "uuid": "ca10000000000000000000000000010b",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000110",
+      "completion_uuid": "cc100000000000000000000000000004",
+      "answer_data": false,
+      "_comment": "Battery Materials: No dual submissions"
+    },
+    {
+      "uuid": "ca10000000000000000000000000010c",
+      "user_uuid": "a4000000000000000000000000000007",
+      "question_uuid": "cb200000000000000000000000000113",
+      "completion_uuid": "cc100000000000000000000000000004",
+      "answer_data": true,
+      "_comment": "Battery Materials: Eligibility confirmed"
+    },
+    {
+      "uuid": "ca100000000000000000000000000201",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000001",
+      "completion_uuid": "cc100000000000000000000000000005",
+      "answer_data": false,
+      "_comment": "Molecular Dynamics: No human subjects"
+    },
+    {
+      "uuid": "ca100000000000000000000000000202",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000004",
+      "completion_uuid": "cc100000000000000000000000000005",
+      "answer_data": ["cb300000000000000000000000000001"],
+      "_comment": "Molecular Dynamics: No personal data"
+    },
+    {
+      "uuid": "ca100000000000000000000000000203",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000006",
+      "completion_uuid": "cc100000000000000000000000000005",
+      "answer_data": false,
+      "_comment": "Molecular Dynamics: No international data transfer"
+    },
+    {
+      "uuid": "ca100000000000000000000000000204",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000101",
+      "completion_uuid": "cc100000000000000000000000000006",
+      "answer_data": "cb300000000000000000000000000101",
+      "_comment": "Molecular Dynamics: University institution"
+    },
+    {
+      "uuid": "ca100000000000000000000000000205",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000102",
+      "completion_uuid": "cc100000000000000000000000000006",
+      "answer_data": true,
+      "_comment": "Molecular Dynamics: Eligible country"
+    },
+    {
+      "uuid": "ca100000000000000000000000000206",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000104",
+      "completion_uuid": "cc100000000000000000000000000006",
+      "answer_data": 1920,
+      "_comment": "Molecular Dynamics: Institution founded 1920"
+    },
+    {
+      "uuid": "ca100000000000000000000000000207",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000105",
+      "completion_uuid": "cc100000000000000000000000000006",
+      "answer_data": "2020-06-15",
+      "_comment": "Molecular Dynamics: Accreditation date"
+    },
+    {
+      "uuid": "ca100000000000000000000000000208",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000107",
+      "completion_uuid": "cc100000000000000000000000000006",
+      "answer_data": false,
+      "_comment": "Molecular Dynamics: No existing funding"
+    },
+    {
+      "uuid": "ca100000000000000000000000000209",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000109",
+      "completion_uuid": "cc100000000000000000000000000006",
+      "answer_data": ["cb300000000000000000000000000205", "cb300000000000000000000000000202"],
+      "_comment": "Molecular Dynamics: Biology and Chemistry"
+    },
+    {
+      "uuid": "ca10000000000000000000000000020a",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000110",
+      "completion_uuid": "cc100000000000000000000000000006",
+      "answer_data": false,
+      "_comment": "Molecular Dynamics: No dual submissions"
+    },
+    {
+      "uuid": "ca10000000000000000000000000020b",
+      "user_uuid": "a4000000000000000000000000000006",
+      "question_uuid": "cb200000000000000000000000000113",
+      "completion_uuid": "cc100000000000000000000000000006",
+      "answer_data": true,
+      "_comment": "Molecular Dynamics: Eligibility confirmed"
+    },
+    {
+      "uuid": "ca100000000000000000000000000301",
+      "user_uuid": "00000000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000001",
+      "completion_uuid": "cc100000000000000000000000000007",
+      "answer_data": false,
+      "_comment": "LLM Fine-tuning: No human subjects"
+    },
+    {
+      "uuid": "ca100000000000000000000000000302",
+      "user_uuid": "00000000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000004",
+      "completion_uuid": "cc100000000000000000000000000007",
+      "answer_data": ["cb300000000000000000000000000002"],
+      "_comment": "LLM Fine-tuning: Pseudonymized data"
+    },
+    {
+      "uuid": "ca100000000000000000000000000303",
+      "user_uuid": "00000000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000005",
+      "completion_uuid": "cc100000000000000000000000000007",
+      "answer_data": "All training data is sourced from publicly available scientific papers. Data is stored on encrypted university servers with access limited to project team members. No personally identifiable information is extracted or stored.",
+      "_comment": "LLM Fine-tuning: Data protection measures"
+    },
+    {
+      "uuid": "ca100000000000000000000000000304",
+      "user_uuid": "00000000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000006",
+      "completion_uuid": "cc100000000000000000000000000007",
+      "answer_data": false,
+      "_comment": "LLM Fine-tuning: No international data transfer"
+    },
+    {
+      "uuid": "ca100000000000000000000000000305",
+      "user_uuid": "00000000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000101",
+      "completion_uuid": "cc100000000000000000000000000008",
+      "answer_data": "cb300000000000000000000000000101",
+      "_comment": "LLM Fine-tuning: University institution"
+    },
+    {
+      "uuid": "ca100000000000000000000000000306",
+      "user_uuid": "00000000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000102",
+      "completion_uuid": "cc100000000000000000000000000008",
+      "answer_data": true,
+      "_comment": "LLM Fine-tuning: Eligible country"
+    },
+    {
+      "uuid": "ca100000000000000000000000000307",
+      "user_uuid": "00000000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000104",
+      "completion_uuid": "cc100000000000000000000000000008",
+      "answer_data": 1950,
+      "_comment": "LLM Fine-tuning: Institution year"
+    },
+    {
+      "uuid": "ca100000000000000000000000000308",
+      "user_uuid": "00000000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000105",
+      "completion_uuid": "cc100000000000000000000000000008",
+      "answer_data": "2021-09-01",
+      "_comment": "LLM Fine-tuning: Accreditation date"
+    },
+    {
+      "uuid": "ca100000000000000000000000000309",
+      "user_uuid": "00000000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000107",
+      "completion_uuid": "cc100000000000000000000000000008",
+      "answer_data": false,
+      "_comment": "LLM Fine-tuning: No existing funding"
+    },
+    {
+      "uuid": "ca10000000000000000000000000030a",
+      "user_uuid": "00000000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000109",
+      "completion_uuid": "cc100000000000000000000000000008",
+      "answer_data": ["cb300000000000000000000000000203"],
+      "_comment": "LLM Fine-tuning: Computer Science"
+    },
+    {
+      "uuid": "ca10000000000000000000000000030b",
+      "user_uuid": "00000000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000110",
+      "completion_uuid": "cc100000000000000000000000000008",
+      "answer_data": false,
+      "_comment": "LLM Fine-tuning: No dual submissions"
+    },
+    {
+      "uuid": "ca10000000000000000000000000030c",
+      "user_uuid": "00000000000000000000000000000004",
+      "question_uuid": "cb200000000000000000000000000113",
+      "completion_uuid": "cc100000000000000000000000000008",
+      "answer_data": true,
+      "_comment": "LLM Fine-tuning: Eligibility confirmed"
     }
   ],
   "category_groups": [
@@ -1070,11 +1550,13 @@
       "round_uuid": "ca500000000000000000000000000001",
       "state": "submitted",
       "created_by_uuid": "a4000000000000000000000000000006",
-      "project_summary": "This proposal requests HPC resources for large-scale quantum error correction code simulations. We aim to develop and benchmark novel quantum error correction codes that can be implemented on near-term quantum hardware.",
+      "description": "This research program will develop and implement novel quantum error correction codes optimized for near-term quantum hardware. Using large-scale HPC simulations, we will benchmark these codes against current state-of-the-art approaches and identify promising candidates for experimental implementation.",
+      "project_summary": "This proposal requests HPC resources for large-scale quantum error correction code simulations. We aim to develop and benchmark novel quantum error correction codes that can be implemented on near-term quantum hardware. Our team combines expertise in quantum computing theory, numerical simulation methods, and experimental quantum physics.",
       "project_duration": 365,
       "project_is_confidential": false,
       "project_has_civilian_purpose": true,
-      "oecd_fos_2007_code": "1.3"
+      "oecd_fos_2007_code": "1.3",
+      "_team_comment": "PI: Niels Bohr (quantum theory), Co-PI: Project Manager (simulation expertise), Team Member: Project Member (data analysis)"
     },
     {
       "uuid": "ca600000000000000000000000000002",
@@ -1082,11 +1564,13 @@
       "round_uuid": "ca500000000000000000000000000001",
       "state": "in_review",
       "created_by_uuid": "a4000000000000000000000000000007",
-      "project_summary": "We propose to use high-throughput computational screening to discover new battery electrode materials. Our approach combines DFT calculations with machine learning to accelerate the discovery process.",
+      "description": "We will employ high-throughput density functional theory (DFT) calculations combined with machine learning models to screen thousands of candidate materials for next-generation lithium-ion and solid-state batteries. This computational approach significantly accelerates the materials discovery process compared to experimental trial-and-error methods.",
+      "project_summary": "We propose to use high-throughput computational screening to discover new battery electrode materials. Our approach combines DFT calculations with machine learning to accelerate the discovery process. The interdisciplinary team includes computational chemists, materials scientists, and machine learning experts.",
       "project_duration": 365,
       "project_is_confidential": false,
       "project_has_civilian_purpose": true,
-      "oecd_fos_2007_code": "2.5"
+      "oecd_fos_2007_code": "2.5",
+      "_team_comment": "PI: Linus Pauling (materials chemistry), Co-I: Rachel Carson (data modeling)"
     },
     {
       "uuid": "ca600000000000000000000000000003",
@@ -1094,11 +1578,13 @@
       "round_uuid": "ca500000000000000000000000000001",
       "state": "draft",
       "created_by_uuid": "a4000000000000000000000000000008",
-      "project_summary": "This project aims to enhance global climate model resolution using adaptive mesh refinement techniques. We will focus on improving precipitation predictions in mountainous regions.",
+      "description": "Our project will implement adaptive mesh refinement (AMR) techniques in global climate models to achieve unprecedented resolution in critical regions such as mountain ranges, coastlines, and urban areas. This will enable more accurate predictions of extreme weather events and regional climate impacts.",
+      "project_summary": "This project aims to enhance global climate model resolution using adaptive mesh refinement techniques. We will focus on improving precipitation predictions in mountainous regions. The team includes climate scientists, numerical methods specialists, and HPC software engineers.",
       "project_duration": 365,
       "project_is_confidential": false,
       "project_has_civilian_purpose": true,
-      "oecd_fos_2007_code": "1.5"
+      "oecd_fos_2007_code": "1.5",
+      "_team_comment": "PI: Rachel Carson (climate science), Team: 2 postdocs (not yet in system)"
     },
     {
       "uuid": "ca600000000000000000000000000004",
@@ -1438,6 +1924,49 @@
       "summary_score": 9,
       "summary_public_comment": "Excellent proposal addressing important computational challenges in particle physics.",
       "summary_private_comment": "Strong support for funding."
+    },
+    {
+      "uuid": "ca80000000000000000000000000000d",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "reviewer_uuid": "a4000000000000000000000000000003",
+      "state": "in_review",
+      "summary_score": 0,
+      "summary_public_comment": "",
+      "summary_private_comment": "",
+      "comment_project_summary": "Initial review started, examining quantum coherence methodology",
+      "_comment": "Einstein reviewing quantum computing proposal - in progress"
+    },
+    {
+      "uuid": "ca80000000000000000000000000000e",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "reviewer_uuid": "a4000000000000000000000000000005",
+      "state": "created",
+      "summary_score": 0,
+      "summary_public_comment": "",
+      "summary_private_comment": "",
+      "_comment": "Turing assigned but not started review of quantum computing proposal"
+    },
+    {
+      "uuid": "ca80000000000000000000000000000f",
+      "proposal_uuid": "ca600000000000000000000000000003",
+      "reviewer_uuid": "a4000000000000000000000000000004",
+      "state": "rejected",
+      "summary_score": 0,
+      "summary_public_comment": "",
+      "summary_private_comment": "Reviewer recused due to conflict of interest",
+      "_comment": "Curie rejected review assignment due to COI"
+    },
+    {
+      "uuid": "ca800000000000000000000000000010",
+      "proposal_uuid": "ca600000000000000000000000000003",
+      "reviewer_uuid": "a4000000000000000000000000000003",
+      "state": "in_review",
+      "summary_score": 0,
+      "summary_public_comment": "",
+      "summary_private_comment": "",
+      "comment_project_summary": "Reviewing climate modeling approach",
+      "comment_resource_requests": "Storage requirements under evaluation",
+      "_comment": "Einstein reviewing climate modeling proposal - partially complete"
     }
   ],
   "resources": [
@@ -1739,6 +2268,76 @@
       "scope_type": "proposal.call",
       "scope_uuid": "ca200000000000000000000000000002",
       "is_active": true
+    },
+    {
+      "uuid": "04000000000000000000000000000011",
+      "user_uuid": "00000000000000000000000000000004",
+      "user_username": "manager",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000001",
+      "is_active": true,
+      "_comment": "Co-PI on Quantum Error Correction proposal"
+    },
+    {
+      "uuid": "04000000000000000000000000000012",
+      "user_uuid": "00000000000000000000000000000005",
+      "user_username": "member",
+      "role_name": "PROPOSAL.MEMBER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000001",
+      "is_active": true,
+      "_comment": "Team member on Quantum Error Correction proposal"
+    },
+    {
+      "uuid": "04000000000000000000000000000013",
+      "user_uuid": "a4000000000000000000000000000008",
+      "user_username": "pi_climate",
+      "role_name": "PROPOSAL.MEMBER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000002",
+      "is_active": true,
+      "_comment": "Co-I on Novel Battery Materials Discovery proposal"
+    },
+    {
+      "uuid": "04000000000000000000000000000014",
+      "user_uuid": "a4000000000000000000000000000006",
+      "user_username": "pi_quantum",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000005",
+      "is_active": true,
+      "_comment": "Co-PI on Protein Structure Prediction proposal"
+    },
+    {
+      "uuid": "04000000000000000000000000000015",
+      "user_uuid": "00000000000000000000000000000004",
+      "user_username": "manager",
+      "role_name": "PROPOSAL.MEMBER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000006",
+      "is_active": true,
+      "_comment": "Team member on Molecular Dynamics proposal"
+    },
+    {
+      "uuid": "04000000000000000000000000000016",
+      "user_uuid": "a4000000000000000000000000000007",
+      "user_username": "pi_materials",
+      "role_name": "PROPOSAL.MANAGER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000008",
+      "is_active": true,
+      "_comment": "Co-PI on Particle Physics Event Simulation proposal"
+    },
+    {
+      "uuid": "04000000000000000000000000000017",
+      "user_uuid": "a4000000000000000000000000000008",
+      "user_username": "pi_climate",
+      "role_name": "PROPOSAL.MEMBER",
+      "scope_type": "proposal.proposal",
+      "scope_uuid": "ca600000000000000000000000000004",
+      "is_active": true,
+      "_comment": "Team member on LLM Fine-tuning proposal"
     }
   ],
   "constance_settings": {
@@ -1746,5 +2345,1341 @@
     "SITE_DESCRIPTION": "Competitive research grant management platform for proposal submission, peer review, and resource allocation.",
     "MARKETPLACE_LANDING_PAGE": "Research Computing Services",
     "CURRENCY_NAME": "EUR"
-  }
+  },
+  "expertise_categories": [
+    {
+      "uuid": "ec100000000000000000000000000001",
+      "code": "PHYSICS",
+      "name": "Physics",
+      "description": "Physical sciences including theoretical and experimental physics",
+      "level": 0
+    },
+    {
+      "uuid": "ec100000000000000000000000000002",
+      "code": "PHYSICS-QM",
+      "name": "Quantum Mechanics",
+      "description": "Quantum theory and applications",
+      "parent_uuid": "ec100000000000000000000000000001",
+      "level": 1
+    },
+    {
+      "uuid": "ec100000000000000000000000000003",
+      "code": "CHEMISTRY",
+      "name": "Chemistry",
+      "description": "Chemical sciences including physical, organic, and inorganic chemistry",
+      "level": 0
+    },
+    {
+      "uuid": "ec100000000000000000000000000004",
+      "code": "CHEM-MAT",
+      "name": "Materials Chemistry",
+      "description": "Chemistry of materials and nanomaterials",
+      "parent_uuid": "ec100000000000000000000000000003",
+      "level": 1
+    },
+    {
+      "uuid": "ec100000000000000000000000000005",
+      "code": "COMPSCI",
+      "name": "Computer Science",
+      "description": "Computing, algorithms, and software engineering",
+      "level": 0
+    },
+    {
+      "uuid": "ec100000000000000000000000000006",
+      "code": "COMPSCI-AI",
+      "name": "Artificial Intelligence",
+      "description": "Machine learning, neural networks, and AI systems",
+      "parent_uuid": "ec100000000000000000000000000005",
+      "level": 1
+    }
+  ],
+  "reviewer_profiles": [
+    {
+      "uuid": "0a100000000000000000000000000001",
+      "user_uuid": "a4000000000000000000000000000003",
+      "orcid_id": "0000-0001-2345-0001",
+      "biography": "Distinguished physicist specializing in theoretical physics, relativity, and quantum mechanics. Author of groundbreaking theories on space-time and photoelectric effect.",
+      "alternative_names": ["A. Einstein", "Albert E."],
+      "description": "Expert reviewer in theoretical physics",
+      "is_published": true,
+      "published_at": "2025-01-01T00:00:00Z",
+      "available_for_reviews": true
+    },
+    {
+      "uuid": "0a100000000000000000000000000002",
+      "user_uuid": "a4000000000000000000000000000004",
+      "orcid_id": "0000-0001-2345-0002",
+      "biography": "Pioneer in radioactivity research with expertise in physical chemistry and materials science. Extensive experience in spectroscopy and radiation physics.",
+      "alternative_names": ["M. Curie", "Marie Sklodowska-Curie"],
+      "description": "Expert reviewer in chemistry and physics",
+      "is_published": true,
+      "published_at": "2025-01-01T00:00:00Z",
+      "available_for_reviews": true
+    },
+    {
+      "uuid": "0a100000000000000000000000000003",
+      "user_uuid": "a4000000000000000000000000000005",
+      "orcid_id": "0000-0001-2345-0003",
+      "biography": "Computer scientist and mathematician specializing in computation theory, cryptography, and artificial intelligence. Developer of foundational concepts in computing.",
+      "alternative_names": ["A. Turing", "Alan M. Turing"],
+      "description": "Expert reviewer in computer science",
+      "is_published": true,
+      "published_at": "2025-01-15T00:00:00Z",
+      "available_for_reviews": true
+    },
+    {
+      "uuid": "0a100000000000000000000000000004",
+      "user_uuid": "a4000000000000000000000000000009",
+      "orcid_id": "0000-0001-2345-0004",
+      "biography": "Mathematician and physicist with expertise in quantum mechanics, game theory, and computer architecture. Pioneer in numerical analysis and scientific computing.",
+      "alternative_names": ["J. von Neumann", "John v. Neumann"],
+      "description": "Expert reviewer in mathematics and computing",
+      "is_published": true,
+      "published_at": "2025-01-10T00:00:00Z",
+      "available_for_reviews": true,
+      "_comment": "Published reviewer NOT in Call 1 pool - available for suggestions"
+    },
+    {
+      "uuid": "0a100000000000000000000000000005",
+      "user_uuid": "a400000000000000000000000000000a",
+      "orcid_id": "0000-0001-2345-0005",
+      "biography": "Geneticist specializing in cytogenetics and transposable elements. Expert in molecular biology, genomics, and computational biology applications.",
+      "alternative_names": ["B. McClintock", "Barbara M."],
+      "description": "Expert reviewer in genetics and biology",
+      "is_published": true,
+      "published_at": "2025-01-12T00:00:00Z",
+      "available_for_reviews": true,
+      "_comment": "Published reviewer NOT in Call 1 pool - available for suggestions"
+    },
+    {
+      "uuid": "0a100000000000000000000000000006",
+      "user_uuid": "a400000000000000000000000000000b",
+      "orcid_id": "0000-0001-2345-0006",
+      "biography": "Astronomer specializing in galaxy dynamics, dark matter research, and astrophysical simulations. Expert in large-scale computational modeling.",
+      "alternative_names": ["V. Rubin", "Vera C. Rubin"],
+      "description": "Expert reviewer in astronomy and astrophysics",
+      "is_published": true,
+      "published_at": "2025-01-08T00:00:00Z",
+      "available_for_reviews": true,
+      "_comment": "Published reviewer NOT in Call 1 pool - available for suggestions"
+    }
+  ],
+  "reviewer_affiliations": [
+    {
+      "uuid": "af100000000000000000000000000001",
+      "reviewer_profile_uuid": "0a100000000000000000000000000001",
+      "organization_name": "ETH Zurich",
+      "organization_identifier": "ror:05a28rw58",
+      "department": "Department of Physics",
+      "position_title": "Professor of Theoretical Physics",
+      "start_date": "2020-01-01",
+      "is_primary": true,
+      "affiliation_type": "employment"
+    },
+    {
+      "uuid": "af100000000000000000000000000002",
+      "reviewer_profile_uuid": "0a100000000000000000000000000002",
+      "organization_name": "University of Paris",
+      "organization_identifier": "ror:02feahw73",
+      "department": "Department of Chemistry",
+      "position_title": "Professor of Physical Chemistry",
+      "start_date": "2019-09-01",
+      "is_primary": true,
+      "affiliation_type": "employment"
+    },
+    {
+      "uuid": "af100000000000000000000000000003",
+      "reviewer_profile_uuid": "0a100000000000000000000000000003",
+      "organization_name": "Cambridge University",
+      "organization_identifier": "ror:013meh722",
+      "department": "Department of Computer Science",
+      "position_title": "Professor of Computer Science",
+      "start_date": "2018-06-01",
+      "is_primary": true,
+      "affiliation_type": "employment"
+    },
+    {
+      "uuid": "af100000000000000000000000000004",
+      "reviewer_profile_uuid": "0a100000000000000000000000000004",
+      "organization_name": "Princeton University",
+      "organization_identifier": "ror:00hx57361",
+      "department": "Department of Mathematics",
+      "position_title": "Professor of Mathematics",
+      "start_date": "2019-01-01",
+      "is_primary": true,
+      "affiliation_type": "employment"
+    },
+    {
+      "uuid": "af100000000000000000000000000005",
+      "reviewer_profile_uuid": "0a100000000000000000000000000005",
+      "organization_name": "Harvard University",
+      "organization_identifier": "ror:03vek6s52",
+      "department": "Department of Genetics",
+      "position_title": "Professor of Genetics",
+      "start_date": "2017-09-01",
+      "is_primary": true,
+      "affiliation_type": "employment"
+    },
+    {
+      "uuid": "af100000000000000000000000000006",
+      "reviewer_profile_uuid": "0a100000000000000000000000000006",
+      "organization_name": "Carnegie Institution",
+      "organization_identifier": "ror:039mpgv96",
+      "department": "Department of Astronomy",
+      "position_title": "Staff Scientist",
+      "start_date": "2018-03-01",
+      "is_primary": true,
+      "affiliation_type": "employment"
+    }
+  ],
+  "reviewer_expertise": [
+    {
+      "uuid": "ae100000000000000000000000000001",
+      "reviewer_profile_uuid": "0a100000000000000000000000000001",
+      "expertise_keyword": "quantum mechanics",
+      "expertise_category_uuid": "ec100000000000000000000000000002",
+      "proficiency_level": "expert",
+      "years_experience": 25
+    },
+    {
+      "uuid": "ae100000000000000000000000000002",
+      "reviewer_profile_uuid": "0a100000000000000000000000000001",
+      "expertise_keyword": "theoretical physics",
+      "expertise_category_uuid": "ec100000000000000000000000000001",
+      "proficiency_level": "expert",
+      "years_experience": 30
+    },
+    {
+      "uuid": "ae100000000000000000000000000003",
+      "reviewer_profile_uuid": "0a100000000000000000000000000001",
+      "expertise_keyword": "relativity",
+      "expertise_category_uuid": "ec100000000000000000000000000001",
+      "proficiency_level": "expert",
+      "years_experience": 28
+    },
+    {
+      "uuid": "ae100000000000000000000000000004",
+      "reviewer_profile_uuid": "0a100000000000000000000000000002",
+      "expertise_keyword": "radioactivity",
+      "expertise_category_uuid": "ec100000000000000000000000000003",
+      "proficiency_level": "expert",
+      "years_experience": 20
+    },
+    {
+      "uuid": "ae100000000000000000000000000005",
+      "reviewer_profile_uuid": "0a100000000000000000000000000002",
+      "expertise_keyword": "materials science",
+      "expertise_category_uuid": "ec100000000000000000000000000004",
+      "proficiency_level": "expert",
+      "years_experience": 18
+    },
+    {
+      "uuid": "ae100000000000000000000000000006",
+      "reviewer_profile_uuid": "0a100000000000000000000000000002",
+      "expertise_keyword": "spectroscopy",
+      "expertise_category_uuid": "ec100000000000000000000000000003",
+      "proficiency_level": "familiar",
+      "years_experience": 15
+    },
+    {
+      "uuid": "ae100000000000000000000000000007",
+      "reviewer_profile_uuid": "0a100000000000000000000000000003",
+      "expertise_keyword": "machine learning",
+      "expertise_category_uuid": "ec100000000000000000000000000006",
+      "proficiency_level": "expert",
+      "years_experience": 15
+    },
+    {
+      "uuid": "ae100000000000000000000000000008",
+      "reviewer_profile_uuid": "0a100000000000000000000000000003",
+      "expertise_keyword": "cryptography",
+      "expertise_category_uuid": "ec100000000000000000000000000005",
+      "proficiency_level": "expert",
+      "years_experience": 20
+    },
+    {
+      "uuid": "ae100000000000000000000000000009",
+      "reviewer_profile_uuid": "0a100000000000000000000000000003",
+      "expertise_keyword": "computation theory",
+      "expertise_category_uuid": "ec100000000000000000000000000005",
+      "proficiency_level": "expert",
+      "years_experience": 22
+    },
+    {
+      "uuid": "ae10000000000000000000000000000a",
+      "reviewer_profile_uuid": "0a100000000000000000000000000004",
+      "expertise_keyword": "quantum mechanics",
+      "expertise_category_uuid": "ec100000000000000000000000000002",
+      "proficiency_level": "expert",
+      "years_experience": 30,
+      "_comment": "von Neumann - matches Quantum Error Correction proposal"
+    },
+    {
+      "uuid": "ae10000000000000000000000000000b",
+      "reviewer_profile_uuid": "0a100000000000000000000000000004",
+      "expertise_keyword": "numerical methods",
+      "expertise_category_uuid": "ec100000000000000000000000000005",
+      "proficiency_level": "expert",
+      "years_experience": 28
+    },
+    {
+      "uuid": "ae10000000000000000000000000000c",
+      "reviewer_profile_uuid": "0a100000000000000000000000000004",
+      "expertise_keyword": "computer architecture",
+      "expertise_category_uuid": "ec100000000000000000000000000005",
+      "proficiency_level": "expert",
+      "years_experience": 25
+    },
+    {
+      "uuid": "ae10000000000000000000000000000d",
+      "reviewer_profile_uuid": "0a100000000000000000000000000005",
+      "expertise_keyword": "materials science",
+      "expertise_category_uuid": "ec100000000000000000000000000004",
+      "proficiency_level": "expert",
+      "years_experience": 35,
+      "_comment": "McClintock - matches Battery Materials proposal"
+    },
+    {
+      "uuid": "ae10000000000000000000000000000e",
+      "reviewer_profile_uuid": "0a100000000000000000000000000005",
+      "expertise_keyword": "machine learning",
+      "expertise_category_uuid": "ec100000000000000000000000000006",
+      "proficiency_level": "familiar",
+      "years_experience": 10
+    },
+    {
+      "uuid": "ae10000000000000000000000000000f",
+      "reviewer_profile_uuid": "0a100000000000000000000000000005",
+      "expertise_keyword": "computational chemistry",
+      "expertise_category_uuid": "ec100000000000000000000000000003",
+      "proficiency_level": "expert",
+      "years_experience": 25
+    },
+    {
+      "uuid": "ae100000000000000000000000000010",
+      "reviewer_profile_uuid": "0a100000000000000000000000000006",
+      "expertise_keyword": "numerical modeling",
+      "expertise_category_uuid": "ec100000000000000000000000000001",
+      "proficiency_level": "expert",
+      "years_experience": 30,
+      "_comment": "Rubin - matches Climate Model Enhancement proposal"
+    },
+    {
+      "uuid": "ae100000000000000000000000000011",
+      "reviewer_profile_uuid": "0a100000000000000000000000000006",
+      "expertise_keyword": "data analysis",
+      "expertise_category_uuid": "ec100000000000000000000000000005",
+      "proficiency_level": "expert",
+      "years_experience": 35
+    },
+    {
+      "uuid": "ae100000000000000000000000000012",
+      "reviewer_profile_uuid": "0a100000000000000000000000000006",
+      "expertise_keyword": "theoretical physics",
+      "expertise_category_uuid": "ec100000000000000000000000000001",
+      "proficiency_level": "expert",
+      "years_experience": 40
+    }
+  ],
+  "reviewer_publications": [
+    {
+      "uuid": "ab100000000000000000000000000001",
+      "reviewer_profile_uuid": "0a100000000000000000000000000001",
+      "title": "On the Electrodynamics of Moving Bodies",
+      "doi": "10.1002/andp.19053221004",
+      "publication_year": 2022,
+      "venue": "Annalen der Physik",
+      "venue_type": "journal",
+      "abstract": "A foundational paper on special relativity theory.",
+      "coauthors": []
+    },
+    {
+      "uuid": "ab100000000000000000000000000002",
+      "reviewer_profile_uuid": "0a100000000000000000000000000001",
+      "title": "Quantum Theory of Radiation",
+      "doi": "10.1103/physrev.17.273",
+      "publication_year": 2021,
+      "venue": "Physical Review",
+      "venue_type": "journal",
+      "abstract": "Analysis of stimulated emission and absorption of radiation.",
+      "coauthors": [{"name": "Niels Bohr", "orcid": "0000-0001-0000-0006"}]
+    },
+    {
+      "uuid": "ab100000000000000000000000000003",
+      "reviewer_profile_uuid": "0a100000000000000000000000000002",
+      "title": "Radioactive Substances and Their Radiations",
+      "doi": "10.1038/143001a0",
+      "publication_year": 2023,
+      "venue": "Nature",
+      "venue_type": "journal",
+      "abstract": "Comprehensive review of radioactive decay mechanisms.",
+      "coauthors": [{"name": "Pierre Curie", "orcid": null}]
+    },
+    {
+      "uuid": "ab100000000000000000000000000004",
+      "reviewer_profile_uuid": "0a100000000000000000000000000002",
+      "title": "New Materials for Energy Storage Applications",
+      "doi": "10.1016/j.mattod.2022.01.001",
+      "publication_year": 2022,
+      "venue": "Materials Today",
+      "venue_type": "journal",
+      "abstract": "Review of novel electrode materials for batteries.",
+      "coauthors": [{"name": "Linus Pauling", "orcid": "0000-0001-0000-0007"}]
+    },
+    {
+      "uuid": "ab100000000000000000000000000005",
+      "reviewer_profile_uuid": "0a100000000000000000000000000003",
+      "title": "Computing Machinery and Intelligence",
+      "doi": "10.1093/mind/lix.236.433",
+      "publication_year": 2023,
+      "venue": "Mind",
+      "venue_type": "journal",
+      "abstract": "Foundational paper on artificial intelligence and machine cognition.",
+      "coauthors": []
+    },
+    {
+      "uuid": "ab100000000000000000000000000006",
+      "reviewer_profile_uuid": "0a100000000000000000000000000003",
+      "title": "Neural Networks for Pattern Recognition",
+      "doi": "10.1109/tpami.2023.0001",
+      "publication_year": 2023,
+      "venue": "IEEE Transactions on Pattern Analysis",
+      "venue_type": "journal",
+      "abstract": "Advanced neural network architectures for image recognition.",
+      "coauthors": [{"name": "John von Neumann", "orcid": null}]
+    },
+    {
+      "uuid": "ab100000000000000000000000000007",
+      "reviewer_profile_uuid": "0a100000000000000000000000000004",
+      "title": "Mathematical Foundations of Quantum Error Correction",
+      "doi": "10.1103/quantsci.2023.001",
+      "publication_year": 2023,
+      "venue": "Quantum Science and Technology",
+      "venue_type": "journal",
+      "abstract": "This paper presents a rigorous mathematical framework for quantum error correction codes. We analyze stabilizer codes and develop new techniques for optimizing logical qubit fidelity in near-term quantum hardware.",
+      "coauthors": [],
+      "_comment": "von Neumann publication matching Quantum Error Correction proposal"
+    },
+    {
+      "uuid": "ab100000000000000000000000000008",
+      "reviewer_profile_uuid": "0a100000000000000000000000000004",
+      "title": "High-Performance Computing for Quantum Simulations",
+      "doi": "10.1145/hpc.2022.0042",
+      "publication_year": 2022,
+      "venue": "ACM Computing Surveys",
+      "venue_type": "journal",
+      "abstract": "Survey of HPC techniques for large-scale quantum system simulations. Covers numerical methods, parallel algorithms, and benchmarking methodologies for quantum computing research.",
+      "coauthors": [{"name": "Alan Turing", "orcid": null}]
+    },
+    {
+      "uuid": "ab100000000000000000000000000009",
+      "reviewer_profile_uuid": "0a100000000000000000000000000005",
+      "title": "Machine Learning for Materials Discovery: Applications to Battery Electrodes",
+      "doi": "10.1038/nmat.2023.0123",
+      "publication_year": 2023,
+      "venue": "Nature Materials",
+      "venue_type": "journal",
+      "abstract": "We present a machine learning framework for high-throughput screening of battery electrode materials. Combining DFT calculations with neural network predictions enables rapid identification of promising lithium-ion and solid-state battery candidates.",
+      "coauthors": [{"name": "Linus Pauling", "orcid": null}],
+      "_comment": "McClintock publication matching Battery Materials proposal"
+    },
+    {
+      "uuid": "ab10000000000000000000000000000a",
+      "reviewer_profile_uuid": "0a100000000000000000000000000005",
+      "title": "Density Functional Theory for Energy Storage Materials",
+      "doi": "10.1021/acs.jpclett.2022.001",
+      "publication_year": 2022,
+      "venue": "Journal of Physical Chemistry Letters",
+      "venue_type": "journal",
+      "abstract": "Review of DFT methods for computational screening of electrode materials in next-generation batteries. Focus on accuracy and computational efficiency trade-offs.",
+      "coauthors": []
+    },
+    {
+      "uuid": "ab10000000000000000000000000000b",
+      "reviewer_profile_uuid": "0a100000000000000000000000000006",
+      "title": "Adaptive Mesh Refinement for Global Climate Models",
+      "doi": "10.1175/jclim.2023.0042",
+      "publication_year": 2023,
+      "venue": "Journal of Climate",
+      "venue_type": "journal",
+      "abstract": "Novel adaptive mesh refinement techniques for climate modeling. Our approach achieves unprecedented resolution in critical regions including mountain ranges, coastlines, and urban areas for improved precipitation prediction.",
+      "coauthors": [],
+      "_comment": "Rubin publication matching Climate Model Enhancement proposal"
+    },
+    {
+      "uuid": "ab10000000000000000000000000000c",
+      "reviewer_profile_uuid": "0a100000000000000000000000000006",
+      "title": "Large-Scale Data Analysis in Climate Science",
+      "doi": "10.1029/2022jd037001",
+      "publication_year": 2022,
+      "venue": "Journal of Geophysical Research",
+      "venue_type": "journal",
+      "abstract": "Methods for analyzing petabyte-scale climate simulation data. Covers numerical analysis techniques and HPC approaches for global climate model output processing.",
+      "coauthors": [{"name": "Rachel Carson", "orcid": null}]
+    }
+  ],
+  "call_coi_configurations": [
+    {
+      "uuid": "cc100000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "coauthorship_lookback_years": 5,
+      "coauthorship_threshold_papers": 1,
+      "institutional_lookback_years": 3,
+      "include_same_department": true,
+      "include_same_institution": true,
+      "recusal_required_types": ["REL_FAMILY", "FIN_DIRECT"],
+      "management_allowed_types": ["COLLAB_ACTIVE", "COAUTH_RECENT"],
+      "disclosure_only_types": ["INST_SAME"],
+      "auto_detect_coauthorship": true,
+      "auto_detect_institutional": true,
+      "auto_detect_named_personnel": true,
+      "invitation_proposal_disclosure": "titles_and_summaries"
+    },
+    {
+      "uuid": "cc100000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000002",
+      "coauthorship_lookback_years": 3,
+      "coauthorship_threshold_papers": 2,
+      "institutional_lookback_years": 2,
+      "include_same_department": true,
+      "include_same_institution": false,
+      "recusal_required_types": ["REL_FAMILY"],
+      "management_allowed_types": ["COAUTH_RECENT", "COLLAB_ACTIVE"],
+      "disclosure_only_types": ["INST_SAME", "INST_DEPT"],
+      "auto_detect_coauthorship": true,
+      "auto_detect_institutional": true,
+      "auto_detect_named_personnel": false,
+      "invitation_proposal_disclosure": "titles_only"
+    }
+  ],
+  "matching_configurations": [
+    {
+      "uuid": "cf100000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "affinity_method": "combined",
+      "keyword_weight": 0.4,
+      "text_weight": 0.6,
+      "min_reviewers_per_proposal": 2,
+      "max_reviewers_per_proposal": 4,
+      "min_proposals_per_reviewer": 2,
+      "max_proposals_per_reviewer": 8,
+      "algorithm": "minmax",
+      "min_affinity_threshold": 0.1,
+      "use_reviewer_bids": true,
+      "bid_weight": 0.25
+    },
+    {
+      "uuid": "cf100000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000002",
+      "affinity_method": "keyword",
+      "keyword_weight": 1.0,
+      "text_weight": 0.0,
+      "min_reviewers_per_proposal": 3,
+      "max_reviewers_per_proposal": 5,
+      "min_proposals_per_reviewer": 3,
+      "max_proposals_per_reviewer": 10,
+      "algorithm": "fairflow",
+      "min_affinity_threshold": 0.1,
+      "use_reviewer_bids": true,
+      "bid_weight": 0.3
+    }
+  ],
+  "call_assignment_configurations": [
+    {
+      "uuid": "c9100000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "auto_reassign_on_decline": true,
+      "max_auto_reassign_attempts": 3,
+      "assignment_expiration_days": 7,
+      "send_reminder_before_expiry_days": 2,
+      "_comment": "Assignment workflow settings for Spring HPC Call"
+    },
+    {
+      "uuid": "c9100000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000002",
+      "auto_reassign_on_decline": false,
+      "max_auto_reassign_attempts": 1,
+      "assignment_expiration_days": 14,
+      "send_reminder_before_expiry_days": 3,
+      "_comment": "Longer deadlines for Fall AI Call"
+    }
+  ],
+  "call_reviewer_pools": [
+    {
+      "uuid": "0b100000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000001",
+      "invited_by_uuid": "a4000000000000000000000000000002",
+      "invitation_status": "accepted",
+      "max_assignments": 5,
+      "current_assignments": 2,
+      "expertise_match_score": 0.85
+    },
+    {
+      "uuid": "0b100000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000002",
+      "invited_by_uuid": "a4000000000000000000000000000002",
+      "invitation_status": "accepted",
+      "max_assignments": 6,
+      "current_assignments": 3,
+      "expertise_match_score": 0.72
+    },
+    {
+      "uuid": "0b100000000000000000000000000003",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000003",
+      "invited_by_uuid": "a4000000000000000000000000000002",
+      "invitation_status": "pending",
+      "max_assignments": 5,
+      "current_assignments": 0
+    },
+    {
+      "uuid": "0b100000000000000000000000000004",
+      "call_uuid": "ca200000000000000000000000000002",
+      "reviewer_uuid": "0a100000000000000000000000000001",
+      "invited_by_uuid": "a4000000000000000000000000000002",
+      "invitation_status": "accepted",
+      "max_assignments": 4,
+      "current_assignments": 1,
+      "expertise_match_score": 0.91
+    },
+    {
+      "uuid": "0b100000000000000000000000000005",
+      "call_uuid": "ca200000000000000000000000000002",
+      "reviewer_uuid": "0a100000000000000000000000000002",
+      "invited_by_uuid": "a4000000000000000000000000000002",
+      "invitation_status": "accepted",
+      "max_assignments": 5,
+      "current_assignments": 2,
+      "expertise_match_score": 0.78
+    },
+    {
+      "uuid": "0b100000000000000000000000000006",
+      "call_uuid": "ca200000000000000000000000000002",
+      "reviewer_uuid": "0a100000000000000000000000000003",
+      "invited_by_uuid": "a4000000000000000000000000000002",
+      "invitation_status": "declined",
+      "decline_reason": "Schedule conflict with other review commitments",
+      "max_assignments": 5,
+      "current_assignments": 0
+    },
+    {
+      "uuid": "0b100000000000000000000000000007",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": null,
+      "invited_email": "richard.feynman@caltech.edu",
+      "invited_user_uuid": null,
+      "invited_by_uuid": "a4000000000000000000000000000002",
+      "invitation_status": "pending",
+      "max_assignments": 4,
+      "current_assignments": 0,
+      "_comment": "Direct email invitation - reviewer has not yet created profile"
+    },
+    {
+      "uuid": "0b100000000000000000000000000008",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": null,
+      "invited_email": "emmy.noether@gottingen.edu",
+      "invited_user_uuid": null,
+      "invited_by_uuid": "a4000000000000000000000000000002",
+      "invitation_status": "pending",
+      "invitation_expires_at": "2025-03-15T23:59:59Z",
+      "max_assignments": 3,
+      "current_assignments": 0,
+      "_comment": "Email invitation to mathematician - pending acceptance"
+    },
+    {
+      "uuid": "0b100000000000000000000000000009",
+      "call_uuid": "ca200000000000000000000000000003",
+      "reviewer_uuid": "0a100000000000000000000000000002",
+      "invited_email": "",
+      "invited_user_uuid": null,
+      "invited_by_uuid": "a4000000000000000000000000000002",
+      "invitation_status": "pending",
+      "invitation_expires_at": "2025-03-20T23:59:59Z",
+      "max_assignments": 5,
+      "current_assignments": 0,
+      "expertise_match_score": 0.68,
+      "_comment": "Curie invited to Call 3 (Environmental Data Grant) - pending response"
+    },
+    {
+      "uuid": "0b10000000000000000000000000000a",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": null,
+      "invited_email": "paul.dirac@bristol.edu",
+      "invited_user_uuid": null,
+      "invited_by_uuid": "a4000000000000000000000000000002",
+      "invitation_status": "expired",
+      "invitation_expires_at": "2024-12-15T23:59:59Z",
+      "max_assignments": 4,
+      "current_assignments": 0,
+      "_comment": "Expired email invitation - Dirac never responded"
+    }
+  ],
+  "reviewer_bids": [
+    {
+      "uuid": "0c100000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "bid": "eager",
+      "comment": "This proposal is directly in my area of expertise in quantum mechanics"
+    },
+    {
+      "uuid": "0c100000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "bid": "willing",
+      "comment": "I can review this from a physics perspective"
+    },
+    {
+      "uuid": "0c100000000000000000000000000003",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "bid": "eager",
+      "comment": "Battery materials is my specialty"
+    },
+    {
+      "uuid": "0c100000000000000000000000000004",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000003",
+      "bid": "not_willing",
+      "comment": "Climate modeling is outside my expertise"
+    },
+    {
+      "uuid": "0c100000000000000000000000000005",
+      "call_uuid": "ca200000000000000000000000000002",
+      "reviewer_uuid": "0a100000000000000000000000000003",
+      "proposal_uuid": "ca600000000000000000000000000004",
+      "bid": "eager",
+      "comment": "Large language models are my research focus"
+    },
+    {
+      "uuid": "0c100000000000000000000000000006",
+      "call_uuid": "ca200000000000000000000000000002",
+      "reviewer_uuid": "0a100000000000000000000000000003",
+      "proposal_uuid": "ca600000000000000000000000000005",
+      "bid": "willing",
+      "comment": "I can evaluate the computational aspects"
+    }
+  ],
+  "reviewer_suggestions": [
+    {
+      "uuid": "25100000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000001",
+      "affinity_score": 0.85,
+      "keyword_score": 0.9,
+      "text_score": 0.8,
+      "status": "confirmed",
+      "reviewed_by_uuid": "a4000000000000000000000000000002",
+      "reviewed_at": "2025-02-01T10:00:00Z",
+      "rejection_reason": ""
+    },
+    {
+      "uuid": "25100000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000002",
+      "affinity_score": 0.72,
+      "keyword_score": 0.65,
+      "text_score": 0.78,
+      "status": "confirmed",
+      "reviewed_by_uuid": "a4000000000000000000000000000002",
+      "reviewed_at": "2025-02-01T10:05:00Z",
+      "rejection_reason": ""
+    },
+    {
+      "uuid": "25100000000000000000000000000003",
+      "call_uuid": "ca200000000000000000000000000002",
+      "reviewer_uuid": "0a100000000000000000000000000003",
+      "affinity_score": 0.91,
+      "keyword_score": 0.95,
+      "text_score": 0.88,
+      "status": "pending",
+      "reviewed_by_uuid": null,
+      "reviewed_at": null,
+      "rejection_reason": ""
+    },
+    {
+      "uuid": "25100000000000000000000000000004",
+      "call_uuid": "ca200000000000000000000000000002",
+      "reviewer_uuid": "0a100000000000000000000000000001",
+      "affinity_score": 0.45,
+      "keyword_score": 0.4,
+      "text_score": 0.5,
+      "status": "rejected",
+      "reviewed_by_uuid": "a4000000000000000000000000000002",
+      "reviewed_at": "2025-02-02T14:30:00Z",
+      "rejection_reason": "Expertise mismatch - more focused on theoretical physics than AI applications"
+    }
+  ],
+  "reviewer_stats": [
+    {
+      "uuid": "5a100000000000000000000000000001",
+      "reviewer_profile_uuid": "0a100000000000000000000000000001",
+      "total_reviews_completed": 45,
+      "total_reviews_declined": 3,
+      "total_reviews_timeout": 1,
+      "average_review_time_days": 12.5,
+      "average_score_given": 7.2,
+      "last_review_date": "2025-01-15",
+      "quality_rating": 4.5,
+      "quality_rating_count": 20,
+      "_comment": "Einstein - experienced reviewer with high quality rating"
+    },
+    {
+      "uuid": "5a100000000000000000000000000002",
+      "reviewer_profile_uuid": "0a100000000000000000000000000002",
+      "total_reviews_completed": 38,
+      "total_reviews_declined": 2,
+      "total_reviews_timeout": 0,
+      "average_review_time_days": 10.2,
+      "average_score_given": 6.8,
+      "last_review_date": "2025-01-18",
+      "quality_rating": 4.8,
+      "quality_rating_count": 15,
+      "_comment": "Curie - fast turnaround, excellent quality"
+    },
+    {
+      "uuid": "5a100000000000000000000000000003",
+      "reviewer_profile_uuid": "0a100000000000000000000000000003",
+      "total_reviews_completed": 52,
+      "total_reviews_declined": 5,
+      "total_reviews_timeout": 2,
+      "average_review_time_days": 14.0,
+      "average_score_given": 7.5,
+      "last_review_date": "2025-01-10",
+      "quality_rating": 4.2,
+      "quality_rating_count": 25,
+      "_comment": "Turing - prolific reviewer, sometimes slower"
+    },
+    {
+      "uuid": "5a100000000000000000000000000004",
+      "reviewer_profile_uuid": "0a100000000000000000000000000004",
+      "total_reviews_completed": 28,
+      "total_reviews_declined": 1,
+      "total_reviews_timeout": 0,
+      "average_review_time_days": 8.5,
+      "average_score_given": 6.5,
+      "last_review_date": "2025-01-20",
+      "quality_rating": 4.9,
+      "quality_rating_count": 12,
+      "_comment": "von Neumann - fastest turnaround, highest quality"
+    }
+  ],
+  "coi_disclosure_forms": [
+    {
+      "uuid": "df100000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "certified": true,
+      "certification_date": "2025-01-05T10:00:00Z",
+      "certification_statement": "I certify that I have disclosed all relevant conflicts of interest.",
+      "has_financial_interests": true,
+      "has_personal_relationships": false,
+      "personal_relationships": [],
+      "has_other_conflicts": false,
+      "other_conflicts_description": "",
+      "valid_until": "2026-01-05",
+      "is_current": true,
+      "_comment": "Einstein's annual disclosure with financial interests"
+    },
+    {
+      "uuid": "df100000000000000000000000000002",
+      "reviewer_uuid": "0a100000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000001",
+      "certified": true,
+      "certification_date": "2025-01-08T14:30:00Z",
+      "certification_statement": "I confirm I have no undisclosed conflicts.",
+      "has_financial_interests": false,
+      "has_personal_relationships": false,
+      "personal_relationships": [],
+      "has_other_conflicts": false,
+      "other_conflicts_description": "",
+      "valid_until": "2026-01-08",
+      "is_current": true,
+      "_comment": "Curie's clean disclosure - no conflicts"
+    },
+    {
+      "uuid": "df100000000000000000000000000003",
+      "reviewer_uuid": "0a100000000000000000000000000003",
+      "call_uuid": "ca200000000000000000000000000001",
+      "certified": true,
+      "certification_date": "2025-01-02T09:00:00Z",
+      "certification_statement": "I have disclosed my mentorship relationships.",
+      "has_financial_interests": false,
+      "has_personal_relationships": true,
+      "personal_relationships": [
+        {"name": "Rachel Carson", "relationship": "Former PhD student", "organization": "Environmental Sciences Institute"}
+      ],
+      "has_other_conflicts": false,
+      "other_conflicts_description": "",
+      "valid_until": "2026-01-02",
+      "is_current": true,
+      "_comment": "Turing's disclosure with mentorship relationship"
+    }
+  ],
+  "coi_financial_interests": [
+    {
+      "uuid": "f1100000000000000000000000000001",
+      "disclosure_form_uuid": "df100000000000000000000000000001",
+      "entity_name": "QuantumTech Inc.",
+      "entity_type": "startup",
+      "relationship_type": "consulting",
+      "amount_range": "10000_50000",
+      "is_ongoing": true,
+      "description": "Technical advisory role for quantum computing startup",
+      "_comment": "Einstein's consulting relationship"
+    },
+    {
+      "uuid": "f1100000000000000000000000000002",
+      "disclosure_form_uuid": "df100000000000000000000000000001",
+      "entity_name": "QBit Ventures",
+      "entity_type": "investment_fund",
+      "relationship_type": "advisory_board",
+      "amount_range": "1000_10000",
+      "is_ongoing": true,
+      "description": "Member of scientific advisory board for quantum-focused VC",
+      "_comment": "Einstein's advisory board membership"
+    }
+  ],
+  "reviewer_proposal_affinities": [
+    {
+      "uuid": "af100000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "affinity_score": 0.92,
+      "keyword_score": 0.95,
+      "text_score": 0.89,
+      "_comment": "Einstein-Quantum Error Correction: excellent match"
+    },
+    {
+      "uuid": "af100000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "affinity_score": 0.65,
+      "keyword_score": 0.58,
+      "text_score": 0.72,
+      "_comment": "Einstein-Battery Materials: moderate match (physics overlap)"
+    },
+    {
+      "uuid": "af100000000000000000000000000003",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000003",
+      "affinity_score": 0.35,
+      "keyword_score": 0.28,
+      "text_score": 0.42,
+      "_comment": "Einstein-Climate Model: low match (different domain)"
+    },
+    {
+      "uuid": "af100000000000000000000000000004",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "affinity_score": 0.89,
+      "keyword_score": 0.92,
+      "text_score": 0.86,
+      "_comment": "Curie-Battery Materials: excellent match"
+    },
+    {
+      "uuid": "af100000000000000000000000000005",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000005",
+      "affinity_score": 0.72,
+      "keyword_score": 0.68,
+      "text_score": 0.76,
+      "_comment": "Curie-Protein Structure: good match (chemistry overlap)"
+    },
+    {
+      "uuid": "af100000000000000000000000000006",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000006",
+      "affinity_score": 0.28,
+      "keyword_score": 0.22,
+      "text_score": 0.34,
+      "_comment": "Curie-Particle Physics: low match"
+    },
+    {
+      "uuid": "af100000000000000000000000000007",
+      "call_uuid": "ca200000000000000000000000000002",
+      "reviewer_uuid": "0a100000000000000000000000000003",
+      "proposal_uuid": "ca600000000000000000000000000004",
+      "affinity_score": 0.94,
+      "keyword_score": 0.96,
+      "text_score": 0.92,
+      "_comment": "Turing-LLM Fine-tuning: excellent match"
+    },
+    {
+      "uuid": "af100000000000000000000000000008",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000003",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "affinity_score": 0.58,
+      "keyword_score": 0.52,
+      "text_score": 0.64,
+      "_comment": "Turing-Quantum Error Correction: moderate (computational aspects)"
+    }
+  ],
+  "proposed_assignments": [
+    {
+      "uuid": "9a100000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "affinity_score": 0.92,
+      "algorithm_used": "minmax",
+      "rank": 1,
+      "is_deployed": true,
+      "deployed_at": "2025-01-19T16:00:00Z",
+      "deployed_by_uuid": "a4000000000000000000000000000002",
+      "_comment": "Einstein assigned to Quantum Error Correction (rank 1)"
+    },
+    {
+      "uuid": "9a100000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000003",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "affinity_score": 0.58,
+      "algorithm_used": "minmax",
+      "rank": 3,
+      "is_deployed": false,
+      "deployed_at": null,
+      "deployed_by_uuid": null,
+      "_comment": "Turing proposed for Quantum (rank 3) - not yet deployed"
+    },
+    {
+      "uuid": "9a100000000000000000000000000003",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "affinity_score": 0.89,
+      "algorithm_used": "minmax",
+      "rank": 1,
+      "is_deployed": true,
+      "deployed_at": "2025-01-19T16:00:00Z",
+      "deployed_by_uuid": "a4000000000000000000000000000002",
+      "_comment": "Curie assigned to Battery Materials (rank 1)"
+    },
+    {
+      "uuid": "9a100000000000000000000000000004",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "affinity_score": 0.65,
+      "algorithm_used": "minmax",
+      "rank": 2,
+      "is_deployed": true,
+      "deployed_at": "2025-01-19T16:00:00Z",
+      "deployed_by_uuid": "a4000000000000000000000000000002",
+      "_comment": "Einstein also assigned to Battery Materials (rank 2)"
+    },
+    {
+      "uuid": "9a100000000000000000000000000005",
+      "call_uuid": "ca200000000000000000000000000002",
+      "reviewer_uuid": "0a100000000000000000000000000003",
+      "proposal_uuid": "ca600000000000000000000000000004",
+      "affinity_score": 0.94,
+      "algorithm_used": "fairflow",
+      "rank": 1,
+      "is_deployed": false,
+      "deployed_at": null,
+      "deployed_by_uuid": null,
+      "_comment": "Turing proposed for LLM Fine-tuning (rank 1) - pending deployment"
+    }
+  ],
+  "assignment_batches": [
+    {
+      "uuid": "ab100000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_pool_entry_uuid": "0b100000000000000000000000000001",
+      "status": "responded",
+      "sent_at": "2025-01-20T10:00:00Z",
+      "expires_at": "2025-01-27T10:00:00Z",
+      "responded_at": "2025-01-21T14:30:00Z",
+      "source": "algorithm",
+      "created_by_uuid": "a4000000000000000000000000000002",
+      "invitation_token": "ab1token00000000000000000000001",
+      "manager_notes": "Priority proposals for Q1 review cycle",
+      "_comment": "Einstein's assignment batch - fully responded (Call 1)"
+    },
+    {
+      "uuid": "ab100000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_pool_entry_uuid": "0b100000000000000000000000000002",
+      "status": "responded",
+      "sent_at": "2025-01-20T10:00:00Z",
+      "expires_at": "2025-01-27T10:00:00Z",
+      "responded_at": "2025-01-22T09:15:00Z",
+      "source": "algorithm",
+      "created_by_uuid": "a4000000000000000000000000000002",
+      "invitation_token": "ab1token00000000000000000000002",
+      "manager_notes": "",
+      "_comment": "Curie's assignment batch - fully responded (Call 1)"
+    },
+    {
+      "uuid": "ab100000000000000000000000000003",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_pool_entry_uuid": "0b100000000000000000000000000001",
+      "status": "sent",
+      "sent_at": "2025-02-01T10:00:00Z",
+      "expires_at": "2025-02-08T10:00:00Z",
+      "responded_at": null,
+      "source": "manual",
+      "created_by_uuid": "a4000000000000000000000000000002",
+      "invitation_token": "ab1token00000000000000000000003",
+      "manager_notes": "Additional proposals assigned manually",
+      "_comment": "Einstein's second batch - pending response (Call 1)"
+    },
+    {
+      "uuid": "ab100000000000000000000000000004",
+      "call_uuid": "ca200000000000000000000000000002",
+      "reviewer_pool_entry_uuid": "0b100000000000000000000000000004",
+      "status": "draft",
+      "sent_at": null,
+      "expires_at": null,
+      "responded_at": null,
+      "source": "algorithm",
+      "created_by_uuid": "a4000000000000000000000000000002",
+      "invitation_token": "ab1token00000000000000000000004",
+      "manager_notes": "Draft batch for Call 2 - awaiting manager review",
+      "_comment": "Einstein's draft batch for Call 2 - not yet sent"
+    },
+    {
+      "uuid": "ab100000000000000000000000000005",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_pool_entry_uuid": "0b10000000000000000000000000000a",
+      "status": "expired",
+      "sent_at": "2024-12-01T10:00:00Z",
+      "expires_at": "2024-12-08T10:00:00Z",
+      "responded_at": null,
+      "source": "algorithm",
+      "created_by_uuid": "a4000000000000000000000000000002",
+      "invitation_token": "ab1token00000000000000000000005",
+      "manager_notes": "Batch expired without response",
+      "_comment": "Expired batch - Dirac never responded to assignment"
+    },
+    {
+      "uuid": "ab100000000000000000000000000006",
+      "call_uuid": "ca200000000000000000000000000001",
+      "reviewer_pool_entry_uuid": "0b100000000000000000000000000003",
+      "status": "cancelled",
+      "sent_at": "2025-01-15T10:00:00Z",
+      "expires_at": "2025-01-22T10:00:00Z",
+      "responded_at": null,
+      "cancelled_at": "2025-01-17T14:00:00Z",
+      "cancelled_by_uuid": "a4000000000000000000000000000002",
+      "source": "manual",
+      "created_by_uuid": "a4000000000000000000000000000002",
+      "invitation_token": "ab1token00000000000000000000006",
+      "manager_notes": "Cancelled due to reviewer scheduling conflict",
+      "_comment": "Manager cancelled this batch for Turing before response"
+    }
+  ],
+  "assignment_items": [
+    {
+      "uuid": "a1100000000000000000000000000001",
+      "batch_uuid": "ab100000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "status": "accepted",
+      "affinity_score": 0.85,
+      "has_coi": false,
+      "responded_at": "2025-01-21T14:30:00Z",
+      "decline_reason": "",
+      "review_uuid": "ca700000000000000000000000000001",
+      "reassign_count": 0,
+      "_comment": "Einstein accepted Novel Battery Materials proposal"
+    },
+    {
+      "uuid": "a1100000000000000000000000000002",
+      "batch_uuid": "ab100000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000005",
+      "status": "accepted",
+      "affinity_score": 0.72,
+      "has_coi": false,
+      "responded_at": "2025-01-21T14:30:00Z",
+      "decline_reason": "",
+      "review_uuid": "ca700000000000000000000000000004",
+      "reassign_count": 0,
+      "_comment": "Einstein accepted Protein Structure Prediction proposal"
+    },
+    {
+      "uuid": "a1100000000000000000000000000003",
+      "batch_uuid": "ab100000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "status": "accepted",
+      "affinity_score": 0.78,
+      "has_coi": true,
+      "responded_at": "2025-01-22T09:15:00Z",
+      "decline_reason": "",
+      "review_uuid": "ca700000000000000000000000000002",
+      "reassign_count": 0,
+      "_comment": "Curie accepted Novel Battery Materials despite COI (old coauthorship)"
+    },
+    {
+      "uuid": "a1100000000000000000000000000004",
+      "batch_uuid": "ab100000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000003",
+      "status": "declined",
+      "affinity_score": 0.65,
+      "has_coi": true,
+      "responded_at": "2025-01-22T09:15:00Z",
+      "decline_reason": "I was the PhD supervisor of the proposal PI",
+      "review_uuid": null,
+      "reassign_count": 0,
+      "_comment": "Curie declined Climate Model Enhancement due to COI"
+    },
+    {
+      "uuid": "a1100000000000000000000000000005",
+      "batch_uuid": "ab100000000000000000000000000003",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "status": "pending",
+      "affinity_score": 0.91,
+      "has_coi": true,
+      "responded_at": null,
+      "decline_reason": "",
+      "review_uuid": null,
+      "reassign_count": 0,
+      "_comment": "Einstein pending response for Quantum Error Correction (has COI to declare)"
+    },
+    {
+      "uuid": "a1100000000000000000000000000006",
+      "batch_uuid": "ab100000000000000000000000000004",
+      "proposal_uuid": "ca600000000000000000000000000004",
+      "status": "pending",
+      "affinity_score": 0.88,
+      "has_coi": false,
+      "responded_at": null,
+      "decline_reason": "",
+      "review_uuid": null,
+      "reassign_count": 0,
+      "_comment": "Draft item - LLM Fine-tuning proposal for Einstein (Call 2)"
+    },
+    {
+      "uuid": "a1100000000000000000000000000007",
+      "batch_uuid": "ab100000000000000000000000000005",
+      "proposal_uuid": "ca600000000000000000000000000003",
+      "status": "expired",
+      "affinity_score": 0.75,
+      "has_coi": false,
+      "responded_at": null,
+      "decline_reason": "",
+      "review_uuid": null,
+      "reassign_count": 0,
+      "_comment": "Expired item - Dirac's batch expired without response"
+    },
+    {
+      "uuid": "a1100000000000000000000000000008",
+      "batch_uuid": "ab100000000000000000000000000006",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "status": "coi_blocked",
+      "affinity_score": 0.82,
+      "has_coi": true,
+      "responded_at": null,
+      "decline_reason": "",
+      "review_uuid": null,
+      "reassign_count": 0,
+      "coi_record_uuids": ["0d100000000000000000000000000001"],
+      "_comment": "COI blocked - Turing cannot review due to unresolved conflict"
+    },
+    {
+      "uuid": "a1100000000000000000000000000009",
+      "batch_uuid": "ab100000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000005",
+      "status": "reassigned",
+      "affinity_score": 0.68,
+      "has_coi": false,
+      "responded_at": "2025-01-22T11:00:00Z",
+      "decline_reason": "Workload too high this quarter",
+      "review_uuid": null,
+      "reassign_count": 1,
+      "reassigned_from_uuid": "a1100000000000000000000000000003",
+      "_comment": "Reassigned from Curie to another reviewer after decline"
+    }
+  ],
+  "conflicts_of_interest": [
+    {
+      "uuid": "0d100000000000000000000000000001",
+      "reviewer_uuid": "0a100000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "conflicting_user_uuid": "a4000000000000000000000000000006",
+      "coi_type": "COAUTH_RECENT",
+      "severity": "apparent",
+      "detection_method": "automated",
+      "evidence_description": "Reviewer and PI co-authored paper on quantum theory in 2021",
+      "evidence_data": {"shared_papers": 1, "most_recent_year": 2021},
+      "status": "waived",
+      "review_notes": "Conflict noted but manageable",
+      "management_plan": "Reviewer excluded from scoring this specific proposal"
+    },
+    {
+      "uuid": "0d100000000000000000000000000002",
+      "reviewer_uuid": "0a100000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000001",
+      "conflicting_user_uuid": "a4000000000000000000000000000007",
+      "coi_type": "COAUTH_OLD",
+      "severity": "potential",
+      "detection_method": "automated",
+      "evidence_description": "Reviewer and PI co-authored materials paper in 2022",
+      "evidence_data": {"shared_papers": 1, "most_recent_year": 2022},
+      "status": "waived",
+      "review_notes": "Standard coauthorship conflict - minimal overlap",
+      "management_plan": "Old coauthorship noted but no active collaboration; reviewer may proceed"
+    },
+    {
+      "uuid": "0d100000000000000000000000000003",
+      "reviewer_uuid": "0a100000000000000000000000000003",
+      "proposal_uuid": "ca600000000000000000000000000003",
+      "call_uuid": "ca200000000000000000000000000001",
+      "conflicting_user_uuid": "a4000000000000000000000000000008",
+      "coi_type": "REL_MENTOR",
+      "severity": "real",
+      "detection_method": "self_disclosed",
+      "evidence_description": "I was the PhD supervisor of the proposal PI from 2018-2022",
+      "evidence_data": {"relationship_type": "doctoral_supervisor", "period": "2018-2022"},
+      "status": "pending",
+      "review_notes": ""
+    },
+    {
+      "uuid": "0d100000000000000000000000000004",
+      "reviewer_uuid": "0a100000000000000000000000000001",
+      "proposal_uuid": "ca600000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000001",
+      "conflicting_user_uuid": null,
+      "coi_type": "INST_SAME",
+      "severity": "real",
+      "detection_method": "self_disclosed",
+      "evidence_description": "I work at the same institution as a co-investigator on this proposal",
+      "evidence_data": {"institution": "ETH Zurich"},
+      "status": "recused",
+      "review_notes": "Reviewer recused due to institutional conflict",
+      "management_plan": ""
+    },
+    {
+      "uuid": "0d100000000000000000000000000005",
+      "reviewer_uuid": "0a100000000000000000000000000002",
+      "proposal_uuid": "ca600000000000000000000000000005",
+      "call_uuid": "ca200000000000000000000000000001",
+      "conflicting_user_uuid": null,
+      "coi_type": "SOC_MEMBER",
+      "severity": "potential",
+      "detection_method": "automated",
+      "evidence_description": "Reviewer and PI are both members of the International Chemistry Society",
+      "evidence_data": {"organization": "International Chemistry Society", "overlap_years": 5},
+      "status": "dismissed",
+      "review_notes": "Professional society membership alone does not constitute a conflict",
+      "management_plan": "",
+      "_comment": "Dismissed - common professional society membership is not a real conflict"
+    }
+  ]
 }

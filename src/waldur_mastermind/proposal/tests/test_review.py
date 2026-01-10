@@ -197,32 +197,8 @@ class ActionTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.review = self.fixture.review
-        self.url_accept = factories.ReviewFactory.get_url(self.review, "accept")
         self.call_manager = self.fixture.call_manager
         self.review.proposal.round.call.add_user(self.call_manager, CallRole.MANAGER)
-
-    @data(
-        "staff",
-        "reviewer_1",
-    )
-    def test_user_can_accept(self, user):
-        user = getattr(self.fixture, user)
-        self.client.force_authenticate(user)
-        response = self.client.post(self.url_accept)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.review.refresh_from_db()
-        self.assertTrue(self.review.state, models.Review.States.IN_REVIEW)
-        self.assertTrue(self.review.proposal.state, ProposalStates.IN_REVIEW)
-
-    @data(
-        "owner",
-        "customer_support",
-    )
-    def test_user_can_not_accept(self, user):
-        user = getattr(self.fixture, user)
-        self.client.force_authenticate(user)
-        response = self.client.post(self.url_accept)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def _submit_review(self, user):
         url = factories.ReviewFactory.get_url(self.review, "submit")

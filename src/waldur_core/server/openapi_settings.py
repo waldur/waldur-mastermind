@@ -15,7 +15,12 @@ from waldur_mastermind.marketplace.enums import (
 )
 from waldur_mastermind.marketplace_site_agent.enums import AgentServiceState
 from waldur_mastermind.proposal.enums import (
+    AssignmentBatchStatuses,
+    AssignmentItemStatuses,
+    AssignmentSources,
     CallStates,
+    COISeverityLevels,
+    MatchingAlgorithms,
     ProposalStates,
     RequestedOfferingStates,
     RoundStatuses,
@@ -74,6 +79,14 @@ SPECTACULAR_SETTINGS = {
         "AgentServiceState": AgentServiceState.VALUES,
         # Rename Rancher role enum to avoid conflict with permissions RoleEnum
         "RancherNodeRoleEnum": ROLE_CHOICES,
+        # Matching algorithm choices
+        "MatchingAlgorithm": MatchingAlgorithms.CHOICES,
+        # COI severity levels
+        "COISeverityLevel": COISeverityLevels.CHOICES,
+        # Assignment batch and item statuses
+        "AssignmentBatchStatus": AssignmentBatchStatuses.CHOICES,
+        "AssignmentItemStatus": AssignmentItemStatuses.CHOICES,
+        "AssignmentSource": AssignmentSources.CHOICES,
         "IssueStatusType": ISSUE_STATUS_TYPE_CHOICES,
     },
     "VERSION": None,
