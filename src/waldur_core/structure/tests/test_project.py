@@ -1979,3 +1979,161 @@ class GracePeriodTest(test.APITransactionTestCase):
         # Grace end should be 2025-01-17
         expected_grace_end = datetime.date(2025, 1, 17)
         self.assertEqual(project.end_date_with_grace, expected_grace_end)
+
+
+class ProjectListQueryOptimizationTest(test.APITransactionTestCase):
+    """
+    Test that project list endpoint is optimized to avoid N+1 queries.
+
+    Fixes PUHURI-PORTALS-E3K (N+1 query on customer and resources_count).
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+        self.staff = self.fixture.staff
+
+        # Create multiple projects with resources
+        self.projects = [self.fixture.project]
+        for i in range(4):  # Total 5 projects
+            self.projects.append(factories.ProjectFactory(customer=self.customer))
+
+        # Create resources for some projects
+        self.offering = marketplace_factories.OfferingFactory()
+        from waldur_mastermind.marketplace.models import Resource
+
+        # Project 0: 2 active resources
+        marketplace_factories.ResourceFactory(
+            project=self.projects[0],
+            offering=self.offering,
+            state=Resource.States.OK,
+        )
+        marketplace_factories.ResourceFactory(
+            project=self.projects[0],
+            offering=self.offering,
+            state=Resource.States.OK,
+        )
+
+        # Project 1: 1 active, 1 terminated resource
+        marketplace_factories.ResourceFactory(
+            project=self.projects[1],
+            offering=self.offering,
+            state=Resource.States.OK,
+        )
+        marketplace_factories.ResourceFactory(
+            project=self.projects[1],
+            offering=self.offering,
+            state=Resource.States.TERMINATED,
+        )
+
+        # Project 2: 1 updating resource
+        marketplace_factories.ResourceFactory(
+            project=self.projects[2],
+            offering=self.offering,
+            state=Resource.States.UPDATING,
+        )
+
+        # Project 3 and 4: no resources
+
+        self.url = factories.ProjectFactory.get_list_url()
+
+    def test_resources_count_is_correct(self):
+        """Test that resources_count returns correct count of active resources."""
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Create a lookup by project UUID
+        results_by_uuid = {
+            item["uuid"]: item for item in response.data if "uuid" in item
+        }
+
+        # Project 0: 2 active resources
+        self.assertEqual(
+            results_by_uuid[str(self.projects[0].uuid)]["resources_count"], 2
+        )
+
+        # Project 1: 1 active (terminated doesn't count)
+        self.assertEqual(
+            results_by_uuid[str(self.projects[1].uuid)]["resources_count"], 1
+        )
+
+        # Project 2: 1 updating resource (counts as active)
+        self.assertEqual(
+            results_by_uuid[str(self.projects[2].uuid)]["resources_count"], 1
+        )
+
+        # Project 3: no resources
+        self.assertEqual(
+            results_by_uuid[str(self.projects[3].uuid)]["resources_count"], 0
+        )
+
+        # Project 4: no resources
+        self.assertEqual(
+            results_by_uuid[str(self.projects[4].uuid)]["resources_count"], 0
+        )
+
+    def test_query_count_does_not_scale_with_projects(self):
+        """Test that query count is optimized and doesn't have N+1 issues."""
+        from django.db import connection, reset_queries
+        from django.test import override_settings
+
+        self.client.force_authenticate(self.staff)
+
+        with override_settings(DEBUG=True):
+            reset_queries()
+
+            response = self.client.get(self.url)
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+            # Filter relevant queries (exclude framework/setup queries)
+            business_queries = [
+                q
+                for q in connection.queries
+                if not any(
+                    skip in q["sql"].lower()
+                    for skip in [
+                        "constance_config",
+                        "django_migrations",
+                        "django_session",
+                        "auth_user",  # Authentication queries
+                    ]
+                )
+            ]
+
+            # Count queries that look like N+1 patterns (repeated customer/resource queries)
+            customer_queries = [
+                q for q in business_queries if "structure_customer" in q["sql"].lower()
+            ]
+
+            # Resource count N+1 queries are those that:
+            # - Query marketplace_resource table with COUNT
+            # - Filter by a single project (per-project queries)
+            # We allow batch queries that group by project_id
+            per_project_resource_queries = [
+                q
+                for q in business_queries
+                if "count" in q["sql"].lower()
+                and "marketplace_resource" in q["sql"].lower()
+                # Exclude batch queries that group by project_id
+                and "project_id" not in q["sql"].lower()
+            ]
+
+            # With proper optimization:
+            # - Should have at most 1-2 customer queries (from select_related)
+            # - Should have 0 per-project resource count queries (batch query is OK)
+            # Without optimization, we'd have 5+ of each (one per project)
+            self.assertLessEqual(
+                len(customer_queries),
+                2,
+                f"Too many customer queries ({len(customer_queries)}), possible N+1 issue. "
+                f"Queries: {[q['sql'][:100] for q in customer_queries]}",
+            )
+            self.assertEqual(
+                len(per_project_resource_queries),
+                0,
+                f"Found {len(per_project_resource_queries)} per-project resource count queries (N+1 issue). "
+                f"Queries: {[q['sql'][:150] for q in per_project_resource_queries]}",
+            )

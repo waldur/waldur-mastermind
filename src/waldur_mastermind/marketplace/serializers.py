@@ -6319,6 +6319,12 @@ core_signals.pre_serializer_fields.connect(
 def get_marketplace_resource_count(
     serializer, project: structure_models.Project
 ) -> dict[str, int]:
+    # Check for prefetched data from ProjectViewSet.list()
+    request = serializer.context.get("request")
+    if request and hasattr(request, "_marketplace_resource_counts"):
+        return request._marketplace_resource_counts.get(project.id, {})
+
+    # Fallback to per-project query when prefetched data is not available
     counts = (
         models.Resource.objects.order_by()
         .exclude(state__in=(ResourceStates.TERMINATED,))
