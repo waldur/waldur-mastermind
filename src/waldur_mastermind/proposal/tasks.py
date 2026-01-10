@@ -19,42 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(
-    name="waldur_mastermind.proposal.create_reviews_if_strategy_is_after_round"
-)
-def create_reviews_if_strategy_is_after_round():
-    """Create reviews for active rounds with 'after round' review strategy."""
-    rounds = proposal_models.Round.objects.filter(
-        start_time__lte=timezone.now(),
-        cutoff_time__lt=timezone.now(),
-        call__state=CallStates.ACTIVE,
-        review_strategy=proposal_models.Round.ReviewStrategies.AFTER_ROUND,
-    )
-
-    for r in rounds:
-        utils.process_closed_round(r)
-
-
-@shared_task(
-    name="waldur_mastermind.proposal.create_reviews_if_strategy_is_after_proposal"
-)
-def create_reviews_if_strategy_is_after_proposal():
-    """Create reviews for active rounds with 'after proposal' review strategy."""
-    rounds = proposal_models.Round.objects.filter(
-        call__state=CallStates.ACTIVE,
-        review_strategy=proposal_models.Round.ReviewStrategies.AFTER_PROPOSAL,
-    )
-
-    for r in rounds:
-        for proposal in r.proposal_set.filter(
-            state__in=(
-                ProposalStates.SUBMITTED,
-                ProposalStates.IN_REVIEW,
-            )
-        ):
-            utils.process_proposals_pending_reviewers(proposal)
-
-
-@shared_task(
     name="waldur_mastermind.proposal.proposals_for_ended_rounds_should_be_cancelled"
 )
 def proposals_for_ended_rounds_should_be_cancelled():
@@ -90,10 +54,7 @@ def proposals_for_ended_rounds_should_be_cancelled():
 def expired_reviews_should_be_cancelled():
     """Cancel reviews that have expired."""
     for review in proposal_models.Review.objects.filter(
-        state__in=(
-            proposal_models.Review.States.IN_REVIEW,
-            proposal_models.Review.States.CREATED,
-        )
+        state=proposal_models.Review.States.IN_REVIEW
     ):
         if review.review_end_date <= timezone.now():
             review.state = proposal_models.Review.States.REJECTED
@@ -311,7 +272,13 @@ def notify_proposal_creator_about_cancelled_proposal(proposal_uuid, cancellation
     )
 
 
-@shared_task(name="waldur_mastermind.proposal.notify_reviewer_about_assignment")
+@shared_task(
+    name="waldur_mastermind.proposal.notify_reviewer_about_assignment",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,  # Max 10 minutes between retries
+    max_retries=3,
+)
 def notify_reviewer_about_assignment(review_uuid):
     review = proposal_models.Review.objects.get(uuid=review_uuid)
 
@@ -385,6 +352,57 @@ def notify_reviewer_on_proposal_decision(proposal_uuid):
             logger.warning(
                 f"Cannot send proposal decision notification to reviewer for review {review.uuid}. Reviewer has no valid email."
             )
+
+
+@shared_task(
+    name="waldur_mastermind.proposal.run_coi_detection",
+    bind=True,
+    max_retries=3,
+    default_retry_delay=60,
+)
+def run_coi_detection(self, job_uuid: str):
+    """
+    Run automated COI detection for a call in the background.
+
+    This task processes all reviewer-proposal pairs and detects conflicts
+    based on co-authorship, institutional affiliations, and named personnel.
+    """
+    from waldur_mastermind.proposal.coi_detection import run_coi_detection_for_call
+    from waldur_mastermind.proposal.enums import COIDetectionJobStates
+
+    try:
+        job = proposal_models.COIDetectionJob.objects.get(uuid=job_uuid)
+    except proposal_models.COIDetectionJob.DoesNotExist:
+        logger.error(f"COI detection job {job_uuid} not found")
+        return
+
+    if job.state not in (COIDetectionJobStates.PENDING, COIDetectionJobStates.RUNNING):
+        logger.info(f"COI detection job {job_uuid} is in state {job.state}, skipping")
+        return
+
+    try:
+        # Store celery task ID for tracking
+        job.celery_task_id = self.request.id
+        job.save(update_fields=["celery_task_id"])
+
+        result = run_coi_detection_for_call(job.call, job)
+
+        logger.info(
+            f"COI detection completed for call {job.call.uuid}: "
+            f"processed {result['processed']} pairs, found {result['conflicts_found']} conflicts"
+        )
+        return result
+
+    except Exception as exc:
+        job.state = COIDetectionJobStates.FAILED
+        job.error_message = str(exc)
+        job.save(update_fields=["state", "error_message"])
+        logger.exception(f"COI detection failed for job {job_uuid}")
+
+        # Retry on transient errors
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=exc)
+        raise
 
 
 @shared_task(name="waldur_mastermind.proposal.notify_offering_request_decision")
@@ -549,10 +567,7 @@ def notify_manager_when_reviews_are_completed(proposal_uuid):
         state=proposal_models.Review.States.SUBMITTED
     )
     incomplete_reviews = proposal.review_set.filter(
-        state__in=(
-            proposal_models.Review.States.CREATED,
-            proposal_models.Review.States.IN_REVIEW,
-        )
+        state=proposal_models.Review.States.IN_REVIEW
     )
 
     if incomplete_reviews.exists() or completed_reviews.count() < (
@@ -603,3 +618,205 @@ def notify_manager_when_reviews_are_completed(proposal_uuid):
         context,
         manager_emails,
     )
+
+
+@shared_task(name="waldur_mastermind.proposal.mark_expired_assignment_batches")
+def mark_expired_assignment_batches():
+    """Mark assignment batches as EXPIRED when their deadline passes."""
+
+    from waldur_mastermind.proposal.enums import (
+        AssignmentBatchStatuses,
+        AssignmentItemStatuses,
+    )
+
+    expired_batches = proposal_models.AssignmentBatch.objects.filter(
+        status=AssignmentBatchStatuses.SENT,
+        expires_at__lt=timezone.now(),
+    )
+
+    count = expired_batches.count()
+    if count == 0:
+        return
+
+    # Get batch UUIDs before update for logging
+    batch_uuids = list(expired_batches.values_list("uuid", flat=True))
+
+    # Update batch status
+    expired_batches.update(status=AssignmentBatchStatuses.EXPIRED)
+
+    # Also mark pending items as expired
+    proposal_models.AssignmentItem.objects.filter(
+        batch__uuid__in=batch_uuids,
+        status=AssignmentItemStatuses.PENDING,
+    ).update(status=AssignmentItemStatuses.EXPIRED)
+
+    logger.info(f"Marked {count} assignment batches as expired: {batch_uuids}")
+
+
+@shared_task(
+    name="waldur_mastermind.proposal.send_assignment_expiry_reminders",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    max_retries=3,
+)
+def send_assignment_expiry_reminders():
+    """Send reminder to reviewers before their assignment expires."""
+    from datetime import timedelta
+
+    from waldur_mastermind.proposal.enums import AssignmentBatchStatuses
+
+    # Get batches that are sent and haven't had reminder sent
+    batches = (
+        proposal_models.AssignmentBatch.objects.filter(
+            status=AssignmentBatchStatuses.SENT,
+            reminder_sent=False,
+            expires_at__isnull=False,
+        )
+        .select_related(
+            "call",
+            "reviewer_pool_entry",
+            "reviewer_pool_entry__reviewer",
+            "reviewer_pool_entry__reviewer__user",
+            "reviewer_pool_entry__invited_user",
+        )
+        .prefetch_related("call__assignment_configuration")
+    )
+
+    count = 0
+    for batch in batches:
+        # Skip if no expires_at date
+        if not batch.expires_at:
+            continue
+
+        # Get reminder days from call config
+        reminder_days = 2  # Default
+        if hasattr(batch.call, "assignment_configuration"):
+            try:
+                assignment_config = batch.call.assignment_configuration  # type: ignore[attr-defined]
+                reminder_days = assignment_config.send_reminder_before_expiry_days
+            except proposal_models.CallAssignmentConfiguration.DoesNotExist:
+                pass
+
+        # Check if we're within the reminder window
+        reminder_threshold = batch.expires_at - timedelta(days=reminder_days)
+        if timezone.now() >= reminder_threshold:
+            # Get reviewer email
+            reviewer_email = None
+            reviewer_name = None
+
+            if batch.reviewer_pool_entry.reviewer:
+                reviewer_email = batch.reviewer_pool_entry.reviewer.user.email
+                reviewer_name = batch.reviewer_pool_entry.reviewer.user.full_name
+            elif batch.reviewer_pool_entry.invited_user:
+                reviewer_email = batch.reviewer_pool_entry.invited_user.email
+                reviewer_name = batch.reviewer_pool_entry.invited_user.full_name
+            else:
+                reviewer_email = batch.reviewer_pool_entry.invited_email
+                reviewer_name = reviewer_email
+
+            if reviewer_email:
+                # Mark reminder_sent BEFORE sending to prevent duplicate emails
+                # on task retry (race condition fix)
+                batch.reminder_sent = True
+                batch.save(update_fields=["reminder_sent"])
+
+                # Send reminder notification
+                context = {
+                    "site_name": config.SITE_NAME,
+                    "reviewer_name": reviewer_name,
+                    "call_name": batch.call.name,
+                    "expires_at": batch.expires_at,
+                    "items_count": batch.assignment_items.count(),  # type: ignore[attr-defined]
+                    "link": core_utils.format_homeport_link("my-assignments/"),
+                }
+
+                core_utils.broadcast_mail(
+                    "proposal",
+                    "assignment_expiry_reminder",
+                    context,
+                    [reviewer_email],
+                )
+
+                count += 1
+            else:
+                logger.warning(
+                    f"Cannot send expiry reminder for batch {batch.uuid}: no reviewer email"
+                )
+
+    if count > 0:
+        logger.info(f"Sent {count} assignment expiry reminders")
+
+
+@shared_task(
+    name="waldur_mastermind.proposal.notify_managers_of_expired_batches",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=600,
+    max_retries=3,
+)
+def notify_managers_of_expired_batches():
+    """Notify call managers when batches expire without response."""
+    from waldur_mastermind.proposal.enums import AssignmentBatchStatuses
+
+    # Get recently expired batches that haven't notified managers
+    batches = proposal_models.AssignmentBatch.objects.filter(
+        status=AssignmentBatchStatuses.EXPIRED,
+        manager_notified=False,
+    ).select_related(
+        "call",
+        "call__manager",
+        "call__manager__customer",
+        "reviewer_pool_entry",
+        "reviewer_pool_entry__reviewer",
+        "reviewer_pool_entry__reviewer__user",
+        "reviewer_pool_entry__invited_user",
+    )
+
+    count = 0
+    for batch in batches:
+        manager_emails = list(batch.call.call_managers.values_list("email", flat=True))
+
+        if not manager_emails:
+            logger.warning(
+                f"Cannot send expired batch notification for batch {batch.uuid}: "
+                f"call {batch.call.uuid} has no managers with valid emails"
+            )
+            batch.manager_notified = True
+            batch.save(update_fields=["manager_notified"])
+            continue
+
+        # Get reviewer name
+        reviewer_name = None
+        if batch.reviewer_pool_entry.reviewer:
+            reviewer_name = batch.reviewer_pool_entry.reviewer.user.full_name
+        elif batch.reviewer_pool_entry.invited_user:
+            reviewer_name = batch.reviewer_pool_entry.invited_user.full_name
+        else:
+            reviewer_name = batch.reviewer_pool_entry.invited_email
+
+        context = {
+            "site_name": config.SITE_NAME,
+            "call_name": batch.call.name,
+            "reviewer_name": reviewer_name,
+            "items_count": batch.assignment_items.count(),  # type: ignore[attr-defined]
+            "sent_at": batch.sent_at,
+            "expired_at": batch.expires_at,
+            "assignments_url": core_utils.format_homeport_link(
+                f"call/{batch.call.uuid}/manage/?tab=reviewer-pool&pool_tab=assignments"
+            ),
+        }
+
+        core_utils.broadcast_mail(
+            "proposal",
+            "assignment_batch_expired",
+            context,
+            manager_emails,
+        )
+
+        batch.manager_notified = True
+        batch.save(update_fields=["manager_notified"])
+        count += 1
+
+    if count > 0:
+        logger.info(f"Notified managers about {count} expired assignment batches")

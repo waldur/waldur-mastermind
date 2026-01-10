@@ -21,6 +21,7 @@ from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.permissions.models import Role
+from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace.serializers import (
@@ -30,6 +31,8 @@ from waldur_mastermind.marketplace.serializers import (
 )
 from waldur_mastermind.proposal.enums import (
     CallStates,
+    COISeverityLevels,
+    COITypes,
     ProposalStates,
     RequestedOfferingStates,
     RoundStatuses,
@@ -389,7 +392,6 @@ class ProposalReviewSerializer(
             reviewer=reviewer,
             state__in=[
                 models.Review.States.SUBMITTED,
-                models.Review.States.CREATED,
                 models.Review.States.IN_REVIEW,
             ],
         ).exists()
@@ -973,11 +975,11 @@ class ProtectedCallSerializer(PublicCallSerializer):
     reference_code = serializers.CharField(source="backend_id", required=False)
     fixed_duration_in_days = serializers.IntegerField(required=False, allow_null=True)
     reviewer_identity_visible_to_submitters = serializers.BooleanField(
-        help_text="Whether proposal submitters can see reviewer identities",
+        help_text="Whether proposal applicants can see reviewer identities",
         required=False,
     )
     reviews_visible_to_submitters = serializers.BooleanField(
-        help_text="Whether proposal submitters can see review comments and scores",
+        help_text="Whether proposal applicants can see review comments and scores",
         required=False,
     )
     compliance_checklist = serializers.SlugRelatedField(
@@ -1643,3 +1645,2052 @@ class CallComplianceReviewSerializer(serializers.Serializer):
             return value
         except models.Proposal.DoesNotExist:
             raise serializers.ValidationError("Proposal not found in this call")
+
+
+# =============================================================================
+# Reviewer Profile Serializers
+# =============================================================================
+
+
+class ReviewerStatsSerializer(serializers.HyperlinkedModelSerializer):
+    """Read-only serializer for reviewer statistics."""
+
+    class Meta:
+        model = models.ReviewerStats
+        fields = [
+            "uuid",
+            "total_reviews_completed",
+            "total_reviews_declined",
+            "total_reviews_timeout",
+            "average_review_time_days",
+            "average_score_given",
+            "last_review_date",
+            "quality_rating",
+            "quality_rating_count",
+        ]
+        read_only_fields = fields
+
+
+class ReviewerAffiliationSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.ModelSerializer,
+):
+    """Serializer for reviewer affiliations."""
+
+    organization_name_display = serializers.SerializerMethodField()
+    organization = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=Customer.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = models.ReviewerAffiliation
+        fields = [
+            "uuid",
+            "organization",
+            "organization_name",
+            "organization_name_display",
+            "organization_identifier",
+            "department",
+            "position_title",
+            "start_date",
+            "end_date",
+            "is_primary",
+            "affiliation_type",
+            "created",
+        ]
+
+    def get_organization_name_display(self, obj) -> str:
+        """Return organization name from linked Customer or from the text field."""
+        if obj.organization:
+            return obj.organization.name
+        return obj.organization_name
+
+    def validate(self, attrs):
+        """Ensure at least organization or organization_name is provided."""
+        organization = attrs.get("organization")
+        organization_name = attrs.get("organization_name")
+
+        if not organization and not organization_name:
+            raise serializers.ValidationError(
+                _("Either organization or organization_name must be provided.")
+            )
+
+        # If organization is linked, copy name for consistency
+        if organization and not organization_name:
+            attrs["organization_name"] = organization.name
+
+        return attrs
+
+
+class ExpertiseCategorySerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """Serializer for expertise categories (taxonomy)."""
+
+    class Meta:
+        model = models.ExpertiseCategory
+        fields = [
+            "url",
+            "uuid",
+            "name",
+            "code",
+            "description",
+            "parent",
+            "level",
+        ]
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid"},
+            "parent": {
+                "lookup_field": "uuid",
+                "view_name": "expertise-category-detail",
+                "required": False,
+                "allow_null": True,
+            },
+        }
+
+
+class ReviewerExpertiseSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.ModelSerializer,
+):
+    """Serializer for reviewer expertise keywords."""
+
+    expertise_category_name = serializers.ReadOnlyField(
+        source="expertise_category.name"
+    )
+    expertise_category = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.ExpertiseCategory.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = models.ReviewerExpertise
+        fields = [
+            "uuid",
+            "expertise_keyword",
+            "expertise_category",
+            "expertise_category_name",
+            "proficiency_level",
+            "years_experience",
+            "last_active_date",
+            "created",
+        ]
+
+
+class ReviewerPublicationSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.ModelSerializer,
+):
+    """Serializer for reviewer publications."""
+
+    class Meta:
+        model = models.ReviewerPublication
+        fields = [
+            "uuid",
+            "title",
+            "doi",
+            "publication_year",
+            "venue",
+            "venue_type",
+            "abstract",
+            "coauthors",
+            "external_ids",
+            "is_excluded_from_matching",
+            "created",
+        ]
+
+
+class ReviewerProfileSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """Full serializer for reviewer profiles with nested relationships."""
+
+    user_full_name = serializers.ReadOnlyField(source="user.full_name")
+    user_email = serializers.ReadOnlyField(source="user.email")
+    user_uuid = serializers.UUIDField(source="user.uuid", read_only=True)
+    affiliations = ReviewerAffiliationSerializer(many=True, read_only=True)
+    expertise_set = ReviewerExpertiseSerializer(many=True, read_only=True)
+    publications = ReviewerPublicationSerializer(many=True, read_only=True)
+    stats = ReviewerStatsSerializer(read_only=True)
+    orcid_connected = serializers.SerializerMethodField()
+    profile_completeness = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.ReviewerProfile
+        fields = [
+            "url",
+            "uuid",
+            "user",
+            "user_uuid",
+            "user_full_name",
+            "user_email",
+            "orcid_id",
+            "orcid_connected",
+            "orcid_last_sync",
+            "biography",
+            "alternative_names",
+            "affiliations",
+            "expertise_set",
+            "publications",
+            "stats",
+            "profile_completeness",
+            "is_published",
+            "published_at",
+            "available_for_reviews",
+            "created",
+            "modified",
+        ]
+        read_only_fields = [
+            "user",
+            "orcid_last_sync",
+            "is_published",
+            "published_at",
+        ]
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid"},
+            "user": {"lookup_field": "uuid", "view_name": "user-detail"},
+        }
+
+    def get_orcid_connected(self, obj) -> bool:
+        """Check if ORCID is connected (has access token)."""
+        return bool(obj.orcid_access_token)
+
+    def get_profile_completeness(self, obj) -> dict:
+        """Calculate profile completeness percentage and missing fields."""
+        checks = {
+            "has_biography": bool(obj.biography),
+            "has_orcid": bool(obj.orcid_id),
+            "has_affiliations": obj.affiliations.exists(),
+            "has_expertise": obj.expertise_set.exists(),
+            "has_publications": obj.publications.exists(),
+        }
+        completed = sum(checks.values())
+        total = len(checks)
+        return {
+            "percentage": round(completed / total * 100) if total else 0,
+            "completed_checks": completed,
+            "total_checks": total,
+            "missing": [k for k, v in checks.items() if not v],
+        }
+
+
+class ReviewerProfileCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating/updating a reviewer profile."""
+
+    class Meta:
+        model = models.ReviewerProfile
+        fields = [
+            "orcid_id",
+            "biography",
+            "alternative_names",
+            "available_for_reviews",
+        ]
+
+    def create(self, validated_data):
+        validated_data["user"] = self.context["request"].user
+        return super().create(validated_data)
+
+
+# =============================================================================
+# COI (Conflict of Interest) Serializers
+# =============================================================================
+
+
+class CallCOIConfigurationSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """Serializer for per-call COI configuration."""
+
+    call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
+    call_name = serializers.ReadOnlyField(source="call.name")
+
+    # Explicitly type JSON array fields for proper OpenAPI schema generation
+    recusal_required_types = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text="COI types requiring automatic recusal",
+    )
+    management_allowed_types = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text="COI types allowing management plan",
+    )
+    disclosure_only_types = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text="COI types requiring disclosure only",
+    )
+
+    class Meta:
+        model = models.CallCOIConfiguration
+        fields = [
+            "uuid",
+            "call",
+            "call_uuid",
+            "call_name",
+            "coauthorship_lookback_years",
+            "coauthorship_threshold_papers",
+            "institutional_lookback_years",
+            "include_same_department",
+            "include_same_institution",
+            "recusal_required_types",
+            "management_allowed_types",
+            "disclosure_only_types",
+            "auto_detect_coauthorship",
+            "auto_detect_institutional",
+            "auto_detect_named_personnel",
+            "invitation_proposal_disclosure",
+            "created",
+            "modified",
+        ]
+        read_only_fields = ["call"]
+        extra_kwargs = {
+            "call": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-protected-call-detail",
+            },
+        }
+
+
+class ConflictOfInterestSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """Serializer for conflict of interest records."""
+
+    reviewer_name = serializers.ReadOnlyField(source="reviewer.user.full_name")
+    reviewer_uuid = serializers.UUIDField(source="reviewer.uuid", read_only=True)
+    proposal_name = serializers.ReadOnlyField(source="proposal.name")
+    proposal_uuid = serializers.UUIDField(source="proposal.uuid", read_only=True)
+    round_name = serializers.ReadOnlyField(source="proposal.round.name")
+    round_uuid = serializers.UUIDField(source="proposal.round.uuid", read_only=True)
+    call_name = serializers.ReadOnlyField(source="call.name")
+    call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
+    reviewed_by_name = serializers.ReadOnlyField(source="reviewed_by.full_name")
+    conflicting_user_name = serializers.ReadOnlyField(
+        source="conflicting_user.full_name"
+    )
+    conflicting_organization_name = serializers.ReadOnlyField(
+        source="conflicting_organization.name"
+    )
+    coi_type_display = serializers.CharField(
+        source="get_coi_type_display", read_only=True
+    )
+    severity_display = serializers.CharField(
+        source="get_severity_display", read_only=True
+    )
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+
+    class Meta:
+        model = models.ConflictOfInterest
+        fields = [
+            "url",
+            "uuid",
+            "reviewer",
+            "reviewer_uuid",
+            "reviewer_name",
+            "proposal",
+            "proposal_uuid",
+            "proposal_name",
+            "round_uuid",
+            "round_name",
+            "call",
+            "call_uuid",
+            "call_name",
+            "coi_type",
+            "coi_type_display",
+            "severity",
+            "severity_display",
+            "detection_method",
+            "detected_at",
+            "evidence_description",
+            "evidence_data",
+            "status",
+            "status_display",
+            "reviewed_by",
+            "reviewed_by_name",
+            "reviewed_at",
+            "review_notes",
+            "management_plan",
+            "conflicting_user",
+            "conflicting_user_name",
+            "conflicting_organization",
+            "conflicting_organization_name",
+            "created",
+        ]
+        read_only_fields = [
+            "reviewer",
+            "proposal",
+            "call",
+            "coi_type",
+            "severity",
+            "detection_method",
+            "detected_at",
+            "evidence_description",
+            "evidence_data",
+            "reviewed_by",
+            "reviewed_at",
+            "conflicting_user",
+            "conflicting_organization",
+        ]
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid"},
+            "reviewer": {
+                "lookup_field": "uuid",
+                "view_name": "reviewer-profile-detail",
+            },
+            "proposal": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-proposal-detail",
+            },
+            "call": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-protected-call-detail",
+            },
+            "reviewed_by": {"lookup_field": "uuid", "view_name": "user-detail"},
+            "conflicting_user": {"lookup_field": "uuid", "view_name": "user-detail"},
+            "conflicting_organization": {
+                "lookup_field": "uuid",
+                "view_name": "customer-detail",
+            },
+        }
+
+
+class COIStatusUpdateSerializer(serializers.Serializer):
+    """Serializer for updating COI status (dismiss/waive/recuse)."""
+
+    status = serializers.ChoiceField(
+        choices=[
+            ("dismissed", "Dismiss - not a conflict"),
+            ("waived", "Waive with management plan"),
+            ("recused", "Recuse reviewer"),
+        ]
+    )
+    review_notes = serializers.CharField(required=False, allow_blank=True)
+    management_plan = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Required when status is 'waived'",
+    )
+
+    def validate(self, attrs):
+        status = attrs.get("status")
+        management_plan = attrs.get("management_plan")
+
+        if status == "waived" and not management_plan:
+            raise serializers.ValidationError(
+                {
+                    "management_plan": _(
+                        "Management plan is required when waiving a conflict."
+                    )
+                }
+            )
+
+        return attrs
+
+
+class COIDisclosureFinancialInterestSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """Serializer for financial interest disclosures."""
+
+    class Meta:
+        model = models.COIDisclosureFinancialInterest
+        fields = [
+            "uuid",
+            "entity_name",
+            "entity_type",
+            "relationship_type",
+            "amount_range",
+            "is_ongoing",
+            "description",
+        ]
+
+
+class COIDisclosureFormSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """Serializer for COI disclosure forms."""
+
+    reviewer_name = serializers.ReadOnlyField(source="reviewer.user.full_name")
+    reviewer_uuid = serializers.UUIDField(source="reviewer.uuid", read_only=True)
+    call_name = serializers.ReadOnlyField(source="call.name")
+    call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
+    financial_interests = COIDisclosureFinancialInterestSerializer(
+        many=True, read_only=True
+    )
+
+    class Meta:
+        model = models.COIDisclosureForm
+        fields = [
+            "url",
+            "uuid",
+            "reviewer",
+            "reviewer_uuid",
+            "reviewer_name",
+            "call",
+            "call_uuid",
+            "call_name",
+            "certified",
+            "certification_date",
+            "certification_statement",
+            "has_financial_interests",
+            "financial_interests",
+            "has_personal_relationships",
+            "personal_relationships",
+            "has_other_conflicts",
+            "other_conflicts_description",
+            "valid_until",
+            "is_current",
+            "created",
+        ]
+        read_only_fields = [
+            "reviewer",
+            "certification_date",
+            "is_current",
+        ]
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid", "view_name": "coi-disclosure-detail"},
+            "reviewer": {
+                "lookup_field": "uuid",
+                "view_name": "reviewer-profile-detail",
+            },
+            "call": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-protected-call-detail",
+                "required": False,
+                "allow_null": True,
+            },
+        }
+
+
+class COIDisclosureSubmitSerializer(serializers.Serializer):
+    """Serializer for submitting a COI disclosure."""
+
+    certification_statement = serializers.CharField()
+    has_financial_interests = serializers.BooleanField(default=False)
+    financial_interests = COIDisclosureFinancialInterestSerializer(
+        many=True, required=False, default=list
+    )
+    has_personal_relationships = serializers.BooleanField(default=False)
+    personal_relationships = serializers.ListField(
+        child=serializers.DictField(), required=False, default=list
+    )
+    has_other_conflicts = serializers.BooleanField(default=False)
+    other_conflicts_description = serializers.CharField(
+        required=False, allow_blank=True, default=""
+    )
+
+    def validate(self, attrs):
+        if attrs.get("has_financial_interests") and not attrs.get(
+            "financial_interests"
+        ):
+            raise serializers.ValidationError(
+                {
+                    "financial_interests": _(
+                        "Financial interests are required when indicated."
+                    )
+                }
+            )
+        if attrs.get("has_personal_relationships") and not attrs.get(
+            "personal_relationships"
+        ):
+            raise serializers.ValidationError(
+                {
+                    "personal_relationships": _(
+                        "Personal relationships must be specified."
+                    )
+                }
+            )
+        if attrs.get("has_other_conflicts") and not attrs.get(
+            "other_conflicts_description"
+        ):
+            raise serializers.ValidationError(
+                {
+                    "other_conflicts_description": _(
+                        "Other conflicts description is required."
+                    )
+                }
+            )
+        return attrs
+
+
+class SelfDeclaredConflictSerializer(serializers.Serializer):
+    """Serializer for reviewer self-declaring conflicts with specific proposals."""
+
+    proposal_uuid = serializers.UUIDField()
+    coi_type = serializers.ChoiceField(choices=COITypes.CHOICES)
+    severity = serializers.ChoiceField(
+        choices=COISeverityLevels.CHOICES,
+        default=COISeverityLevels.APPARENT,
+        required=False,
+    )
+    description = serializers.CharField(required=False, allow_blank=True, default="")
+
+    def validate_proposal_uuid(self, value):
+        call = self.context.get("call")
+        if not call:
+            raise serializers.ValidationError(_("Call context is required."))
+        try:
+            proposal = models.Proposal.objects.get(uuid=value, round__call=call)
+            return proposal
+        except models.Proposal.DoesNotExist:
+            raise serializers.ValidationError(_("Proposal not found in this call."))
+
+
+# =============================================================================
+# Reviewer Pool Serializers
+# =============================================================================
+
+
+class CallReviewerPoolSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """Serializer for call reviewer pool membership.
+
+    N+1 Optimization:
+    When serializing multiple pool members, pass prefetched data via context:
+    - coi_counts: dict mapping (reviewer_id, call_id) -> count
+    - coi_by_severity: dict mapping (reviewer_id, call_id) -> {severity: count}
+    - review_counts: dict mapping (user_id, call_id) -> {state: count}
+
+    Or use annotations in the queryset:
+    - annotated_coi_count
+    - annotated_reviews_pending
+    - annotated_reviews_in_progress
+    - annotated_reviews_completed
+    """
+
+    reviewer_name = serializers.SerializerMethodField()
+    reviewer_email = serializers.SerializerMethodField()
+    reviewer_uuid = serializers.SerializerMethodField()
+    call_name = serializers.ReadOnlyField(source="call.name")
+    call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
+    invited_by_name = serializers.ReadOnlyField(source="invited_by.full_name")
+    invited_user_name = serializers.ReadOnlyField(source="invited_user.full_name")
+    invitation_status_display = serializers.CharField(
+        source="get_invitation_status_display", read_only=True
+    )
+    has_profile = serializers.SerializerMethodField()
+    coi_count = serializers.SerializerMethodField()
+    coi_by_severity = serializers.SerializerMethodField()
+    reviews_pending = serializers.SerializerMethodField()
+    reviews_in_progress = serializers.SerializerMethodField()
+    reviews_completed = serializers.SerializerMethodField()
+
+    def get_reviewer_name(self, obj) -> str | None:
+        """Get reviewer name from profile or invited_user."""
+        if obj.reviewer:
+            return obj.reviewer.user.full_name
+        if obj.invited_user:
+            return obj.invited_user.full_name
+        return None
+
+    def get_reviewer_email(self, obj) -> str | None:
+        """Get email from profile, invited_user, or invited_email."""
+        if obj.reviewer:
+            return obj.reviewer.user.email
+        if obj.invited_user:
+            return obj.invited_user.email
+        return obj.invited_email
+
+    def get_reviewer_uuid(self, obj) -> str | None:
+        """Get reviewer profile UUID if available."""
+        if obj.reviewer:
+            return str(obj.reviewer.uuid)
+        return None
+
+    def get_has_profile(self, obj) -> bool:
+        """Check if reviewer has a profile."""
+        return obj.reviewer is not None
+
+    def get_coi_count(self, obj) -> int:
+        """Count total COIs for this reviewer in this call."""
+        if not obj.reviewer:
+            return 0
+
+        # Check for annotation first (most efficient)
+        if hasattr(obj, "annotated_coi_count"):
+            return obj.annotated_coi_count or 0
+
+        # Check for prefetched data in context
+        coi_counts = self.context.get("coi_counts")
+        if coi_counts is not None:
+            key = (obj.reviewer_id, obj.call_id)
+            return coi_counts.get(key, 0)
+
+        # Fallback to query (N+1 warning: avoid in list views)
+        return models.ConflictOfInterest.objects.filter(
+            reviewer=obj.reviewer,
+            call=obj.call,
+        ).count()
+
+    def get_coi_by_severity(self, obj) -> dict:
+        """Count COIs by severity level."""
+        if not obj.reviewer:
+            return {}
+
+        # Check for prefetched data in context
+        coi_by_severity = self.context.get("coi_by_severity")
+        if coi_by_severity is not None:
+            key = (obj.reviewer_id, obj.call_id)
+            return coi_by_severity.get(key, {})
+
+        # Fallback to query (N+1 warning: avoid in list views)
+        from django.db.models import Count
+
+        counts = (
+            models.ConflictOfInterest.objects.filter(
+                reviewer=obj.reviewer,
+                call=obj.call,
+            )
+            .values("severity")
+            .annotate(count=Count("id"))
+        )
+        return {item["severity"]: item["count"] for item in counts}
+
+    def _get_reviewer_user(self, obj):
+        """Get the user associated with this pool member."""
+        if obj.reviewer:
+            return obj.reviewer.user
+        return obj.invited_user
+
+    def _get_reviewer_user_id(self, obj):
+        """Get user ID for review lookups."""
+        if obj.reviewer:
+            return obj.reviewer.user_id
+        if obj.invited_user:
+            return obj.invited_user_id
+        return None
+
+    def get_reviews_pending(self, obj) -> int:
+        """Legacy field - always returns 0.
+
+        Previously counted reviews in 'created' state, but that state
+        has been removed. Reviews are now created directly in 'in_review' state.
+        Kept for backwards compatibility with frontend.
+        """
+        return 0
+
+    def get_reviews_in_progress(self, obj) -> int:
+        """Count reviews in 'in_review' state."""
+        # Check for annotation first
+        if hasattr(obj, "annotated_reviews_in_progress"):
+            return obj.annotated_reviews_in_progress or 0
+
+        # Check for prefetched data in context
+        review_counts = self.context.get("review_counts")
+        if review_counts is not None:
+            user_id = self._get_reviewer_user_id(obj)
+            if user_id:
+                key = (user_id, obj.call_id)
+                counts = review_counts.get(key, {})
+                return counts.get(models.Review.States.IN_REVIEW, 0)
+            return 0
+
+        # Fallback to query
+        user = self._get_reviewer_user(obj)
+        if not user:
+            return 0
+        return models.Review.objects.filter(
+            reviewer=user,
+            proposal__round__call=obj.call,
+            state=models.Review.States.IN_REVIEW,
+        ).count()
+
+    def get_reviews_completed(self, obj) -> int:
+        """Count reviews in 'submitted' state."""
+        # Check for annotation first
+        if hasattr(obj, "annotated_reviews_completed"):
+            return obj.annotated_reviews_completed or 0
+
+        # Check for prefetched data in context
+        review_counts = self.context.get("review_counts")
+        if review_counts is not None:
+            user_id = self._get_reviewer_user_id(obj)
+            if user_id:
+                key = (user_id, obj.call_id)
+                counts = review_counts.get(key, {})
+                return counts.get(models.Review.States.SUBMITTED, 0)
+            return 0
+
+        # Fallback to query
+        user = self._get_reviewer_user(obj)
+        if not user:
+            return 0
+        return models.Review.objects.filter(
+            reviewer=user,
+            proposal__round__call=obj.call,
+            state=models.Review.States.SUBMITTED,
+        ).count()
+
+    def to_representation(self, instance):
+        """Hide invitation_token from authenticated responses.
+
+        The token is only needed for public unauthenticated endpoints.
+        Authenticated users should use UUID-based endpoints instead.
+        """
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            data.pop("invitation_token", None)
+        return data
+
+    class Meta:
+        model = models.CallReviewerPool
+        fields = [
+            "url",
+            "uuid",
+            "call",
+            "call_uuid",
+            "call_name",
+            "reviewer",
+            "reviewer_uuid",
+            "reviewer_name",
+            "reviewer_email",
+            "has_profile",
+            "invited_email",
+            "invited_user",
+            "invited_user_name",
+            "invited_at",
+            "invitation_status",
+            "invitation_status_display",
+            "response_date",
+            "decline_reason",
+            "max_assignments",
+            "current_assignments",
+            "expertise_match_score",
+            "invited_by_name",
+            "invitation_token",
+            "invitation_expires_at",
+            "created",
+            "coi_count",
+            "coi_by_severity",
+            "reviews_pending",
+            "reviews_in_progress",
+            "reviews_completed",
+        ]
+        read_only_fields = [
+            "call",
+            "reviewer",
+            "invited_email",
+            "invited_user",
+            "invited_at",
+            "invitation_status",
+            "response_date",
+            "decline_reason",
+            "current_assignments",
+            "invitation_token",
+            "invitation_expires_at",
+        ]
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid"},
+            "call": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-protected-call-detail",
+            },
+            "reviewer": {
+                "lookup_field": "uuid",
+                "view_name": "reviewer-profile-detail",
+            },
+            "invited_user": {"lookup_field": "uuid", "view_name": "user-detail"},
+        }
+
+
+class CallReviewerPoolUpdateSerializer(serializers.Serializer):
+    """Serializer for updating reviewer pool member settings."""
+
+    max_assignments = serializers.IntegerField(
+        min_value=1,
+        max_value=50,
+        help_text="Maximum number of proposals that can be assigned to this reviewer",
+    )
+
+    def update(self, instance, validated_data):
+        instance.max_assignments = validated_data.get(
+            "max_assignments", instance.max_assignments
+        )
+        instance.save(update_fields=["max_assignments"])
+        return instance
+
+
+class ReviewerInvitationSerializer(serializers.Serializer):
+    """Serializer for inviting reviewers to a call."""
+
+    reviewer_uuids = serializers.ListField(
+        child=serializers.UUIDField(),
+        help_text="List of reviewer profile UUIDs to invite",
+    )
+    max_assignments = serializers.IntegerField(default=5, min_value=1)
+    invitation_message = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Custom message to include in invitation email",
+    )
+
+
+class ReviewerInvitationResponseSerializer(serializers.Serializer):
+    """Serializer for responding to a reviewer invitation (via token)."""
+
+    accept = serializers.BooleanField()
+    decline_reason = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Reason for declining (required if accept=False)",
+    )
+
+    def validate(self, attrs):
+        if not attrs.get("accept") and not attrs.get("decline_reason"):
+            raise serializers.ValidationError(
+                {
+                    "decline_reason": _(
+                        "Reason is required when declining an invitation."
+                    )
+                }
+            )
+        return attrs
+
+
+class EmailInvitationSerializer(serializers.Serializer):
+    """Serializer for inviting a reviewer by email address."""
+
+    email = serializers.EmailField(help_text="Email address to send the invitation to")
+    invitation_message = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Custom message to include in invitation email",
+    )
+    max_assignments = serializers.IntegerField(default=5, min_value=1)
+
+
+class ReviewerSuggestionSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """Serializer for algorithm-generated reviewer suggestions."""
+
+    reviewer_name = serializers.ReadOnlyField(source="reviewer.user.full_name")
+    reviewer_email = serializers.ReadOnlyField(source="reviewer.user.email")
+    reviewer_uuid = serializers.UUIDField(source="reviewer.uuid", read_only=True)
+    reviewer_biography = serializers.ReadOnlyField(source="reviewer.biography")
+    call_name = serializers.ReadOnlyField(source="call.name")
+    call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    reviewed_by_name = serializers.ReadOnlyField(source="reviewed_by.full_name")
+
+    source_type_display = serializers.CharField(
+        source="get_source_type_display", read_only=True
+    )
+
+    class Meta:
+        model = models.ReviewerSuggestion
+        fields = [
+            "url",
+            "uuid",
+            "call",
+            "call_uuid",
+            "call_name",
+            "reviewer",
+            "reviewer_uuid",
+            "reviewer_name",
+            "reviewer_email",
+            "reviewer_biography",
+            "affinity_score",
+            "keyword_score",
+            "text_score",
+            "status",
+            "status_display",
+            "reviewed_by",
+            "reviewed_by_name",
+            "reviewed_at",
+            "rejection_reason",
+            "matched_keywords",
+            "top_matching_proposals",
+            "source_type",
+            "source_type_display",
+            "created",
+        ]
+        read_only_fields = [
+            "call",
+            "reviewer",
+            "affinity_score",
+            "keyword_score",
+            "text_score",
+            "reviewed_by",
+            "reviewed_at",
+            "matched_keywords",
+            "top_matching_proposals",
+            "source_type",
+        ]
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid"},
+            "call": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-protected-call-detail",
+            },
+            "reviewer": {
+                "lookup_field": "uuid",
+                "view_name": "reviewer-profile-detail",
+            },
+            "reviewed_by": {"lookup_field": "uuid", "view_name": "user-detail"},
+        }
+
+
+class SuggestionRejectSerializer(serializers.Serializer):
+    """Serializer for rejecting a reviewer suggestion."""
+
+    reason = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Reason for rejecting the suggestion",
+    )
+
+
+class OrcidCallbackSerializer(serializers.Serializer):
+    """Serializer for ORCID OAuth callback."""
+
+    code = serializers.CharField(
+        help_text="Authorization code from ORCID OAuth callback",
+    )
+    state = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="State token for CSRF protection",
+    )
+
+
+class ImportPublicationsSerializer(serializers.Serializer):
+    """Serializer for importing publications from various sources."""
+
+    source = serializers.ChoiceField(
+        choices=[("orcid", "ORCID"), ("doi", "DOI")],
+        default="orcid",
+        help_text="Source to import publications from",
+    )
+    doi = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="DOI of publication to import (required if source is 'doi')",
+    )
+
+    def validate(self, attrs):
+        if attrs.get("source") == "doi" and not attrs.get("doi"):
+            raise serializers.ValidationError(
+                {"doi": _("DOI is required when source is 'doi'.")}
+            )
+        return attrs
+
+
+# =============================================================================
+# Matching Serializers
+# =============================================================================
+
+
+class MatchingConfigurationSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.ModelSerializer,
+):
+    """Serializer for matching algorithm configuration."""
+
+    call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
+    call_name = serializers.ReadOnlyField(source="call.name")
+
+    class Meta:
+        model = models.MatchingConfiguration
+        fields = [
+            "uuid",
+            "call_uuid",
+            "call_name",
+            "affinity_method",
+            "keyword_weight",
+            "text_weight",
+            "min_reviewers_per_proposal",
+            "max_reviewers_per_proposal",
+            "min_proposals_per_reviewer",
+            "max_proposals_per_reviewer",
+            "algorithm",
+            "min_affinity_threshold",
+            "use_reviewer_bids",
+            "bid_weight",
+            "created",
+            "modified",
+        ]
+
+
+class ReviewerProposalAffinitySerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """Serializer for reviewer-proposal affinity scores."""
+
+    reviewer_name = serializers.ReadOnlyField(source="reviewer.user.full_name")
+    reviewer_uuid = serializers.UUIDField(source="reviewer.uuid", read_only=True)
+    proposal_name = serializers.ReadOnlyField(source="proposal.name")
+    proposal_uuid = serializers.UUIDField(source="proposal.uuid", read_only=True)
+
+    class Meta:
+        model = models.ReviewerProposalAffinity
+        fields = [
+            "uuid",
+            "reviewer",
+            "reviewer_uuid",
+            "reviewer_name",
+            "proposal",
+            "proposal_uuid",
+            "proposal_name",
+            "affinity_score",
+            "keyword_score",
+            "text_score",
+            "created",
+        ]
+        read_only_fields = fields
+        extra_kwargs = {
+            "reviewer": {
+                "lookup_field": "uuid",
+                "view_name": "reviewer-profile-detail",
+            },
+            "proposal": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-proposal-detail",
+            },
+        }
+
+
+class AffinityMatrixEntrySerializer(serializers.Serializer):
+    """Serializer for a single entry in the affinity matrix."""
+
+    uuid = serializers.UUIDField()
+    reviewer_uuid = serializers.UUIDField()
+    reviewer_name = serializers.CharField()
+    proposal_uuid = serializers.UUIDField()
+    proposal_name = serializers.CharField()
+    affinity_score = serializers.FloatField()
+    keyword_score = serializers.FloatField(allow_null=True)
+    text_score = serializers.FloatField(allow_null=True)
+    # COI fields
+    has_conflict = serializers.BooleanField()
+    coi_type = serializers.CharField(allow_null=True)
+    coi_severity = serializers.CharField(allow_null=True)
+    coi_status = serializers.CharField(allow_null=True)
+    # Source field: "pool" or "suggestion"
+    source = serializers.CharField()
+
+
+class AffinityMatrixResponseSerializer(serializers.Serializer):
+    """Serializer for the affinity matrix response."""
+
+    count = serializers.IntegerField()
+    results = AffinityMatrixEntrySerializer(many=True)
+
+
+# Response serializers for action endpoints
+
+
+class MessageResponseSerializer(serializers.Serializer):
+    """Generic message response serializer."""
+
+    message = serializers.CharField()
+
+
+class ComputeAffinitiesResponseSerializer(serializers.Serializer):
+    """Response for compute_affinities action."""
+
+    computed_count = serializers.IntegerField()
+    message = serializers.CharField()
+
+
+class GenerateSuggestionsRequestSerializer(serializers.Serializer):
+    """Request parameters for configurable suggestion generation."""
+
+    source = serializers.ChoiceField(
+        choices=[
+            ("call_description", "Call Description"),
+            ("all_proposals", "All Proposals"),
+            ("selected_proposals", "Selected Proposals"),
+            ("custom_keywords", "Custom Keywords"),
+        ],
+        default="all_proposals",
+        help_text="What content to match reviewers against",
+    )
+
+    # For 'selected_proposals' source
+    proposal_uuids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        allow_empty=True,
+        help_text="Specific proposal UUIDs to match against (for selected_proposals source)",
+    )
+
+    # For 'custom_keywords' source
+    keywords = serializers.ListField(
+        child=serializers.CharField(max_length=100),
+        required=False,
+        allow_empty=True,
+        help_text="Custom keywords to search for (for custom_keywords source)",
+    )
+
+    # Keyword search mode (for custom_keywords source)
+    keyword_search_mode = serializers.ChoiceField(
+        choices=[
+            ("expertise_only", "Match against reviewer expertise keywords"),
+            ("full_text", "Search all reviewer content"),
+        ],
+        default="expertise_only",
+        required=False,
+        help_text="How to search for custom keywords",
+    )
+
+    # Override default threshold
+    min_affinity_threshold = serializers.FloatField(
+        required=False,
+        min_value=0.0,
+        max_value=1.0,
+        help_text="Minimum affinity score for suggestions (0.0-1.0)",
+    )
+
+    def validate(self, attrs):
+        source = attrs.get("source", "all_proposals")
+
+        if source == "selected_proposals":
+            if not attrs.get("proposal_uuids"):
+                raise serializers.ValidationError(
+                    {"proposal_uuids": "Required when source is 'selected_proposals'"}
+                )
+
+        if source == "custom_keywords":
+            if not attrs.get("keywords"):
+                raise serializers.ValidationError(
+                    {"keywords": "Required when source is 'custom_keywords'"}
+                )
+
+        return attrs
+
+
+class GenerateSuggestionsResponseSerializer(serializers.Serializer):
+    """Response for generate_suggestions action."""
+
+    suggestions_created = serializers.IntegerField()
+    reviewers_evaluated = serializers.IntegerField()
+    source_used = serializers.CharField()
+    suggestions = serializers.ListField(child=serializers.CharField())
+
+
+class SendInvitationsResponseSerializer(serializers.Serializer):
+    """Response for send_invitations action."""
+
+    invitations_sent = serializers.IntegerField()
+
+
+class ConflictSummaryResponseSerializer(serializers.Serializer):
+    """Response for conflict_summary action."""
+
+    total = serializers.IntegerField()
+    by_status = serializers.DictField(child=serializers.IntegerField())
+    by_severity = serializers.DictField(child=serializers.IntegerField())
+    by_type = serializers.DictField(child=serializers.IntegerField())
+
+
+class OrcidSyncResponseSerializer(serializers.Serializer):
+    """Response for sync_orcid action."""
+
+    imported = serializers.DictField()
+    last_sync = serializers.DateTimeField()
+
+
+class OrcidDisconnectResponseSerializer(serializers.Serializer):
+    """Response for disconnect_orcid action."""
+
+    detail = serializers.CharField()
+
+
+class ProposedAssignmentSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """Serializer for proposed reviewer-proposal assignments."""
+
+    reviewer_name = serializers.ReadOnlyField(source="reviewer.user.full_name")
+    reviewer_uuid = serializers.UUIDField(source="reviewer.uuid", read_only=True)
+    proposal_name = serializers.ReadOnlyField(source="proposal.name")
+    proposal_uuid = serializers.UUIDField(source="proposal.uuid", read_only=True)
+    deployed_by_name = serializers.ReadOnlyField(source="deployed_by.full_name")
+
+    class Meta:
+        model = models.ProposedAssignment
+        fields = [
+            "url",
+            "uuid",
+            "call",
+            "reviewer",
+            "reviewer_uuid",
+            "reviewer_name",
+            "proposal",
+            "proposal_uuid",
+            "proposal_name",
+            "affinity_score",
+            "algorithm_used",
+            "rank",
+            "is_deployed",
+            "deployed_at",
+            "deployed_by",
+            "deployed_by_name",
+            "created",
+        ]
+        read_only_fields = fields
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid"},
+            "call": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-protected-call-detail",
+            },
+            "reviewer": {
+                "lookup_field": "uuid",
+                "view_name": "reviewer-profile-detail",
+            },
+            "proposal": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-proposal-detail",
+            },
+            "deployed_by": {"lookup_field": "uuid", "view_name": "user-detail"},
+        }
+
+
+class COIDetectionJobSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """Serializer for COI detection job status."""
+
+    url = serializers.SerializerMethodField()
+    call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
+    call_name = serializers.ReadOnlyField(source="call.name")
+    progress_percentage = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.COIDetectionJob
+        fields = [
+            "url",
+            "uuid",
+            "call",
+            "call_uuid",
+            "call_name",
+            "job_type",
+            "state",
+            "total_pairs",
+            "processed_pairs",
+            "progress_percentage",
+            "conflicts_found",
+            "started_at",
+            "completed_at",
+            "error_message",
+            "created",
+        ]
+        read_only_fields = fields
+        extra_kwargs = {
+            "call": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-protected-call-detail",
+            },
+        }
+
+    def get_url(self, obj) -> str:
+        """Return URL for the job detail endpoint."""
+        from rest_framework.reverse import reverse
+
+        request = self.context.get("request")
+        return reverse(
+            "coi-detection-job-detail",
+            kwargs={"uuid": obj.uuid.hex},
+            request=request,
+        )
+
+    def get_progress_percentage(self, obj) -> float:
+        if obj.total_pairs == 0:
+            return 0.0
+        return round(obj.processed_pairs / obj.total_pairs * 100, 1)
+
+
+class TriggerCOIDetectionSerializer(serializers.Serializer):
+    """Serializer for triggering COI detection."""
+
+    job_type = serializers.ChoiceField(
+        choices=[
+            ("full_call", "Full call detection"),
+            ("incremental", "Incremental detection"),
+        ],
+        default="full_call",
+    )
+
+
+class DeployAssignmentsSerializer(serializers.Serializer):
+    """Serializer for deploying proposed assignments as actual reviews."""
+
+    assignment_uuids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        help_text="Specific assignments to deploy. If empty, deploys all non-deployed assignments.",
+    )
+
+
+# =============================================================================
+# Reviewer Bid Serializers
+# =============================================================================
+
+
+class ReviewerBidSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """Serializer for reviewer bids."""
+
+    reviewer_name = serializers.ReadOnlyField(source="reviewer.user.full_name")
+    reviewer_uuid = serializers.UUIDField(source="reviewer.uuid", read_only=True)
+    proposal_name = serializers.ReadOnlyField(source="proposal.name")
+    proposal_uuid = serializers.UUIDField(source="proposal.uuid", read_only=True)
+    call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
+    bid_display = serializers.CharField(source="get_bid_display", read_only=True)
+
+    class Meta:
+        model = models.ReviewerBid
+        fields = [
+            "uuid",
+            "call",
+            "call_uuid",
+            "reviewer",
+            "reviewer_uuid",
+            "reviewer_name",
+            "proposal",
+            "proposal_uuid",
+            "proposal_name",
+            "bid",
+            "bid_display",
+            "comment",
+            "submitted_at",
+            "modified_at",
+        ]
+        read_only_fields = [
+            "call",
+            "reviewer",
+            "submitted_at",
+            "modified_at",
+        ]
+        extra_kwargs = {
+            "call": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-protected-call-detail",
+            },
+            "reviewer": {
+                "lookup_field": "uuid",
+                "view_name": "reviewer-profile-detail",
+            },
+            "proposal": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-proposal-detail",
+            },
+        }
+
+
+class ReviewerBidSubmitSerializer(serializers.Serializer):
+    """Serializer for submitting a bid on a proposal."""
+
+    proposal_uuid = serializers.UUIDField()
+    bid = serializers.ChoiceField(
+        choices=[
+            ("eager", "Eager to review"),
+            ("willing", "Willing to review"),
+            ("not_willing", "Not willing to review"),
+            ("conflict", "Has conflict of interest"),
+        ]
+    )
+    comment = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class ReviewerBulkBidSerializer(serializers.Serializer):
+    """Serializer for submitting multiple bids at once."""
+
+    bids = ReviewerBidSubmitSerializer(many=True)
+
+
+# =============================================================================
+# Public Invitation Serializers
+# =============================================================================
+
+
+class InvitationCOIConfigurationSerializer(serializers.Serializer):
+    """COI configuration info for invitation display."""
+
+    recusal_required_types = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="COI types requiring automatic recusal",
+    )
+    management_allowed_types = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="COI types where a management plan can be submitted",
+    )
+    disclosure_only_types = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="COI types that only need disclosure",
+    )
+    proposal_disclosure_level = serializers.CharField(
+        help_text="How much proposal info is disclosed to reviewers",
+    )
+
+
+class InvitationProposalSummarySerializer(serializers.Serializer):
+    """Proposal summary for invitation display."""
+
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+    summary = serializers.CharField(required=False, allow_null=True)
+
+
+class COITypeChoiceSerializer(serializers.Serializer):
+    """COI type choice tuple (value, label)."""
+
+    value = serializers.CharField()
+    label = serializers.CharField()
+
+
+class PublicInvitationSerializer(serializers.Serializer):
+    """Serializer for public invitation information (no auth required)."""
+
+    call_name = serializers.CharField(read_only=True)
+    call_uuid = serializers.UUIDField(read_only=True)
+    invitation_status = serializers.CharField(read_only=True)
+    expires_at = serializers.DateTimeField(read_only=True, allow_null=True)
+    is_expired = serializers.BooleanField(read_only=True)
+    max_assignments = serializers.IntegerField(read_only=True, allow_null=True)
+    invited_by_name = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Name of the person who sent the invitation",
+    )
+    profile_status = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="User's profile status: 'published', 'unpublished', 'missing', or null if not authenticated",
+    )
+    requires_profile = serializers.BooleanField(
+        read_only=True,
+        help_text="Whether the invitation requires creating a reviewer profile",
+    )
+    coi_configuration = InvitationCOIConfigurationSerializer(
+        read_only=True,
+        allow_null=True,
+        help_text="COI configuration for this call",
+    )
+    coi_types = serializers.ListField(
+        child=serializers.ListField(child=serializers.CharField()),
+        read_only=True,
+        help_text="Available COI types as list of [value, label] tuples",
+    )
+    proposals = InvitationProposalSummarySerializer(
+        many=True,
+        read_only=True,
+        help_text="Proposals for which conflicts can be declared",
+    )
+
+
+class InvitationAcceptSerializer(serializers.Serializer):
+    """Serializer for accepting a reviewer invitation.
+
+    Optionally includes self-declared conflicts with proposals.
+    """
+
+    declared_conflicts = SelfDeclaredConflictSerializer(
+        many=True,
+        required=False,
+        help_text="Optional list of self-declared conflicts with proposals. "
+        "Each conflict creates a ConflictOfInterest record with detection_method='self_disclosed'.",
+    )
+
+
+class InvitationDeclineSerializer(serializers.Serializer):
+    """Serializer for declining a reviewer invitation."""
+
+    reason = serializers.CharField(
+        required=True,
+        help_text="Reason for declining the invitation",
+    )
+
+
+# Response serializers for invitation actions
+class InvitationAcceptResponseSerializer(serializers.Serializer):
+    """Response for successful invitation acceptance."""
+
+    detail = serializers.CharField()
+    declared_conflicts = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        help_text="UUIDs of created conflict records",
+    )
+
+
+class InvitationAcceptErrorSerializer(serializers.Serializer):
+    """Response for invitation acceptance errors (400)."""
+
+    error = serializers.CharField()
+    message = serializers.CharField()
+    profile_url = serializers.CharField(required=False)
+
+
+class InvitationAuthErrorSerializer(serializers.Serializer):
+    """Response for unauthenticated invitation acceptance (401)."""
+
+    error = serializers.CharField()
+
+
+class InvitationDeclineResponseSerializer(serializers.Serializer):
+    """Response for successful invitation decline."""
+
+    detail = serializers.CharField()
+
+
+# =============================================================================
+# Assignment Batch Serializers (Stage 2 - Proposal Assignment Workflow)
+# =============================================================================
+
+
+class CallAssignmentConfigurationSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """Serializer for per-call assignment configuration."""
+
+    call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
+    call_name = serializers.ReadOnlyField(source="call.name")
+
+    class Meta:
+        model = models.CallAssignmentConfiguration
+        fields = [
+            "uuid",
+            "call",
+            "call_uuid",
+            "call_name",
+            "auto_reassign_on_decline",
+            "max_auto_reassign_attempts",
+            "assignment_expiration_days",
+            "send_reminder_before_expiry_days",
+            "created",
+            "modified",
+        ]
+        read_only_fields = ["call"]
+        extra_kwargs = {
+            "call": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-protected-call-detail",
+            },
+        }
+
+
+class AssignmentItemSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """Serializer for individual assignment items within a batch."""
+
+    proposal_name = serializers.ReadOnlyField(source="proposal.name")
+    proposal_uuid = serializers.UUIDField(source="proposal.uuid", read_only=True)
+    proposal_slug = serializers.ReadOnlyField(source="proposal.slug")
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    review_uuid = serializers.UUIDField(source="review.uuid", read_only=True)
+    coi_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.AssignmentItem
+        fields = [
+            "url",
+            "uuid",
+            "batch",
+            "proposal",
+            "proposal_uuid",
+            "proposal_name",
+            "proposal_slug",
+            "status",
+            "status_display",
+            "affinity_score",
+            "has_coi",
+            "coi_count",
+            "responded_at",
+            "decline_reason",
+            "review",
+            "review_uuid",
+            "reassign_count",
+            "created",
+        ]
+        read_only_fields = [
+            "batch",
+            "proposal",
+            "status",
+            "affinity_score",
+            "has_coi",
+            "responded_at",
+            "review",
+            "reassign_count",
+        ]
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid"},
+            "batch": {
+                "lookup_field": "uuid",
+                "view_name": "assignment-batch-detail",
+            },
+            "proposal": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-proposal-detail",
+            },
+            "review": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-review-detail",
+            },
+        }
+
+    def get_coi_count(self, obj) -> int:
+        """Count of COI records blocking this assignment."""
+        return obj.coi_records.count()
+
+
+class ExtendDeadlineRequestSerializer(serializers.Serializer):
+    """Request serializer for extending assignment batch deadline."""
+
+    expires_at = serializers.DateTimeField(
+        help_text=_("New expiration date and time for the assignment batch.")
+    )
+
+    def validate_expires_at(self, value):
+        if value <= timezone.now():
+            raise serializers.ValidationError(_("New deadline must be in the future."))
+        return value
+
+
+class ExtendDeadlineResponseSerializer(serializers.Serializer):
+    """Response serializer confirming the new deadline."""
+
+    expires_at = serializers.DateTimeField(help_text=_("The updated expiration date."))
+    status = serializers.CharField(help_text=_("Current status of the batch."))
+
+
+class AssignmentBatchSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    """Serializer for assignment batches sent to reviewers."""
+
+    call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
+    call_name = serializers.ReadOnlyField(source="call.name")
+    reviewer_name = serializers.SerializerMethodField()
+    reviewer_email = serializers.SerializerMethodField()
+    reviewer_uuid = serializers.SerializerMethodField()
+    reviewer_pool_entry_uuid = serializers.UUIDField(
+        source="reviewer_pool_entry.uuid", read_only=True
+    )
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    source_display = serializers.CharField(source="get_source_display", read_only=True)
+    created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
+    items = AssignmentItemSerializer(many=True, read_only=True)
+    items_count = serializers.SerializerMethodField()
+    items_pending_count = serializers.SerializerMethodField()
+    items_accepted_count = serializers.SerializerMethodField()
+    items_declined_count = serializers.SerializerMethodField()
+    is_expired = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = models.AssignmentBatch
+        fields = [
+            "url",
+            "uuid",
+            "call",
+            "call_uuid",
+            "call_name",
+            "reviewer_pool_entry",
+            "reviewer_pool_entry_uuid",
+            "reviewer_name",
+            "reviewer_email",
+            "reviewer_uuid",
+            "status",
+            "status_display",
+            "sent_at",
+            "expires_at",
+            "responded_at",
+            "source",
+            "source_display",
+            "created_by",
+            "created_by_name",
+            "manager_notes",
+            "items",
+            "items_count",
+            "items_pending_count",
+            "items_accepted_count",
+            "items_declined_count",
+            "is_expired",
+            "created",
+        ]
+        read_only_fields = [
+            "call",
+            "reviewer_pool_entry",
+            "status",
+            "sent_at",
+            "expires_at",
+            "responded_at",
+            "source",
+            "created_by",
+            "items",
+        ]
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid"},
+            "call": {
+                "lookup_field": "uuid",
+                "view_name": "proposal-protected-call-detail",
+            },
+            "reviewer_pool_entry": {
+                "lookup_field": "uuid",
+                "view_name": "call-reviewer-pool-detail",
+            },
+            "created_by": {"lookup_field": "uuid", "view_name": "user-detail"},
+        }
+
+    def get_reviewer_name(self, obj) -> str | None:
+        """Get reviewer name from pool entry."""
+        if obj.reviewer_pool_entry.reviewer:
+            return obj.reviewer_pool_entry.reviewer.user.full_name
+        if obj.reviewer_pool_entry.invited_user:
+            return obj.reviewer_pool_entry.invited_user.full_name
+        return None
+
+    def get_reviewer_email(self, obj) -> str | None:
+        """Get reviewer email from pool entry."""
+        if obj.reviewer_pool_entry.reviewer:
+            return obj.reviewer_pool_entry.reviewer.user.email
+        if obj.reviewer_pool_entry.invited_user:
+            return obj.reviewer_pool_entry.invited_user.email
+        return obj.reviewer_pool_entry.invited_email
+
+    def get_reviewer_uuid(self, obj) -> str | None:
+        """Get reviewer profile UUID if available."""
+        if obj.reviewer_pool_entry.reviewer:
+            return str(obj.reviewer_pool_entry.reviewer.uuid)
+        return None
+
+    def get_items_count(self, obj) -> int:
+        """Total count of items in batch."""
+        return obj.items.count()
+
+    def get_items_pending_count(self, obj) -> int:
+        """Count of pending items."""
+        return obj.items_pending_count
+
+    def get_items_accepted_count(self, obj) -> int:
+        """Count of accepted items."""
+        return obj.items_accepted_count
+
+    def get_items_declined_count(self, obj) -> int:
+        """Count of declined items."""
+        return obj.items_declined_count
+
+
+class AssignmentBatchListSerializer(AssignmentBatchSerializer):
+    """Lightweight serializer for listing assignment batches (without nested items)."""
+
+    class Meta(AssignmentBatchSerializer.Meta):
+        fields = [f for f in AssignmentBatchSerializer.Meta.fields if f != "items"]
+
+
+# Action serializers for assignment endpoints
+
+
+class GenerateAssignmentsSerializer(serializers.Serializer):
+    """Serializer for generating assignment batches from the algorithm."""
+
+    proposal_uuids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        help_text="Specific proposal UUIDs to generate assignments for. "
+        "If empty, generates for all submitted proposals needing reviewers.",
+    )
+    reviewers_per_proposal = serializers.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=20,
+        help_text="Number of reviewers to assign per proposal. "
+        "If not specified, uses call's minimum_number_of_reviewers setting.",
+    )
+
+
+class GenerateAssignmentsResponseSerializer(serializers.Serializer):
+    """Response for generate_assignments action."""
+
+    batches_created = serializers.IntegerField()
+    items_created = serializers.IntegerField()
+    proposals_processed = serializers.IntegerField()
+    skipped_proposals = serializers.ListField(
+        child=serializers.DictField(),
+        help_text="Proposals that were skipped with reasons",
+    )
+
+
+class SendAssignmentBatchSerializer(serializers.Serializer):
+    """Serializer for sending an assignment batch invitation."""
+
+    manager_notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Optional notes to include in the invitation email",
+    )
+
+
+class SendAssignmentBatchResponseSerializer(serializers.Serializer):
+    """Response for send assignment batch action."""
+
+    detail = serializers.CharField()
+    expires_at = serializers.DateTimeField()
+
+
+class SendAllAssignmentBatchesSerializer(serializers.Serializer):
+    """Serializer for sending all draft assignment batches."""
+
+    batch_uuids = serializers.ListField(
+        child=serializers.UUIDField(),
+        required=False,
+        help_text="Specific batch UUIDs to send. If empty, sends all draft batches.",
+    )
+
+
+class SendAllAssignmentBatchesResponseSerializer(serializers.Serializer):
+    """Response for send_all_batches action."""
+
+    batches_sent = serializers.IntegerField()
+    skipped = serializers.IntegerField()
+
+
+class AssignmentItemAcceptSerializer(serializers.Serializer):
+    """Serializer for accepting an assignment item."""
+
+    # No fields needed - just confirms acceptance
+    pass
+
+
+class AssignmentItemDeclineSerializer(serializers.Serializer):
+    """Serializer for declining an assignment item."""
+
+    reason = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Reason for declining this assignment",
+    )
+
+
+class AssignmentItemResponseSerializer(serializers.Serializer):
+    """Response for assignment item accept/decline actions."""
+
+    detail = serializers.CharField()
+    review_uuid = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        help_text="UUID of created review (only on accept)",
+    )
+
+
+class ReassignItemSerializer(serializers.Serializer):
+    """Serializer for reassigning a declined item to another reviewer."""
+
+    reviewer_pool_entry_uuid = serializers.UUIDField(
+        help_text="UUID of the pool entry for the new reviewer",
+    )
+    manager_notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Notes to include in the reassignment notification",
+    )
+
+
+class ReassignItemResponseSerializer(serializers.Serializer):
+    """Response for reassign action."""
+
+    detail = serializers.CharField()
+    new_item_uuid = serializers.UUIDField()
+    new_batch_uuid = serializers.UUIDField()
+
+
+class SuggestAlternativeReviewersSerializer(serializers.Serializer):
+    """Response for suggesting alternative reviewers for a declined item."""
+
+    suggestions = serializers.ListField(
+        child=serializers.DictField(),
+        help_text="List of alternative reviewers with affinity scores",
+    )
+
+
+# Serializer for reviewer's view of their own assignments
+class MyAssignmentBatchSerializer(serializers.Serializer):
+    """Serializer for reviewer's view of their pending assignment batches."""
+
+    uuid = serializers.UUIDField()
+    call_uuid = serializers.UUIDField()
+    call_name = serializers.CharField()
+    status = serializers.CharField()
+    status_display = serializers.CharField()
+    sent_at = serializers.DateTimeField()
+    expires_at = serializers.DateTimeField(allow_null=True)
+    is_expired = serializers.BooleanField()
+    items_count = serializers.IntegerField()
+    items_pending_count = serializers.IntegerField()
+    manager_notes = serializers.CharField(allow_blank=True)
+
+
+class MyAssignmentItemSerializer(serializers.Serializer):
+    """Serializer for individual assignment items in reviewer's view."""
+
+    uuid = serializers.UUIDField()
+    proposal_uuid = serializers.UUIDField()
+    proposal_name = serializers.CharField()
+    proposal_slug = serializers.CharField()
+    proposal_summary = serializers.CharField(allow_blank=True)
+    status = serializers.CharField()
+    status_display = serializers.CharField()
+    affinity_score = serializers.FloatField(allow_null=True)
+    has_coi = serializers.BooleanField()
+
+
+class MyAssignmentBatchDetailSerializer(MyAssignmentBatchSerializer):
+    """Detailed serializer for reviewer's view of a specific batch."""
+
+    items = MyAssignmentItemSerializer(many=True)
+
+
+class CreateManualAssignmentSerializer(serializers.Serializer):
+    """Serializer for creating a manual assignment batch."""
+
+    reviewer_pool_entry_uuid = serializers.UUIDField(
+        help_text="UUID of the reviewer pool entry to assign proposals to",
+    )
+    proposal_uuids = serializers.ListField(
+        child=serializers.UUIDField(),
+        min_length=1,
+        help_text="List of proposal UUIDs to assign to the reviewer",
+    )
+    manager_notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="Optional notes about this assignment",
+    )
+
+
+class CreateManualAssignmentResponseSerializer(serializers.Serializer):
+    """Response for create_manual_assignment action."""
+
+    batch_uuid = serializers.UUIDField()
+    items_created = serializers.IntegerField()
+    skipped_proposals = serializers.ListField(
+        child=serializers.DictField(),
+        help_text="Proposals that were skipped with reasons",
+    )

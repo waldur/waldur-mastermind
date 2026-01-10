@@ -1,14 +1,17 @@
 import logging
+import secrets
 from datetime import datetime, timedelta
 from typing import cast
 
-from django.db.models import OuterRef, ProtectedError, Q
+from django.contrib.auth import get_user_model
+from django.db.models import Count, OuterRef, ProtectedError, Q
 from django.db.models.functions import Coalesce
+from django.shortcuts import get_object_or_404
 from django.utils import timezone as timezone
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import decorators, exceptions, response, status, viewsets
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
+from rest_framework import decorators, exceptions, mixins, response, status, viewsets
 from rest_framework import permissions as rf_permissions
 
 from waldur_core.checklist import models as checklist_models
@@ -43,17 +46,28 @@ from waldur_core.structure.permissions import _get_customer
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.views import BaseMarketplaceView, PublicViewsetMixin
 from waldur_mastermind.proposal import (
+    affinity_scoring,
     filters,
     models,
+    orcid_service,
     serializers,
     tasks,
     utils,
 )
 from waldur_mastermind.proposal import permissions as proposal_permissions
 from waldur_mastermind.proposal.enums import (
+    AffinityMatrixScopes,
     CallStates,
+    COIDetectionJobStates,
+    COIDetectionJobTypes,
+    COIDetectionMethods,
+    COISeverityLevels,
+    COIStatuses,
+    COITypes,
     ProposalStates,
     RequestedOfferingStates,
+    ReviewerPoolInvitationStatuses,
+    ReviewerSuggestionStatuses,
 )
 
 from .managers import get_connected_call_organizers, get_connected_calls
@@ -244,6 +258,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @extend_schema(
         description="Activate a call.",
         request=None,
+        responses={200: serializers.MessageResponseSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def activate(self, request, uuid=None):
@@ -255,7 +270,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         call.state = CallStates.ACTIVE
         call.save()
         return response.Response(
-            "Call has been activated.",
+            {"message": "Call has been activated."},
             status=status.HTTP_200_OK,
         )
 
@@ -266,6 +281,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @extend_schema(
         description="Archive a call.",
         request=None,
+        responses={200: serializers.MessageResponseSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def archive(self, request, uuid=None):
@@ -273,7 +289,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         call.state = CallStates.ARCHIVED
         call.save()
         return response.Response(
-            "Call has been archived.",
+            {"message": "Call has been archived."},
             status=status.HTTP_200_OK,
         )
 
@@ -736,6 +752,1145 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         _check_available_checklists_permission
     ]
 
+    # =========================================================================
+    # Reviewer Pool Management
+    # =========================================================================
+
+    @extend_schema(
+        methods=["get"],
+        operation_id="proposal_protected_calls_reviewer_pool_list",
+        responses=serializers.CallReviewerPoolSerializer(many=True),
+        description="List reviewer pool members for a call.",
+        filters=False,
+    )
+    @extend_schema(
+        methods=["post"],
+        operation_id="proposal_protected_calls_invite_reviewers",
+        request=serializers.ReviewerInvitationSerializer,
+        responses=serializers.CallReviewerPoolSerializer(many=True),
+        description="Invite reviewers to join the call's reviewer pool.",
+    )
+    @decorators.action(detail=True, methods=["get", "post"], url_path="reviewer-pool")
+    def reviewer_pool(self, request, uuid=None):
+        """List or invite reviewers to the call's reviewer pool."""
+        call = self.get_object()
+
+        if request.method == "GET":
+            pool_members = list(
+                models.CallReviewerPool.objects.filter(call=call).select_related(
+                    "reviewer",
+                    "reviewer__user",
+                    "invited_by",
+                    "invited_user",
+                )
+            )
+
+            # Build prefetch context to avoid N+1 in serializer
+            context = self.get_serializer_context()
+            context.update(self._build_pool_serializer_context(pool_members, call))
+
+            serializer = serializers.CallReviewerPoolSerializer(
+                pool_members,
+                many=True,
+                context=context,
+            )
+            return response.Response(serializer.data)
+
+        # POST - invite reviewers
+        serializer = serializers.ReviewerInvitationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        reviewer_uuids = serializer.validated_data["reviewer_uuids"]
+        max_assignments = serializer.validated_data.get("max_assignments", 5)
+
+        # Bulk fetch all reviewers at once to avoid N+1
+        reviewers = models.ReviewerProfile.objects.filter(
+            uuid__in=reviewer_uuids
+        ).select_related("user")
+        reviewers_by_uuid = {str(r.uuid): r for r in reviewers}
+
+        created_memberships = []
+        for reviewer_uuid in reviewer_uuids:
+            reviewer = reviewers_by_uuid.get(str(reviewer_uuid))
+            if not reviewer:
+                continue
+
+            membership, created = models.CallReviewerPool.objects.get_or_create(
+                call=call,
+                reviewer=reviewer,
+                defaults={
+                    "invited_by": request.user,
+                    "max_assignments": max_assignments,
+                    "invitation_expires_at": timezone.now() + timedelta(days=14),
+                },
+            )
+            if created:
+                created_memberships.append(membership)
+
+        return response.Response(
+            serializers.CallReviewerPoolSerializer(
+                created_memberships,
+                many=True,
+                context=self.get_serializer_context(),
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    def _build_pool_serializer_context(self, pool_members, call):
+        """Build prefetched COI and review counts for CallReviewerPoolSerializer."""
+        if not pool_members:
+            return {}
+
+        reviewer_ids = {pm.reviewer_id for pm in pool_members if pm.reviewer_id}
+        user_ids = set()
+        for pm in pool_members:
+            if pm.reviewer and pm.reviewer.user_id:
+                user_ids.add(pm.reviewer.user_id)
+            elif pm.invited_user_id:
+                user_ids.add(pm.invited_user_id)
+
+        # Prefetch COI counts
+        coi_counts = {}
+        coi_by_severity = {}
+        if reviewer_ids:
+            coi_data = (
+                models.ConflictOfInterest.objects.filter(
+                    reviewer_id__in=reviewer_ids,
+                    call=call,
+                )
+                .values("reviewer_id", "severity")
+                .annotate(count=Count("id"))
+            )
+            for item in coi_data:
+                key = (item["reviewer_id"], call.id)
+                coi_counts[key] = coi_counts.get(key, 0) + item["count"]
+                if key not in coi_by_severity:
+                    coi_by_severity[key] = {}
+                coi_by_severity[key][item["severity"]] = item["count"]
+
+        # Prefetch review counts
+        review_counts = {}
+        if user_ids:
+            review_data = (
+                models.Review.objects.filter(
+                    reviewer_id__in=user_ids,
+                    proposal__round__call=call,
+                )
+                .values("reviewer_id", "state")
+                .annotate(count=Count("id"))
+            )
+            for item in review_data:
+                key = (item["reviewer_id"], call.id)
+                if key not in review_counts:
+                    review_counts[key] = {}
+                review_counts[key][item["state"]] = item["count"]
+
+        return {
+            "coi_counts": coi_counts,
+            "coi_by_severity": coi_by_severity,
+            "review_counts": review_counts,
+        }
+
+    reviewer_pool_serializer_class = serializers.CallReviewerPoolSerializer
+    reviewer_pool_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    # =========================================================================
+    # Reviewer Discovery & Email Invitations
+    # =========================================================================
+
+    @extend_schema(
+        description="Invite a reviewer by email address. Creates an invitation that requires the reviewer to create and publish a profile before accepting.",
+        request=serializers.EmailInvitationSerializer,
+        responses=serializers.CallReviewerPoolSerializer,
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="invite-by-email")
+    def invite_by_email(self, request, uuid=None):
+        """Invite a reviewer by email address."""
+        call = self.get_object()
+
+        serializer = serializers.EmailInvitationSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+
+        User = get_user_model()
+
+        # Check if invitation already exists for this email
+        existing = models.CallReviewerPool.objects.filter(
+            call=call, invited_email__iexact=email
+        ).first()
+        if existing:
+            return response.Response(
+                {"detail": _("An invitation for this email already exists.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Check if user with this email exists
+        user = User.objects.filter(email__iexact=email).first()
+        reviewer = None
+        if user:
+            reviewer = models.ReviewerProfile.objects.filter(user=user).first()
+            # Check if already in pool via reviewer FK
+            if (
+                reviewer
+                and models.CallReviewerPool.objects.filter(
+                    call=call, reviewer=reviewer
+                ).exists()
+            ):
+                return response.Response(
+                    {"detail": _("This reviewer is already in the pool.")},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        # Create invitation
+        pool_member = models.CallReviewerPool.objects.create(
+            call=call,
+            reviewer=reviewer,  # May be None
+            invited_email=email,
+            invited_user=user,  # May be None
+            invited_by=request.user,
+            invitation_status=ReviewerPoolInvitationStatuses.PENDING,
+        )
+
+        # TODO: Send invitation email
+        # tasks.send_reviewer_invitation_email.delay(pool_member.uuid)
+
+        return response.Response(
+            serializers.CallReviewerPoolSerializer(
+                pool_member, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    invite_by_email_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    @extend_schema(
+        description="Generate reviewer suggestions with configurable matching source.",
+        request=serializers.GenerateSuggestionsRequestSerializer,
+        responses={200: serializers.GenerateSuggestionsResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="generate-suggestions")
+    def generate_suggestions(self, request, uuid=None):
+        """
+        Run affinity algorithm on published profiles to generate suggestions.
+
+        Request body options:
+        - source: One of 'call_description', 'all_proposals', 'selected_proposals', 'custom_keywords'
+        - proposal_uuids: List of proposal UUIDs (for 'selected_proposals' source)
+        - keywords: List of keyword strings (for 'custom_keywords' source)
+        - keyword_search_mode: 'expertise_only' or 'full_text' (for 'custom_keywords' source)
+        - min_affinity_threshold: Override minimum threshold (0-1)
+        """
+        call = self.get_object()
+
+        # Parse request body if provided
+        if request.data:
+            req_serializer = serializers.GenerateSuggestionsRequestSerializer(
+                data=request.data
+            )
+            req_serializer.is_valid(raise_exception=True)
+            data = req_serializer.validated_data
+
+            result = affinity_scoring.compute_suggestions_for_call_configurable(
+                call=call,
+                source=data.get("source", "all_proposals"),
+                proposal_uuids=data.get("proposal_uuids"),
+                keywords=data.get("keywords"),
+                keyword_search_mode=data.get("keyword_search_mode", "expertise_only"),
+                min_threshold=data.get("min_affinity_threshold"),
+            )
+        else:
+            # Backward compatibility: no body means use all_proposals
+            result = affinity_scoring.compute_suggestions_for_call_configurable(
+                call=call,
+                source="all_proposals",
+            )
+
+        return response.Response(result, status=status.HTTP_200_OK)
+
+    generate_suggestions_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    @extend_schema(
+        description="List all reviewer suggestions for this call with affinity scores.",
+        responses=serializers.ReviewerSuggestionSerializer(many=True),
+    )
+    @decorators.action(detail=True, methods=["get"])
+    def suggestions(self, request, uuid=None):
+        """List reviewer suggestions for this call."""
+        call = self.get_object()
+        suggestions = models.ReviewerSuggestion.objects.filter(call=call)
+
+        # Apply status filter if provided
+        status_filter = request.query_params.getlist("status")
+        if status_filter:
+            suggestions = suggestions.filter(status__in=status_filter)
+
+        serializer = serializers.ReviewerSuggestionSerializer(
+            suggestions,
+            many=True,
+            context=self.get_serializer_context(),
+        )
+        return response.Response(serializer.data)
+
+    suggestions_serializer_class = serializers.ReviewerSuggestionSerializer
+    suggestions_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    @extend_schema(
+        description="Send invitations to all confirmed suggestions.",
+        request=None,
+        responses={200: serializers.SendInvitationsResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="send-invitations")
+    def send_invitations(self, request, uuid=None):
+        """Send invitations to all confirmed suggestions."""
+        call = self.get_object()
+
+        confirmed_suggestions = list(
+            models.ReviewerSuggestion.objects.filter(
+                call=call,
+                status=ReviewerSuggestionStatuses.CONFIRMED,
+            ).select_related("reviewer")
+        )
+
+        if not confirmed_suggestions:
+            return response.Response(
+                {"invitations_sent": 0},
+                status=status.HTTP_200_OK,
+            )
+
+        # Prefetch existing pool members to avoid N+1 existence checks
+        existing_pool_reviewer_ids = set(
+            models.CallReviewerPool.objects.filter(
+                call=call,
+                reviewer_id__in=[s.reviewer_id for s in confirmed_suggestions],
+            ).values_list("reviewer_id", flat=True)
+        )
+
+        # Prepare bulk operations
+        invitations_to_create = []
+        suggestions_to_update = []
+
+        for suggestion in confirmed_suggestions:
+            # Skip if already in pool
+            if suggestion.reviewer_id in existing_pool_reviewer_ids:
+                continue
+
+            # Prepare invitation for bulk create
+            invitations_to_create.append(
+                models.CallReviewerPool(
+                    call=call,
+                    reviewer=suggestion.reviewer,
+                    invited_by=request.user,
+                    invitation_status=ReviewerPoolInvitationStatuses.PENDING,
+                    expertise_match_score=suggestion.affinity_score,
+                )
+            )
+
+            # Mark suggestion for update
+            suggestion.status = ReviewerSuggestionStatuses.INVITED
+            suggestions_to_update.append(suggestion)
+
+        # Bulk create invitations
+        if invitations_to_create:
+            models.CallReviewerPool.objects.bulk_create(invitations_to_create)
+
+        # Bulk update suggestion statuses
+        if suggestions_to_update:
+            models.ReviewerSuggestion.objects.bulk_update(
+                suggestions_to_update, fields=["status"]
+            )
+
+        return response.Response(
+            {"invitations_sent": len(invitations_to_create)},
+            status=status.HTTP_200_OK,
+        )
+
+    send_invitations_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    # =========================================================================
+    # COI Management
+    # =========================================================================
+
+    @extend_schema(
+        description="Get COI configuration for this call.",
+        responses=serializers.CallCOIConfigurationSerializer,
+    )
+    @decorators.action(
+        detail=True, methods=["get", "patch"], url_path="coi-configuration"
+    )
+    def coi_configuration(self, request, uuid=None):
+        """Get or update COI configuration for a call."""
+        call = self.get_object()
+
+        config, created = models.CallCOIConfiguration.objects.get_or_create(call=call)
+
+        if request.method == "GET":
+            serializer = serializers.CallCOIConfigurationSerializer(
+                config, context=self.get_serializer_context()
+            )
+            return response.Response(serializer.data)
+
+        # PATCH - update configuration
+        serializer = serializers.CallCOIConfigurationSerializer(
+            config,
+            data=request.data,
+            partial=True,
+            context=self.get_serializer_context(),
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return response.Response(serializer.data)
+
+    coi_configuration_serializer_class = serializers.CallCOIConfigurationSerializer
+    coi_configuration_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    @extend_schema(
+        description="List all conflicts of interest detected for this call.",
+        responses=serializers.ConflictOfInterestSerializer(many=True),
+    )
+    @decorators.action(detail=True, methods=["get"])
+    def conflicts(self, request, uuid=None):
+        """List all COIs for a call."""
+        call = self.get_object()
+        conflicts = models.ConflictOfInterest.objects.filter(call=call).order_by(
+            "-detected_at"
+        )
+
+        # Apply filters from query params
+        status_filter = request.query_params.getlist("status")
+        if status_filter:
+            conflicts = conflicts.filter(status__in=status_filter)
+
+        severity_filter = request.query_params.get("severity")
+        if severity_filter:
+            conflicts = conflicts.filter(severity=severity_filter)
+
+        serializer = serializers.ConflictOfInterestSerializer(
+            conflicts,
+            many=True,
+            context=self.get_serializer_context(),
+        )
+        return response.Response(serializer.data)
+
+    conflicts_serializer_class = serializers.ConflictOfInterestSerializer
+    conflicts_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    @extend_schema(
+        description="Get summary statistics of conflicts for this call.",
+        responses={200: serializers.ConflictSummaryResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["get"], url_path="conflict-summary")
+    def conflict_summary(self, request, uuid=None):
+        """Get summary statistics of COIs for a call."""
+        call = self.get_object()
+
+        # Use aggregation queries instead of iterating queryset multiple times
+        # Count by status
+        status_counts = (
+            models.ConflictOfInterest.objects.filter(call=call)
+            .values("status")
+            .annotate(count=Count("id"))
+        )
+        by_status = {item["status"]: item["count"] for item in status_counts}
+
+        # Count by severity
+        severity_counts = (
+            models.ConflictOfInterest.objects.filter(call=call)
+            .values("severity")
+            .annotate(count=Count("id"))
+        )
+        by_severity = {item["severity"]: item["count"] for item in severity_counts}
+
+        # Count by type
+        type_counts = (
+            models.ConflictOfInterest.objects.filter(call=call)
+            .values("coi_type")
+            .annotate(count=Count("id"))
+        )
+        by_type = {item["coi_type"]: item["count"] for item in type_counts}
+
+        # Calculate total
+        total = sum(by_status.values())
+
+        return response.Response(
+            {
+                "total": total,
+                "by_status": by_status,
+                "by_severity": by_severity,
+                "by_type": by_type,
+            }
+        )
+
+    conflict_summary_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    @extend_schema(
+        description="Trigger automated COI detection for all reviewer-proposal pairs.",
+        request=serializers.TriggerCOIDetectionSerializer,
+        responses=serializers.COIDetectionJobSerializer,
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="detect-conflicts")
+    def detect_conflicts(self, request, uuid=None):
+        """Trigger COI detection job for this call."""
+        call = self.get_object()
+
+        serializer = serializers.TriggerCOIDetectionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        job_type = serializer.validated_data.get(
+            "job_type", COIDetectionJobTypes.FULL_CALL
+        )
+
+        # Create detection job
+        job = models.COIDetectionJob.objects.create(
+            call=call,
+            job_type=job_type,
+            state=COIDetectionJobStates.PENDING,
+        )
+
+        # Run detection as background Celery task
+        tasks.run_coi_detection.delay(str(job.uuid))
+
+        return response.Response(
+            serializers.COIDetectionJobSerializer(
+                job, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    detect_conflicts_serializer_class = serializers.TriggerCOIDetectionSerializer
+    detect_conflicts_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    # =========================================================================
+    # Matching
+    # =========================================================================
+
+    @extend_schema(
+        description="Get or update matching configuration for this call.",
+        responses=serializers.MatchingConfigurationSerializer,
+    )
+    @decorators.action(
+        detail=True, methods=["get", "patch"], url_path="matching-configuration"
+    )
+    def matching_configuration(self, request, uuid=None):
+        """Get or update matching configuration for a call."""
+        call = self.get_object()
+
+        config, created = models.MatchingConfiguration.objects.get_or_create(call=call)
+
+        if request.method == "GET":
+            serializer = serializers.MatchingConfigurationSerializer(
+                config, context=self.get_serializer_context()
+            )
+            return response.Response(serializer.data)
+
+        # PATCH - update configuration
+        serializer = serializers.MatchingConfigurationSerializer(
+            config,
+            data=request.data,
+            partial=True,
+            context=self.get_serializer_context(),
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return response.Response(serializer.data)
+
+    matching_configuration_serializer_class = (
+        serializers.MatchingConfigurationSerializer
+    )
+    matching_configuration_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    @extend_schema(
+        description="Compute affinity scores for all reviewer-proposal pairs.",
+        responses={200: serializers.ComputeAffinitiesResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="compute-affinities")
+    def compute_affinities(self, request, uuid=None):
+        """Compute affinity scores for reviewer-proposal matching."""
+        call = self.get_object()
+
+        affinities = affinity_scoring.compute_affinities_for_call(call)
+
+        return response.Response(
+            {
+                "computed_count": len(affinities),
+                "message": f"Computed {len(affinities)} affinity scores.",
+            }
+        )
+
+    compute_affinities_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    @extend_schema(
+        description="Get affinity matrix for reviewer-proposal matching.",
+        responses={200: serializers.AffinityMatrixResponseSerializer},
+        parameters=[
+            OpenApiParameter(
+                "scope",
+                str,
+                OpenApiParameter.QUERY,
+                description="Filter by reviewer source: 'pool' (accepted reviewers), 'suggestions' (suggested reviewers), or 'all' (both). Default: 'pool'",
+                enum=AffinityMatrixScopes.VALUES,
+            ),
+        ],
+    )
+    @decorators.action(detail=True, methods=["get"], url_path="affinity-matrix")
+    def affinity_matrix(self, request, uuid=None):
+        """Get affinity matrix for this call."""
+        call = self.get_object()
+
+        scope = request.query_params.get("scope", AffinityMatrixScopes.POOL)
+        if scope not in AffinityMatrixScopes.VALUES:
+            scope = AffinityMatrixScopes.POOL
+
+        matrix = affinity_scoring.get_affinity_matrix(call, scope=scope)
+        return response.Response(matrix)
+
+    affinity_matrix_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    @extend_schema(
+        description="Get proposed reviewer-proposal assignments.",
+        responses=serializers.ProposedAssignmentSerializer(many=True),
+    )
+    @decorators.action(detail=True, methods=["get"], url_path="proposed-assignments")
+    def proposed_assignments(self, request, uuid=None):
+        """Get proposed assignments for this call."""
+        call = self.get_object()
+
+        assignments = models.ProposedAssignment.objects.filter(call=call).order_by(
+            "proposal", "-affinity_score"
+        )
+
+        # Filter by deployment status
+        is_deployed = request.query_params.get("is_deployed")
+        if is_deployed is not None:
+            assignments = assignments.filter(is_deployed=is_deployed.lower() == "true")
+
+        serializer = serializers.ProposedAssignmentSerializer(
+            assignments,
+            many=True,
+            context=self.get_serializer_context(),
+        )
+        return response.Response(serializer.data)
+
+    proposed_assignments_serializer_class = serializers.ProposedAssignmentSerializer
+    proposed_assignments_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    @extend_schema(
+        description="Generate assignment batches for reviewers. "
+        "Uses the affinity matrix and COI records to assign reviewers to proposals.",
+        request=serializers.GenerateAssignmentsSerializer,
+        responses={200: serializers.GenerateAssignmentsResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="generate-assignments")
+    def generate_assignments(self, request, uuid=None):
+        """
+        Generate assignment batches for reviewers.
+
+        This creates draft AssignmentBatch records with AssignmentItems for each
+        reviewer-proposal pair. The call manager can then review and send them.
+        """
+        call = self.get_object()
+
+        serializer = serializers.GenerateAssignmentsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        proposal_uuids = serializer.validated_data.get("proposal_uuids", [])
+        reviewers_per_proposal = serializer.validated_data.get("reviewers_per_proposal")
+
+        # Use call's matching configuration if not specified
+        if not reviewers_per_proposal:
+            matching_config = getattr(call, "matching_configuration", None)
+            if matching_config:
+                reviewers_per_proposal = matching_config.min_reviewers_per_proposal
+            else:
+                reviewers_per_proposal = 2
+
+        # Get proposals needing assignments
+        if proposal_uuids:
+            proposals = models.Proposal.objects.filter(
+                uuid__in=proposal_uuids,
+                round__call=call,
+                state__in=[ProposalStates.SUBMITTED, ProposalStates.IN_REVIEW],
+            )
+        else:
+            proposals = models.Proposal.objects.filter(
+                round__call=call,
+                state__in=[ProposalStates.SUBMITTED, ProposalStates.IN_REVIEW],
+            )
+
+        # Get accepted pool members
+        pool_entries = models.CallReviewerPool.objects.filter(
+            call=call,
+            invitation_status=ReviewerPoolInvitationStatuses.ACCEPTED,
+            reviewer__isnull=False,  # Must have a profile
+        )
+
+        if not pool_entries.exists():
+            return response.Response(
+                {
+                    "batches_created": 0,
+                    "items_created": 0,
+                    "proposals_processed": 0,
+                    "skipped_proposals": [
+                        {
+                            "reason": _("No accepted reviewers in pool"),
+                        }
+                    ],
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        batches_created = 0
+        items_created = 0
+        proposals_processed = 0
+        skipped_proposals = []
+
+        # Convert to list for multiple iterations
+        proposals_list = list(proposals)
+        proposal_ids = [p.id for p in proposals_list]
+
+        # Prefetch all blocking COIs for all proposals at once
+        # Build lookup: proposal_id -> set of reviewer_ids with blocking COI
+        blocking_cois = models.ConflictOfInterest.objects.filter(
+            proposal_id__in=proposal_ids,
+            status__in=["pending", "recused"],
+        ).values_list("proposal_id", "reviewer_id")
+        blocking_coi_by_proposal = {}
+        for proposal_id, reviewer_id in blocking_cois:
+            blocking_coi_by_proposal.setdefault(proposal_id, set()).add(reviewer_id)
+
+        # Prefetch all existing assignments for all proposals at once
+        # Build lookup: proposal_id -> set of pool_entry_ids already assigned
+        existing_items = models.AssignmentItem.objects.filter(
+            proposal_id__in=proposal_ids,
+        ).values_list("proposal_id", "batch__reviewer_pool_entry_id")
+        existing_by_proposal = {}
+        for proposal_id, pool_entry_id in existing_items:
+            existing_by_proposal.setdefault(proposal_id, set()).add(pool_entry_id)
+
+        # Prefetch all affinities for all proposals at once
+        # Build lookup: proposal_id -> list of (reviewer_id, affinity_score)
+        affinities_qs = (
+            models.ReviewerProposalAffinity.objects.filter(
+                proposal_id__in=proposal_ids,
+            )
+            .order_by("-affinity_score")
+            .values_list("proposal_id", "reviewer_id", "affinity_score")
+        )
+        affinities_by_proposal = {}
+        for proposal_id, reviewer_id, score in affinities_qs:
+            affinities_by_proposal.setdefault(proposal_id, []).append(
+                (reviewer_id, score)
+            )
+
+        # Build pool entries lookup by reviewer_id for O(1) access
+        pool_entries_list = list(pool_entries.select_related("reviewer"))
+        pool_entries_by_reviewer = {
+            entry.reviewer_id: entry for entry in pool_entries_list
+        }
+
+        # Prefetch all COI records for setting on items later
+        # Build lookup: (reviewer_id, proposal_id) -> list of COI objects
+        all_coi_records = models.ConflictOfInterest.objects.filter(
+            proposal_id__in=proposal_ids,
+            status__in=["pending", "recused"],
+        )
+        coi_by_reviewer_proposal = {}
+        for coi in all_coi_records:
+            key = (coi.reviewer_id, coi.proposal_id)
+            coi_by_reviewer_proposal.setdefault(key, []).append(coi)
+
+        # Track batches and items created during this run for deduplication
+        created_batches = {}  # (pool_entry_id,) -> batch
+        created_items = set()  # (batch_id, proposal_id)
+
+        # For each proposal, select reviewers
+        for proposal in proposals_list:
+            proposal_id = proposal.id
+
+            # Get blocking COI reviewer IDs from prefetched data
+            blocking_reviewer_ids = blocking_coi_by_proposal.get(proposal_id, set())
+
+            # Get existing assignment pool entry IDs from prefetched data
+            existing_pool_entry_ids = existing_by_proposal.get(proposal_id, set())
+
+            # Filter eligible pool entries using prefetched data
+            eligible_entries = [
+                entry
+                for entry in pool_entries_list
+                if entry.reviewer_id not in blocking_reviewer_ids
+                and entry.id not in existing_pool_entry_ids
+            ]
+
+            if not eligible_entries:
+                skipped_proposals.append(
+                    {
+                        "proposal_uuid": str(proposal.uuid),
+                        "proposal_name": proposal.name,
+                        "reason": _("No eligible reviewers available"),
+                    }
+                )
+                continue
+
+            eligible_reviewer_ids = {e.reviewer_id for e in eligible_entries}
+
+            # Get affinity scores from prefetched data, filtered to eligible reviewers
+            proposal_affinities = [
+                (reviewer_id, score)
+                for reviewer_id, score in affinities_by_proposal.get(proposal_id, [])
+                if reviewer_id in eligible_reviewer_ids
+            ]
+
+            # Select top reviewers by affinity
+            selected_entries = []
+            selected_entry_ids = set()
+            for reviewer_id, affinity_score in proposal_affinities[
+                :reviewers_per_proposal
+            ]:
+                entry = pool_entries_by_reviewer.get(reviewer_id)
+                if (
+                    entry
+                    and entry.id not in selected_entry_ids
+                    and entry.current_assignments < (entry.max_assignments or 999)
+                ):
+                    selected_entries.append((entry, affinity_score))
+                    selected_entry_ids.add(entry.id)
+
+            # If we don't have enough from affinity, add more from eligible pool
+            if len(selected_entries) < reviewers_per_proposal:
+                for entry in eligible_entries:
+                    if entry.id in selected_entry_ids:
+                        continue
+                    if entry.max_assignments is None or (
+                        entry.current_assignments < entry.max_assignments
+                    ):
+                        selected_entries.append((entry, None))
+                        selected_entry_ids.add(entry.id)
+                        if len(selected_entries) >= reviewers_per_proposal:
+                            break
+
+            if not selected_entries:
+                skipped_proposals.append(
+                    {
+                        "proposal_uuid": str(proposal.uuid),
+                        "proposal_name": proposal.name,
+                        "reason": _("Could not find enough eligible reviewers"),
+                    }
+                )
+                continue
+
+            # Create assignment items for each selected reviewer
+            for entry, affinity_score in selected_entries:
+                # Find or create draft batch for this reviewer
+                batch_key = entry.id
+                if batch_key in created_batches:
+                    batch = created_batches[batch_key]
+                    created = False
+                else:
+                    batch, created = models.AssignmentBatch.objects.get_or_create(
+                        call=call,
+                        reviewer_pool_entry=entry,
+                        status=models.AssignmentBatchStatuses.DRAFT,
+                        defaults={
+                            "source": models.AssignmentSources.ALGORITHM,
+                            "created_by": request.user,
+                        },
+                    )
+                    created_batches[batch_key] = batch
+                if created:
+                    batches_created += 1
+
+                # Check for existing item using in-memory tracking
+                item_key = (batch.id, proposal.id)
+                if item_key not in created_items:
+                    # Get COI records from prefetched data
+                    coi_key = (entry.reviewer_id, proposal.id)
+                    coi_list = coi_by_reviewer_proposal.get(coi_key, [])
+                    has_coi = len(coi_list) > 0
+
+                    item = models.AssignmentItem.objects.create(
+                        batch=batch,
+                        proposal=proposal,
+                        affinity_score=affinity_score,
+                        has_coi=has_coi,
+                        status=models.AssignmentItemStatuses.COI_BLOCKED
+                        if has_coi
+                        else models.AssignmentItemStatuses.PENDING,
+                    )
+                    if has_coi:
+                        item.coi_records.set(coi_list)
+
+                    created_items.add(item_key)
+                    items_created += 1
+
+            proposals_processed += 1
+
+        return response.Response(
+            {
+                "batches_created": batches_created,
+                "items_created": items_created,
+                "proposals_processed": proposals_processed,
+                "skipped_proposals": skipped_proposals,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    generate_assignments_serializer_class = serializers.GenerateAssignmentsSerializer
+    generate_assignments_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    @extend_schema(
+        description="Send all draft assignment batches for this call.",
+        request=serializers.SendAllAssignmentBatchesSerializer,
+        responses={200: serializers.SendAllAssignmentBatchesResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="send-all-assignments")
+    def send_all_assignments(self, request, uuid=None):
+        """Send all draft assignment batches for this call."""
+        call = self.get_object()
+
+        serializer = serializers.SendAllAssignmentBatchesSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        batch_uuids = serializer.validated_data.get("batch_uuids", [])
+
+        if batch_uuids:
+            batches = models.AssignmentBatch.objects.filter(
+                uuid__in=batch_uuids,
+                call=call,
+                status=models.AssignmentBatchStatuses.DRAFT,
+            )
+        else:
+            batches = models.AssignmentBatch.objects.filter(
+                call=call,
+                status=models.AssignmentBatchStatuses.DRAFT,
+            )
+
+        sent_count = 0
+        skipped_count = 0
+
+        for batch in batches:
+            try:
+                batch.send_invitation(user=request.user)
+                sent_count += 1
+            except Exception:
+                skipped_count += 1
+
+        return response.Response(
+            {
+                "batches_sent": sent_count,
+                "skipped": skipped_count,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    send_all_assignments_serializer_class = (
+        serializers.SendAllAssignmentBatchesSerializer
+    )
+    send_all_assignments_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    @extend_schema(
+        description="Create a manual assignment batch for a specific reviewer. "
+        "This allows call managers to manually assign proposals to reviewers.",
+        request=serializers.CreateManualAssignmentSerializer,
+        responses={200: serializers.CreateManualAssignmentResponseSerializer},
+    )
+    @decorators.action(
+        detail=True, methods=["post"], url_path="create-manual-assignment"
+    )
+    def create_manual_assignment(self, request, uuid=None):
+        """
+        Create a manual assignment batch for a specific reviewer.
+        Creates a draft batch that can be reviewed before sending.
+        """
+        call = self.get_object()
+
+        serializer = serializers.CreateManualAssignmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        pool_entry_uuid = serializer.validated_data["reviewer_pool_entry_uuid"]
+        proposal_uuids = serializer.validated_data["proposal_uuids"]
+        manager_notes = serializer.validated_data.get("manager_notes", "")
+
+        # Get the reviewer pool entry
+        try:
+            pool_entry = models.CallReviewerPool.objects.get(
+                uuid=pool_entry_uuid,
+                call=call,
+                invitation_status=models.ReviewerPoolInvitationStatuses.ACCEPTED,
+            )
+        except models.CallReviewerPool.DoesNotExist:
+            raise exceptions.ValidationError(
+                {
+                    "reviewer_pool_entry_uuid": _(
+                        "Reviewer not found in pool or not accepted."
+                    )
+                }
+            )
+
+        # Get proposals
+        proposals = models.Proposal.objects.filter(
+            uuid__in=proposal_uuids,
+            round__call=call,
+        )
+
+        if not proposals.exists():
+            raise exceptions.ValidationError(
+                {"proposal_uuids": _("No valid proposals found.")}
+            )
+
+        # Create or get existing draft batch for this reviewer
+        batch, batch_created = models.AssignmentBatch.objects.get_or_create(
+            call=call,
+            reviewer_pool_entry=pool_entry,
+            status=models.AssignmentBatchStatuses.DRAFT,
+            defaults={
+                "source": models.AssignmentSources.MANUAL,
+                "manager_notes": manager_notes,
+                "created_by": request.user,
+            },
+        )
+
+        # If batch already existed, update notes if provided
+        if not batch_created and manager_notes:
+            batch.manager_notes = manager_notes
+            batch.save(update_fields=["manager_notes"])
+
+        items_created = 0
+        skipped_proposals = []
+
+        for proposal in proposals:
+            # Check if assignment already exists
+            if models.AssignmentItem.objects.filter(
+                batch__reviewer_pool_entry=pool_entry,
+                proposal=proposal,
+                status__in=[
+                    models.AssignmentItemStatuses.PENDING,
+                    models.AssignmentItemStatuses.ACCEPTED,
+                ],
+            ).exists():
+                skipped_proposals.append(
+                    {
+                        "proposal_uuid": str(proposal.uuid),
+                        "proposal_name": proposal.name,
+                        "reason": _("Assignment already exists for this reviewer"),
+                    }
+                )
+                continue
+
+            # Check for blocking COI
+            coi_records = models.ConflictOfInterest.objects.filter(
+                reviewer=pool_entry.reviewer,
+                proposal=proposal,
+                status__in=["pending", "recused"],
+            )
+
+            # Create assignment item
+            item = models.AssignmentItem.objects.create(
+                batch=batch,
+                proposal=proposal,
+                affinity_score=None,  # Manual assignment - no affinity
+                has_coi=coi_records.exists(),
+                status=models.AssignmentItemStatuses.COI_BLOCKED
+                if coi_records.exists()
+                else models.AssignmentItemStatuses.PENDING,
+            )
+            if coi_records.exists():
+                item.coi_records.set(coi_records)
+
+            items_created += 1
+
+        return response.Response(
+            {
+                "batch_uuid": str(batch.uuid),
+                "items_created": items_created,
+                "skipped_proposals": skipped_proposals,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    create_manual_assignment_serializer_class = (
+        serializers.CreateManualAssignmentSerializer
+    )
+    create_manual_assignment_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
 
 class ProposalViewSet(
     UserChecklistMixin,
@@ -779,6 +1934,10 @@ class ProposalViewSet(
         if permissions_utils.has_permission(
             request, PermissionEnum.LIST_PROPOSALS, obj.round.call.manager
         ):
+            return
+
+        # Check if user is a call manager
+        if obj.round.call_id in get_connected_calls(user, CallRole.MANAGER):
             return
 
         raise exceptions.PermissionDenied(
@@ -1150,9 +2309,7 @@ class ReviewViewSet(ActionsViewSet):
     queryset = models.Review.objects.all()
 
     update_validators = partial_update_validators = [
-        core_validators.StateValidator(
-            models.Review.States.CREATED, models.Review.States.IN_REVIEW
-        )
+        core_validators.StateValidator(models.Review.States.IN_REVIEW)
     ]
 
     def get_queryset(self):
@@ -1258,34 +2415,6 @@ class ReviewViewSet(ActionsViewSet):
         raise exceptions.PermissionDenied()
 
     @extend_schema(
-        description="Accept a review, changing its state to IN_REVIEW.",
-        request=None,
-        responses={status.HTTP_200_OK: None},
-    )
-    @decorators.action(detail=True, methods=["post"])
-    def accept(self, request, uuid=None):
-        review: models.Review = self.get_object()
-        review.state = models.Review.States.IN_REVIEW
-        review.save()
-        proposal_old_state = review.proposal.state
-        review.proposal.state = ProposalStates.IN_REVIEW
-        review.proposal.save()
-        logger.info(
-            f"Review {review.uuid}, by {review.reviewer.full_name} for proposal {review.proposal.name} has been accepted. Proposal state changed to IN_REVIEW."
-        )
-        tasks.notify_user_about_proposal_state_update.delay(
-            review.proposal.uuid, proposal_old_state, review.proposal.state
-        )
-        return response.Response(
-            "Review has been accepted.",
-            status=status.HTTP_200_OK,
-        )
-
-    accept_validators = [
-        core_validators.StateValidator(models.Review.States.CREATED),
-    ]
-
-    @extend_schema(
         description="Reject a review, changing its state to REJECTED.",
         request=None,
         responses={status.HTTP_200_OK: None},
@@ -1302,9 +2431,7 @@ class ReviewViewSet(ActionsViewSet):
         )
 
     reject_validators = [
-        core_validators.StateValidator(
-            models.Review.States.CREATED, models.Review.States.IN_REVIEW
-        ),
+        core_validators.StateValidator(models.Review.States.IN_REVIEW),
     ]
 
     @extend_schema(
@@ -1478,3 +2605,2435 @@ class ProposalProjectRoleMappingViewSet(ActionsViewSet):
     filterset_class = filters.ProposalProjectRoleMappingFilter
     filter_backends = (DjangoFilterBackend,)
     permission_classes = [proposal_permissions.CanUpdateCallPermission]
+
+
+# =============================================================================
+# Reviewer Profile ViewSets
+# =============================================================================
+
+
+class ExpertiseCategoryViewSet(ReadOnlyActionsViewSet):
+    """Read-only ViewSet for expertise categories (taxonomy)."""
+
+    lookup_field = "uuid"
+    queryset = models.ExpertiseCategory.objects.all().order_by("code")
+    serializer_class = serializers.ExpertiseCategorySerializer
+    filterset_class = filters.ExpertiseCategoryFilter
+    filter_backends = (DjangoFilterBackend,)
+    permission_classes = (rf_permissions.IsAuthenticated,)
+
+
+def check_reviewer_profile_update_permission(request, view, obj=None):
+    """Check if user can update a reviewer profile."""
+    if request.user.is_staff:
+        return
+    if obj and obj.user == request.user:
+        return
+    raise exceptions.PermissionDenied(
+        _("You do not have permission to update this reviewer profile.")
+    )
+
+
+class ReviewerProfileViewSet(ActionsViewSet):
+    """ViewSet for managing reviewer profiles."""
+
+    lookup_field = "uuid"
+    queryset = models.ReviewerProfile.objects.all().order_by(
+        "user__first_name", "user__last_name"
+    )
+    serializer_class = serializers.ReviewerProfileSerializer
+    filterset_class = filters.ReviewerProfileFilter
+    filter_backends = (DjangoFilterBackend,)
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        check_reviewer_profile_update_permission
+    ]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return models.ReviewerProfile.objects.all().order_by(
+                "user__first_name", "user__last_name"
+            )
+        # Users can see their own profile and profiles of ACCEPTED pool members
+        # (pending invitations don't expose profiles to managers)
+        return (
+            models.ReviewerProfile.objects.filter(
+                Q(user=user)  # Own profile always visible
+                | Q(
+                    # Only ACCEPTED pool members visible to managers
+                    pool_memberships__call__in=get_connected_calls(
+                        user, CallRole.MANAGER
+                    ),
+                    pool_memberships__invitation_status=ReviewerPoolInvitationStatuses.ACCEPTED,
+                )
+            )
+            .distinct()
+            .order_by("user__first_name", "user__last_name")
+        )
+
+    @extend_schema(
+        description="Get or create reviewer profile for the current user.",
+        request=serializers.ReviewerProfileCreateSerializer,
+        responses=serializers.ReviewerProfileSerializer,
+    )
+    @decorators.action(detail=False, methods=["get", "post", "patch"])
+    def me(self, request):
+        """Get or create reviewer profile for the current user."""
+        try:
+            profile = models.ReviewerProfile.objects.get(user=request.user)
+        except models.ReviewerProfile.DoesNotExist:
+            if request.method == "GET":
+                return response.Response(
+                    {"detail": "Reviewer profile not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            profile = None
+
+        if request.method == "GET":
+            serializer = self.get_serializer(profile)
+            return response.Response(serializer.data)
+        elif request.method == "POST" and profile is None:
+            serializer = serializers.ReviewerProfileCreateSerializer(
+                data=request.data, context=self.get_serializer_context()
+            )
+            serializer.is_valid(raise_exception=True)
+            profile = serializer.save()
+            # Create stats record
+            models.ReviewerStats.objects.create(reviewer_profile=profile)
+            return response.Response(
+                self.get_serializer(profile).data,
+                status=status.HTTP_201_CREATED,
+            )
+        elif request.method in ["POST", "PATCH"] and profile is not None:
+            serializer = serializers.ReviewerProfileSerializer(
+                profile,
+                data=request.data,
+                partial=True,
+                context=self.get_serializer_context(),
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return response.Response(serializer.data)
+        else:
+            return response.Response(
+                {"detail": "Profile already exists. Use PATCH to update."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    # Nested affiliations management
+    @extend_schema(
+        methods=["get"],
+        operation_id="reviewer_profiles_affiliations_list",
+        responses=serializers.ReviewerAffiliationSerializer(many=True),
+        description="List affiliations for a reviewer profile.",
+        filters=False,
+    )
+    @extend_schema(
+        methods=["post"],
+        operation_id="reviewer_profiles_affiliations_create",
+        request=serializers.ReviewerAffiliationSerializer,
+        responses=serializers.ReviewerAffiliationSerializer,
+        description="Create affiliation for a reviewer profile.",
+    )
+    @decorators.action(detail=True, methods=["get", "post"])
+    def affiliations(self, request, uuid=None):
+        profile = self.get_object()
+
+        if request.method == "GET":
+            serializer = serializers.ReviewerAffiliationSerializer(
+                profile.affiliations.all(),
+                many=True,
+                context=self.get_serializer_context(),
+            )
+            return response.Response(serializer.data)
+
+        # POST - create new affiliation
+        serializer = serializers.ReviewerAffiliationSerializer(
+            data=request.data, context=self.get_serializer_context()
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(reviewer_profile=profile)
+        return response.Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    affiliations_serializer_class = serializers.ReviewerAffiliationSerializer
+
+    # Nested expertise management
+    @extend_schema(
+        methods=["get"],
+        operation_id="reviewer_profiles_expertise_list",
+        responses=serializers.ReviewerExpertiseSerializer(many=True),
+        description="List expertise keywords for a reviewer profile.",
+        filters=False,
+    )
+    @extend_schema(
+        methods=["post"],
+        operation_id="reviewer_profiles_expertise_create",
+        request=serializers.ReviewerExpertiseSerializer,
+        responses=serializers.ReviewerExpertiseSerializer,
+        description="Create expertise entry for a reviewer profile.",
+    )
+    @decorators.action(detail=True, methods=["get", "post"])
+    def expertise(self, request, uuid=None):
+        profile = self.get_object()
+
+        if request.method == "GET":
+            serializer = serializers.ReviewerExpertiseSerializer(
+                profile.expertise_set.all(),
+                many=True,
+                context=self.get_serializer_context(),
+            )
+            return response.Response(serializer.data)
+
+        serializer = serializers.ReviewerExpertiseSerializer(
+            data=request.data, context=self.get_serializer_context()
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(reviewer_profile=profile)
+        return response.Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    expertise_serializer_class = serializers.ReviewerExpertiseSerializer
+
+    # Nested publications management
+    @extend_schema(
+        methods=["get"],
+        operation_id="reviewer_profiles_publications_list",
+        responses=serializers.ReviewerPublicationSerializer(many=True),
+        description="List publications for a reviewer profile.",
+        filters=False,
+    )
+    @extend_schema(
+        methods=["post"],
+        operation_id="reviewer_profiles_publications_create",
+        request=serializers.ReviewerPublicationSerializer,
+        responses=serializers.ReviewerPublicationSerializer,
+        description="Create publication for a reviewer profile.",
+    )
+    @decorators.action(detail=True, methods=["get", "post"])
+    def publications(self, request, uuid=None):
+        profile = self.get_object()
+
+        if request.method == "GET":
+            serializer = serializers.ReviewerPublicationSerializer(
+                profile.publications.all(),
+                many=True,
+                context=self.get_serializer_context(),
+            )
+            return response.Response(serializer.data)
+
+        serializer = serializers.ReviewerPublicationSerializer(
+            data=request.data, context=self.get_serializer_context()
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save(reviewer_profile=profile)
+        return response.Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    publications_serializer_class = serializers.ReviewerPublicationSerializer
+
+    # ORCID Integration
+    @extend_schema(
+        description="Get ORCID OAuth authorization URL.",
+        responses={
+            200: {
+                "type": "object",
+                "properties": {"authorization_url": {"type": "string"}},
+            }
+        },
+    )
+    @decorators.action(detail=True, methods=["get"], url_path="connect-orcid")
+    def connect_orcid(self, request, uuid=None):
+        """Get ORCID OAuth authorization URL to initiate connection."""
+        profile = self.get_object()
+
+        # Check if user owns this profile
+        if profile.user != request.user and not request.user.is_staff:
+            raise exceptions.PermissionDenied(
+                _("You can only connect ORCID to your own profile.")
+            )
+
+        if not orcid_service.is_orcid_configured():
+            raise exceptions.ValidationError(_("ORCID integration is not configured."))
+
+        # Generate state token for CSRF protection
+        state = secrets.token_urlsafe(32)
+        # Store state in session or cache for validation
+        request.session[f"orcid_state_{profile.uuid}"] = state
+
+        auth_url = orcid_service.get_authorization_url(state=state)
+        return response.Response({"authorization_url": auth_url})
+
+    @extend_schema(
+        description="Complete ORCID OAuth connection with authorization code.",
+        request=serializers.OrcidCallbackSerializer,
+        responses=serializers.ReviewerProfileSerializer,
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="connect-orcid/callback")
+    def connect_orcid_callback(self, request, uuid=None):
+        """Complete ORCID OAuth flow with authorization code."""
+        profile = self.get_object()
+
+        if profile.user != request.user and not request.user.is_staff:
+            raise exceptions.PermissionDenied(
+                _("You can only connect ORCID to your own profile.")
+            )
+
+        code = request.data.get("code")
+        if not code:
+            raise exceptions.ValidationError(
+                {"code": _("Authorization code is required.")}
+            )
+
+        try:
+            token_data = orcid_service.exchange_code_for_token(code)
+        except orcid_service.ORCIDAuthError as e:
+            raise exceptions.ValidationError({"code": str(e)})
+
+        # Update profile with ORCID data
+        profile.orcid_id = token_data.get("orcid")
+        profile.orcid_access_token = token_data.get("access_token", "")
+        profile.orcid_refresh_token = token_data.get("refresh_token", "")
+        profile.orcid_last_sync = timezone.now()
+        profile.save()
+
+        return response.Response(self.get_serializer(profile).data)
+
+    @extend_schema(
+        description="Sync profile data from ORCID.",
+        responses={200: serializers.OrcidSyncResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="sync-orcid")
+    def sync_orcid(self, request, uuid=None):
+        """Sync profile data from connected ORCID account."""
+        profile = self.get_object()
+
+        if profile.user != request.user and not request.user.is_staff:
+            raise exceptions.PermissionDenied(
+                _("You can only sync your own ORCID profile.")
+            )
+
+        if not profile.orcid_id:
+            raise exceptions.ValidationError(
+                _("ORCID is not connected. Please connect ORCID first.")
+            )
+
+        try:
+            # Import publications
+            pub_result = orcid_service.import_orcid_works(profile)
+            # Import affiliations
+            affil_result = orcid_service.import_orcid_affiliations(profile)
+            # Import keywords as expertise
+            keyword_result = orcid_service.import_orcid_keywords(profile)
+
+            profile.orcid_last_sync = timezone.now()
+            profile.save(update_fields=["orcid_last_sync"])
+
+            return response.Response(
+                {
+                    "imported": {
+                        "publications": pub_result,
+                        "affiliations": affil_result,
+                        "keywords": keyword_result,
+                    },
+                    "last_sync": profile.orcid_last_sync,
+                }
+            )
+        except orcid_service.ORCIDAPIError as e:
+            raise exceptions.ValidationError({"detail": str(e)})
+
+    @extend_schema(
+        description="Disconnect ORCID from profile.",
+        responses={200: serializers.OrcidDisconnectResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="disconnect-orcid")
+    def disconnect_orcid(self, request, uuid=None):
+        """Disconnect ORCID from profile."""
+        profile = self.get_object()
+
+        if profile.user != request.user and not request.user.is_staff:
+            raise exceptions.PermissionDenied(
+                _("You can only disconnect your own ORCID.")
+            )
+
+        profile.orcid_id = ""
+        profile.orcid_access_token = ""
+        profile.orcid_refresh_token = ""
+        profile.orcid_last_sync = None
+        profile.save(
+            update_fields=[
+                "orcid_id",
+                "orcid_access_token",
+                "orcid_refresh_token",
+                "orcid_last_sync",
+            ]
+        )
+
+        return response.Response({"detail": _("ORCID disconnected successfully.")})
+
+    @extend_schema(
+        description="Import publications from ORCID or other sources.",
+        request=serializers.ImportPublicationsSerializer,
+        responses={
+            200: {
+                "type": "object",
+                "properties": {"imported_count": {"type": "integer"}},
+            }
+        },
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="import-publications")
+    def import_publications(self, request, uuid=None):
+        """Import publications from various sources."""
+        profile = self.get_object()
+
+        if profile.user != request.user and not request.user.is_staff:
+            raise exceptions.PermissionDenied(
+                _("You can only import publications to your own profile.")
+            )
+
+        source = request.data.get("source", "orcid")
+
+        if source == "orcid":
+            if not profile.orcid_id:
+                raise exceptions.ValidationError(
+                    _("ORCID is not connected. Please connect ORCID first.")
+                )
+
+            result = orcid_service.import_orcid_works(profile)
+            return response.Response({"imported_count": result.get("created", 0)})
+
+        elif source == "doi":
+            doi = request.data.get("doi")
+            if not doi:
+                raise exceptions.ValidationError({"doi": _("DOI is required.")})
+
+            try:
+                pub_data = orcid_service.fetch_publication_by_doi(doi)
+                if pub_data:
+                    pub, created = models.ReviewerPublication.objects.get_or_create(
+                        reviewer_profile=profile,
+                        doi=doi,
+                        defaults=pub_data,
+                    )
+                    return response.Response(
+                        {
+                            "imported_count": 1 if created else 0,
+                            "publication": serializers.ReviewerPublicationSerializer(
+                                pub
+                            ).data,
+                        }
+                    )
+                else:
+                    raise exceptions.ValidationError(
+                        {"doi": _("Could not find publication with this DOI.")}
+                    )
+            except Exception as e:
+                raise exceptions.ValidationError({"detail": str(e)})
+
+        else:
+            raise exceptions.ValidationError(
+                {"source": _("Invalid source. Use 'orcid' or 'doi'.")}
+            )
+
+    # Profile visibility management
+    @extend_schema(
+        description=(
+            "Publish reviewer profile for discovery by call managers. "
+            "Warning: Publishing makes your full profile visible to call managers globally."
+        ),
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "is_published": {"type": "boolean"},
+                    "published_at": {"type": "string", "format": "date-time"},
+                    "warning": {"type": "string"},
+                },
+            }
+        },
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def publish(self, request):
+        """Publish reviewer profile for discovery."""
+        try:
+            profile = models.ReviewerProfile.objects.get(user=request.user)
+        except models.ReviewerProfile.DoesNotExist:
+            raise exceptions.ValidationError(
+                _("You must create a reviewer profile first.")
+            )
+
+        if profile.is_published:
+            return response.Response(
+                {
+                    "is_published": True,
+                    "published_at": profile.published_at,
+                    "detail": _("Profile is already published."),
+                }
+            )
+
+        profile.is_published = True
+        profile.published_at = timezone.now()
+        profile.save(update_fields=["is_published", "published_at"])
+
+        return response.Response(
+            {
+                "is_published": True,
+                "published_at": profile.published_at,
+                "warning": _(
+                    "Your full reviewer profile is now discoverable by call managers globally. "
+                    "This includes your biography, publications, affiliations, and expertise areas."
+                ),
+            }
+        )
+
+    @extend_schema(
+        description="Unpublish reviewer profile to remove it from discovery.",
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "is_published": {"type": "boolean"},
+                    "detail": {"type": "string"},
+                },
+            }
+        },
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def unpublish(self, request):
+        """Unpublish reviewer profile to hide it from discovery."""
+        try:
+            profile = models.ReviewerProfile.objects.get(user=request.user)
+        except models.ReviewerProfile.DoesNotExist:
+            raise exceptions.ValidationError(
+                _("You must create a reviewer profile first.")
+            )
+
+        if not profile.is_published:
+            return response.Response(
+                {
+                    "is_published": False,
+                    "detail": _("Profile is already unpublished."),
+                }
+            )
+
+        profile.is_published = False
+        profile.save(update_fields=["is_published"])
+
+        return response.Response(
+            {
+                "is_published": False,
+                "detail": _(
+                    "Your profile is no longer discoverable. "
+                    "Existing invitations and pool memberships are not affected."
+                ),
+            }
+        )
+
+
+# =============================================================================
+# COI (Conflict of Interest) ViewSets
+# =============================================================================
+
+
+class ConflictOfInterestViewSet(ActionsViewSet):
+    """ViewSet for managing conflicts of interest."""
+
+    lookup_field = "uuid"
+    queryset = models.ConflictOfInterest.objects.all().order_by("-detected_at")
+    serializer_class = serializers.ConflictOfInterestSerializer
+    filterset_class = filters.ConflictOfInterestFilter
+    filter_backends = (DjangoFilterBackend,)
+    disabled_actions = ["create", "destroy"]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return models.ConflictOfInterest.objects.all().order_by("-detected_at")
+        # Call managers can see COIs for their calls
+        return models.ConflictOfInterest.objects.filter(
+            Q(call__in=get_connected_calls(user, CallRole.MANAGER))
+            | Q(call__manager__customer__in=get_connected_customers(user))
+            | Q(reviewer__user=user)  # Reviewers can see their own COIs
+        ).order_by("-detected_at")
+
+    @extend_schema(
+        description="Dismiss a conflict of interest (not a real conflict).",
+        request=serializers.COIStatusUpdateSerializer,
+        responses={status.HTTP_200_OK: serializers.ConflictOfInterestSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def dismiss(self, request, uuid=None):
+        """Dismiss a detected conflict (mark as not a real conflict)."""
+        coi = self.get_object()
+        serializer = serializers.COIStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        coi.status = "dismissed"
+        coi.reviewed_by = request.user
+        coi.reviewed_at = timezone.now()
+        coi.review_notes = serializer.validated_data.get("review_notes", "")
+        coi.save()
+
+        return response.Response(
+            self.get_serializer(coi).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        description="Waive a conflict with a management plan.",
+        request=serializers.COIStatusUpdateSerializer,
+        responses={status.HTTP_200_OK: serializers.ConflictOfInterestSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def waive(self, request, uuid=None):
+        """Waive a conflict with a management plan."""
+        coi = self.get_object()
+        serializer = serializers.COIStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        if not serializer.validated_data.get("management_plan"):
+            raise exceptions.ValidationError(
+                {"management_plan": _("Management plan is required when waiving.")}
+            )
+
+        coi.status = "waived"
+        coi.reviewed_by = request.user
+        coi.reviewed_at = timezone.now()
+        coi.review_notes = serializer.validated_data.get("review_notes", "")
+        coi.management_plan = serializer.validated_data["management_plan"]
+        coi.save()
+
+        return response.Response(
+            self.get_serializer(coi).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        description="Recuse reviewer from the proposal.",
+        request=serializers.COIStatusUpdateSerializer,
+        responses={status.HTTP_200_OK: serializers.ConflictOfInterestSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def recuse(self, request, uuid=None):
+        """Recuse the reviewer from the proposal."""
+        coi = self.get_object()
+        serializer = serializers.COIStatusUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        coi.status = "recused"
+        coi.reviewed_by = request.user
+        coi.reviewed_at = timezone.now()
+        coi.review_notes = serializer.validated_data.get("review_notes", "")
+        coi.save()
+
+        # Clean up any existing review assignments for this reviewer-proposal pair
+        self._cleanup_reviewer_assignments(coi)
+
+        return response.Response(
+            self.get_serializer(coi).data,
+            status=status.HTTP_200_OK,
+        )
+
+    def _cleanup_reviewer_assignments(self, coi: models.ConflictOfInterest):
+        """
+        Clean up any existing assignments and reviews when a reviewer is recused.
+
+        This ensures:
+        1. Any pending assignment items are marked as COI_BLOCKED
+        2. Any active reviews are rejected
+        3. The COI record is linked to the blocked assignments
+        """
+        reviewer = coi.reviewer
+        proposal = coi.proposal
+
+        if not reviewer or not proposal:
+            return
+
+        # Find assignment items for this reviewer-proposal pair
+        assignment_items = models.AssignmentItem.objects.filter(
+            proposal=proposal,
+            batch__reviewer_pool_entry__reviewer=reviewer,
+            status__in=[
+                models.AssignmentItemStatuses.PENDING,
+                models.AssignmentItemStatuses.ACCEPTED,
+            ],
+        )
+
+        for item in assignment_items:
+            # Mark the item as COI blocked
+            item.status = models.AssignmentItemStatuses.COI_BLOCKED
+            item.has_coi = True
+            item.save(update_fields=["status", "has_coi"])
+            item.coi_records.add(coi)
+
+            # If the item had an associated review, reject it
+            if item.review:
+                item.review.state = models.Review.States.REJECTED
+                item.review.save(update_fields=["state"])
+
+        # Also reject any reviews directly (in case they exist without assignment items)
+        models.Review.objects.filter(
+            proposal=proposal,
+            reviewer=reviewer.user,
+            state__in=[models.Review.States.IN_REVIEW],
+        ).update(state=models.Review.States.REJECTED)
+
+    dismiss_permissions = waive_permissions = recuse_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["call", "call.manager"],
+        )
+    ]
+    dismiss_serializer_class = waive_serializer_class = recuse_serializer_class = (
+        serializers.COIStatusUpdateSerializer
+    )
+
+
+class COIDisclosureViewSet(ActionsViewSet):
+    """ViewSet for COI disclosure forms."""
+
+    lookup_field = "uuid"
+    queryset = models.COIDisclosureForm.objects.all().order_by("-created")
+    serializer_class = serializers.COIDisclosureFormSerializer
+    filterset_class = filters.COIDisclosureFormFilter
+    filter_backends = (DjangoFilterBackend,)
+    disabled_actions = ["update", "partial_update", "destroy"]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return models.COIDisclosureForm.objects.all().order_by("-created")
+        # Users can see their own disclosures, call managers can see all for their calls
+        return models.COIDisclosureForm.objects.filter(
+            Q(reviewer__user=user)
+            | Q(call__in=get_connected_calls(user, CallRole.MANAGER))
+            | Q(call__manager__customer__in=get_connected_customers(user))
+        ).order_by("-created")
+
+    def perform_create(self, serializer):
+        # Get or create reviewer profile
+        try:
+            reviewer_profile = models.ReviewerProfile.objects.get(
+                user=self.request.user
+            )
+        except models.ReviewerProfile.DoesNotExist:
+            raise exceptions.ValidationError(
+                _("You must create a reviewer profile before submitting a disclosure.")
+            )
+        serializer.save(
+            reviewer=reviewer_profile,
+            certified=True,
+            certification_date=timezone.now(),
+        )
+
+
+# =============================================================================
+# Invitation Acceptance Mixin (shared logic for pool invitation handling)
+# =============================================================================
+
+
+class InvitationAcceptanceMixin:
+    """
+    Mixin providing common logic for accepting/declining reviewer pool invitations.
+
+    Used by both CallReviewerPoolViewSet and PublicReviewerInvitationViewSet
+    to avoid code duplication.
+    """
+
+    def _validate_invitation_status(self, invitation: models.CallReviewerPool):
+        """Validate that the invitation is still pending."""
+        if invitation.invitation_status != ReviewerPoolInvitationStatuses.PENDING:
+            raise exceptions.ValidationError(
+                _("This invitation has already been responded to.")
+            )
+
+    def _validate_invitation_not_expired(self, invitation: models.CallReviewerPool):
+        """Validate that the invitation has not expired."""
+        if (
+            invitation.invitation_expires_at
+            and invitation.invitation_expires_at < timezone.now()
+        ):
+            raise exceptions.ValidationError(_("This invitation has expired."))
+
+    def _ensure_published_profile(
+        self, request, invitation: models.CallReviewerPool
+    ) -> tuple[models.ReviewerProfile | None, dict | None]:
+        """
+        Ensure the user has a published reviewer profile for email-based invitations.
+
+        Returns:
+            tuple: (profile, error_response) - profile if found, or error_response dict if not
+        """
+        if invitation.reviewer:
+            return invitation.reviewer, None
+
+        # Check if user is authenticated
+        if not request.user.is_authenticated:
+            return None, {
+                "error": _("Please log in to accept this invitation."),
+                "status": status.HTTP_401_UNAUTHORIZED,
+            }
+
+        # Check if user has a published profile
+        try:
+            profile = models.ReviewerProfile.objects.get(
+                user=request.user,
+                is_published=True,
+            )
+            return profile, None
+        except models.ReviewerProfile.DoesNotExist:
+            has_unpublished = models.ReviewerProfile.objects.filter(
+                user=request.user, is_published=False
+            ).exists()
+
+            if has_unpublished:
+                return None, {
+                    "error": "profile_not_published",
+                    "message": _(
+                        "Please publish your reviewer profile before accepting."
+                    ),
+                    "profile_url": "/api/reviewer-profiles/me/",
+                    "status": status.HTTP_400_BAD_REQUEST,
+                }
+            else:
+                return None, {
+                    "error": "profile_required",
+                    "message": _(
+                        "Please create and publish your reviewer profile first."
+                    ),
+                    "profile_url": "/api/reviewer-profiles/me/",
+                    "status": status.HTTP_400_BAD_REQUEST,
+                }
+
+    def _process_self_declared_conflicts(
+        self,
+        declared_conflicts: list,
+        invitation: models.CallReviewerPool,
+    ) -> list[str]:
+        """
+        Process self-declared conflicts from invitation acceptance.
+
+        Args:
+            declared_conflicts: List of conflict data from request
+            invitation: The invitation being accepted
+
+        Returns:
+            List of created conflict UUIDs
+        """
+        if not declared_conflicts:
+            return []
+
+        conflict_serializer = serializers.SelfDeclaredConflictSerializer(
+            data=declared_conflicts,
+            many=True,
+            context={"call": invitation.call, "reviewer": invitation.reviewer},
+        )
+        conflict_serializer.is_valid(raise_exception=True)
+
+        created_conflicts = []
+        for conflict_data in conflict_serializer.validated_data:
+            coi = models.ConflictOfInterest.objects.create(
+                reviewer=invitation.reviewer,
+                call=invitation.call,
+                proposal=conflict_data["proposal_uuid"],
+                coi_type=conflict_data["coi_type"],
+                severity=conflict_data.get("severity", COISeverityLevels.APPARENT),
+                detection_method=COIDetectionMethods.SELF_DISCLOSED,
+                evidence_description=conflict_data.get("description", ""),
+                status=COIStatuses.PENDING,
+            )
+            created_conflicts.append(str(coi.uuid))
+
+        return created_conflicts
+
+    def _accept_invitation(
+        self, invitation: models.CallReviewerPool
+    ) -> models.CallReviewerPool:
+        """Mark the invitation as accepted."""
+        invitation.invitation_status = ReviewerPoolInvitationStatuses.ACCEPTED
+        invitation.response_date = timezone.now()
+        invitation.save()
+        return invitation
+
+    def _decline_invitation(
+        self, invitation: models.CallReviewerPool, reason: str = ""
+    ) -> models.CallReviewerPool:
+        """Mark the invitation as declined."""
+        invitation.invitation_status = ReviewerPoolInvitationStatuses.DECLINED
+        invitation.response_date = timezone.now()
+        invitation.decline_reason = reason
+        invitation.save()
+        return invitation
+
+
+class CallReviewerPoolViewSet(InvitationAcceptanceMixin, ActionsViewSet):
+    """ViewSet for call reviewer pool management."""
+
+    lookup_field = "uuid"
+    queryset = models.CallReviewerPool.objects.all().order_by("call", "reviewer")
+    serializer_class = serializers.CallReviewerPoolSerializer
+    filterset_class = filters.CallReviewerPoolFilter
+    filter_backends = (DjangoFilterBackend,)
+
+    # Only allow partial_update (PATCH), disable create/update/destroy
+    disabled_actions = ["create", "update", "destroy"]
+
+    partial_update_serializer_class = serializers.CallReviewerPoolUpdateSerializer
+    partial_update_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["manager"],
+        )
+    ]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            qs = models.CallReviewerPool.objects.all()
+        else:
+            qs = models.CallReviewerPool.objects.filter(
+                Q(call__in=get_connected_calls(user, CallRole.MANAGER))
+                | Q(call__manager__customer__in=get_connected_customers(user))
+                | Q(reviewer__user=user)
+                | Q(invited_user=user)  # Include user-based invitations
+                | Q(invited_email=user.email)  # Include email-based invitations
+            )
+        # Add select_related to avoid N+1 on related fields
+        return qs.select_related(
+            "call",
+            "reviewer",
+            "reviewer__user",
+            "invited_by",
+            "invited_user",
+        ).order_by("call", "reviewer")
+
+    def get_serializer_context(self):
+        """Add prefetched COI and review counts to context to avoid N+1 queries."""
+        context = super().get_serializer_context()
+
+        # Only prefetch for list actions
+        if self.action not in ["list", "retrieve"]:
+            return context
+
+        # Get the queryset that will be serialized
+        queryset = self.filter_queryset(self.get_queryset())
+        pool_members = list(queryset)
+
+        if not pool_members:
+            return context
+
+        # Collect all call_ids and reviewer_ids
+        call_ids = {pm.call_id for pm in pool_members}
+        reviewer_ids = {pm.reviewer_id for pm in pool_members if pm.reviewer_id}
+        user_ids = set()
+        for pm in pool_members:
+            if pm.reviewer and pm.reviewer.user_id:
+                user_ids.add(pm.reviewer.user_id)
+            elif pm.invited_user_id:
+                user_ids.add(pm.invited_user_id)
+
+        # Prefetch COI counts: (reviewer_id, call_id) -> count
+        coi_counts = {}
+        coi_by_severity = {}
+        if reviewer_ids and call_ids:
+            coi_data = (
+                models.ConflictOfInterest.objects.filter(
+                    reviewer_id__in=reviewer_ids,
+                    call_id__in=call_ids,
+                )
+                .values("reviewer_id", "call_id", "severity")
+                .annotate(count=Count("id"))
+            )
+            for item in coi_data:
+                key = (item["reviewer_id"], item["call_id"])
+                coi_counts[key] = coi_counts.get(key, 0) + item["count"]
+                if key not in coi_by_severity:
+                    coi_by_severity[key] = {}
+                coi_by_severity[key][item["severity"]] = item["count"]
+
+        # Prefetch review counts: (user_id, call_id) -> {state: count}
+        review_counts = {}
+        if user_ids and call_ids:
+            review_data = (
+                models.Review.objects.filter(
+                    reviewer_id__in=user_ids,
+                    proposal__round__call_id__in=call_ids,
+                )
+                .values("reviewer_id", "proposal__round__call_id", "state")
+                .annotate(count=Count("id"))
+            )
+            for item in review_data:
+                key = (item["reviewer_id"], item["proposal__round__call_id"])
+                if key not in review_counts:
+                    review_counts[key] = {}
+                review_counts[key][item["state"]] = item["count"]
+
+        context["coi_counts"] = coi_counts
+        context["coi_by_severity"] = coi_by_severity
+        context["review_counts"] = review_counts
+
+        return context
+
+    def _verify_invitation_ownership(self, invitation):
+        """Verify the current user owns this invitation."""
+        user = self.request.user
+        if invitation.reviewer and invitation.reviewer.user == user:
+            return True
+        if invitation.invited_user == user:
+            return True
+        if invitation.invited_email and invitation.invited_email == user.email:
+            return True
+        return False
+
+    @extend_schema(
+        description="Accept a pool invitation (authenticated users only).",
+        request=serializers.SelfDeclaredConflictSerializer(many=True),
+        responses={
+            200: serializers.InvitationAcceptResponseSerializer,
+            400: serializers.InvitationAcceptErrorSerializer,
+        },
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def accept(self, request, uuid=None):
+        """Accept a pool invitation."""
+        invitation = self.get_object()
+
+        # Verify ownership
+        if not self._verify_invitation_ownership(invitation):
+            raise exceptions.PermissionDenied(
+                _("You do not have permission to accept this invitation.")
+            )
+
+        # Use mixin methods for validation
+        self._validate_invitation_status(invitation)
+        self._validate_invitation_not_expired(invitation)
+
+        # Profile-gating: user must have a published reviewer profile
+        profile, error = self._ensure_published_profile(request, invitation)
+        if error:
+            error_status = error.pop("status", status.HTTP_400_BAD_REQUEST)
+            return response.Response(error, status=error_status)
+
+        # Link profile to invitation if needed
+        if not invitation.reviewer:
+            invitation.reviewer = profile
+            if not invitation.invited_user:
+                invitation.invited_user = request.user
+
+        # Process optional self-declared conflicts
+        # Body is the array of conflicts directly (not wrapped in a dict)
+        declared_conflicts = request.data if isinstance(request.data, list) else []
+        created_conflicts = self._process_self_declared_conflicts(
+            declared_conflicts, invitation
+        )
+
+        self._accept_invitation(invitation)
+
+        result = {"detail": _("Invitation accepted successfully.")}
+        if created_conflicts:
+            result["declared_conflicts"] = created_conflicts
+        return response.Response(result)
+
+    @extend_schema(
+        description="Decline a pool invitation (authenticated users only).",
+        request=serializers.InvitationDeclineSerializer,
+        responses={200: serializers.InvitationDeclineResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def decline(self, request, uuid=None):
+        """Decline a pool invitation."""
+        invitation = self.get_object()
+
+        # Verify ownership
+        if not self._verify_invitation_ownership(invitation):
+            raise exceptions.PermissionDenied(
+                _("You do not have permission to decline this invitation.")
+            )
+
+        self._validate_invitation_status(invitation)
+
+        serializer = serializers.InvitationDeclineSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        self._decline_invitation(
+            invitation, serializer.validated_data.get("reason", "")
+        )
+
+        return response.Response({"detail": _("Invitation declined.")})
+
+
+class COIDetectionJobViewSet(ReadOnlyActionsViewSet):
+    """ViewSet for viewing COI detection job status."""
+
+    lookup_field = "uuid"
+    queryset = models.COIDetectionJob.objects.all().order_by("-created")
+    serializer_class = serializers.COIDetectionJobSerializer
+    filterset_class = filters.COIDetectionJobFilter
+    filter_backends = (DjangoFilterBackend,)
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return models.COIDetectionJob.objects.all().order_by("-created")
+        return models.COIDetectionJob.objects.filter(
+            Q(call__in=get_connected_calls(user, CallRole.MANAGER))
+            | Q(call__manager__customer__in=get_connected_customers(user))
+        ).order_by("-created")
+
+
+# =============================================================================
+# Reviewer Suggestion ViewSet
+# =============================================================================
+
+
+class ReviewerSuggestionViewSet(ReadOnlyActionsViewSet):
+    """ViewSet for managing algorithm-generated reviewer suggestions."""
+
+    lookup_field = "uuid"
+    queryset = models.ReviewerSuggestion.objects.all().order_by("-affinity_score")
+    serializer_class = serializers.ReviewerSuggestionSerializer
+    filterset_class = filters.ReviewerSuggestionFilter
+    filter_backends = (DjangoFilterBackend,)
+    # Allow destroy action (override ReadOnlyActionsViewSet defaults)
+    disabled_actions = ["create", "update", "partial_update"]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return models.ReviewerSuggestion.objects.all().order_by("-affinity_score")
+        return models.ReviewerSuggestion.objects.filter(
+            Q(call__in=get_connected_calls(user, CallRole.MANAGER))
+            | Q(call__manager__customer__in=get_connected_customers(user))
+        ).order_by("-affinity_score")
+
+    @extend_schema(
+        description="Delete a reviewer suggestion.",
+        responses={204: None},
+    )
+    def destroy(self, request, uuid=None):
+        """Delete a reviewer suggestion."""
+        suggestion = self.get_object()
+
+        # Check if user has permission to manage this call
+        user = request.user
+        call = suggestion.call
+        if not user.is_staff and not (
+            call.id in get_connected_calls(user, CallRole.MANAGER)
+            or call.manager.customer_id in get_connected_customers(user)
+        ):
+            raise exceptions.PermissionDenied(
+                _("You do not have permission to delete suggestions for this call.")
+            )
+
+        suggestion.delete()
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
+
+    destroy_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["call.manager"],
+        )
+    ]
+
+    @extend_schema(
+        description="Confirm a reviewer suggestion. The reviewer will be invited to the call.",
+        responses={200: serializers.ReviewerSuggestionSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def confirm(self, request, uuid=None):
+        """Manager confirms a reviewer suggestion."""
+        suggestion = self.get_object()
+
+        # Check if user has permission to manage this call
+        user = request.user
+        call = suggestion.call
+        if not user.is_staff and not (
+            call.id in get_connected_calls(user, CallRole.MANAGER)
+            or call.manager.customer_id in get_connected_customers(user)
+        ):
+            raise exceptions.PermissionDenied(
+                _("You do not have permission to confirm suggestions for this call.")
+            )
+
+        if suggestion.status != ReviewerSuggestionStatuses.PENDING:
+            raise exceptions.ValidationError(
+                _("Only pending suggestions can be confirmed.")
+            )
+
+        suggestion.status = ReviewerSuggestionStatuses.CONFIRMED
+        suggestion.reviewed_by = user
+        suggestion.reviewed_at = timezone.now()
+        suggestion.save()
+
+        return response.Response(
+            serializers.ReviewerSuggestionSerializer(
+                suggestion, context={"request": request}
+            ).data
+        )
+
+    @extend_schema(
+        description="Reject a reviewer suggestion.",
+        request=serializers.SuggestionRejectSerializer,
+        responses={200: serializers.ReviewerSuggestionSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def reject(self, request, uuid=None):
+        """Manager rejects a reviewer suggestion."""
+        suggestion = self.get_object()
+
+        # Check if user has permission to manage this call
+        user = request.user
+        call = suggestion.call
+        if not user.is_staff and not (
+            call.id in get_connected_calls(user, CallRole.MANAGER)
+            or call.manager.customer_id in get_connected_customers(user)
+        ):
+            raise exceptions.PermissionDenied(
+                _("You do not have permission to reject suggestions for this call.")
+            )
+
+        if suggestion.status != ReviewerSuggestionStatuses.PENDING:
+            raise exceptions.ValidationError(
+                _("Only pending suggestions can be rejected.")
+            )
+
+        reason = request.data.get("reason", "")
+        suggestion.status = ReviewerSuggestionStatuses.REJECTED
+        suggestion.reviewed_by = user
+        suggestion.reviewed_at = timezone.now()
+        suggestion.rejection_reason = reason
+        suggestion.save()
+
+        return response.Response(
+            serializers.ReviewerSuggestionSerializer(
+                suggestion, context={"request": request}
+            ).data
+        )
+
+
+# =============================================================================
+# Public Reviewer Invitation ViewSet
+# =============================================================================
+
+
+class PublicReviewerInvitationViewSet(InvitationAcceptanceMixin, viewsets.ViewSet):
+    """
+    Public endpoints for handling reviewer invitations via token.
+
+    These endpoints do not require authentication - the invitation token
+    serves as authorization.
+    """
+
+    permission_classes = []  # Public - no auth required
+
+    def _get_invitation(self, token: str) -> models.CallReviewerPool:
+        """Get and validate invitation by token."""
+        try:
+            invitation = models.CallReviewerPool.objects.select_related(
+                "call", "reviewer__user"
+            ).get(invitation_token=token)
+        except models.CallReviewerPool.DoesNotExist:
+            raise exceptions.NotFound(_("Invalid invitation token."))
+
+        return invitation
+
+    @extend_schema(
+        description="Get invitation details by token.",
+        responses=serializers.PublicInvitationSerializer,
+    )
+    def retrieve(self, request, token=None):
+        """Get invitation details by token including COI configuration."""
+        invitation = self._get_invitation(token)
+        call = invitation.call
+
+        is_expired = (
+            invitation.invitation_expires_at
+            and invitation.invitation_expires_at < timezone.now()
+        )
+
+        # Check user's profile status if authenticated
+        profile_status = None
+        if request.user.is_authenticated:
+            profile = models.ReviewerProfile.objects.filter(user=request.user).first()
+            if profile:
+                profile_status = "published" if profile.is_published else "unpublished"
+            else:
+                profile_status = "missing"
+
+        # Get COI configuration if available (informational only at invitation stage)
+        coi_config = None
+        if hasattr(call, "coi_configuration") and call.coi_configuration:
+            config = call.coi_configuration
+            coi_config = {
+                "recusal_required_types": config.recusal_required_types,
+                "management_allowed_types": config.management_allowed_types,
+                "disclosure_only_types": config.disclosure_only_types,
+            }
+
+        # Note: Proposals are NOT included at invitation stage.
+        # They are only disclosed during the assignment stage (two-step workflow).
+        return response.Response(
+            {
+                "call_name": call.name,
+                "call_uuid": str(call.uuid),
+                "invitation_status": invitation.invitation_status,
+                "expires_at": invitation.invitation_expires_at,
+                "is_expired": is_expired,
+                "max_assignments": invitation.max_assignments,
+                "invited_by_name": (
+                    invitation.invited_by.full_name if invitation.invited_by else None
+                ),
+                "profile_status": profile_status,
+                "requires_profile": invitation.reviewer is None,
+                "coi_configuration": coi_config,
+                "coi_types": COITypes.CHOICES,
+            }
+        )
+
+    @extend_schema(
+        description="Accept a reviewer invitation.",
+        request=serializers.InvitationAcceptSerializer,
+        responses={
+            200: serializers.InvitationAcceptResponseSerializer,
+            400: serializers.InvitationAcceptErrorSerializer,
+            401: serializers.InvitationAuthErrorSerializer,
+        },
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def accept(self, request, token=None):
+        """Accept a reviewer invitation."""
+        invitation = self._get_invitation(token)
+
+        # Use mixin methods for validation
+        self._validate_invitation_status(invitation)
+        self._validate_invitation_not_expired(invitation)
+
+        # Profile-gating for email invitations
+        profile, error = self._ensure_published_profile(request, invitation)
+        if error:
+            error_status = error.pop("status", status.HTTP_400_BAD_REQUEST)
+            return response.Response(error, status=error_status)
+
+        # Link profile to invitation if needed
+        if not invitation.reviewer:
+            invitation.reviewer = profile
+            if not invitation.invited_user:
+                invitation.invited_user = request.user
+
+        # Process optional self-declared conflicts
+        declared_conflicts = request.data.get("declared_conflicts", [])
+        created_conflicts = self._process_self_declared_conflicts(
+            declared_conflicts, invitation
+        )
+
+        self._accept_invitation(invitation)
+
+        result = {"detail": _("Invitation accepted successfully.")}
+        if created_conflicts:
+            result["declared_conflicts"] = created_conflicts
+        return response.Response(result)
+
+    @extend_schema(
+        description="Decline a reviewer invitation.",
+        request=serializers.InvitationDeclineSerializer,
+        responses={200: serializers.InvitationDeclineResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def decline(self, request, token=None):
+        """Decline a reviewer invitation."""
+        invitation = self._get_invitation(token)
+
+        self._validate_invitation_status(invitation)
+
+        serializer = serializers.InvitationDeclineSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        self._decline_invitation(
+            invitation, serializer.validated_data.get("reason", "")
+        )
+
+        return response.Response({"detail": _("Invitation declined.")})
+
+
+# =============================================================================
+# Reviewer Bids ViewSet
+# =============================================================================
+
+
+class ReviewerBidViewSet(ActionsViewSet):
+    """
+    ViewSet for managing reviewer bids on proposals.
+
+    Reviewers can indicate their preference/availability for reviewing proposals.
+    """
+
+    lookup_field = "uuid"
+    queryset = models.ReviewerBid.objects.all().order_by("-submitted_at")
+    serializer_class = serializers.ReviewerBidSerializer
+    filterset_class = filters.ReviewerBidFilter
+    filter_backends = (DjangoFilterBackend,)
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return models.ReviewerBid.objects.all().order_by("-submitted_at")
+        # Reviewers can see their own bids, managers can see all for their calls
+        return models.ReviewerBid.objects.filter(
+            Q(reviewer__user=user)
+            | Q(call__in=get_connected_calls(user, CallRole.MANAGER))
+            | Q(call__manager__customer__in=get_connected_customers(user))
+        ).order_by("-submitted_at")
+
+    @extend_schema(
+        description="Get my bids for a specific call.",
+        responses=serializers.ReviewerBidSerializer(many=True),
+    )
+    @decorators.action(detail=False, methods=["get"], url_path="my-bids")
+    def my_bids(self, request):
+        """Get current user's bids, optionally filtered by call."""
+        call_uuid = request.query_params.get("call_uuid")
+
+        try:
+            profile = models.ReviewerProfile.objects.get(user=request.user)
+        except models.ReviewerProfile.DoesNotExist:
+            return response.Response([])
+
+        bids = models.ReviewerBid.objects.filter(reviewer=profile)
+        if call_uuid:
+            bids = bids.filter(call__uuid=call_uuid)
+
+        serializer = self.get_serializer(bids, many=True)
+        return response.Response(serializer.data)
+
+    @extend_schema(
+        description="Submit a bid on a proposal.",
+        request=serializers.ReviewerBidSubmitSerializer,
+        responses=serializers.ReviewerBidSerializer,
+    )
+    @decorators.action(detail=False, methods=["post"], url_path="submit")
+    def submit_bid(self, request):
+        """Submit a bid on a proposal."""
+        serializer = serializers.ReviewerBidSubmitSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            profile = models.ReviewerProfile.objects.get(user=request.user)
+        except models.ReviewerProfile.DoesNotExist:
+            raise exceptions.ValidationError(
+                _("You must have a reviewer profile to submit bids.")
+            )
+
+        try:
+            proposal = models.Proposal.objects.get(
+                uuid=serializer.validated_data["proposal_uuid"]
+            )
+        except models.Proposal.DoesNotExist:
+            raise exceptions.ValidationError(
+                {"proposal_uuid": _("Proposal not found.")}
+            )
+
+        # Get the call from the proposal
+        call = proposal.round.call if hasattr(proposal, "round") else None
+        if not call:
+            raise exceptions.ValidationError(
+                _("Could not determine the call for this proposal.")
+            )
+
+        # Check if reviewer is in the pool for this call
+        if not models.CallReviewerPool.objects.filter(
+            call=call,
+            reviewer=profile,
+            invitation_status=ReviewerPoolInvitationStatuses.ACCEPTED,
+        ).exists():
+            raise exceptions.ValidationError(
+                _("You are not in the reviewer pool for this call.")
+            )
+
+        # Create or update bid
+        bid, created = models.ReviewerBid.objects.update_or_create(
+            call=call,
+            reviewer=profile,
+            proposal=proposal,
+            defaults={
+                "bid": serializer.validated_data["bid"],
+                "comment": serializer.validated_data.get("comment", ""),
+            },
+        )
+
+        return response.Response(
+            self.get_serializer(bid).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        description="Submit multiple bids at once.",
+        request=serializers.ReviewerBulkBidSerializer,
+        responses={
+            200: {"type": "object", "properties": {"submitted": {"type": "integer"}}}
+        },
+    )
+    @decorators.action(detail=False, methods=["post"], url_path="bulk-submit")
+    def bulk_submit(self, request):
+        """Submit multiple bids at once."""
+        serializer = serializers.ReviewerBulkBidSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            profile = models.ReviewerProfile.objects.get(user=request.user)
+        except models.ReviewerProfile.DoesNotExist:
+            raise exceptions.ValidationError(
+                _("You must have a reviewer profile to submit bids.")
+            )
+
+        submitted = 0
+        errors = []
+
+        for bid_data in serializer.validated_data["bids"]:
+            try:
+                proposal = models.Proposal.objects.get(uuid=bid_data["proposal_uuid"])
+                call = proposal.round.call if hasattr(proposal, "round") else None
+
+                if not call:
+                    errors.append(f"No call for proposal {bid_data['proposal_uuid']}")
+                    continue
+
+                models.ReviewerBid.objects.update_or_create(
+                    call=call,
+                    reviewer=profile,
+                    proposal=proposal,
+                    defaults={
+                        "bid": bid_data["bid"],
+                        "comment": bid_data.get("comment", ""),
+                    },
+                )
+                submitted += 1
+            except models.Proposal.DoesNotExist:
+                errors.append(f"Proposal {bid_data['proposal_uuid']} not found")
+
+        return response.Response(
+            {
+                "submitted": submitted,
+                "errors": errors if errors else None,
+            }
+        )
+
+
+# Nested ViewSets for ReviewerProfile sub-resources
+
+
+@extend_schema_view(
+    list=extend_schema(
+        operation_id="nested_reviewer_profile_affiliations_list",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+    create=extend_schema(
+        operation_id="nested_reviewer_profile_affiliations_create",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+    retrieve=extend_schema(
+        operation_id="nested_reviewer_profile_affiliations_retrieve",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+    update=extend_schema(
+        operation_id="nested_reviewer_profile_affiliations_update",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+    partial_update=extend_schema(
+        operation_id="nested_reviewer_profile_affiliations_partial_update",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+    destroy=extend_schema(
+        operation_id="nested_reviewer_profile_affiliations_destroy",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+)
+class ReviewerProfileAffiliationViewSet(
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    viewsets.GenericViewSet,
+):
+    """ViewSet for managing reviewer profile affiliations."""
+
+    lookup_field = "uuid"
+    queryset = models.ReviewerAffiliation.objects.all()
+    serializer_class = serializers.ReviewerAffiliationSerializer
+    filter_backends = (DjangoFilterBackend,)
+
+    def get_reviewer_profile(self):
+        profile_uuid = self.kwargs.get("reviewer_profile_uuid")
+        return get_object_or_404(models.ReviewerProfile, uuid=profile_uuid)
+
+    def check_permission(self):
+        profile = self.get_reviewer_profile()
+        user = self.request.user
+        # Only profile owner or staff can manage affiliations
+        if not (user.is_staff or profile.user == user):
+            raise exceptions.PermissionDenied(
+                _("You do not have permission to manage this reviewer profile.")
+            )
+
+    def get_queryset(self):
+        self.check_permission()
+        profile = self.get_reviewer_profile()
+        return profile.affiliations.all()
+
+    def perform_create(self, serializer):
+        self.check_permission()
+        profile = self.get_reviewer_profile()
+        serializer.save(reviewer_profile=profile)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        operation_id="nested_reviewer_profile_expertise_list",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+    create=extend_schema(
+        operation_id="nested_reviewer_profile_expertise_create",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+    retrieve=extend_schema(
+        operation_id="nested_reviewer_profile_expertise_retrieve",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+    update=extend_schema(
+        operation_id="nested_reviewer_profile_expertise_update",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+    partial_update=extend_schema(
+        operation_id="nested_reviewer_profile_expertise_partial_update",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+    destroy=extend_schema(
+        operation_id="nested_reviewer_profile_expertise_destroy",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+)
+class ReviewerProfileExpertiseViewSet(
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    viewsets.GenericViewSet,
+):
+    """ViewSet for managing reviewer profile expertise."""
+
+    lookup_field = "uuid"
+    queryset = models.ReviewerExpertise.objects.all()
+    serializer_class = serializers.ReviewerExpertiseSerializer
+    filter_backends = (DjangoFilterBackend,)
+
+    def get_reviewer_profile(self):
+        profile_uuid = self.kwargs.get("reviewer_profile_uuid")
+        return get_object_or_404(models.ReviewerProfile, uuid=profile_uuid)
+
+    def check_permission(self):
+        profile = self.get_reviewer_profile()
+        user = self.request.user
+        # Only profile owner or staff can manage expertise
+        if not (user.is_staff or profile.user == user):
+            raise exceptions.PermissionDenied(
+                _("You do not have permission to manage this reviewer profile.")
+            )
+
+    def get_queryset(self):
+        self.check_permission()
+        profile = self.get_reviewer_profile()
+        return profile.expertise_set.all()
+
+    def perform_create(self, serializer):
+        self.check_permission()
+        profile = self.get_reviewer_profile()
+        serializer.save(reviewer_profile=profile)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        operation_id="nested_reviewer_profile_publications_list",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+    create=extend_schema(
+        operation_id="nested_reviewer_profile_publications_create",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+    retrieve=extend_schema(
+        operation_id="nested_reviewer_profile_publications_retrieve",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+    update=extend_schema(
+        operation_id="nested_reviewer_profile_publications_update",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+    partial_update=extend_schema(
+        operation_id="nested_reviewer_profile_publications_partial_update",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+    destroy=extend_schema(
+        operation_id="nested_reviewer_profile_publications_destroy",
+        parameters=[
+            OpenApiParameter(
+                name="reviewer_profile_uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the parent reviewer profile",
+            )
+        ],
+    ),
+)
+class ReviewerProfilePublicationViewSet(
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    viewsets.GenericViewSet,
+):
+    """ViewSet for managing reviewer profile publications."""
+
+    lookup_field = "uuid"
+    queryset = models.ReviewerPublication.objects.all()
+    serializer_class = serializers.ReviewerPublicationSerializer
+    filter_backends = (DjangoFilterBackend,)
+
+    def get_reviewer_profile(self):
+        profile_uuid = self.kwargs.get("reviewer_profile_uuid")
+        return get_object_or_404(models.ReviewerProfile, uuid=profile_uuid)
+
+    def check_permission(self):
+        profile = self.get_reviewer_profile()
+        user = self.request.user
+        # Only profile owner or staff can manage publications
+        if not (user.is_staff or profile.user == user):
+            raise exceptions.PermissionDenied(
+                _("You do not have permission to manage this reviewer profile.")
+            )
+
+    def get_queryset(self):
+        self.check_permission()
+        profile = self.get_reviewer_profile()
+        return profile.publications.all()
+
+    def perform_create(self, serializer):
+        self.check_permission()
+        profile = self.get_reviewer_profile()
+        serializer.save(reviewer_profile=profile)
+
+
+# =============================================================================
+# Assignment Batch ViewSets (Stage 2 - Proposal Assignment Workflow)
+# =============================================================================
+
+
+class AssignmentBatchViewSet(ActionsViewSet):
+    """
+    ViewSet for managing assignment batches.
+
+    Assignment batches are created when a call manager generates assignments
+    for reviewers. Each batch contains one or more proposal assignments for
+    a single reviewer.
+    """
+
+    lookup_field = "uuid"
+    queryset = models.AssignmentBatch.objects.all().order_by("-created")
+    serializer_class = serializers.AssignmentBatchSerializer
+    filterset_class = filters.AssignmentBatchFilter
+
+    # Permissions for custom actions - managers only
+    send_permissions = cancel_permissions = extend_deadline_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["call.manager"],
+        )
+    ]
+
+    def get_serializer_class(self):
+        if self.action == "list":
+            return serializers.AssignmentBatchListSerializer
+        return serializers.AssignmentBatchSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_staff:
+            return queryset
+
+        # Filter based on user's roles
+        return queryset.filter(models.filter_assignment_batches(user))
+
+    @extend_schema(
+        description="Send this assignment batch invitation to the reviewer.",
+        request=serializers.SendAssignmentBatchSerializer,
+        responses={200: serializers.SendAssignmentBatchResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def send(self, request, uuid=None):
+        """Send the assignment batch invitation to the reviewer."""
+        batch: models.AssignmentBatch = self.get_object()
+
+        if batch.status != models.AssignmentBatchStatuses.DRAFT:
+            return response.Response(
+                {"error": _("Only draft batches can be sent.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = serializers.SendAssignmentBatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        if serializer.validated_data.get("manager_notes"):
+            batch.manager_notes = serializer.validated_data["manager_notes"]
+
+        batch.send_invitation(user=request.user)
+
+        return response.Response(
+            {
+                "detail": _("Assignment batch invitation sent successfully."),
+                "expires_at": batch.expires_at,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        description="Cancel this assignment batch.",
+        request=None,
+        responses={200: serializers.MessageResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def cancel(self, request, uuid=None):
+        """Cancel the assignment batch."""
+        batch: models.AssignmentBatch = self.get_object()
+
+        if batch.status not in [
+            models.AssignmentBatchStatuses.DRAFT,
+            models.AssignmentBatchStatuses.SENT,
+        ]:
+            return response.Response(
+                {"error": _("Only draft or sent batches can be cancelled.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        batch.status = models.AssignmentBatchStatuses.CANCELLED
+        batch.save(update_fields=["status"])
+
+        return response.Response(
+            {"message": _("Assignment batch cancelled.")},
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        description="Extend or modify the expiration date for an assignment batch. "
+        "Can reactivate expired batches by setting a future deadline.",
+        request=serializers.ExtendDeadlineRequestSerializer,
+        responses={200: serializers.ExtendDeadlineResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="extend-deadline")
+    def extend_deadline(self, request, uuid=None):
+        """
+        Extend or modify the expiration date for an assignment batch.
+
+        This allows call managers to:
+        - Extend the deadline for sent batches before they expire
+        - Reactivate expired batches by setting a new future deadline
+
+        If a batch is in EXPIRED status and a future deadline is set,
+        the batch will be reactivated to SENT status.
+        """
+        batch: models.AssignmentBatch = self.get_object()
+
+        if batch.status not in [
+            models.AssignmentBatchStatuses.SENT,
+            models.AssignmentBatchStatuses.EXPIRED,
+        ]:
+            return response.Response(
+                {"error": _("Can only extend deadline for sent or expired batches.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = serializers.ExtendDeadlineRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        new_expires_at = serializer.validated_data["expires_at"]
+        batch.expires_at = new_expires_at
+
+        # Reactivate expired batch if new deadline is in future
+        if batch.status == models.AssignmentBatchStatuses.EXPIRED:
+            batch.status = models.AssignmentBatchStatuses.SENT
+            batch.manager_notified = False  # Reset notification flag
+            batch.reminder_sent = False  # Reset reminder flag
+            # Also reactivate pending items
+            batch.items.filter(status=models.AssignmentItemStatuses.EXPIRED).update(
+                status=models.AssignmentItemStatuses.PENDING
+            )
+
+        batch.save(
+            update_fields=["expires_at", "status", "manager_notified", "reminder_sent"]
+        )
+
+        # Sync review deadlines for accepted assignments
+        # This ensures reviews don't get auto-rejected by the expiry task
+        # before the extended deadline
+        accepted_items_with_reviews = batch.items.filter(
+            status=models.AssignmentItemStatuses.ACCEPTED,
+            review__isnull=False,
+        ).select_related("review")
+
+        for item in accepted_items_with_reviews:
+            if (
+                item.review.review_end_date
+                and item.review.review_end_date < new_expires_at
+            ):
+                item.review.review_end_date = new_expires_at
+                item.review.save(update_fields=["review_end_date"])
+
+        return response.Response(
+            {
+                "expires_at": batch.expires_at,
+                "status": batch.status,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class AssignmentItemViewSet(ActionsViewSet):
+    """
+    ViewSet for managing individual assignment items.
+
+    Each item represents a proposal assignment within a batch.
+    Reviewers can accept or decline items individually.
+    """
+
+    lookup_field = "uuid"
+    queryset = models.AssignmentItem.objects.all().order_by("-created")
+    serializer_class = serializers.AssignmentItemSerializer
+    filterset_class = filters.AssignmentItemFilter
+
+    # Permissions for manager-only actions
+    suggest_alternatives_permissions = reassign_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["batch.call.manager"],
+        )
+    ]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_staff:
+            return queryset
+
+        # Filter based on user's roles
+        return queryset.filter(models.filter_assignment_items(user))
+
+    @extend_schema(
+        description="Accept this assignment item. Creates a Review record.",
+        request=serializers.AssignmentItemAcceptSerializer,
+        responses={200: serializers.AssignmentItemResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def accept(self, request, uuid=None):
+        """Accept the assignment and create a Review record."""
+        item: models.AssignmentItem = self.get_object()
+
+        # Block responses to expired batches
+        if item.batch.is_expired:
+            return response.Response(
+                {"error": _("Cannot accept expired assignment.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            review = item.accept(user=request.user)
+            return response.Response(
+                {
+                    "detail": _("Assignment accepted. Review created."),
+                    "review_uuid": str(review.uuid),
+                },
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            return response.Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    @extend_schema(
+        description="Decline this assignment item.",
+        request=serializers.AssignmentItemDeclineSerializer,
+        responses={200: serializers.AssignmentItemResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def decline(self, request, uuid=None):
+        """Decline the assignment with an optional reason."""
+        item: models.AssignmentItem = self.get_object()
+
+        # Block responses to expired batches
+        if item.batch.is_expired:
+            return response.Response(
+                {"error": _("Cannot decline expired assignment.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = serializers.AssignmentItemDeclineSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            item.decline(
+                reason=serializer.validated_data.get("reason", ""),
+                user=request.user,
+            )
+            return response.Response(
+                {
+                    "detail": _("Assignment declined."),
+                    "review_uuid": None,
+                },
+                status=status.HTTP_200_OK,
+            )
+        except Exception as e:
+            return response.Response(
+                {"error": str(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    @extend_schema(
+        description="Suggest alternative reviewers for a declined assignment.",
+        request=None,
+        responses={200: serializers.SuggestAlternativeReviewersSerializer},
+    )
+    @decorators.action(detail=True, methods=["get"])
+    def suggest_alternatives(self, request, uuid=None):
+        """Get alternative reviewer suggestions for a declined item."""
+        item: models.AssignmentItem = self.get_object()
+
+        if item.status != models.AssignmentItemStatuses.DECLINED:
+            return response.Response(
+                {"error": _("Alternatives can only be suggested for declined items.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        call = item.batch.call
+        proposal = item.proposal
+
+        # Get pool members who:
+        # 1. Have accepted invitation
+        # 2. Don't already have this proposal assigned
+        # 3. Don't have blocking COI
+        # 4. Haven't declined this proposal before
+        existing_reviewers = models.AssignmentItem.objects.filter(
+            proposal=proposal,
+        ).values_list("batch__reviewer_pool_entry_id", flat=True)
+
+        declined_reviewers = models.AssignmentItem.objects.filter(
+            proposal=proposal,
+            status=models.AssignmentItemStatuses.DECLINED,
+        ).values_list("batch__reviewer_pool_entry_id", flat=True)
+
+        pool_entries = (
+            models.CallReviewerPool.objects.filter(
+                call=call,
+                invitation_status=ReviewerPoolInvitationStatuses.ACCEPTED,
+            )
+            .exclude(id__in=existing_reviewers)
+            .exclude(id__in=declined_reviewers)
+        )
+
+        # Get affinity scores for suggestions
+        suggestions = []
+        for entry in pool_entries[:10]:  # Limit to 10 suggestions
+            affinity = models.ReviewerProposalAffinity.objects.filter(
+                reviewer=entry.reviewer,
+                proposal=proposal,
+            ).first()
+
+            # Check COI
+            has_coi = models.ConflictOfInterest.objects.filter(
+                reviewer=entry.reviewer,
+                proposal=proposal,
+                status__in=["pending", "confirmed"],
+            ).exists()
+
+            if has_coi:
+                continue
+
+            suggestions.append(
+                {
+                    "pool_entry_uuid": str(entry.uuid),
+                    "reviewer_name": entry.reviewer.user.full_name
+                    if entry.reviewer
+                    else entry.invited_email,
+                    "reviewer_email": entry.reviewer.user.email
+                    if entry.reviewer
+                    else entry.invited_email,
+                    "affinity_score": affinity.affinity_score if affinity else None,
+                    "current_assignments": entry.current_assignments,
+                    "max_assignments": entry.max_assignments,
+                }
+            )
+
+        # Sort by affinity score
+        suggestions.sort(key=lambda x: x.get("affinity_score") or 0, reverse=True)
+
+        return response.Response(
+            {"suggestions": suggestions},
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        description="Reassign this item to a different reviewer.",
+        request=serializers.ReassignItemSerializer,
+        responses={200: serializers.ReassignItemResponseSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def reassign(self, request, uuid=None):
+        """Reassign a declined item to a different reviewer."""
+        item: models.AssignmentItem = self.get_object()
+
+        if item.status not in [
+            models.AssignmentItemStatuses.DECLINED,
+            models.AssignmentItemStatuses.EXPIRED,
+        ]:
+            return response.Response(
+                {"error": _("Only declined or expired items can be reassigned.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = serializers.ReassignItemSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        pool_entry_uuid = serializer.validated_data["reviewer_pool_entry_uuid"]
+        manager_notes = serializer.validated_data.get("manager_notes", "")
+
+        try:
+            new_pool_entry = models.CallReviewerPool.objects.get(
+                uuid=pool_entry_uuid,
+                call=item.batch.call,
+                invitation_status=ReviewerPoolInvitationStatuses.ACCEPTED,
+            )
+        except models.CallReviewerPool.DoesNotExist:
+            return response.Response(
+                {"error": _("Pool entry not found or not eligible for assignments.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Check if this reviewer already has this proposal assigned
+        existing = models.AssignmentItem.objects.filter(
+            batch__reviewer_pool_entry=new_pool_entry,
+            proposal=item.proposal,
+        ).exists()
+
+        if existing:
+            return response.Response(
+                {"error": _("This reviewer already has this proposal assigned.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Find or create a draft batch for the new reviewer
+        # Only reuse MANUAL draft batches to avoid bundling reassignments
+        # with algorithm-generated batches pending approval
+        batch, created = models.AssignmentBatch.objects.get_or_create(
+            call=item.batch.call,
+            reviewer_pool_entry=new_pool_entry,
+            status=models.AssignmentBatchStatuses.DRAFT,
+            source=models.AssignmentSources.MANUAL,
+            defaults={
+                "created_by": request.user,
+                "manager_notes": manager_notes,
+            },
+        )
+
+        # Get affinity score
+        affinity = models.ReviewerProposalAffinity.objects.filter(
+            reviewer=new_pool_entry.reviewer,
+            proposal=item.proposal,
+        ).first()
+
+        # Check for blocking COI
+        coi_records = models.ConflictOfInterest.objects.filter(
+            reviewer=new_pool_entry.reviewer,
+            proposal=item.proposal,
+            status__in=["pending", "recused"],
+        )
+        has_coi = coi_records.exists()
+
+        # Create new assignment item
+        new_item = models.AssignmentItem.objects.create(
+            batch=batch,
+            proposal=item.proposal,
+            affinity_score=affinity.affinity_score if affinity else None,
+            reassigned_from=item,
+            reassign_count=item.reassign_count + 1,
+            has_coi=has_coi,
+            status=models.AssignmentItemStatuses.COI_BLOCKED
+            if has_coi
+            else models.AssignmentItemStatuses.PENDING,
+        )
+        if has_coi:
+            new_item.coi_records.set(coi_records)
+
+        # Mark original item as reassigned
+        item.status = models.AssignmentItemStatuses.REASSIGNED
+        item.save(update_fields=["status"])
+
+        return response.Response(
+            {
+                "detail": _("Assignment reassigned successfully."),
+                "new_item_uuid": str(new_item.uuid),
+                "new_batch_uuid": str(batch.uuid),
+                "has_coi": has_coi,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
+class CallAssignmentConfigurationViewSet(ActionsViewSet):
+    """
+    ViewSet for managing call assignment configuration.
+    """
+
+    lookup_field = "uuid"
+    queryset = models.CallAssignmentConfiguration.objects.all()
+    serializer_class = serializers.CallAssignmentConfigurationSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_staff:
+            return queryset
+
+        # Only call managers can view/edit configuration
+        connected_calls = get_connected_calls(user)
+        return queryset.filter(call__in=connected_calls)
+
+
+@extend_schema_view(
+    retrieve=extend_schema(
+        description="Get details of a specific assignment batch with items.",
+        responses={200: serializers.MyAssignmentBatchDetailSerializer},
+        parameters=[
+            OpenApiParameter(
+                "uuid",
+                type=str,
+                location=OpenApiParameter.PATH,
+                description="UUID of the assignment batch",
+            ),
+        ],
+    ),
+)
+class MyAssignmentBatchViewSet(viewsets.ViewSet):
+    """
+    ViewSet for reviewers to view and respond to their assignment batches.
+
+    This endpoint provides a reviewer-centric view of pending assignments.
+    """
+
+    lookup_field = "uuid"
+    permission_classes = [rf_permissions.IsAuthenticated]
+
+    @extend_schema(
+        description="List all pending assignment batches for the authenticated reviewer.",
+        responses={200: serializers.MyAssignmentBatchSerializer(many=True)},
+    )
+    def list(self, request):
+        """List pending assignment batches for the current user."""
+        user = request.user
+
+        # Find reviewer profile
+        try:
+            profile = models.ReviewerProfile.objects.get(user=user)
+        except models.ReviewerProfile.DoesNotExist:
+            return response.Response([])
+
+        # Get pool entries for this reviewer
+        pool_entries = models.CallReviewerPool.objects.filter(reviewer=profile)
+
+        # Get batches that are sent and not expired
+        batches = models.AssignmentBatch.objects.filter(
+            reviewer_pool_entry__in=pool_entries,
+            status=models.AssignmentBatchStatuses.SENT,
+        ).order_by("-sent_at")
+
+        result = []
+        for batch in batches:
+            result.append(
+                {
+                    "uuid": batch.uuid,
+                    "call_uuid": batch.call.uuid,
+                    "call_name": batch.call.name,
+                    "status": batch.status,
+                    "status_display": batch.get_status_display(),
+                    "sent_at": batch.sent_at,
+                    "expires_at": batch.expires_at,
+                    "is_expired": batch.is_expired,
+                    "items_count": batch.items.count(),
+                    "items_pending_count": batch.items_pending_count,
+                    "manager_notes": batch.manager_notes,
+                }
+            )
+
+        return response.Response(result)
+
+    def retrieve(self, request, uuid=None):
+        """Get batch details with items for the current user."""
+        user = request.user
+
+        try:
+            profile = models.ReviewerProfile.objects.get(user=user)
+        except models.ReviewerProfile.DoesNotExist:
+            raise exceptions.NotFound(_("Reviewer profile not found."))
+
+        batch = get_object_or_404(
+            models.AssignmentBatch,
+            uuid=uuid,
+            reviewer_pool_entry__reviewer=profile,
+        )
+
+        items = []
+        for item in batch.items.all():
+            items.append(
+                {
+                    "uuid": item.uuid,
+                    "proposal_uuid": item.proposal.uuid,
+                    "proposal_name": item.proposal.name,
+                    "proposal_slug": item.proposal.slug,
+                    "proposal_summary": item.proposal.project_summary or "",
+                    "status": item.status,
+                    "status_display": item.get_status_display(),
+                    "affinity_score": item.affinity_score,
+                    "has_coi": item.has_coi,
+                }
+            )
+
+        result = {
+            "uuid": batch.uuid,
+            "call_uuid": batch.call.uuid,
+            "call_name": batch.call.name,
+            "status": batch.status,
+            "status_display": batch.get_status_display(),
+            "sent_at": batch.sent_at,
+            "expires_at": batch.expires_at,
+            "is_expired": batch.is_expired,
+            "items_count": batch.items.count(),
+            "items_pending_count": batch.items_pending_count,
+            "manager_notes": batch.manager_notes,
+            "items": items,
+        }
+
+        return response.Response(result)

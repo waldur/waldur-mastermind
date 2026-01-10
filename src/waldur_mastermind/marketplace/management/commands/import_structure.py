@@ -55,13 +55,28 @@ from waldur_mastermind.marketplace.models import (
     ServiceProvider,
 )
 from waldur_mastermind.proposal.models import (
+    AssignmentBatch,
+    AssignmentItem,
     Call,
+    CallCOIConfiguration,
     CallManagingOrganisation,
     CallResourceTemplate,
+    CallReviewerPool,
+    COIDisclosureForm,
+    ConflictOfInterest,
+    ExpertiseCategory,
+    MatchingConfiguration,
     Proposal,
     RequestedOffering,
     RequestedResource,
     Review,
+    ReviewerAffiliation,
+    ReviewerBid,
+    ReviewerExpertise,
+    ReviewerProfile,
+    ReviewerProposalAffinity,
+    ReviewerPublication,
+    ReviewerStats,
     Round,
 )
 
@@ -238,6 +253,86 @@ class Command(BaseCommand):
                 "errors": 0,
             },
             "reviews": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "reviewer_profiles": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "reviewer_affiliations": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "expertise_categories": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "reviewer_expertise": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "reviewer_publications": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "reviewer_stats": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "call_coi_configurations": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "conflicts_of_interest": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "coi_disclosure_forms": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "call_reviewer_pools": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "matching_configurations": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "reviewer_proposal_affinities": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "reviewer_bids": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "assignment_batches": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "assignment_items": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
         }
         self.dry_run = False
         self.update_existing = False
@@ -361,6 +456,22 @@ class Command(BaseCommand):
                 lambda: self.import_ssh_public_keys(data.get("ssh_public_keys", [])),
             )
 
+            # Import expertise categories early (no dependencies)
+            self._safe_import(
+                "expertise_categories",
+                lambda: self.import_expertise_categories(
+                    data.get("expertise_categories", [])
+                ),
+            )
+
+            # Import reviewer profiles (depends on users)
+            self._safe_import(
+                "reviewer_profiles",
+                lambda: self.import_reviewer_profiles(
+                    data.get("reviewer_profiles", [])
+                ),
+            )
+
         self._safe_import(
             "customers", lambda: self.import_customers(data.get("customers", []))
         )
@@ -371,6 +482,29 @@ class Command(BaseCommand):
         self._safe_import(
             "projects", lambda: self.import_projects(data.get("projects", []))
         )
+
+        # Import reviewer-related entities (depends on users, customers, expertise_categories)
+        self._safe_import(
+            "reviewer_affiliations",
+            lambda: self.import_reviewer_affiliations(
+                data.get("reviewer_affiliations", [])
+            ),
+        )
+        self._safe_import(
+            "reviewer_expertise",
+            lambda: self.import_reviewer_expertise(data.get("reviewer_expertise", [])),
+        )
+        self._safe_import(
+            "reviewer_publications",
+            lambda: self.import_reviewer_publications(
+                data.get("reviewer_publications", [])
+            ),
+        )
+        self._safe_import(
+            "reviewer_stats",
+            lambda: self.import_reviewer_stats(data.get("reviewer_stats", [])),
+        )
+
         self._safe_import(
             "category_groups",
             lambda: self.import_category_groups(data.get("category_groups", [])),
@@ -471,6 +605,29 @@ class Command(BaseCommand):
             "calls",
             lambda: self.import_calls(data.get("calls", [])),
         )
+
+        # Import call configurations (depends on calls)
+        self._safe_import(
+            "call_coi_configurations",
+            lambda: self.import_call_coi_configurations(
+                data.get("call_coi_configurations", [])
+            ),
+        )
+        self._safe_import(
+            "matching_configurations",
+            lambda: self.import_matching_configurations(
+                data.get("matching_configurations", [])
+            ),
+        )
+
+        # Import call reviewer pools (depends on calls and reviewer_profiles)
+        self._safe_import(
+            "call_reviewer_pools",
+            lambda: self.import_call_reviewer_pools(
+                data.get("call_reviewer_pools", [])
+            ),
+        )
+
         self._safe_import(
             "requested_offerings",
             lambda: self.import_requested_offerings(
@@ -500,6 +657,41 @@ class Command(BaseCommand):
         self._safe_import(
             "reviews",
             lambda: self.import_reviews(data.get("reviews", [])),
+        )
+
+        # Import COI and matching data (depends on reviewer_profiles, proposals, calls)
+        self._safe_import(
+            "conflicts_of_interest",
+            lambda: self.import_conflicts_of_interest(
+                data.get("conflicts_of_interest", [])
+            ),
+        )
+        self._safe_import(
+            "coi_disclosure_forms",
+            lambda: self.import_coi_disclosure_forms(
+                data.get("coi_disclosure_forms", [])
+            ),
+        )
+        self._safe_import(
+            "reviewer_proposal_affinities",
+            lambda: self.import_reviewer_proposal_affinities(
+                data.get("reviewer_proposal_affinities", [])
+            ),
+        )
+        self._safe_import(
+            "reviewer_bids",
+            lambda: self.import_reviewer_bids(data.get("reviewer_bids", [])),
+        )
+
+        # Import assignment batches and items (Stage 2 of two-stage reviewer workflow)
+        # Depends on: call_reviewer_pools, proposals
+        self._safe_import(
+            "assignment_batches",
+            lambda: self.import_assignment_batches(data.get("assignment_batches", [])),
+        )
+        self._safe_import(
+            "assignment_items",
+            lambda: self.import_assignment_items(data.get("assignment_items", [])),
         )
 
         # Import user_roles AFTER proposal entities (user_roles may scope to Calls)
@@ -3865,6 +4057,22 @@ class Command(BaseCommand):
                         self.stats["checklist_completions"]["errors"] += 1
                         continue
 
+                # For proposal scope, try to resolve by UUID if provided
+                if model == "proposal" and completion_data.get("scope_object_uuid"):
+                    try:
+                        proposal = Proposal.objects.get(
+                            uuid=completion_data["scope_object_uuid"]
+                        )
+                        scope_object_id = proposal.id
+                    except Proposal.DoesNotExist:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Skipping completion {uuid}: proposal {completion_data['scope_object_uuid']} not found"
+                            )
+                        )
+                        self.stats["checklist_completions"]["errors"] += 1
+                        continue
+
                 # Parse dates
                 created = None
                 if completion_data.get("created"):
@@ -3891,6 +4099,7 @@ class Command(BaseCommand):
                 }
 
                 if not self.dry_run:
+                    # First check if completion with this UUID already exists
                     existing_completion = ChecklistCompletion.objects.filter(
                         uuid=uuid
                     ).first()
@@ -3904,17 +4113,35 @@ class Command(BaseCommand):
                         else:
                             self.stats["checklist_completions"]["skipped"] += 1
                     else:
-                        completion = ChecklistCompletion.objects.create(
-                            uuid=UUID(uuid), **defaults
-                        )
-                        # Set timestamps after creation
-                        if created:
-                            completion.created = created
-                        if modified:
-                            completion.modified = modified
-                        if created or modified:
-                            completion.save()
-                        self.stats["checklist_completions"]["created"] += 1
+                        # Check if a completion already exists for this scope+checklist
+                        # (auto-created by proposal creation)
+                        existing_by_scope = ChecklistCompletion.objects.filter(
+                            scope_content_type=content_type,
+                            scope_object_id=scope_object_id,
+                            checklist=checklist,
+                        ).first()
+
+                        if existing_by_scope:
+                            # Update the existing completion's UUID to match preset
+                            existing_by_scope.uuid = UUID(uuid)
+                            if created:
+                                existing_by_scope.created = created
+                            if modified:
+                                existing_by_scope.modified = modified
+                            existing_by_scope.save()
+                            self.stats["checklist_completions"]["updated"] += 1
+                        else:
+                            completion = ChecklistCompletion.objects.create(
+                                uuid=UUID(uuid), **defaults
+                            )
+                            # Set timestamps after creation
+                            if created:
+                                completion.created = created
+                            if modified:
+                                completion.modified = modified
+                            if created or modified:
+                                completion.save()
+                            self.stats["checklist_completions"]["created"] += 1
                 else:
                     existing = ChecklistCompletion.objects.filter(uuid=uuid).exists()
                     if existing:
@@ -5709,6 +5936,1299 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["user_agreements"]["errors"] += 1
+
+    def import_expertise_categories(self, categories_data):
+        """Import expertise category data."""
+        self.stdout.write("Importing expertise categories...")
+        for cat_data in categories_data:
+            try:
+                uuid = cat_data.get("uuid")
+                code = cat_data.get("code")
+
+                if not uuid or not code:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping expertise category without UUID or code"
+                        )
+                    )
+                    self.stats["expertise_categories"]["errors"] += 1
+                    continue
+
+                parent_uuid = cat_data.get("parent_uuid")
+                parent = None
+                if parent_uuid:
+                    parent = ExpertiseCategory.objects.filter(uuid=parent_uuid).first()
+
+                defaults = {
+                    "name": cat_data.get("name", ""),
+                    "description": cat_data.get("description", ""),
+                    "code": code,
+                    "parent": parent,
+                    "level": cat_data.get("level", 0),
+                }
+
+                if not self.dry_run:
+                    existing = ExpertiseCategory.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            ExpertiseCategory.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["expertise_categories"]["updated"] += 1
+                        else:
+                            self.stats["expertise_categories"]["skipped"] += 1
+                    else:
+                        ExpertiseCategory.objects.create(uuid=uuid, **defaults)
+                        self.stats["expertise_categories"]["created"] += 1
+                else:
+                    existing = ExpertiseCategory.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["expertise_categories"]["updated"] += 1
+                        else:
+                            self.stats["expertise_categories"]["skipped"] += 1
+                    else:
+                        self.stats["expertise_categories"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import expertise category {cat_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["expertise_categories"]["errors"] += 1
+
+    def import_reviewer_profiles(self, profiles_data):
+        """Import reviewer profile data."""
+        self.stdout.write("Importing reviewer profiles...")
+        for profile_data in profiles_data:
+            try:
+                uuid = profile_data.get("uuid")
+                user_uuid = profile_data.get("user_uuid")
+
+                if not uuid or not user_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping reviewer profile without UUID or user_uuid"
+                        )
+                    )
+                    self.stats["reviewer_profiles"]["errors"] += 1
+                    continue
+
+                user = User.objects.filter(uuid=user_uuid).first()
+                if not user:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping reviewer profile {uuid}: user {user_uuid} not found"
+                        )
+                    )
+                    self.stats["reviewer_profiles"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "user": user,
+                    "orcid_id": profile_data.get("orcid_id"),
+                    "biography": profile_data.get("biography", ""),
+                    "alternative_names": profile_data.get("alternative_names", []),
+                    "description": profile_data.get("description", ""),
+                    "is_published": profile_data.get("is_published", False),
+                    "available_for_reviews": profile_data.get(
+                        "available_for_reviews", True
+                    ),
+                }
+
+                # Parse published_at if provided
+                published_at = profile_data.get("published_at")
+                if published_at:
+                    defaults["published_at"] = self._parse_datetime(published_at)
+
+                if not self.dry_run:
+                    existing = ReviewerProfile.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            ReviewerProfile.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["reviewer_profiles"]["updated"] += 1
+                        else:
+                            self.stats["reviewer_profiles"]["skipped"] += 1
+                    else:
+                        ReviewerProfile.objects.create(uuid=uuid, **defaults)
+                        self.stats["reviewer_profiles"]["created"] += 1
+                else:
+                    existing = ReviewerProfile.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["reviewer_profiles"]["updated"] += 1
+                        else:
+                            self.stats["reviewer_profiles"]["skipped"] += 1
+                    else:
+                        self.stats["reviewer_profiles"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import reviewer profile {profile_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["reviewer_profiles"]["errors"] += 1
+
+    def import_reviewer_affiliations(self, affiliations_data):
+        """Import reviewer affiliation data."""
+        self.stdout.write("Importing reviewer affiliations...")
+        for aff_data in affiliations_data:
+            try:
+                uuid = aff_data.get("uuid")
+                reviewer_uuid = aff_data.get("reviewer_profile_uuid")
+
+                if not uuid or not reviewer_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping reviewer affiliation without UUID or reviewer_profile_uuid"
+                        )
+                    )
+                    self.stats["reviewer_affiliations"]["errors"] += 1
+                    continue
+
+                reviewer = ReviewerProfile.objects.filter(uuid=reviewer_uuid).first()
+                if not reviewer:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping affiliation {uuid}: reviewer {reviewer_uuid} not found"
+                        )
+                    )
+                    self.stats["reviewer_affiliations"]["errors"] += 1
+                    continue
+
+                organization = None
+                org_uuid = aff_data.get("organization_uuid")
+                if org_uuid:
+                    organization = Customer.objects.filter(uuid=org_uuid).first()
+
+                defaults = {
+                    "reviewer_profile": reviewer,
+                    "organization": organization,
+                    "organization_name": aff_data.get("organization_name", ""),
+                    "organization_identifier": aff_data.get(
+                        "organization_identifier", ""
+                    ),
+                    "department": aff_data.get("department", ""),
+                    "position_title": aff_data.get("position_title", ""),
+                    "start_date": aff_data.get("start_date"),
+                    "end_date": aff_data.get("end_date"),
+                    "is_primary": aff_data.get("is_primary", False),
+                    "affiliation_type": aff_data.get("affiliation_type", "employment"),
+                }
+
+                if not self.dry_run:
+                    existing = ReviewerAffiliation.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            ReviewerAffiliation.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["reviewer_affiliations"]["updated"] += 1
+                        else:
+                            self.stats["reviewer_affiliations"]["skipped"] += 1
+                    else:
+                        ReviewerAffiliation.objects.create(uuid=uuid, **defaults)
+                        self.stats["reviewer_affiliations"]["created"] += 1
+                else:
+                    existing = ReviewerAffiliation.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["reviewer_affiliations"]["updated"] += 1
+                        else:
+                            self.stats["reviewer_affiliations"]["skipped"] += 1
+                    else:
+                        self.stats["reviewer_affiliations"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import reviewer affiliation {aff_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["reviewer_affiliations"]["errors"] += 1
+
+    def import_reviewer_expertise(self, expertise_data):
+        """Import reviewer expertise data."""
+        self.stdout.write("Importing reviewer expertise...")
+        for exp_data in expertise_data:
+            try:
+                uuid = exp_data.get("uuid")
+                reviewer_uuid = exp_data.get("reviewer_profile_uuid")
+
+                if not uuid or not reviewer_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping reviewer expertise without UUID or reviewer_profile_uuid"
+                        )
+                    )
+                    self.stats["reviewer_expertise"]["errors"] += 1
+                    continue
+
+                reviewer = ReviewerProfile.objects.filter(uuid=reviewer_uuid).first()
+                if not reviewer:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping expertise {uuid}: reviewer {reviewer_uuid} not found"
+                        )
+                    )
+                    self.stats["reviewer_expertise"]["errors"] += 1
+                    continue
+
+                category = None
+                cat_uuid = exp_data.get("expertise_category_uuid")
+                if cat_uuid:
+                    category = ExpertiseCategory.objects.filter(uuid=cat_uuid).first()
+
+                defaults = {
+                    "reviewer_profile": reviewer,
+                    "expertise_keyword": exp_data.get("expertise_keyword", ""),
+                    "expertise_category": category,
+                    "proficiency_level": exp_data.get("proficiency_level", "familiar"),
+                    "years_experience": exp_data.get("years_experience"),
+                    "last_active_date": exp_data.get("last_active_date"),
+                }
+
+                if not self.dry_run:
+                    existing = ReviewerExpertise.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            ReviewerExpertise.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["reviewer_expertise"]["updated"] += 1
+                        else:
+                            self.stats["reviewer_expertise"]["skipped"] += 1
+                    else:
+                        ReviewerExpertise.objects.create(uuid=uuid, **defaults)
+                        self.stats["reviewer_expertise"]["created"] += 1
+                else:
+                    existing = ReviewerExpertise.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["reviewer_expertise"]["updated"] += 1
+                        else:
+                            self.stats["reviewer_expertise"]["skipped"] += 1
+                    else:
+                        self.stats["reviewer_expertise"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import reviewer expertise {exp_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["reviewer_expertise"]["errors"] += 1
+
+    def import_reviewer_publications(self, publications_data):
+        """Import reviewer publication data."""
+        self.stdout.write("Importing reviewer publications...")
+        for pub_data in publications_data:
+            try:
+                uuid = pub_data.get("uuid")
+                reviewer_uuid = pub_data.get("reviewer_profile_uuid")
+
+                if not uuid or not reviewer_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping reviewer publication without UUID or reviewer_profile_uuid"
+                        )
+                    )
+                    self.stats["reviewer_publications"]["errors"] += 1
+                    continue
+
+                reviewer = ReviewerProfile.objects.filter(uuid=reviewer_uuid).first()
+                if not reviewer:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping publication {uuid}: reviewer {reviewer_uuid} not found"
+                        )
+                    )
+                    self.stats["reviewer_publications"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "reviewer_profile": reviewer,
+                    "title": pub_data.get("title", ""),
+                    "doi": pub_data.get("doi"),
+                    "publication_year": pub_data.get("publication_year", 2024),
+                    "venue": pub_data.get("venue", ""),
+                    "venue_type": pub_data.get("venue_type", "journal"),
+                    "abstract": pub_data.get("abstract", ""),
+                    "coauthors": pub_data.get("coauthors", []),
+                    "external_ids": pub_data.get("external_ids", {}),
+                    "is_excluded_from_matching": pub_data.get(
+                        "is_excluded_from_matching", False
+                    ),
+                }
+
+                if not self.dry_run:
+                    existing = ReviewerPublication.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            ReviewerPublication.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["reviewer_publications"]["updated"] += 1
+                        else:
+                            self.stats["reviewer_publications"]["skipped"] += 1
+                    else:
+                        ReviewerPublication.objects.create(uuid=uuid, **defaults)
+                        self.stats["reviewer_publications"]["created"] += 1
+                else:
+                    existing = ReviewerPublication.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["reviewer_publications"]["updated"] += 1
+                        else:
+                            self.stats["reviewer_publications"]["skipped"] += 1
+                    else:
+                        self.stats["reviewer_publications"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import reviewer publication {pub_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["reviewer_publications"]["errors"] += 1
+
+    def import_reviewer_stats(self, stats_data):
+        """Import reviewer stats data."""
+        self.stdout.write("Importing reviewer stats...")
+        for stat_data in stats_data:
+            try:
+                uuid = stat_data.get("uuid")
+                reviewer_uuid = stat_data.get("reviewer_profile_uuid")
+
+                if not uuid or not reviewer_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping reviewer stats without UUID or reviewer_profile_uuid"
+                        )
+                    )
+                    self.stats["reviewer_stats"]["errors"] += 1
+                    continue
+
+                reviewer = ReviewerProfile.objects.filter(uuid=reviewer_uuid).first()
+                if not reviewer:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping stats {uuid}: reviewer {reviewer_uuid} not found"
+                        )
+                    )
+                    self.stats["reviewer_stats"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "reviewer_profile": reviewer,
+                    "total_reviews_completed": stat_data.get(
+                        "total_reviews_completed", 0
+                    ),
+                    "total_reviews_declined": stat_data.get(
+                        "total_reviews_declined", 0
+                    ),
+                    "total_reviews_timeout": stat_data.get("total_reviews_timeout", 0),
+                    "average_review_time_days": stat_data.get(
+                        "average_review_time_days"
+                    ),
+                    "average_score_given": stat_data.get("average_score_given"),
+                    "last_review_date": stat_data.get("last_review_date"),
+                    "quality_rating": stat_data.get("quality_rating"),
+                    "quality_rating_count": stat_data.get("quality_rating_count", 0),
+                }
+
+                if not self.dry_run:
+                    existing = ReviewerStats.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            ReviewerStats.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["reviewer_stats"]["updated"] += 1
+                        else:
+                            self.stats["reviewer_stats"]["skipped"] += 1
+                    else:
+                        ReviewerStats.objects.create(uuid=uuid, **defaults)
+                        self.stats["reviewer_stats"]["created"] += 1
+                else:
+                    existing = ReviewerStats.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["reviewer_stats"]["updated"] += 1
+                        else:
+                            self.stats["reviewer_stats"]["skipped"] += 1
+                    else:
+                        self.stats["reviewer_stats"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import reviewer stats {stat_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["reviewer_stats"]["errors"] += 1
+
+    def import_call_coi_configurations(self, configs_data):
+        """Import call COI configuration data."""
+        self.stdout.write("Importing call COI configurations...")
+        for config_data in configs_data:
+            try:
+                uuid = config_data.get("uuid")
+                call_uuid = config_data.get("call_uuid")
+
+                if not uuid or not call_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping call COI config without UUID or call_uuid"
+                        )
+                    )
+                    self.stats["call_coi_configurations"]["errors"] += 1
+                    continue
+
+                call = Call.objects.filter(uuid=call_uuid).first()
+                if not call:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping COI config {uuid}: call {call_uuid} not found"
+                        )
+                    )
+                    self.stats["call_coi_configurations"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "call": call,
+                    "coauthorship_lookback_years": config_data.get(
+                        "coauthorship_lookback_years", 3
+                    ),
+                    "coauthorship_threshold_papers": config_data.get(
+                        "coauthorship_threshold_papers", 1
+                    ),
+                    "institutional_lookback_years": config_data.get(
+                        "institutional_lookback_years", 2
+                    ),
+                    "include_same_department": config_data.get(
+                        "include_same_department", True
+                    ),
+                    "include_same_institution": config_data.get(
+                        "include_same_institution", True
+                    ),
+                    "recusal_required_types": config_data.get(
+                        "recusal_required_types", []
+                    ),
+                    "management_allowed_types": config_data.get(
+                        "management_allowed_types", []
+                    ),
+                    "disclosure_only_types": config_data.get(
+                        "disclosure_only_types", []
+                    ),
+                    "auto_detect_coauthorship": config_data.get(
+                        "auto_detect_coauthorship", True
+                    ),
+                    "auto_detect_institutional": config_data.get(
+                        "auto_detect_institutional", True
+                    ),
+                    "auto_detect_named_personnel": config_data.get(
+                        "auto_detect_named_personnel", True
+                    ),
+                }
+
+                if not self.dry_run:
+                    existing = CallCOIConfiguration.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            CallCOIConfiguration.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["call_coi_configurations"]["updated"] += 1
+                        else:
+                            self.stats["call_coi_configurations"]["skipped"] += 1
+                    else:
+                        CallCOIConfiguration.objects.create(uuid=uuid, **defaults)
+                        self.stats["call_coi_configurations"]["created"] += 1
+                else:
+                    existing = CallCOIConfiguration.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["call_coi_configurations"]["updated"] += 1
+                        else:
+                            self.stats["call_coi_configurations"]["skipped"] += 1
+                    else:
+                        self.stats["call_coi_configurations"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import call COI config {config_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["call_coi_configurations"]["errors"] += 1
+
+    def import_matching_configurations(self, configs_data):
+        """Import matching configuration data."""
+        self.stdout.write("Importing matching configurations...")
+        for config_data in configs_data:
+            try:
+                uuid = config_data.get("uuid")
+                call_uuid = config_data.get("call_uuid")
+
+                if not uuid or not call_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping matching config without UUID or call_uuid"
+                        )
+                    )
+                    self.stats["matching_configurations"]["errors"] += 1
+                    continue
+
+                call = Call.objects.filter(uuid=call_uuid).first()
+                if not call:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping matching config {uuid}: call {call_uuid} not found"
+                        )
+                    )
+                    self.stats["matching_configurations"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "call": call,
+                    "affinity_method": config_data.get("affinity_method", "combined"),
+                    "keyword_weight": config_data.get("keyword_weight", 0.4),
+                    "text_weight": config_data.get("text_weight", 0.6),
+                    "min_reviewers_per_proposal": config_data.get(
+                        "min_reviewers_per_proposal", 3
+                    ),
+                    "max_reviewers_per_proposal": config_data.get(
+                        "max_reviewers_per_proposal", 5
+                    ),
+                    "min_proposals_per_reviewer": config_data.get(
+                        "min_proposals_per_reviewer", 3
+                    ),
+                    "max_proposals_per_reviewer": config_data.get(
+                        "max_proposals_per_reviewer", 10
+                    ),
+                    "algorithm": config_data.get("algorithm", "minmax"),
+                    "min_affinity_threshold": config_data.get(
+                        "min_affinity_threshold", 0.1
+                    ),
+                    "use_reviewer_bids": config_data.get("use_reviewer_bids", True),
+                    "bid_weight": config_data.get("bid_weight", 0.3),
+                }
+
+                if not self.dry_run:
+                    existing = MatchingConfiguration.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            MatchingConfiguration.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["matching_configurations"]["updated"] += 1
+                        else:
+                            self.stats["matching_configurations"]["skipped"] += 1
+                    else:
+                        MatchingConfiguration.objects.create(uuid=uuid, **defaults)
+                        self.stats["matching_configurations"]["created"] += 1
+                else:
+                    existing = MatchingConfiguration.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["matching_configurations"]["updated"] += 1
+                        else:
+                            self.stats["matching_configurations"]["skipped"] += 1
+                    else:
+                        self.stats["matching_configurations"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import matching config {config_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["matching_configurations"]["errors"] += 1
+
+    def import_call_reviewer_pools(self, pools_data):
+        """Import call reviewer pool data."""
+        self.stdout.write("Importing call reviewer pools...")
+        for pool_data in pools_data:
+            try:
+                uuid = pool_data.get("uuid")
+                call_uuid = pool_data.get("call_uuid")
+                reviewer_uuid = pool_data.get("reviewer_uuid")
+                invited_email = pool_data.get("invited_email", "")
+
+                # Require either reviewer_uuid or invited_email (for email-only invitations)
+                if not uuid or not call_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping call reviewer pool without UUID or call_uuid"
+                        )
+                    )
+                    self.stats["call_reviewer_pools"]["errors"] += 1
+                    continue
+
+                if not reviewer_uuid and not invited_email:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping pool {uuid}: requires either reviewer_uuid or invited_email"
+                        )
+                    )
+                    self.stats["call_reviewer_pools"]["errors"] += 1
+                    continue
+
+                call = Call.objects.filter(uuid=call_uuid).first()
+                if not call:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping pool {uuid}: call {call_uuid} not found"
+                        )
+                    )
+                    self.stats["call_reviewer_pools"]["errors"] += 1
+                    continue
+
+                # Reviewer is optional for email-only invitations
+                reviewer = None
+                if reviewer_uuid:
+                    reviewer = ReviewerProfile.objects.filter(
+                        uuid=reviewer_uuid
+                    ).first()
+                    if not reviewer:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Skipping pool {uuid}: reviewer {reviewer_uuid} not found"
+                            )
+                        )
+                        self.stats["call_reviewer_pools"]["errors"] += 1
+                        continue
+
+                invited_by = None
+                invited_by_uuid = pool_data.get("invited_by_uuid")
+                if invited_by_uuid:
+                    invited_by = User.objects.filter(uuid=invited_by_uuid).first()
+
+                # Look up invited_user if specified
+                invited_user = None
+                invited_user_uuid = pool_data.get("invited_user_uuid")
+                if invited_user_uuid:
+                    invited_user = User.objects.filter(uuid=invited_user_uuid).first()
+
+                defaults = {
+                    "call": call,
+                    "reviewer": reviewer,
+                    "invited_email": invited_email,
+                    "invited_user": invited_user,
+                    "invited_by": invited_by,
+                    "invitation_status": pool_data.get("invitation_status", "pending"),
+                    "decline_reason": pool_data.get("decline_reason", ""),
+                    "max_assignments": pool_data.get("max_assignments", 5),
+                    "current_assignments": pool_data.get("current_assignments", 0),
+                    "expertise_match_score": pool_data.get("expertise_match_score"),
+                }
+
+                # Handle invitation_token separately
+                invitation_token = pool_data.get("invitation_token")
+
+                if not self.dry_run:
+                    existing = CallReviewerPool.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            CallReviewerPool.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["call_reviewer_pools"]["updated"] += 1
+                        else:
+                            self.stats["call_reviewer_pools"]["skipped"] += 1
+                    else:
+                        pool = CallReviewerPool(uuid=uuid, **defaults)
+                        if invitation_token:
+                            pool.invitation_token = invitation_token
+                        pool.save()
+                        self.stats["call_reviewer_pools"]["created"] += 1
+                else:
+                    existing = CallReviewerPool.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["call_reviewer_pools"]["updated"] += 1
+                        else:
+                            self.stats["call_reviewer_pools"]["skipped"] += 1
+                    else:
+                        self.stats["call_reviewer_pools"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import call reviewer pool {pool_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["call_reviewer_pools"]["errors"] += 1
+
+    def import_conflicts_of_interest(self, conflicts_data):
+        """Import conflict of interest data."""
+        self.stdout.write("Importing conflicts of interest...")
+        for coi_data in conflicts_data:
+            try:
+                uuid = coi_data.get("uuid")
+                reviewer_uuid = coi_data.get("reviewer_uuid")
+                call_uuid = coi_data.get("call_uuid")
+
+                if not uuid or not reviewer_uuid or not call_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping COI without UUID, reviewer_uuid, or call_uuid"
+                        )
+                    )
+                    self.stats["conflicts_of_interest"]["errors"] += 1
+                    continue
+
+                reviewer = ReviewerProfile.objects.filter(uuid=reviewer_uuid).first()
+                if not reviewer:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping COI {uuid}: reviewer {reviewer_uuid} not found"
+                        )
+                    )
+                    self.stats["conflicts_of_interest"]["errors"] += 1
+                    continue
+
+                call = Call.objects.filter(uuid=call_uuid).first()
+                if not call:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping COI {uuid}: call {call_uuid} not found"
+                        )
+                    )
+                    self.stats["conflicts_of_interest"]["errors"] += 1
+                    continue
+
+                proposal = None
+                proposal_uuid = coi_data.get("proposal_uuid")
+                if proposal_uuid:
+                    proposal = Proposal.objects.filter(uuid=proposal_uuid).first()
+
+                conflicting_user = None
+                conflicting_user_uuid = coi_data.get("conflicting_user_uuid")
+                if conflicting_user_uuid:
+                    conflicting_user = User.objects.filter(
+                        uuid=conflicting_user_uuid
+                    ).first()
+
+                conflicting_org = None
+                conflicting_org_uuid = coi_data.get("conflicting_organization_uuid")
+                if conflicting_org_uuid:
+                    conflicting_org = Customer.objects.filter(
+                        uuid=conflicting_org_uuid
+                    ).first()
+
+                defaults = {
+                    "reviewer": reviewer,
+                    "proposal": proposal,
+                    "call": call,
+                    "conflicting_user": conflicting_user,
+                    "conflicting_organization": conflicting_org,
+                    "coi_type": coi_data.get("coi_type", "coauthorship"),
+                    "severity": coi_data.get("severity", "medium"),
+                    "detection_method": coi_data.get("detection_method", "manual"),
+                    "evidence_description": coi_data.get("evidence_description", ""),
+                    "evidence_data": coi_data.get("evidence_data", {}),
+                    "status": coi_data.get("status", "pending"),
+                    "review_notes": coi_data.get("review_notes", ""),
+                    "management_plan": coi_data.get("management_plan", ""),
+                }
+
+                if not self.dry_run:
+                    existing = ConflictOfInterest.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            ConflictOfInterest.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["conflicts_of_interest"]["updated"] += 1
+                        else:
+                            self.stats["conflicts_of_interest"]["skipped"] += 1
+                    else:
+                        ConflictOfInterest.objects.create(uuid=uuid, **defaults)
+                        self.stats["conflicts_of_interest"]["created"] += 1
+                else:
+                    existing = ConflictOfInterest.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["conflicts_of_interest"]["updated"] += 1
+                        else:
+                            self.stats["conflicts_of_interest"]["skipped"] += 1
+                    else:
+                        self.stats["conflicts_of_interest"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import COI {coi_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["conflicts_of_interest"]["errors"] += 1
+
+    def import_coi_disclosure_forms(self, forms_data):
+        """Import COI disclosure form data."""
+        self.stdout.write("Importing COI disclosure forms...")
+        for form_data in forms_data:
+            try:
+                uuid = form_data.get("uuid")
+                reviewer_uuid = form_data.get("reviewer_uuid")
+
+                if not uuid or not reviewer_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping COI disclosure form without UUID or reviewer_uuid"
+                        )
+                    )
+                    self.stats["coi_disclosure_forms"]["errors"] += 1
+                    continue
+
+                reviewer = ReviewerProfile.objects.filter(uuid=reviewer_uuid).first()
+                if not reviewer:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping disclosure form {uuid}: reviewer {reviewer_uuid} not found"
+                        )
+                    )
+                    self.stats["coi_disclosure_forms"]["errors"] += 1
+                    continue
+
+                call = None
+                call_uuid = form_data.get("call_uuid")
+                if call_uuid:
+                    call = Call.objects.filter(uuid=call_uuid).first()
+
+                defaults = {
+                    "reviewer": reviewer,
+                    "call": call,
+                    "certified": form_data.get("certified", False),
+                    "certification_date": form_data.get("certification_date"),
+                    "certification_statement": form_data.get(
+                        "certification_statement", ""
+                    ),
+                    "has_financial_interests": form_data.get(
+                        "has_financial_interests", False
+                    ),
+                    "has_personal_relationships": form_data.get(
+                        "has_personal_relationships", False
+                    ),
+                    "personal_relationships": form_data.get(
+                        "personal_relationships", []
+                    ),
+                    "has_other_conflicts": form_data.get("has_other_conflicts", False),
+                    "other_conflicts_description": form_data.get(
+                        "other_conflicts_description", ""
+                    ),
+                    "valid_until": form_data.get("valid_until"),
+                    "is_current": form_data.get("is_current", True),
+                }
+
+                if not self.dry_run:
+                    existing = COIDisclosureForm.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            COIDisclosureForm.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["coi_disclosure_forms"]["updated"] += 1
+                        else:
+                            self.stats["coi_disclosure_forms"]["skipped"] += 1
+                    else:
+                        COIDisclosureForm.objects.create(uuid=uuid, **defaults)
+                        self.stats["coi_disclosure_forms"]["created"] += 1
+                else:
+                    existing = COIDisclosureForm.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["coi_disclosure_forms"]["updated"] += 1
+                        else:
+                            self.stats["coi_disclosure_forms"]["skipped"] += 1
+                    else:
+                        self.stats["coi_disclosure_forms"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import COI disclosure form {form_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["coi_disclosure_forms"]["errors"] += 1
+
+    def import_reviewer_proposal_affinities(self, affinities_data):
+        """Import reviewer proposal affinity data."""
+        self.stdout.write("Importing reviewer proposal affinities...")
+        for aff_data in affinities_data:
+            try:
+                uuid = aff_data.get("uuid")
+                call_uuid = aff_data.get("call_uuid")
+                reviewer_uuid = aff_data.get("reviewer_uuid")
+                proposal_uuid = aff_data.get("proposal_uuid")
+
+                if not uuid or not call_uuid or not reviewer_uuid or not proposal_uuid:
+                    self.stdout.write(
+                        self.style.WARNING("Skipping affinity without required UUIDs")
+                    )
+                    self.stats["reviewer_proposal_affinities"]["errors"] += 1
+                    continue
+
+                call = Call.objects.filter(uuid=call_uuid).first()
+                if not call:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping affinity {uuid}: call {call_uuid} not found"
+                        )
+                    )
+                    self.stats["reviewer_proposal_affinities"]["errors"] += 1
+                    continue
+
+                reviewer = ReviewerProfile.objects.filter(uuid=reviewer_uuid).first()
+                if not reviewer:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping affinity {uuid}: reviewer {reviewer_uuid} not found"
+                        )
+                    )
+                    self.stats["reviewer_proposal_affinities"]["errors"] += 1
+                    continue
+
+                proposal = Proposal.objects.filter(uuid=proposal_uuid).first()
+                if not proposal:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping affinity {uuid}: proposal {proposal_uuid} not found"
+                        )
+                    )
+                    self.stats["reviewer_proposal_affinities"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "call": call,
+                    "reviewer": reviewer,
+                    "proposal": proposal,
+                    "affinity_score": aff_data.get("affinity_score", 0.0),
+                    "keyword_score": aff_data.get("keyword_score"),
+                    "text_score": aff_data.get("text_score"),
+                }
+
+                if not self.dry_run:
+                    existing = ReviewerProposalAffinity.objects.filter(
+                        uuid=uuid
+                    ).first()
+                    if existing:
+                        if self.update_existing:
+                            ReviewerProposalAffinity.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["reviewer_proposal_affinities"]["updated"] += 1
+                        else:
+                            self.stats["reviewer_proposal_affinities"]["skipped"] += 1
+                    else:
+                        ReviewerProposalAffinity.objects.create(uuid=uuid, **defaults)
+                        self.stats["reviewer_proposal_affinities"]["created"] += 1
+                else:
+                    existing = ReviewerProposalAffinity.objects.filter(
+                        uuid=uuid
+                    ).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["reviewer_proposal_affinities"]["updated"] += 1
+                        else:
+                            self.stats["reviewer_proposal_affinities"]["skipped"] += 1
+                    else:
+                        self.stats["reviewer_proposal_affinities"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import affinity {aff_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["reviewer_proposal_affinities"]["errors"] += 1
+
+    def import_reviewer_bids(self, bids_data):
+        """Import reviewer bid data."""
+        self.stdout.write("Importing reviewer bids...")
+        for bid_data in bids_data:
+            try:
+                uuid = bid_data.get("uuid")
+                call_uuid = bid_data.get("call_uuid")
+                reviewer_uuid = bid_data.get("reviewer_uuid")
+                proposal_uuid = bid_data.get("proposal_uuid")
+
+                if not uuid or not call_uuid or not reviewer_uuid or not proposal_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping reviewer bid without required UUIDs"
+                        )
+                    )
+                    self.stats["reviewer_bids"]["errors"] += 1
+                    continue
+
+                call = Call.objects.filter(uuid=call_uuid).first()
+                if not call:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping bid {uuid}: call {call_uuid} not found"
+                        )
+                    )
+                    self.stats["reviewer_bids"]["errors"] += 1
+                    continue
+
+                reviewer = ReviewerProfile.objects.filter(uuid=reviewer_uuid).first()
+                if not reviewer:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping bid {uuid}: reviewer {reviewer_uuid} not found"
+                        )
+                    )
+                    self.stats["reviewer_bids"]["errors"] += 1
+                    continue
+
+                proposal = Proposal.objects.filter(uuid=proposal_uuid).first()
+                if not proposal:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping bid {uuid}: proposal {proposal_uuid} not found"
+                        )
+                    )
+                    self.stats["reviewer_bids"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "call": call,
+                    "reviewer": reviewer,
+                    "proposal": proposal,
+                    "bid": bid_data.get("bid", "willing"),
+                    "comment": bid_data.get("comment", ""),
+                }
+
+                if not self.dry_run:
+                    existing = ReviewerBid.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            ReviewerBid.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["reviewer_bids"]["updated"] += 1
+                        else:
+                            self.stats["reviewer_bids"]["skipped"] += 1
+                    else:
+                        ReviewerBid.objects.create(uuid=uuid, **defaults)
+                        self.stats["reviewer_bids"]["created"] += 1
+                else:
+                    existing = ReviewerBid.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["reviewer_bids"]["updated"] += 1
+                        else:
+                            self.stats["reviewer_bids"]["skipped"] += 1
+                    else:
+                        self.stats["reviewer_bids"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import reviewer bid {bid_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["reviewer_bids"]["errors"] += 1
+
+    def import_assignment_batches(self, batches_data):
+        """Import assignment batch data (Stage 2 of two-stage reviewer workflow)."""
+        self.stdout.write("Importing assignment batches...")
+        for batch_data in batches_data:
+            try:
+                uuid = batch_data.get("uuid")
+                call_uuid = batch_data.get("call_uuid")
+                reviewer_pool_entry_uuid = batch_data.get("reviewer_pool_entry_uuid")
+
+                if not uuid or not call_uuid or not reviewer_pool_entry_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping assignment batch without required UUIDs"
+                        )
+                    )
+                    self.stats["assignment_batches"]["errors"] += 1
+                    continue
+
+                call = Call.objects.filter(uuid=call_uuid).first()
+                if not call:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping batch {uuid}: call {call_uuid} not found"
+                        )
+                    )
+                    self.stats["assignment_batches"]["errors"] += 1
+                    continue
+
+                reviewer_pool_entry = CallReviewerPool.objects.filter(
+                    uuid=reviewer_pool_entry_uuid
+                ).first()
+                if not reviewer_pool_entry:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping batch {uuid}: reviewer_pool_entry {reviewer_pool_entry_uuid} not found"
+                        )
+                    )
+                    self.stats["assignment_batches"]["errors"] += 1
+                    continue
+
+                created_by = None
+                if batch_data.get("created_by_uuid"):
+                    created_by = User.objects.filter(
+                        uuid=batch_data["created_by_uuid"]
+                    ).first()
+
+                defaults = {
+                    "call": call,
+                    "reviewer_pool_entry": reviewer_pool_entry,
+                    "status": batch_data.get("status", "draft"),
+                    "source": batch_data.get("source", "algorithm"),
+                    "created_by": created_by,
+                    "invitation_token": batch_data.get("invitation_token", ""),
+                    "manager_notes": batch_data.get("manager_notes", ""),
+                }
+
+                # Parse datetime fields
+                if batch_data.get("sent_at"):
+                    from django.utils.dateparse import parse_datetime
+
+                    defaults["sent_at"] = parse_datetime(batch_data["sent_at"])
+                if batch_data.get("expires_at"):
+                    from django.utils.dateparse import parse_datetime
+
+                    defaults["expires_at"] = parse_datetime(batch_data["expires_at"])
+                if batch_data.get("responded_at"):
+                    from django.utils.dateparse import parse_datetime
+
+                    defaults["responded_at"] = parse_datetime(
+                        batch_data["responded_at"]
+                    )
+
+                if not self.dry_run:
+                    existing = AssignmentBatch.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            AssignmentBatch.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["assignment_batches"]["updated"] += 1
+                        else:
+                            self.stats["assignment_batches"]["skipped"] += 1
+                    else:
+                        AssignmentBatch.objects.create(uuid=uuid, **defaults)
+                        self.stats["assignment_batches"]["created"] += 1
+                else:
+                    existing = AssignmentBatch.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["assignment_batches"]["updated"] += 1
+                        else:
+                            self.stats["assignment_batches"]["skipped"] += 1
+                    else:
+                        self.stats["assignment_batches"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import assignment batch {batch_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["assignment_batches"]["errors"] += 1
+
+    def import_assignment_items(self, items_data):
+        """Import assignment item data."""
+        self.stdout.write("Importing assignment items...")
+        for item_data in items_data:
+            try:
+                uuid = item_data.get("uuid")
+                batch_uuid = item_data.get("batch_uuid")
+                proposal_uuid = item_data.get("proposal_uuid")
+
+                if not uuid or not batch_uuid or not proposal_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping assignment item without required UUIDs"
+                        )
+                    )
+                    self.stats["assignment_items"]["errors"] += 1
+                    continue
+
+                batch = AssignmentBatch.objects.filter(uuid=batch_uuid).first()
+                if not batch:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping item {uuid}: batch {batch_uuid} not found"
+                        )
+                    )
+                    self.stats["assignment_items"]["errors"] += 1
+                    continue
+
+                proposal = Proposal.objects.filter(uuid=proposal_uuid).first()
+                if not proposal:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping item {uuid}: proposal {proposal_uuid} not found"
+                        )
+                    )
+                    self.stats["assignment_items"]["errors"] += 1
+                    continue
+
+                # Optional: link to review if it exists
+                review = None
+                if item_data.get("review_uuid"):
+                    review = Review.objects.filter(
+                        uuid=item_data["review_uuid"]
+                    ).first()
+
+                # Optional: link to reassigned_from if it exists
+                reassigned_from = None
+                if item_data.get("reassigned_from_uuid"):
+                    reassigned_from = AssignmentItem.objects.filter(
+                        uuid=item_data["reassigned_from_uuid"]
+                    ).first()
+
+                defaults = {
+                    "batch": batch,
+                    "proposal": proposal,
+                    "status": item_data.get("status", "pending"),
+                    "affinity_score": item_data.get("affinity_score"),
+                    "has_coi": item_data.get("has_coi", False),
+                    "decline_reason": item_data.get("decline_reason", ""),
+                    "review": review,
+                    "reassigned_from": reassigned_from,
+                    "reassign_count": item_data.get("reassign_count", 0),
+                }
+
+                # Parse datetime fields
+                if item_data.get("responded_at"):
+                    from django.utils.dateparse import parse_datetime
+
+                    defaults["responded_at"] = parse_datetime(item_data["responded_at"])
+
+                if not self.dry_run:
+                    existing = AssignmentItem.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            AssignmentItem.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["assignment_items"]["updated"] += 1
+                        else:
+                            self.stats["assignment_items"]["skipped"] += 1
+                    else:
+                        AssignmentItem.objects.create(uuid=uuid, **defaults)
+                        self.stats["assignment_items"]["created"] += 1
+                else:
+                    existing = AssignmentItem.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["assignment_items"]["updated"] += 1
+                        else:
+                            self.stats["assignment_items"]["skipped"] += 1
+                    else:
+                        self.stats["assignment_items"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import assignment item {item_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["assignment_items"]["errors"] += 1
 
     def _sync_user_activation_status(self):
         """

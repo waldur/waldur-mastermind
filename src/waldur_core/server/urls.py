@@ -37,6 +37,11 @@ from waldur_mastermind.marketplace.views import (
     ServiceProviderUserCustomersViewSet,
     ServiceProviderUsersViewSet,
 )
+from waldur_mastermind.proposal.views import (
+    ReviewerProfileAffiliationViewSet,
+    ReviewerProfileExpertiseViewSet,
+    ReviewerProfilePublicationViewSet,
+)
 
 router = DefaultRouter()
 logging_urls.register_in(router)
@@ -154,12 +159,32 @@ project_router.register(
     basename="project-other-users",
 )
 
+reviewer_profile_router = NestedSimpleRouter(
+    router, r"reviewer-profiles", lookup="reviewer_profile"
+)
+reviewer_profile_router.register(
+    r"affiliations",
+    ReviewerProfileAffiliationViewSet,
+    basename="reviewer-profile-affiliations",
+)
+reviewer_profile_router.register(
+    r"expertise",
+    ReviewerProfileExpertiseViewSet,
+    basename="reviewer-profile-expertise",
+)
+reviewer_profile_router.register(
+    r"publications",
+    ReviewerProfilePublicationViewSet,
+    basename="reviewer-profile-publications",
+)
+
 
 urlpatterns += [
     re_path(r"^api/", include(router.urls)),
     re_path(r"^api/", include(service_provider_router.urls)),
     re_path(r"^api/", include(customer_router.urls)),
     re_path(r"^api/", include(project_router.urls)),
+    re_path(r"^api/", include(reviewer_profile_router.urls)),
     re_path(r"^api/", include("waldur_core.logging.urls")),
     re_path(r"^api/", include("waldur_core.media.urls")),
     re_path(r"^api/", include("waldur_core.structure.urls")),

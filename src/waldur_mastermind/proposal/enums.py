@@ -52,3 +52,485 @@ class ProposalStates:
         (REJECTED, "Rejected"),
         (CANCELED, "Canceled"),
     )
+
+
+class ReviewStates:
+    IN_REVIEW = "in_review"
+    SUBMITTED = "submitted"
+    REJECTED = "rejected"
+
+    CHOICES = (
+        (IN_REVIEW, "In review"),
+        (SUBMITTED, "Submitted"),
+        (REJECTED, "Rejected"),
+    )
+
+
+# Reviewer Profile Enums
+
+
+class ReviewerAffiliationTypes:
+    EMPLOYMENT = "employment"
+    EDUCATION = "education"
+    VISITING = "visiting"
+    HONORARY = "honorary"
+    CONSULTING = "consulting"
+
+    CHOICES = (
+        (EMPLOYMENT, "Employment"),
+        (EDUCATION, "Education"),
+        (VISITING, "Visiting position"),
+        (HONORARY, "Honorary position"),
+        (CONSULTING, "Consulting"),
+    )
+
+
+class ExpertiseProficiencyLevels:
+    EXPERT = "expert"
+    FAMILIAR = "familiar"
+    BASIC = "basic"
+
+    CHOICES = (
+        (EXPERT, "Expert - Can review independently"),
+        (FAMILIAR, "Familiar - Can review with guidance"),
+        (BASIC, "Basic - General understanding only"),
+    )
+
+
+class PublicationVenueTypes:
+    JOURNAL = "journal"
+    CONFERENCE = "conference"
+    PREPRINT = "preprint"
+    BOOK = "book"
+    THESIS = "thesis"
+    REPORT = "report"
+    OTHER = "other"
+
+    CHOICES = (
+        (JOURNAL, "Journal article"),
+        (CONFERENCE, "Conference paper"),
+        (PREPRINT, "Preprint"),
+        (BOOK, "Book or book chapter"),
+        (THESIS, "Thesis or dissertation"),
+        (REPORT, "Technical report"),
+        (OTHER, "Other"),
+    )
+
+
+# Conflict of Interest Enums
+
+
+class COITypes:
+    """COI type codes based on NIH, ERC, and industry standards."""
+
+    # Real conflicts (must recuse)
+    INST_SAME = "INST_SAME"
+    FIN_DIRECT = "FIN_DIRECT"
+    REL_FAMILY = "REL_FAMILY"
+    ROLE_NAMED = "ROLE_NAMED"
+    COLLAB_ACTIVE = "COLLAB_ACTIVE"
+    REL_MENTOR = "REL_MENTOR"
+    REL_SUPERVISOR = "REL_SUPERVISOR"
+
+    # Apparent conflicts (requires management)
+    COAUTH_RECENT = "COAUTH_RECENT"
+    INST_DEPT = "INST_DEPT"
+    INST_FORMER = "INST_FORMER"
+    ROLE_CONF = "ROLE_CONF"
+    COLLAB_GRANT = "COLLAB_GRANT"
+    REL_EDITORIAL = "REL_EDITORIAL"
+    COMPET = "COMPET"
+
+    # Potential conflicts (disclosure only)
+    COAUTH_OLD = "COAUTH_OLD"
+    INST_CONSORT = "INST_CONSORT"
+    CONF_ATTEND = "CONF_ATTEND"
+    SOC_MEMBER = "SOC_MEMBER"
+
+    CHOICES = (
+        # Real conflicts
+        (INST_SAME, "Same institution"),
+        (FIN_DIRECT, "Direct financial interest"),
+        (REL_FAMILY, "Family relationship"),
+        (ROLE_NAMED, "Named on proposal"),
+        (COLLAB_ACTIVE, "Active collaboration"),
+        (REL_MENTOR, "Mentor/mentee relationship"),
+        (REL_SUPERVISOR, "Supervisor relationship"),
+        # Apparent conflicts
+        (COAUTH_RECENT, "Recent co-authorship"),
+        (INST_DEPT, "Same department"),
+        (INST_FORMER, "Former institution"),
+        (ROLE_CONF, "Conference organizer"),
+        (COLLAB_GRANT, "Grant collaboration"),
+        (REL_EDITORIAL, "Editorial relationship"),
+        (COMPET, "Competitor"),
+        # Potential conflicts
+        (COAUTH_OLD, "Distant co-authorship"),
+        (INST_CONSORT, "Consortium membership"),
+        (CONF_ATTEND, "Conference participation"),
+        (SOC_MEMBER, "Professional society"),
+    )
+
+    # Mapping from type to default severity
+    SEVERITY_MAP = {
+        INST_SAME: "real",
+        FIN_DIRECT: "real",
+        REL_FAMILY: "real",
+        ROLE_NAMED: "real",
+        COLLAB_ACTIVE: "real",
+        REL_MENTOR: "real",
+        REL_SUPERVISOR: "real",
+        COAUTH_RECENT: "apparent",
+        INST_DEPT: "apparent",
+        INST_FORMER: "apparent",
+        ROLE_CONF: "apparent",
+        COLLAB_GRANT: "apparent",
+        REL_EDITORIAL: "apparent",
+        COMPET: "apparent",
+        COAUTH_OLD: "potential",
+        INST_CONSORT: "potential",
+        CONF_ATTEND: "potential",
+        SOC_MEMBER: "potential",
+    }
+
+    # Types that can be automatically detected
+    AUTO_DETECT_TYPES = {
+        INST_SAME,
+        INST_DEPT,
+        INST_FORMER,
+        COAUTH_RECENT,
+        COAUTH_OLD,
+        ROLE_NAMED,
+    }
+
+
+class COISeverityLevels:
+    REAL = "real"
+    APPARENT = "apparent"
+    POTENTIAL = "potential"
+
+    CHOICES = (
+        (REAL, "Real conflict - must recuse"),
+        (APPARENT, "Apparent conflict - requires management"),
+        (POTENTIAL, "Potential conflict - disclosure only"),
+    )
+
+
+class COIDetectionMethods:
+    AUTOMATED = "automated"
+    SELF_DISCLOSED = "self_disclosed"
+    REPORTED = "reported"
+    MANAGER_IDENTIFIED = "manager_identified"
+
+    CHOICES = (
+        (AUTOMATED, "Automated detection"),
+        (SELF_DISCLOSED, "Self-disclosed by reviewer"),
+        (REPORTED, "Reported by third party"),
+        (MANAGER_IDENTIFIED, "Identified by call manager"),
+    )
+
+
+class COIStatuses:
+    PENDING = "pending"
+    DISMISSED = "dismissed"
+    WAIVED = "waived"
+    RECUSED = "recused"
+
+    CHOICES = (
+        (PENDING, "Pending review"),
+        (DISMISSED, "Dismissed - not a conflict"),
+        (WAIVED, "Waived with management plan"),
+        (RECUSED, "Reviewer recused"),
+    )
+
+
+# Reviewer Pool Enums
+
+
+class ReviewerPoolInvitationStatuses:
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    EXPIRED = "expired"
+
+    CHOICES = (
+        (PENDING, "Invitation pending"),
+        (ACCEPTED, "Accepted"),
+        (DECLINED, "Declined"),
+        (EXPIRED, "Invitation expired"),
+    )
+
+
+# COI Disclosure Enums
+
+
+class FinancialInterestEntityTypes:
+    COMPANY = "company"
+    STARTUP = "startup"
+    NONPROFIT = "nonprofit"
+    GOVERNMENT = "government"
+    OTHER = "other"
+
+    CHOICES = (
+        (COMPANY, "Company"),
+        (STARTUP, "Startup"),
+        (NONPROFIT, "Non-profit organization"),
+        (GOVERNMENT, "Government entity"),
+        (OTHER, "Other"),
+    )
+
+
+class FinancialInterestRelationshipTypes:
+    EMPLOYMENT = "employment"
+    CONSULTING = "consulting"
+    EQUITY = "equity"
+    BOARD = "board"
+    ROYALTIES = "royalties"
+    GIFTS = "gifts"
+    OTHER = "other"
+
+    CHOICES = (
+        (EMPLOYMENT, "Employment"),
+        (CONSULTING, "Consulting"),
+        (EQUITY, "Equity/stock ownership"),
+        (BOARD, "Board membership"),
+        (ROYALTIES, "Royalties/licensing"),
+        (GIFTS, "Gifts/honoraria"),
+        (OTHER, "Other"),
+    )
+
+
+class FinancialInterestAmountRanges:
+    NONE = "none"
+    UNDER_5K = "under_5k"
+    RANGE_5K_10K = "5k_10k"
+    RANGE_10K_50K = "10k_50k"
+    OVER_50K = "over_50k"
+
+    CHOICES = (
+        (NONE, "None"),
+        (UNDER_5K, "Under $5,000"),
+        (RANGE_5K_10K, "$5,000 - $10,000"),
+        (RANGE_10K_50K, "$10,000 - $50,000"),
+        (OVER_50K, "Over $50,000"),
+    )
+
+
+# Matching Enums
+
+
+class MatchingAffinityMethods:
+    KEYWORD = "keyword"
+    TFIDF = "tfidf"
+    COMBINED = "combined"
+
+    CHOICES = (
+        (KEYWORD, "Keyword matching only"),
+        (TFIDF, "TF-IDF text similarity"),
+        (COMBINED, "Combined keyword + text"),
+    )
+
+
+class MatchingAlgorithms:
+    MINMAX = "minmax"
+    FAIRFLOW = "fairflow"
+    HUNGARIAN = "hungarian"
+
+    CHOICES = (
+        (MINMAX, "MinMax (balanced load)"),
+        (FAIRFLOW, "FairFlow (quality threshold)"),
+        (HUNGARIAN, "Hungarian (global optimum)"),
+    )
+
+
+class COIDetectionJobTypes:
+    FULL_CALL = "full_call"
+    INCREMENTAL = "incremental"
+    SINGLE_PAIR = "single_pair"
+
+    CHOICES = (
+        (FULL_CALL, "Full call detection"),
+        (INCREMENTAL, "Incremental detection"),
+        (SINGLE_PAIR, "Single pair detection"),
+    )
+
+
+class COIDetectionJobStates:
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+    CHOICES = (
+        (PENDING, "Pending"),
+        (RUNNING, "Running"),
+        (COMPLETED, "Completed"),
+        (FAILED, "Failed"),
+        (CANCELLED, "Cancelled"),
+    )
+
+
+class ReviewerBidChoices:
+    """Choices for reviewer bids on proposals."""
+
+    EAGER = "eager"
+    WILLING = "willing"
+    NOT_WILLING = "not_willing"
+    CONFLICT = "conflict"
+
+    CHOICES = (
+        (EAGER, "Eager to review"),
+        (WILLING, "Willing to review"),
+        (NOT_WILLING, "Not willing to review"),
+        (CONFLICT, "Has conflict of interest"),
+    )
+
+    # Weights for matching algorithm (higher = better match preference)
+    WEIGHTS = {
+        EAGER: 1.0,
+        WILLING: 0.5,
+        NOT_WILLING: -0.5,
+        CONFLICT: -1.0,
+    }
+
+
+class ReviewerSuggestionStatuses:
+    """Statuses for algorithm-generated reviewer suggestions."""
+
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    REJECTED = "rejected"
+    INVITED = "invited"
+
+    CHOICES = (
+        (PENDING, "Awaiting manager review"),
+        (CONFIRMED, "Manager approved"),
+        (REJECTED, "Manager rejected"),
+        (INVITED, "Invitation sent"),
+    )
+
+
+class ProposalDisclosureLevels:
+    """Level of proposal information disclosed in reviewer invitations."""
+
+    TITLES_ONLY = "titles_only"
+    TITLES_AND_SUMMARIES = "titles_and_summaries"
+    FULL_DETAILS = "full_details"
+
+    CHOICES = (
+        (TITLES_ONLY, "Titles only"),
+        (TITLES_AND_SUMMARIES, "Titles and summaries"),
+        (FULL_DETAILS, "Full proposal details"),
+    )
+
+
+class AffinityMatrixScopes:
+    """Scope filters for affinity matrix retrieval."""
+
+    POOL = "pool"
+    SUGGESTIONS = "suggestions"
+    ALL = "all"
+
+    CHOICES = (
+        (POOL, "Pool members only"),
+        (SUGGESTIONS, "Suggested reviewers only"),
+        (ALL, "All reviewers"),
+    )
+
+    VALUES = [val for (val, _) in CHOICES]
+
+
+class AffinityMatrixSources:
+    """Source indicators for affinity matrix entries."""
+
+    POOL = "pool"
+    SUGGESTION = "suggestion"
+
+    CHOICES = (
+        (POOL, "Pool member"),
+        (SUGGESTION, "Suggested reviewer"),
+    )
+
+
+# =============================================================================
+# Assignment Batch Enums (Stage 2 - Proposal Assignment Workflow)
+# =============================================================================
+
+
+class AssignmentBatchStatuses:
+    """Status for assignment batches sent to reviewers."""
+
+    DRAFT = "draft"
+    SENT = "sent"
+    RESPONDED = "responded"
+    EXPIRED = "expired"
+    CANCELLED = "cancelled"
+
+    CHOICES = (
+        (DRAFT, "Draft - pending approval"),
+        (SENT, "Sent to reviewer"),
+        (RESPONDED, "Reviewer responded"),
+        (EXPIRED, "Invitation expired"),
+        (CANCELLED, "Cancelled by manager"),
+    )
+
+
+class AssignmentItemStatuses:
+    """Status for individual proposal assignments within a batch."""
+
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+    COI_BLOCKED = "coi_blocked"
+    EXPIRED = "expired"
+    REASSIGNED = "reassigned"
+
+    CHOICES = (
+        (PENDING, "Awaiting response"),
+        (ACCEPTED, "Accepted"),
+        (DECLINED, "Declined"),
+        (COI_BLOCKED, "Blocked due to COI"),
+        (EXPIRED, "Expired without response"),
+        (REASSIGNED, "Reassigned to another reviewer"),
+    )
+
+
+class AssignmentSources:
+    """Source of assignment creation."""
+
+    ALGORITHM = "algorithm"
+    MANUAL = "manual"
+
+    CHOICES = (
+        (ALGORITHM, "Algorithm-generated"),
+        (MANUAL, "Manually assigned"),
+    )
+
+
+class SuggestionSourceTypes:
+    """Source types for reviewer suggestion generation."""
+
+    CALL_DESCRIPTION = "call_description"
+    ALL_PROPOSALS = "all_proposals"
+    SELECTED_PROPOSALS = "selected_proposals"
+    CUSTOM_KEYWORDS = "custom_keywords"
+
+    CHOICES = (
+        (CALL_DESCRIPTION, "Call description"),
+        (ALL_PROPOSALS, "All proposals"),
+        (SELECTED_PROPOSALS, "Selected proposals"),
+        (CUSTOM_KEYWORDS, "Custom keywords"),
+    )
+
+
+class KeywordSearchModes:
+    """Search modes for custom keyword matching."""
+
+    EXPERTISE_ONLY = "expertise_only"
+    FULL_TEXT = "full_text"
+
+    CHOICES = (
+        (EXPERTISE_ONLY, "Match against reviewer expertise keywords"),
+        (FULL_TEXT, "Search all reviewer content"),
+    )

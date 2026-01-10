@@ -2,53 +2,15 @@ import logging
 from typing import cast
 
 from django.db import transaction
-from django.db.models import OuterRef
 
-from waldur_core.core.utils import SubqueryCount, get_system_robot
+from waldur_core.core.utils import get_system_robot
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
-from waldur_mastermind.proposal import tasks
-from waldur_mastermind.proposal.enums import ProposalStates, RequestedOfferingStates
+from waldur_mastermind.proposal.enums import RequestedOfferingStates
 
 logger = logging.getLogger(__name__)
-
-
-def get_available_reviewer(proposal: proposal_models.Proposal):
-    reviewer_ids = proposal.review_set.values_list("reviewer_id", flat=True)
-    reviews = proposal_models.Review.objects.filter(
-        reviewer_id=OuterRef("pk"), proposal__round__call=proposal.round.call
-    ).exclude(state=proposal_models.Review.States.REJECTED)
-    available_reviewer = (
-        proposal.round.call.reviewers.exclude(id__in=reviewer_ids)
-        .annotate(reviewers_count=SubqueryCount(reviews))
-        .order_by("reviewers_count")
-    )
-    number_of_needed_reviewers = max(
-        0,
-        proposal.round.minimum_number_of_reviewers
-        or 0
-        - proposal.review_set.exclude(
-            state=proposal_models.Review.States.REJECTED
-        ).count(),
-    )
-    return available_reviewer[:number_of_needed_reviewers]
-
-
-def process_proposals_pending_reviewers(proposal: proposal_models.Proposal):
-    for reviewer in get_available_reviewer(proposal):
-        proposal_models.Review.objects.create(reviewer=reviewer, proposal=proposal)
-
-    # Only update state and send notification if the state is actually changing
-    if proposal.state != ProposalStates.IN_REVIEW:
-        old_state = proposal.state
-        proposal.state = ProposalStates.IN_REVIEW
-        tasks.notify_user_about_proposal_state_update.delay(
-            proposal.uuid, old_state, proposal.state
-        )
-        return proposal.save()
-    return proposal
 
 
 def allocate_proposal(proposal: proposal_models.Proposal):
@@ -121,28 +83,13 @@ def allocate_proposal(proposal: proposal_models.Proposal):
             requested_resource.save()
 
 
-def cancel_draft_proposals_in_round(call_round: proposal_models.Round):
-    """Cancel all draft proposals in a round that has ended."""
+def process_closed_round(call_round: proposal_models.Round):
+    """Process a closed round: cancel draft proposals."""
+    from waldur_mastermind.proposal.enums import ProposalStates
+
     call_round.proposal_set.filter(state=ProposalStates.DRAFT).update(
         state=ProposalStates.CANCELED
     )
-
-
-def create_reviews_for_submitted_proposals(call_round: proposal_models.Round):
-    """Create reviews for submitted/in-review proposals in a round."""
-    for proposal in call_round.proposal_set.filter(
-        state__in=(
-            ProposalStates.SUBMITTED,
-            ProposalStates.IN_REVIEW,
-        )
-    ):
-        process_proposals_pending_reviewers(proposal)
-
-
-def process_closed_round(call_round: proposal_models.Round):
-    """Process a closed round: cancel draft proposals and create reviews for submitted ones."""
-    cancel_draft_proposals_in_round(call_round)
-    create_reviews_for_submitted_proposals(call_round)
 
 
 def get_proposal_review_counts(proposal: proposal_models.Proposal) -> dict:
@@ -157,10 +104,7 @@ def get_proposal_review_counts(proposal: proposal_models.Proposal) -> dict:
     ).count()
 
     pending_reviews = base_queryset.filter(
-        state__in=[
-            proposal_models.Review.States.CREATED,
-            proposal_models.Review.States.IN_REVIEW,
-        ]
+        state=proposal_models.Review.States.IN_REVIEW,
     ).count()
 
     return {
