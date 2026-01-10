@@ -32,7 +32,7 @@ Automated provisioning:
 
 * [Deploy using docker-compose](https://docs.waldur.com/latest/admin-guide/deployment/docker-compose/)
 * [Deploy on Kubernetes using Helm](https://docs.waldur.com/latest/admin-guide/deployment/helm/)
-* [Development environment setup](https://docs.waldur.com/latest/developer-guide/install-from-src/)
+* [Development environment setup](https://docs.waldur.com/latest/developer-guide/guides/install-from-src/)
 
 ## Documentation
 
