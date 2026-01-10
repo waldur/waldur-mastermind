@@ -427,19 +427,7 @@ class ProjectSerializer(
 
     @staticmethod
     def eager_load(queryset, request=None):
-        related_fields = (
-            "uuid",
-            "name",
-            "created",
-            "description",
-            "customer__uuid",
-            "customer__name",
-            "customer__slug",
-            "customer__native_name",
-            "customer__abbreviation",
-            "customer__display_billing_info_in_projects",
-        )
-        return queryset.select_related("customer").only(*related_fields)
+        return queryset.select_related("customer", "type")
 
     def get_filtered_field_names(self):
         return ("customer",)
@@ -498,6 +486,11 @@ class ProjectSerializer(
         return attrs
 
     def get_resources_count(self, project) -> int:
+        # Use annotated value if available (from eager_load)
+        if hasattr(project, "_resources_count"):
+            return project._resources_count
+
+        # Fallback for cases when eager_load wasn't applied
         from waldur_mastermind.marketplace import models as marketplace_models
 
         return marketplace_models.Resource.objects.filter(
