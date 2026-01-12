@@ -31,7 +31,6 @@ class CreateJustificationTest(APITestCase):
             "country": "EE",
             "legal_person_identifier": "12345678",
             "legal_name": "Test Company OÜ",
-            "is_manual_validation": True,
         }
         response = self.client.post(start_url, verification_data, format="json")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
