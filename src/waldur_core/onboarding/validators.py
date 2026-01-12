@@ -23,7 +23,7 @@ class OnboardingValidator:
     def validate_company(
         self,
         user: User,
-        country: str,
+        validation_method: str,
         legal_person_identifier: str,
         legal_name: str = "",
         existing_verification: OnboardingVerification | None = None,
@@ -34,11 +34,11 @@ class OnboardingValidator:
         birth_date: str = "",
     ) -> OnboardingVerification:
         """
-        Validate that a user is authorized to represent a company.
+        Validate that a user is authorized to represent a company using specified validation method.
 
         Args:
             user: User requesting validation
-            country: ISO country code (e.g., "EE")
+            validation_method: Validation method name (e.g., "ariregister", "wirtschaftscompass")
             legal_person_identifier: Official company registration code
             legal_name: Company name (optional, for reference)
             existing_verification: Optional existing verification to update instead of creating new
@@ -59,7 +59,7 @@ class OnboardingValidator:
         else:
             verification = OnboardingVerification.objects.create(
                 user=user,
-                country=country,
+                validation_method=validation_method,
                 legal_person_identifier=legal_person_identifier,
                 legal_name=legal_name,
                 status=enums.VerificationStatus.PENDING,
@@ -67,6 +67,26 @@ class OnboardingValidator:
             )
 
         try:
+            # Step 1: Find backend by validation_method
+            backend = backend_registry.find_backend_by_method(validation_method)
+
+            if not backend:
+                verification.status = enums.VerificationStatus.ESCALATED
+                verification.error_traceback = (
+                    f"No validation backend available for method '{validation_method}'"
+                )
+                verification.error_message = ErrorCode.NO_BACKEND_AVAILABLE
+                verification.validated_at = timezone.now()
+                verification.save()
+                return verification
+
+            # Get country from backend for context
+            supported_countries = backend.get_supported_countries()
+            country = list(supported_countries)[0] if supported_countries else ""
+            if country:
+                verification.country = country
+                verification.save()
+
             # ToDo: remove this after implementing getting user's identifier via auth methods
             # Use provided person_identifier if available, otherwise get from user
             temp_person_identifier = person_identifier or getattr(
@@ -79,27 +99,7 @@ class OnboardingValidator:
                 # Use a placeholder for backend detection - actual Austrian data will be used in ValidationRequest
                 temp_person_identifier = "at-placeholder"
 
-            # Step 1: Validate user has required identity information
-            # Use the backend registry to validate identity
-            backend = backend_registry.find_backend_for_request(
-                ValidationRequest(
-                    country=country,
-                    person_identifier=temp_person_identifier,
-                    legal_person_identifier=legal_person_identifier,
-                    legal_name=legal_name,
-                )
-            )
-
-            if not backend:
-                verification.status = enums.VerificationStatus.ESCALATED
-                verification.error_traceback = (
-                    f"No validation backend available for country {country}"
-                )
-                verification.error_message = ErrorCode.NO_BACKEND_AVAILABLE
-                verification.validated_at = timezone.now()
-                verification.save()
-                return verification
-
+            # Step 2: Validate user has required identity information
             # ToDo: remove this after implementing getting user's identifier via auth methods
             # Skip identity validation if person_identifier is provided via request (workaround)
             # For Estonian validation: if person_identifier is provided

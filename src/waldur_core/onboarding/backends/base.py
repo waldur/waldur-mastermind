@@ -187,6 +187,25 @@ class BackendRegistry:
 
         return None
 
+    def find_backend_by_method(
+        self, validation_method: str
+    ) -> CompanyRegistryBackend | None:
+        """
+        Find backend by its validation method name.
+
+        Args:
+            validation_method: Method name (e.g., 'ariregister', 'wirtschaftscompass')
+
+        Returns:
+            Backend instance or None if not found
+        """
+        for backend_class in self._backends:
+            backend_instance = backend_class()
+            if backend_instance.get_validation_method() == validation_method:
+                return backend_instance
+
+        return None
+
     def validate_company(self, request: ValidationRequest) -> ValidationResult:
         """
         Validate company using the best available backend.

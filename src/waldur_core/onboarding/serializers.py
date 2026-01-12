@@ -1,61 +1,15 @@
-from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.checklist import models as checklist_models
-from waldur_core.checklist import serializers as checklist_serializers
 from waldur_core.structure.models import Customer
 
 from . import enums
 from .models import (
-    OnboardingCountryChecklistConfiguration,
     OnboardingJustification,
     OnboardingJustificationDocumentation,
     OnboardingQuestionMetadata,
     OnboardingVerification,
 )
-
-
-class OnboardingCountryChecklistConfigurationSerializer(
-    serializers.HyperlinkedModelSerializer
-):
-    """Serializer for CountryChecklistConfiguration model."""
-
-    checklist_name = serializers.CharField(source="checklist.name", read_only=True)
-    checklist_uuid = serializers.UUIDField(source="checklist.uuid", read_only=True)
-    questions = serializers.SerializerMethodField(read_only=True)
-
-    class Meta:
-        model = OnboardingCountryChecklistConfiguration
-        fields = [
-            "url",
-            "uuid",
-            "country",
-            "checklist",
-            "checklist_name",
-            "checklist_uuid",
-            "questions",
-            "is_active",
-            "created",
-            "modified",
-        ]
-        extra_kwargs = {
-            "url": {
-                "lookup_field": "uuid",
-                "view_name": "onboarding-country-config-detail",
-            },
-            "checklist": {
-                "lookup_field": "uuid",
-                "view_name": "checklists-admin-detail",
-            },
-        }
-        read_only_fields = ["uuid", "created", "modified"]
-
-    @extend_schema_field(checklist_serializers.QuestionAdminSerializer(many=True))
-    def get_questions(self, obj):
-        questions = obj.checklist.questions.all()
-        return checklist_serializers.QuestionAdminSerializer(
-            questions, many=True, context=self.context
-        ).data
 
 
 class OnboardingQuestionMetadataSerializer(serializers.HyperlinkedModelSerializer):
@@ -317,8 +271,17 @@ class OnboardingVerificationSerializer(serializers.HyperlinkedModelSerializer):
 class OnboardingCompanyValidationRequestSerializer(serializers.Serializer):
     """Serializer for company validation requests."""
 
+    validation_method = serializers.ChoiceField(
+        choices=enums.ValidationMethod.CHOICES,
+        required=False,
+        allow_blank=True,
+        help_text="Automatic validation method (e.g., 'ariregister', 'wirtschaftscompass', 'bolagsverket'). Leave empty for manual validation.",
+    )
     country = serializers.CharField(
-        max_length=2, help_text="ISO country code (e.g., 'EE' for Estonia)"
+        max_length=2,
+        required=False,
+        allow_blank=True,
+        help_text="ISO country code (e.g., 'EE', 'AT') - optional, for display context",
     )
     legal_person_identifier = serializers.CharField(
         max_length=50,
