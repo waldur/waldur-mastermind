@@ -51,7 +51,7 @@ def get_hooks(
                 users_qs.append(get_users(customer, RoleEnum.CUSTOMER_OWNER))
 
         if len(users_qs) > 1:
-            users = users_qs[0].union(*users_qs[1:]).distinct()
+            users = users_qs[0].union(*users_qs[1:])
         elif len(users_qs) == 1:
             users = users_qs[0]
         else:
