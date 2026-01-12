@@ -3304,6 +3304,18 @@ class ToSConsentStatsTest(APITransactionTestCase):
         analytics_models.DailyQuotaHistory.objects.create(
             scope=self.offering, name="revoked_consents_today", usage=0, date=today
         )
+        analytics_models.DailyQuotaHistory.objects.create(
+            scope=self.offering,
+            name="accepted_consents_count",
+            usage=5,
+            date=two_days_ago,
+        )
+        analytics_models.DailyQuotaHistory.objects.create(
+            scope=self.offering, name="accepted_consents_count", usage=7, date=yesterday
+        )
+        analytics_models.DailyQuotaHistory.objects.create(
+            scope=self.offering, name="accepted_consents_count", usage=10, date=today
+        )
 
         self.client.force_authenticate(user=self.user)
 
@@ -3324,6 +3336,12 @@ class ToSConsentStatsTest(APITransactionTestCase):
         self.assertEqual(active_users_over_time[0]["count"], 3)
         self.assertEqual(active_users_over_time[1]["count"], 2)
         self.assertEqual(active_users_over_time[2]["count"], 4)
+
+        accepted_consents_over_time = response.data["accepted_consents_over_time"]
+        self.assertEqual(len(accepted_consents_over_time), 3)
+        self.assertEqual(accepted_consents_over_time[0]["count"], 5)
+        self.assertEqual(accepted_consents_over_time[1]["count"], 7)
+        self.assertEqual(accepted_consents_over_time[2]["count"], 10)
 
     def test_stats_api_permissions(self):
         """Test that stats API respects permissions."""

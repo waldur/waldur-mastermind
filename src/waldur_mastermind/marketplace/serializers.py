@@ -8501,6 +8501,9 @@ class ToSConsentDashboardSerializer(serializers.Serializer):
     active_users_over_time = serializers.ListField(
         child=TimeSeriesToSDataSerializer(), read_only=True
     )
+    accepted_consents_over_time = serializers.ListField(
+        child=TimeSeriesToSDataSerializer(), read_only=True
+    )
 
 
 class SoftwareCatalogSerializer(serializers.HyperlinkedModelSerializer):

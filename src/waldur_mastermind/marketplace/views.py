@@ -3297,6 +3297,13 @@ class ProviderOfferingViewSet(
             .values("date", "usage")
             .order_by("date")
         )
+        accepted_consents_over_time = list(
+            analytics_models.DailyQuotaHistory.objects.filter(
+                scope=offering, name="accepted_consents_count"
+            )
+            .values("date", "usage")
+            .order_by("date")
+        )
         dashboard_data = {
             "active_users_count": active_users_count,
             "total_users_count": total_users_count,
@@ -3318,6 +3325,10 @@ class ProviderOfferingViewSet(
             "active_users_over_time": [
                 {"date": record["date"].isoformat(), "count": record["usage"]}
                 for record in active_users_over_time
+            ],
+            "accepted_consents_over_time": [
+                {"date": record["date"].isoformat(), "count": record["usage"]}
+                for record in accepted_consents_over_time
             ],
         }
 
