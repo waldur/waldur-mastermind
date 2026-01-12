@@ -2277,11 +2277,17 @@ Name of the claim that contains user roles.
 
 ### Onboarding settings
 
-#### ONBOARDING_COUNTRY
+#### ONBOARDING_SUPPORTED_COUNTRIES
 
-**Type:** str
+**Type:** list_field
 
-ISO 3166-1 alpha-2 country code for the deployment (e.g., 'EE' for Estonia, 'AT' for Austria). Used for onboarding and localization.
+List of ISO 3166-1 alpha-2 country codes supported by this portal (e.g., ['EE', 'AT', 'SE']). Used to restrict available countries in onboarding.
+
+#### ONBOARDING_VALIDATION_METHODS
+
+**Type:** list_field
+
+List of automatic validation methods available for this portal (e.g., ['ariregister', 'wirtschaftscompass', 'bolagsverket']). Must match backend method names.
 
 #### ONBOARDING_VERIFICATION_EXPIRY_HOURS
 
