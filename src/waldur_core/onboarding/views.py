@@ -471,13 +471,6 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
         serializer.is_valid(raise_exception=True)
 
         validation_method = serializer.validated_data.get("validation_method", "")
-        is_manual_validation = serializer.validated_data.get(
-            "is_manual_validation", False
-        )
-
-        # If manual validation, clear validation_method
-        if is_manual_validation:
-            validation_method = ""
 
         # Create verification record
         verification = OnboardingVerification.objects.create(
@@ -490,7 +483,7 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
             legal_name=serializer.validated_data.get("legal_name", ""),
         )
 
-        if is_manual_validation:
+        if not validation_method:
             verification.status = enums.VerificationStatus.ESCALATED
             expire_delta = config.ONBOARDING_VERIFICATION_EXPIRY_HOURS
             verification.expires_at = timezone.now() + timedelta(hours=expire_delta)

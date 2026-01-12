@@ -295,10 +295,6 @@ class OnboardingCompanyValidationRequestSerializer(serializers.Serializer):
         allow_blank=True,
         help_text="Company name (optional)",
     )
-    is_manual_validation = serializers.BooleanField(
-        default=False,
-        help_text="Indicates if the validation is to be performed manually",
-    )
 
 
 class OnboardingRunValidationRequestSerializer(serializers.Serializer):
