@@ -8,7 +8,6 @@ from waldur_core.checklist import enums as checklist_enums
 from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.onboarding import enums
 from waldur_core.onboarding.models import (
-    OnboardingCountryChecklistConfiguration,
     OnboardingJustification,
     OnboardingJustificationDocumentation,
     OnboardingQuestionMetadata,
@@ -174,7 +173,6 @@ class JustificationDecisionTest(APITestCase):
             user=self.regular_user,
             status=enums.VerificationStatus.ESCALATED,
             legal_person_identifier="12345678",
-            country="EE",
         )
 
         self.justification = factories.OnboardingJustificationFactory(
@@ -305,34 +303,28 @@ class JustificationDecisionTest(APITestCase):
         Test that customer creation after justification approval is blocked when required checklist questions are not completed.
         This applies to manual validation (no validation_method).
         """
-        # Create a checklist configuration for EE
+        # Create CUSTOMER checklist
         checklist = checklist_factories.ChecklistFactory(
-            checklist_type=checklist_enums.ChecklistTypes.CUSTOMER_ONBOARDING,
-        )
-        OnboardingCountryChecklistConfiguration.objects.create(
-            country="EE",
-            checklist=checklist,
-            is_active=True,
+            checklist_type=checklist_enums.ChecklistTypes.ONBOARDING_CUSTOMER_DATA,
         )
 
-        # Add a required question to the checklist
+        # Add a required question to the CUSTOMER checklist
         required_question = checklist_factories.QuestionFactory(
             checklist=checklist,
-            description="What is your business purpose? (Required)",
+            description="VAT code (Required)",
             question_type=checklist_enums.QuestionTypes.TEXT_INPUT,
             required=True,
             order=1,
         )
         OnboardingQuestionMetadata.objects.create(
             question=required_question,
-            intent_field="business_purpose",
+            maps_to_customer_field="vat_code",
         )
 
         # Create escalated verification with manual validation (no validation_method set)
         verification = factories.OnboardingVerificationFactory(
             user=self.regular_user,
             status=enums.VerificationStatus.ESCALATED,
-            country="EE",
             legal_person_identifier="87654321",
             legal_name="Manual Validation Company OÜ",
             validation_method="",  # No automatic validation method
@@ -344,8 +336,10 @@ class JustificationDecisionTest(APITestCase):
             user_justification="Please validate our company for manual review.",
         )
 
-        # Get the checklist to see required questions
-        completion = verification.get_or_create_checklist_completion()
+        # Get the checklist to see required questions (customer checklist for manual validation)
+        completion = verification.get_or_create_checklist_completion(
+            checklist_enums.ChecklistTypes.ONBOARDING_CUSTOMER_DATA
+        )
         self.assertIsNotNone(completion)
 
         # Verify checklist has questions but none are answered
@@ -372,3 +366,127 @@ class JustificationDecisionTest(APITestCase):
 
         self.assertIn("checklist", str(response.data).lower())
         self.assertIn("required", str(response.data).lower())
+
+    def test_create_customer_succeeds_when_both_checklists_completed(self):
+        """
+        Test that customer creation succeeds when both customer and intent checklists
+        are defined with required questions and user has submitted answers to all.
+        """
+        customer_checklist = checklist_factories.ChecklistFactory(
+            checklist_type=checklist_enums.ChecklistTypes.ONBOARDING_CUSTOMER_DATA,
+        )
+
+        intent_checklist = checklist_factories.ChecklistFactory(
+            checklist_type=checklist_enums.ChecklistTypes.ONBOARDING_INTENT_DATA,
+        )
+
+        # Add a required question to the CUSTOMER checklist
+        customer_question = checklist_factories.QuestionFactory(
+            checklist=customer_checklist,
+            description="VAT code (Required)",
+            question_type=checklist_enums.QuestionTypes.TEXT_INPUT,
+            required=True,
+            order=1,
+        )
+        OnboardingQuestionMetadata.objects.create(
+            question=customer_question,
+            maps_to_customer_field="vat_code",
+        )
+
+        # Add a required question to the INTENT checklist
+        intent_question = checklist_factories.QuestionFactory(
+            checklist=intent_checklist,
+            description="What is your business intent?",
+            question_type=checklist_enums.QuestionTypes.TEXT_INPUT,
+            required=True,
+            order=1,
+        )
+        OnboardingQuestionMetadata.objects.create(
+            question=intent_question,
+            intent_field="business_intent",
+        )
+
+        # Create escalated verification with manual validation
+        verification = factories.OnboardingVerificationFactory(
+            user=self.regular_user,
+            status=enums.VerificationStatus.ESCALATED,
+            legal_person_identifier="11223344",
+            legal_name="Complete Checklist Company OÜ",
+            validation_method="",  # No automatic validation method
+        )
+
+        # Submit answers to both checklists
+        # Answer customer checklist question
+        customer_completion = verification.get_or_create_checklist_completion(
+            checklist_enums.ChecklistTypes.ONBOARDING_CUSTOMER_DATA
+        )
+        submit_answers_url = factories.OnboardingVerificationFactory.get_url(
+            verification, action="submit_answers"
+        )
+
+        self.client.force_authenticate(user=self.regular_user)
+        customer_answer_data = [
+            {
+                "question_uuid": str(customer_question.uuid),
+                "answer_data": "EE123456789",
+            }
+        ]
+        response = self.client.post(
+            submit_answers_url, customer_answer_data, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Answer intent checklist question
+        intent_completion = verification.get_or_create_checklist_completion(
+            checklist_enums.ChecklistTypes.ONBOARDING_INTENT_DATA
+        )
+        intent_answer_data = [
+            {
+                "question_uuid": str(intent_question.uuid),
+                "answer_data": "We want to expand our digital services",
+            }
+        ]
+        response = self.client.post(
+            submit_answers_url, intent_answer_data, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify both checklists are completed
+        customer_completion.refresh_from_db()
+        intent_completion.refresh_from_db()
+        self.assertTrue(customer_completion.is_completed)
+        self.assertTrue(intent_completion.is_completed)
+
+        # Create justification
+        justification = factories.OnboardingJustificationFactory(
+            verification=verification,
+            user=self.regular_user,
+            user_justification="All checklists completed, please validate.",
+        )
+
+        # Approve justification
+        self.client.force_authenticate(user=self.staff_user)
+        approve_url = factories.OnboardingJustificationFactory.get_url(
+            justification, action="approve"
+        )
+        response = self.client.post(
+            approve_url, {"staff_notes": "Approved"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify that verification is now VERIFIED
+        verification.refresh_from_db()
+        self.assertEqual(verification.status, enums.VerificationStatus.VERIFIED)
+
+        # Now create customer should succeed
+        create_customer_url = factories.OnboardingVerificationFactory.get_url(
+            verification, action="create_customer"
+        )
+        response = self.client.post(create_customer_url, {}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify customer was created with correct data
+        self.assertIn("uuid", response.data)
+        self.assertEqual(response.data["registration_code"], "11223344")
+        self.assertEqual(response.data["name"], "Complete Checklist Company OÜ")
+        self.assertEqual(response.data["vat_code"], "EE123456789")

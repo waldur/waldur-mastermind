@@ -18,7 +18,7 @@ class QuestionOnboardingMappingFilterTest(APITestCase):
 
         self.checklist = checklist_factories.ChecklistFactory(
             name="Test Checklist",
-            checklist_type=checklist_enums.ChecklistTypes.CUSTOMER_ONBOARDING,
+            checklist_type=checklist_enums.ChecklistTypes.ONBOARDING_CUSTOMER_DATA,
         )
 
         self.question_with_mapping = checklist_factories.QuestionFactory(

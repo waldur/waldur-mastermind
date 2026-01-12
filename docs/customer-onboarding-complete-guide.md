@@ -221,6 +221,143 @@ Estonia SME Onboarding (country=EE)
 
 Now let's walk through what happens when a user onboards.
 
+### Step 2.0: Preview Available Checklists (Optional)
+
+Before starting the verification process, users can preview the available onboarding checklists to see what information will be required. This is useful for preparing necessary documentation and understanding the onboarding requirements.
+
+**Frontend Action:** User wants to see what information is needed for onboarding
+
+**API Call:**
+
+```http
+GET /api/onboarding-verifications/available_checklists/
+Authorization: Token <user_token>
+```
+
+**Optional Query Parameters:**
+
+- `checklist_type`: Filter by type (`customer`, `intent`, or `all`). Default: `all`
+
+**Response (200 OK):**
+
+```json
+{
+  "customer_checklist": {
+    "uuid": "c1c2c3c4-e5e6-47e8-a9a0-b1b2b3b4b5b6",
+    "name": "Customer Data Checklist",
+    "description": "Questions mapping to Customer model fields",
+    "checklist_type": "onboarding_customer",
+    "questions": [
+      {
+        "uuid": "q1111111-1111-1111-1111-111111111111",
+        "description": "Company registration number",
+        "question_type": "text_input",
+        "required": true,
+        "order": 1,
+        "onboarding_metadata": {
+          "maps_to_customer_field": "registration_code",
+          "intent_field": ""
+        }
+      },
+      {
+        "uuid": "q2222222-2222-2222-2222-222222222222",
+        "description": "Company email address",
+        "question_type": "email",
+        "required": true,
+        "order": 2,
+        "onboarding_metadata": {
+          "maps_to_customer_field": "email",
+          "intent_field": ""
+        }
+      }
+    ]
+  },
+  "intent_checklist": {
+    "uuid": "i1i2i3i4-e5e6-47e8-a9a0-b1b2b3b4b5b6",
+    "name": "Intent Checklist",
+    "description": "Questions about business intent/purpose",
+    "checklist_type": "onboarding_intent",
+    "questions": [
+      {
+        "uuid": "q3333333-3333-3333-3333-333333333333",
+        "description": "What is your primary business purpose?",
+        "question_type": "text_input",
+        "required": false,
+        "order": 1,
+        "onboarding_metadata": {
+          "maps_to_customer_field": "",
+          "intent_field": "business_purpose"
+        }
+      },
+      {
+        "uuid": "q4444444-4444-4444-4444-444444444444",
+        "description": "Select your business sector",
+        "question_type": "single_select",
+        "required": false,
+        "order": 2,
+        "question_options": [
+          {
+            "uuid": "o1111111-1111-1111-1111-111111111111",
+            "label": "Technology",
+            "order": 1
+          },
+          {
+            "uuid": "o2222222-2222-2222-2222-222222222222",
+            "label": "Healthcare",
+            "order": 2
+          }
+        ],
+        "onboarding_metadata": {
+          "maps_to_customer_field": "",
+          "intent_field": "business_sector"
+        }
+      }
+    ]
+  }
+}
+```
+
+**Example: Get Only Intent Checklist**
+
+```http
+GET /api/onboarding-verifications/available_checklists/?checklist_type=intent
+Authorization: Token <user_token>
+```
+
+**Response:**
+
+```json
+{
+  "intent_checklist": {
+    "uuid": "i1i2i3i4-e5e6-47e8-a9a0-b1b2b3b4b5b6",
+    "name": "Intent Checklist",
+    "description": "Questions about business intent/purpose",
+    "checklist_type": "onboarding_intent",
+    "questions": [...]
+  }
+}
+```
+
+**What the response contains:**
+
+- **Both checklists** (customer and intent) with their questions and metadata
+- **Onboarding metadata** for each question showing:
+  - `maps_to_customer_field`: Which Customer model field this maps to (e.g., `email`, `registration_code`)
+  - `intent_field`: Intent/purpose field name that stays with verification (e.g., `business_purpose`, `intent`)
+- **Question options** for select-type questions
+- **null values** if a checklist is not configured
+
+**Use Cases:**
+
+- Display onboarding form preview before user starts
+- Inform users what documents/information to prepare
+- Show field mappings for transparency
+- Build dynamic forms based on checklist configuration
+
+**Note:** This endpoint is available before creating a verification object, allowing users to understand requirements upfront.
+
+---
+
 ### Step 2.1: User Initiates Onboarding
 
 **Frontend Action:** User clicks "Register Company" and selects country "Estonia", then provides company registration code and name

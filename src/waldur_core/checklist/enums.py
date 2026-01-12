@@ -6,14 +6,16 @@ class ChecklistTypes:
     PROPOSAL_COMPLIANCE = "proposal_compliance"
     OFFERING_COMPLIANCE = "offering_compliance"
     PROJECT_METADATA = "project_metadata"
-    CUSTOMER_ONBOARDING = "customer_onboarding"
+    ONBOARDING_CUSTOMER_DATA = "onboarding_customer"
+    ONBOARDING_INTENT_DATA = "onboarding_intent"
 
     CHOICES = [
         (PROJECT_COMPLIANCE, _("Project compliance")),
         (PROPOSAL_COMPLIANCE, _("Proposal compliance")),
         (OFFERING_COMPLIANCE, _("Offering compliance")),
         (PROJECT_METADATA, _("Project metadata")),
-        (CUSTOMER_ONBOARDING, _("Customer onboarding")),
+        (ONBOARDING_CUSTOMER_DATA, _("Onboarding customer data")),
+        (ONBOARDING_INTENT_DATA, _("Onboarding intent/purpose data")),
     ]
 
 

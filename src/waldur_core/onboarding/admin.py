@@ -159,35 +159,6 @@ admin.site.register(
 )
 
 
-class OnboardingCountryChecklistConfigurationAdmin(admin.ModelAdmin):
-    list_display = [
-        "country",
-        "checklist",
-        "is_active",
-        "created",
-    ]
-    list_filter = ["is_active", "country", "created"]
-    search_fields = ["country", "checklist__name"]
-    readonly_fields = ["uuid", "created", "modified"]
-
-    fieldsets = [
-        (
-            "Configuration",
-            {"fields": ["uuid", "country", "checklist", "is_active"]},
-        ),
-        ("Timeline", {"fields": ["created", "modified"], "classes": ["collapse"]}),
-    ]
-
-    def get_queryset(self, request):
-        return super().get_queryset(request).select_related("checklist")
-
-
-admin.site.register(
-    models.OnboardingCountryChecklistConfiguration,
-    OnboardingCountryChecklistConfigurationAdmin,
-)
-
-
 class OnboardingQuestionMetadataAdmin(admin.ModelAdmin):
     list_display = [
         "question_description",

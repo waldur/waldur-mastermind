@@ -651,9 +651,15 @@ CONSTANCE_CONFIG = {
         "List of offering types disabled for creation and selection.",
         "list_field",
     ),
-    "ONBOARDING_COUNTRY": (
-        "",
-        "ISO 3166-1 alpha-2 country code for the deployment (e.g., 'EE' for Estonia, 'AT' for Austria). Used for onboarding and localization.",
+    "ONBOARDING_SUPPORTED_COUNTRIES": (
+        [],
+        "List of ISO 3166-1 alpha-2 country codes supported by this portal (e.g., ['EE', 'AT', 'SE']). Used to restrict available countries in onboarding.",
+        "list_field",
+    ),
+    "ONBOARDING_VALIDATION_METHODS": (
+        [],
+        "List of automatic validation methods available for this portal (e.g., ['ariregister', 'wirtschaftscompass', 'bolagsverket']). Must match backend method names.",
+        "list_field",
     ),
     "ONBOARDING_VERIFICATION_EXPIRY_HOURS": (
         48,
@@ -975,7 +981,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "WALDUR_AUTH_SOCIAL_ROLE_CLAIM",
     ),
     "Onboarding settings": (
-        "ONBOARDING_COUNTRY",
+        "ONBOARDING_SUPPORTED_COUNTRIES",
+        "ONBOARDING_VALIDATION_METHODS",
         "ONBOARDING_VERIFICATION_EXPIRY_HOURS",
         "ONBOARDING_ARIREGISTER_BASE_URL",
         "ONBOARDING_ARIREGISTER_USERNAME",
@@ -1022,7 +1029,6 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "DOCS_URL",
     "SHORT_PAGE_TITLE",
     "FULL_PAGE_TITLE",
-    "ONBOARDING_COUNTRY",
     "BRAND_COLOR",
     "HERO_LINK_LABEL",
     "HERO_LINK_URL",
@@ -1065,4 +1071,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "RANCHER_USERNAME_INPUT_LABEL",
     "ENFORCE_USER_CONSENT_FOR_OFFERINGS",
     "OIDC_ACCESS_TOKEN_ENABLED",
+    # Onboarding settings
+    "ONBOARDING_SUPPORTED_COUNTRIES",
+    "ONBOARDING_VALIDATION_METHODS",
 )
