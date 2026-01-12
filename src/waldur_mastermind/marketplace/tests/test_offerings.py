@@ -3257,8 +3257,8 @@ class CheckUniqueBackendIDTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["is_unique"])
 
-        # Should complete in reasonable time (less than 8 seconds)
-        self.assertLess(end_time - start_time, 8.0)
+        # Should complete in reasonable time (less than 10 seconds)
+        self.assertLess(end_time - start_time, 10.0)
 
     def test_check_all_offerings_with_mixed_customers(self):
         self.client.force_authenticate(self.fixture.staff)

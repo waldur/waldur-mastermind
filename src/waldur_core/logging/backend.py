@@ -425,3 +425,142 @@ class RabbitMQManagementBackend:
                 response.text,
             )
             raise RabbitMQError(f"Failed to get user {username} connections")
+
+    def list_queues(self, vhost: str) -> list[dict]:
+        """List all queues in a virtual host.
+
+        Args:
+            vhost (str): The virtual host name
+
+        Returns:
+            list[dict]: List of queue information dictionaries with keys:
+                - name: Queue name
+                - messages: Total message count
+                - messages_ready: Ready message count
+                - messages_unacknowledged: Unacknowledged message count
+                - consumers: Number of consumers
+        """
+        vhost_encoded = requests.utils.quote(vhost, safe="")
+        url = f"{self.rmq_management_url}/queues/{vhost_encoded}"
+
+        try:
+            response = requests.get(url, auth=self.rmq_auth, timeout=30)
+        except requests.RequestException as exc:
+            logger.error(
+                "Unable to list queues for vhost %s from RabbitMQ, error: %s",
+                vhost,
+                exc,
+            )
+            raise RabbitMQError(f"Failed to list queues for vhost {vhost}")
+
+        if response.status_code == status.HTTP_404_NOT_FOUND:
+            logger.debug("Vhost %s not found in RabbitMQ", vhost)
+            return []
+        elif response.status_code == status.HTTP_200_OK:
+            try:
+                queues = response.json()
+                return [
+                    {
+                        "name": q.get("name", ""),
+                        "messages": q.get("messages", 0),
+                        "messages_ready": q.get("messages_ready", 0),
+                        "messages_unacknowledged": q.get("messages_unacknowledged", 0),
+                        "consumers": q.get("consumers", 0),
+                    }
+                    for q in queues
+                ]
+            except requests.JSONDecodeError:
+                logger.error(
+                    "Failed to decode JSON response while listing queues for vhost %s",
+                    vhost,
+                )
+                raise RabbitMQError(f"Failed to list queues for vhost {vhost}")
+        else:
+            logger.error(
+                "Failed to list queues for vhost %s, status code: %s, response: %s",
+                vhost,
+                response.status_code,
+                response.text,
+            )
+            raise RabbitMQError(f"Failed to list queues for vhost {vhost}")
+
+    def purge_queue(self, vhost: str, queue: str) -> int:
+        """Purge all messages from a queue.
+
+        Args:
+            vhost (str): The virtual host name
+            queue (str): The queue name
+
+        Returns:
+            int: Number of messages purged
+        """
+        vhost_encoded = requests.utils.quote(vhost, safe="")
+        queue_encoded = requests.utils.quote(queue, safe="")
+        url = (
+            f"{self.rmq_management_url}/queues/{vhost_encoded}/{queue_encoded}/contents"
+        )
+
+        try:
+            response = requests.delete(url, auth=self.rmq_auth, timeout=60)
+        except requests.RequestException as exc:
+            logger.error(
+                "Unable to purge queue %s in vhost %s from RabbitMQ, error: %s",
+                queue,
+                vhost,
+                exc,
+            )
+            raise RabbitMQError(f"Failed to purge queue {queue} in vhost {vhost}")
+
+        if response.status_code == status.HTTP_204_NO_CONTENT:
+            logger.info("Queue %s in vhost %s purged successfully", queue, vhost)
+            return 0  # RabbitMQ doesn't return count on purge via API
+        elif response.status_code == status.HTTP_404_NOT_FOUND:
+            logger.warning("Queue %s in vhost %s not found", queue, vhost)
+            return 0
+        else:
+            logger.error(
+                "Failed to purge queue %s in vhost %s, status code: %s, response: %s",
+                queue,
+                vhost,
+                response.status_code,
+                response.text,
+            )
+            raise RabbitMQError(f"Failed to purge queue {queue} in vhost {vhost}")
+
+    def list_all_subscription_queues(self) -> list[dict]:
+        """List all subscription queues across all vhosts.
+
+        Returns:
+            list[dict]: List of vhost information with their queues:
+                - vhost: Virtual host name
+                - queues: List of queue dictionaries
+                - total_messages: Total messages in vhost
+        """
+        result = []
+        vhosts = self.list_rabbitmq_virtual_hosts()
+
+        for vhost in vhosts:
+            # Skip default vhost
+            if vhost == "/":
+                continue
+
+            try:
+                queues = self.list_queues(vhost)
+                # Filter to only subscription queues
+                subscription_queues = [
+                    q for q in queues if q["name"].startswith("subscription_")
+                ]
+                if subscription_queues:
+                    total_messages = sum(q["messages"] for q in subscription_queues)
+                    result.append(
+                        {
+                            "vhost": vhost,
+                            "queues": subscription_queues,
+                            "total_messages": total_messages,
+                        }
+                    )
+            except RabbitMQError:
+                logger.warning("Failed to list queues for vhost %s, skipping", vhost)
+                continue
+
+        return result

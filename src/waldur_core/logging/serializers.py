@@ -285,3 +285,171 @@ class EmailLogSerializer(serializers.HyperlinkedModelSerializer):
                 "view_name": "email-log-detail",
             },
         }
+
+
+# RabbitMQ Stats API Serializers
+
+
+class RmqQueueStatsSerializer(serializers.Serializer):
+    """Serializer for individual RabbitMQ queue statistics."""
+
+    name = serializers.CharField(
+        read_only=True,
+        help_text="Queue name (e.g., 'subscription_{uuid}_offering_{uuid}_{type}')",
+    )
+    messages = serializers.IntegerField(
+        read_only=True,
+        help_text="Total number of messages in the queue",
+    )
+    messages_ready = serializers.IntegerField(
+        read_only=True,
+        help_text="Number of messages ready for delivery",
+    )
+    messages_unacknowledged = serializers.IntegerField(
+        read_only=True,
+        help_text="Number of messages awaiting acknowledgement",
+    )
+    consumers = serializers.IntegerField(
+        read_only=True,
+        help_text="Number of active consumers for this queue",
+    )
+    subscription_uuid = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Parsed subscription UUID from queue name",
+    )
+    offering_uuid = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Parsed offering UUID from queue name",
+    )
+    object_type = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Parsed object type from queue name (e.g., 'resource', 'order')",
+    )
+
+
+class RmqStatsUserSerializer(serializers.Serializer):
+    """Serializer for Waldur user information linked to a RabbitMQ vhost."""
+
+    uuid = serializers.CharField(
+        read_only=True,
+        help_text="Waldur user UUID",
+    )
+    username = serializers.CharField(
+        read_only=True,
+        help_text="Waldur username",
+    )
+    full_name = serializers.CharField(
+        read_only=True,
+        help_text="User's full name",
+    )
+
+
+class RmqVhostStatsSerializer(serializers.Serializer):
+    """Serializer for RabbitMQ vhost statistics with queues."""
+
+    name = serializers.CharField(
+        read_only=True,
+        help_text="Virtual host name (corresponds to Waldur user UUID)",
+    )
+    user = RmqStatsUserSerializer(
+        read_only=True,
+        allow_null=True,
+        help_text="Waldur user associated with this vhost",
+    )
+    queues = RmqQueueStatsSerializer(
+        many=True,
+        read_only=True,
+        help_text="List of subscription queues in this vhost",
+    )
+    total_messages = serializers.IntegerField(
+        read_only=True,
+        help_text="Total messages across all queues in this vhost",
+    )
+
+
+class RmqStatsResponseSerializer(serializers.Serializer):
+    """
+    Response serializer for RabbitMQ subscription queue statistics.
+
+    Provides aggregated statistics across all vhosts with subscription queues,
+    including Waldur user information and parsed queue name components.
+    """
+
+    vhosts = RmqVhostStatsSerializer(
+        many=True,
+        read_only=True,
+        help_text="List of vhosts with their subscription queues",
+    )
+    total_messages = serializers.IntegerField(
+        read_only=True,
+        help_text="Total messages across all subscription queues",
+    )
+    total_queues = serializers.IntegerField(
+        read_only=True,
+        help_text="Total number of subscription queues",
+    )
+
+
+class RmqPurgeRequestSerializer(serializers.Serializer):
+    """Request serializer for purging RabbitMQ queues."""
+
+    vhost = serializers.CharField(
+        required=False,
+        help_text="Virtual host name containing the queue(s) to purge",
+    )
+    queue_name = serializers.CharField(
+        required=False,
+        help_text="Specific queue name to purge (requires vhost)",
+    )
+    queue_pattern = serializers.CharField(
+        required=False,
+        help_text="Glob pattern to match queue names (e.g., '*_resource'). Requires vhost.",
+    )
+    purge_all_subscription_queues = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="If true, purge all subscription queues across all vhosts",
+    )
+
+    def validate(self, attrs):
+        vhost = attrs.get("vhost")
+        queue_name = attrs.get("queue_name")
+        queue_pattern = attrs.get("queue_pattern")
+        purge_all = attrs.get("purge_all_subscription_queues", False)
+
+        if not purge_all and not vhost:
+            raise serializers.ValidationError(
+                "Must specify either 'purge_all_subscription_queues' or 'vhost' with 'queue_name'/'queue_pattern'"
+            )
+
+        if vhost and not queue_name and not queue_pattern:
+            raise serializers.ValidationError(
+                "When 'vhost' is specified, must also provide 'queue_name' or 'queue_pattern'"
+            )
+
+        return attrs
+
+
+class RmqPurgeResponseSerializer(serializers.Serializer):
+    """Response serializer for queue purge operations."""
+
+    purged_queues = serializers.IntegerField(
+        read_only=True,
+        help_text="Number of queues that were purged",
+    )
+    purged_messages = serializers.IntegerField(
+        read_only=True,
+        help_text="Total number of messages that were purged",
+    )
+
+
+class RmqStatsErrorSerializer(serializers.Serializer):
+    """Error response serializer for RabbitMQ stats operations."""
+
+    error = serializers.CharField(
+        read_only=True,
+        help_text="Error message describing what went wrong",
+    )
