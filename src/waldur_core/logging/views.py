@@ -325,3 +325,181 @@ class EmailLogView(viewsets.ReadOnlyModelViewSet):
     )
     filterset_class = filters.EmailLogFilter
     serializer_class = serializers.EmailLogSerializer
+
+
+class RabbitMQStatsViewSet(generics.GenericAPIView):
+    """
+    API endpoint for viewing and managing RabbitMQ subscription queues.
+
+    GET: Lists all subscription queues across vhosts with message counts.
+         Requires support user permissions.
+
+    DELETE: Purges messages from specified queues.
+            Requires staff permissions.
+    """
+
+    filter_backends = []
+    pagination_class = None
+
+    def get_permissions(self):
+        if self.request.method == "DELETE":
+            return [permissions.IsAuthenticated(), core_permissions.IsStaff()]
+        return [permissions.IsAuthenticated(), core_permissions.IsSupport()]
+
+    def get_queryset(self):
+        return models.EventSubscription.objects.none()
+
+    @extend_schema(
+        summary="Get RabbitMQ subscription queue statistics",
+        description="""Provides statistics about RabbitMQ subscription queues.
+
+Returns information about all vhosts with their subscription queues, including:
+- Queue names and message counts
+- Waldur user and subscription information linked to each vhost
+- Total message counts per vhost and across all vhosts
+
+Requires support user permissions.""",
+        responses={
+            status.HTTP_200_OK: serializers.RmqStatsResponseSerializer,
+            status.HTTP_503_SERVICE_UNAVAILABLE: serializers.RmqStatsErrorSerializer,
+        },
+    )
+    def get(self, request, *args, **kwargs):
+        rmq_backend = backend.RabbitMQManagementBackend()
+
+        try:
+            vhost_stats = rmq_backend.list_all_subscription_queues()
+        except Exception as e:
+            logger.exception("Failed to get RabbitMQ stats: %s", e)
+            return response.Response(
+                {"error": "Failed to retrieve RabbitMQ statistics"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        # Enrich with Waldur user information
+        output = {"vhosts": [], "total_messages": 0, "total_queues": 0}
+
+        for vhost_data in vhost_stats:
+            vhost_name = vhost_data["vhost"]
+
+            # Look up Waldur user by vhost name (which is user.uuid.hex)
+            waldur_user = core_models.User.objects.filter(uuid=vhost_name).first()
+            waldur_user_data = None
+            if waldur_user:
+                waldur_user_data = {
+                    "uuid": str(waldur_user.uuid),
+                    "username": waldur_user.username,
+                    "full_name": waldur_user.get_full_name(),
+                }
+
+            # Enrich queue data with parsed information
+            enriched_queues = []
+            for queue in vhost_data["queues"]:
+                parsed = utils.parse_subscription_queue_name(queue["name"])
+                enriched_queue = {
+                    **queue,
+                    "subscription_uuid": parsed["subscription_uuid"]
+                    if parsed
+                    else None,
+                    "offering_uuid": parsed["offering_uuid"] if parsed else None,
+                    "object_type": parsed["object_type"] if parsed else None,
+                }
+                enriched_queues.append(enriched_queue)
+
+            vhost_record = {
+                "name": vhost_name,
+                "user": waldur_user_data,
+                "queues": enriched_queues,
+                "total_messages": vhost_data["total_messages"],
+            }
+            output["vhosts"].append(vhost_record)
+            output["total_messages"] += vhost_data["total_messages"]
+            output["total_queues"] += len(enriched_queues)
+
+        return response.Response(output, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Purge RabbitMQ subscription queues",
+        description="""Purges messages from specified RabbitMQ subscription queues.
+
+Accepts either:
+- `vhost` and `queue_name`: Purge a specific queue
+- `vhost` and `queue_pattern`: Purge queues matching pattern (e.g., '*_resource')
+- `purge_all_subscription_queues`: Purge all subscription queues across all vhosts
+
+Requires staff permissions (more restrictive than viewing).""",
+        request=serializers.RmqPurgeRequestSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.RmqPurgeResponseSerializer,
+            status.HTTP_400_BAD_REQUEST: serializers.RmqStatsErrorSerializer,
+            status.HTTP_404_NOT_FOUND: serializers.RmqStatsErrorSerializer,
+            status.HTTP_503_SERVICE_UNAVAILABLE: serializers.RmqStatsErrorSerializer,
+        },
+    )
+    def delete(self, request, *args, **kwargs):
+        vhost = request.data.get("vhost")
+        queue_name = request.data.get("queue_name")
+        queue_pattern = request.data.get("queue_pattern")
+        purge_all = request.data.get("purge_all_subscription_queues", False)
+
+        rmq_backend = backend.RabbitMQManagementBackend()
+        purged_queues = 0
+        purged_messages = 0
+
+        try:
+            if purge_all:
+                # Purge all subscription queues across all vhosts
+                vhost_stats = rmq_backend.list_all_subscription_queues()
+                for vhost_data in vhost_stats:
+                    for queue in vhost_data["queues"]:
+                        msg_count = queue.get("messages", 0)
+                        rmq_backend.purge_queue(vhost_data["vhost"], queue["name"])
+                        purged_queues += 1
+                        purged_messages += msg_count
+
+            elif vhost and queue_name:
+                # Purge specific queue
+                queues = rmq_backend.list_queues(vhost)
+                queue_info = next((q for q in queues if q["name"] == queue_name), None)
+                if queue_info:
+                    msg_count = queue_info.get("messages", 0)
+                    rmq_backend.purge_queue(vhost, queue_name)
+                    purged_queues = 1
+                    purged_messages = msg_count
+                else:
+                    return response.Response(
+                        {"error": f"Queue {queue_name} not found in vhost {vhost}"},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+            elif vhost and queue_pattern:
+                # Purge queues matching pattern in specific vhost
+                import fnmatch
+
+                queues = rmq_backend.list_queues(vhost)
+                for queue in queues:
+                    if fnmatch.fnmatch(queue["name"], queue_pattern):
+                        msg_count = queue.get("messages", 0)
+                        rmq_backend.purge_queue(vhost, queue["name"])
+                        purged_queues += 1
+                        purged_messages += msg_count
+
+            else:
+                return response.Response(
+                    {
+                        "error": "Must specify either: (vhost + queue_name), (vhost + queue_pattern), or purge_all_subscription_queues"
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        except Exception as e:
+            logger.exception("Failed to purge RabbitMQ queues: %s", e)
+            return response.Response(
+                {"error": f"Failed to purge queues: {str(e)}"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return response.Response(
+            {"purged_queues": purged_queues, "purged_messages": purged_messages},
+            status=status.HTTP_200_OK,
+        )

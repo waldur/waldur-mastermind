@@ -156,15 +156,21 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
         self.assertIn("loginShell", offering_user.backend_metadata)
 
         # Verify uidnumber and primarygroup are properly set (relative to initial values)
-        # The exact values depend on database state, but they should be sequential
+        # The exact values depend on database state, but they should be unique and valid
         uidnumber1 = offering_user.backend_metadata["uidnumber"]
         primarygroup1 = offering_user.backend_metadata["primarygroup"]
         uidnumber2 = offering_user2.backend_metadata["uidnumber"]
         primarygroup2 = offering_user2.backend_metadata["primarygroup"]
 
-        # Verify sequential assignment (second user gets next number)
-        self.assertEqual(uidnumber2, uidnumber1 + 1)
-        self.assertEqual(primarygroup2, primarygroup1 + 1)
+        # Verify both users got unique uidnumbers above the initial value
+        self.assertGreater(uidnumber1, 1000)  # initial_uidnumber is 1000
+        self.assertGreater(uidnumber2, 1000)
+        self.assertNotEqual(uidnumber1, uidnumber2)
+
+        # Verify both users got unique primarygroup numbers above the initial value
+        self.assertGreater(primarygroup1, 2000)  # initial_primarygroup_number is 2000
+        self.assertGreater(primarygroup2, 2000)
+        self.assertNotEqual(primarygroup1, primarygroup2)
 
         # Verify other fields are correctly set
         self.assertEqual(

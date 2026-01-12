@@ -122,6 +122,58 @@ mcp__playwright__browser_take_screenshot --element "Submit button"
 mcp__playwright__browser_resize --width 375 --height 667
 ```
 
+### Jira Issue Workflow
+
+When working on tasks from Jira (e.g., `https://opennode.atlassian.net/browse/WAL-9564`):
+
+#### 1. Analyze the Issue
+
+- Fetch issue details using Atlassian MCP tools
+- Determine issue type: **bug** (fix) or **feature/improvement** (other)
+- Check if the issue is already resolved or needs work
+
+#### 2. Prepare the Branch
+
+```bash
+# Ensure on latest develop branch
+git checkout develop
+git pull origin develop
+
+# Create appropriate branch
+# For bugs:
+git checkout -b bug/WAL-XXXX
+
+# For features/improvements:
+git checkout -b feature/WAL-XXXX
+```
+
+#### 3. Implement Changes
+
+- Follow TDD workflow (tests first)
+- Study existing patterns before coding
+- Make minimal, focused changes
+
+#### 4. Commit Changes
+
+```bash
+# Only add files created/modified as part of this work
+git add <specific-files>
+
+# Commit with proper descriptive message, ticket reference at end of first line
+git commit -m "Add validation for resource quota limits [WAL-XXXX]"
+```
+
+**Important**: Do NOT add unrelated files to the commit.
+
+#### 5. Report to User
+
+Provide a summary including:
+
+- What was analyzed
+- What changes were made (files modified/created)
+- How to test the changes
+- Any follow-up actions needed
+
 ### Multi-Agent Coordination
 
 - **Planning**: implementation agent creates feature plan

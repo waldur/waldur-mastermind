@@ -1,4 +1,5 @@
 import logging
+import re
 from enum import Enum
 
 import stomp
@@ -22,6 +23,32 @@ class ObservableObjectType(Enum):
     SERVICE_ACCOUNT = "service_account"
     COURSE_ACCOUNT = "course_account"
     RESOURCE_PERIODIC_LIMITS = "resource_periodic_limits"
+
+
+def parse_subscription_queue_name(queue_name: str) -> dict | None:
+    """Parse a subscription queue name into its components.
+
+    Queue names follow the pattern:
+        subscription_{subscription_uuid}_offering_{offering_uuid}_{object_type}
+
+    Args:
+        queue_name (str): The queue name to parse
+
+    Returns:
+        dict | None: Dictionary with parsed components or None if not a valid subscription queue:
+            - subscription_uuid: The subscription UUID
+            - offering_uuid: The offering UUID
+            - object_type: The object type (e.g., 'resource', 'order')
+    """
+    pattern = r"^subscription_([a-f0-9]+)_offering_([a-f0-9]+)_(\w+)$"
+    match = re.match(pattern, queue_name)
+    if match:
+        return {
+            "subscription_uuid": match.group(1),
+            "offering_uuid": match.group(2),
+            "object_type": match.group(3),
+        }
+    return None
 
 
 def get_loggable_models():
@@ -118,6 +145,8 @@ def publish_stomp_messages(messages_to_send: list[dict[str, str]]) -> None:
                 "durable": "true",  # Queue survives broker restart
                 "auto-delete": "false",  # Queue exists even without consumers
                 "content-type": "application/json",
+                "expiration": "86400000",  # Message TTL: 24 hours in milliseconds
+                "x-max-length": "10000",  # Max 10,000 messages per queue
             }
             logger.info(
                 "Sending STOMP message %s to %s", message_info["payload"], destination

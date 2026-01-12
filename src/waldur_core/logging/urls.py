@@ -20,4 +20,5 @@ def register_in(router):
 urlpatterns = [
     re_path(r"^rabbitmq-vhost-stats/", views.RabbitMQVhostStats.as_view()),
     re_path(r"^rabbitmq-user-stats/", views.RabbitMQUserStats.as_view()),
+    re_path(r"^rabbitmq-stats/", views.RabbitMQStatsViewSet.as_view()),
 ]
