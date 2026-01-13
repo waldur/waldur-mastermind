@@ -233,6 +233,9 @@ def notify_approvers_when_order_is_created(
     sender, instance: Order, created=False, **kwargs
 ):
     """Notify approvers when an order is created."""
+    if get_skip_side_effects():
+        return
+
     order: models.Order = instance
     if created and order.state in (
         OrderStates.PENDING_CONSUMER,
@@ -353,6 +356,9 @@ def update_resource_state_on_order_creation(
 ):
     """Update resource state when an order is created."""
     if not created:
+        return
+
+    if get_skip_side_effects():
         return
 
     order = instance
