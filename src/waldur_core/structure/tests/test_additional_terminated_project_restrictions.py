@@ -44,8 +44,8 @@ class TerminatedProjectMovementTest(APITestCase):
         response = self.client.post(move_url, move_data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_terminated_project_cannot_be_moved(self):
-        """Test that terminated projects cannot be moved"""
+    def test_terminated_project_can_be_moved_by_staff(self):
+        """Test that staff can move terminated projects"""
         # Soft delete the project
         self.project.delete()
 
@@ -58,27 +58,13 @@ class TerminatedProjectMovementTest(APITestCase):
 
         move_url = factories.ProjectFactory.get_url(self.project, action="move_project")
         response = self.client.post(f"{move_url}?include_terminated=true", move_data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        error_message = extract_error_message(response.data)
-        self.assertIn("terminated projects", error_message)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_move_project_error_message_clear(self):
-        """Test that move project error message is clear and helpful"""
-        # Soft delete the project
-        self.project.delete()
-
-        self.client.force_authenticate(user=self.staff_user)
-
-        move_data = {
-            "customer": factories.CustomerFactory.get_url(self.target_customer),
-            "preserve_permissions": False,
-        }
-
-        move_url = factories.ProjectFactory.get_url(self.project, action="move_project")
-        response = self.client.post(f"{move_url}?include_terminated=true", move_data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        error_message = extract_error_message(response.data)
-        self.assertIn("cannot move terminated projects", error_message)
+        # Verify project was moved to new customer
+        self.project.refresh_from_db()
+        self.assertEqual(self.project.customer, self.target_customer)
+        # Verify project is still terminated
+        self.assertTrue(self.project.is_removed)
 
     def test_move_project_staff_only_restriction_preserved(self):
         """Test that existing staff-only restriction is preserved"""
@@ -440,7 +426,7 @@ class TerminatedProjectIntegrationRestrictionsTest(APITestCase):
 
     def test_all_modification_operations_blocked_after_termination(self):
         """Test that all major modification operations are blocked after project termination"""
-        target_customer = factories.CustomerFactory()
+        factories.CustomerFactory()
         user_to_add = factories.UserFactory()
         marketplace_factories.OfferingFactory()
 
@@ -450,6 +436,7 @@ class TerminatedProjectIntegrationRestrictionsTest(APITestCase):
         self.client.force_authenticate(user=self.staff_user)
 
         # Test all major operations are blocked
+        # Note: move_project is now allowed for staff users on terminated projects
         test_cases = [
             # Team management
             (
@@ -457,14 +444,6 @@ class TerminatedProjectIntegrationRestrictionsTest(APITestCase):
                 {
                     "user": factories.UserFactory.get_url(user_to_add),
                     "role": f"PROJECT.{ProjectRole.ADMIN.name}",
-                },
-            ),
-            # Project movement
-            (
-                "move_project",
-                {
-                    "customer": factories.CustomerFactory.get_url(target_customer),
-                    "preserve_permissions": True,
                 },
             ),
             # Checklist submission
@@ -607,8 +586,8 @@ class TerminatedProjectIntegrationRestrictionsTest(APITestCase):
         self.client.force_authenticate(user=self.staff_user)
 
         # Staff should still be blocked from modification operations
+        # Note: move_project is now allowed for staff users on terminated projects
         operations_that_should_be_blocked = [
-            "move_project",
             "add_user",
             "submit_answers",
         ]
@@ -616,14 +595,7 @@ class TerminatedProjectIntegrationRestrictionsTest(APITestCase):
         for operation in operations_that_should_be_blocked:
             with self.subTest(operation=operation):
                 # Use minimal test data
-                if operation == "move_project":
-                    data = {
-                        "customer": factories.CustomerFactory.get_url(
-                            factories.CustomerFactory()
-                        ),
-                        "preserve_permissions": True,
-                    }
-                elif operation == "add_user":
+                if operation == "add_user":
                     data = {
                         "user": factories.UserFactory.get_url(factories.UserFactory()),
                         "role": f"PROJECT.{ProjectRole.ADMIN.name}",
@@ -653,6 +625,7 @@ class TerminatedProjectIntegrationRestrictionsTest(APITestCase):
         self.client.force_authenticate(user=self.staff_user)
 
         # Test different restriction points
+        # Note: move_project is now allowed for staff users on terminated projects
         test_scenarios = [
             # Direct user management
             (
@@ -660,17 +633,6 @@ class TerminatedProjectIntegrationRestrictionsTest(APITestCase):
                 {
                     "user": factories.UserFactory.get_url(factories.UserFactory()),
                     "role": f"PROJECT.{ProjectRole.ADMIN.name}",
-                },
-                "post",
-            ),
-            # Project movement
-            (
-                "move_project",
-                {
-                    "customer": factories.CustomerFactory.get_url(
-                        factories.CustomerFactory()
-                    ),
-                    "preserve_permissions": True,
                 },
                 "post",
             ),
@@ -752,7 +714,8 @@ class TerminatedProjectIntegrationRestrictionsTest(APITestCase):
         # Terminate the project
         self.project.delete()
 
-        # After termination, all modification operations should be blocked
+        # After termination, most modification operations should be blocked
+        # Note: move_project is now allowed for staff users on terminated projects
         operations_after = [
             (
                 "add_user",
@@ -773,15 +736,6 @@ class TerminatedProjectIntegrationRestrictionsTest(APITestCase):
                 {
                     "user": factories.UserFactory.get_url(user_in_project),
                     "role": f"PROJECT.{ProjectRole.MANAGER.name}",
-                },
-            ),
-            (
-                "move_project",
-                {
-                    "customer": factories.CustomerFactory.get_url(
-                        factories.CustomerFactory()
-                    ),
-                    "preserve_permissions": True,
                 },
             ),
         ]
