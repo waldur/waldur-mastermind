@@ -3285,12 +3285,12 @@ class ToSConsentStatsTest(APITransactionTestCase):
 
         analytics_models.DailyQuotaHistory.objects.create(
             scope=self.offering,
-            name="revoked_consents_today",
+            name="revoked_consents_count",
             usage=0,
             date=two_days_ago,
         )
         analytics_models.DailyQuotaHistory.objects.create(
-            scope=self.offering, name="revoked_consents_today", usage=1, date=yesterday
+            scope=self.offering, name="revoked_consents_count", usage=1, date=yesterday
         )
         analytics_models.DailyQuotaHistory.objects.create(
             scope=self.offering, name="active_users_count", usage=4, date=today
@@ -3302,7 +3302,7 @@ class ToSConsentStatsTest(APITransactionTestCase):
             scope=self.offering, name="active_users_count", usage=3, date=two_days_ago
         )
         analytics_models.DailyQuotaHistory.objects.create(
-            scope=self.offering, name="revoked_consents_today", usage=0, date=today
+            scope=self.offering, name="revoked_consents_count", usage=2, date=today
         )
         analytics_models.DailyQuotaHistory.objects.create(
             scope=self.offering,
@@ -3329,7 +3329,7 @@ class ToSConsentStatsTest(APITransactionTestCase):
         self.assertEqual(len(revoked_over_time), 3)
         self.assertEqual(revoked_over_time[0]["count"], 0)
         self.assertEqual(revoked_over_time[1]["count"], 1)
-        self.assertEqual(revoked_over_time[2]["count"], 0)
+        self.assertEqual(revoked_over_time[2]["count"], 2)
 
         active_users_over_time = response.data["active_users_over_time"]
         self.assertEqual(len(active_users_over_time), 3)
@@ -3342,6 +3342,38 @@ class ToSConsentStatsTest(APITransactionTestCase):
         self.assertEqual(accepted_consents_over_time[0]["count"], 5)
         self.assertEqual(accepted_consents_over_time[1]["count"], 7)
         self.assertEqual(accepted_consents_over_time[2]["count"], 10)
+
+    def test_tos_version_adoption_excludes_revoked_consents(self):
+        """Test that version adoption only counts active consents, not revoked ones."""
+        user1 = UserFactory()
+        user2 = UserFactory()
+        user3 = UserFactory()
+
+        # User 1: Active consent for v1.0
+        models.UserOfferingConsent.objects.create(
+            user=user1, offering=self.offering, version="1.0"
+        )
+
+        # User 2: Active consent for v1.0
+        models.UserOfferingConsent.objects.create(
+            user=user2, offering=self.offering, version="1.0"
+        )
+
+        # User 3: Revoked consent for v2.0 (should not be counted)
+        consent_v2 = models.UserOfferingConsent.objects.create(
+            user=user3, offering=self.offering, version="2.0"
+        )
+        consent_v2.revoke()
+
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(self.stats_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should only show v1.0 with 2 users, v2.0 should not appear
+        version_adoption = response.data["tos_version_adoption"]
+        self.assertEqual(len(version_adoption), 1)
+        self.assertEqual(version_adoption[0]["version"], "1.0")
+        self.assertEqual(version_adoption[0]["users_count"], 2)
 
     def test_stats_api_permissions(self):
         """Test that stats API respects permissions."""

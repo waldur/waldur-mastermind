@@ -3278,14 +3278,16 @@ class ProviderOfferingViewSet(
 
         revoked_consents_over_time = list(
             analytics_models.DailyQuotaHistory.objects.filter(
-                scope=offering, name="revoked_consents_today"
+                scope=offering, name="revoked_consents_count"
             )
             .values("date", "usage")
             .order_by("date")
         )
 
         tos_version_adoption = list(
-            models.UserOfferingConsent.objects.filter(offering=offering)
+            models.UserOfferingConsent.objects.filter(
+                offering=offering, revocation_date__isnull=True
+            )
             .values("version")
             .annotate(users_count=Count("user", distinct=True))
             .order_by("-users_count")
