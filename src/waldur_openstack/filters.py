@@ -3,6 +3,7 @@ from django.db.models import Q
 from django_filters.widgets import BooleanWidget
 
 from waldur_core.core import filters as core_filters
+from waldur_core.core.enums import CoreStates
 from waldur_core.structure import filters as structure_filters
 from waldur_mastermind.marketplace.models import Offering
 from waldur_openstack.utils import get_valid_availability_zones
@@ -122,6 +123,8 @@ class VolumeTypeFilter(
 
 
 class RouterFilter(TenantFilterSet, structure_filters.NameFilterSet):
+    state = core_filters.MappedMultipleChoiceFilter(CoreStates.choices, label="State")
+
     class Meta:
         model = models.Router
         fields = ("state",)
