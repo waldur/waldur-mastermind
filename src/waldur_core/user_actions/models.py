@@ -52,7 +52,15 @@ class UserAction(UuidMixin, TimeStampedModel):
 
     # Offering context
     offering_name = models.CharField(max_length=255, blank=True)
+    offering_uuid = models.UUIDField(null=True, blank=True)
     offering_type = models.CharField(max_length=100, blank=True)
+
+    # Resource context
+    resource_name = models.CharField(max_length=255, blank=True)
+    resource_uuid = models.UUIDField(null=True, blank=True)
+
+    # Order context
+    order_type = models.CharField(max_length=100, blank=True)
 
     # User interaction
     is_silenced = models.BooleanField(default=False)

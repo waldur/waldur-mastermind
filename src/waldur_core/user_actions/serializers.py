@@ -37,6 +37,7 @@ class UserActionSerializer(serializers.ModelSerializer):
     is_temporarily_silenced = serializers.BooleanField(read_only=True)
     is_effectively_silenced = serializers.BooleanField(read_only=True)
     days_until_due = serializers.SerializerMethodField()
+    route_params = serializers.DictField(read_only=True)
 
     class Meta:
         model = models.UserAction
@@ -65,7 +66,11 @@ class UserActionSerializer(serializers.ModelSerializer):
             "organization_name",
             "organization_uuid",
             "offering_name",
+            "offering_uuid",
             "offering_type",
+            "resource_name",
+            "resource_uuid",
+            "order_type",
         ]
         read_only_fields = [
             "uuid",

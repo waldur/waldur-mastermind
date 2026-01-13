@@ -46,6 +46,7 @@ class PendingOrderProviderTest(APITransactionTestCase):
         self.assertIn(order.offering.name, action["title"])
         self.assertEqual(action["urgency"], "high")
         self.assertEqual(action["related_object"], order)
+        self.assertEqual(action["offering_uuid"], order.offering.uuid)
         self.assertIn("1 days", action["description"])
 
     def test_get_actions_for_user_no_pending_orders(self):
@@ -143,6 +144,7 @@ class ExpiringResourceProviderTest(APITransactionTestCase):
         self.assertIn("Resource expiring", action["title"])
         self.assertIn(resource.name, action["title"])
         self.assertEqual(action["related_object"], resource)
+        self.assertEqual(action["offering_uuid"], resource.offering.uuid)
         # Check that it mentions some number of days (could be 14-15 due to timing)
         self.assertRegex(action["description"], r"\b1[4-5] days\b")
 
@@ -189,8 +191,8 @@ class MarketplaceUserActionsIntegrationTest(APITransactionTestCase):
             (a for a in actions if a.category == ActionCategory.VIEW), None
         )
         self.assertIsNotNone(view_action)
-        self.assertEqual(view_action.route_name, "marketplace-order-details")
-        self.assertEqual(view_action.route_params["uuid"], str(order.uuid))
+        self.assertEqual(view_action.route_name, "marketplace-orders.details")
+        self.assertEqual(view_action.route_params["order_uuid"], str(order.uuid))
 
         # Check that approve action is properly configured for API calls if user has permissions
         approve_action = next(

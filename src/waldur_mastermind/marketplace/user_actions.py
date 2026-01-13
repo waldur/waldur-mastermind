@@ -65,14 +65,18 @@ class PendingOrderProvider(BaseActionProvider):
                     "due_date": order.created + timedelta(days=7),
                     "related_object": order,
                     # Use specific typed fields instead of metadata
-                    "route_name": "marketplace-order-details",
-                    "route_params": {"uuid": str(order.uuid)},
+                    "route_name": "marketplace-orders.details",
+                    "route_params": {"order_uuid": str(order.uuid)},
                     "project_name": order.project.name,
                     "project_uuid": order.project.uuid,
                     "organization_name": order.project.customer.name,
                     "organization_uuid": order.project.customer.uuid,
                     "offering_name": order.offering.name,
+                    "offering_uuid": order.offering.uuid,
                     "offering_type": order.offering.type,
+                    "resource_name": order.resource.name,
+                    "resource_uuid": order.resource.uuid,
+                    "order_type": order.get_type_display(),
                 }
             )
 
@@ -102,8 +106,8 @@ class PendingOrderProvider(BaseActionProvider):
                 label="View Order Details",
                 category=ActionCategory.VIEW,
                 severity=ActionSeverity.SAFE,
-                route_name="marketplace-order-details",
-                route_params={"uuid": str(order.uuid)},
+                route_name="marketplace-orders.details",
+                route_params={"order_uuid": str(order.uuid)},
             )
         )
 
@@ -134,8 +138,8 @@ class PendingOrderProvider(BaseActionProvider):
                     category=ActionCategory.REJECT,
                     severity=ActionSeverity.HIGH,
                     confirmation_required=True,
-                    route_name="marketplace-order-details",
-                    route_params={"uuid": str(order.uuid), "tab": "reject"},
+                    route_name="marketplace-orders.details",
+                    route_params={"order_uuid": str(order.uuid), "tab": "reject"},
                     metadata={
                         "order_type": order.type,
                         "customer_contact": (
@@ -269,7 +273,10 @@ class ExpiringResourceProvider(BaseActionProvider):
                     "organization_name": resource.project.customer.name,
                     "organization_uuid": resource.project.customer.uuid,
                     "offering_name": resource.offering.name,
+                    "offering_uuid": resource.offering.uuid,
                     "offering_type": resource.offering.type,
+                    "resource_name": resource.name,
+                    "resource_uuid": resource.uuid,
                 }
             )
 
