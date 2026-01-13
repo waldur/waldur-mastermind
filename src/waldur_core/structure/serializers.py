@@ -1110,8 +1110,13 @@ class UserSerializer(
 
     @extend_schema_field(PermissionSerializer(many=True))
     def get_permissions(self, user: core_models.User):
-        perms = UserRole.objects.filter(user=user, is_active=True)
-        perms = [perm for perm in perms if perm.scope]
+        # Use prefetched permissions if available (from UserViewSet.get_queryset)
+        # to avoid N+1 queries. Fall back to query for backwards compatibility.
+        if hasattr(user, "prefetched_permissions"):
+            perms = [perm for perm in user.prefetched_permissions if perm.scope]
+        else:
+            perms = UserRole.objects.filter(user=user, is_active=True)
+            perms = [perm for perm in perms if perm.scope]
         serializer = PermissionSerializer(instance=perms, many=True)
         return serializer.data
 
