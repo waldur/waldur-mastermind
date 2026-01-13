@@ -1,6 +1,7 @@
 import logging
 import uuid
 from typing import cast
+from urllib.parse import urlparse
 
 import requests
 from constance import config
@@ -352,3 +353,79 @@ def refresh_remote_eduteams_token():
 
     cache.set("REMOTE_EDUTEAMS_ACCESS_TOKEN", access_token, 30 * 60)
     return access_token
+
+
+def validate_and_get_redirect_url(
+    identity_provider: IdentityProvider,
+    referrer: str | None,
+    return_url: str | None = None,
+) -> str:
+    """
+    Validates the return URL or referrer against allowed redirects and returns
+    the appropriate redirect URL for redirecting after OIDC authentication.
+
+    Args:
+        identity_provider: The IdentityProvider instance
+        referrer: The referrer URL from the request headers
+        return_url: The explicit return_url from query parameter (takes priority)
+
+    Returns:
+        str: The validated redirect URL to redirect to
+
+    Raises:
+        OAuthException: If the return_url/referrer is not in the allowed list
+    """
+    # Prioritize explicit return_url over referrer header
+    source_url = return_url or referrer
+
+    # If no allowed_redirects configured, fall back to HOMEPORT_URL
+    if not identity_provider.allowed_redirects:
+        return config.HOMEPORT_URL
+
+    # If no source URL provided, use the first allowed redirect
+    if not source_url:
+        return identity_provider.allowed_redirects[0]
+
+    # Parse the source URL to extract the base URL (scheme + netloc)
+    try:
+        parsed_url = urlparse(source_url)
+
+        # Validate scheme (only http/https allowed)
+        if parsed_url.scheme.lower() not in ("http", "https"):
+            raise OAuthException(
+                identity_provider.provider,
+                "Invalid URL scheme. Only http and https are allowed.",
+            )
+
+        # Validate netloc is not empty
+        if not parsed_url.netloc:
+            raise OAuthException(
+                identity_provider.provider,
+                "Invalid return URL format. Missing domain.",
+            )
+
+        # Normalize: lowercase scheme and netloc for case-insensitive matching
+        url_base = f"{parsed_url.scheme.lower()}://{parsed_url.netloc.lower()}"
+    except OAuthException:
+        raise
+    except Exception as e:
+        logger.warning("Failed to parse source URL %s: %s", source_url, e)
+        raise OAuthException(
+            identity_provider.provider,
+            "Invalid return URL format.",
+        )
+
+    # Check if source URL base is in the allowed list (exact matching)
+    if url_base not in identity_provider.allowed_redirects:
+        logger.warning(
+            "Source URL %s not in allowed redirects %s",
+            url_base,
+            identity_provider.allowed_redirects,
+        )
+        raise OAuthException(
+            identity_provider.provider,
+            f"Return URL domain {url_base} is not in the allowed redirects list.",
+        )
+
+    # Return the base URL without trailing slash (consistent with allowlist normalization)
+    return url_base

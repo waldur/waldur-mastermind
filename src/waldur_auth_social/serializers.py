@@ -75,6 +75,68 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
                 )
         return attrs
 
+    def validate_allowed_redirects(self, allowed_redirects: list[str]):
+        if not isinstance(allowed_redirects, list):
+            raise ValidationError("allowed_redirects must be a list of URLs.")
+
+        # Use URLField for basic URL validation
+        url_field = serializers.URLField()
+        validated_urls = []
+
+        for url in allowed_redirects:
+            if not isinstance(url, str):
+                raise ValidationError("Each redirect URL must be a string.")
+
+            # Validate URL format using DRF's URLField
+            try:
+                url_field.run_validation(url)
+            except ValidationError as e:
+                raise ValidationError(f"Invalid redirect URL {url}: {e.detail[0]}")
+
+            # Parse URL for additional validation
+            parsed = urlparse(url)
+
+            # Only allow http/https schemes
+            if parsed.scheme.lower() not in ("http", "https"):
+                raise ValidationError(
+                    f"Invalid URL scheme for {url}. Only http and https are allowed."
+                )
+
+            # Enforce HTTPS except for localhost
+            is_localhost = (
+                parsed.netloc.lower() in ("localhost", "127.0.0.1")
+                or parsed.netloc.lower().startswith("localhost:")
+                or parsed.netloc.lower().startswith("127.0.0.1:")
+            )
+
+            if parsed.scheme == "http" and not is_localhost:
+                raise ValidationError(
+                    f"HTTPS required for {url}. HTTP is only allowed for localhost."
+                )
+
+            # Reject URLs with paths (except "/" or empty)
+            if parsed.path and parsed.path != "/":
+                raise ValidationError(
+                    f"Redirect URL must not contain a path: {url}. "
+                    f"Only origin (scheme + domain + port) is allowed."
+                )
+
+            # Reject query parameters
+            if parsed.query:
+                raise ValidationError(
+                    f"Redirect URL must not contain query parameters: {url}"
+                )
+
+            # Reject fragments
+            if parsed.fragment:
+                raise ValidationError(f"Redirect URL must not contain fragments: {url}")
+
+            # Normalize: lowercase scheme and netloc, no trailing slash for exact matching
+            normalized_url = f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+            validated_urls.append(normalized_url)
+
+        return validated_urls
+
     def get_fields(self):
         fields = super().get_fields()
 

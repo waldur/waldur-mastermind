@@ -5,11 +5,17 @@ import responses
 from constance.test.unittest import override_config
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
+from rest_framework.exceptions import ValidationError
 from rest_framework.reverse import reverse
 
 from waldur_auth_social import models
 from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
-from waldur_auth_social.views import OIDC_CODE_VERIFIER_KEY, OIDC_STATE_KEY
+from waldur_auth_social.views import (
+    OIDC_CODE_VERIFIER_KEY,
+    OIDC_REFERRER_KEY,
+    OIDC_RETURN_URL_KEY,
+    OIDC_STATE_KEY,
+)
 from waldur_core.core.models import User
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users.enums import InvitationState
@@ -629,3 +635,614 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         # Should remain True because processing was skipped (roles is None)
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_support)
+
+
+class MultiHomeportRedirectTest(test.APITransactionTestCase):
+    """Tests for multi-homeport redirect functionality"""
+
+    def setUp(self):
+        super().setUp()
+        self.provider = models.IdentityProvider.objects.create(
+            provider=ProviderChoices.KEYCLOAK,
+            client_id="test_client_id",
+            client_secret="test_client_secret",
+            discovery_url="http://keycloak.test/.well-known/openid-configuration",
+            userinfo_url="http://keycloak.test/userinfo",
+            token_url="http://keycloak.test/token",
+            auth_url="http://keycloak.test/auth",
+            allowed_redirects=[
+                "https://homeport1.example.com",
+                "https://homeport2.example.com",
+            ],
+            **PROVIDER_DEFAULTS[ProviderChoices.KEYCLOAK],
+        )
+        self.init_url = reverse(f"auth_{self.provider.provider}_init")
+        self.complete_url = reverse(f"auth_{self.provider.provider}_complete")
+        self.state = "test_state"
+        self.code = "test_code"
+
+        # Mock external requests
+        responses.start()
+        self.addCleanup(responses.stop)
+
+    def _mock_token_request(
+        self, access_token="test_access_token", refresh_token="test_refresh_token"
+    ):
+        return responses.add(
+            method="POST",
+            url=self.provider.token_url,
+            json={"access_token": access_token, "refresh_token": refresh_token},
+            status=status.HTTP_200_OK,
+        )
+
+    def _mock_userinfo_request(self, user_info):
+        responses.add(
+            method="GET",
+            url=self.provider.userinfo_url,
+            json=user_info,
+            status=status.HTTP_200_OK,
+        )
+
+    def test_init_stores_referrer_in_session(self):
+        """Test that the init endpoint stores the referrer URL in session"""
+        response = self.client.get(
+            self.init_url, HTTP_REFERER="https://homeport1.example.com/login"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn(OIDC_REFERRER_KEY, self.client.session)
+        self.assertEqual(
+            self.client.session[OIDC_REFERRER_KEY],
+            "https://homeport1.example.com/login",
+        )
+
+    def test_init_without_referrer(self):
+        """Test that init endpoint works without a referrer header"""
+        response = self.client.get(self.init_url)
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertNotIn(OIDC_REFERRER_KEY, self.client.session)
+
+    def test_redirect_to_valid_homeport_from_referrer(self):
+        """Test successful redirect to a homeport that matches the stored referrer"""
+        user_info = {
+            "sub": "test_user",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "test@example.com",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Setup session with state and referrer
+        session = self.client.session
+        session[OIDC_STATE_KEY] = self.state
+        session[OIDC_REFERRER_KEY] = "https://homeport1.example.com/login"
+        session.save()
+
+        response = self.client.get(
+            self.complete_url, {"state": self.state, "code": self.code}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(
+            response.url.startswith(
+                "https://homeport1.example.com/oauth_login_completed/"
+            )
+        )
+
+    def test_redirect_to_second_allowed_homeport(self):
+        """Test successful redirect to the second allowed homeport"""
+        user_info = {
+            "sub": "test_user2",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "test2@example.com",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Setup session with state and referrer from second homeport
+        session = self.client.session
+        session[OIDC_STATE_KEY] = self.state
+        session[OIDC_REFERRER_KEY] = "https://homeport2.example.com/auth"
+        session.save()
+
+        response = self.client.get(
+            self.complete_url, {"state": self.state, "code": self.code}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(
+            response.url.startswith(
+                "https://homeport2.example.com/oauth_login_completed/"
+            )
+        )
+
+    def test_redirect_blocked_for_unauthorized_homeport(self):
+        """Test that redirect is blocked if referrer is not in allowed list"""
+        user_info = {
+            "sub": "test_user3",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "test3@example.com",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Setup session with state and unauthorized referrer
+        session = self.client.session
+        session[OIDC_STATE_KEY] = self.state
+        session[OIDC_REFERRER_KEY] = "https://unauthorized.example.com/login"
+        session.save()
+
+        response = self.client.get(
+            self.complete_url, {"state": self.state, "code": self.code}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn("not in the allowed redirects list", str(response.content))
+
+    def test_redirect_without_referrer_uses_first_allowed_homeport(self):
+        """Test that without referrer, the first allowed homeport is used"""
+        user_info = {
+            "sub": "test_user4",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "test4@example.com",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Setup session with state but no referrer
+        session = self.client.session
+        session[OIDC_STATE_KEY] = self.state
+        session.save()
+
+        response = self.client.get(
+            self.complete_url, {"state": self.state, "code": self.code}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(
+            response.url.startswith(
+                "https://homeport1.example.com/oauth_login_completed/"
+            )
+        )
+
+    @override_config(HOMEPORT_URL="https://fallback.example.com/")
+    def test_fallback_to_homeport_url_when_no_allowed_redirects(self):
+        """Test fallback to HOMEPORT_URL constance setting when allowed_redirects is empty"""
+        # Create provider without allowed_redirects
+        provider_no_allowed = models.IdentityProvider.objects.create(
+            provider=ProviderChoices.TARA,
+            client_id="tara_client_id",
+            client_secret="tara_client_secret",
+            discovery_url="https://tara.ria.ee/.well-known/openid-configuration",
+            userinfo_url="https://tara.ria.ee/userinfo",
+            token_url="https://tara.ria.ee/token",
+            auth_url="https://tara.ria.ee/auth",
+            allowed_redirects=[],  # Empty list
+            **PROVIDER_DEFAULTS[ProviderChoices.TARA],
+        )
+
+        complete_url = reverse(f"auth_{provider_no_allowed.provider}_complete")
+        user_info = {
+            "sub": "EE12345678901",
+            "given_name": "Test",
+            "family_name": "User",
+        }
+
+        responses.add(
+            method="POST",
+            url=provider_no_allowed.token_url,
+            json={"access_token": "token", "refresh_token": "refresh"},
+            status=status.HTTP_200_OK,
+        )
+        responses.add(
+            method="GET",
+            url=provider_no_allowed.userinfo_url,
+            json=user_info,
+            status=status.HTTP_200_OK,
+        )
+
+        # Setup session
+        session = self.client.session
+        session[OIDC_STATE_KEY] = self.state
+        session.save()
+
+        response = self.client.get(
+            complete_url, {"state": self.state, "code": self.code}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(
+            response.url.startswith(
+                "https://fallback.example.com/oauth_login_completed/"
+            )
+        )
+
+    def test_referrer_with_trailing_slash_matches_exactly(self):
+        """Test that referrer URLs are matched exactly after normalization"""
+        user_info = {
+            "sub": "test_user5",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "test5@example.com",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Setup session with referrer that has trailing slash - should be normalized
+        # and match against allowed_redirects (which are stored without trailing slashes)
+        session = self.client.session
+        session[OIDC_STATE_KEY] = self.state
+        session[OIDC_REFERRER_KEY] = "https://homeport1.example.com/"
+        session.save()
+
+        response = self.client.get(
+            self.complete_url, {"state": self.state, "code": self.code}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(
+            response.url.startswith(
+                "https://homeport1.example.com/oauth_login_completed/"
+            )
+        )
+
+    def test_referrer_with_path_is_validated_by_base_url(self):
+        """Test that referrer with path components is validated by base URL only"""
+        user_info = {
+            "sub": "test_user6",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "test6@example.com",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Setup session with referrer that has a path
+        session = self.client.session
+        session[OIDC_STATE_KEY] = self.state
+        session[OIDC_REFERRER_KEY] = "https://homeport2.example.com/some/deep/path"
+        session.save()
+
+        response = self.client.get(
+            self.complete_url, {"state": self.state, "code": self.code}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        # Should redirect to homeport2 base URL, not the deep path
+        self.assertTrue(
+            response.url.startswith(
+                "https://homeport2.example.com/oauth_login_completed/"
+            )
+        )
+
+    def test_return_url_parameter_in_init(self):
+        """Test that return_url query parameter is stored in session"""
+        response = self.client.get(
+            self.init_url, {"return_url": "https://homeport1.example.com"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn(OIDC_RETURN_URL_KEY, self.client.session)
+        self.assertEqual(
+            self.client.session[OIDC_RETURN_URL_KEY],
+            "https://homeport1.example.com",
+        )
+
+    def test_return_url_takes_priority_over_referrer(self):
+        """Test that return_url parameter takes priority over HTTP Referer header"""
+        response = self.client.get(
+            self.init_url,
+            {"return_url": "https://homeport1.example.com"},
+            HTTP_REFERER="https://homeport2.example.com/some/page",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertIn(OIDC_RETURN_URL_KEY, self.client.session)
+        self.assertEqual(
+            self.client.session[OIDC_RETURN_URL_KEY],
+            "https://homeport1.example.com",
+        )
+        # Referrer should NOT be stored when return_url is provided
+        self.assertNotIn(OIDC_REFERRER_KEY, self.client.session)
+
+    def test_redirect_using_return_url(self):
+        """Test successful redirect using return_url parameter"""
+        user_info = {
+            "sub": "test_return_url_user",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "test_return@example.com",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Setup session with return_url
+        session = self.client.session
+        session[OIDC_STATE_KEY] = self.state
+        session[OIDC_RETURN_URL_KEY] = "https://homeport2.example.com"
+        session.save()
+
+        response = self.client.get(
+            self.complete_url, {"state": self.state, "code": self.code}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(
+            response.url.startswith(
+                "https://homeport2.example.com/oauth_login_completed/"
+            )
+        )
+
+    def test_return_url_blocked_if_not_in_allowed_list(self):
+        """Test that return_url is validated against allowed_redirects"""
+        user_info = {
+            "sub": "test_invalid_return_url",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "test_invalid@example.com",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Setup session with unauthorized return_url
+        session = self.client.session
+        session[OIDC_STATE_KEY] = self.state
+        session[OIDC_RETURN_URL_KEY] = "https://malicious.com"
+        session.save()
+
+        response = self.client.get(
+            self.complete_url, {"state": self.state, "code": self.code}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn("not in the allowed redirects list", str(response.content))
+
+    def test_return_url_with_path_validated_by_base(self):
+        """Test that return_url with path is validated by base URL only"""
+        user_info = {
+            "sub": "test_return_url_path",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "test_path@example.com",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Setup session with return_url that has a path
+        session = self.client.session
+        session[OIDC_STATE_KEY] = self.state
+        session[OIDC_RETURN_URL_KEY] = "https://homeport1.example.com/deep/path"
+        session.save()
+
+        response = self.client.get(
+            self.complete_url, {"state": self.state, "code": self.code}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        # Should redirect to homeport1 base URL
+        self.assertTrue(
+            response.url.startswith(
+                "https://homeport1.example.com/oauth_login_completed/"
+            )
+        )
+
+    def test_reject_javascript_scheme(self):
+        """Test that javascript: scheme is rejected"""
+        user_info = {
+            "sub": "test_javascript",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "test_js@example.com",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Setup session with javascript: scheme
+        session = self.client.session
+        session[OIDC_STATE_KEY] = self.state
+        session[OIDC_RETURN_URL_KEY] = "javascript:alert('xss')"
+        session.save()
+
+        response = self.client.get(
+            self.complete_url, {"state": self.state, "code": self.code}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn("Invalid URL scheme", str(response.content))
+
+    def test_reject_url_without_domain(self):
+        """Test that URLs without domain are rejected"""
+        user_info = {
+            "sub": "test_nodomain",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "test_nodomain@example.com",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Setup session with URL missing domain
+        session = self.client.session
+        session[OIDC_STATE_KEY] = self.state
+        session[OIDC_RETURN_URL_KEY] = "https://"
+        session.save()
+
+        response = self.client.get(
+            self.complete_url, {"state": self.state, "code": self.code}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn("Missing domain", str(response.content))
+
+    def test_case_insensitive_matching(self):
+        """Test that URL matching is case-insensitive"""
+        user_info = {
+            "sub": "test_case",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "test_case@example.com",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Setup session with mixed case URL
+        session = self.client.session
+        session[OIDC_STATE_KEY] = self.state
+        session[OIDC_RETURN_URL_KEY] = "HTTPS://HOMEPORT1.EXAMPLE.COM"
+        session.save()
+
+        response = self.client.get(
+            self.complete_url, {"state": self.state, "code": self.code}
+        )
+
+        # Should succeed because matching is case-insensitive
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        # URL should be normalized to lowercase
+        self.assertTrue(
+            response.url.startswith(
+                "https://homeport1.example.com/oauth_login_completed/"
+            )
+        )
+
+
+class IdentityProviderValidationTest(test.APITransactionTestCase):
+    """Tests for IdentityProvider serializer validation rules"""
+
+    def setUp(self):
+        super().setUp()
+        from waldur_auth_social.serializers import IdentityProviderSerializer
+
+        self.serializer_class = IdentityProviderSerializer
+
+    def test_reject_redirect_with_path(self):
+        """Test that redirect URLs with paths are rejected"""
+        serializer = self.serializer_class()
+        with self.assertRaises(ValidationError) as context:
+            serializer.validate_allowed_redirects(["https://example.com/login"])
+        self.assertIn("must not contain a path", str(context.exception))
+
+    def test_reject_redirect_with_query_params(self):
+        """Test that redirect URLs with query parameters are rejected"""
+        serializer = self.serializer_class()
+        with self.assertRaises(ValidationError) as context:
+            serializer.validate_allowed_redirects(["https://example.com?foo=bar"])
+        self.assertIn("must not contain query parameters", str(context.exception))
+
+    def test_reject_redirect_with_fragment(self):
+        """Test that redirect URLs with fragments are rejected"""
+        serializer = self.serializer_class()
+        with self.assertRaises(ValidationError) as context:
+            serializer.validate_allowed_redirects(["https://example.com#section"])
+        self.assertIn("must not contain fragments", str(context.exception))
+
+    def test_reject_http_non_localhost(self):
+        """Test that HTTP URLs for non-localhost are rejected"""
+        serializer = self.serializer_class()
+        with self.assertRaises(ValidationError) as context:
+            serializer.validate_allowed_redirects(["http://example.com"])
+        self.assertIn("HTTPS required", str(context.exception))
+        self.assertIn("HTTP is only allowed for localhost", str(context.exception))
+
+    def test_allow_http_localhost(self):
+        """Test that HTTP is allowed for localhost"""
+        serializer = self.serializer_class()
+
+        # Test various localhost formats
+        localhost_urls = [
+            "http://localhost",
+            "http://localhost:8080",
+            "http://127.0.0.1",
+            "http://127.0.0.1:3000",
+        ]
+
+        result = serializer.validate_allowed_redirects(localhost_urls)
+        self.assertEqual(len(result), 4)
+        self.assertIn("http://localhost", result)
+        self.assertIn("http://localhost:8080", result)
+        self.assertIn("http://127.0.0.1", result)
+        self.assertIn("http://127.0.0.1:3000", result)
+
+    def test_redirect_url_normalization(self):
+        """Test that redirect URLs with trailing slashes are normalized"""
+        serializer = self.serializer_class()
+
+        # URLs with trailing slashes should be normalized to without
+        urls_with_trailing_slash = [
+            "https://example.com/",
+            "https://app.example.com/",
+            "https://example.com:8443/",
+        ]
+
+        result = serializer.validate_allowed_redirects(urls_with_trailing_slash)
+        self.assertEqual(len(result), 3)
+        self.assertIn("https://example.com", result)
+        self.assertIn("https://app.example.com", result)
+        self.assertIn("https://example.com:8443", result)
+
+        # Verify no trailing slashes in normalized URLs
+        for url in result:
+            self.assertFalse(url.endswith("/"))
+
+    def test_allow_valid_https_urls(self):
+        """Test that valid HTTPS URLs are accepted"""
+        serializer = self.serializer_class()
+
+        valid_urls = [
+            "https://example.com",
+            "https://app.example.com",
+            "https://example.com:8443",
+            "https://sub.domain.example.com",
+        ]
+
+        result = serializer.validate_allowed_redirects(valid_urls)
+        self.assertEqual(len(result), 4)
+        for url in valid_urls:
+            self.assertIn(url, result)
+
+    def test_reject_invalid_url_format(self):
+        """Test that malformed URLs are rejected"""
+        serializer = self.serializer_class()
+
+        with self.assertRaises(ValidationError) as context:
+            serializer.validate_allowed_redirects(["not-a-url"])
+        self.assertIn("Enter a valid URL", str(context.exception))
+
+    def test_reject_non_http_schemes(self):
+        """Test that non-HTTP/HTTPS schemes are rejected"""
+        serializer = self.serializer_class()
+
+        with self.assertRaises(ValidationError) as context:
+            serializer.validate_allowed_redirects(["ftp://example.com"])
+        self.assertIn("Only http and https are allowed", str(context.exception))
+
+    def test_reject_non_list_input(self):
+        """Test that non-list input is rejected"""
+        serializer = self.serializer_class()
+
+        with self.assertRaises(ValidationError) as context:
+            serializer.validate_allowed_redirects("https://example.com")
+        self.assertIn("must be a list", str(context.exception))
+
+    def test_reject_non_string_urls(self):
+        """Test that non-string URLs in list are rejected"""
+        serializer = self.serializer_class()
+
+        with self.assertRaises(ValidationError) as context:
+            serializer.validate_allowed_redirects([123, "https://example.com"])
+        self.assertIn("must be a string", str(context.exception))
+
+    def test_url_normalization_lowercase(self):
+        """Test that URLs are normalized to lowercase for case-insensitive matching"""
+        serializer = self.serializer_class()
+
+        result = serializer.validate_allowed_redirects(
+            ["https://Example.COM", "HTTPS://TEST.Example.COM:8443"]
+        )
+        # Should be lowercased
+        self.assertEqual(result[0], "https://example.com")
+        self.assertEqual(result[1], "https://test.example.com:8443")

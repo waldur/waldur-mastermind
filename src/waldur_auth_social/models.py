@@ -87,6 +87,15 @@ class IdentityProvider(models.Model):
         null=True,
         blank=True,
     )
+    allowed_redirects = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of allowed redirect URLs for OAuth authentication. "
+        "URLs must be exact matches (origin only: scheme + domain + port). "
+        "HTTPS required except for localhost. No wildcards, paths, query params, or fragments. "
+        'Example: ["https://portal1.example.com", "https://portal2.example.com:8443"]. '
+        "If empty, falls back to HOMEPORT_URL setting.",
+    )
 
     class Meta:
         ordering = ["label"]

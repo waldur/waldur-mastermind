@@ -21,11 +21,11 @@ from waldur_auth_social.models import OAuthToken
 from waldur_auth_social.utils import (
     create_or_update_oauth_user,
     pull_remote_eduteams_user,
+    validate_and_get_redirect_url,
 )
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.authentication import refresh_token, set_authentication_method
 from waldur_core.core.serializers import EmptySerializer
-from waldur_core.core.utils import format_homeport_link
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 
@@ -43,6 +43,10 @@ logger = logging.getLogger(__name__)
 OIDC_STATE_KEY = "oidc_state"
 
 OIDC_CODE_VERIFIER_KEY = "oidc_code_verifier"
+
+OIDC_REFERRER_KEY = "oidc_referrer"
+
+OIDC_RETURN_URL_KEY = "oidc_return_url"
 
 
 def generate_code_challenge(code_verifier):
@@ -87,6 +91,16 @@ class OAuthViewInit(BaseOAuthView):
 
         oidc_state = secrets.token_urlsafe(32)
         request.session[OIDC_STATE_KEY] = oidc_state
+
+        # Store return URL from query parameter (higher priority) or referrer header
+        return_url = request.query_params.get("return_url")
+        if return_url:
+            request.session[OIDC_RETURN_URL_KEY] = return_url
+        else:
+            # Fall back to HTTP Referer header
+            referrer = request.META.get("HTTP_REFERER")
+            if referrer:
+                request.session[OIDC_REFERRER_KEY] = referrer
 
         params = {
             "response_type": "code",
@@ -160,11 +174,21 @@ class OAuthViewComplete(BaseOAuthView):
         else:
             user_token = token.key
         params = {"token": user_token}
-        return redirect(
-            format_homeport_link(
-                f"oauth_login_completed/{provider}/?{urlencode(params)}"
-            )
+
+        # Get the stored return_url or referrer from session
+        stored_return_url = request.session.get(OIDC_RETURN_URL_KEY)
+        stored_referrer = request.session.get(OIDC_REFERRER_KEY)
+
+        # Validate and get the appropriate redirect URL (return_url takes priority)
+        redirect_base_url = validate_and_get_redirect_url(
+            self.config, stored_referrer, stored_return_url
         )
+
+        # Build the full redirect URL
+        redirect_path = f"oauth_login_completed/{provider}/?{urlencode(params)}"
+        full_redirect_url = f"{redirect_base_url.rstrip('/')}/{redirect_path}"
+
+        return redirect(full_redirect_url)
 
     def authenticate_user(self, validated_data):
         token_data = self.get_token_data(validated_data)
