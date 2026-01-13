@@ -344,6 +344,9 @@ class QuestionAdminSerializer(QuestionSerializer):
     )
     checklist_name = serializers.CharField(read_only=True, source="checklist.name")
     checklist_uuid = serializers.UUIDField(read_only=True, source="checklist.uuid")
+    checklist_type = serializers.CharField(
+        read_only=True, source="checklist.checklist_type"
+    )
 
     def validate(self, attrs):
         operator = attrs.get("operator")
@@ -510,6 +513,7 @@ class QuestionAdminSerializer(QuestionSerializer):
             "url",
             "checklist_name",
             "checklist_uuid",
+            "checklist_type",
             "checklist",
         ]
         extra_kwargs = {
