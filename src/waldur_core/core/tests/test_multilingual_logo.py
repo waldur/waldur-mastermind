@@ -360,3 +360,122 @@ class MultilingualLogoBinaryUploadTest(test.APITransactionTestCase):
         self.assertIn("de", multilingual)
         # Note: This test checks that the new upload works.
         # The previous 'fr' value would be replaced since we're posting new data.
+
+
+class SingleLogoFileUploadTest(test.APITransactionTestCase):
+    """
+    Test uploading single logo files (non-multilingual) via REST API.
+
+    Regression test for WAL-9603: Logo upload gives error "submitted data was not a file"
+    when uploading SIDEBAR_LOGO_DARK or similar single image fields.
+    """
+
+    def setUp(self):
+        self.url = "/api/override-settings/"
+        self.staff = UserFactory(is_staff=True)
+        # Clean up any existing settings
+        Constance.objects.filter(
+            key__in=["SIDEBAR_LOGO_DARK", "SIDEBAR_LOGO", "LOGIN_LOGO"]
+        ).delete()
+
+    def test_staff_can_upload_sidebar_logo_dark(self):
+        """
+        Staff can upload SIDEBAR_LOGO_DARK as a single file.
+
+        This is the specific scenario from WAL-9603 where the bug was triggered
+        by _parse_bracket_notation using dict(data) instead of iterating over items.
+        """
+        self.client.force_login(self.staff)
+
+        logo_image = dummy_image()
+
+        response = self.client.post(
+            self.url,
+            {"SIDEBAR_LOGO_DARK": logo_image},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify the setting was saved with a file path
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.data["SIDEBAR_LOGO_DARK"], str)
+        self.assertTrue(len(response.data["SIDEBAR_LOGO_DARK"]) > 0)
+
+    def test_staff_can_upload_sidebar_logo(self):
+        """Staff can upload SIDEBAR_LOGO as a single file."""
+        self.client.force_login(self.staff)
+
+        logo_image = dummy_image()
+
+        response = self.client.post(
+            self.url,
+            {"SIDEBAR_LOGO": logo_image},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.client.get(self.url)
+        self.assertIsInstance(response.data["SIDEBAR_LOGO"], str)
+        self.assertTrue(len(response.data["SIDEBAR_LOGO"]) > 0)
+
+    def test_staff_can_upload_login_logo(self):
+        """Staff can upload LOGIN_LOGO as a single file."""
+        self.client.force_login(self.staff)
+
+        logo_image = dummy_image()
+
+        response = self.client.post(
+            self.url,
+            {"LOGIN_LOGO": logo_image},
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.client.get(self.url)
+        self.assertIsInstance(response.data["LOGIN_LOGO"], str)
+        self.assertTrue(len(response.data["LOGIN_LOGO"]) > 0)
+
+    def test_staff_can_upload_multiple_different_logos_at_once(self):
+        """Staff can upload multiple different logo types in a single request."""
+        self.client.force_login(self.staff)
+
+        sidebar_logo = dummy_image()
+        sidebar_logo_dark = dummy_image()
+
+        response = self.client.post(
+            self.url,
+            {
+                "SIDEBAR_LOGO": sidebar_logo,
+                "SIDEBAR_LOGO_DARK": sidebar_logo_dark,
+            },
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.client.get(self.url)
+        self.assertIsInstance(response.data["SIDEBAR_LOGO"], str)
+        self.assertIsInstance(response.data["SIDEBAR_LOGO_DARK"], str)
+        self.assertTrue(len(response.data["SIDEBAR_LOGO"]) > 0)
+        self.assertTrue(len(response.data["SIDEBAR_LOGO_DARK"]) > 0)
+
+    def test_can_upload_single_logo_and_multilingual_logo_together(self):
+        """Can upload both single logo and multilingual logo in one request."""
+        self.client.force_login(self.staff)
+
+        sidebar_logo = dummy_image()
+        german_login_logo = dummy_image()
+
+        response = self.client.post(
+            self.url,
+            {
+                "SIDEBAR_LOGO_DARK": sidebar_logo,
+                "LOGIN_LOGO_MULTILINGUAL[de]": german_login_logo,
+            },
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        response = self.client.get(self.url)
+        self.assertIsInstance(response.data["SIDEBAR_LOGO_DARK"], str)
+        self.assertIn("de", response.data["LOGIN_LOGO_MULTILINGUAL"])
