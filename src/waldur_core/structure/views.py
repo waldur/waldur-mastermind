@@ -744,29 +744,15 @@ class ProjectViewSet(
 
     @extend_schema(
         summary="Move project to another customer",
-        description="Moves a project and its associated resources to a different customer. This is a staff-only action. You can choose whether to preserve existing project permissions for users.",
+        description="Moves a project and its associated resources to a different customer. This is a staff-only action. You can choose whether to preserve existing project permissions for users. Terminated projects can also be moved.",
         request=serializers.MoveProjectSerializer,
         responses={
             200: serializers.ProjectSerializer,
-            400: {
-                "type": "object",
-                "properties": {
-                    "non_field_errors": {"type": "array", "items": {"type": "string"}}
-                },
-                "description": "Validation error when trying to move a terminated project",
-                "example": {"non_field_errors": ["Cannot move terminated projects."]},
-            },
         },
     )
     @action(detail=True, methods=["post"])
     def move_project(self, request, uuid=None):
         project = self.get_object()
-
-        # Restrict moving terminated projects
-        if project.is_removed:
-            raise ValidationError(
-                {"non_field_errors": ["Cannot move terminated projects."]}
-            )
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
