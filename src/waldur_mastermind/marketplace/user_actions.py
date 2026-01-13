@@ -4,6 +4,7 @@ from typing import Any
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 from django.utils import timezone
 
 from waldur_core.permissions.enums import PermissionEnum
@@ -174,9 +175,7 @@ class ExpiringResourceProvider(BaseActionProvider):
         return "low"
 
     def get_actions_for_user(self, user: User) -> list[dict[str, Any]]:
-        """Find resources expiring in the next 30 days"""
-        cutoff = timezone.now() + timedelta(days=30)
-
+        """Find resources expiring in the configurable timeframe (default 30 days)"""
         # Find resources where user has access to the project
         project_ct = ContentType.objects.get_for_model(Project)
         user_projects = UserRole.objects.filter(
@@ -185,10 +184,56 @@ class ExpiringResourceProvider(BaseActionProvider):
             is_active=True,
         ).values_list("object_id", flat=True)
 
+        if not user_projects:
+            return []
+
+        # Optimization: Fetch involved offerings first and group by threshold
+        # We cannot use reverse relation (resource__...) because related_name is "+"
+        offering_ids = (
+            models.Resource.objects.filter(
+                project_id__in=user_projects,
+                state=models.ResourceStates.OK,
+            )
+            .values_list("offering_id", flat=True)
+            .distinct()
+        )
+
+        offerings = models.Offering.objects.filter(id__in=offering_ids)
+
+        # Group offerings by threshold
+        threshold_map = {}  # days -> [offering_ids]
+        default_threshold = 30
+
+        for offering in offerings:
+            threshold = offering.plugin_options.get(
+                "resource_expiration_threshold", default_threshold
+            )
+            # Ensure threshold is an integer
+            try:
+                threshold = int(threshold)
+            except (ValueError, TypeError):
+                threshold = default_threshold
+
+            if threshold not in threshold_map:
+                threshold_map[threshold] = []
+            threshold_map[threshold].append(offering.id)
+
+        # Build optimized query
+        if not threshold_map:
+            return []
+
+        query = Q()
+        now = timezone.now()
+
+        for days, offering_ids in threshold_map.items():
+            cutoff = now + timedelta(days=days)
+            query |= Q(offering_id__in=offering_ids, end_date__lt=cutoff)
+
+        # Execute optimized query
         resources = models.Resource.objects.filter(
+            query,
             end_date__isnull=False,
-            end_date__lt=cutoff,
-            end_date__gt=timezone.now(),
+            end_date__gt=now,
             project_id__in=user_projects,
             state=models.ResourceStates.OK,
         ).distinct()
@@ -248,12 +293,6 @@ class ExpiringResourceProvider(BaseActionProvider):
     def get_corrective_actions(self, user: User, resource) -> list[CorrectiveAction]:
         """Return corrective actions for expiring resources"""
         actions = []
-        end_datetime = timezone.datetime.combine(
-            resource.end_date, timezone.datetime.min.time()
-        )
-        if timezone.is_naive(end_datetime):
-            end_datetime = timezone.make_aware(end_datetime)
-        (end_datetime - timezone.now()).days
 
         # View resource details (always available)
         actions.append(
@@ -266,7 +305,66 @@ class ExpiringResourceProvider(BaseActionProvider):
             )
         )
 
+        # Renew/Extend (Navigate to resource details)
+        if resource.offering.components.filter(is_prepaid=True).exists():
+            actions.append(
+                CorrectiveAction(
+                    label="Renew Resource",
+                    category=ActionCategory.EXTEND,
+                    severity=ActionSeverity.LOW,
+                    route_name="marketplace-resource-details",
+                    route_params={
+                        "resource_uuid": str(resource.uuid),
+                        "tab": "actions",
+                    },
+                )
+            )
+
+        # Terminate (API action)
+        if self._can_terminate_resource(user, resource):
+            actions.append(
+                CorrectiveAction(
+                    label="Terminate Resource",
+                    method="POST",
+                    category=ActionCategory.TERMINATE,
+                    severity=ActionSeverity.HIGH,
+                    api_endpoint=True,
+                    confirmation_required=True,
+                    metadata={
+                        "resource_name": resource.name,
+                        "resource_uuid": str(resource.uuid),
+                    },
+                )
+            )
+
         return actions
+
+    def execute_action(
+        self,
+        user: User,
+        action: CorrectiveAction,
+        obj,
+        request=None,
+        user_action=None,
+    ) -> dict[str, Any] | None:
+        """Execute termination action (acknowledge expiration)"""
+        if action.category == ActionCategory.TERMINATE and user_action:
+            # Silence the action to acknowledge the expiration
+            # This effectively confirms the user is aware and accepts the resource will expire
+            user_action.silence()
+
+            return {
+                "action": "completed",
+                "message": "Resource expiration acknowledged. Resource will terminate on end date.",
+            }
+
+        return None
+
+    def _can_terminate_resource(self, user: User, resource) -> bool:
+        """Check if user can terminate the resource"""
+        # User needs to be owner or have specific permissions
+        # For simplicity, checking if user has permissions on project
+        return has_permission(user, PermissionEnum.TERMINATE_RESOURCE, resource.project)
 
 
 # Register all providers

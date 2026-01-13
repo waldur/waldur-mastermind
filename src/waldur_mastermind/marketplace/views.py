@@ -6371,6 +6371,11 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     update_options_serializer_class = serializers.ResourceOptionsSerializer
 
 
+def check_prepaid_resource(resource):
+    if not resource.offering.components.filter(is_prepaid=True).exists():
+        raise ValidationError(_("This action is only available for prepaid resources."))
+
+
 @extend_schema_view(
     list=extend_schema(
         summary="List consumer resources",
@@ -6706,6 +6711,7 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
 
     renew_validators = [
         core_validators.StateValidator(ResourceStates.OK, ResourceStates.ERRED),
+        check_prepaid_resource,
     ]
 
 

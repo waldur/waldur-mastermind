@@ -174,9 +174,7 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Execute the action
         try:
-            result = self._execute_corrective_action(
-                request.user, action, corrective_action
-            )
+            result = self._execute_corrective_action(request, action, corrective_action)
 
             # Log successful execution
             models.UserActionExecution.objects.create(
@@ -218,7 +216,7 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
                 error_serializer.data, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    def _execute_corrective_action(self, user, action, corrective_action):
+    def _execute_corrective_action(self, request, action, corrective_action):
         """Execute a corrective action"""
         if not corrective_action.api_endpoint:
             # Return route info for frontend navigation
@@ -230,7 +228,7 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
 
         # Handle API endpoint execution
         if corrective_action.method in ["POST", "PUT", "PATCH"]:
-            return self._execute_api_action(user, action, corrective_action)
+            return self._execute_api_action(request, action, corrective_action)
 
         return {
             "action": "navigate",
@@ -238,10 +236,22 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
             "route_params": corrective_action.route_params,
         }
 
-    def _execute_api_action(self, user, action, corrective_action):
+    def _execute_api_action(self, request, action, corrective_action):
         """Execute an API-based corrective action"""
-        # This would integrate with your existing API endpoints
-        # For now, we'll provide a basic framework that can be extended
+        from .providers import get_provider
+
+        # Check if provider handles the action
+        provider = get_provider(action.action_type)
+        if provider:
+            result = provider.execute_action(
+                request.user,
+                corrective_action,
+                action.related_object,
+                request=request,
+                user_action=action,
+            )
+            if result:
+                return result
 
         if (
             action.action_type == "pending_order"
