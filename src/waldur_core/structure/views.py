@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
 from django.db import transaction
-from django.db.models import Count, Q, QuerySet
+from django.db.models import Count, Prefetch, Q, QuerySet
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -1172,6 +1172,15 @@ class UserViewSet(core_views.ActionsViewSet):
         qs = super().get_queryset()
         if not self.request.user.is_authenticated:
             return qs.none()
+        # Prefetch user permissions to avoid N+1 queries in UserSerializer.get_permissions
+        permissions_prefetch = Prefetch(
+            "userrole_set",
+            queryset=UserRole.objects.filter(is_active=True).select_related(
+                "user", "role", "created_by", "content_type"
+            ),
+            to_attr="prefetched_permissions",
+        )
+        qs = qs.prefetch_related(permissions_prefetch)
         if self.request.user.is_staff or self.request.user.is_support:
             return qs
         return qs.filter(is_active=True)

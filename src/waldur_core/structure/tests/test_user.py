@@ -992,3 +992,74 @@ class UserFilterIsStaffIsSupportTest(test.APITransactionTestCase):
         response = self.client.get(self.url, {"is_support": True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
+
+
+class UserPermissionsFieldTest(test.APITransactionTestCase):
+    """Tests for the permissions field in user serializer.
+
+    Fixes CSCS-1XR: N+1 query on /api/users/ endpoint.
+    """
+
+    def setUp(self):
+        self.staff = factories.UserFactory(is_staff=True)
+        self.customer = factories.CustomerFactory()
+        self.project = factories.ProjectFactory(customer=self.customer)
+
+        # Create users with different permission levels
+        self.owner = factories.UserFactory()
+        self.customer.add_user(self.owner, CustomerRole.OWNER)
+
+        self.admin = factories.UserFactory()
+        self.project.add_user(self.admin, ProjectRole.ADMIN)
+
+        self.user_with_multiple_roles = factories.UserFactory()
+        self.customer.add_user(self.user_with_multiple_roles, CustomerRole.SUPPORT)
+        self.project.add_user(self.user_with_multiple_roles, ProjectRole.MANAGER)
+
+    def test_user_detail_includes_permissions_field(self):
+        """User detail response includes permissions field with role information."""
+        self.client.force_authenticate(self.owner)
+        url = factories.UserFactory.get_url(self.owner)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("permissions", response.data)
+        self.assertEqual(len(response.data["permissions"]), 1)
+
+        perm = response.data["permissions"][0]
+        self.assertEqual(perm["role_name"], CustomerRole.OWNER.name)
+        self.assertEqual(perm["scope_name"], self.customer.name)
+
+    def test_user_with_multiple_roles_returns_all_permissions(self):
+        """User with multiple roles returns all permissions in the response."""
+        self.client.force_authenticate(self.user_with_multiple_roles)
+        url = factories.UserFactory.get_url(self.user_with_multiple_roles)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("permissions", response.data)
+        self.assertEqual(len(response.data["permissions"]), 2)
+
+        role_names = {p["role_name"] for p in response.data["permissions"]}
+        self.assertIn(CustomerRole.SUPPORT.name, role_names)
+        self.assertIn(ProjectRole.MANAGER.name, role_names)
+
+    def test_user_list_includes_permissions_for_each_user(self):
+        """User list response includes permissions field for each user."""
+        self.client.force_authenticate(self.staff)
+        url = factories.UserFactory.get_list_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Find our test users in the response
+        users_by_uuid = {u["uuid"]: u for u in response.data}
+
+        owner_data = users_by_uuid.get(self.owner.uuid.hex)
+        self.assertIsNotNone(owner_data)
+        self.assertIn("permissions", owner_data)
+        self.assertEqual(len(owner_data["permissions"]), 1)
+
+        multi_role_data = users_by_uuid.get(self.user_with_multiple_roles.uuid.hex)
+        self.assertIsNotNone(multi_role_data)
+        self.assertEqual(len(multi_role_data["permissions"]), 2)
