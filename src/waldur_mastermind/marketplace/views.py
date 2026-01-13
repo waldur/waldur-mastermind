@@ -6369,6 +6369,9 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         ),
     ]
     update_options_serializer_class = serializers.ResourceOptionsSerializer
+    update_options_validators = [
+        core_validators.StateValidator(ResourceStates.OK, state_enum=ResourceStates),
+    ]
 
 
 def check_prepaid_resource(resource):
