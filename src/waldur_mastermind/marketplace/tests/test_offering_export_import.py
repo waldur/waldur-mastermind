@@ -718,3 +718,153 @@ class OfferingExportImportTestCase(test.APITransactionTestCase):
                 self.assertIsInstance(file_data["file_content"], str)
                 self.assertIn("content_type", file_data)
                 self.assertIn("filename", file_data)
+
+    def test_import_offering_with_secret_options(self):
+        """Test importing offering with secret_options when explicitly requested."""
+        self.client.force_authenticate(self.user)
+
+        # Prepare import data with secret_options at the top level (not inside offering)
+        # This matches the export format where secret_options is a sibling of "offering"
+        import_data = {
+            "offering": {
+                "name": "Secret Options Test Offering",
+                "description": "Testing secret options import",
+                "type": "TEST_TYPE",
+            },
+            "secret_options": {
+                "create": "create_script_content",
+                "update": "update_script_content",
+                "environ": [{"name": "API_KEY", "value": "secret123"}],
+            },
+            "plugin_options": {"plugin_key": "plugin_value"},
+            "resource_options": {"resource_key": "resource_value"},
+        }
+
+        yaml_data = yaml.safe_dump(import_data)
+
+        url = reverse("marketplace-provider-offering-import-offering")
+        response = self.client.post(
+            url,
+            {
+                "customer": self.customer.uuid.hex,
+                "category": self.category.title,
+                "import_secret_options": True,
+                "import_plugin_options": True,
+                "offering_data": yaml_data,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify offering was created with secret_options
+        offering = models.Offering.objects.get(name="Secret Options Test Offering")
+        self.assertEqual(
+            offering.secret_options,
+            {
+                "create": "create_script_content",
+                "update": "update_script_content",
+                "environ": [{"name": "API_KEY", "value": "secret123"}],
+            },
+        )
+        self.assertEqual(offering.plugin_options, {"plugin_key": "plugin_value"})
+        self.assertEqual(offering.resource_options, {"resource_key": "resource_value"})
+
+    def test_import_offering_secret_options_not_imported_by_default(self):
+        """Test that secret_options are NOT imported by default (import_secret_options=False)."""
+        self.client.force_authenticate(self.user)
+
+        import_data = {
+            "offering": {
+                "name": "No Secret Options Test",
+                "description": "Testing secret options not imported by default",
+            },
+            "secret_options": {"should": "not be imported"},
+        }
+
+        yaml_data = yaml.safe_dump(import_data)
+
+        url = reverse("marketplace-provider-offering-import-offering")
+        response = self.client.post(
+            url,
+            {
+                "customer": self.customer.uuid.hex,
+                "category": self.category.title,
+                # import_secret_options defaults to False
+                "offering_data": yaml_data,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify offering was created WITHOUT secret_options
+        offering = models.Offering.objects.get(name="No Secret Options Test")
+        self.assertEqual(offering.secret_options, {})
+
+    def test_export_import_roundtrip_with_secret_options(self):
+        """Test that exported secret_options can be successfully imported back."""
+        self.client.force_authenticate(self.user)
+
+        # Create offering with secret_options
+        offering = self.fixture.offering
+        offering.secret_options = {
+            "create": "create_script",
+            "terminate": "terminate_script",
+            "environ": [{"name": "SECRET_KEY", "value": "test123"}],
+        }
+        offering.plugin_options = {"config": "value"}
+        offering.resource_options = {"resource": "config"}
+        offering.save()
+
+        # Export the offering with secret_options
+        export_url = factories.OfferingFactory.get_url(offering, "export_offering")
+        export_response = self.client.post(
+            export_url,
+            {
+                "include_components": True,
+                "include_secret_options": True,
+                "include_plugin_options": True,
+                "include_resource_options": True,
+            },
+        )
+
+        self.assertEqual(export_response.status_code, status.HTTP_200_OK)
+
+        # Verify export contains secret_options
+        export_data = export_response.data["export_data"]
+        self.assertEqual(export_data["secret_options"], offering.secret_options)
+        self.assertEqual(export_data["plugin_options"], offering.plugin_options)
+        self.assertEqual(export_data["resource_options"], offering.resource_options)
+
+        # Modify the exported data to create a new offering
+        export_data["offering"]["name"] = "Roundtrip Secret Options Test"
+        modified_yaml = yaml.safe_dump(export_data)
+
+        # Import the modified data with secret_options
+        import_url = reverse("marketplace-provider-offering-import-offering")
+        import_response = self.client.post(
+            import_url,
+            {
+                "customer": self.customer.uuid.hex,
+                "category": self.category.title,
+                "import_secret_options": True,
+                "import_plugin_options": True,
+                "offering_data": modified_yaml,
+            },
+        )
+
+        self.assertEqual(import_response.status_code, status.HTTP_201_CREATED)
+
+        # Verify the imported offering has the correct secret_options
+        imported_offering = models.Offering.objects.get(
+            name="Roundtrip Secret Options Test"
+        )
+        self.assertEqual(
+            imported_offering.secret_options,
+            {
+                "create": "create_script",
+                "terminate": "terminate_script",
+                "environ": [{"name": "SECRET_KEY", "value": "test123"}],
+            },
+        )
+        self.assertEqual(imported_offering.plugin_options, {"config": "value"})
+        self.assertEqual(imported_offering.resource_options, {"resource": "config"})
