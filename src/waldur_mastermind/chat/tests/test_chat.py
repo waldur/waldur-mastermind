@@ -14,15 +14,6 @@ class ChatBaseTest(test.APITransactionTestCase):
         self.client.force_authenticate(user=self.user)
 
         self.stream_url = reverse("chat-stream")
-        self.invoke_url = reverse("chat-invoke")
-
-
-class InvokeEndpointTest(ChatBaseTest):
-    @override_constance_config(LLM_CHAT_ENABLED=True)
-    def test_invoke_returns_200(self):
-        response = self.client.post(self.invoke_url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, "Invoke chat response")
 
 
 class StreamEndpointValidationTest(ChatBaseTest):
@@ -38,13 +29,13 @@ class StreamEndpointValidationTest(ChatBaseTest):
 
 class StreamEndpointConfigTest(ChatBaseTest):
     @override_constance_config(LLM_CHAT_ENABLED=False)
-    def test_returns_404_if_chat_disabled(self):
+    def test_returns_424_if_chat_disabled(self):
         response = self.client.post(
             self.stream_url,
             data={"input": "Hello"},
         )
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertEqual(response.data["detail"], "Not found.")
+        self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
+        self.assertEqual(response.data["detail"], "Extension is disabled.")
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
@@ -62,18 +53,17 @@ class StreamEndpointConfigTest(ChatBaseTest):
         )
 
 
-class StreamEndpointSseTest(ChatBaseTest):
+class StreamEndpointNdjsonTest(ChatBaseTest):
     @mock.patch("waldur_mastermind.chat.views.requests.post")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
-    def test_stream_proxies_sse_and_strips_metadata(self, post_mock):
-        # Upstream LLM API sends "content", we transform it to "c" for bandwidth
+    def test_stream_proxies_ndjson_and_minifies(self, post_mock):
         upstream_payload = {
             "content": "Hello",
-            "additional_kwargs": {"foo": "bar", "unused": 1},
+            "additional_kwargs": {"foo": "bar"},
         }
 
         fake_stream = [
@@ -91,31 +81,24 @@ class StreamEndpointSseTest(ChatBaseTest):
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response["Content-Type"], "text/event-stream")
+        self.assertEqual(response["Content-Type"], "application/x-ndjson")
 
         body = b"".join(chunk for chunk in response.streaming_content).decode("utf-8")
-
-        data_lines = [line for line in body.splitlines() if line.startswith("data: ")]
-
-        self.assertTrue(
-            len(data_lines) >= 2, "Expected at least separate content and kwargs events"
-        )
+        lines = [line for line in body.splitlines() if line.strip()]
 
         content_found = False
-        kwargs_found = False
+        meta_found = False
 
-        for line in data_lines:
-            data = json.loads(line[len("data: ") :])
+        for line in lines:
+            data = json.loads(line)
 
-            # Content is transformed from "content" to "c" for bandwidth optimization
-            if "c" in data:
+            if data.get("k") == "markdown":
                 self.assertEqual(data["c"], "Hello")
                 content_found = True
 
-            if "additional_kwargs" in data:
-                self.assertIn("foo", data["additional_kwargs"])
-                self.assertIn("unused", data["additional_kwargs"])
-                kwargs_found = True
+            if "m" in data:
+                self.assertEqual(data["m"]["foo"], "bar")
+                meta_found = True
 
-        self.assertTrue(content_found, "Did not find chunk with key 'c'")
-        self.assertTrue(kwargs_found, "Did not find chunk with 'additional_kwargs'")
+        self.assertTrue(content_found, "Did not find chunk with key 'k'='markdown'")
+        self.assertTrue(meta_found, "Did not find chunk with 'm'")
