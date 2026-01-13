@@ -310,53 +310,6 @@ The token endpoint is used to obtain tokens.
 
 It allows to get user data based on userid aka CUID.
 
-## Identity Provider Configuration
-
-Identity Providers (OIDC/OAuth) are configured via the IdentityProvider model, accessible through the API at `/api/identity-providers/`.
-
-### Multi-Client Support
-
-Waldur Mastermind supports authentication from multiple client applications to a single backend. Configure the `allowed_redirects` field to whitelist client domains for post-authentication redirect.
-
-#### allowed_redirects
-
-**Type:** List[str]
-
-**Default:** `[]` (empty list)
-
-A list of allowed redirect URLs for OIDC authentication. When configured, Mastermind validates the return URL against this whitelist and redirects users back to the originating client application.
-
-**Example:**
-```json
-{
-  "allowed_redirects": [
-    "https://homeport1.example.com",
-    "https://homeport2.example.com",
-    "https://homeport3.example.com"
-  ]
-}
-```
-
-**Behavior:**
-- If `allowed_redirects` is empty, falls back to `HOMEPORT_URL` constance setting (single-client mode)
-- If configured and return URL matches, redirects to the originating client application
-- If configured but no return URL, redirects to the first URL in the list
-- If return URL doesn't match, authentication fails with 401 error
-
-**Return URL Detection:**
-- Client can pass explicit `return_url` query parameter: `/api-auth/keycloak/init/?return_url=https://app1.example.com`
-- Falls back to HTTP Referer header if `return_url` not provided
-- `return_url` parameter takes priority when both are available
-
-**Validation Rules:**
-- **Origin-only**: Only scheme + domain + port allowed (no paths, query parameters, or fragments)
-- **HTTPS-only**: Must use `https://` scheme (except `http://localhost` or `http://127.0.0.1`)
-- **No trailing slashes**: URLs must not end with `/`
-- **Exact matching**: Each client URL must be explicitly listed (no wildcards)
-- **Normalized format**: Use `https://app.example.com` not `https://app.example.com/`
-
-**See also:** [Multi-Client OIDC Authentication Guide](../multi-client-oidc.md)
-
 ### WALDUR_CORE plugin
 
 Default value:
