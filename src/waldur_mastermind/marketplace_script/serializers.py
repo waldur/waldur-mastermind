@@ -19,6 +19,21 @@ class CommonSerializer(serializers.Serializer):
     offering_name = serializers.ReadOnlyField(source="offering.name")
     plan_uuid = serializers.UUIDField(read_only=True, source="plan.uuid")
     plan_name = serializers.ReadOnlyField(source="plan.name")
+    plan_component_amounts = serializers.SerializerMethodField()
+
+    def get_plan_component_amounts(self, obj):
+        """Return plan component amounts as a dict {component_type: amount}.
+
+        This returns PlanComponent.amount for each component in the plan,
+        representing the quantity of each component included in this plan.
+        """
+        if obj.plan:
+            return {
+                comp.component.type: comp.amount
+                for comp in obj.plan.components.select_related("component").all()
+                if comp.component
+            }
+        return {}
 
 
 class OrderSerializer(CommonSerializer):
