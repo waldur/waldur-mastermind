@@ -531,7 +531,9 @@ def _parse_bracket_notation(data):
     """
     import re
 
-    result = dict(data)
+    # Build result dict by iterating over items to preserve file objects
+    # Using dict(data) on QueryDict doesn't properly handle file uploads
+    result = {key: value for key, value in data.items()}
     bracket_pattern = re.compile(r"^(\w+)\[(\w+)\]$")
 
     keys_to_remove = []
