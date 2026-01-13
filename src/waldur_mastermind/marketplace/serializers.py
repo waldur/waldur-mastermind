@@ -111,6 +111,12 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         help_text="If set to True, an order can be processed without approval",
     )
 
+    resource_expiration_threshold = serializers.IntegerField(
+        required=False,
+        default=30,
+        help_text="Resource expiration threshold in days.",
+    )
+
     service_provider_can_create_offering_user = serializers.BooleanField(
         required=False, help_text="Service provider can create offering user"
     )

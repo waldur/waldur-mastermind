@@ -77,6 +77,15 @@ class BaseActionProvider(ABC):
         """Return available corrective actions for this object"""
         return []
 
+    def execute_action(
+        self, user: User, action: CorrectiveAction, obj, request=None, user_action=None
+    ) -> dict[str, Any] | None:
+        """
+        Execute a corrective action.
+        Return a dict with result metadata or None if not handled.
+        """
+        return None
+
     def can_user_perform_action(
         self, user: User, obj, action: CorrectiveAction
     ) -> bool:
