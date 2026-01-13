@@ -4135,17 +4135,19 @@ class ProviderOfferingViewSet(
             offering.project = project
 
         # Update JSON fields based on import parameters
+        # Note: plugin_options, secret_options, and resource_options are exported
+        # at the import_data level (sibling to "offering"), not inside offering_data
         if (
             params.get("import_plugin_options", True)
-            and "plugin_options" in offering_data
+            and "plugin_options" in import_data
         ):
-            offering.plugin_options = offering_data["plugin_options"]
+            offering.plugin_options = import_data["plugin_options"]
 
         if (
             params.get("import_secret_options", False)
-            and "secret_options" in offering_data
+            and "secret_options" in import_data
         ):
-            offering.secret_options = offering_data["secret_options"]
+            offering.secret_options = import_data["secret_options"]
 
         if "attributes" in offering_data:
             offering.attributes = offering_data["attributes"]
@@ -4153,8 +4155,8 @@ class ProviderOfferingViewSet(
         if "options" in offering_data:
             offering.options = offering_data["options"]
 
-        if "resource_options" in offering_data:
-            offering.resource_options = offering_data["resource_options"]
+        if "resource_options" in import_data:
+            offering.resource_options = import_data["resource_options"]
 
         offering.save()
         return offering, created, warnings
