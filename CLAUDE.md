@@ -50,6 +50,69 @@ fixture = fixtures.ProjectFixture()
 role = CustomerRole.SUPPORT  # Not MANAGER (doesn't exist)
 ```
 
+## REST API Development (DRF)
+
+### ViewSet Structure
+
+```python
+class MyViewSet(ActionsViewSet):
+    queryset = MyModel.objects.all()
+    serializer_class = MySerializer
+    filterset_class = MyFilter
+    lookup_field = "uuid"
+
+    # Permissions per action
+    list_permissions = [permission_factory(PermissionEnum.VIEW_X)]
+    create_permissions = [permission_factory(PermissionEnum.CREATE_X)]
+
+    # Disable unwanted actions
+    disabled_actions = ["destroy"]
+```
+
+### Custom Actions
+
+```python
+@action(detail=True, methods=["post"])
+def my_action(self, request, uuid=None):
+    """Docstring becomes OpenAPI description."""
+    instance = self.get_object()
+    serializer = MyActionSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    # ... implementation
+    return Response(status=status.HTTP_200_OK)
+
+# Define permissions for custom action
+my_action_permissions = [permission_factory(PermissionEnum.ACTION_X)]
+```
+
+### OpenAPI Schema Customization
+
+**Quick decision guide:**
+
+- Endpoint-specific parameters → `@extend_schema` decorator
+- Custom field types → Extension in `openapi_extensions.py`
+- Hide endpoints → `disabled_actions` list on ViewSet
+- Schema-wide changes → Hook in `schema_hooks.py`
+
+```python
+from drf_spectacular.utils import extend_schema, OpenApiParameter
+
+@extend_schema(
+    parameters=[
+        OpenApiParameter("o", {"type": "string", "enum": ["name", "-name"]},
+                        location=OpenApiParameter.QUERY,
+                        description="Ordering field"),
+    ],
+)
+@action(detail=True)
+def items(self, request, uuid=None):
+    ...
+```
+
+**Validate schema:** `uv run waldur spectacular --validate`
+
+See `docs/guides/openapi.md` for detailed patterns.
+
 ## Documentation Structure
 
 Detailed guides are in `docs/guides/`:
@@ -60,6 +123,7 @@ Detailed guides are in `docs/guides/`:
 - **Code Style**: `waldur-code-style.md` - Formatting and conventions
 - **Permissions**: `waldur-permissions.md` - Permission system details
 - **Build Commands**: `build-commands.md` - Test/lint/build commands
+- **OpenAPI Schema**: `openapi.md` - drf-spectacular customization patterns
 
 ## Quick Commands
 
@@ -72,6 +136,9 @@ uv run pre-commit run --all-files
 
 # Lint markdown
 mdl --style markdownlint-style.rb docs/
+
+# Validate OpenAPI schema
+uv run waldur spectacular --validate
 ```
 
 ## Development Workflows

@@ -100,7 +100,7 @@ class RabbitMQStatsPurgeTest(test.APITransactionTestCase):
         mock_backend.purge_queue.return_value = 0
 
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.delete(
+        response = self.client.post(
             self.url, data={"vhost": "test_vhost", "queue_name": "test_queue"}
         )
 
@@ -120,7 +120,7 @@ class RabbitMQStatsPurgeTest(test.APITransactionTestCase):
         mock_backend.purge_queue.return_value = 0
 
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.delete(
+        response = self.client.post(
             self.url, data={"vhost": "test_vhost", "queue_pattern": "*_resource"}
         )
 
@@ -150,7 +150,7 @@ class RabbitMQStatsPurgeTest(test.APITransactionTestCase):
         mock_backend.purge_queue.return_value = 0
 
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.delete(
+        response = self.client.post(
             self.url, data={"purge_all_subscription_queues": True}
         )
 
@@ -160,7 +160,7 @@ class RabbitMQStatsPurgeTest(test.APITransactionTestCase):
 
     def test_support_user_cannot_purge_queues(self):
         self.client.force_authenticate(self.fixture.global_support)
-        response = self.client.delete(
+        response = self.client.post(
             self.url, data={"vhost": "test_vhost", "queue_name": "test_queue"}
         )
 
@@ -169,14 +169,14 @@ class RabbitMQStatsPurgeTest(test.APITransactionTestCase):
     @data("owner", "user")
     def test_regular_user_cannot_purge_queues(self, user):
         self.client.force_authenticate(getattr(self.fixture, user))
-        response = self.client.delete(
+        response = self.client.post(
             self.url, data={"vhost": "test_vhost", "queue_name": "test_queue"}
         )
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_anonymous_user_cannot_purge_queues(self):
-        response = self.client.delete(
+        response = self.client.post(
             self.url, data={"vhost": "test_vhost", "queue_name": "test_queue"}
         )
 
@@ -184,7 +184,7 @@ class RabbitMQStatsPurgeTest(test.APITransactionTestCase):
 
     def test_purge_requires_valid_parameters(self):
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.delete(self.url, data={})
+        response = self.client.post(self.url, data={})
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("error", response.data)
@@ -195,7 +195,7 @@ class RabbitMQStatsPurgeTest(test.APITransactionTestCase):
         mock_backend.list_queues.return_value = []
 
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.delete(
+        response = self.client.post(
             self.url, data={"vhost": "test_vhost", "queue_name": "nonexistent_queue"}
         )
 
@@ -208,7 +208,7 @@ class RabbitMQStatsPurgeTest(test.APITransactionTestCase):
         mock_backend.list_queues.side_effect = RabbitMQError("Connection failed")
 
         self.client.force_authenticate(self.fixture.staff)
-        response = self.client.delete(
+        response = self.client.post(
             self.url, data={"vhost": "test_vhost", "queue_name": "test_queue"}
         )
 

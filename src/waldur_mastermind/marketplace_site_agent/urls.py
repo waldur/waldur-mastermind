@@ -27,4 +27,19 @@ urlpatterns = [
         views.ProjectSyncUserRolesView.as_view(),
         name="project-sync-user-roles",
     ),
+    re_path(
+        r"^api/marketplace-site-agent-stats/$",
+        views.AgentStatsViewSet.as_view(),
+        name="marketplace-site-agent-stats",
+    ),
+    re_path(
+        r"^api/marketplace-site-agent-task-stats/$",
+        views.AgentTaskStatsViewSet.as_view(),
+        name="marketplace-site-agent-task-stats",
+    ),
+    re_path(
+        r"^api/marketplace-site-agent-connection-stats/$",
+        views.AgentConnectionStatsViewSet.as_view(),
+        name="marketplace-site-agent-connection-stats",
+    ),
 ]

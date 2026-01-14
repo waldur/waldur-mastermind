@@ -130,7 +130,14 @@ class EmailHookSerializer(BaseHookSerializer):
 
 
 class EventSubscriptionSerializer(serializers.HyperlinkedModelSerializer):
-    observable_objects = serializers.JSONField(default=list)
+    observable_objects = serializers.JSONField(
+        default=list,
+        help_text="List of objects to observe. Each item must have 'object_type' "
+        "(one of: order, user_role, resource, offering_user, importable_resources, "
+        "service_account, course_account, resource_periodic_limits) "
+        "and optionally 'object_id' (integer). "
+        'Example: [{"object_type": "resource"}, {"object_type": "order", "object_id": 123}]',
+    )
     user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
     user_username = serializers.ReadOnlyField(source="user.username")
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
@@ -328,6 +335,56 @@ class RmqQueueStatsSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Parsed object type from queue name (e.g., 'resource', 'order')",
     )
+    message_ttl = serializers.IntegerField(
+        read_only=True,
+        allow_null=True,
+        help_text="Message TTL in milliseconds",
+    )
+    max_length = serializers.IntegerField(
+        read_only=True,
+        allow_null=True,
+        help_text="Maximum number of messages in queue",
+    )
+    max_length_bytes = serializers.IntegerField(
+        read_only=True,
+        allow_null=True,
+        help_text="Maximum total size of messages in bytes",
+    )
+    expires = serializers.IntegerField(
+        read_only=True,
+        allow_null=True,
+        help_text="Queue TTL - auto-delete after idle in milliseconds",
+    )
+    overflow = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Behavior when full: 'drop-head', 'reject-publish', or 'reject-publish-dlx'",
+    )
+    dead_letter_exchange = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Dead letter exchange name",
+    )
+    dead_letter_routing_key = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Dead letter routing key",
+    )
+    max_priority = serializers.IntegerField(
+        read_only=True,
+        allow_null=True,
+        help_text="Maximum priority level (1-255)",
+    )
+    queue_mode = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Queue mode: 'default' or 'lazy'",
+    )
+    queue_type = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Queue type: 'classic', 'quorum', or 'stream'",
+    )
 
 
 class RmqStatsUserSerializer(serializers.Serializer):
@@ -394,15 +451,15 @@ class RmqStatsResponseSerializer(serializers.Serializer):
 
 
 class RmqPurgeRequestSerializer(serializers.Serializer):
-    """Request serializer for purging RabbitMQ queues."""
+    """Request serializer for purging or deleting RabbitMQ queues."""
 
     vhost = serializers.CharField(
         required=False,
-        help_text="Virtual host name containing the queue(s) to purge",
+        help_text="Virtual host name containing the queue(s)",
     )
     queue_name = serializers.CharField(
         required=False,
-        help_text="Specific queue name to purge (requires vhost)",
+        help_text="Specific queue name (requires vhost)",
     )
     queue_pattern = serializers.CharField(
         required=False,
@@ -413,16 +470,28 @@ class RmqPurgeRequestSerializer(serializers.Serializer):
         default=False,
         help_text="If true, purge all subscription queues across all vhosts",
     )
+    delete_queue = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="If true, delete the queue(s) entirely instead of just purging messages",
+    )
+    delete_all_subscription_queues = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="If true, delete all subscription queues across all vhosts",
+    )
 
     def validate(self, attrs):
         vhost = attrs.get("vhost")
         queue_name = attrs.get("queue_name")
         queue_pattern = attrs.get("queue_pattern")
         purge_all = attrs.get("purge_all_subscription_queues", False)
+        delete_all = attrs.get("delete_all_subscription_queues", False)
 
-        if not purge_all and not vhost:
+        if not purge_all and not delete_all and not vhost:
             raise serializers.ValidationError(
-                "Must specify either 'purge_all_subscription_queues' or 'vhost' with 'queue_name'/'queue_pattern'"
+                "Must specify 'purge_all_subscription_queues', 'delete_all_subscription_queues', "
+                "or 'vhost' with 'queue_name'/'queue_pattern'"
             )
 
         if vhost and not queue_name and not queue_pattern:
@@ -434,7 +503,7 @@ class RmqPurgeRequestSerializer(serializers.Serializer):
 
 
 class RmqPurgeResponseSerializer(serializers.Serializer):
-    """Response serializer for queue purge operations."""
+    """Response serializer for queue purge/delete operations."""
 
     purged_queues = serializers.IntegerField(
         read_only=True,
@@ -444,6 +513,10 @@ class RmqPurgeResponseSerializer(serializers.Serializer):
         read_only=True,
         help_text="Total number of messages that were purged",
     )
+    deleted_queues = serializers.IntegerField(
+        read_only=True,
+        help_text="Number of queues that were deleted",
+    )
 
 
 class RmqStatsErrorSerializer(serializers.Serializer):
@@ -452,4 +525,224 @@ class RmqStatsErrorSerializer(serializers.Serializer):
     error = serializers.CharField(
         read_only=True,
         help_text="Error message describing what went wrong",
+    )
+
+
+# Enriched Connection Serializers (Part A)
+
+
+class RmqClientPropertiesSerializer(serializers.Serializer):
+    """Serializer for RabbitMQ client properties from connection."""
+
+    product = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Client product name (e.g., 'pika', 'amqp-client')",
+    )
+    version = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Client library version",
+    )
+    platform = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Client platform (e.g., 'Python 3.11')",
+    )
+
+
+class RmqEnrichedConnectionSerializer(serializers.Serializer):
+    """Serializer for enriched RabbitMQ connection data with traffic stats."""
+
+    source_ip = serializers.CharField(
+        read_only=True,
+        help_text="Client IP address",
+    )
+    vhost = serializers.CharField(
+        read_only=True,
+        help_text="Virtual host name",
+    )
+    connected_at = serializers.DateTimeField(
+        read_only=True,
+        allow_null=True,
+        help_text="Connection establishment timestamp",
+    )
+    state = serializers.CharField(
+        read_only=True,
+        help_text="Connection state: 'running', 'blocked', 'blocking'",
+    )
+    recv_oct = serializers.IntegerField(
+        read_only=True,
+        help_text="Bytes received on this connection",
+    )
+    send_oct = serializers.IntegerField(
+        read_only=True,
+        help_text="Bytes sent on this connection",
+    )
+    channels = serializers.IntegerField(
+        read_only=True,
+        help_text="Number of channels on this connection",
+    )
+    timeout = serializers.IntegerField(
+        read_only=True,
+        allow_null=True,
+        help_text="Heartbeat timeout in seconds",
+    )
+    client_properties = RmqClientPropertiesSerializer(
+        read_only=True,
+        allow_null=True,
+        help_text="Client identification properties",
+    )
+
+
+class RmqEnrichedUserStatsItemSerializer(serializers.Serializer):
+    """Serializer for RabbitMQ user with enriched connection details."""
+
+    username = serializers.CharField(
+        read_only=True,
+        help_text="RabbitMQ username (corresponds to EventSubscription UUID)",
+    )
+    connections = RmqEnrichedConnectionSerializer(
+        many=True,
+        read_only=True,
+        help_text="List of active connections with detailed statistics",
+    )
+
+
+class RmqEnrichedUserStatsSerializer(serializers.ListSerializer):
+    """List serializer for enriched RabbitMQ user statistics."""
+
+    child = RmqEnrichedUserStatsItemSerializer()
+
+
+# RabbitMQ Overview Serializers (Part C)
+
+
+class RmqMessageStatsSerializer(serializers.Serializer):
+    """Serializer for RabbitMQ message throughput statistics."""
+
+    publish = serializers.IntegerField(
+        read_only=True,
+        help_text="Total messages published",
+    )
+    publish_rate = serializers.FloatField(
+        read_only=True,
+        help_text="Messages published per second",
+    )
+    deliver = serializers.IntegerField(
+        read_only=True,
+        help_text="Total messages delivered to consumers",
+    )
+    deliver_rate = serializers.FloatField(
+        read_only=True,
+        help_text="Messages delivered per second",
+    )
+    confirm = serializers.IntegerField(
+        read_only=True,
+        help_text="Total messages confirmed by broker",
+    )
+    confirm_rate = serializers.FloatField(
+        read_only=True,
+        help_text="Messages confirmed per second",
+    )
+    ack = serializers.IntegerField(
+        read_only=True,
+        help_text="Total messages acknowledged by consumers",
+    )
+    ack_rate = serializers.FloatField(
+        read_only=True,
+        help_text="Messages acknowledged per second",
+    )
+
+
+class RmqQueueTotalsSerializer(serializers.Serializer):
+    """Serializer for RabbitMQ global queue message totals."""
+
+    messages = serializers.IntegerField(
+        read_only=True,
+        help_text="Total messages across all queues",
+    )
+    messages_ready = serializers.IntegerField(
+        read_only=True,
+        help_text="Messages ready for delivery",
+    )
+    messages_unacknowledged = serializers.IntegerField(
+        read_only=True,
+        help_text="Messages awaiting acknowledgement",
+    )
+
+
+class RmqObjectTotalsSerializer(serializers.Serializer):
+    """Serializer for RabbitMQ object counts."""
+
+    connections = serializers.IntegerField(
+        read_only=True,
+        help_text="Total active connections",
+    )
+    channels = serializers.IntegerField(
+        read_only=True,
+        help_text="Total active channels",
+    )
+    exchanges = serializers.IntegerField(
+        read_only=True,
+        help_text="Total exchanges",
+    )
+    queues = serializers.IntegerField(
+        read_only=True,
+        help_text="Total queues",
+    )
+    consumers = serializers.IntegerField(
+        read_only=True,
+        help_text="Total active consumers",
+    )
+
+
+class RmqListenerSerializer(serializers.Serializer):
+    """Serializer for RabbitMQ protocol listener."""
+
+    protocol = serializers.CharField(
+        read_only=True,
+        help_text="Protocol name (e.g., 'amqp', 'http', 'clustering')",
+    )
+    port = serializers.IntegerField(
+        read_only=True,
+        help_text="Listening port number",
+    )
+
+
+class RmqOverviewSerializer(serializers.Serializer):
+    """Serializer for RabbitMQ cluster overview statistics."""
+
+    cluster_name = serializers.CharField(
+        read_only=True,
+        help_text="Name of the RabbitMQ cluster",
+    )
+    rabbitmq_version = serializers.CharField(
+        read_only=True,
+        help_text="RabbitMQ server version",
+    )
+    erlang_version = serializers.CharField(
+        read_only=True,
+        help_text="Erlang/OTP runtime version",
+    )
+    message_stats = RmqMessageStatsSerializer(
+        read_only=True,
+        help_text="Message throughput statistics with rates",
+    )
+    queue_totals = RmqQueueTotalsSerializer(
+        read_only=True,
+        help_text="Global queue message counts",
+    )
+    object_totals = RmqObjectTotalsSerializer(
+        read_only=True,
+        help_text="Counts of connections, channels, queues, etc.",
+    )
+    node = serializers.CharField(
+        read_only=True,
+        help_text="Current RabbitMQ node name",
+    )
+    listeners = RmqListenerSerializer(
+        many=True,
+        read_only=True,
+        help_text="Active protocol listeners",
     )
