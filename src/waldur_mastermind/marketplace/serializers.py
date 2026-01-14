@@ -3618,7 +3618,12 @@ class OrderErrorDetailsSerializer(
         protected_fields = ("error_message", "error_traceback")
 
 
-def validate_public_offering(order: models.Order):
+def validate_public_offering(order: models.Order, request):
+    """Validate that the customer is allowed to order a public offering."""
+    # Staff users can override access policy restrictions
+    if request.user.is_staff:
+        return
+
     # Order is ok if organization groups are not defined for offering
     if not order.offering.organization_groups.count():
         return
@@ -3631,6 +3636,7 @@ def validate_public_offering(order: models.Order):
         ).exists()
     ):
         return
+
     raise serializers.ValidationError(
         _(
             "This offering is not available for ordering due to the org group limitation."
@@ -3638,7 +3644,12 @@ def validate_public_offering(order: models.Order):
     )
 
 
-def validate_private_offering(order: models.Order):
+def validate_private_offering(order: models.Order, request):
+    """Validate that the customer is allowed to order a private offering."""
+    # Staff users can override access policy restrictions
+    if request.user.is_staff:
+        return
+
     # Order is ok if consumer and provider organization is the same
     if order.offering.customer == order.project.customer:
         return
@@ -3687,6 +3698,7 @@ def confirm_order_request_user_has_offering_consent(
 
 
 def validate_order(order: models.Order, request):
+    """Validate order creation."""
     structure_utils.check_customer_blocked_or_archived(order.project.customer)
 
     if order.offering.state == OfferingStates.UNAVAILABLE:
@@ -3702,9 +3714,9 @@ def validate_order(order: models.Order, request):
             raise serializers.ValidationError(_("Offering is not available."))
 
     if order.offering.shared:
-        validate_public_offering(order)
+        validate_public_offering(order, request)
     else:
-        validate_private_offering(order)
+        validate_private_offering(order, request)
 
     if check_pending_order_exists(order.resource):
         raise serializers.ValidationError(
