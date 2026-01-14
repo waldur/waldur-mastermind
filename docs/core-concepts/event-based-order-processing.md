@@ -373,3 +373,87 @@ The system includes:
    - Process marketplace orders to create external resources
    - Use simple subscription patterns for specific event types
    - Demonstrate flexible integration approaches
+
+## Manual Resource Synchronization
+
+While the STOMP-based event system handles automatic synchronization, there are cases where manual synchronization is needed—for example, when investigating desynchronization issues or after network outages.
+
+### Pull Endpoint
+
+The marketplace provides a manual sync endpoint for resources:
+
+```text
+POST /api/marketplace-resources/{uuid}/pull/
+```
+
+**Response Codes:**
+
+| Code | Description |
+|------|-------------|
+| 202 Accepted | Pull operation was successfully scheduled |
+| 409 Conflict | Pull operation is not implemented for this offering type |
+
+**Prerequisites:**
+
+- Resource state must be `OK` or `ERRED`
+- Resource must have a `backend_id` set
+
+### Site Agent Resource Sync Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Frontend as Homeport UI
+    participant WaldurAPI
+    participant Celery
+    participant STOMP as Message Queue
+    participant SiteAgent as Site Agent
+
+    User->>Frontend: Click "Sync" button
+    Frontend->>WaldurAPI: POST /api/marketplace-resources/{uuid}/pull/
+    WaldurAPI->>WaldurAPI: Validate resource state
+    WaldurAPI->>Celery: Schedule AgentResourcePullExecutor
+    WaldurAPI-->>Frontend: 202 Accepted
+
+    Celery->>STOMP: Publish resource sync request
+    STOMP->>SiteAgent: Deliver message
+    SiteAgent->>SiteAgent: Fetch current resource state
+    SiteAgent->>WaldurAPI: PUT /api/marketplace-resources/{uuid}/
+    WaldurAPI-->>SiteAgent: Resource updated
+
+    Note over User,SiteAgent: Resource now synchronized
+```
+
+### How Site Agent Pull Works
+
+The pull operation for site agent resources works differently from direct backend integrations:
+
+1. **No Direct Backend Access**: Waldur doesn't have direct access to site agent backends (e.g., SLURM clusters)
+2. **Message-Based Sync**: Instead, a sync request message is published to the STOMP queue
+3. **Agent Response**: The site agent receives the message, queries the actual backend, and reports the current state back to Waldur
+
+**Backend Registration** (in `marketplace_site_agent/apps.py`):
+
+```python
+manager.register(
+    SITE_AGENT_OFFERING,
+    # ... other processors ...
+    pull_resource_executor=executors.AgentResourcePullExecutor,
+)
+```
+
+**Executor Implementation** (in `marketplace_site_agent/executors.py`):
+
+```python
+class AgentResourcePullExecutor(MarketplaceActionExecutor):
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return tasks.sync_resource.si(serialized_instance)
+```
+
+### Use Cases
+
+1. **L1 Support**: Quickly verify resource state matches backend during incident investigation
+2. **Post-Outage Recovery**: Manually trigger sync after network or service disruptions
+3. **Debugging**: Confirm that the STOMP messaging pipeline is working correctly
+4. **Data Reconciliation**: Force update when automatic sync may have missed changes
