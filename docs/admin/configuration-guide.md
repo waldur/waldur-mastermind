@@ -2279,15 +2279,15 @@ Name of the claim that contains user roles.
 
 #### ONBOARDING_SUPPORTED_COUNTRIES
 
-**Type:** list_field
+**Type:** country_list_field
 
-List of ISO 3166-1 alpha-2 country codes supported by this portal (e.g., ['EE', 'AT', 'SE']). Used to restrict available countries in onboarding.
+List of ISO 3166-1 alpha-2 country codes supported by this portal (e.g., EE, AT, SE). Used to restrict available countries in onboarding.
 
 #### ONBOARDING_VALIDATION_METHODS
 
 **Type:** list_field
 
-List of automatic validation methods available for this portal (e.g., ['ariregister', 'wirtschaftscompass', 'bolagsverket']). Must match backend method names.
+List of automatic validation methods available for this portal (e.g., ariregister, wirtschaftscompass, bolagsverket). Must match backend method names.
 
 #### ONBOARDING_VERIFICATION_EXPIRY_HOURS
 
