@@ -528,13 +528,34 @@ def _parse_bracket_notation(data):
 
     Converts keys like 'LOGIN_LOGO_MULTILINGUAL[de]' into
     {'LOGIN_LOGO_MULTILINGUAL': {'de': value}}.
+
+    For JSON data (regular dicts), this function preserves the original structure
+    including lists and nested objects.
     """
     import re
+
+    # Check if data has bracket notation keys that need parsing
+    bracket_pattern = re.compile(r"^(\w+)\[(\w+)\]$")
+    has_bracket_keys = any(bracket_pattern.match(str(key)) for key in data.keys())
+
+    # If no bracket notation keys exist, return data as-is to preserve lists/dicts
+    if not has_bracket_keys:
+        # For JSON data, use dict() to get a clean copy
+        # For QueryDict/files, iterate to preserve file objects
+        if hasattr(data, "getlist"):
+            # It's a QueryDict, iterate to preserve structure
+            result = {}
+            for key in data.keys():
+                values = data.getlist(key)
+                result[key] = values if len(values) > 1 else data[key]
+            return result
+        else:
+            # Regular dict (JSON), return as-is to preserve lists/nested structures
+            return dict(data)
 
     # Build result dict by iterating over items to preserve file objects
     # Using dict(data) on QueryDict doesn't properly handle file uploads
     result = {key: value for key, value in data.items()}
-    bracket_pattern = re.compile(r"^(\w+)\[(\w+)\]$")
 
     keys_to_remove = []
     nested_values = {}

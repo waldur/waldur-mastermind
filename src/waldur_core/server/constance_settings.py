@@ -653,12 +653,12 @@ CONSTANCE_CONFIG = {
     ),
     "ONBOARDING_SUPPORTED_COUNTRIES": (
         [],
-        "List of ISO 3166-1 alpha-2 country codes supported by this portal (e.g., ['EE', 'AT', 'SE']). Used to restrict available countries in onboarding.",
-        "list_field",
+        "List of ISO 3166-1 alpha-2 country codes supported by this portal (e.g., EE, AT, SE). Used to restrict available countries in onboarding.",
+        "country_list_field",
     ),
     "ONBOARDING_VALIDATION_METHODS": (
         [],
-        "List of automatic validation methods available for this portal (e.g., ['ariregister', 'wirtschaftscompass', 'bolagsverket']). Must match backend method names.",
+        "List of automatic validation methods available for this portal (e.g., ariregister, wirtschaftscompass, bolagsverket). Must match backend method names.",
         "list_field",
     ),
     "ONBOARDING_VERIFICATION_EXPIRY_HOURS": (
