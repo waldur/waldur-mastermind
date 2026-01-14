@@ -6690,7 +6690,7 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
 
         # The renewal cost is passed as 'switch_price' to the order,
         # which is the mechanism for one-time charges on UPDATE orders.
-        return self.create_resource_order(
+        response = self.create_resource_order(
             request=request,
             resource=resource,
             plan=resource.plan,
@@ -6701,6 +6701,18 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
             request_comment=request_comment,
             attachment=attachment,
         )
+
+        # Silence all expiring_resource user actions for this resource
+        # since a renewal order has been submitted
+        from waldur_core.user_actions.models import UserAction
+
+        UserAction.objects.filter(
+            action_type="expiring_resource",
+            resource_uuid=resource.uuid,
+            is_silenced=False,
+        ).update(is_silenced=True, silenced_at=timezone.now())
+
+        return response
 
     renew_serializer_class = serializers.ResourceRenewSerializer
 
