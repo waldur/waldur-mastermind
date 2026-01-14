@@ -145,8 +145,9 @@ def publish_stomp_messages(messages_to_send: list[dict[str, str]]) -> None:
                 "durable": "true",  # Queue survives broker restart
                 "auto-delete": "false",  # Queue exists even without consumers
                 "content-type": "application/json",
-                "expiration": "86400000",  # Message TTL: 24 hours in milliseconds
-                "x-max-length": 10000,  # Max 10,000 messages per queue
+                "expiration": "3600000",  # Message TTL: 1 hour in milliseconds
+                # TODO: implement x-max-length for manually-created queues
+                # "x-max-length": 10000,  # Max 10,000 messages per queue
             }
             logger.info(
                 "Sending STOMP message %s to %s", message_info["payload"], destination
