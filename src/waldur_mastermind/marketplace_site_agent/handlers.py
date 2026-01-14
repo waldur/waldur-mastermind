@@ -8,6 +8,7 @@ from waldur_mastermind.marketplace import enums as marketplace_enums
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
+    BASIC_OFFERING,
     OPENSTACK_TENANT_OFFERING,
     SCRIPT_OFFERING,
     SITE_AGENT_OFFERING,
@@ -51,6 +52,7 @@ def send_pending_order_to_message_queue(
         SITE_AGENT_OFFERING,
         SCRIPT_OFFERING,
         OPENSTACK_TENANT_OFFERING,
+        BASIC_OFFERING,
     ]:
         return
 
