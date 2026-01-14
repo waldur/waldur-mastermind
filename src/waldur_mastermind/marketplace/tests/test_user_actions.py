@@ -126,6 +126,8 @@ class ExpiringResourceProviderTest(APITransactionTestCase):
         self.fixture = MarketplaceFixture()
         self.provider = ExpiringResourceProvider()
 
+        self.fixture.project.add_user(self.fixture.user, ProjectRole.ADMIN)
+
     def test_get_actions_for_user_with_expiring_resource(self):
         """Test that expiring resources are detected"""
         # Create a resource expiring in 15 days
@@ -134,8 +136,13 @@ class ExpiringResourceProviderTest(APITransactionTestCase):
         resource.end_date = expire_date.date()
         resource.state = ResourceStates.OK
         resource.save()
-
-        self.fixture.project.add_user(self.fixture.user, ProjectRole.ADMIN)
+        resource.offering.components.create(
+            type="ram",
+            name="RAM",
+            measured_unit="GB",
+            billing_type="fixed",
+            is_prepaid=True,
+        )
 
         actions = self.provider.get_actions_for_user(self.fixture.user)
 
@@ -147,6 +154,20 @@ class ExpiringResourceProviderTest(APITransactionTestCase):
         self.assertEqual(action["offering_uuid"], resource.offering.uuid)
         # Check that it mentions some number of days (could be 14-15 due to timing)
         self.assertRegex(action["description"], r"\b1[4-5] days\b")
+
+    def test_get_actions_for_user_with_non_prepaid_resource_ignores_it(self):
+        """Test that non-prepaid expiring resources are ignored"""
+        # Create a resource expiring in 15 days
+        expire_date = timezone.now() + timedelta(days=15)
+        resource = self.fixture.resource
+        resource.end_date = expire_date.date()
+        resource.state = ResourceStates.OK
+        resource.save()
+        # Ensure no prepaid components exist
+        resource.offering.components.filter(is_prepaid=True).delete()
+
+        actions = self.provider.get_actions_for_user(self.fixture.user)
+        self.assertEqual(len(actions), 0)
 
     def test_get_actions_for_user_no_expiring_resources(self):
         """Test no actions for resources expiring > 30 days"""
