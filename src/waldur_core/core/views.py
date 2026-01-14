@@ -54,11 +54,11 @@ from waldur_core.core.serializers import (
     CeleryStatsResponseSerializer,
     ConstanceSettingsSerializer,
     CoreAuthTokenSerializer,
+    DatabaseStatsResponseSerializer,
     EmptySerializer,
     LogoutSerializer,
     ObtainAuthTokenSerializer,
     QuerySerializer,
-    TableSizeSerializer,
     VersionSerializer,
 )
 from waldur_core.core.utils import format_homeport_link
@@ -871,7 +871,7 @@ Requires support user permissions.""",
         )
 
 
-SQL_QUERY = """
+SQL_TABLE_SIZES = """
 SELECT
     relname AS table_name,
     pg_total_relation_size(relid) AS total_size,
@@ -885,6 +885,130 @@ ORDER BY
 LIMIT 10;
 """
 
+SQL_CONNECTION_STATS = """
+SELECT
+    COUNT(*) FILTER (WHERE state = 'active') AS active,
+    COUNT(*) FILTER (WHERE state = 'idle') AS idle,
+    COUNT(*) FILTER (WHERE state = 'idle in transaction') AS idle_in_transaction,
+    COUNT(*) FILTER (WHERE wait_event_type = 'Lock') AS waiting,
+    (SELECT setting::int FROM pg_settings WHERE name = 'max_connections') AS max_connections
+FROM pg_stat_activity
+WHERE backend_type = 'client backend';
+"""
+
+SQL_DATABASE_SIZE = """
+SELECT
+    current_database() AS database_name,
+    pg_database_size(current_database()) AS total_size_bytes,
+    (SELECT COALESCE(SUM(pg_relation_size(oid)), 0) FROM pg_class WHERE relkind = 'r') AS data_size_bytes,
+    (SELECT COALESCE(SUM(pg_relation_size(oid)), 0) FROM pg_class WHERE relkind = 'i') AS index_size_bytes;
+"""
+
+SQL_CACHE_PERFORMANCE = """
+SELECT
+    CASE
+        WHEN (blks_hit + blks_read) > 0
+        THEN ROUND(100.0 * blks_hit / (blks_hit + blks_read), 2)
+        ELSE NULL
+    END AS buffer_cache_hit_ratio,
+    (SELECT setting FROM pg_settings WHERE name = 'shared_buffers') AS shared_buffers,
+    (SELECT setting FROM pg_settings WHERE name = 'effective_cache_size') AS effective_cache_size
+FROM pg_stat_database
+WHERE datname = current_database();
+"""
+
+SQL_INDEX_HIT_RATIO = """
+SELECT
+    CASE
+        WHEN (idx_blks_hit + idx_blks_read) > 0
+        THEN ROUND(100.0 * idx_blks_hit / (idx_blks_hit + idx_blks_read), 2)
+        ELSE NULL
+    END AS index_hit_ratio
+FROM pg_statio_user_indexes
+LIMIT 1;
+"""
+
+SQL_TRANSACTION_STATS = """
+SELECT
+    xact_commit AS committed,
+    xact_rollback AS rolled_back,
+    CASE
+        WHEN (xact_commit + xact_rollback) > 0
+        THEN ROUND(100.0 * xact_rollback / (xact_commit + xact_rollback), 4)
+        ELSE 0
+    END AS rollback_ratio_percent,
+    deadlocks
+FROM pg_stat_database
+WHERE datname = current_database();
+"""
+
+SQL_LOCK_STATS = """
+SELECT
+    COUNT(*) AS total_locks,
+    COUNT(*) FILTER (WHERE NOT granted) AS waiting_locks,
+    COUNT(*) FILTER (WHERE mode = 'AccessExclusiveLock') AS access_exclusive_locks
+FROM pg_locks;
+"""
+
+SQL_MAINTENANCE_STATS = """
+SELECT
+    (SELECT age(datfrozenxid) FROM pg_database WHERE datname = current_database()) AS oldest_transaction_age,
+    COUNT(*) FILTER (WHERE n_dead_tup > n_live_tup * 0.1 AND n_live_tup > 0) AS tables_needing_vacuum,
+    COALESCE(SUM(n_dead_tup), 0) AS total_dead_tuples,
+    COALESCE(SUM(n_live_tup), 0) AS total_live_tuples
+FROM pg_stat_user_tables;
+"""
+
+SQL_ACTIVE_QUERIES = """
+SELECT
+    pid,
+    EXTRACT(EPOCH FROM (now() - query_start)) AS duration_seconds,
+    state,
+    wait_event_type,
+    LEFT(query, 100) AS query_preview
+FROM pg_stat_activity
+WHERE state = 'active'
+    AND pid != pg_backend_pid()
+    AND backend_type = 'client backend'
+ORDER BY query_start ASC
+LIMIT 10;
+"""
+
+SQL_QUERY_PERFORMANCE = """
+SELECT
+    COALESCE(SUM(seq_scan), 0) AS seq_scan_count,
+    COALESCE(SUM(seq_tup_read), 0) AS seq_scan_rows,
+    COALESCE(SUM(idx_scan), 0) AS index_scan_count,
+    COALESCE(SUM(idx_tup_fetch), 0) AS index_scan_rows
+FROM pg_stat_user_tables;
+"""
+
+SQL_TEMP_FILES = """
+SELECT
+    COALESCE(temp_files, 0) AS temp_files_count,
+    COALESCE(temp_bytes, 0) AS temp_files_bytes
+FROM pg_stat_database
+WHERE datname = current_database();
+"""
+
+SQL_REPLICATION_STATUS = """
+SELECT
+    pg_is_in_recovery() AS is_replica,
+    CASE
+        WHEN NOT pg_is_in_recovery() THEN pg_wal_lsn_diff(pg_current_wal_lsn(), '0/0')
+        ELSE NULL
+    END AS wal_bytes;
+"""
+
+SQL_REPLICATION_LAG = """
+SELECT
+    CASE
+        WHEN pg_is_in_recovery()
+        THEN pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn())
+        ELSE NULL
+    END AS replication_lag_bytes;
+"""
+
 
 def dictfetchall(cursor):
     """
@@ -895,22 +1019,162 @@ def dictfetchall(cursor):
     return [dict(zip(columns, row)) for row in cursor.fetchall()]
 
 
+def dictfetchone(cursor):
+    """
+    Return one row from a cursor as a dict.
+    Assume the column names are unique.
+    """
+    columns = [col[0] for col in cursor.description]
+    row = cursor.fetchone()
+    return dict(zip(columns, row)) if row else {}
+
+
+def convert_decimal_values(data):
+    """
+    Convert Decimal values to native Python types (int or float).
+    This is needed because PostgreSQL returns Decimal for aggregate functions.
+    """
+    from decimal import Decimal
+
+    if isinstance(data, dict):
+        return {k: convert_decimal_values(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [convert_decimal_values(item) for item in data]
+    elif isinstance(data, Decimal):
+        # Convert to int if it's a whole number, otherwise float
+        if data == int(data):
+            return int(data)
+        return float(data)
+    return data
+
+
 class DatabaseStatsViewSet(APIView):
     permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
 
     @extend_schema(
-        summary="Get database table statistics",
-        description="Retrieves statistics about the database, including the top 10 largest tables by total size. This information is useful for monitoring and maintenance. Requires support user permissions.",
+        summary="Get comprehensive database statistics",
+        description="""Retrieves comprehensive statistics about the PostgreSQL database including:
+- **Table statistics**: Top 10 largest tables by size
+- **Connection statistics**: Active, idle, and waiting connections with utilization
+- **Database size**: Total size, data size, and index size
+- **Cache performance**: Buffer cache and index hit ratios (should be >99%)
+- **Transaction statistics**: Commits, rollbacks, deadlocks
+- **Lock statistics**: Current locks and waiting queries
+- **Maintenance statistics**: Dead tuples, vacuum needs, oldest transaction age
+- **Active queries**: Currently running queries with duration
+- **Query performance**: Sequential vs index scan ratios
+- **Replication status**: WAL size and replication lag (if applicable)
+
+This information is useful for monitoring, debugging, and performance tuning.
+Requires support user permissions.""",
         request=None,
-        responses=TableSizeSerializer(many=True),
+        responses=DatabaseStatsResponseSerializer,
     )
     def get(self, request, *args, **kwargs):
-        data = []
         with connection.cursor() as cursor:
-            cursor.execute(SQL_QUERY)
-            data = dictfetchall(cursor)
+            # Table sizes
+            cursor.execute(SQL_TABLE_SIZES)
+            table_stats = dictfetchall(cursor)
 
-        return Response(data, status=status.HTTP_200_OK)
+            # Connection stats
+            cursor.execute(SQL_CONNECTION_STATS)
+            conn_data = dictfetchone(cursor)
+            total_connections = (
+                conn_data.get("active", 0)
+                + conn_data.get("idle", 0)
+                + conn_data.get("idle_in_transaction", 0)
+            )
+            max_conn = conn_data.get("max_connections", 1)
+            conn_data["utilization_percent"] = (
+                round(100.0 * total_connections / max_conn, 2) if max_conn > 0 else 0
+            )
+
+            # Database size
+            cursor.execute(SQL_DATABASE_SIZE)
+            db_size = dictfetchone(cursor)
+
+            # Cache performance
+            cursor.execute(SQL_CACHE_PERFORMANCE)
+            cache_data = dictfetchone(cursor)
+            cursor.execute(SQL_INDEX_HIT_RATIO)
+            index_hit = dictfetchone(cursor)
+            cache_data["index_hit_ratio"] = index_hit.get("index_hit_ratio")
+
+            # Transaction stats
+            cursor.execute(SQL_TRANSACTION_STATS)
+            tx_stats = dictfetchone(cursor)
+
+            # Lock stats
+            cursor.execute(SQL_LOCK_STATS)
+            lock_stats = dictfetchone(cursor)
+
+            # Maintenance stats
+            cursor.execute(SQL_MAINTENANCE_STATS)
+            maint_data = dictfetchone(cursor)
+            # Convert Decimal to int for maintenance stats
+            maint_data["total_dead_tuples"] = int(
+                maint_data.get("total_dead_tuples") or 0
+            )
+            maint_data["total_live_tuples"] = int(
+                maint_data.get("total_live_tuples") or 0
+            )
+            total_tuples = (
+                maint_data["total_live_tuples"] + maint_data["total_dead_tuples"]
+            )
+            maint_data["dead_tuple_ratio_percent"] = (
+                round(100.0 * maint_data["total_dead_tuples"] / total_tuples, 2)
+                if total_tuples > 0
+                else None
+            )
+
+            # Active queries
+            cursor.execute(SQL_ACTIVE_QUERIES)
+            active_queries_list = dictfetchall(cursor)
+            active_queries = {
+                "count": len(active_queries_list),
+                "longest_duration_seconds": (
+                    max(
+                        (q.get("duration_seconds", 0) for q in active_queries_list),
+                        default=0,
+                    )
+                ),
+                "waiting_on_locks": sum(
+                    1 for q in active_queries_list if q.get("wait_event_type") == "Lock"
+                ),
+                "queries": active_queries_list,
+            }
+
+            # Query performance
+            cursor.execute(SQL_QUERY_PERFORMANCE)
+            query_perf = dictfetchone(cursor)
+            cursor.execute(SQL_TEMP_FILES)
+            temp_files = dictfetchone(cursor)
+            query_perf.update(temp_files)
+
+            # Replication status
+            cursor.execute(SQL_REPLICATION_STATUS)
+            repl_status = dictfetchone(cursor)
+            cursor.execute(SQL_REPLICATION_LAG)
+            repl_lag = dictfetchone(cursor)
+            repl_status.update(repl_lag)
+
+        response_data = {
+            "table_stats": table_stats,
+            "connections": conn_data,
+            "database_size": db_size,
+            "cache_performance": cache_data,
+            "transactions": tx_stats,
+            "locks": lock_stats,
+            "maintenance": maint_data,
+            "active_queries": active_queries,
+            "query_performance": query_perf,
+            "replication": repl_status,
+        }
+
+        # Convert any Decimal values to native Python types for JSON serialization
+        response_data = convert_decimal_values(response_data)
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
 
 class QueryViewSet(generics.GenericAPIView):

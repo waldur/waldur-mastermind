@@ -1030,3 +1030,226 @@ class HTMLCleanField(serializers.CharField):
             return clean_html(value.strip())
 
         return value
+
+
+class ConnectionStatsSerializer(serializers.Serializer):
+    """Serializer for database connection statistics."""
+
+    active = serializers.IntegerField(
+        read_only=True, help_text="Number of active connections"
+    )
+    idle = serializers.IntegerField(
+        read_only=True, help_text="Number of idle connections"
+    )
+    idle_in_transaction = serializers.IntegerField(
+        read_only=True, help_text="Number of connections idle in transaction"
+    )
+    waiting = serializers.IntegerField(
+        read_only=True, help_text="Number of connections waiting for a lock"
+    )
+    max_connections = serializers.IntegerField(
+        read_only=True, help_text="Maximum allowed connections"
+    )
+    utilization_percent = serializers.FloatField(
+        read_only=True, help_text="Percentage of max connections in use"
+    )
+
+
+class DatabaseSizeStatsSerializer(serializers.Serializer):
+    """Serializer for database size statistics."""
+
+    database_name = serializers.CharField(
+        read_only=True, help_text="Name of the database"
+    )
+    total_size_bytes = serializers.IntegerField(
+        read_only=True, help_text="Total database size in bytes"
+    )
+    data_size_bytes = serializers.IntegerField(
+        read_only=True, help_text="Size of data excluding indexes in bytes"
+    )
+    index_size_bytes = serializers.IntegerField(
+        read_only=True, help_text="Total size of all indexes in bytes"
+    )
+
+
+class CachePerformanceSerializer(serializers.Serializer):
+    """Serializer for cache performance statistics."""
+
+    buffer_cache_hit_ratio = serializers.FloatField(
+        read_only=True,
+        help_text="Buffer cache hit ratio percentage (should be >99%)",
+        allow_null=True,
+    )
+    index_hit_ratio = serializers.FloatField(
+        read_only=True,
+        help_text="Index cache hit ratio percentage",
+        allow_null=True,
+    )
+    shared_buffers = serializers.CharField(
+        read_only=True, help_text="Configured shared_buffers setting"
+    )
+    effective_cache_size = serializers.CharField(
+        read_only=True, help_text="Configured effective_cache_size setting"
+    )
+
+
+class TransactionStatsSerializer(serializers.Serializer):
+    """Serializer for transaction statistics."""
+
+    committed = serializers.IntegerField(
+        read_only=True, help_text="Total committed transactions"
+    )
+    rolled_back = serializers.IntegerField(
+        read_only=True, help_text="Total rolled back transactions"
+    )
+    rollback_ratio_percent = serializers.FloatField(
+        read_only=True, help_text="Percentage of transactions that were rolled back"
+    )
+    deadlocks = serializers.IntegerField(
+        read_only=True, help_text="Total number of deadlocks detected"
+    )
+
+
+class LockStatsSerializer(serializers.Serializer):
+    """Serializer for lock statistics."""
+
+    total_locks = serializers.IntegerField(
+        read_only=True, help_text="Total number of locks currently held"
+    )
+    waiting_locks = serializers.IntegerField(
+        read_only=True, help_text="Number of locks being waited for"
+    )
+    access_exclusive_locks = serializers.IntegerField(
+        read_only=True, help_text="Number of AccessExclusive locks (blocks all access)"
+    )
+
+
+class MaintenanceStatsSerializer(serializers.Serializer):
+    """Serializer for maintenance and vacuum statistics."""
+
+    oldest_transaction_age = serializers.IntegerField(
+        read_only=True,
+        help_text="Age of the oldest transaction in transactions",
+        allow_null=True,
+    )
+    tables_needing_vacuum = serializers.IntegerField(
+        read_only=True, help_text="Number of tables with high dead tuple ratio"
+    )
+    total_dead_tuples = serializers.IntegerField(
+        read_only=True, help_text="Total estimated dead tuples across all tables"
+    )
+    total_live_tuples = serializers.IntegerField(
+        read_only=True, help_text="Total estimated live tuples across all tables"
+    )
+    dead_tuple_ratio_percent = serializers.FloatField(
+        read_only=True,
+        help_text="Ratio of dead tuples to total tuples",
+        allow_null=True,
+    )
+
+
+class ActiveQuerySerializer(serializers.Serializer):
+    """Serializer for a single active query."""
+
+    pid = serializers.IntegerField(read_only=True, help_text="Process ID")
+    duration_seconds = serializers.FloatField(
+        read_only=True, help_text="Query duration in seconds"
+    )
+    state = serializers.CharField(read_only=True, help_text="Query state")
+    wait_event_type = serializers.CharField(
+        read_only=True,
+        help_text="Type of event the query is waiting for",
+        allow_null=True,
+    )
+    query_preview = serializers.CharField(
+        read_only=True, help_text="First 100 characters of the query"
+    )
+
+
+class ActiveQueriesStatsSerializer(serializers.Serializer):
+    """Serializer for active queries statistics."""
+
+    count = serializers.IntegerField(
+        read_only=True, help_text="Number of currently active queries"
+    )
+    longest_duration_seconds = serializers.FloatField(
+        read_only=True, help_text="Duration of the longest running query in seconds"
+    )
+    waiting_on_locks = serializers.IntegerField(
+        read_only=True, help_text="Number of queries waiting on locks"
+    )
+    queries = ActiveQuerySerializer(
+        many=True, read_only=True, help_text="List of active queries"
+    )
+
+
+class QueryPerformanceSerializer(serializers.Serializer):
+    """Serializer for query performance indicators."""
+
+    seq_scan_count = serializers.IntegerField(
+        read_only=True, help_text="Total sequential scans (potentially expensive)"
+    )
+    seq_scan_rows = serializers.IntegerField(
+        read_only=True, help_text="Total rows fetched by sequential scans"
+    )
+    index_scan_count = serializers.IntegerField(
+        read_only=True, help_text="Total index scans"
+    )
+    index_scan_rows = serializers.IntegerField(
+        read_only=True, help_text="Total rows fetched by index scans"
+    )
+    temp_files_count = serializers.IntegerField(
+        read_only=True, help_text="Number of temporary files created"
+    )
+    temp_files_bytes = serializers.IntegerField(
+        read_only=True, help_text="Total size of temporary files in bytes"
+    )
+
+
+class ReplicationStatsSerializer(serializers.Serializer):
+    """Serializer for replication statistics (if applicable)."""
+
+    is_replica = serializers.BooleanField(
+        read_only=True, help_text="Whether this database is a replica"
+    )
+    wal_bytes = serializers.IntegerField(
+        read_only=True, help_text="Write-ahead log size in bytes", allow_null=True
+    )
+    replication_lag_bytes = serializers.IntegerField(
+        read_only=True,
+        help_text="Replication lag in bytes (only for replicas)",
+        allow_null=True,
+    )
+
+
+class DatabaseStatsResponseSerializer(serializers.Serializer):
+    """Complete database statistics response serializer."""
+
+    table_stats = TableSizeSerializer(
+        many=True, read_only=True, help_text="Top largest tables by size"
+    )
+    connections = ConnectionStatsSerializer(
+        read_only=True, help_text="Connection statistics"
+    )
+    database_size = DatabaseSizeStatsSerializer(
+        read_only=True, help_text="Database size information"
+    )
+    cache_performance = CachePerformanceSerializer(
+        read_only=True, help_text="Cache hit ratios and memory settings"
+    )
+    transactions = TransactionStatsSerializer(
+        read_only=True, help_text="Transaction commit/rollback statistics"
+    )
+    locks = LockStatsSerializer(read_only=True, help_text="Current lock statistics")
+    maintenance = MaintenanceStatsSerializer(
+        read_only=True, help_text="Vacuum and maintenance statistics"
+    )
+    active_queries = ActiveQueriesStatsSerializer(
+        read_only=True, help_text="Currently running queries"
+    )
+    query_performance = QueryPerformanceSerializer(
+        read_only=True, help_text="Query performance indicators"
+    )
+    replication = ReplicationStatsSerializer(
+        read_only=True, help_text="Replication status (if applicable)"
+    )

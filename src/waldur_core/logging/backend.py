@@ -1,4 +1,5 @@
 import logging
+from datetime import UTC
 
 import requests
 from django.conf import settings
@@ -426,6 +427,158 @@ class RabbitMQManagementBackend:
             )
             raise RabbitMQError(f"Failed to get user {username} connections")
 
+    def get_user_connections_enriched(self, username: str) -> list[dict]:
+        """Get enriched connection data for a RabbitMQ user.
+
+        Returns detailed connection information including client properties,
+        traffic statistics, and connection state.
+
+        Args:
+            username: The RabbitMQ username
+
+        Returns:
+            list[dict]: List of enriched connection dictionaries with keys:
+                - source_ip: Client IP address
+                - vhost: Virtual host name
+                - connected_at: Connection timestamp (ISO format)
+                - state: Connection state (running, blocked, blocking)
+                - recv_oct: Bytes received
+                - send_oct: Bytes sent
+                - channels: Number of channels
+                - timeout: Heartbeat timeout in seconds
+                - client_properties: Dict with product, version, platform
+        """
+        from datetime import datetime
+
+        raw_connections = self.get_user_connections(username)
+        enriched = []
+
+        for conn in raw_connections:
+            # Parse source IP from connection name (format: "ip:port -> ip:port")
+            source_ip = conn.get("name", "").split(" ->")[0].rsplit(":", 1)[0]
+
+            # Convert connected_at from milliseconds timestamp
+            connected_at = None
+            if conn.get("connected_at"):
+                try:
+                    connected_at = datetime.fromtimestamp(
+                        conn["connected_at"] / 1000, tz=UTC
+                    ).isoformat()
+                except (ValueError, TypeError, OSError):
+                    pass
+
+            # Extract client properties
+            client_props = conn.get("client_properties", {})
+            client_properties = {
+                "product": client_props.get("product"),
+                "version": client_props.get("version"),
+                "platform": client_props.get("platform"),
+            }
+
+            enriched.append(
+                {
+                    "source_ip": source_ip,
+                    "vhost": conn.get("vhost", ""),
+                    "connected_at": connected_at,
+                    "state": conn.get("state", "unknown"),
+                    "recv_oct": conn.get("recv_oct", 0),
+                    "send_oct": conn.get("send_oct", 0),
+                    "channels": conn.get("channels", 0),
+                    "timeout": conn.get("timeout"),
+                    "client_properties": client_properties,
+                }
+            )
+
+        return enriched
+
+    def get_overview(self) -> dict:
+        """Get RabbitMQ cluster overview statistics.
+
+        Returns:
+            dict: Overview statistics including:
+                - cluster_name: Name of the RabbitMQ cluster
+                - rabbitmq_version: RabbitMQ version
+                - erlang_version: Erlang/OTP version
+                - message_stats: Message throughput statistics
+                - queue_totals: Total queue message counts
+                - object_totals: Counts of connections, channels, queues, etc.
+                - node: Current node name
+                - listeners: List of protocol listeners
+        """
+        url = f"{self.rmq_management_url}/overview"
+
+        try:
+            response = requests.get(url, auth=self.rmq_auth, timeout=10)
+        except requests.RequestException as exc:
+            logger.error("Unable to get RabbitMQ overview, error: %s", exc)
+            raise RabbitMQError("Failed to get RabbitMQ overview")
+
+        if response.status_code != status.HTTP_200_OK:
+            logger.error(
+                "Failed to get RabbitMQ overview, status code: %s, response: %s",
+                response.status_code,
+                response.text,
+            )
+            raise RabbitMQError("Failed to get RabbitMQ overview")
+
+        try:
+            data = response.json()
+        except requests.JSONDecodeError:
+            logger.error("Failed to decode RabbitMQ overview response")
+            raise RabbitMQError("Failed to decode RabbitMQ overview response")
+
+        # Extract message stats with rates
+        message_stats = data.get("message_stats", {})
+        extracted_message_stats = {
+            "publish": message_stats.get("publish", 0),
+            "publish_rate": message_stats.get("publish_details", {}).get("rate", 0.0),
+            "deliver": message_stats.get("deliver", 0),
+            "deliver_rate": message_stats.get("deliver_details", {}).get("rate", 0.0),
+            "confirm": message_stats.get("confirm", 0),
+            "confirm_rate": message_stats.get("confirm_details", {}).get("rate", 0.0),
+            "ack": message_stats.get("ack", 0),
+            "ack_rate": message_stats.get("ack_details", {}).get("rate", 0.0),
+        }
+
+        # Extract queue totals
+        queue_totals = data.get("queue_totals", {})
+        extracted_queue_totals = {
+            "messages": queue_totals.get("messages", 0),
+            "messages_ready": queue_totals.get("messages_ready", 0),
+            "messages_unacknowledged": queue_totals.get("messages_unacknowledged", 0),
+        }
+
+        # Extract object totals
+        object_totals = data.get("object_totals", {})
+        extracted_object_totals = {
+            "connections": object_totals.get("connections", 0),
+            "channels": object_totals.get("channels", 0),
+            "exchanges": object_totals.get("exchanges", 0),
+            "queues": object_totals.get("queues", 0),
+            "consumers": object_totals.get("consumers", 0),
+        }
+
+        # Extract listeners
+        listeners = []
+        for listener in data.get("listeners", []):
+            listeners.append(
+                {
+                    "protocol": listener.get("protocol", "unknown"),
+                    "port": listener.get("port", 0),
+                }
+            )
+
+        return {
+            "cluster_name": data.get("cluster_name", ""),
+            "rabbitmq_version": data.get("rabbitmq_version", ""),
+            "erlang_version": data.get("erlang_version", ""),
+            "message_stats": extracted_message_stats,
+            "queue_totals": extracted_queue_totals,
+            "object_totals": extracted_object_totals,
+            "node": data.get("node", ""),
+            "listeners": listeners,
+        }
+
     def list_queues(self, vhost: str) -> list[dict]:
         """List all queues in a virtual host.
 
@@ -439,6 +592,16 @@ class RabbitMQManagementBackend:
                 - messages_ready: Ready message count
                 - messages_unacknowledged: Unacknowledged message count
                 - consumers: Number of consumers
+                - message_ttl: Message TTL in milliseconds (if set)
+                - max_length: Maximum number of messages (if set)
+                - max_length_bytes: Maximum total size in bytes (if set)
+                - expires: Queue TTL - auto-delete after idle in ms (if set)
+                - overflow: Behavior when full (if set)
+                - dead_letter_exchange: DLX exchange name (if set)
+                - dead_letter_routing_key: DLX routing key (if set)
+                - max_priority: Max priority level 1-255 (if set)
+                - queue_mode: 'default' or 'lazy' (if set)
+                - queue_type: 'classic', 'quorum', or 'stream' (if set)
         """
         vhost_encoded = requests.utils.quote(vhost, safe="")
         url = f"{self.rmq_management_url}/queues/{vhost_encoded}"
@@ -466,6 +629,22 @@ class RabbitMQManagementBackend:
                         "messages_ready": q.get("messages_ready", 0),
                         "messages_unacknowledged": q.get("messages_unacknowledged", 0),
                         "consumers": q.get("consumers", 0),
+                        "message_ttl": q.get("arguments", {}).get("x-message-ttl"),
+                        "max_length": q.get("arguments", {}).get("x-max-length"),
+                        "max_length_bytes": q.get("arguments", {}).get(
+                            "x-max-length-bytes"
+                        ),
+                        "expires": q.get("arguments", {}).get("x-expires"),
+                        "overflow": q.get("arguments", {}).get("x-overflow"),
+                        "dead_letter_exchange": q.get("arguments", {}).get(
+                            "x-dead-letter-exchange"
+                        ),
+                        "dead_letter_routing_key": q.get("arguments", {}).get(
+                            "x-dead-letter-routing-key"
+                        ),
+                        "max_priority": q.get("arguments", {}).get("x-max-priority"),
+                        "queue_mode": q.get("arguments", {}).get("x-queue-mode"),
+                        "queue_type": q.get("arguments", {}).get("x-queue-type"),
                     }
                     for q in queues
                 ]
@@ -526,6 +705,47 @@ class RabbitMQManagementBackend:
                 response.text,
             )
             raise RabbitMQError(f"Failed to purge queue {queue} in vhost {vhost}")
+
+    def delete_queue(self, vhost: str, queue: str) -> bool:
+        """Delete a queue entirely.
+
+        Args:
+            vhost (str): The virtual host name
+            queue (str): The queue name
+
+        Returns:
+            bool: True if queue was deleted, False if not found
+        """
+        vhost_encoded = requests.utils.quote(vhost, safe="")
+        queue_encoded = requests.utils.quote(queue, safe="")
+        url = f"{self.rmq_management_url}/queues/{vhost_encoded}/{queue_encoded}"
+
+        try:
+            response = requests.delete(url, auth=self.rmq_auth, timeout=60)
+        except requests.RequestException as exc:
+            logger.error(
+                "Unable to delete queue %s in vhost %s from RabbitMQ, error: %s",
+                queue,
+                vhost,
+                exc,
+            )
+            raise RabbitMQError(f"Failed to delete queue {queue} in vhost {vhost}")
+
+        if response.status_code == status.HTTP_204_NO_CONTENT:
+            logger.info("Queue %s in vhost %s deleted successfully", queue, vhost)
+            return True
+        elif response.status_code == status.HTTP_404_NOT_FOUND:
+            logger.warning("Queue %s in vhost %s not found", queue, vhost)
+            return False
+        else:
+            logger.error(
+                "Failed to delete queue %s in vhost %s, status code: %s, response: %s",
+                queue,
+                vhost,
+                response.status_code,
+                response.text,
+            )
+            raise RabbitMQError(f"Failed to delete queue {queue} in vhost {vhost}")
 
     def list_all_subscription_queues(self) -> list[dict]:
         """List all subscription queues across all vhosts.

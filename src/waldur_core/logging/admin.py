@@ -85,10 +85,6 @@ class EmailHookAdmin(BaseHookAdmin):
     list_display = BaseHookAdmin.list_display + ("email",)
 
 
-class EventSubscriptionAdmin(admin.ModelAdmin):
-    list_display = ("uuid", "user", "source_ip", "observable_objects")
-
-
 class EmailLogAdmin(admin.ModelAdmin):
     list_display = (
         "__str__",
@@ -105,5 +101,4 @@ admin.site.register(models.SystemNotification, SystemNotificationAdmin)
 admin.site.register(models.WebHook, WebHookAdmin)
 admin.site.register(models.EmailHook, EmailHookAdmin)
 admin.site.register(models.Event, EventAdmin)
-admin.site.register(models.EventSubscription, EventSubscriptionAdmin)
 admin.site.register(models.EmailLog, EmailLogAdmin)

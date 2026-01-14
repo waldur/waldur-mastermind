@@ -6,6 +6,26 @@ We heavily customize `drf-spectacular`'s default behavior to produce a schema th
 
 ---
 
+## Quick Reference
+
+**Which tool should I use?**
+
+| Task | Solution |
+|------|----------|
+| Add/modify parameters for one endpoint | `@extend_schema` decorator on view method |
+| Custom serializer field representation | Extension in `openapi_extensions.py` |
+| Filter which endpoints appear in schema | `disabled_actions` on ViewSet or modify `openapi_generators.py` |
+| Schema-wide transformations | Hook in `schema_hooks.py` |
+| Document authentication schemes | Authentication extension in `openapi_extensions.py` |
+
+**Validation command:**
+
+```bash
+uv run waldur spectacular --validate
+```
+
+---
+
 ## 1. Architectural Overview
 
 `drf-spectacular` generates a schema by introspecting your Django Rest Framework project. Our customizations hook into this process at four key stages, each handled by a different component:
@@ -27,12 +47,6 @@ The generation process flows like this:
 This class, located in `openapi_inspector.py`, is our custom subclass of `AutoSchema` and contains the most significant logic for tailoring the schema endpoint-by-endpoint.
 
 ### Key Methods and Use-Cases
-
-#### `resolve_serializer(...)`
-
-- **Purpose**: To ensure that when a serializer is instantiated during schema generation, it's aware of this context.
-- **Mechanism**: It calls the parent method and then sets a flag `_is_generating_schema = True` on the mock request object within the serializer's context.
-- **Design Rationale**: Several of our custom serializers change their behavior based on this flag. For example, `RestrictedSerializerMixin` might include all its fields, even optional ones, if this flag is set. This gives API consumers a complete picture of all possible data they *could* receive.
 
 #### `get_operation(...)`
 
@@ -77,13 +91,41 @@ This class, located in `openapi_inspector.py`, is our custom subclass of `AutoSc
 
 Located in `openapi_extensions.py`, these classes provide a modular way to handle custom components.
 
-- **`WaldurTokenScheme`, `WaldurSessionScheme`, `OIDCAuthenticationScheme`**: These extensions map our custom DRF authentication classes to standard OpenAPI security schemes. This is the correct way to document API authentication.
+### Authentication Extensions
+
+- **`WaldurTokenScheme`**: Maps `waldur_core.core.authentication.TokenAuthentication` to OpenAPI token auth scheme.
+- **`WaldurSessionScheme`**: Maps `waldur_core.core.authentication.SessionAuthentication` to OpenAPI cookie auth scheme.
+- **`OIDCAuthenticationScheme`**: Maps `waldur_core.core.authentication.OIDCAuthentication` to OpenAPI Bearer token scheme.
+
+These extensions ensure our custom DRF authentication classes are correctly documented as standard OpenAPI security schemes.
+
+### Field Extensions
+
 - **`GenericRelatedFieldExtension`**:
   - **Problem**: `drf-spectacular` doesn't know how to represent our custom `GenericRelatedField`.
   - **Solution**: This extension tells the generator to simply represent it as a `string` (which, in our case, is a URL). This avoids schema generation errors and provides a simple, accurate representation.
-- **`OpenStackNestedSecurityGroupSerializerExtension`**:
-    - **Problem**: A specific nested serializer is overly complex, and for the API schema, we only want to show a simplified version of it.
-    - **Solution**: This extension bypasses introspection of the serializer entirely and provides a fixed, hardcoded schema (`{"type": "object", "properties": {"url": ...}}`). This is an excellent technique for simplifying complex nested objects in the API documentation.
+
+- **`IPAddressFieldExtension`**:
+  - **Problem**: DRF's `IPAddressField` supports three protocols: `ipv4`, `ipv6`, and `both` (default). The default introspection doesn't capture this nuance.
+  - **Solution**: This extension generates appropriate schemas based on the field's `protocol` attribute:
+    - `protocol="ipv4"` → `{"type": "string", "format": "ipv4"}`
+    - `protocol="ipv6"` → `{"type": "string", "format": "ipv6"}`
+    - `protocol="both"` → `oneOf` with both IPv4 and IPv6 formats
+
+### Creating Custom Extensions
+
+When you need to handle a custom class that `drf-spectacular` cannot introspect:
+
+```python
+from drf_spectacular.extensions import OpenApiSerializerFieldExtension
+
+class MyFieldExtension(OpenApiSerializerFieldExtension):
+    target_class = "myapp.fields.MyCustomField"
+
+    def map_serializer_field(self, auto_schema, direction):
+        # Return OpenAPI schema dict
+        return {"type": "string", "format": "my-format"}
+```
 
 ---
 
