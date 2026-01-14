@@ -23,6 +23,10 @@ class ConfigurableExpiringResourceTest(APITransactionTestCase):
 
     def test_default_threshold_behavior(self):
         """Test default 30-day threshold"""
+        # Mark component as prepaid (required for expiration tracking)
+        self.fixture.offering_component.is_prepaid = True
+        self.fixture.offering_component.save()
+
         # Resource expiring in 29 days (should trigger)
         expire_date = timezone.now() + timedelta(days=29)
         resource = self.fixture.resource
@@ -53,6 +57,10 @@ class ConfigurableExpiringResourceTest(APITransactionTestCase):
 
     def test_custom_threshold_inclusion(self):
         """Test that custom small threshold includes resources expiring sooner"""
+        # Mark component as prepaid (required for expiration tracking)
+        self.fixture.offering_component.is_prepaid = True
+        self.fixture.offering_component.save()
+
         # Configure offering with 7 day threshold
         self.fixture.offering.plugin_options = {"resource_expiration_threshold": 7}
         self.fixture.offering.save()

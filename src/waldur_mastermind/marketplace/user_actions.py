@@ -202,7 +202,9 @@ class ExpiringResourceProvider(BaseActionProvider):
             .distinct()
         )
 
-        offerings = models.Offering.objects.filter(id__in=offering_ids)
+        offerings = models.Offering.objects.filter(
+            id__in=offering_ids, components__is_prepaid=True
+        )
 
         # Group offerings by threshold
         threshold_map = {}  # days -> [offering_ids]
@@ -312,20 +314,18 @@ class ExpiringResourceProvider(BaseActionProvider):
             )
         )
 
-        # Renew/Extend (Navigate to resource details)
-        if resource.offering.components.filter(is_prepaid=True).exists():
-            actions.append(
-                CorrectiveAction(
-                    label="Renew Resource",
-                    category=ActionCategory.EXTEND,
-                    severity=ActionSeverity.LOW,
-                    route_name="marketplace-resource-details",
-                    route_params={
-                        "resource_uuid": str(resource.uuid),
-                        "tab": "actions",
-                    },
-                )
+        actions.append(
+            CorrectiveAction(
+                label="Renew Resource",
+                category=ActionCategory.EXTEND,
+                severity=ActionSeverity.LOW,
+                route_name="marketplace-resource-details",
+                route_params={
+                    "resource_uuid": str(resource.uuid),
+                    "tab": "actions",
+                },
             )
+        )
 
         # Terminate (API action)
         if self._can_terminate_resource(user, resource):
