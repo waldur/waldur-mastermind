@@ -58,6 +58,23 @@ class EstonianAriregisterBackend(CompanyRegistryBackend):
         return ["legal_person_identifier", "person_identifier"]
 
     @classmethod
+    def get_person_identifier_fields(cls) -> dict[str, Any]:
+        """
+        Estonian backend requires civil_number (isikukood) for validation.
+
+        Returns simple string identifier specification.
+        """
+        return {
+            "type": "string",
+            "field": "civil_number",
+            "label": "Personal ID (isikukood)",
+            "description": "Estonian personal identification code obtained via TARA authentication",
+            "example": "38001085718",
+            "pattern": r"^[1-6]\d{10}$",
+            "help_text": "11-digit Estonian personal identification code starting with 1-6",
+        }
+
+    @classmethod
     def get_priority(cls) -> int:
         return 1  # Highest priority for Estonia
 

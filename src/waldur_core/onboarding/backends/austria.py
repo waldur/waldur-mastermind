@@ -85,6 +85,44 @@ class AustriaRegisterBackend(CompanyRegistryBackend):
         return ["legal_person_identifier", "person_identifier"]
 
     @classmethod
+    def get_person_identifier_fields(cls) -> dict[str, Any]:
+        """
+        Austrian backend requires composite person identifier with name and birth date.
+
+        Returns object-type specification with multiple fields.
+        """
+        return {
+            "type": "object",
+            "description": "Personal identification data for Austrian business validation",
+            "fields": {
+                "first_name": {
+                    "type": "string",
+                    "label": "First Name",
+                    "description": "Legal first name as registered",
+                    "required": True,
+                    "example": "Johann",
+                    "max_length": 150,
+                },
+                "last_name": {
+                    "type": "string",
+                    "label": "Last Name",
+                    "description": "Legal last name as registered",
+                    "required": True,
+                    "example": "Schmidt",
+                    "max_length": 150,
+                },
+                "birth_date": {
+                    "type": "date",
+                    "label": "Date of Birth",
+                    "description": "Date of birth in YYYY-MM-DD format",
+                    "required": True,
+                    "format": "YYYY-MM-DD",
+                    "example": "1980-01-08",
+                },
+            },
+        }
+
+    @classmethod
     def get_priority(cls) -> int:
         return 1  # Highest priority for Austria
 

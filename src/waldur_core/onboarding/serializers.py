@@ -304,7 +304,7 @@ class OnboardingRunValidationRequestSerializer(serializers.Serializer):
     """
 
     # ToDo: remove this after implementing getting user's identifier via auth methods
-    person_identifier = serializers.CharField(
+    civil_number = serializers.CharField(
         max_length=50,
         required=False,
         allow_blank=True,

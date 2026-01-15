@@ -651,11 +651,6 @@ CONSTANCE_CONFIG = {
         "List of offering types disabled for creation and selection.",
         "list_field",
     ),
-    "ONBOARDING_SUPPORTED_COUNTRIES": (
-        [],
-        "List of ISO 3166-1 alpha-2 country codes supported by this portal (e.g., EE, AT, SE). Used to restrict available countries in onboarding.",
-        "country_list_field",
-    ),
     "ONBOARDING_VALIDATION_METHODS": (
         [],
         "List of automatic validation methods available for this portal (e.g., ariregister, wirtschaftscompass, bolagsverket). Must match backend method names.",
@@ -981,7 +976,6 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "WALDUR_AUTH_SOCIAL_ROLE_CLAIM",
     ),
     "Onboarding settings": (
-        "ONBOARDING_SUPPORTED_COUNTRIES",
         "ONBOARDING_VALIDATION_METHODS",
         "ONBOARDING_VERIFICATION_EXPIRY_HOURS",
         "ONBOARDING_ARIREGISTER_BASE_URL",
@@ -1072,6 +1066,5 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "ENFORCE_USER_CONSENT_FOR_OFFERINGS",
     "OIDC_ACCESS_TOKEN_ENABLED",
     # Onboarding settings
-    "ONBOARDING_SUPPORTED_COUNTRIES",
     "ONBOARDING_VALIDATION_METHODS",
 )

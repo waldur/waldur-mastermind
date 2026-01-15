@@ -111,6 +111,23 @@ class SwedenRegisterBackend(CompanyRegistryBackend):
         return ["legal_person_identifier", "person_identifier"]
 
     @classmethod
+    def get_person_identifier_fields(cls) -> dict[str, Any]:
+        """
+        Swedish backend requires civil_number (personnummer) for validation.
+
+        Returns simple string identifier specification.
+        """
+        return {
+            "type": "string",
+            "field": "civil_number",
+            "label": "Personal ID (personnummer)",
+            "description": "Swedish personal identification number",
+            "example": "800108-1234",
+            "pattern": r"^\d{6}-?\d{4}$",
+            "help_text": "Swedish personal identification number in format YYMMDD-XXXX",
+        }
+
+    @classmethod
     def get_priority(cls) -> int:
         return 1
 

@@ -88,6 +88,50 @@ class CompanyRegistryBackend(ABC):
         pass
 
     @classmethod
+    @abstractmethod
+    def get_person_identifier_fields(cls) -> dict[str, Any]:
+        """
+        Return specification of person identifier fields required by this backend.
+
+        Returns:
+            Dictionary describing the person identifier structure:
+            - For simple string identifiers (civil_number):
+              {
+                  "type": "string",
+                  "field": "civil_number",
+                  "label": "Personal ID (isikukood)",
+                  "description": "Estonian personal identification code",
+                  "example": "38001085718"
+              }
+            - For composite identifiers (first_name, last_name, birth_date):
+              {
+                  "type": "object",
+                  "fields": {
+                      "first_name": {
+                          "type": "string",
+                          "label": "First Name",
+                          "required": True,
+                          "example": "John"
+                      },
+                      "last_name": {
+                          "type": "string",
+                          "label": "Last Name",
+                          "required": True,
+                          "example": "Doe"
+                      },
+                      "birth_date": {
+                          "type": "date",
+                          "label": "Date of Birth",
+                          "required": True,
+                          "format": "YYYY-MM-DD",
+                          "example": "1980-01-08"
+                      }
+                  }
+              }
+        """
+        pass
+
+    @classmethod
     def get_priority(cls) -> int:
         """Return priority level (lower = higher priority). Default is 100."""
         return 100
@@ -203,6 +247,24 @@ class BackendRegistry:
             backend_instance = backend_class()
             if backend_instance.get_validation_method() == validation_method:
                 return backend_instance
+
+        return None
+
+    def get_person_identifier_fields_for_method(
+        self, validation_method: str
+    ) -> dict[str, Any] | None:
+        """
+        Get person identifier field specification for a specific validation method.
+
+        Args:
+            validation_method: Method name (e.g., 'ariregister', 'wirtschaftscompass')
+
+        Returns:
+            Dictionary with person identifier field specification or None if not found
+        """
+        for backend_class in self._backends:
+            if backend_class.get_validation_method() == validation_method:
+                return backend_class.get_person_identifier_fields()
 
         return None
 

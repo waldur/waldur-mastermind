@@ -27,4 +27,9 @@ urlpatterns = [
         views.SupportedCountriesView.as_view(),
         name="onboarding-supported-countries",
     ),
+    path(
+        "onboarding/person-identifier-fields/",
+        views.PersonIdentifierFieldsView.as_view(),
+        name="onboarding-person-identifier-fields",
+    ),
 ]

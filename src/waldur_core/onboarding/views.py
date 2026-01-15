@@ -3,7 +3,12 @@ from datetime import timedelta
 from constance import config
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    extend_schema,
+    inline_serializer,
+)
 from rest_framework import exceptions, permissions, serializers, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -20,6 +25,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import serializers as structure_serializers
 
 from . import enums, filters, tasks
+from .backends import backend_registry
 from .models import (
     OnboardingJustification,
     OnboardingQuestionMetadata,
@@ -548,7 +554,7 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
             legal_name=verification.legal_name,
             existing_verification=verification,
             # ToDo: remove this after implementing getting user's identifier via auth methods
-            person_identifier=serializer.validated_data.get("person_identifier", ""),
+            person_identifier=serializer.validated_data.get("civil_number", ""),
             first_name=serializer.validated_data.get("first_name", ""),
             last_name=serializer.validated_data.get("last_name", ""),
             birth_date=birth_date_str,
@@ -749,6 +755,87 @@ class SupportedCountriesView(APIView):
         """Return list of supported countries."""
         countries = onboarding_validator.get_supported_countries()
         return Response({"supported_countries": countries})
+
+
+class PersonIdentifierFieldsView(APIView):
+    """
+    API view to get person identifier field requirements for a specific validation method.
+
+    This endpoint allows clients to query the exact person identifier fields needed
+    for a particular validation method (e.g., 'ariregister', 'wirtschaftscompass').
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        description=(
+            "Return person identifier field specification for a specific validation method. "
+            "The validation_method parameter should match one of the available methods "
+            "(e.g., 'ariregister', 'wirtschaftscompass', 'bolagsverket', 'breg')."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="validation_method",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Validation method identifier (e.g., 'ariregister', 'wirtschaftscompass', 'bolagsverket', 'breg')",
+            )
+        ],
+        responses={
+            200: inline_serializer(
+                name="PersonIdentifierFieldsResponse",
+                fields={
+                    "validation_method": serializers.CharField(),
+                    "person_identifier_fields": serializers.DictField(
+                        help_text=(
+                            "Field specification for person identification. "
+                            "For simple identifiers: {type: 'string', field: 'civil_number', ...}. "
+                            "For composite identifiers: {type: 'object', fields: {...}}"
+                        )
+                    ),
+                },
+            ),
+            400: inline_serializer(
+                name="ValidationMethodErrorResponse",
+                fields={
+                    "error": serializers.CharField(),
+                },
+            ),
+            404: inline_serializer(
+                name="ValidationMethodNotFoundResponse",
+                fields={
+                    "error": serializers.CharField(),
+                },
+            ),
+        },
+    )
+    def get(self, request):
+        """Return person identifier fields for the specified validation method."""
+        validation_method = request.query_params.get("validation_method")
+
+        if not validation_method:
+            return Response(
+                {"error": "validation_method query parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        fields = backend_registry.get_person_identifier_fields_for_method(
+            validation_method
+        )
+
+        if fields is None:
+            return Response(
+                {"error": f"Validation method '{validation_method}' not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(
+            {
+                "validation_method": validation_method,
+                "person_identifier_fields": fields,
+            }
+        )
 
 
 class OnboardingQuestionMetadataViewSet(core_views.ActionsViewSet):
