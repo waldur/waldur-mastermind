@@ -46,7 +46,7 @@ class PendingOrderProviderTest(APITransactionTestCase):
         self.assertIn(order.offering.name, action["title"])
         self.assertEqual(action["urgency"], "high")
         self.assertEqual(action["related_object"], order)
-        self.assertEqual(action["offering_uuid"], order.offering.uuid)
+        self.assertEqual(action["offering_uuid"], order.offering.uuid.hex)
         self.assertIn("1 days", action["description"])
 
     def test_get_actions_for_user_no_pending_orders(self):

@@ -68,14 +68,14 @@ class PendingOrderProvider(BaseActionProvider):
                     "route_name": "marketplace-orders.details",
                     "route_params": {"order_uuid": str(order.uuid)},
                     "project_name": order.project.name,
-                    "project_uuid": order.project.uuid,
+                    "project_uuid": str(order.project.uuid),
                     "organization_name": order.project.customer.name,
-                    "organization_uuid": order.project.customer.uuid,
+                    "organization_uuid": str(order.project.customer.uuid),
                     "offering_name": order.offering.name,
-                    "offering_uuid": order.offering.uuid,
+                    "offering_uuid": str(order.offering.uuid),
                     "offering_type": order.offering.type,
                     "resource_name": order.resource.name,
-                    "resource_uuid": order.resource.uuid,
+                    "resource_uuid": str(order.resource.uuid),
                     "order_type": order.get_type_display(),
                 }
             )
