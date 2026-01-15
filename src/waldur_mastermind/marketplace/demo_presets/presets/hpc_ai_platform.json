@@ -434,6 +434,7 @@
       },
       "plugin_options": {
         "disable_autoapprove": true,
+        "unique_resource_per_attribute": "storage_data_type",
         "maximal_resource_count_per_project": 4,
         "is_resource_termination_date_required": true,
         "create_orders_on_resource_option_change": true,

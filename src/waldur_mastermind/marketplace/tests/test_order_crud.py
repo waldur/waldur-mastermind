@@ -390,6 +390,127 @@ class OrderCreateTest(BaseOrderCreateTest):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
+    def test_creation_fails_if_resource_with_same_attribute_value_exists(self):
+        """Test that unique_resource_per_attribute prevents duplicate attribute values."""
+        user = self.fixture.staff
+        offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            plugin_options={"unique_resource_per_attribute": "storage_data_type"},
+        )
+        plan = factories.PlanFactory(offering=offering)
+        # Create existing resource with storage_data_type=Store
+        factories.ResourceFactory(
+            project=self.project,
+            offering=offering,
+            plan=plan,
+            attributes={"storage_data_type": "Store"},
+        )
+
+        # Try to create another resource with same storage_data_type=Store
+        response = self.create_order(
+            user, offering, add_payload={"attributes": {"storage_data_type": "Store"}}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            "already has a resource with storage_data_type='Store'",
+            response.data["non_field_errors"][0],
+        )
+
+    def test_creation_succeeds_with_different_attribute_value(self):
+        """Test that different attribute values are allowed."""
+        user = self.fixture.staff
+        offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            plugin_options={"unique_resource_per_attribute": "storage_data_type"},
+        )
+        plan = factories.PlanFactory(offering=offering)
+        # Create existing resource with storage_data_type=Store
+        factories.ResourceFactory(
+            project=self.project,
+            offering=offering,
+            plan=plan,
+            attributes={"storage_data_type": "Store"},
+        )
+
+        # Create another resource with storage_data_type=Archive (different value)
+        response = self.create_order(
+            user, offering, add_payload={"attributes": {"storage_data_type": "Archive"}}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_terminated_resource_does_not_block_same_attribute_value(self):
+        """Test that terminated resources don't block new resources with same attribute."""
+        user = self.fixture.staff
+        offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            plugin_options={"unique_resource_per_attribute": "storage_data_type"},
+        )
+        plan = factories.PlanFactory(offering=offering)
+        # Create terminated resource with storage_data_type=Store
+        factories.ResourceFactory(
+            project=self.project,
+            offering=offering,
+            plan=plan,
+            attributes={"storage_data_type": "Store"},
+            state=models.Resource.States.TERMINATED,
+        )
+
+        # Should be able to create new resource with same storage_data_type=Store
+        response = self.create_order(
+            user, offering, add_payload={"attributes": {"storage_data_type": "Store"}}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_unique_resource_per_attribute_not_enforced_without_config(self):
+        """Test that validation is skipped when plugin option is not set."""
+        user = self.fixture.staff
+        offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            plugin_options={},  # No unique_resource_per_attribute
+        )
+        plan = factories.PlanFactory(offering=offering)
+        # Create existing resource with storage_data_type=Store
+        factories.ResourceFactory(
+            project=self.project,
+            offering=offering,
+            plan=plan,
+            attributes={"storage_data_type": "Store"},
+        )
+
+        # Should be able to create duplicate since config is not set
+        response = self.create_order(
+            user, offering, add_payload={"attributes": {"storage_data_type": "Store"}}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_unique_resource_per_attribute_skipped_when_attribute_not_provided(self):
+        """Test that validation is skipped when attribute is not in order."""
+        user = self.fixture.staff
+        offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            plugin_options={"unique_resource_per_attribute": "storage_data_type"},
+        )
+        plan = factories.PlanFactory(offering=offering)
+        # Create existing resource with storage_data_type=Store
+        factories.ResourceFactory(
+            project=self.project,
+            offering=offering,
+            plan=plan,
+            attributes={"storage_data_type": "Store"},
+        )
+
+        # Create order without storage_data_type attribute
+        response = self.create_order(
+            user, offering, add_payload={"attributes": {"other_attr": "value"}}
+        )
+
+        # Should succeed (attribute validation for required fields is separate)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
 
 @ddt
 @mock.patch(
