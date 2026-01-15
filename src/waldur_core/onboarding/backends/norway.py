@@ -75,6 +75,23 @@ class NorwayRegisterBackend(CompanyRegistryBackend):
         return ["legal_person_identifier", "person_identifier"]
 
     @classmethod
+    def get_person_identifier_fields(cls) -> dict[str, Any]:
+        """
+        Norwegian backend requires civil_number (fødselsnummer) for validation.
+
+        Returns simple string identifier specification.
+        """
+        return {
+            "type": "string",
+            "field": "civil_number",
+            "label": "Personal ID (fødselsnummer)",
+            "description": "Norwegian personal identification number",
+            "example": "01018012345",
+            "pattern": r"^\d{11}$",
+            "help_text": "11-digit Norwegian personal identification number",
+        }
+
+    @classmethod
     def get_priority(cls) -> int:
         return 1
 
