@@ -101,6 +101,7 @@ class MarketplaceBillingService:
             resources = (
                 marketplace_models.Resource.objects.filter(project__customer=customer)
                 .exclude(state__in=[ResourceStates.CREATING, ResourceStates.TERMINATED])
+                .filter(offering__billable=True)
                 .distinct()
             )
             end = core_utils.month_end(date)
@@ -184,6 +185,15 @@ class MarketplaceBillingService:
                 "billing is not enabled for resource. "
                 "Resource ID: %s",
                 resource.id,
+            )
+            return
+
+        if not resource.offering.billable:
+            logger.debug(
+                "Skipping invoice creation for resource %s because "
+                "offering %s is not billable.",
+                resource.id,
+                resource.offering.uuid,
             )
             return
 

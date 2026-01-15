@@ -15,6 +15,7 @@ from waldur_mastermind.marketplace.billing import (
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     LimitPeriods,
+    OfferingStates,
     OrderStates,
     OrderTypes,
 )
@@ -1224,3 +1225,214 @@ class LimitBillingDuplicateInvoiceTest(test.APITransactionTestCase):
 
         total_quantity = sum(item.quantity for item in updated_items)
         self.assertGreater(total_quantity, 100, "Total quantity should be updated")
+
+
+@freeze_time("2020-11-01")
+class NonBillableOfferingTest(test.APITransactionTestCase):
+    """
+    Test that resources with non-billable offerings are not billed.
+
+    This tests the fix for the billing regression introduced in commit 236599072
+    where MarketplaceBillingService.get_or_create_invoice() did not filter
+    by offering.billable=True, causing resources with billable=False offerings
+    to be incorrectly billed.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        # Make the offering non-billable
+        self.fixture.offering.billable = False
+        self.fixture.offering.save()
+        self.resource = self.fixture.resource
+
+    def test_non_billable_offering_does_not_create_invoice_item_on_resource_activation(
+        self,
+    ):
+        """Test that activating a resource with non-billable offering doesn't create invoice items."""
+        self.resource.set_state_ok()
+        self.resource.save()
+
+        invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2020, month=11
+        )
+        items = invoice.items.filter(resource_id=self.resource.id)
+
+        self.assertEqual(
+            items.count(),
+            0,
+            "Non-billable offering should not create invoice items on resource activation",
+        )
+
+    def test_non_billable_offering_does_not_create_invoice_item_on_monthly_billing(
+        self,
+    ):
+        """Test that monthly invoice creation doesn't bill non-billable offerings."""
+        self.resource.set_state_ok()
+        self.resource.save()
+
+        # Advance to next month and run monthly invoices
+        with freeze_time("2020-12-01"):
+            create_monthly_invoices()
+
+        december_invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2020, month=12
+        )
+        items = december_invoice.items.filter(resource_id=self.resource.id)
+
+        self.assertEqual(
+            items.count(),
+            0,
+            "Non-billable offering should not create invoice items on monthly billing",
+        )
+
+    def test_billable_offering_creates_invoice_item_regression_check(self):
+        """Regression test: Ensure billable offerings still create invoice items correctly."""
+        # Make the offering billable again
+        self.fixture.offering.billable = True
+        self.fixture.offering.save()
+
+        self.resource.set_state_ok()
+        self.resource.save()
+
+        invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2020, month=11
+        )
+        items = invoice.items.filter(resource_id=self.resource.id)
+
+        self.assertEqual(
+            items.count(),
+            1,
+            "Billable offering should create invoice items on resource activation",
+        )
+
+
+@freeze_time("2020-11-01")
+class NonBillableChildOfferingTest(test.APITransactionTestCase):
+    """
+    Test billing behavior for child offerings (like OpenStack.Instance)
+    that are nested under parent offerings (like OpenStack.Tenant).
+
+    Child offerings typically have billable=False because their costs
+    are included in the parent offering's billing.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+        # Create a parent offering (like OpenStack.Tenant) - billable
+        self.parent_offering = marketplace_factories.OfferingFactory(
+            type="OpenStack.Tenant",
+            state=OfferingStates.ACTIVE,
+            billable=True,
+            customer=self.fixture.offering_customer,
+        )
+        self.parent_plan = marketplace_factories.PlanFactory(
+            offering=self.parent_offering,
+            unit=marketplace_models.Plan.Units.PER_MONTH,
+        )
+        self.parent_component = marketplace_factories.OfferingComponentFactory(
+            offering=self.parent_offering,
+            billing_type=BillingTypes.FIXED,
+        )
+        marketplace_factories.PlanComponentFactory(
+            plan=self.parent_plan,
+            component=self.parent_component,
+            price=10,
+            amount=1,
+        )
+        self.parent_resource = marketplace_factories.ResourceFactory(
+            offering=self.parent_offering,
+            plan=self.parent_plan,
+            project=self.fixture.project,
+        )
+
+        # Create a child offering (like OpenStack.Instance) - NOT billable
+        self.child_offering = marketplace_factories.OfferingFactory(
+            type="OpenStack.Instance",
+            state=OfferingStates.ACTIVE,
+            billable=False,  # Key: child offerings are not billed separately
+            parent=self.parent_offering,
+            customer=self.fixture.offering_customer,
+        )
+        self.child_plan = marketplace_factories.PlanFactory(
+            offering=self.child_offering,
+            unit=marketplace_models.Plan.Units.PER_MONTH,
+        )
+        self.child_component = marketplace_factories.OfferingComponentFactory(
+            offering=self.child_offering,
+            billing_type=BillingTypes.FIXED,
+        )
+        marketplace_factories.PlanComponentFactory(
+            plan=self.child_plan,
+            component=self.child_component,
+            price=5,
+            amount=1,
+        )
+        self.child_resource = marketplace_factories.ResourceFactory(
+            offering=self.child_offering,
+            plan=self.child_plan,
+            project=self.fixture.project,
+            parent=self.parent_resource,
+        )
+
+    def test_parent_billable_offering_creates_invoice_items(self):
+        """Parent offering with billable=True should create invoice items."""
+        self.parent_resource.set_state_ok()
+        self.parent_resource.save()
+
+        invoice = invoices_models.Invoice.objects.get(
+            customer=self.parent_resource.project.customer, year=2020, month=11
+        )
+        items = invoice.items.filter(resource_id=self.parent_resource.id)
+
+        self.assertEqual(
+            items.count(),
+            1,
+            "Parent billable offering should create invoice items",
+        )
+
+    def test_child_non_billable_offering_does_not_create_invoice_items(self):
+        """Child offering with billable=False should NOT create invoice items."""
+        self.child_resource.set_state_ok()
+        self.child_resource.save()
+
+        invoice = invoices_models.Invoice.objects.get(
+            customer=self.child_resource.project.customer, year=2020, month=11
+        )
+        items = invoice.items.filter(resource_id=self.child_resource.id)
+
+        self.assertEqual(
+            items.count(),
+            0,
+            "Child non-billable offering should NOT create invoice items",
+        )
+
+    def test_monthly_billing_only_bills_parent_not_child(self):
+        """Monthly invoice should only bill parent, not child offerings."""
+        self.parent_resource.set_state_ok()
+        self.parent_resource.save()
+        self.child_resource.set_state_ok()
+        self.child_resource.save()
+
+        with freeze_time("2020-12-01"):
+            create_monthly_invoices()
+
+        december_invoice = invoices_models.Invoice.objects.get(
+            customer=self.parent_resource.project.customer, year=2020, month=12
+        )
+
+        parent_items = december_invoice.items.filter(
+            resource_id=self.parent_resource.id
+        )
+        child_items = december_invoice.items.filter(resource_id=self.child_resource.id)
+
+        self.assertEqual(
+            parent_items.count(),
+            1,
+            "Parent offering should be billed monthly",
+        )
+        self.assertEqual(
+            child_items.count(),
+            0,
+            "Child non-billable offering should NOT be billed monthly",
+        )
