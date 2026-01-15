@@ -164,6 +164,11 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="Maximal number of offering resources allowed per project",
     )
+    unique_resource_per_attribute = serializers.CharField(
+        required=False,
+        help_text="Attribute name to enforce uniqueness per value. "
+        "E.g., 'storage_data_type' ensures only one resource per storage type per project.",
+    )
     required_team_role_for_provisioning = serializers.CharField(
         required=False,
         help_text="Required user role in a project for provisioning of resources",
@@ -3922,7 +3927,7 @@ class OrderCreateSerializer(
         self._validate_resource_name(attributes)
         self._validate_terms_of_service(user, offering, accepting_tos)
         self._validate_project_not_terminated(project)
-        self._validate_project_policy_constraints(project, offering)
+        self._validate_project_policy_constraints(project, offering, attributes)
         self._validate_plan_for_create(attrs, offering)
 
         # Prepaid Offering Validation
@@ -3975,13 +3980,15 @@ class OrderCreateSerializer(
         if project.is_removed:
             raise ValidationError(_("Cannot create orders for terminated projects."))
 
-    def _validate_project_policy_constraints(self, project, offering):
+    def _validate_project_policy_constraints(self, project, offering, attributes=None):
         """
         Validates offering-defined constraints on the target project.
         """
         self._validate_minimal_team_count(project, offering)
         self._validate_required_team_role(project, offering)
         self._validate_maximal_resource_count(project, offering)
+        if attributes is not None:
+            self._validate_unique_resource_per_attribute(project, offering, attributes)
 
     def _validate_minimal_team_count(self, project, offering):
         min_count_setting = offering.plugin_options.get(
@@ -4068,6 +4075,51 @@ class OrderCreateSerializer(
                     "allowed for this offering."
                 )
                 % {"project": project.name, "limit": limit}
+            )
+
+    def _validate_unique_resource_per_attribute(self, project, offering, attributes):
+        """
+        Validates that only one non-terminated resource per unique attribute value
+        exists for a project+offering combination.
+
+        Configuration via offering.plugin_options:
+            "unique_resource_per_attribute": "attribute_name"
+
+        Example: With unique_resource_per_attribute="storage_data_type",
+        a project can have one "Store" and one "Archive" resource,
+        but cannot have two "Store" resources.
+        """
+        unique_attr = offering.plugin_options.get("unique_resource_per_attribute")
+        if not unique_attr:
+            return
+
+        new_attr_value = attributes.get(unique_attr)
+        if not new_attr_value:
+            # Attribute not provided in order - skip validation
+            # (attribute validation should catch required fields separately)
+            return
+
+        existing = (
+            models.Resource.objects.filter(
+                project=project,
+                offering=offering,
+            )
+            .exclude(state=models.Resource.States.TERMINATED)
+            .filter(attributes__contains={unique_attr: new_attr_value})
+            .exists()
+        )
+
+        if existing:
+            raise ValidationError(
+                _(
+                    "Project '%(project)s' already has a resource with %(attr)s='%(value)s' "
+                    "for this offering. Only one resource per %(attr)s value is allowed."
+                )
+                % {
+                    "project": project.name,
+                    "attr": unique_attr,
+                    "value": new_attr_value,
+                }
             )
 
     def _validate_prepaid_attributes(
