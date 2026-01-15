@@ -367,3 +367,18 @@ class OnboardingJustificationReviewSerializer(serializers.Serializer):
         allow_blank=True,
         help_text="Administrator notes about the review decision",
     )
+
+
+class PersonIdentifierFieldsResponseSerializer(serializers.Serializer):
+    """Serializer for person identifier fields response."""
+
+    validation_method = serializers.CharField(
+        help_text="The validation method identifier"
+    )
+    person_identifier_fields = serializers.DictField(
+        help_text=(
+            "Field specification for person identification. "
+            "For simple identifiers: {type: 'string', field: 'civil_number', ...}. "
+            "For composite identifiers: {type: 'object', fields: {...}}"
+        )
+    )
