@@ -1299,7 +1299,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
 
     def test_offering_user_serializer_consent_fields_with_consent(self):
         """Test that OfferingUserSerializer includes consent fields when user has consent."""
-        models.UserOfferingConsent.objects.create(
+        consent = models.UserOfferingConsent.objects.create(
             user=self.user,
             offering=self.offering,
             version="1.0",
@@ -1322,6 +1322,13 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         self.assertTrue(response.data["has_consent"])
         self.assertFalse(response.data["requires_reconsent"])
 
+        # Check consent_data field
+        self.assertIn("consent_data", response.data)
+        self.assertIsNotNone(response.data["consent_data"])
+        self.assertEqual(response.data["consent_data"]["uuid"], str(consent.uuid))
+        self.assertEqual(response.data["consent_data"]["version"], "1.0")
+        self.assertIn("agreement_date", response.data["consent_data"])
+
     def test_offering_user_serializer_consent_fields_without_consent(self):
         """Test that OfferingUserSerializer includes consent fields when user has no consent."""
         offering_user, created = models.OfferingUser.objects.get_or_create(
@@ -1340,6 +1347,35 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
         self.assertIn("requires_reconsent", response.data)
         self.assertFalse(response.data["has_consent"])
         self.assertFalse(response.data["requires_reconsent"])
+
+        # Check consent_data field is None when no consent
+        self.assertIn("consent_data", response.data)
+        self.assertIsNone(response.data["consent_data"])
+
+    def test_offering_user_serializer_consent_data_none_when_feature_disabled(self):
+        """Test that consent_data is None when ENFORCE_USER_CONSENT_FOR_OFFERINGS is disabled."""
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+
+        offering_user, created = models.OfferingUser.objects.get_or_create(
+            user=self.user,
+            offering=self.offering,
+        )
+
+        self.client.force_authenticate(user=self.user)
+
+        with override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=False):
+            response = self.client.get(
+                f"/api/marketplace-offering-users/{offering_user.uuid}/"
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+            # consent_data should be None when feature is disabled
+            self.assertIn("consent_data", response.data)
+            self.assertIsNone(response.data["consent_data"])
 
     def test_offering_user_filter_has_consent_true(self):
         """Test filtering offering users by has_consent=true with specific user_uuid."""
