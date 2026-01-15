@@ -4,11 +4,7 @@ from constance import config
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import (
-    OpenApiParameter,
-    extend_schema,
-    inline_serializer,
-)
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import exceptions, permissions, serializers, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -40,6 +36,7 @@ from .serializers import (
     OnboardingQuestionMetadataSerializer,
     OnboardingRunValidationRequestSerializer,
     OnboardingVerificationSerializer,
+    PersonIdentifierFieldsResponseSerializer,
 )
 from .validators import onboarding_validator
 
@@ -779,36 +776,11 @@ class PersonIdentifierFieldsView(APIView):
                 type=OpenApiTypes.STR,
                 location=OpenApiParameter.QUERY,
                 required=True,
-                description="Validation method identifier (e.g., 'ariregister', 'wirtschaftscompass', 'bolagsverket', 'breg')",
+                enum=[choice[0] for choice in enums.ValidationMethod.CHOICES],
+                description="Validation method identifier",
             )
         ],
-        responses={
-            200: inline_serializer(
-                name="PersonIdentifierFieldsResponse",
-                fields={
-                    "validation_method": serializers.CharField(),
-                    "person_identifier_fields": serializers.DictField(
-                        help_text=(
-                            "Field specification for person identification. "
-                            "For simple identifiers: {type: 'string', field: 'civil_number', ...}. "
-                            "For composite identifiers: {type: 'object', fields: {...}}"
-                        )
-                    ),
-                },
-            ),
-            400: inline_serializer(
-                name="ValidationMethodErrorResponse",
-                fields={
-                    "error": serializers.CharField(),
-                },
-            ),
-            404: inline_serializer(
-                name="ValidationMethodNotFoundResponse",
-                fields={
-                    "error": serializers.CharField(),
-                },
-            ),
-        },
+        responses=PersonIdentifierFieldsResponseSerializer,
     )
     def get(self, request):
         """Return person identifier fields for the specified validation method."""
@@ -826,16 +798,20 @@ class PersonIdentifierFieldsView(APIView):
 
         if fields is None:
             return Response(
-                {"error": f"Validation method '{validation_method}' not found."},
+                {
+                    "error": f"Fields are not configured for validation method '{validation_method}'"
+                },
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        return Response(
+        response_serializer = PersonIdentifierFieldsResponseSerializer(
             {
                 "validation_method": validation_method,
                 "person_identifier_fields": fields,
             }
         )
+
+        return Response(response_serializer.data)
 
 
 class OnboardingQuestionMetadataViewSet(core_views.ActionsViewSet):
