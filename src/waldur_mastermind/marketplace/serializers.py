@@ -5670,6 +5670,7 @@ class OfferingUserSerializer(
     has_consent = serializers.SerializerMethodField()
     requires_reconsent = serializers.SerializerMethodField()
     has_compliance_checklist = serializers.SerializerMethodField()
+    consent_data = serializers.SerializerMethodField()
 
     class Meta:
         model = models.OfferingUser
@@ -5696,6 +5697,7 @@ class OfferingUserSerializer(
             "has_consent",
             "requires_reconsent",
             "has_compliance_checklist",
+            "consent_data",
         )
         extra_kwargs = dict(
             url={
@@ -5798,6 +5800,33 @@ class OfferingUserSerializer(
             scope_object_id=offering_user.id,
             checklist=offering_user.offering.compliance_checklist,
         ).exists()
+
+    @extend_schema_field(
+        serializers.DictField(
+            allow_null=True,
+            child=serializers.CharField(),
+            help_text="User consent data including uuid, version, and agreement_date",
+        )
+    )
+    def get_consent_data(self, obj):
+        """Get the user's consent data for this offering."""
+        if not config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
+            return None
+
+        if not obj.offering.has_terms_of_service():
+            return None
+
+        consent = obj.offering.check_user_consent(obj.user)
+        if not consent:
+            return None
+
+        return {
+            "uuid": str(consent.uuid),
+            "version": consent.version,
+            "agreement_date": (
+                consent.agreement_date.isoformat() if consent.agreement_date else None
+            ),
+        }
 
     def get_fields(self):
         request = self.context["request"]
