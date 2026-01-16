@@ -5868,7 +5868,7 @@ class OfferingUserSerializer(
         if not obj.offering.has_terms_of_service():
             return None
 
-        consent = obj.offering.check_user_consent(obj.user)
+        consent = obj.offering.user_consents.filter(user=obj.user).first()
         if not consent:
             return None
 
