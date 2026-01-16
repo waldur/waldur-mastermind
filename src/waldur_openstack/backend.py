@@ -545,7 +545,7 @@ class OpenStackBackend(ServiceBackend):
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
         models.Flavor.objects.filter(settings=self.settings).exclude(
-            backend_id__in=[volume_type.id for volume_type in remote_flavors]
+            backend_id__in=[flavor.id for flavor in remote_flavors]
         ).delete()
         for remote_flavor in remote_flavors:
             models.Flavor.objects.update_or_create(
