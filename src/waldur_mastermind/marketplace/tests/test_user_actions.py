@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest import mock
 
 from django.utils import timezone
 from rest_framework.test import APITransactionTestCase
@@ -46,7 +47,7 @@ class PendingOrderProviderTest(APITransactionTestCase):
         self.assertIn(order.offering.name, action["title"])
         self.assertEqual(action["urgency"], "high")
         self.assertEqual(action["related_object"], order)
-        self.assertEqual(action["offering_uuid"], order.offering.uuid.hex)
+        self.assertEqual(action["offering_uuid"], str(order.offering.uuid))
         self.assertIn("1 days", action["description"])
 
     def test_get_actions_for_user_no_pending_orders(self):
@@ -120,6 +121,52 @@ class PendingOrderProviderTest(APITransactionTestCase):
         self.assertGreater(len(view_actions), 0)
         self.assertEqual(len(approve_actions), 0)
 
+    @mock.patch("waldur_mastermind.marketplace.user_actions.config")
+    def test_configurable_pending_order_hours(self, mock_config):
+        """Test that pending order hours can be configured via constance"""
+        # Add APPROVE_ORDER permission to admin role
+        ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_ORDER)
+
+        # Configure to 12 hours instead of default 24
+        mock_config.USER_ACTIONS_PENDING_ORDER_HOURS = 12
+
+        # Create an order that's been pending for 15 hours (> 12 but < 24)
+        cutoff = timezone.now() - timedelta(hours=15)
+        order = self.fixture.order
+        order.state = OrderStates.PENDING_CONSUMER
+        order.created = cutoff
+        order.save()
+
+        self.fixture.project.add_user(self.fixture.user, ProjectRole.ADMIN)
+
+        actions = self.provider.get_actions_for_user(self.fixture.user)
+
+        # Should detect the order since 15h > 12h configured threshold
+        self.assertEqual(len(actions), 1)
+
+    @mock.patch("waldur_mastermind.marketplace.user_actions.config")
+    def test_configurable_pending_order_hours_excludes_recent(self, mock_config):
+        """Test that orders within configured hours are not shown"""
+        # Add APPROVE_ORDER permission to admin role
+        ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_ORDER)
+
+        # Configure to 48 hours instead of default 24
+        mock_config.USER_ACTIONS_PENDING_ORDER_HOURS = 48
+
+        # Create an order that's been pending for 30 hours (< 48)
+        cutoff = timezone.now() - timedelta(hours=30)
+        order = self.fixture.order
+        order.state = OrderStates.PENDING_CONSUMER
+        order.created = cutoff
+        order.save()
+
+        self.fixture.project.add_user(self.fixture.user, ProjectRole.ADMIN)
+
+        actions = self.provider.get_actions_for_user(self.fixture.user)
+
+        # Should NOT detect the order since 30h < 48h configured threshold
+        self.assertEqual(len(actions), 0)
+
 
 class ExpiringResourceProviderTest(APITransactionTestCase):
     def setUp(self):
@@ -151,7 +198,7 @@ class ExpiringResourceProviderTest(APITransactionTestCase):
         self.assertIn("Resource expiring", action["title"])
         self.assertIn(resource.name, action["title"])
         self.assertEqual(action["related_object"], resource)
-        self.assertEqual(action["offering_uuid"], resource.offering.uuid)
+        self.assertEqual(action["offering_uuid"], str(resource.offering.uuid))
         # Check that it mentions some number of days (could be 14-15 due to timing)
         self.assertRegex(action["description"], r"\b1[4-5] days\b")
 
@@ -169,6 +216,38 @@ class ExpiringResourceProviderTest(APITransactionTestCase):
         actions = self.provider.get_actions_for_user(self.fixture.user)
         self.assertEqual(len(actions), 0)
 
+    def test_get_actions_excludes_resources_with_pending_orders(self):
+        """Test that resources with pending orders are excluded from expiring resources"""
+        # Create an expiring resource
+        expire_date = timezone.now() + timedelta(days=15)
+        resource = self.fixture.resource
+        resource.end_date = expire_date.date()
+        resource.state = ResourceStates.OK
+        resource.save()
+        resource.offering.components.update_or_create(
+            type="storage",
+            defaults={
+                "name": "Storage",
+                "measured_unit": "GB",
+                "billing_type": "fixed",
+                "is_prepaid": True,
+            },
+        )
+
+        # Initially should show expiring resource action
+        actions = self.provider.get_actions_for_user(self.fixture.user)
+        self.assertEqual(len(actions), 1)
+
+        # Create a pending order for the resource
+        order = self.fixture.order
+        order.resource = resource
+        order.state = OrderStates.PENDING_CONSUMER
+        order.save()
+
+        # Now the resource should be excluded since it has a pending order
+        actions = self.provider.get_actions_for_user(self.fixture.user)
+        self.assertEqual(len(actions), 0)
+
     def test_get_actions_for_user_no_expiring_resources(self):
         """Test no actions for resources expiring > 30 days"""
         # Create a resource expiring in 45 days
@@ -182,6 +261,143 @@ class ExpiringResourceProviderTest(APITransactionTestCase):
 
         actions = self.provider.get_actions_for_user(self.fixture.user)
         self.assertEqual(len(actions), 0)
+
+    @mock.patch("waldur_mastermind.marketplace.user_actions.config")
+    def test_per_offering_reminder_schedule(self, mock_config):
+        """Test that offering-specific reminder schedules are used"""
+        mock_config.USER_ACTIONS_DEFAULT_EXPIRATION_REMINDERS = [30, 14, 7, 1]
+
+        # Configure offering with annual subscription reminder schedule
+        resource = self.fixture.resource
+        resource.offering.plugin_options = {
+            "resource_expiration_reminders": [90, 60, 30, 14, 7, 1]
+        }
+        resource.offering.save()
+
+        # Create a resource expiring in 25 days (within 90-day threshold)
+        # For [90, 60, 30, 14, 7, 1], 25 days → active = [90, 60, 30], position = 2
+        # total = 6, third = 2, position 2 >= 2 but < 4 → medium urgency
+        expire_date = timezone.now() + timedelta(days=25)
+        resource.end_date = expire_date.date()
+        resource.state = ResourceStates.OK
+        resource.save()
+        resource.offering.components.update_or_create(
+            type="cpu",
+            defaults={
+                "name": "CPU",
+                "measured_unit": "cores",
+                "billing_type": "fixed",
+                "is_prepaid": True,
+            },
+        )
+
+        actions = self.provider.get_actions_for_user(self.fixture.user)
+
+        # Should detect the resource since 25 days is within 90-day reminder schedule
+        self.assertEqual(len(actions), 1)
+        action = actions[0]
+        # 25 days is in the middle third of schedule → medium urgency
+        self.assertEqual(action["urgency"], "medium")
+
+    @mock.patch("waldur_mastermind.marketplace.user_actions.config")
+    def test_per_offering_reminder_schedule_high_urgency(self, mock_config):
+        """Test that urgency is high for resources nearing expiration"""
+        mock_config.USER_ACTIONS_DEFAULT_EXPIRATION_REMINDERS = [30, 14, 7, 1]
+
+        # Configure offering with annual subscription reminder schedule
+        resource = self.fixture.resource
+        resource.offering.plugin_options = {
+            "resource_expiration_reminders": [90, 60, 30, 14, 7, 1]
+        }
+        resource.offering.save()
+
+        # Create a resource expiring in 5 days (near the end of the schedule)
+        expire_date = timezone.now() + timedelta(days=5)
+        resource.end_date = expire_date.date()
+        resource.state = ResourceStates.OK
+        resource.save()
+        resource.offering.components.update_or_create(
+            type="mem",
+            defaults={
+                "name": "Memory",
+                "measured_unit": "GB",
+                "billing_type": "fixed",
+                "is_prepaid": True,
+            },
+        )
+
+        actions = self.provider.get_actions_for_user(self.fixture.user)
+
+        self.assertEqual(len(actions), 1)
+        action = actions[0]
+        # 5 days: active = [90, 60, 30, 14, 7], position = 4, which is >= 2*third → high urgency
+        self.assertEqual(action["urgency"], "high")
+
+    @mock.patch("waldur_mastermind.marketplace.user_actions.config")
+    def test_resource_outside_reminder_schedule_not_shown(self, mock_config):
+        """Test that resources outside reminder schedule are not shown"""
+        mock_config.USER_ACTIONS_DEFAULT_EXPIRATION_REMINDERS = [30, 14, 7, 1]
+
+        # Configure offering with monthly subscription (max 30 days)
+        resource = self.fixture.resource
+        resource.offering.plugin_options = {
+            "resource_expiration_reminders": [30, 14, 7, 1]
+        }
+        resource.offering.save()
+
+        # Create a resource expiring in 45 days (outside 30-day threshold)
+        expire_date = timezone.now() + timedelta(days=45)
+        resource.end_date = expire_date.date()
+        resource.state = ResourceStates.OK
+        resource.save()
+        resource.offering.components.create(
+            type="disk",
+            name="Disk",
+            measured_unit="GB",
+            billing_type="fixed",
+            is_prepaid=True,
+        )
+
+        actions = self.provider.get_actions_for_user(self.fixture.user)
+
+        # Should NOT show resource since 45 days > max(30, 14, 7, 1) = 30
+        self.assertEqual(len(actions), 0)
+
+    def test_urgency_from_schedule_calculation(self):
+        """Test the urgency calculation based on position in reminder schedule"""
+        provider = ExpiringResourceProvider()
+
+        # Test with 6-item schedule [90, 60, 30, 14, 7, 1]
+        reminders = [90, 60, 30, 14, 7, 1]
+
+        # First third (positions 0-1): 90 and 60 days → low
+        self.assertEqual(provider._get_urgency_from_schedule(85, reminders), "low")
+        self.assertEqual(provider._get_urgency_from_schedule(55, reminders), "low")
+
+        # Middle third (positions 2-3): 30 and 14 days → medium
+        self.assertEqual(provider._get_urgency_from_schedule(25, reminders), "medium")
+        self.assertEqual(provider._get_urgency_from_schedule(10, reminders), "medium")
+
+        # Last third (positions 4-5): 7 and 1 days → high
+        self.assertEqual(provider._get_urgency_from_schedule(5, reminders), "high")
+        self.assertEqual(provider._get_urgency_from_schedule(0, reminders), "high")
+
+    def test_reminder_schedule_defaults_to_global_config(self):
+        """Test that missing offering config falls back to global default"""
+        provider = ExpiringResourceProvider()
+
+        # Create a mock offering without reminder config
+        offering = self.fixture.offering
+        offering.plugin_options = {}  # No reminder config
+        offering.save()
+
+        with mock.patch(
+            "waldur_mastermind.marketplace.user_actions.config"
+        ) as mock_config:
+            mock_config.USER_ACTIONS_DEFAULT_EXPIRATION_REMINDERS = [60, 30, 7]
+            reminders = provider._get_reminder_schedule(offering)
+
+        self.assertEqual(reminders, [60, 30, 7])
 
 
 class MarketplaceUserActionsIntegrationTest(APITransactionTestCase):

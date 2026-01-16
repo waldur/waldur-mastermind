@@ -771,6 +771,32 @@ CONSTANCE_CONFIG = {
         90,
         "Number of days to retain old catalog versions",
     ),
+    # User Actions Configuration
+    "USER_ACTIONS_ENABLED": (
+        True,
+        "Enable user actions notification system.",
+    ),
+    "USER_ACTIONS_PENDING_ORDER_HOURS": (
+        24,
+        "Hours before pending order becomes a user action item (1-168).",
+    ),
+    "USER_ACTIONS_HIGH_URGENCY_NOTIFICATION": (
+        True,
+        "Send digest notification if user has high urgency actions.",
+    ),
+    "USER_ACTIONS_NOTIFICATION_THRESHOLD": (
+        5,
+        "Send digest notification if user has more than N actions.",
+    ),
+    "USER_ACTIONS_EXECUTION_RETENTION_DAYS": (
+        90,
+        "Number of days to keep action execution history.",
+    ),
+    "USER_ACTIONS_DEFAULT_EXPIRATION_REMINDERS": (
+        [30, 14, 7, 1],
+        "Default reminder schedule (days before expiration) for expiring resources. Can be overridden per offering via plugin_options.resource_expiration_reminders.",
+        "list_field",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -1009,6 +1035,14 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SOFTWARE_CATALOG_CLEANUP_ENABLED",
         "SOFTWARE_CATALOG_RETENTION_DAYS",
     ),
+    "User Actions": (
+        "USER_ACTIONS_ENABLED",
+        "USER_ACTIONS_PENDING_ORDER_HOURS",
+        "USER_ACTIONS_HIGH_URGENCY_NOTIFICATION",
+        "USER_ACTIONS_NOTIFICATION_THRESHOLD",
+        "USER_ACTIONS_EXECUTION_RETENTION_DAYS",
+        "USER_ACTIONS_DEFAULT_EXPIRATION_REMINDERS",
+    ),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (
@@ -1067,4 +1101,6 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "OIDC_ACCESS_TOKEN_ENABLED",
     # Onboarding settings
     "ONBOARDING_VALIDATION_METHODS",
+    # User Actions
+    "USER_ACTIONS_ENABLED",
 )

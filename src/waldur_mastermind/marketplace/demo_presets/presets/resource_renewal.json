@@ -1,102 +1,106 @@
 {
     "_metadata": {
-        "title": "Resource Renewal",
-        "description": "Preset for verifying resource renewal functionality",
-        "version": "1.0.0",
-        "scenarios": []
+        "title": "SRCP Resource Renewal Demo",
+        "description": "Demonstrates how Waldur with user actions can replace manual SRCP renewal forms. Includes all 3 SRCP services: Secure Windows Desktop, Virtual HPC, and REDCap. Shows expiring resources at multiple urgency levels, pending renewal orders, and users with different permission levels.",
+        "version": "3.0.0",
+        "scenarios": [
+            "ExpiringResourceProvider - HIGH urgency resource (5 days)",
+            "ExpiringResourceProvider - MEDIUM urgency resource (12 days)",
+            "ExpiringResourceProvider - LOW urgency resource (25 days)",
+            "PendingOrderProvider - Renewal orders pending > 24 hours",
+            "Permission testing - MANAGER can approve orders",
+            "Permission testing - MEMBER can view but not approve",
+            "Multiple offering types: Windows, vHPC, REDCap"
+        ],
+        "date_note": "End dates are relative to 2026-01-15. Adjust dates before demo if needed.",
+        "users": {
+            "alice_pi": "Principal Investigator - MANAGER role, can approve orders",
+            "bob_researcher": "Researcher - MEMBER role on project",
+            "carol_analyst": "Data Analyst - MEMBER role, view only",
+            "staff": "System Administrator"
+        },
+        "srcp_services": {
+            "secure_windows_desktop": "Microsoft Windows remote desktop with dedicated secure storage - £746.96/year",
+            "virtual_hpc": "Linux virtualized HPC platform with CPU/GPU access - £1,200/year",
+            "redcap": "Secure web-based research data collection platform - £500/year"
+        }
     },
     "users": [
         {
-            "uuid": "00000000000000000000000000000003",
-            "username": "owner",
-            "email": "owner@example.com",
-            "full_name": "Organization Owner",
-            "first_name": "Organization",
-            "last_name": "Owner",
-            "is_staff": false,
-            "is_support": false,
-            "is_active": true,
-            "native_name": "",
-            "phone_number": "",
-            "organization": "Renewal Org",
-            "job_title": "",
-            "civil_number": null,
-            "description": "",
-            "date_joined": "2026-01-15T15:40:58.670758+00:00",
-            "token_lifetime": 3600,
-            "details": {},
-            "notifications_enabled": true,
-            "is_identity_manager": false,
-            "registration_method": "default",
-            "identity_source": "",
-            "agreement_date": "2026-01-15T15:41:12.960172+00:00",
-            "preferred_language": "",
-            "backend_id": "",
-            "birth_date": null,
-            "affiliations": [],
-            "modified": "2026-01-15T15:41:12.963932+00:00",
-            "slug": "owner",
-            "query_field": "Organization Owner",
-            "is_superuser": false,
-            "last_login": "2026-01-15T17:45:52.433238+00:00"
-        },
-        {
             "uuid": "00000000000000000000000000000001",
             "username": "staff",
+            "password": "demo",
             "email": "staff@example.com",
-            "full_name": "Staff User",
+            "full_name": "Staff Administrator",
             "first_name": "Staff",
-            "last_name": "User",
+            "last_name": "Administrator",
             "is_staff": true,
-            "is_support": false,
             "is_active": true,
-            "native_name": "",
-            "phone_number": "",
-            "organization": "Renewal Org",
-            "job_title": "",
-            "civil_number": null,
-            "description": "",
-            "date_joined": "2026-01-15T15:40:58.510168+00:00",
-            "token_lifetime": 3600,
-            "details": {},
-            "notifications_enabled": true,
-            "is_identity_manager": false,
-            "registration_method": "default",
-            "identity_source": "",
-            "agreement_date": null,
-            "preferred_language": "",
-            "backend_id": "",
-            "birth_date": null,
-            "affiliations": [],
-            "modified": "2026-01-15T15:39:50.302480+00:00",
-            "slug": "staff",
-            "query_field": "Staff User",
-            "is_superuser": false,
-            "last_login": "2026-01-15T15:43:46.460633+00:00"
+            "organization": "SRCP Service Provider",
+            "job_title": "System Administrator"
+        },
+        {
+            "uuid": "00000000000000000000000000000003",
+            "username": "alice_pi",
+            "password": "demo",
+            "email": "alice.pi@cam.ac.uk",
+            "full_name": "Alice Principal Investigator",
+            "first_name": "Alice",
+            "last_name": "Principal Investigator",
+            "is_staff": false,
+            "is_active": true,
+            "organization": "Department of Computer Science",
+            "job_title": "Principal Investigator"
+        },
+        {
+            "uuid": "00000000000000000000000000000004",
+            "username": "bob_researcher",
+            "password": "demo",
+            "email": "bob.researcher@cam.ac.uk",
+            "full_name": "Bob Researcher",
+            "first_name": "Bob",
+            "last_name": "Researcher",
+            "is_staff": false,
+            "is_active": true,
+            "organization": "Department of Medicine",
+            "job_title": "Senior Researcher"
+        },
+        {
+            "uuid": "00000000000000000000000000000005",
+            "username": "carol_analyst",
+            "password": "demo",
+            "email": "carol.analyst@cam.ac.uk",
+            "full_name": "Carol Data Analyst",
+            "first_name": "Carol",
+            "last_name": "Analyst",
+            "is_staff": false,
+            "is_active": true,
+            "organization": "Department of Computer Science",
+            "job_title": "Data Analyst"
         }
     ],
     "customers": [
         {
             "uuid": "e8321683457a44f29107663471015691",
-            "name": "Renewal Org",
+            "name": "Cambridge Research Group",
             "native_name": "",
-            "abbreviation": "REN",
-            "email": "renewal@example.com",
+            "abbreviation": "CRG",
+            "email": "research@cam.ac.uk",
             "phone_number": "",
-            "country": "EE",
+            "country": "GB",
             "vat_code": "",
             "vat_name": "",
             "vat_address": "",
             "contact_details": "",
             "agreement_number": "",
             "registration_code": "",
-            "homepage": "",
+            "homepage": "https://www.cam.ac.uk",
             "domain": "",
-            "address": "",
-            "postal": "",
+            "address": "Cambridge, UK",
+            "postal": "CB2 1TN",
             "blocked": false,
             "archived": false,
-            "slug": "renewal-or",
+            "slug": "cambridge-",
             "created": "2026-01-15T15:40:58.804898+00:00",
             "accounting_start_date": "2026-01-15T15:40:58.804969+00:00",
             "default_tax_percent": null,
@@ -116,13 +120,13 @@
     "projects": [
         {
             "uuid": "f2908756345643458765434567890123",
-            "name": "Renewal Project",
-            "description": "Project with expiring resources",
+            "name": "SRCP Research Project",
+            "description": "Multi-service SRCP project with Windows, vHPC, and REDCap resources",
             "customer_uuid": "e8321683457a44f29107663471015691",
-            "customer_name": "Renewal Org",
+            "customer_name": "Cambridge Research Group",
             "kind": "",
             "created": "2026-01-15T15:40:58.820874+00:00",
-            "slug": "renewal-pr",
+            "slug": "srcp-resea",
             "start_date": null,
             "end_date": null,
             "oecd_fos_2007_code": "",
@@ -133,16 +137,16 @@
     "category_groups": [
         {
             "uuid": "a1b2c3d4e5f6789012345678abcdef01",
-            "title": "Infrastructure",
-            "description": "Core infrastructure services",
+            "title": "Secure Research Computing",
+            "description": "SRCP secure research computing services",
             "created": "2026-01-15T15:40:58.837719+00:00"
         }
     ],
     "categories": [
         {
             "uuid": "cccccccccccccccccccccccccccccccc",
-            "title": "Storage",
-            "description": "Storage services",
+            "title": "SRCP Services",
+            "description": "Secure Research Computing Platform services",
             "backend_id": "",
             "default_vm_category": false,
             "default_volume_category": false,
@@ -154,32 +158,101 @@
     "offerings": [
         {
             "uuid": "aa2f8e9c0d12485756f34567890abcde",
-            "name": "Prepaid Storage",
-            "description": "Storage offering with prepaid billing",
+            "name": "Secure Windows Desktop",
+            "description": "Microsoft Windows remote desktop solution with dedicated secure group storage and additional access controls for researchers requiring Windows environments.",
             "type": "Marketplace.Basic",
             "state": 2,
-            "slug": "prepaid-st",
+            "slug": "swd-6qdw8f",
             "category_uuid": "cccccccccccccccccccccccccccccccc",
-            "category_title": "Storage",
+            "category_title": "SRCP Services",
             "customer_uuid": "e8321683457a44f29107663471015691",
-            "customer_name": "Renewal Org",
+            "customer_name": "Cambridge Research Group",
             "shared": true,
             "billable": true,
             "attributes": {},
             "options": {},
             "resource_options": {},
             "plugin_options": {
-                "billing_enabled": true
+                "billing_enabled": true,
+                "resource_expiration_threshold": 30
             },
             "created": "2026-01-15T15:40:58.860706+00:00",
-            "backend_id": "",
-            "full_description": "",
+            "backend_id": "6qdw8f4p9t5",
+            "full_description": "SRCP Secure Windows Desktop provides secure access to Windows environments for processing sensitive research data. Includes:\n- Dedicated Windows VM\n- Secure group storage\n- Multi-factor authentication\n- ISO 27001 certified environment",
             "vendor_details": "",
             "getting_started": "",
             "integration_guide": "",
             "privacy_policy_link": "",
             "access_url": "",
-            "country": "",
+            "country": "GB",
+            "paused_reason": "",
+            "secret_options": {},
+            "support_per_user_consumption_limitation": false,
+            "modified": "2026-01-15T15:40:58.860706+00:00"
+        },
+        {
+            "uuid": "bb1f7e8d1c23496867f45678901bcdef",
+            "name": "Virtual HPC",
+            "description": "Linux-based virtualized high performance computing platform providing access to CPU and GPU servers within private virtual environments.",
+            "type": "Marketplace.Basic",
+            "state": 2,
+            "slug": "vhpc-33a92",
+            "category_uuid": "cccccccccccccccccccccccccccccccc",
+            "category_title": "SRCP Services",
+            "customer_uuid": "e8321683457a44f29107663471015691",
+            "customer_name": "Cambridge Research Group",
+            "shared": true,
+            "billable": true,
+            "attributes": {},
+            "options": {},
+            "resource_options": {},
+            "plugin_options": {
+                "billing_enabled": true,
+                "resource_expiration_threshold": 30
+            },
+            "created": "2026-01-15T15:40:58.860706+00:00",
+            "backend_id": "33a92988c8b",
+            "full_description": "SRCP Virtual HPC enables complex data analysis on sensitive information with security controls similar to CSD3. Includes:\n- CPU and GPU compute nodes\n- Private virtual environments\n- Secure data storage\n- Job scheduling system",
+            "vendor_details": "",
+            "getting_started": "",
+            "integration_guide": "",
+            "privacy_policy_link": "",
+            "access_url": "",
+            "country": "GB",
+            "paused_reason": "",
+            "secret_options": {},
+            "support_per_user_consumption_limitation": false,
+            "modified": "2026-01-15T15:40:58.860706+00:00"
+        },
+        {
+            "uuid": "cc0e6f7c2b34507978f56789012cdef0",
+            "name": "REDCap",
+            "description": "Secure web-based platform for research data collection, management, and analysis. Self-managed REDCap within SRCP secure environment.",
+            "type": "Marketplace.Basic",
+            "state": 2,
+            "slug": "redcap-qb7",
+            "category_uuid": "cccccccccccccccccccccccccccccccc",
+            "category_title": "SRCP Services",
+            "customer_uuid": "e8321683457a44f29107663471015691",
+            "customer_name": "Cambridge Research Group",
+            "shared": true,
+            "billable": true,
+            "attributes": {},
+            "options": {},
+            "resource_options": {},
+            "plugin_options": {
+                "billing_enabled": true,
+                "resource_expiration_threshold": 30
+            },
+            "created": "2026-01-15T15:40:58.860706+00:00",
+            "backend_id": "qb7ggrngxuo",
+            "full_description": "SRCP REDCap provides secure research data collection and survey management. Includes:\n- Survey creation tools\n- Data validation\n- Multi-site support\n- Audit trail\n- CAM:IDE Safe Haven integration available",
+            "vendor_details": "",
+            "getting_started": "",
+            "integration_guide": "",
+            "privacy_policy_link": "",
+            "access_url": "",
+            "country": "GB",
             "paused_reason": "",
             "secret_options": {},
             "support_per_user_consumption_limitation": false,
@@ -280,1294 +353,449 @@
         {
             "uuid": "e0000000000000000000000000000010",
             "user_uuid": "00000000000000000000000000000003",
-            "user_username": "owner",
+            "user_username": "alice_pi",
             "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
             "role_name": "PROJECT.MANAGER",
             "scope_type": "structure.project",
             "scope_uuid": "f2908756345643458765434567890123",
-            "scope_name": "Renewal Project",
-            "expiration_time": null,
-            "is_active": true,
-            "created": "2026-01-15T15:40:58.944481+00:00",
-            "created_by_uuid": null,
-            "created_by_username": null
+            "scope_name": "SRCP Research Project",
+            "is_active": true
         },
         {
             "uuid": "e0000000000000000000000000000011",
             "user_uuid": "00000000000000000000000000000003",
-            "user_username": "owner",
+            "user_username": "alice_pi",
             "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
             "role_name": "CUSTOMER.OWNER",
             "scope_type": "structure.customer",
             "scope_uuid": "e8321683457a44f29107663471015691",
-            "scope_name": "Renewal Org",
-            "expiration_time": null,
-            "is_active": true,
-            "created": "2026-01-15T15:40:58.956762+00:00",
-            "created_by_uuid": null,
-            "created_by_username": null
+            "scope_name": "Cambridge Research Group",
+            "is_active": true
+        },
+        {
+            "uuid": "e0000000000000000000000000000012",
+            "user_uuid": "00000000000000000000000000000004",
+            "user_username": "bob_researcher",
+            "role_uuid": "a1bbf025298945c99d3ae6671b4ea323",
+            "role_name": "PROJECT.MEMBER",
+            "scope_type": "structure.project",
+            "scope_uuid": "f2908756345643458765434567890123",
+            "scope_name": "SRCP Research Project",
+            "is_active": true
+        },
+        {
+            "uuid": "e0000000000000000000000000000013",
+            "user_uuid": "00000000000000000000000000000005",
+            "user_username": "carol_analyst",
+            "role_uuid": "a1bbf025298945c99d3ae6671b4ea323",
+            "role_name": "PROJECT.MEMBER",
+            "scope_type": "structure.project",
+            "scope_uuid": "f2908756345643458765434567890123",
+            "scope_name": "SRCP Research Project",
+            "is_active": true
         }
     ],
     "role_permissions": [
-        {
-            "role_uuid": "9bc95c2938a04b4db76341673caffcf2",
-            "role_name": "CALL.MANAGER",
-            "permission": "CALL.APPROVE_AND_REJECT_PROPOSALS"
-        },
-        {
-            "role_uuid": "9bc95c2938a04b4db76341673caffcf2",
-            "role_name": "CALL.MANAGER",
-            "permission": "CALL.CLOSE_ROUNDS"
-        },
-        {
-            "role_uuid": "9bc95c2938a04b4db76341673caffcf2",
-            "role_name": "CALL.MANAGER",
-            "permission": "CALL.CREATE_PERMISSION"
-        },
-        {
-            "role_uuid": "9bc95c2938a04b4db76341673caffcf2",
-            "role_name": "CALL.MANAGER",
-            "permission": "CALL.DELETE_PERMISSION"
-        },
-        {
-            "role_uuid": "9bc95c2938a04b4db76341673caffcf2",
-            "role_name": "CALL.MANAGER",
-            "permission": "CALL.LIST"
-        },
-        {
-            "role_uuid": "9bc95c2938a04b4db76341673caffcf2",
-            "role_name": "CALL.MANAGER",
-            "permission": "CALL.UPDATE"
-        },
-        {
-            "role_uuid": "9bc95c2938a04b4db76341673caffcf2",
-            "role_name": "CALL.MANAGER",
-            "permission": "CALL.UPDATE_PERMISSION"
-        },
-        {
-            "role_uuid": "9bc95c2938a04b4db76341673caffcf2",
-            "role_name": "CALL.MANAGER",
-            "permission": "PROPOSAL.LIST"
-        },
-        {
-            "role_uuid": "9bc95c2938a04b4db76341673caffcf2",
-            "role_name": "CALL.MANAGER",
-            "permission": "PROPOSAL.MANAGE_REVIEW"
-        },
-        {
-            "role_uuid": "9bc95c2938a04b4db76341673caffcf2",
-            "role_name": "CALL.MANAGER",
-            "permission": "ROUND.LIST"
-        },
-        {
-            "role_uuid": "fd32c8b39f974be3849e99982e2a6433",
-            "role_name": "CALL.REVIEWER",
-            "permission": "PROPOSAL.LIST"
-        },
-        {
-            "role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8",
-            "role_name": "CUSTOMER.CALL_ORGANIZER",
-            "permission": "CALL.APPROVE_AND_REJECT_PROPOSALS"
-        },
-        {
-            "role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8",
-            "role_name": "CUSTOMER.CALL_ORGANIZER",
-            "permission": "CALL.CLOSE_ROUNDS"
-        },
-        {
-            "role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8",
-            "role_name": "CUSTOMER.CALL_ORGANIZER",
-            "permission": "CALL.CREATE"
-        },
-        {
-            "role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8",
-            "role_name": "CUSTOMER.CALL_ORGANIZER",
-            "permission": "CALL.CREATE_PERMISSION"
-        },
-        {
-            "role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8",
-            "role_name": "CUSTOMER.CALL_ORGANIZER",
-            "permission": "CALL.DELETE_PERMISSION"
-        },
-        {
-            "role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8",
-            "role_name": "CUSTOMER.CALL_ORGANIZER",
-            "permission": "CALL.LIST"
-        },
-        {
-            "role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8",
-            "role_name": "CUSTOMER.CALL_ORGANIZER",
-            "permission": "CALL.UPDATE"
-        },
-        {
-            "role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8",
-            "role_name": "CUSTOMER.CALL_ORGANIZER",
-            "permission": "CALL.UPDATE_PERMISSION"
-        },
-        {
-            "role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8",
-            "role_name": "CUSTOMER.CALL_ORGANIZER",
-            "permission": "PROPOSAL.LIST"
-        },
-        {
-            "role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8",
-            "role_name": "CUSTOMER.CALL_ORGANIZER",
-            "permission": "PROPOSAL.MANAGE_REVIEW"
-        },
-        {
-            "role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8",
-            "role_name": "CUSTOMER.CALL_ORGANIZER",
-            "permission": "ROUND.LIST"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.ADD_ENDPOINT"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.ARCHIVE"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.ARCHIVE_PLAN"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.CREATE"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.CREATE_PLAN"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.CREATE_SCREENSHOT"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.CREATE_USER"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.DELETE"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.DELETE_ENDPOINT"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.DELETE_SCREENSHOT"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.DELETE_USER"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.DRY_RUN_SCRIPT"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.MANAGE_BACKEND_RESOURCES"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.MANAGE_CAMPAIGN"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.MANAGE_USER_GROUP"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.PAUSE"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.UNPAUSE"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.UPDATE"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.UPDATE_ATTRIBUTES"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.UPDATE_COMPONENTS"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.UPDATE_DESCRIPTION"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.UPDATE_INTEGRATION"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.UPDATE_LOCATION"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.UPDATE_OPTIONS"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.UPDATE_PLAN"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.UPDATE_SCREENSHOT"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.UPDATE_THUMBNAIL"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERING.UPDATE_USER"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "OFFERINGUSER.UPDATE_RESTRICTION"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "PROJECT.COURSE_ACCOUNT_MANAGE"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "RESOURCE.ACCEPT_BOOKING_REQUEST"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "RESOURCE.CONSUMPTION_LIMITATION"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "RESOURCE.CREATE_ROBOT_ACCOUNT"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "RESOURCE.DELETE_ROBOT_ACCOUNT"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "RESOURCE.REJECT_BOOKING_REQUEST"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "RESOURCE.SET_BACKEND_ID"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "RESOURCE.SET_BACKEND_METADATA"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "RESOURCE.SET_END_DATE"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "RESOURCE.SET_STATE"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "RESOURCE.SUBMIT_REPORT"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "RESOURCE.UPDATE_ROBOT_ACCOUNT"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_ACCOUNT.MANAGE"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.GENERATE_API_SECRET_CODE"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.GET_API_SECRET_CODE"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.GET_REVENUE"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_CUSTOMERS"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_PROJECTS"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.GET_STATISTICS"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.LIST_COURSE_ACCOUNTS"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.LIST_CUSTOMER_PROJECTS"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.LIST_CUSTOMERS"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.LIST_KEYS"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.LIST_PROJECT_PERMISSIONS"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.LIST_PROJECTS"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.LIST_SERVICE_ACCOUNTS"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.LIST_USER_CUSTOMERS"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.LIST_USERS"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.OPENSTACK_IMAGE_MANAGEMENT"
-        },
-        {
-            "role_uuid": "3d8728eed9d048289d634fef781f7b1d",
-            "role_name": "CUSTOMER.MANAGER",
-            "permission": "SERVICE_PROVIDER.SET_OFFERINGS_USERNAME"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "ACCESS_SUBNET.CREATE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "ACCESS_SUBNET.DELETE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "ACCESS_SUBNET.UPDATE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "CALL.APPROVE_AND_REJECT_PROPOSALS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "CALL.CLOSE_ROUNDS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "CUSTOMER.CREATE_PERMISSION"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "CUSTOMER.DELETE_PERMISSION"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "CUSTOMER.LIST_PERMISSION_REVIEWS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "CUSTOMER.LIST_USERS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "CUSTOMER.UPDATE_PERMISSION"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "INVITATION.LIST"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.ACCEPT_CALL_REQUEST"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.ADD_ENDPOINT"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.ARCHIVE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.ARCHIVE_PLAN"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.CREATE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.CREATE_PERMISSION"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.CREATE_PLAN"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.CREATE_SCREENSHOT"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.CREATE_USER"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.DELETE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.DELETE_ENDPOINT"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.DELETE_PERMISSION"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.DELETE_SCREENSHOT"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.DELETE_USER"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.DRY_RUN_SCRIPT"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.MANAGE_BACKEND_RESOURCES"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.MANAGE_CAMPAIGN"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.MANAGE_USER_GROUP"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.MANAGE_USER_ROLE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.PAUSE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.UNPAUSE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.UPDATE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.UPDATE_ATTRIBUTES"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.UPDATE_COMPONENTS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.UPDATE_DESCRIPTION"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.UPDATE_INTEGRATION"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.UPDATE_LOCATION"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.UPDATE_OPTIONS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.UPDATE_PERMISSION"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.UPDATE_PLAN"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.UPDATE_SCREENSHOT"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.UPDATE_THUMBNAIL"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERING.UPDATE_USER"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OFFERINGUSER.UPDATE_RESTRICTION"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OPENSTACK_INSTANCE.CONSOLE_ACCESS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OPENSTACK_INSTANCE.MANAGE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "OPENSTACK_INSTANCE.MANAGE_POWER"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "ORDER.APPROVE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "ORDER.APPROVE_PRIVATE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "ORDER.CANCEL"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "ORDER.DESTROY"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "ORDER.LIST"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "ORDER.REJECT"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "PROJECT.COURSE_ACCOUNT_MANAGE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "PROJECT.CREATE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "PROJECT.CREATE_PERMISSION"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "PROJECT.DELETE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "PROJECT.DELETE_PERMISSION"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "PROJECT.LIST"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "PROJECT.UPDATE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "PROJECT.UPDATE_PERMISSION"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.ACCEPT_BOOKING_REQUEST"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.CONSUMPTION_LIMITATION"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.CREATE_ROBOT_ACCOUNT"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.DELETE_ROBOT_ACCOUNT"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.LIST"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.LIST_IMPORTABLE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.MANAGE_USERS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.REJECT_BOOKING_REQUEST"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.SET_BACKEND_ID"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.SET_BACKEND_METADATA"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.SET_END_DATE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.SET_LIMITS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.SET_PLAN"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.SET_STATE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.SET_USAGE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.SUBMIT_REPORT"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.TERMINATE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.UPDATE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.UPDATE_OPTIONS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "RESOURCE.UPDATE_ROBOT_ACCOUNT"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_ACCOUNT.MANAGE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.GENERATE_API_SECRET_CODE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.GET_API_SECRET_CODE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.GET_REVENUE"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_CUSTOMERS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_PROJECTS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.GET_STATISTICS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.LIST_COURSE_ACCOUNTS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.LIST_CUSTOMER_PROJECTS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.LIST_CUSTOMERS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.LIST_KEYS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.LIST_PROJECT_PERMISSIONS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.LIST_PROJECTS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.LIST_SERVICE_ACCOUNTS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.LIST_USER_CUSTOMERS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.LIST_USERS"
-        },
-        {
-            "role_uuid": "b8534b562c1b437c947f7fe37d4581a7",
-            "role_name": "CUSTOMER.OWNER",
-            "permission": "SERVICE_PROVIDER.SET_OFFERINGS_USERNAME"
-        },
-        {
-            "role_uuid": "b9e0bd57abf24490b5cd25eaf495e7f1",
-            "role_name": "CUSTOMER.SUPPORT",
-            "permission": "CUSTOMER.LIST_USERS"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "OFFERING.ACCEPT_CALL_REQUEST"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "OFFERING.ADD_ENDPOINT"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "OFFERING.ARCHIVE"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "OFFERING.DELETE_ENDPOINT"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "OFFERING.DRY_RUN_SCRIPT"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "OFFERING.MANAGE_BACKEND_RESOURCES"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "OFFERING.PAUSE"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "OFFERING.UNPAUSE"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "OFFERING.UPDATE"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "OFFERING.UPDATE_ATTRIBUTES"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "OFFERING.UPDATE_COMPONENTS"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "OFFERING.UPDATE_DESCRIPTION"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "OFFERING.UPDATE_INTEGRATION"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "OFFERING.UPDATE_LOCATION"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "OFFERING.UPDATE_OPTIONS"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "RESOURCE.ACCEPT_BOOKING_REQUEST"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "RESOURCE.REJECT_BOOKING_REQUEST"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "RESOURCE.SET_BACKEND_ID"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "RESOURCE.SET_BACKEND_METADATA"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "RESOURCE.SET_STATE"
-        },
-        {
-            "role_uuid": "8d4674b397f143f888c15886ce041780",
-            "role_name": "OFFERING.MANAGER",
-            "permission": "RESOURCE.SET_USAGE"
-        },
-        {
-            "role_uuid": "18931377bdf4478ab8afb82d25a97536",
-            "role_name": "PROJECT.ADMIN",
-            "permission": "INVITATION.LIST"
-        },
-        {
-            "role_uuid": "18931377bdf4478ab8afb82d25a97536",
-            "role_name": "PROJECT.ADMIN",
-            "permission": "OPENSTACK_INSTANCE.CONSOLE_ACCESS"
-        },
-        {
-            "role_uuid": "18931377bdf4478ab8afb82d25a97536",
-            "role_name": "PROJECT.ADMIN",
-            "permission": "OPENSTACK_INSTANCE.MANAGE"
-        },
-        {
-            "role_uuid": "18931377bdf4478ab8afb82d25a97536",
-            "role_name": "PROJECT.ADMIN",
-            "permission": "OPENSTACK_INSTANCE.MANAGE_POWER"
-        },
-        {
-            "role_uuid": "18931377bdf4478ab8afb82d25a97536",
-            "role_name": "PROJECT.ADMIN",
-            "permission": "ORDER.APPROVE_PRIVATE"
-        },
-        {
-            "role_uuid": "18931377bdf4478ab8afb82d25a97536",
-            "role_name": "PROJECT.ADMIN",
-            "permission": "ORDER.CANCEL"
-        },
-        {
-            "role_uuid": "18931377bdf4478ab8afb82d25a97536",
-            "role_name": "PROJECT.ADMIN",
-            "permission": "ORDER.DESTROY"
-        },
-        {
-            "role_uuid": "18931377bdf4478ab8afb82d25a97536",
-            "role_name": "PROJECT.ADMIN",
-            "permission": "ORDER.LIST"
-        },
-        {
-            "role_uuid": "18931377bdf4478ab8afb82d25a97536",
-            "role_name": "PROJECT.ADMIN",
-            "permission": "PROJECT.LIST"
-        },
-        {
-            "role_uuid": "18931377bdf4478ab8afb82d25a97536",
-            "role_name": "PROJECT.ADMIN",
-            "permission": "RESOURCE.LIST"
-        },
-        {
-            "role_uuid": "18931377bdf4478ab8afb82d25a97536",
-            "role_name": "PROJECT.ADMIN",
-            "permission": "RESOURCE.LIST_IMPORTABLE"
-        },
-        {
-            "role_uuid": "18931377bdf4478ab8afb82d25a97536",
-            "role_name": "PROJECT.ADMIN",
-            "permission": "RESOURCE.SET_LIMITS"
-        },
-        {
-            "role_uuid": "18931377bdf4478ab8afb82d25a97536",
-            "role_name": "PROJECT.ADMIN",
-            "permission": "RESOURCE.SET_PLAN"
-        },
-        {
-            "role_uuid": "18931377bdf4478ab8afb82d25a97536",
-            "role_name": "PROJECT.ADMIN",
-            "permission": "RESOURCE.TERMINATE"
-        },
-        {
-            "role_uuid": "18931377bdf4478ab8afb82d25a97536",
-            "role_name": "PROJECT.ADMIN",
-            "permission": "RESOURCE.UPDATE"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "INVITATION.LIST"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "OPENSTACK_INSTANCE.CONSOLE_ACCESS"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "OPENSTACK_INSTANCE.MANAGE"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "OPENSTACK_INSTANCE.MANAGE_POWER"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "ORDER.APPROVE_PRIVATE"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "ORDER.CANCEL"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "ORDER.DESTROY"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "ORDER.LIST"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "PROJECT.COURSE_ACCOUNT_MANAGE"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "PROJECT.CREATE_PERMISSION"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "PROJECT.DELETE_PERMISSION"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "PROJECT.LIST"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "PROJECT.REVIEW_MEMBERSHIP"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "PROJECT.UPDATE"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "PROJECT.UPDATE_PERMISSION"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "RESOURCE.LIST"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "RESOURCE.LIST_IMPORTABLE"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "RESOURCE.SET_LIMITS"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "RESOURCE.SET_PLAN"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "RESOURCE.TERMINATE"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "RESOURCE.UPDATE"
-        },
-        {
-            "role_uuid": "8bd646115f6842349f12d8c52d824ef4",
-            "role_name": "PROJECT.MANAGER",
-            "permission": "SERVICE_ACCOUNT.MANAGE"
-        },
-        {
-            "role_uuid": "a1bbf025298945c99d3ae6671b4ea323",
-            "role_name": "PROJECT.MEMBER",
-            "permission": "PROJECT.LIST"
-        },
-        {
-            "role_uuid": "a1bbf025298945c99d3ae6671b4ea323",
-            "role_name": "PROJECT.MEMBER",
-            "permission": "RESOURCE.LIST"
-        },
-        {
-            "role_uuid": "c89c28f24279410e91233a4d2e0d4fb7",
-            "role_name": "PROPOSAL.MANAGER",
-            "permission": "PROPOSAL.MANAGE"
-        }
+        {"role_uuid": "9bc95c2938a04b4db76341673caffcf2", "role_name": "CALL.MANAGER", "permission": "CALL.APPROVE_AND_REJECT_PROPOSALS"},
+        {"role_uuid": "9bc95c2938a04b4db76341673caffcf2", "role_name": "CALL.MANAGER", "permission": "CALL.CLOSE_ROUNDS"},
+        {"role_uuid": "9bc95c2938a04b4db76341673caffcf2", "role_name": "CALL.MANAGER", "permission": "CALL.CREATE_PERMISSION"},
+        {"role_uuid": "9bc95c2938a04b4db76341673caffcf2", "role_name": "CALL.MANAGER", "permission": "CALL.DELETE_PERMISSION"},
+        {"role_uuid": "9bc95c2938a04b4db76341673caffcf2", "role_name": "CALL.MANAGER", "permission": "CALL.LIST"},
+        {"role_uuid": "9bc95c2938a04b4db76341673caffcf2", "role_name": "CALL.MANAGER", "permission": "CALL.UPDATE"},
+        {"role_uuid": "9bc95c2938a04b4db76341673caffcf2", "role_name": "CALL.MANAGER", "permission": "CALL.UPDATE_PERMISSION"},
+        {"role_uuid": "9bc95c2938a04b4db76341673caffcf2", "role_name": "CALL.MANAGER", "permission": "PROPOSAL.LIST"},
+        {"role_uuid": "9bc95c2938a04b4db76341673caffcf2", "role_name": "CALL.MANAGER", "permission": "PROPOSAL.MANAGE_REVIEW"},
+        {"role_uuid": "9bc95c2938a04b4db76341673caffcf2", "role_name": "CALL.MANAGER", "permission": "ROUND.LIST"},
+        {"role_uuid": "fd32c8b39f974be3849e99982e2a6433", "role_name": "CALL.REVIEWER", "permission": "PROPOSAL.LIST"},
+        {"role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8", "role_name": "CUSTOMER.CALL_ORGANIZER", "permission": "CALL.APPROVE_AND_REJECT_PROPOSALS"},
+        {"role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8", "role_name": "CUSTOMER.CALL_ORGANIZER", "permission": "CALL.CLOSE_ROUNDS"},
+        {"role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8", "role_name": "CUSTOMER.CALL_ORGANIZER", "permission": "CALL.CREATE"},
+        {"role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8", "role_name": "CUSTOMER.CALL_ORGANIZER", "permission": "CALL.CREATE_PERMISSION"},
+        {"role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8", "role_name": "CUSTOMER.CALL_ORGANIZER", "permission": "CALL.DELETE_PERMISSION"},
+        {"role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8", "role_name": "CUSTOMER.CALL_ORGANIZER", "permission": "CALL.LIST"},
+        {"role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8", "role_name": "CUSTOMER.CALL_ORGANIZER", "permission": "CALL.UPDATE"},
+        {"role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8", "role_name": "CUSTOMER.CALL_ORGANIZER", "permission": "CALL.UPDATE_PERMISSION"},
+        {"role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8", "role_name": "CUSTOMER.CALL_ORGANIZER", "permission": "PROPOSAL.LIST"},
+        {"role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8", "role_name": "CUSTOMER.CALL_ORGANIZER", "permission": "PROPOSAL.MANAGE_REVIEW"},
+        {"role_uuid": "9306cd4d01cd4ee8abfb5b78f38395f8", "role_name": "CUSTOMER.CALL_ORGANIZER", "permission": "ROUND.LIST"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.ADD_ENDPOINT"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.ARCHIVE"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.ARCHIVE_PLAN"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.CREATE"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.CREATE_PLAN"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.CREATE_SCREENSHOT"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.CREATE_USER"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.DELETE"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.DELETE_ENDPOINT"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.DELETE_SCREENSHOT"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.DELETE_USER"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.DRY_RUN_SCRIPT"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.MANAGE_BACKEND_RESOURCES"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.MANAGE_CAMPAIGN"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.MANAGE_USER_GROUP"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.PAUSE"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.UNPAUSE"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.UPDATE"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.UPDATE_ATTRIBUTES"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.UPDATE_COMPONENTS"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.UPDATE_DESCRIPTION"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.UPDATE_INTEGRATION"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.UPDATE_LOCATION"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.UPDATE_OPTIONS"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.UPDATE_PLAN"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.UPDATE_SCREENSHOT"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.UPDATE_THUMBNAIL"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERING.UPDATE_USER"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "OFFERINGUSER.UPDATE_RESTRICTION"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "PROJECT.COURSE_ACCOUNT_MANAGE"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "RESOURCE.ACCEPT_BOOKING_REQUEST"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "RESOURCE.CONSUMPTION_LIMITATION"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "RESOURCE.CREATE_ROBOT_ACCOUNT"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "RESOURCE.DELETE_ROBOT_ACCOUNT"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "RESOURCE.REJECT_BOOKING_REQUEST"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "RESOURCE.SET_BACKEND_ID"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "RESOURCE.SET_BACKEND_METADATA"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "RESOURCE.SET_END_DATE"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "RESOURCE.SET_STATE"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "RESOURCE.SUBMIT_REPORT"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "RESOURCE.UPDATE_ROBOT_ACCOUNT"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_ACCOUNT.MANAGE"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.GENERATE_API_SECRET_CODE"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.GET_API_SECRET_CODE"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.GET_REVENUE"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_CUSTOMERS"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_PROJECTS"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.GET_STATISTICS"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.LIST_COURSE_ACCOUNTS"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.LIST_CUSTOMER_PROJECTS"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.LIST_CUSTOMERS"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.LIST_KEYS"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.LIST_PROJECT_PERMISSIONS"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.LIST_PROJECTS"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.LIST_SERVICE_ACCOUNTS"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.LIST_USER_CUSTOMERS"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.LIST_USERS"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.OPENSTACK_IMAGE_MANAGEMENT"},
+        {"role_uuid": "3d8728eed9d048289d634fef781f7b1d", "role_name": "CUSTOMER.MANAGER", "permission": "SERVICE_PROVIDER.SET_OFFERINGS_USERNAME"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "ACCESS_SUBNET.CREATE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "ACCESS_SUBNET.DELETE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "ACCESS_SUBNET.UPDATE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "CALL.APPROVE_AND_REJECT_PROPOSALS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "CALL.CLOSE_ROUNDS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "CUSTOMER.CREATE_PERMISSION"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "CUSTOMER.DELETE_PERMISSION"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "CUSTOMER.LIST_PERMISSION_REVIEWS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "CUSTOMER.LIST_USERS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "CUSTOMER.UPDATE_PERMISSION"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "INVITATION.LIST"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.ACCEPT_CALL_REQUEST"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.ADD_ENDPOINT"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.ARCHIVE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.ARCHIVE_PLAN"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.CREATE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.CREATE_PERMISSION"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.CREATE_PLAN"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.CREATE_SCREENSHOT"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.CREATE_USER"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.DELETE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.DELETE_ENDPOINT"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.DELETE_PERMISSION"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.DELETE_SCREENSHOT"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.DELETE_USER"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.DRY_RUN_SCRIPT"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.MANAGE_BACKEND_RESOURCES"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.MANAGE_CAMPAIGN"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.MANAGE_USER_GROUP"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.MANAGE_USER_ROLE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.PAUSE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.UNPAUSE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.UPDATE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.UPDATE_ATTRIBUTES"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.UPDATE_COMPONENTS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.UPDATE_DESCRIPTION"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.UPDATE_INTEGRATION"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.UPDATE_LOCATION"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.UPDATE_OPTIONS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.UPDATE_PERMISSION"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.UPDATE_PLAN"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.UPDATE_SCREENSHOT"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.UPDATE_THUMBNAIL"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERING.UPDATE_USER"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OFFERINGUSER.UPDATE_RESTRICTION"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OPENSTACK_INSTANCE.CONSOLE_ACCESS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OPENSTACK_INSTANCE.MANAGE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "OPENSTACK_INSTANCE.MANAGE_POWER"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "ORDER.APPROVE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "ORDER.APPROVE_PRIVATE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "ORDER.CANCEL"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "ORDER.DESTROY"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "ORDER.LIST"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "ORDER.REJECT"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "PROJECT.COURSE_ACCOUNT_MANAGE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "PROJECT.CREATE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "PROJECT.CREATE_PERMISSION"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "PROJECT.DELETE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "PROJECT.DELETE_PERMISSION"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "PROJECT.LIST"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "PROJECT.UPDATE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "PROJECT.UPDATE_PERMISSION"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.ACCEPT_BOOKING_REQUEST"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.CONSUMPTION_LIMITATION"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.CREATE_ROBOT_ACCOUNT"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.DELETE_ROBOT_ACCOUNT"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.LIST"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.LIST_IMPORTABLE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.MANAGE_USERS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.REJECT_BOOKING_REQUEST"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.SET_BACKEND_ID"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.SET_BACKEND_METADATA"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.SET_END_DATE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.SET_LIMITS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.SET_PLAN"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.SET_STATE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.SET_USAGE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.SUBMIT_REPORT"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.TERMINATE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.UPDATE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.UPDATE_OPTIONS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "RESOURCE.UPDATE_ROBOT_ACCOUNT"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_ACCOUNT.MANAGE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.GENERATE_API_SECRET_CODE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.GET_API_SECRET_CODE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.GET_REVENUE"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_CUSTOMERS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.GET_ROBOT_ACCOUNT_PROJECTS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.GET_STATISTICS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.LIST_COURSE_ACCOUNTS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.LIST_CUSTOMER_PROJECTS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.LIST_CUSTOMERS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.LIST_KEYS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.LIST_PROJECT_PERMISSIONS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.LIST_PROJECTS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.LIST_SERVICE_ACCOUNTS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.LIST_USER_CUSTOMERS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.LIST_USERS"},
+        {"role_uuid": "b8534b562c1b437c947f7fe37d4581a7", "role_name": "CUSTOMER.OWNER", "permission": "SERVICE_PROVIDER.SET_OFFERINGS_USERNAME"},
+        {"role_uuid": "b9e0bd57abf24490b5cd25eaf495e7f1", "role_name": "CUSTOMER.SUPPORT", "permission": "CUSTOMER.LIST_USERS"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "OFFERING.ACCEPT_CALL_REQUEST"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "OFFERING.ADD_ENDPOINT"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "OFFERING.ARCHIVE"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "OFFERING.DELETE_ENDPOINT"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "OFFERING.DRY_RUN_SCRIPT"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "OFFERING.MANAGE_BACKEND_RESOURCES"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "OFFERING.PAUSE"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "OFFERING.UNPAUSE"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "OFFERING.UPDATE"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "OFFERING.UPDATE_ATTRIBUTES"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "OFFERING.UPDATE_COMPONENTS"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "OFFERING.UPDATE_DESCRIPTION"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "OFFERING.UPDATE_INTEGRATION"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "OFFERING.UPDATE_LOCATION"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "OFFERING.UPDATE_OPTIONS"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "RESOURCE.ACCEPT_BOOKING_REQUEST"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "RESOURCE.REJECT_BOOKING_REQUEST"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "RESOURCE.SET_BACKEND_ID"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "RESOURCE.SET_BACKEND_METADATA"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "RESOURCE.SET_STATE"},
+        {"role_uuid": "8d4674b397f143f888c15886ce041780", "role_name": "OFFERING.MANAGER", "permission": "RESOURCE.SET_USAGE"},
+        {"role_uuid": "18931377bdf4478ab8afb82d25a97536", "role_name": "PROJECT.ADMIN", "permission": "INVITATION.LIST"},
+        {"role_uuid": "18931377bdf4478ab8afb82d25a97536", "role_name": "PROJECT.ADMIN", "permission": "OPENSTACK_INSTANCE.CONSOLE_ACCESS"},
+        {"role_uuid": "18931377bdf4478ab8afb82d25a97536", "role_name": "PROJECT.ADMIN", "permission": "OPENSTACK_INSTANCE.MANAGE"},
+        {"role_uuid": "18931377bdf4478ab8afb82d25a97536", "role_name": "PROJECT.ADMIN", "permission": "OPENSTACK_INSTANCE.MANAGE_POWER"},
+        {"role_uuid": "18931377bdf4478ab8afb82d25a97536", "role_name": "PROJECT.ADMIN", "permission": "ORDER.APPROVE_PRIVATE"},
+        {"role_uuid": "18931377bdf4478ab8afb82d25a97536", "role_name": "PROJECT.ADMIN", "permission": "ORDER.CANCEL"},
+        {"role_uuid": "18931377bdf4478ab8afb82d25a97536", "role_name": "PROJECT.ADMIN", "permission": "ORDER.DESTROY"},
+        {"role_uuid": "18931377bdf4478ab8afb82d25a97536", "role_name": "PROJECT.ADMIN", "permission": "ORDER.LIST"},
+        {"role_uuid": "18931377bdf4478ab8afb82d25a97536", "role_name": "PROJECT.ADMIN", "permission": "PROJECT.LIST"},
+        {"role_uuid": "18931377bdf4478ab8afb82d25a97536", "role_name": "PROJECT.ADMIN", "permission": "RESOURCE.LIST"},
+        {"role_uuid": "18931377bdf4478ab8afb82d25a97536", "role_name": "PROJECT.ADMIN", "permission": "RESOURCE.LIST_IMPORTABLE"},
+        {"role_uuid": "18931377bdf4478ab8afb82d25a97536", "role_name": "PROJECT.ADMIN", "permission": "RESOURCE.SET_LIMITS"},
+        {"role_uuid": "18931377bdf4478ab8afb82d25a97536", "role_name": "PROJECT.ADMIN", "permission": "RESOURCE.SET_PLAN"},
+        {"role_uuid": "18931377bdf4478ab8afb82d25a97536", "role_name": "PROJECT.ADMIN", "permission": "RESOURCE.TERMINATE"},
+        {"role_uuid": "18931377bdf4478ab8afb82d25a97536", "role_name": "PROJECT.ADMIN", "permission": "RESOURCE.UPDATE"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "INVITATION.LIST"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "OPENSTACK_INSTANCE.CONSOLE_ACCESS"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "OPENSTACK_INSTANCE.MANAGE"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "OPENSTACK_INSTANCE.MANAGE_POWER"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "ORDER.APPROVE"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "ORDER.APPROVE_PRIVATE"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "ORDER.CANCEL"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "ORDER.DESTROY"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "ORDER.LIST"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "PROJECT.COURSE_ACCOUNT_MANAGE"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "PROJECT.CREATE_PERMISSION"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "PROJECT.DELETE_PERMISSION"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "PROJECT.LIST"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "PROJECT.REVIEW_MEMBERSHIP"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "PROJECT.UPDATE"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "PROJECT.UPDATE_PERMISSION"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "RESOURCE.LIST"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "RESOURCE.LIST_IMPORTABLE"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "RESOURCE.SET_LIMITS"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "RESOURCE.SET_PLAN"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "RESOURCE.TERMINATE"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "RESOURCE.UPDATE"},
+        {"role_uuid": "8bd646115f6842349f12d8c52d824ef4", "role_name": "PROJECT.MANAGER", "permission": "SERVICE_ACCOUNT.MANAGE"},
+        {"role_uuid": "a1bbf025298945c99d3ae6671b4ea323", "role_name": "PROJECT.MEMBER", "permission": "PROJECT.LIST"},
+        {"role_uuid": "a1bbf025298945c99d3ae6671b4ea323", "role_name": "PROJECT.MEMBER", "permission": "RESOURCE.LIST"},
+        {"role_uuid": "c89c28f24279410e91233a4d2e0d4fb7", "role_name": "PROPOSAL.MANAGER", "permission": "PROPOSAL.MANAGE"}
     ],
     "project_service_accounts": [],
     "customer_service_accounts": [],
     "course_accounts": [],
     "resources": [
         {
-            "uuid": "cc4d0a1b2e345678901234567890abcd",
-            "name": "Expiring Volume",
+            "uuid": "cc4d0a1b2e345678901234567890abc1",
+            "name": "BrIaRS Research Environment",
             "state": 2,
             "offering_uuid": "aa2f8e9c0d12485756f34567890abcde",
-            "offering_name": "Prepaid Storage",
+            "offering_name": "Secure Windows Desktop",
             "plan_uuid": "bb3c9f0d1e2354749504567890abcdef",
             "plan_name": "Standard Plan",
             "project_uuid": "f2908756345643458765434567890123",
-            "project_name": "Renewal Project",
+            "project_name": "SRCP Research Project",
             "customer_uuid": "e8321683457a44f29107663471015691",
-            "customer_name": "Renewal Org",
-            "attributes": {},
-            "limits": {
-                "storage_limit": 100
-            },
-            "options": {},
-            "backend_id": "",
-            "effective_id": "",
-            "slug": "expiring-v",
-            "created": "2026-01-15T15:40:58.907638+00:00",
-            "description": "",
-            "modified": "2026-01-15T15:42:59.976134+00:00",
-            "end_date": "2026-01-18",
-            "report": null,
-            "cost": null,
-            "current_usages": {},
-            "error_message": "",
-            "error_traceback": ""
+            "customer_name": "Cambridge Research Group",
+            "attributes": {"po_reference": "RR-4154278", "platform": "windows"},
+            "limits": {"subscription": 1},
+            "slug": "briars-swd",
+            "created": "2025-01-20T10:00:00+00:00",
+            "end_date": "2026-01-20",
+            "description": "Secure Windows Desktop for BrIaRS project - HIGH urgency (expires in ~5 days)"
+        },
+        {
+            "uuid": "cc4d0a1b2e345678901234567890abc2",
+            "name": "PROMLS-SM Analysis Platform",
+            "state": 2,
+            "offering_uuid": "aa2f8e9c0d12485756f34567890abcde",
+            "offering_name": "Secure Windows Desktop",
+            "plan_uuid": "bb3c9f0d1e2354749504567890abcdef",
+            "plan_name": "Standard Plan",
+            "project_uuid": "f2908756345643458765434567890123",
+            "project_name": "SRCP Research Project",
+            "customer_uuid": "e8321683457a44f29107663471015691",
+            "customer_name": "Cambridge Research Group",
+            "attributes": {"po_reference": "RH-4161204", "platform": "windows"},
+            "limits": {"subscription": 1},
+            "slug": "promls-swd",
+            "created": "2025-01-27T10:00:00+00:00",
+            "end_date": "2026-01-27",
+            "description": "Secure Windows Desktop for S0338-PROMLS-SM - MEDIUM urgency (expires in ~12 days)"
+        },
+        {
+            "uuid": "cc4d0a1b2e345678901234567890abc3",
+            "name": "PSS-PSP Secure Desktop",
+            "state": 2,
+            "offering_uuid": "aa2f8e9c0d12485756f34567890abcde",
+            "offering_name": "Secure Windows Desktop",
+            "plan_uuid": "bb3c9f0d1e2354749504567890abcdef",
+            "plan_name": "Standard Plan",
+            "project_uuid": "f2908756345643458765434567890123",
+            "project_name": "SRCP Research Project",
+            "customer_uuid": "e8321683457a44f29107663471015691",
+            "customer_name": "Cambridge Research Group",
+            "attributes": {"po_reference": "RH22-4248217", "platform": "windows"},
+            "limits": {"subscription": 1},
+            "slug": "pss-psp-sw",
+            "created": "2025-02-09T10:00:00+00:00",
+            "end_date": "2026-02-09",
+            "description": "Secure Windows Desktop for PSS-PSP - LOW urgency (expires in ~25 days)"
+        },
+        {
+            "uuid": "cc4d0a1b2e345678901234567890abc4",
+            "name": "vHPC Compute Cluster",
+            "state": 2,
+            "offering_uuid": "bb1f7e8d1c23496867f45678901bcdef",
+            "offering_name": "Virtual HPC",
+            "plan_uuid": "cc2d8f0e2f34587960615678901cdef0",
+            "plan_name": "vHPC Standard",
+            "project_uuid": "f2908756345643458765434567890123",
+            "project_name": "SRCP Research Project",
+            "customer_uuid": "e8321683457a44f29107663471015691",
+            "customer_name": "Cambridge Research Group",
+            "attributes": {"po_reference": "jss92-vhpc", "platform": "vhpc", "node_count": 4},
+            "limits": {"subscription": 1},
+            "slug": "vhpc-clust",
+            "created": "2025-03-01T10:00:00+00:00",
+            "end_date": "2026-02-25",
+            "description": "Virtual HPC cluster for genomics analysis - expires in ~40 days (no urgency)"
+        },
+        {
+            "uuid": "cc4d0a1b2e345678901234567890abc5",
+            "name": "Clinical Trial REDCap",
+            "state": 2,
+            "offering_uuid": "cc0e6f7c2b34507978f56789012cdef0",
+            "offering_name": "REDCap",
+            "plan_uuid": "dd3e901f3045698071726789012defab",
+            "plan_name": "REDCap Standard",
+            "project_uuid": "f2908756345643458765434567890123",
+            "project_name": "SRCP Research Project",
+            "customer_uuid": "e8321683457a44f29107663471015691",
+            "customer_name": "Cambridge Research Group",
+            "attributes": {"po_reference": "jss92-redcap", "platform": "redcap"},
+            "limits": {"subscription": 1},
+            "slug": "redcap-cli",
+            "created": "2025-06-01T10:00:00+00:00",
+            "end_date": null,
+            "description": "REDCap instance for clinical trial data collection - no expiration"
         }
     ],
     "offering_components": [
         {
             "uuid": "dd3f8e9c0d12485756f34567890abcdf",
             "offering_uuid": "aa2f8e9c0d12485756f34567890abcde",
-            "offering_name": "Prepaid Storage",
-            "type": "storage_limit",
-            "name": "Storage Limit",
-            "description": "",
-            "billing_type": "limit",
-            "measured_unit": "GB",
-            "limit_period": null,
-            "limit_amount": null,
-            "article_code": "",
+            "offering_name": "Secure Windows Desktop",
+            "type": "subscription",
+            "name": "Annual Subscription",
+            "description": "Annual prepaid subscription for Secure Windows Desktop - fixed fee, single subscription only",
+            "billing_type": "one",
+            "measured_unit": "subscription",
+            "limit_period": "annual",
+            "limit_amount": 1,
+            "min_value": null,
+            "max_value": null,
+            "min_prepaid_duration": 12,
+            "max_prepaid_duration": 24,
+            "is_prepaid": true,
+            "article_code": "SRCP-SWD-001",
+            "backend_id": ""
+        },
+        {
+            "uuid": "ee409f0e1e23596867045678901bcdf0",
+            "offering_uuid": "bb1f7e8d1c23496867f45678901bcdef",
+            "offering_name": "Virtual HPC",
+            "type": "subscription",
+            "name": "Annual Subscription",
+            "description": "Annual prepaid subscription for Virtual HPC - fixed fee, single subscription only",
+            "billing_type": "one",
+            "measured_unit": "subscription",
+            "limit_period": "annual",
+            "limit_amount": 1,
+            "min_value": null,
+            "max_value": null,
+            "min_prepaid_duration": 12,
+            "max_prepaid_duration": 24,
+            "is_prepaid": true,
+            "article_code": "SRCP-VHPC-001",
+            "backend_id": ""
+        },
+        {
+            "uuid": "ff5a0b1f2f34607978c56789012cdeab",
+            "offering_uuid": "cc0e6f7c2b34507978f56789012cdef0",
+            "offering_name": "REDCap",
+            "type": "subscription",
+            "name": "Annual Subscription",
+            "description": "Annual prepaid subscription for REDCap - fixed fee, single subscription only",
+            "billing_type": "one",
+            "measured_unit": "subscription",
+            "limit_period": "annual",
+            "limit_amount": 1,
+            "min_value": null,
+            "max_value": null,
+            "min_prepaid_duration": 12,
+            "max_prepaid_duration": 24,
+            "is_prepaid": true,
+            "article_code": "SRCP-REDCAP-001",
             "backend_id": ""
         }
     ],
@@ -1576,14 +804,50 @@
         {
             "uuid": "bb3c9f0d1e2354749504567890abcdef",
             "offering_uuid": "aa2f8e9c0d12485756f34567890abcde",
-            "offering_name": "Prepaid Storage",
+            "offering_name": "Secure Windows Desktop",
             "name": "Standard Plan",
-            "description": "",
-            "unit_price": "0E-10",
+            "description": "Secure Windows Desktop annual subscription - includes secure VM access, data storage, and support",
+            "unit_price": "62.2500000000",
+            "init_price": "746.9600000000",
+            "switch_price": "0E-10",
             "unit": "month",
             "archived": false,
             "max_amount": null,
-            "article_code": "",
+            "article_code": "SRCP-SWD-001",
+            "backend_id": "",
+            "created": "2026-01-15T15:40:58.872386+00:00",
+            "modified": "2026-01-15T15:40:58.872386+00:00"
+        },
+        {
+            "uuid": "cc2d8f0e2f34587960615678901cdef0",
+            "offering_uuid": "bb1f7e8d1c23496867f45678901bcdef",
+            "offering_name": "Virtual HPC",
+            "name": "vHPC Standard",
+            "description": "Virtual HPC annual subscription - includes CPU/GPU nodes, secure storage, and job scheduling",
+            "unit_price": "100.0000000000",
+            "init_price": "1200.0000000000",
+            "switch_price": "0E-10",
+            "unit": "month",
+            "archived": false,
+            "max_amount": null,
+            "article_code": "SRCP-VHPC-001",
+            "backend_id": "",
+            "created": "2026-01-15T15:40:58.872386+00:00",
+            "modified": "2026-01-15T15:40:58.872386+00:00"
+        },
+        {
+            "uuid": "dd3e901f3045698071726789012defab",
+            "offering_uuid": "cc0e6f7c2b34507978f56789012cdef0",
+            "offering_name": "REDCap",
+            "name": "REDCap Standard",
+            "description": "REDCap annual subscription - includes survey tools, data validation, and audit trail",
+            "unit_price": "41.6700000000",
+            "init_price": "500.0000000000",
+            "switch_price": "0E-10",
+            "unit": "month",
+            "archived": false,
+            "max_amount": null,
+            "article_code": "SRCP-REDCAP-001",
             "backend_id": "",
             "created": "2026-01-15T15:40:58.872386+00:00",
             "modified": "2026-01-15T15:40:58.872386+00:00"
@@ -1594,75 +858,78 @@
             "plan_uuid": "bb3c9f0d1e2354749504567890abcdef",
             "plan_name": "Standard Plan",
             "component_uuid": "dd3f8e9c0d12485756f34567890abcdf",
-            "component_type": "storage_limit",
-            "component_name": "Storage Limit",
-            "amount": 0,
-            "price": "0.1000000000",
+            "component_type": "subscription",
+            "component_name": "Annual Subscription",
+            "amount": 1,
+            "price": "746.9600000000",
+            "future_price": null
+        },
+        {
+            "plan_uuid": "cc2d8f0e2f34587960615678901cdef0",
+            "plan_name": "vHPC Standard",
+            "component_uuid": "ee409f0e1e23596867045678901bcdf0",
+            "component_type": "subscription",
+            "component_name": "Annual Subscription",
+            "amount": 1,
+            "price": "1200.0000000000",
+            "future_price": null
+        },
+        {
+            "plan_uuid": "dd3e901f3045698071726789012defab",
+            "plan_name": "REDCap Standard",
+            "component_uuid": "ff5a0b1f2f34607978c56789012cdeab",
+            "component_type": "subscription",
+            "component_name": "Annual Subscription",
+            "amount": 1,
+            "price": "500.0000000000",
             "future_price": null
         }
     ],
     "resource_plan_periods": [],
-    "orders": [],
-    "invoices": [
+    "orders": [
         {
-            "uuid": "7aac26da8873434c8fb8f7ab7082cfab",
-            "customer_uuid": "e8321683457a44f29107663471015691",
-            "customer_name": "Renewal Org",
-            "month": 1,
-            "year": 2026,
-            "state": "pending",
-            "total_cost": "10.00",
-            "total_price": "10.00",
-            "tax_percent": "0.00",
-            "invoice_date": null,
-            "created": "2026-01-01",
-            "backend_id": ""
-        }
-    ],
-    "invoice_items": [
-        {
-            "uuid": "5e31e0d3123941069d54af879e192ba9",
-            "invoice_uuid": "7aac26da8873434c8fb8f7ab7082cfab",
-            "customer_uuid": "e8321683457a44f29107663471015691",
-            "customer_name": "Renewal Org",
-            "resource_uuid": "cc4d0a1b2e345678901234567890abcd",
-            "resource_name": "Expiring Volume",
+            "uuid": "00000000000000000000000000000101",
+            "type": 2,
+            "state": 1,
             "project_uuid": "f2908756345643458765434567890123",
-            "project_name": "Renewal Project",
-            "name": "Expiring Volume (Prepaid Storage / Standard Plan) / Storage Limit",
-            "quantity": "100.0000000000",
-            "measured_unit": "GB",
-            "unit_price": "0.1000000000",
-            "article_code": "",
-            "start": "2026-01-15T15:40:58.998280+00:00",
-            "end": "2026-01-31T23:59:59.999999+00:00",
-            "backend_uuid": null,
-            "details": {
-                "plan_name": "Standard Plan",
-                "plan_uuid": "bb3c9f0d1e2354749504567890abcdef",
-                "offering_name": "Prepaid Storage",
-                "offering_type": "Marketplace.Basic",
-                "offering_uuid": "aa2f8e9c0d12485756f34567890abcde",
-                "resource_name": "Expiring Volume",
-                "resource_uuid": "cc4d0a1b2e345678901234567890abcd",
-                "plan_component_id": 2,
-                "service_provider_name": "Renewal Org",
-                "service_provider_uuid": "",
-                "resource_limit_periods": [
-                    {
-                        "end": "2026-01-31T23:59:59.999999+00:00",
-                        "start": "2026-01-15T15:40:58.998280+00:00",
-                        "total": "1700",
-                        "quantity": 100,
-                        "billing_periods": 17
-                    }
-                ],
-                "offering_component_name": "Storage Limit",
-                "offering_component_type": "storage_limit"
+            "resource_uuid": "cc4d0a1b2e345678901234567890abc1",
+            "offering_uuid": "aa2f8e9c0d12485756f34567890abcde",
+            "plan_uuid": "bb3c9f0d1e2354749504567890abcdef",
+            "created_by_uuid": "00000000000000000000000000000004",
+            "request_comment": "PO: RR-4154278-RENEW - Renewal request for BrIaRS project, 12 month extension",
+            "created": "2026-01-13T10:00:00+00:00",
+            "attributes": {
+                "action": "renew",
+                "extension_months": 12,
+                "old_end_date": "2026-01-20",
+                "new_end_date": "2027-01-20",
+                "renewal_cost": 746.96
             },
-            "plan_component": 2
+            "limits": {"subscription": 1}
+        },
+        {
+            "uuid": "00000000000000000000000000000102",
+            "type": 2,
+            "state": 1,
+            "project_uuid": "f2908756345643458765434567890123",
+            "resource_uuid": "cc4d0a1b2e345678901234567890abc2",
+            "offering_uuid": "aa2f8e9c0d12485756f34567890abcde",
+            "plan_uuid": "bb3c9f0d1e2354749504567890abcdef",
+            "created_by_uuid": "00000000000000000000000000000004",
+            "request_comment": "PO: RH-4161204-RENEW - Renewal request for PROMLS-SM, 12 month extension",
+            "created": "2026-01-13T22:00:00+00:00",
+            "attributes": {
+                "action": "renew",
+                "extension_months": 12,
+                "old_end_date": "2026-01-27",
+                "new_end_date": "2027-01-27",
+                "renewal_cost": 746.96
+            },
+            "limits": {"subscription": 1}
         }
     ],
+    "invoices": [],
+    "invoice_items": [],
     "offering_users": [],
     "checklist_categories": [],
     "checklists": [],

@@ -76,7 +76,7 @@ class ListField(forms.CharField):
         if value is None:
             return ""
         if isinstance(value, list):
-            return ", ".join(value)
+            return ", ".join(str(item) for item in value)
         return str(value)
 
 
