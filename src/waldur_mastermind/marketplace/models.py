@@ -1088,7 +1088,12 @@ class Plan(
 
     def sum_components(self, billing_type) -> float:
         components = self.components.filter(component__billing_type=billing_type)
-        return components.aggregate(sum=models.Sum("price"))["sum"] or 0
+        return (
+            components.aggregate(
+                sum=models.Sum(models.F("price") * models.F("amount"))
+            )["sum"]
+            or 0
+        )
 
     @property
     def has_connected_resources(self) -> bool:
