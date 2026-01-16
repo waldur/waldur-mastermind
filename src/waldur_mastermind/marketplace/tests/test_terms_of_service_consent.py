@@ -1377,6 +1377,35 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
             self.assertIn("consent_data", response.data)
             self.assertIsNone(response.data["consent_data"])
 
+    def test_offering_user_serializer_consent_data_with_revoked_consent(self):
+        """Test that consent_data returns data even when consent is revoked."""
+        consent = models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering,
+            version="1.0",
+        )
+        consent.revoke()
+
+        offering_user, created = models.OfferingUser.objects.get_or_create(
+            user=self.user,
+            offering=self.offering,
+        )
+
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(
+            f"/api/marketplace-offering-users/{offering_user.uuid}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertFalse(response.data["has_consent"])
+
+        self.assertIn("consent_data", response.data)
+        self.assertIsNotNone(response.data["consent_data"])
+        self.assertEqual(response.data["consent_data"]["uuid"], str(consent.uuid))
+        self.assertEqual(response.data["consent_data"]["version"], "1.0")
+        self.assertIn("agreement_date", response.data["consent_data"])
+
     def test_offering_user_filter_has_consent_true(self):
         """Test filtering offering users by has_consent=true with specific user_uuid."""
         models.UserOfferingConsent.objects.create(
