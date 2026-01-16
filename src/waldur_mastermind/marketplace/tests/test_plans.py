@@ -523,3 +523,148 @@ class OfferingUpdatePlansTest(BaseOfferingUpdateTest):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(1, self.offering.plans.count())
+
+
+class PlanSumComponentsTest(test.APITransactionTestCase):
+    """Tests for Plan.sum_components() method which calculates price * amount."""
+
+    def setUp(self):
+        self.offering = factories.OfferingFactory()
+        self.plan = factories.PlanFactory(offering=self.offering)
+
+    def test_one_time_component_with_zero_amount_returns_zero(self):
+        """One-time component with amount=0 should contribute 0 to init_price."""
+        offering_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.ONE_TIME,
+            type="setup_fee",
+        )
+        factories.PlanComponentFactory(
+            component=offering_component,
+            plan=self.plan,
+            price=100,
+            amount=0,  # Zero amount
+        )
+
+        # init_price uses sum_components(BillingTypes.ONE_TIME)
+        self.assertEqual(self.plan.init_price, 0)
+
+    def test_one_time_component_with_nonzero_amount(self):
+        """One-time component with amount > 0 should correctly calculate price * amount."""
+        offering_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.ONE_TIME,
+            type="setup_fee",
+        )
+        factories.PlanComponentFactory(
+            component=offering_component,
+            plan=self.plan,
+            price=100,
+            amount=3,
+        )
+
+        self.assertEqual(self.plan.init_price, 300)  # 100 * 3
+
+    def test_fixed_component_with_zero_amount_returns_zero(self):
+        """Fixed component with amount=0 should contribute 0 to fixed_price."""
+        offering_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.FIXED,
+            type="cpu",
+        )
+        factories.PlanComponentFactory(
+            component=offering_component,
+            plan=self.plan,
+            price=50,
+            amount=0,
+        )
+
+        self.assertEqual(self.plan.fixed_price, 0)
+
+    def test_fixed_component_with_nonzero_amount(self):
+        """Fixed component with amount > 0 should correctly calculate price * amount."""
+        offering_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.FIXED,
+            type="cpu",
+        )
+        factories.PlanComponentFactory(
+            component=offering_component,
+            plan=self.plan,
+            price=50,
+            amount=4,
+        )
+
+        self.assertEqual(self.plan.fixed_price, 200)  # 50 * 4
+
+    def test_switch_component_with_zero_amount_returns_zero(self):
+        """On plan switch component with amount=0 should contribute 0 to switch_price."""
+        offering_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.ON_PLAN_SWITCH,
+            type="migration_fee",
+        )
+        factories.PlanComponentFactory(
+            component=offering_component,
+            plan=self.plan,
+            price=25,
+            amount=0,
+        )
+
+        self.assertEqual(self.plan.switch_price, 0)
+
+    def test_multiple_components_sum_correctly(self):
+        """Multiple components should sum their individual price * amount values."""
+        component1 = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.ONE_TIME,
+            type="setup",
+        )
+        component2 = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.ONE_TIME,
+            type="activation",
+        )
+
+        factories.PlanComponentFactory(
+            component=component1,
+            plan=self.plan,
+            price=100,
+            amount=2,  # 200
+        )
+        factories.PlanComponentFactory(
+            component=component2,
+            plan=self.plan,
+            price=50,
+            amount=3,  # 150
+        )
+
+        self.assertEqual(self.plan.init_price, 350)  # 200 + 150
+
+    def test_mixed_zero_and_nonzero_amounts(self):
+        """Components with mixed zero and non-zero amounts should calculate correctly."""
+        component1 = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.ONE_TIME,
+            type="fee1",
+        )
+        component2 = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.ONE_TIME,
+            type="fee2",
+        )
+
+        factories.PlanComponentFactory(
+            component=component1,
+            plan=self.plan,
+            price=100,
+            amount=0,  # 0 (zero amount)
+        )
+        factories.PlanComponentFactory(
+            component=component2,
+            plan=self.plan,
+            price=75,
+            amount=2,  # 150
+        )
+
+        self.assertEqual(self.plan.init_price, 150)  # 0 + 150
