@@ -2480,3 +2480,53 @@ Enable automatic cleanup of old catalog data
 **Default value:** 90
 
 Number of days to retain old catalog versions
+
+### User Actions
+
+#### USER_ACTIONS_ENABLED
+
+**Type:** bool
+
+**Default value:** True
+
+Enable user actions notification system.
+
+#### USER_ACTIONS_PENDING_ORDER_HOURS
+
+**Type:** int
+
+**Default value:** 24
+
+Hours before pending order becomes a user action item (1-168).
+
+#### USER_ACTIONS_HIGH_URGENCY_NOTIFICATION
+
+**Type:** bool
+
+**Default value:** True
+
+Send digest notification if user has high urgency actions.
+
+#### USER_ACTIONS_NOTIFICATION_THRESHOLD
+
+**Type:** int
+
+**Default value:** 5
+
+Send digest notification if user has more than N actions.
+
+#### USER_ACTIONS_EXECUTION_RETENTION_DAYS
+
+**Type:** int
+
+**Default value:** 90
+
+Number of days to keep action execution history.
+
+#### USER_ACTIONS_DEFAULT_EXPIRATION_REMINDERS
+
+**Type:** list_field
+
+**Default value:** [30, 14, 7, 1]
+
+Default reminder schedule (days before expiration) for expiring resources. Can be overridden per offering via plugin_options.resource_expiration_reminders.
