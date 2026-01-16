@@ -1,5 +1,6 @@
 import logging
 
+from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging import utils as logging_utils
 from waldur_core.permissions import models as permission_models
@@ -45,6 +46,9 @@ def send_pending_order_to_message_queue(
     sender, instance: Order, created=False, **kwargs
 ):
     """Send pending marketplace order to message queue for site agent processing."""
+    if get_skip_side_effects():
+        return
+
     order = instance
 
     offering = order.offering

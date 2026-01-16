@@ -2,6 +2,7 @@ import logging
 from datetime import timedelta
 
 from celery import shared_task
+from constance import config
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
@@ -15,6 +16,10 @@ logger = logging.getLogger(__name__)
 @shared_task(name="waldur_core.user_actions.update_user_actions")
 def update_user_actions(provider_action_type=None):
     """Update actions for all providers or specific provider"""
+    # Check if user actions system is enabled
+    if not config.USER_ACTIONS_ENABLED:
+        logger.info("User actions system is disabled, skipping action updates")
+        return
 
     if provider_action_type:
         provider_classes = [provider_action_type]
@@ -222,8 +227,10 @@ def cleanup_expired_silenced_actions():
 
 
 @shared_task(name="waldur_core.user_actions.cleanup_old_action_executions")
-def cleanup_old_action_executions(days_to_keep=90):
+def cleanup_old_action_executions(days_to_keep=None):
     """Clean up old action execution records"""
+    if days_to_keep is None:
+        days_to_keep = config.USER_ACTIONS_EXECUTION_RETENTION_DAYS
     cutoff_date = timezone.now() - timedelta(days=days_to_keep)
 
     old_executions = models.UserActionExecution.objects.filter(
@@ -305,8 +312,10 @@ def cleanup_dangling_user_actions():
 @shared_task(name="waldur_core.user_actions.send_action_digest_notifications")
 def send_action_digest_notifications():
     """Send daily digest notifications to users with pending actions"""
-    # This task would integrate with the existing notification system
-    # For now, we'll just log the counts
+    # Check if user actions system is enabled
+    if not config.USER_ACTIONS_ENABLED:
+        logger.info("User actions system is disabled, skipping digest notifications")
+        return 0
 
     from django.db.models import Count
 
@@ -318,16 +327,25 @@ def send_action_digest_notifications():
         .filter(action_count__gt=0)
     )
 
+    notification_threshold = config.USER_ACTIONS_NOTIFICATION_THRESHOLD
+    check_high_urgency = config.USER_ACTIONS_HIGH_URGENCY_NOTIFICATION
+
     digest_count = 0
     for user in users_with_actions:
-        high_urgency_count = (
-            user.actions.filter(urgency="high", is_silenced=False)
-            .exclude(silenced_until__gt=timezone.now())
-            .count()
-        )
+        high_urgency_count = 0
+        if check_high_urgency:
+            high_urgency_count = (
+                user.actions.filter(urgency="high", is_silenced=False)
+                .exclude(silenced_until__gt=timezone.now())
+                .count()
+            )
 
         # Only send digest if user has high urgency actions or many actions
-        if high_urgency_count > 0 or user.action_count > 5:
+        should_notify = (check_high_urgency and high_urgency_count > 0) or (
+            user.action_count > notification_threshold
+        )
+
+        if should_notify:
             # Here you would send the actual notification
             # using Waldur's notification system
             logger.info(

@@ -109,8 +109,6 @@ class UserSection(FeatureSection):
 
     show_username = Feature("Enable display of username field in user tables.")
 
-    pending_user_actions = Feature("Show pending user actions.")
-
 
 class MarketplaceSection(FeatureSection):
     class Meta:

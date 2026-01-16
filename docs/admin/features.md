@@ -188,10 +188,6 @@ Disable user termination in user workspace.
 
 Enable email and webhook notifications management in user workspace.
 
-## user.pending_user_actions
-
-Show pending user actions.
-
 ## user.preferred_language
 
 Render preferred language column in users list.

@@ -2537,6 +2537,11 @@ class Command(BaseCommand):
                     "measured_unit": component_data.get("measured_unit", ""),
                     "limit_period": component_data.get("limit_period"),
                     "limit_amount": component_data.get("limit_amount"),
+                    "min_value": component_data.get("min_value"),
+                    "max_value": component_data.get("max_value"),
+                    "min_prepaid_duration": component_data.get("min_prepaid_duration"),
+                    "max_prepaid_duration": component_data.get("max_prepaid_duration"),
+                    "is_prepaid": component_data.get("is_prepaid", False),
                     "article_code": component_data.get("article_code", ""),
                     "backend_id": component_data.get("backend_id", ""),
                 }
@@ -2708,6 +2713,16 @@ class Command(BaseCommand):
                 if plan_uuid:
                     plan = Plan.objects.filter(uuid=plan_uuid).first()
 
+                # Parse end_date (optional)
+                end_date = None
+                if resource_data.get("end_date"):
+                    try:
+                        end_date = datetime.fromisoformat(
+                            resource_data["end_date"]
+                        ).date()
+                    except (ValueError, TypeError):
+                        pass
+
                 defaults = {
                     "name": resource_data.get("name", ""),
                     "state": resource_data.get("state", 1),
@@ -2721,6 +2736,7 @@ class Command(BaseCommand):
                     "effective_id": resource_data.get("effective_id", ""),
                     "description": resource_data.get("description", ""),
                     "slug": resource_data.get("slug", ""),
+                    "end_date": end_date,
                 }
 
                 if not self.dry_run:
@@ -3479,6 +3495,16 @@ class Command(BaseCommand):
                     except (ValueError, TypeError):
                         pass
 
+                # Parse created timestamp (for user actions detection)
+                created = None
+                if order_data.get("created"):
+                    try:
+                        created = datetime.fromisoformat(order_data["created"])
+                        if timezone.is_naive(created):
+                            created = timezone.make_aware(created)
+                    except (ValueError, TypeError):
+                        pass
+
                 # Parse cost (Decimal field)
                 cost = None
                 if order_data.get("cost"):
@@ -3517,11 +3543,17 @@ class Command(BaseCommand):
                     if existing_order:
                         if self.update_existing:
                             Order.objects.filter(uuid=uuid).update(**defaults)
+                            # Update created timestamp if provided
+                            if created:
+                                Order.objects.filter(uuid=uuid).update(created=created)
                             self.stats["orders"]["updated"] += 1
                         else:
                             self.stats["orders"]["skipped"] += 1
                     else:
-                        Order.objects.create(uuid=uuid, **defaults)
+                        order = Order.objects.create(uuid=uuid, **defaults)
+                        # Update created timestamp if provided
+                        if created:
+                            Order.objects.filter(pk=order.pk).update(created=created)
                         self.stats["orders"]["created"] += 1
                 else:
                     existing = Order.objects.filter(uuid=uuid).exists()
@@ -3534,11 +3566,14 @@ class Command(BaseCommand):
                         self.stats["orders"]["created"] += 1
 
             except Exception as e:
+                import traceback
+
                 self.stdout.write(
                     self.style.WARNING(
                         f"Failed to import order {order_data.get('uuid')}: {e}"
                     )
                 )
+                self.stdout.write(self.style.WARNING(traceback.format_exc()))
                 self.stats["orders"]["errors"] += 1
 
     def import_offering_users(self, offering_users_data):

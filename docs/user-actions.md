@@ -57,36 +57,62 @@ Two providers are included for marketplace workflows:
 
 ### PendingOrderProvider
 
-Detects orders pending consumer approval for more than 24 hours. Provides corrective actions:
+Detects orders pending consumer approval for a configurable time period (default 24 hours, configured via `USER_ACTIONS_PENDING_ORDER_HOURS`). Provides corrective actions:
 
 - View order details
 - Approve order (API endpoint)
 - Reject order
-- Contact customer
 
 ### ExpiringResourceProvider
 
-Finds resources expiring within 30 days. Corrective actions include:
+Finds resources with prepaid components expiring within a configurable reminder schedule. Supports per-offering configuration for different subscription types (monthly, annual, multi-year). Corrective actions include:
 
 - View resource details
-- Extend resource
-- Create backup
-- Terminate early
-- Migrate to new resource
+- Renew resource
+- Terminate resource (acknowledge expiration)
 
 ## Configuration
 
-```python
-WALDUR_USER_ACTIONS = {
-    'ENABLED': True,
-    'UPDATE_SCHEDULE': '0 */6 * * *',  # Every 6 hours
-    'MAX_ACTIONS_PER_USER': 100,
-    'DEFAULT_SILENCE_DURATION_DAYS': 7,
-    'NOTIFICATION_ENABLED': True,
-    'NOTIFICATION_SCHEDULE': '0 9 * * *',  # Daily at 9 AM
-    'HIGH_URGENCY_NOTIFICATION_THRESHOLD': 1,
+### Global Settings (Django Constance)
+
+Configure via Django admin under Constance settings:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `USER_ACTIONS_ENABLED` | `True` | Enable/disable the entire user actions system |
+| `USER_ACTIONS_PENDING_ORDER_HOURS` | `24` | Hours before pending order becomes an action item |
+| `USER_ACTIONS_HIGH_URGENCY_NOTIFICATION` | `True` | Send digest if user has high urgency actions |
+| `USER_ACTIONS_NOTIFICATION_THRESHOLD` | `5` | Send digest if user has more than N actions |
+| `USER_ACTIONS_EXECUTION_RETENTION_DAYS` | `90` | Days to keep action execution history |
+| `USER_ACTIONS_DEFAULT_EXPIRATION_REMINDERS` | `[30, 14, 7, 1]` | Default reminder schedule (days before expiration) |
+
+### Per-Offering Reminder Schedule
+
+For offerings with different subscription types (annual, multi-year), configure reminder schedules in the offering's `plugin_options`:
+
+```json
+{
+  "plugin_options": {
+    "resource_expiration_reminders": [90, 60, 30, 14, 7, 1]
+  }
 }
 ```
+
+Example configurations:
+
+| Subscription Type | Reminder Schedule | Description |
+|-------------------|-------------------|-------------|
+| Monthly | `[30, 14, 7, 1]` | Reminders at 30, 14, 7, and 1 day before expiration |
+| Annual | `[90, 60, 30, 14, 7, 1]` | Starts 90 days out for annual renewals |
+| Multi-year | `[180, 90, 60, 30, 14, 7]` | 6-month advance notice for long-term subscriptions |
+
+**Urgency Mapping**: Urgency is automatically calculated based on position in the reminder schedule:
+
+- First ~1/3 of reminders → `low` urgency
+- Middle ~1/3 of reminders → `medium` urgency
+- Last ~1/3 of reminders → `high` urgency
+
+**Note**: One action is created per resource and updated as it moves through milestones (no duplicates)
 
 ## Creating Custom Providers
 
@@ -113,9 +139,18 @@ class MyActionProvider(BaseActionProvider):
             'description': 'Description',
             'urgency': 'medium',
             'due_date': some_date,
-            'action_url': '/path/to/action/',
             'related_object': model_instance,
+            # Frontend routing
+            'route_name': 'my-resource-details',
+            'route_params': {'resource_uuid': str(model_instance.uuid)},
+            # Context fields (optional)
+            'project_name': model_instance.project.name,
+            'project_uuid': str(model_instance.project.uuid),
         }]
+
+    def get_affected_users(self):
+        """Return users who might have actions of this type"""
+        return User.objects.filter(...)
 
 register_provider(MyActionProvider)
 ```

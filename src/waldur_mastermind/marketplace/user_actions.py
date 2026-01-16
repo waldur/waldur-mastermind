@@ -2,6 +2,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
+from constance import config
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
@@ -20,6 +21,7 @@ from waldur_core.user_actions.providers import (
 )
 
 from . import models
+from .enums import OrderStates
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -32,8 +34,9 @@ class PendingOrderProvider(BaseActionProvider):
     display_name = "Pending Orders"
 
     def get_actions_for_user(self, user: User) -> list[dict[str, Any]]:
-        """Find orders pending approval for more than 24 hours"""
-        cutoff = timezone.now() - timedelta(hours=24)
+        """Find orders pending approval for configurable hours (default 24)"""
+        pending_hours = config.USER_ACTIONS_PENDING_ORDER_HOURS
+        cutoff = timezone.now() - timedelta(hours=pending_hours)
 
         # Find orders pending consumer approval where user has APPROVE_ORDER permission
         project_ct = ContentType.objects.get_for_model(Project)
@@ -167,8 +170,70 @@ class ExpiringResourceProvider(BaseActionProvider):
     action_type = "expiring_resource"
     display_name = "Expiring Resources"
 
-    def get_urgency(self, obj, days_remaining: int = None) -> str:
-        """Determine urgency based on days remaining until expiration"""
+    def _get_reminder_schedule(self, offering) -> list[int]:
+        """Get reminder schedule for offering, falling back to global default."""
+        # Try offering-specific reminders first
+        reminders = offering.plugin_options.get("resource_expiration_reminders")
+        if reminders and isinstance(reminders, list):
+            try:
+                return sorted([int(r) for r in reminders], reverse=True)
+            except (ValueError, TypeError):
+                pass
+
+        # Fall back to global default from constance
+        default_reminders = config.USER_ACTIONS_DEFAULT_EXPIRATION_REMINDERS
+        if default_reminders and isinstance(default_reminders, list):
+            try:
+                return sorted([int(r) for r in default_reminders], reverse=True)
+            except (ValueError, TypeError):
+                pass
+
+        # Ultimate fallback
+        return [30, 14, 7, 1]
+
+    def _get_urgency_from_schedule(
+        self, days_remaining: int, reminders: list[int]
+    ) -> str:
+        """Determine urgency based on position in reminder schedule.
+
+        - First ~1/3 of reminders → low
+        - Middle ~1/3 of reminders → medium
+        - Last ~1/3 of reminders → high
+        """
+        if not reminders:
+            return "low"
+
+        # Find which reminder milestones apply (reminders >= days_remaining)
+        # More active reminders = closer to expiration
+        active_reminders = [r for r in reminders if r >= days_remaining]
+        if not active_reminders:
+            return "low"
+
+        # Position based on how many milestones we've entered (0 = first, len-1 = last)
+        position = len(active_reminders) - 1
+        total = len(reminders)
+
+        # Divide into thirds
+        if total <= 2:
+            # For very short schedules, last item is high
+            if position == total - 1:
+                return "high"
+            return "low"
+
+        third = total / 3
+        if position >= 2 * third:
+            return "high"
+        elif position >= third:
+            return "medium"
+        return "low"
+
+    def get_urgency(
+        self, obj, days_remaining: int = None, reminders: list[int] = None
+    ) -> str:
+        """Determine urgency based on days remaining and reminder schedule."""
+        if reminders:
+            return self._get_urgency_from_schedule(days_remaining, reminders)
+        # Fallback for backward compatibility
         if days_remaining is not None:
             if days_remaining < 7:
                 return "high"
@@ -179,7 +244,7 @@ class ExpiringResourceProvider(BaseActionProvider):
         return "low"
 
     def get_actions_for_user(self, user: User) -> list[dict[str, Any]]:
-        """Find resources expiring in the configurable timeframe (default 30 days)"""
+        """Find resources expiring within their offering's reminder schedule."""
         # Find resources where user has access to the project
         project_ct = ContentType.objects.get_for_model(Project)
         user_projects = UserRole.objects.filter(
@@ -206,19 +271,18 @@ class ExpiringResourceProvider(BaseActionProvider):
             id__in=offering_ids, components__is_prepaid=True
         )
 
-        # Group offerings by threshold
+        # Build offering configuration map
+        offering_config = {}  # offering_id -> {'reminders': [...], 'threshold': int}
         threshold_map = {}  # days -> [offering_ids]
-        default_threshold = 30
 
         for offering in offerings:
-            threshold = offering.plugin_options.get(
-                "resource_expiration_threshold", default_threshold
-            )
-            # Ensure threshold is an integer
-            try:
-                threshold = int(threshold)
-            except (ValueError, TypeError):
-                threshold = default_threshold
+            reminders = self._get_reminder_schedule(offering)
+            threshold = max(reminders) if reminders else 30
+
+            offering_config[offering.id] = {
+                "reminders": reminders,
+                "threshold": threshold,
+            }
 
             if threshold not in threshold_map:
                 threshold_map[threshold] = []
@@ -231,27 +295,48 @@ class ExpiringResourceProvider(BaseActionProvider):
         query = Q()
         now = timezone.now()
 
-        for days, offering_ids in threshold_map.items():
+        for days, off_ids in threshold_map.items():
             cutoff = now + timedelta(days=days)
-            query |= Q(offering_id__in=offering_ids, end_date__lt=cutoff)
+            query |= Q(offering_id__in=off_ids, end_date__lte=cutoff.date())
+
+        # Get resources that have pending orders (to exclude them)
+        pending_order_states = [
+            OrderStates.PENDING_START_DATE,
+            OrderStates.PENDING_PROJECT,
+            OrderStates.PENDING_CONSUMER,
+            OrderStates.PENDING_PROVIDER,
+            OrderStates.EXECUTING,
+        ]
+        resources_with_pending_orders = models.Order.objects.filter(
+            state__in=pending_order_states,
+            resource__isnull=False,
+        ).values_list("resource_id", flat=True)
 
         # Execute optimized query
-        resources = models.Resource.objects.filter(
-            query,
-            end_date__isnull=False,
-            end_date__gt=now,
-            project_id__in=user_projects,
-            state=models.ResourceStates.OK,
-        ).distinct()
+        resources = (
+            models.Resource.objects.filter(
+                query,
+                end_date__isnull=False,
+                end_date__gt=now.date(),
+                project_id__in=user_projects,
+                state=models.ResourceStates.OK,
+            )
+            .exclude(id__in=resources_with_pending_orders)
+            .select_related("project", "project__customer", "offering")
+            .distinct()
+        )
 
         actions = []
         for resource in resources:
-            end_datetime = timezone.datetime.combine(
-                resource.end_date, timezone.datetime.min.time()
-            )
-            if timezone.is_naive(end_datetime):
-                end_datetime = timezone.make_aware(end_datetime)
-            days_remaining = (end_datetime - timezone.now()).days
+            days_remaining = (resource.end_date - now.date()).days
+
+            # Get offering-specific reminder schedule
+            off_config = offering_config.get(resource.offering_id, {})
+            reminders = off_config.get("reminders", [30, 14, 7, 1])
+
+            # Check if we're within the reminder threshold
+            if days_remaining > max(reminders):
+                continue
 
             # Create timezone-aware due_date for the action
             due_date_aware = timezone.make_aware(
@@ -260,25 +345,36 @@ class ExpiringResourceProvider(BaseActionProvider):
                 )
             )
 
+            # Generate description with next milestone info
+            active_reminders = sorted([r for r in reminders if r >= days_remaining])
+            active_reminders[0] if active_reminders else days_remaining
+
+            if days_remaining == 0:
+                description = "Resource expires today."
+            elif days_remaining == 1:
+                description = "Resource expires tomorrow."
+            else:
+                description = f"Resource will expire in {days_remaining} days."
+
             actions.append(
                 {
                     "title": f"Resource expiring: {resource.name}",
-                    "description": f"Resource will expire in {days_remaining} days.",
-                    "urgency": self.get_urgency(resource, days_remaining),
+                    "description": description,
+                    "urgency": self.get_urgency(resource, days_remaining, reminders),
                     "due_date": due_date_aware,
                     "related_object": resource,
                     # Use specific typed fields instead of metadata
                     "route_name": "marketplace-resource-details",
                     "route_params": {"resource_uuid": str(resource.uuid)},
                     "project_name": resource.project.name,
-                    "project_uuid": resource.project.uuid,
+                    "project_uuid": str(resource.project.uuid),
                     "organization_name": resource.project.customer.name,
-                    "organization_uuid": resource.project.customer.uuid,
+                    "organization_uuid": str(resource.project.customer.uuid),
                     "offering_name": resource.offering.name,
-                    "offering_uuid": resource.offering.uuid,
+                    "offering_uuid": str(resource.offering.uuid),
                     "offering_type": resource.offering.type,
                     "resource_name": resource.name,
-                    "resource_uuid": resource.uuid,
+                    "resource_uuid": str(resource.uuid),
                 }
             )
 
