@@ -2,7 +2,16 @@ from rest_framework import serializers
 
 
 class ChatRequestSerializer(serializers.Serializer):
-    input = serializers.CharField(help_text="User input text for the chat model.")
+    input = serializers.CharField(
+        required=True, help_text="User input text for the chat model."
+    )
+
+
+class ToolExecuteSerializer(serializers.Serializer):
+    tool = serializers.CharField(
+        required=True, max_length=100, help_text="Name of the tool to execute."
+    )
+    arguments = serializers.JSONField(default=dict, help_text="Tool arguments.")
 
 
 class ChatResponseSerializer(serializers.Serializer):

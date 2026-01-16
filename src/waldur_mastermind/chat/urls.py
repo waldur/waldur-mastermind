@@ -7,3 +7,8 @@ def register_in(router):
         views.ChatViewSet,
         basename="chat",
     )
+    router.register(
+        r"chat-tools",
+        views.ToolViewSet,
+        basename="chat-tools",
+    )
