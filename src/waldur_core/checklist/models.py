@@ -468,7 +468,10 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
         Returns:
             Human-readable answer data (labels for select-type questions, original data for others)
         """
-        if self.question_type not in ["single_select", "multi_select"]:
+        if self.question_type not in [
+            enums.QuestionTypes.SINGLE_SELECT,
+            enums.QuestionTypes.MULTI_SELECT,
+        ]:
             return answer_data
 
         if answer_data is None:
@@ -476,12 +479,14 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
 
         options_map = {str(opt.uuid): opt.label for opt in self.question_options.all()}
 
-        if self.question_type == "single_select":
-            if isinstance(answer_data, str):
-                return options_map.get(answer_data, answer_data)
+        if self.question_type == enums.QuestionTypes.SINGLE_SELECT:
+            # Single select is stored as a list with one element
+            if isinstance(answer_data, list) and len(answer_data) > 0:
+                uuid_val = answer_data[0]
+                return options_map.get(str(uuid_val), str(uuid_val))
             return options_map.get(str(answer_data), str(answer_data))
 
-        elif self.question_type == "multi_select":
+        elif self.question_type == enums.QuestionTypes.MULTI_SELECT:
             if not isinstance(answer_data, list):
                 return answer_data
 
