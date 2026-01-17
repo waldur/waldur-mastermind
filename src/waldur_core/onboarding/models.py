@@ -312,11 +312,12 @@ class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
         Check if a customer can be created from this verification.
 
         Validation rules:
-        - For automatic validation (validation_method is set):
+        - For automatic validation (validation_method is set AND no justification):
           * Only checks INTENT checklist completion
           * Customer checklist is bypassed (data validated by business registry)
-        - For manual validation (no validation_method):
+        - For manual validation (no validation_method OR has a justification):
           * Checks both CUSTOMER and INTENT checklist completion
+          * This includes fallback when automatic validation fails and user submits justification
 
         Returns:
             tuple: (can_create: bool, error_message: str or None)
@@ -333,8 +334,15 @@ class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
         if self.customer is not None:
             return False, "Customer already exists for this verification"
 
-        # Check checklist completion based on validation method
-        if self.validation_method:
+        # Check if there's a justification (indicates manual validation flow)
+        has_justification = self.justifications.exists()
+
+        # Determine validation flow:
+        # - Automatic validation: validation_method is set AND no justification
+        # - Manual validation: no validation_method OR has justification (fallback after automatic validation failed)
+        is_automatic_validation = self.validation_method and not has_justification
+
+        if is_automatic_validation:
             # Automatic validation: Only check INTENT checklist
             intent_completion = self.get_or_create_checklist_completion(
                 checklist_enums.ChecklistTypes.ONBOARDING_INTENT_DATA
