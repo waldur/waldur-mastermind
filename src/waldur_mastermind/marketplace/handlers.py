@@ -2387,3 +2387,45 @@ def handle_user_role_revoked(
     transaction.on_commit(
         lambda: remove_users_from_robot_accounts_on_permission_loss.delay(instance.id)
     )
+
+
+def trigger_user_action_recalculation_on_order_state_change(
+    sender, instance: Order, created=False, **kwargs
+):
+    """
+    Trigger immediate UserAction recalculation when Order state changes.
+
+    This ensures that when an order is approved, rejected, cancelled, or completed,
+    the related UserActions are immediately cleaned up for all affected users
+    rather than waiting for the next periodic update.
+    """
+    if created:
+        return
+
+    if not instance.tracker.has_changed("state"):
+        return
+
+    previous_state = instance.tracker.previous("state")
+    current_state = instance.state
+
+    # Only trigger recalculation when transitioning out of pending states
+    pending_states = (
+        OrderStates.PENDING_CONSUMER,
+        OrderStates.PENDING_PROVIDER,
+        OrderStates.PENDING_PROJECT,
+        OrderStates.PENDING_START_DATE,
+    )
+
+    if previous_state not in pending_states:
+        return
+
+    logger.info(
+        f"Order {instance.uuid} state changed from {previous_state} to {current_state}, "
+        "triggering UserAction recalculation"
+    )
+
+    # Import here to avoid circular imports
+    from waldur_core.user_actions.tasks import update_actions_for_provider
+
+    # Schedule recalculation for the pending_order provider
+    transaction.on_commit(lambda: update_actions_for_provider.delay("pending_order"))

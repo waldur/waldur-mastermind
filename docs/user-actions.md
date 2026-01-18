@@ -5,6 +5,7 @@ The User Actions system provides a framework for detecting and managing user-spe
 ## Core Features
 
 - **Action Detection**: Automated discovery of user-specific actions across applications
+- **Real-time Updates**: Immediate recalculation when orders change state or actions are executed
 - **Urgency Classification**: Three-tier urgency system (low, medium, high)
 - **Action Management**: Users can silence actions temporarily or permanently
 - **Corrective Actions**: Predefined actions users can take to resolve issues
@@ -155,6 +156,38 @@ class MyActionProvider(BaseActionProvider):
 register_provider(MyActionProvider)
 ```
 
+## Real-time Action Updates
+
+In addition to periodic updates, the system supports real-time recalculation for faster feedback:
+
+### Order State Change Triggers
+
+When an Order transitions **out of a pending state** (e.g., approved, rejected, or cancelled), the system automatically triggers recalculation of pending order actions. This ensures users see updated action lists immediately rather than waiting for the next periodic update.
+
+Pending states that trigger recalculation when exited:
+
+- `PENDING_CONSUMER`
+- `PENDING_PROVIDER`
+- `PENDING_PROJECT`
+- `PENDING_START_DATE`
+
+### Post-Execution Cleanup
+
+After a user successfully executes a corrective action, the system immediately triggers a cleanup task for that user's actions of the same type. This provides instant feedback - the action list updates right after the user takes action.
+
+### How It Works
+
+| Event | Trigger | Scope |
+|-------|---------|-------|
+| Order approved/rejected/cancelled | Signal triggers `update_actions_for_provider` | All affected users |
+| User executes corrective action | `cleanup_stale_actions` called | Executing user only |
+| Periodic task | Runs on schedule | All users |
+
+This hybrid approach balances responsiveness with efficiency:
+
+- Real-time updates for user-initiated actions
+- Periodic updates as a fallback and for detecting new conditions
+
 ## Automated Tasks
 
 Celery tasks run periodically:
@@ -162,6 +195,7 @@ Celery tasks run periodically:
 - **Action Updates**: Every 6 hours - detect new actions
 - **Cleanup**: Daily/weekly - remove expired silenced actions and old executions
 - **Notifications**: Daily at 9 AM - send action digest emails
+- **Stale Action Cleanup**: Runs after each provider update to remove outdated actions
 
 ## API Usage Examples
 
