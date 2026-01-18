@@ -112,7 +112,12 @@ def sync_resource(serialized_instance):
     name="waldur_mastermind.marketplace_site_agent.send_messages_about_pending_orders"
 )
 def send_messages_about_pending_orders():
-    """Send a message about pending orders created 1 hour ago to MQTT"""
+    """Send a message about pending orders created 1 hour ago.
+
+    Uses MessageStateTracker to skip sending if order state hasn't changed
+    since the last notification, preventing redundant messages from hourly
+    task execution.
+    """
     offering_ids = get_offering_ids_for_active_subscriptions(
         logging_utils.ObservableObjectType.ORDER.value
     )
@@ -129,12 +134,30 @@ def send_messages_about_pending_orders():
             "order_uuid": order.uuid.hex,
             "order_state": order.get_state_display(),
         }
+
+        # Check if content has changed since last send (idempotency)
+        if not logging_utils.MessageStateTracker.should_send_message(
+            order.uuid.hex,
+            logging_utils.ObservableObjectType.ORDER.value,
+            payload,
+        ):
+            logger.debug(
+                "Skipping pending order message for %s (content unchanged)", order
+            )
+            continue
+
+        # Add sequence number for consumer-side ordering
+        payload["sequence_number"] = logging_utils.get_next_sequence_number(
+            order.uuid.hex, logging_utils.ObservableObjectType.ORDER.value
+        )
+
         offering = order.offering
         messages = marketplace_utils.prepare_messages(
             offering, payload, logging_utils.ObservableObjectType.ORDER
         )
         if messages:
             logging_tasks.publish_messages.delay(messages)
+            logger.info("Sent pending order message for %s", order)
 
 
 @shared_task(

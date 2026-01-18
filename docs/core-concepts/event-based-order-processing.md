@@ -457,3 +457,123 @@ class AgentResourcePullExecutor(MarketplaceActionExecutor):
 2. **Post-Outage Recovery**: Manually trigger sync after network or service disruptions
 3. **Debugging**: Confirm that the STOMP messaging pipeline is working correctly
 4. **Data Reconciliation**: Force update when automatic sync may have missed changes
+
+## Reliability and Self-Healing Features
+
+The STOMP publishing system includes several features for improved reliability and self-healing capabilities.
+
+### Circuit Breaker Pattern
+
+A circuit breaker protects the system when RabbitMQ is unavailable:
+
+- **CLOSED**: Normal operation, messages are published
+- **OPEN**: RabbitMQ failures detected, messages are skipped to prevent cascading failures
+- **HALF_OPEN**: Testing recovery, allowing limited messages through
+
+Configuration (in `waldur_core/logging/circuit_breaker.py`):
+
+- `failure_threshold`: 5 consecutive failures to trip the circuit
+- `recovery_timeout`: 60 seconds before attempting recovery
+- `success_threshold`: 2 successful calls to close the circuit
+
+### Rate Limiting
+
+Token bucket rate limiter prevents overwhelming RabbitMQ during burst scenarios:
+
+- **Rate**: 500 messages per second
+- **Burst**: 1000 messages maximum burst size
+
+### Message Idempotency
+
+The system prevents duplicate message sends from periodic Celery beat tasks:
+
+1. **Content Hashing**: Message payloads are hashed (excluding timestamps)
+2. **State Tracking**: Last-sent hash is cached per resource/message-type
+3. **Skip Unchanged**: Messages with unchanged content are not re-sent
+4. **Sequence Numbers**: Monotonically increasing numbers enable consumer-side ordering
+
+### Message Delivery Configuration
+
+STOMP messages include headers for reliable delivery:
+
+- **Persistence**: Messages are persisted to disk (`persistent: true`)
+- **TTL**: Type-based expiration (orders: 24h, resources: 2h, etc.)
+- **Dead Letter Queue**: Failed messages routed to `waldur.dlq.messages`
+- **Queue Limits**: Maximum 10,000 messages per queue with overflow rejection
+
+### Celery Task Retry
+
+The `publish_messages` task uses Celery's built-in retry mechanism:
+
+```python
+@shared_task(
+    autoretry_for=(ConnectionError, OSError, Exception),
+    retry_backoff=True,           # Exponential backoff
+    retry_backoff_max=300,        # Max 5 minutes between retries
+    max_retries=5,
+    retry_jitter=True,            # Randomness to prevent thundering herd
+)
+def publish_messages(messages):
+    ...
+```
+
+### Monitoring and Debug API
+
+Staff-only endpoints under `/api/debug/pubsub/` provide system visibility:
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/overview/` | GET | Dashboard with health status, issues, metrics summary |
+| `/circuit_breaker/` | GET | Circuit breaker state, config, and history |
+| `/circuit_breaker_reset/` | POST | Manually reset circuit breaker to CLOSED |
+| `/metrics/` | GET | Publishing metrics (sent, failed, skipped, latency) |
+| `/metrics_reset/` | POST | Reset all metrics counters |
+| `/message_state_cache/` | GET | Idempotency cache statistics |
+| `/queues/` | GET | Subscription queue overview with top queues |
+| `/dead_letter_queue/` | GET | DLQ statistics across all vhosts |
+
+#### Example: Check system health
+
+```bash
+curl -H "Authorization: Token <staff-token>" \
+  https://api.waldur.example/api/debug/pubsub/overview/
+```
+
+Response:
+
+```json
+{
+  "health_status": "healthy",
+  "issues": [],
+  "circuit_breaker": {
+    "state": "closed",
+    "healthy": true,
+    "failure_count": 0
+  },
+  "metrics": {
+    "messages_sent": 1523,
+    "messages_failed": 2,
+    "failure_rate": "0.1%",
+    "avg_latency_ms": 12.5
+  },
+  "last_updated": "2024-01-15T10:30:00Z"
+}
+```
+
+### Health Status Indicators
+
+The overview endpoint calculates health status:
+
+- **healthy**: Circuit breaker closed and failure rate < 10%
+- **degraded**: Circuit breaker open OR failure rate > 10%
+- **critical**: Failure rate > 50%
+
+### Existing RabbitMQ Monitoring Endpoints
+
+Additional monitoring is available via:
+
+- **GET /api/rabbitmq-stats/**: Queue statistics with message counts
+- **POST /api/rabbitmq-stats/**: Purge or delete queues (staff only)
+- **GET /api/rabbitmq-overview/**: Cluster health and throughput metrics
+- **GET /api/rabbitmq-vhost-stats/**: Virtual host and subscription details
+- **GET /api/rabbitmq-user-stats/**: Connection statistics per user

@@ -746,3 +746,327 @@ class RmqOverviewSerializer(serializers.Serializer):
         read_only=True,
         help_text="Active protocol listeners",
     )
+
+
+# Pubsub Debug API Serializers
+
+
+class CircuitBreakerConfigSerializer(serializers.Serializer):
+    """Serializer for circuit breaker configuration."""
+
+    failure_threshold = serializers.IntegerField(
+        read_only=True,
+        help_text="Number of failures before opening circuit",
+    )
+    recovery_timeout = serializers.IntegerField(
+        read_only=True,
+        help_text="Seconds to wait before attempting recovery",
+    )
+    success_threshold = serializers.IntegerField(
+        read_only=True,
+        help_text="Successful calls needed in half-open state to close",
+    )
+
+
+class CircuitBreakerStateChangeSerializer(serializers.Serializer):
+    """Serializer for circuit breaker state change history."""
+
+    timestamp = serializers.FloatField(
+        read_only=True,
+        help_text="Unix timestamp of state change",
+    )
+    from_state = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Previous state",
+    )
+    to_state = serializers.CharField(
+        read_only=True,
+        help_text="New state",
+    )
+    reason = serializers.CharField(
+        read_only=True,
+        help_text="Reason for state change",
+    )
+
+
+class CircuitBreakerStatusSerializer(serializers.Serializer):
+    """Serializer for circuit breaker full status."""
+
+    state = serializers.CharField(
+        read_only=True,
+        help_text="Current state: closed, open, or half_open",
+    )
+    failure_count = serializers.IntegerField(
+        read_only=True,
+        help_text="Number of consecutive failures",
+    )
+    success_count = serializers.IntegerField(
+        read_only=True,
+        help_text="Successful calls since last state change",
+    )
+    last_failure_time = serializers.FloatField(
+        read_only=True,
+        allow_null=True,
+        help_text="Unix timestamp of last failure",
+    )
+    last_state_change = serializers.FloatField(
+        read_only=True,
+        allow_null=True,
+        help_text="Unix timestamp of last state change",
+    )
+    config = CircuitBreakerConfigSerializer(
+        read_only=True,
+        help_text="Circuit breaker configuration",
+    )
+    state_history = CircuitBreakerStateChangeSerializer(
+        many=True,
+        read_only=True,
+        help_text="Recent state transitions (last 50)",
+    )
+
+
+class CircuitBreakerResetSerializer(serializers.Serializer):
+    """Serializer for circuit breaker reset response."""
+
+    status = serializers.CharField(
+        read_only=True,
+        help_text="Operation status",
+    )
+    state = serializers.CharField(
+        read_only=True,
+        help_text="New circuit breaker state after reset",
+    )
+
+
+class PublishingMetricsSerializer(serializers.Serializer):
+    """Serializer for message publishing metrics."""
+
+    messages_sent = serializers.IntegerField(
+        read_only=True,
+        help_text="Total messages successfully sent",
+    )
+    messages_failed = serializers.IntegerField(
+        read_only=True,
+        help_text="Total failed message attempts",
+    )
+    messages_retried = serializers.IntegerField(
+        read_only=True,
+        help_text="Messages that required retry",
+    )
+    messages_skipped = serializers.IntegerField(
+        read_only=True,
+        help_text="Messages skipped due to circuit breaker",
+    )
+    circuit_breaker_trips = serializers.IntegerField(
+        read_only=True,
+        help_text="Number of times circuit breaker opened",
+    )
+    rate_limiter_rejections = serializers.IntegerField(
+        read_only=True,
+        help_text="Messages rejected by rate limiter",
+    )
+    avg_publish_time_ms = serializers.FloatField(
+        read_only=True,
+        help_text="Average message publish latency in milliseconds",
+    )
+    last_publish_time = serializers.FloatField(
+        read_only=True,
+        allow_null=True,
+        help_text="Unix timestamp of last publish attempt",
+    )
+
+
+class MetricsResetSerializer(serializers.Serializer):
+    """Serializer for metrics reset response."""
+
+    status = serializers.CharField(
+        read_only=True,
+        help_text="Operation status",
+    )
+
+
+class MessageStateCacheFilterSerializer(serializers.Serializer):
+    """Serializer for message state cache filter params."""
+
+    resource_uuid = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Filter by resource UUID",
+    )
+    message_type = serializers.CharField(
+        read_only=True,
+        allow_null=True,
+        help_text="Filter by message type",
+    )
+
+
+class MessageStateCacheSerializer(serializers.Serializer):
+    """Serializer for message state cache statistics."""
+
+    cache_ttl = serializers.IntegerField(
+        read_only=True,
+        help_text="Cache TTL in seconds",
+    )
+    description = serializers.CharField(
+        read_only=True,
+        help_text="Cache description",
+    )
+    filter = MessageStateCacheFilterSerializer(
+        read_only=True,
+        help_text="Applied filters",
+    )
+
+
+class PubsubCircuitBreakerSummarySerializer(serializers.Serializer):
+    """Serializer for circuit breaker summary in overview."""
+
+    state = serializers.CharField(
+        read_only=True,
+        help_text="Current state: closed, open, or half_open",
+    )
+    healthy = serializers.BooleanField(
+        read_only=True,
+        help_text="Whether circuit breaker is in healthy state (closed)",
+    )
+    failure_count = serializers.IntegerField(
+        read_only=True,
+        help_text="Number of consecutive failures",
+    )
+
+
+class PubsubMetricsSummarySerializer(serializers.Serializer):
+    """Serializer for metrics summary in overview."""
+
+    messages_sent = serializers.IntegerField(
+        read_only=True,
+        help_text="Total messages sent",
+    )
+    messages_failed = serializers.IntegerField(
+        read_only=True,
+        help_text="Total messages failed",
+    )
+    failure_rate = serializers.CharField(
+        read_only=True,
+        help_text="Failure rate as percentage string",
+    )
+    avg_latency_ms = serializers.FloatField(
+        read_only=True,
+        help_text="Average publish latency in milliseconds",
+    )
+
+
+class PubsubOverviewSerializer(serializers.Serializer):
+    """Serializer for pubsub system health overview."""
+
+    health_status = serializers.CharField(
+        read_only=True,
+        help_text="Overall health: healthy, degraded, or critical",
+    )
+    issues = serializers.ListField(
+        child=serializers.CharField(),
+        read_only=True,
+        help_text="List of current issues affecting health",
+    )
+    circuit_breaker = PubsubCircuitBreakerSummarySerializer(
+        read_only=True,
+        help_text="Circuit breaker summary",
+    )
+    metrics = PubsubMetricsSummarySerializer(
+        read_only=True,
+        help_text="Publishing metrics summary",
+    )
+    last_updated = serializers.DateTimeField(
+        read_only=True,
+        help_text="Timestamp when overview was generated",
+    )
+
+
+class TopQueueSerializer(serializers.Serializer):
+    """Serializer for top queue by message count."""
+
+    vhost = serializers.CharField(
+        read_only=True,
+        help_text="Virtual host name",
+    )
+    name = serializers.CharField(
+        read_only=True,
+        help_text="Queue name",
+    )
+    messages = serializers.IntegerField(
+        read_only=True,
+        help_text="Number of messages in queue",
+    )
+    consumers = serializers.IntegerField(
+        read_only=True,
+        help_text="Number of consumers attached",
+    )
+
+
+class SubscriptionQueuesOverviewSerializer(serializers.Serializer):
+    """Serializer for subscription queues overview."""
+
+    total_vhosts = serializers.IntegerField(
+        read_only=True,
+        help_text="Total number of vhosts with subscription queues",
+    )
+    total_queues = serializers.IntegerField(
+        read_only=True,
+        help_text="Total number of subscription queues",
+    )
+    total_messages = serializers.IntegerField(
+        read_only=True,
+        help_text="Total messages across all subscription queues",
+    )
+    top_queues_by_messages = TopQueueSerializer(
+        many=True,
+        read_only=True,
+        help_text="Top 10 queues by message count",
+    )
+
+
+class DLQQueueSerializer(serializers.Serializer):
+    """Serializer for dead letter queue info."""
+
+    vhost = serializers.CharField(
+        read_only=True,
+        help_text="Virtual host name",
+    )
+    queue_name = serializers.CharField(
+        read_only=True,
+        help_text="DLQ queue name",
+    )
+    messages = serializers.IntegerField(
+        read_only=True,
+        help_text="Total messages in DLQ",
+    )
+    messages_ready = serializers.IntegerField(
+        read_only=True,
+        help_text="Messages ready for delivery",
+    )
+    consumers = serializers.IntegerField(
+        read_only=True,
+        help_text="Number of consumers attached",
+    )
+
+
+class DeadLetterQueueSerializer(serializers.Serializer):
+    """Serializer for dead letter queue statistics."""
+
+    total_dlq_messages = serializers.IntegerField(
+        read_only=True,
+        help_text="Total messages across all DLQs",
+    )
+    dlq_count = serializers.IntegerField(
+        read_only=True,
+        help_text="Number of DLQ queues found",
+    )
+    dlq_queues = DLQQueueSerializer(
+        many=True,
+        read_only=True,
+        help_text="List of DLQ queues with their statistics",
+    )
+    note = serializers.CharField(
+        read_only=True,
+        help_text="Informational note about DLQs",
+    )
