@@ -82,6 +82,12 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.trigger_user_action_recalculation_on_order_state_change,
+            sender=models.Order,
+            dispatch_uid="waldur_mastermind.marketplace.trigger_user_action_recalculation_on_order_state_change",
+        )
+
+        signals.post_save.connect(
             handlers.log_resource_events,
             sender=models.Resource,
             dispatch_uid="waldur_mastermind.marketplace.log_resource_events",

@@ -190,6 +190,10 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
                 f"on {action.uuid}"
             )
 
+            # Trigger immediate cleanup of stale actions for this user
+            # This ensures the user sees updated action list immediately
+            tasks.cleanup_stale_actions.delay(request.user.id, action.action_type)
+
             response_serializer = serializers.ExecuteActionResponseSerializer(result)
             return Response(response_serializer.data)
 
