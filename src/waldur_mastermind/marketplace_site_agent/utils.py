@@ -19,6 +19,10 @@ def push_resource_update_message(resource: marketplace_models.Resource) -> None:
     - Resource UUID
     - Resource backend ID
     - State flags (downscaled, restrict_member_access, paused)
+    - Sequence number for ordering
+
+    Uses MessageStateTracker to skip sending if content hasn't changed since
+    the last send, preventing redundant messages from periodic sync tasks.
 
     Args:
         resource: Resource instance containing the updated information
@@ -29,11 +33,10 @@ def push_resource_update_message(resource: marketplace_models.Resource) -> None:
             "resource_backend_id": "slurm-123",
             "downscaled": false,
             "restrict_member_access": true,
-            "paused": false
+            "paused": false,
+            "sequence_number": 42
         }
     """
-    logger.info("Sending resource update message to topic for %s", resource)
-
     payload = {
         "resource_uuid": resource.uuid.hex,
         "resource_backend_id": resource.backend_id,
@@ -48,6 +51,24 @@ def push_resource_update_message(resource: marketplace_models.Resource) -> None:
             ]
         }
     )
+
+    # Check if content has changed since last send (idempotency)
+    if not logging_utils.MessageStateTracker.should_send_message(
+        resource.uuid.hex,
+        logging_utils.ObservableObjectType.RESOURCE.value,
+        payload,
+    ):
+        logger.debug(
+            "Skipping resource update message for %s (content unchanged)", resource
+        )
+        return
+
+    # Add sequence number for consumer-side ordering
+    payload["sequence_number"] = logging_utils.get_next_sequence_number(
+        resource.uuid.hex, logging_utils.ObservableObjectType.RESOURCE.value
+    )
+
+    logger.info("Sending resource update message to topic for %s", resource)
 
     messages = marketplace_utils.prepare_messages(
         resource.offering, payload, logging_utils.ObservableObjectType.RESOURCE

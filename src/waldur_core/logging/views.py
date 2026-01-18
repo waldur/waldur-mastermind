@@ -606,3 +606,322 @@ Requires support user permissions.""",
 
         output_serializer = serializers.RmqOverviewSerializer(instance=overview)
         return response.Response(output_serializer.data, status=status.HTTP_200_OK)
+
+
+class PubsubDebugViewSet(viewsets.ViewSet):
+    """
+    Staff-only API for monitoring and debugging the pubsub system.
+
+    Provides visibility into:
+    - Circuit breaker state and history
+    - Message publishing metrics
+    - Connection pool status (if available)
+    - Message state tracker (idempotency cache)
+    """
+
+    permission_classes = [permissions.IsAuthenticated, core_permissions.IsStaff]
+    serializer_class = (
+        serializers.PubsubOverviewSerializer
+    )  # Default for OpenAPI schema
+
+    @extend_schema(
+        summary="Get pubsub system health overview",
+        description="""Dashboard overview of pubsub system health.
+
+Combines circuit breaker state, publishing metrics, and health indicators
+into a single response suitable for monitoring dashboards.
+
+Requires staff permissions.""",
+        responses={
+            status.HTTP_200_OK: serializers.PubsubOverviewSerializer,
+        },
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def overview(self, request):
+        """Get comprehensive pubsub system health overview."""
+        from django.utils import timezone
+
+        from waldur_core.logging.circuit_breaker import stomp_circuit_breaker
+        from waldur_core.logging.utils import PublishingMetrics
+
+        # Circuit breaker status
+        cb_state = stomp_circuit_breaker.get_state()
+        cb_healthy = cb_state == "closed"
+
+        # Metrics summary
+        metrics = PublishingMetrics.get_metrics()
+
+        # Calculate health score
+        total_attempts = metrics["messages_sent"] + metrics["messages_failed"]
+        failure_rate = 0.0
+        if total_attempts > 0:
+            failure_rate = metrics["messages_failed"] / total_attempts
+
+        # Determine overall health
+        health_status = "healthy"
+        issues = []
+
+        if not cb_healthy:
+            health_status = "degraded"
+            issues.append(f"Circuit breaker is {cb_state}")
+
+        if failure_rate > 0.1:  # More than 10% failures
+            health_status = "degraded"
+            issues.append(f"High failure rate: {failure_rate:.1%}")
+
+        if failure_rate > 0.5:  # More than 50% failures
+            health_status = "critical"
+
+        return response.Response(
+            {
+                "health_status": health_status,
+                "issues": issues,
+                "circuit_breaker": {
+                    "state": cb_state,
+                    "healthy": cb_healthy,
+                    "failure_count": stomp_circuit_breaker._failure_count,
+                },
+                "metrics": {
+                    "messages_sent": metrics["messages_sent"],
+                    "messages_failed": metrics["messages_failed"],
+                    "failure_rate": f"{failure_rate:.1%}",
+                    "avg_latency_ms": metrics.get("avg_publish_time_ms", 0),
+                },
+                "last_updated": timezone.now().isoformat(),
+            }
+        )
+
+    @extend_schema(
+        summary="Get circuit breaker state",
+        description="""Get current STOMP circuit breaker state and statistics.
+
+Returns:
+- state: Current state (closed/open/half_open)
+- failure_count: Number of consecutive failures
+- success_count: Successes since last state change
+- last_failure_time: Timestamp of last failure
+- last_state_change: When state last changed
+- config: Circuit breaker configuration
+- state_history: Recent state transitions
+
+Requires staff permissions.""",
+        responses={
+            status.HTTP_200_OK: serializers.CircuitBreakerStatusSerializer,
+        },
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def circuit_breaker(self, request):
+        """Get circuit breaker state and statistics."""
+        from waldur_core.logging.circuit_breaker import stomp_circuit_breaker
+
+        return response.Response(stomp_circuit_breaker.get_status())
+
+    @extend_schema(
+        summary="Reset circuit breaker",
+        description="""Manually reset the STOMP circuit breaker to CLOSED state.
+
+Use with caution - only when RabbitMQ is confirmed healthy.
+
+Requires staff permissions.""",
+        responses={
+            status.HTTP_200_OK: serializers.CircuitBreakerResetSerializer,
+        },
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def circuit_breaker_reset(self, request):
+        """Manually reset circuit breaker to CLOSED state."""
+        from waldur_core.logging.circuit_breaker import stomp_circuit_breaker
+
+        stomp_circuit_breaker.reset()
+        return response.Response({"status": "reset", "state": "closed"})
+
+    @extend_schema(
+        summary="Get publishing metrics",
+        description="""Get message publishing metrics and statistics.
+
+Returns:
+- messages_sent: Total messages successfully sent
+- messages_failed: Total failed message attempts
+- messages_retried: Messages that required retry
+- messages_skipped: Messages skipped due to circuit breaker
+- circuit_breaker_trips: Number of times circuit opened
+- rate_limiter_rejections: Messages rejected by rate limiter
+- avg_publish_time_ms: Average publish latency
+- last_publish_time: Timestamp of last publish attempt
+
+Requires staff permissions.""",
+        responses={
+            status.HTTP_200_OK: serializers.PublishingMetricsSerializer,
+        },
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def metrics(self, request):
+        """Get publishing metrics and statistics."""
+        from waldur_core.logging.utils import PublishingMetrics
+
+        return response.Response(PublishingMetrics.get_metrics())
+
+    @extend_schema(
+        summary="Reset publishing metrics",
+        description="""Reset all publishing metrics counters to zero.
+
+Requires staff permissions.""",
+        responses={
+            status.HTTP_200_OK: serializers.MetricsResetSerializer,
+        },
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def metrics_reset(self, request):
+        """Reset all metrics counters to zero."""
+        from waldur_core.logging.utils import PublishingMetrics
+
+        PublishingMetrics.reset()
+        return response.Response({"status": "reset"})
+
+    @extend_schema(
+        summary="Get message state cache statistics",
+        description="""Get message state tracker cache statistics for idempotency.
+
+The message state tracker prevents duplicate message sends by caching
+the hash of message content. This endpoint provides cache statistics.
+
+Query params:
+- resource_uuid: Filter by specific resource
+- message_type: Filter by message type
+
+Requires staff permissions.""",
+        responses={
+            status.HTTP_200_OK: serializers.MessageStateCacheSerializer,
+        },
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def message_state_cache(self, request):
+        """Get message state cache statistics."""
+        from waldur_core.logging.utils import MessageStateTracker
+
+        resource_uuid = request.query_params.get("resource_uuid")
+        message_type = request.query_params.get("message_type")
+
+        stats = MessageStateTracker.get_cache_stats(
+            resource_uuid=resource_uuid, message_type=message_type
+        )
+        return response.Response(stats)
+
+    @extend_schema(
+        summary="Get subscription queues overview",
+        description="""Get overview of subscription queues from RabbitMQ.
+
+Returns summary of subscription queues across all vhosts including
+message counts and queue statistics.
+
+Note: For detailed queue management, use /api/rabbitmq-stats/ endpoint.
+
+Requires staff permissions.""",
+        responses={
+            status.HTTP_200_OK: serializers.SubscriptionQueuesOverviewSerializer,
+            status.HTTP_503_SERVICE_UNAVAILABLE: serializers.RmqStatsErrorSerializer,
+        },
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def queues(self, request):
+        """Get subscription queues overview."""
+        rmq_backend = backend.RabbitMQManagementBackend()
+
+        try:
+            vhost_stats = rmq_backend.list_all_subscription_queues()
+        except Exception as e:
+            logger.exception("Failed to get subscription queues: %s", e)
+            return response.Response(
+                {"error": "Failed to retrieve subscription queue statistics"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        # Calculate totals
+        total_queues = sum(len(v["queues"]) for v in vhost_stats)
+        total_messages = sum(v["total_messages"] for v in vhost_stats)
+
+        # Get top queues by message count
+        all_queues = []
+        for vhost_data in vhost_stats:
+            for queue in vhost_data["queues"]:
+                all_queues.append(
+                    {
+                        "vhost": vhost_data["vhost"],
+                        "name": queue["name"],
+                        "messages": queue.get("messages", 0),
+                        "consumers": queue.get("consumers", 0),
+                    }
+                )
+        top_queues = sorted(all_queues, key=lambda x: x["messages"], reverse=True)[:10]
+
+        return response.Response(
+            {
+                "total_vhosts": len(vhost_stats),
+                "total_queues": total_queues,
+                "total_messages": total_messages,
+                "top_queues_by_messages": top_queues,
+            }
+        )
+
+    @extend_schema(
+        summary="Get dead letter queue status",
+        description="""Get dead letter queue (DLQ) statistics.
+
+The DLQ receives messages that failed to be delivered to their original
+destination. This endpoint shows the current DLQ status.
+
+Note: DLQ is configured per-vhost. This endpoint checks all vhosts
+for queues with 'dlq' in the name.
+
+Requires staff permissions.""",
+        responses={
+            status.HTTP_200_OK: serializers.DeadLetterQueueSerializer,
+            status.HTTP_503_SERVICE_UNAVAILABLE: serializers.RmqStatsErrorSerializer,
+        },
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def dead_letter_queue(self, request):
+        """Get dead letter queue statistics."""
+        rmq_backend = backend.RabbitMQManagementBackend()
+
+        try:
+            vhosts = rmq_backend.list_rabbitmq_virtual_hosts()
+        except Exception as e:
+            logger.exception("Failed to list vhosts: %s", e)
+            return response.Response(
+                {"error": "Failed to retrieve vhost list"},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        dlq_stats = []
+        total_dlq_messages = 0
+
+        for vhost in vhosts:
+            try:
+                queues = rmq_backend.list_queues(vhost)
+                # Find DLQ queues
+                for queue in queues:
+                    if "dlq" in queue["name"].lower():
+                        msg_count = queue.get("messages", 0)
+                        total_dlq_messages += msg_count
+                        dlq_stats.append(
+                            {
+                                "vhost": vhost,
+                                "queue_name": queue["name"],
+                                "messages": msg_count,
+                                "messages_ready": queue.get("messages_ready", 0),
+                                "consumers": queue.get("consumers", 0),
+                            }
+                        )
+            except Exception as e:
+                logger.warning("Failed to list queues for vhost %s: %s", vhost, e)
+                continue
+
+        return response.Response(
+            {
+                "total_dlq_messages": total_dlq_messages,
+                "dlq_count": len(dlq_stats),
+                "dlq_queues": dlq_stats,
+                "note": "DLQ queues contain messages that failed delivery",
+            }
+        )

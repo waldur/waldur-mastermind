@@ -115,16 +115,54 @@ def delete_stale_event_subscriptions():
     removed_subscriptions.delete()
 
 
-@shared_task(name="waldur_core.logging.tasks.publish_messages")
-def publish_messages(messages: list[dict[str, str]]) -> None:
+@shared_task(
+    name="waldur_core.logging.tasks.publish_messages",
+    bind=True,
+    autoretry_for=(ConnectionError, OSError, Exception),
+    retry_backoff=True,
+    retry_backoff_max=300,  # Max 5 minutes between retries
+    max_retries=5,
+    retry_jitter=True,  # Add randomness to prevent thundering herd
+)
+def publish_messages(self, messages: list[dict[str, str]]) -> dict:
+    """Publish messages to MQTT and STOMP message queues.
+
+    Uses Celery's built-in retry mechanism with exponential backoff.
+    Returns statistics about successful and failed message delivery.
+    """
+    results = {
+        "mqtt": {"sent": 0, "failed": 0},
+        "stomp": {"sent": 0, "failed": 0},
+        "retry_count": self.request.retries,
+    }
+
+    # MQTT publishing (deprecated, kept for backward compatibility)
     try:
         utils.publish_mqtt_messages(messages)
+        results["mqtt"]["sent"] = len(messages)
     except Exception as e:
         logger.error("Error publishing MQTT messages: %s", e)
+        results["mqtt"]["failed"] = len(messages)
+
+    # STOMP publishing (primary protocol)
     try:
-        utils.publish_stomp_messages(messages)
+        successful, failed = utils.publish_stomp_messages(messages)
+        results["stomp"]["sent"] = successful
+        results["stomp"]["failed"] = failed
+
+        # If all STOMP messages failed and circuit breaker is not open,
+        # raise exception to trigger retry
+        if failed > 0 and successful == 0:
+            from waldur_core.logging.circuit_breaker import stomp_circuit_breaker
+
+            if not stomp_circuit_breaker.is_open():
+                raise ConnectionError(f"All {failed} STOMP messages failed to publish")
     except Exception as e:
         logger.error("Error publishing STOMP messages: %s", e)
+        results["stomp"]["failed"] = len(messages)
+        raise  # Re-raise to trigger Celery retry
+
+    return results
 
 
 @shared_task(name="waldur_core.logging.delete_dangling_event_subscriptions")
