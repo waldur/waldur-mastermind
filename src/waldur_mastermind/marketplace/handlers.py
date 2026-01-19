@@ -2191,6 +2191,8 @@ def send_offering_user_updated_message(
     sender, instance: models.OfferingUser, created=False, **kwargs
 ):
     """Send OfferingUser update message to message queue for external systems."""
+    if get_skip_side_effects():
+        return
     if created:
         return
 
@@ -2223,6 +2225,8 @@ def send_offering_user_updated_message(
 
 def send_offering_user_deleted_message(sender, instance: models.OfferingUser, **kwargs):
     """Send OfferingUser deletion message to message queue for external systems."""
+    if get_skip_side_effects():
+        return
     offering_user = instance
     offering = offering_user.offering
 
