@@ -2,6 +2,8 @@ import logging
 
 from django.contrib.contenttypes.models import ContentType
 
+from waldur_core.core.middleware import get_skip_side_effects
+
 from .tasks import cleanup_actions_for_deleted_object
 
 logger = logging.getLogger(__name__)
@@ -22,6 +24,8 @@ def schedule_cleanup_for_deleted_object(sender, instance, **kwargs):
         dispatch_uid="cleanup_user_actions_for_your_model"
     )
     """
+    if get_skip_side_effects():
+        return
     try:
         content_type = ContentType.objects.get_for_model(sender)
         cleanup_actions_for_deleted_object.delay(content_type.id, instance.pk)

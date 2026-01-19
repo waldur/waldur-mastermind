@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 def send_done_order_to_message_queue(sender, instance: Order, created=False, **kwargs):
     """Send completed marketplace order to message queue for site agent processing."""
+    if get_skip_side_effects():
+        return
     order = instance
     if created:
         return
@@ -77,6 +79,8 @@ def send_pending_order_to_message_queue(
 def send_offering_user_username_message(
     sender, instance: OfferingUser, created=False, **kwargs
 ):
+    if get_skip_side_effects():
+        return
     offering_user = instance
     offering = offering_user.offering
     if offering.type != SITE_AGENT_OFFERING:
@@ -105,6 +109,8 @@ def send_offering_user_username_message(
 
 
 def process_role_changed(permission: permission_models.UserRole, granted: bool):
+    if get_skip_side_effects():
+        return
     if not isinstance(permission.scope, structure_models.Project):
         return
 
@@ -163,6 +169,8 @@ def send_role_granted_message_to_queue(
 def send_resource_update_message_to_queue(
     sender, instance: marketplace_models.Resource, created=False, **kwargs
 ):
+    if get_skip_side_effects():
+        return
     if created:
         return
 
@@ -184,6 +192,8 @@ def send_account_message(
     | marketplace_models.CourseAccount,
     created=True,
 ):
+    if get_skip_side_effects():
+        return
     action = "create" if created else "delete"
     project = account.project
     username = ""
