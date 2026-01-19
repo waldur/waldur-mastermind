@@ -17,17 +17,6 @@ def get_score(num, den):
     return round(100 * num / max(1, den), 2)
 
 
-class CategoriesView(core_views.ActionsViewSet):
-    queryset = models.Category.objects.all()
-    serializer_class = serializers.ChecklistCategorySerializer
-    lookup_field = "uuid"
-    filter_backends = [
-        DjangoFilterBackend,
-        structure_filters.GenericRoleFilter,
-    ]
-    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
-
-
 class ChecklistAdminView(core_views.ActionsViewSet):
     queryset = models.Checklist.objects.all().order_by("-created")
     serializer_class = serializers.ChecklistSerializer

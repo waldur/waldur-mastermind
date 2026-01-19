@@ -7,15 +7,6 @@ from waldur_core.structure.tests import factories as structure_factories
 from .. import enums, models
 
 
-class CategoryFactory(
-    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Category]
-):
-    class Meta:
-        model = models.Category
-
-    name = factory.Sequence(lambda n: "category-%s" % n)
-
-
 class ChecklistFactory(
     factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Checklist]
 ):
@@ -23,7 +14,6 @@ class ChecklistFactory(
         model = models.Checklist
 
     name = factory.Sequence(lambda n: "checklist-%s" % n)
-    category = factory.SubFactory(CategoryFactory)
 
     @classmethod
     def get_url(cls, checklist=None):

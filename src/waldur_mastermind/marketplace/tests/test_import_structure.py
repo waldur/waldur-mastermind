@@ -1639,9 +1639,6 @@ class ImportStructureCommandTest(TestCase):
     def test_checklist_basic_import_functionality(self):
         """Test that checklist categories and checklists can be imported."""
         from waldur_core.checklist.models import (
-            Category as ChecklistCategory,
-        )
-        from waldur_core.checklist.models import (
             Checklist,
         )
 
@@ -1692,20 +1689,13 @@ class ImportStructureCommandTest(TestCase):
         self._call_import_command("-i", self.test_file_path)
 
         # Verify checklist objects were created
-        self.assertEqual(ChecklistCategory.objects.count(), 1)
         self.assertEqual(Checklist.objects.count(), 1)
 
         # Verify the imported data
-        imported_category = ChecklistCategory.objects.get(
-            uuid="11111111-1111-1111-1111-111111111111"
-        )
-        self.assertEqual(imported_category.name, "Test Category")
-
         imported_checklist = Checklist.objects.get(
             uuid="22222222-2222-2222-2222-222222222222"
         )
         self.assertEqual(imported_checklist.name, "Test Checklist")
-        self.assertEqual(imported_checklist.category, imported_category)
         self.assertEqual(imported_checklist.checklist_type, "project_compliance")
 
     def test_enhanced_user_fields_import_export(self):

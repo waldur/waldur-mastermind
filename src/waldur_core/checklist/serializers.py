@@ -6,35 +6,10 @@ from waldur_core.core import serializers as core_serializers
 from . import enums, models, utils
 
 
-class ChecklistCategorySerializer(serializers.HyperlinkedModelSerializer):
-    checklists_count = serializers.IntegerField(
-        source="checklists.count", read_only=True
-    )
-
-    class Meta:
-        model = models.Category
-        fields = ("uuid", "icon", "url", "name", "description", "checklists_count")
-        extra_kwargs = {
-            "url": {
-                "lookup_field": "uuid",
-                "view_name": "checklists-admin-categories-detail",
-            },
-        }
-
-
 class ChecklistSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
     questions_count = serializers.IntegerField(source="questions.count", read_only=True)
-    category_name = serializers.ReadOnlyField(source="category.name")
-    category_uuid = serializers.UUIDField(source="category.uuid", read_only=True)
-    category = serializers.SlugRelatedField(
-        slug_field="uuid",
-        queryset=models.Category.objects.all(),
-        required=False,
-        allow_null=True,
-        help_text="Category of the checklist",
-    )
 
     class Meta:
         model = models.Checklist
@@ -46,9 +21,6 @@ class ChecklistSerializer(
             "description",
             "checklist_type",
             "questions_count",
-            "category_name",
-            "category_uuid",
-            "category",
         ]
 
         extra_kwargs = {
@@ -56,6 +28,26 @@ class ChecklistSerializer(
                 "lookup_field": "uuid",
             },
         }
+
+    def validate_checklist_type(self, value):
+        """
+        Validate that only one checklist of type ONBOARDING_CUSTOMER_DATA or
+        ONBOARDING_INTENT_DATA can exist in the database.
+        """
+        # Only validate for onboarding checklist types
+        if value in [
+            enums.ChecklistTypes.ONBOARDING_CUSTOMER_DATA,
+            enums.ChecklistTypes.ONBOARDING_INTENT_DATA,
+        ]:
+            queryset = models.Checklist.objects.filter(checklist_type=value)
+
+            if not self.instance and queryset.exists():
+                raise serializers.ValidationError(
+                    f"'{value}' type checklist already exists. "
+                    f"Please either update the existing checklist or remove to create a new one."
+                )
+
+        return value
 
 
 class QuestionOptionsSerializer(

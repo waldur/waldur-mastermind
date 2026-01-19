@@ -26,14 +26,10 @@ class QuestionAdmin(admin.ModelAdmin):
     ordering = ("checklist", "order")
 
 
-class CategoryAdmin(admin.ModelAdmin):
-    fields = ("icon", "name", "description")
-
-
 class ChecklistAdmin(admin.ModelAdmin):
-    list_display = ("name", "description", "category", "checklist_type", "uuid")
-    list_filter = ("category", "checklist_type")
-    fields = ("name", "description", "category", "checklist_type")
+    list_display = ("name", "description", "checklist_type", "uuid")
+    list_filter = ("checklist_type",)
+    fields = ("name", "description", "checklist_type")
 
 
 class QuestionDependencyAdmin(admin.ModelAdmin):
@@ -61,7 +57,6 @@ class AnswerAdmin(admin.ModelAdmin):
 
 
 admin.site.register(models.Checklist, ChecklistAdmin)
-admin.site.register(models.Category, CategoryAdmin)
 admin.site.register(models.Question, QuestionAdmin)
 admin.site.register(models.QuestionOption)
 admin.site.register(models.QuestionDependency, QuestionDependencyAdmin)

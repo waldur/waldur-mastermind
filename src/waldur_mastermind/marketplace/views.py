@@ -1269,7 +1269,6 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
                 offerings__customer=service_provider.customer,
                 offerings__compliance_checklist__isnull=False,
             )
-            .select_related("category")
             .prefetch_related("questions")
             .annotate(
                 offerings_count=Count("offerings", distinct=True),
@@ -1289,9 +1288,6 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
                     "checklist_name": checklist.name,
                     "questions_count": checklist.questions_count,
                     "offerings_count": checklist.offerings_count,
-                    "category_name": checklist.category.name
-                    if checklist.category
-                    else None,
                 }
                 for checklist in page
             ]
@@ -1308,9 +1304,6 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
                 "checklist_name": checklist.name,
                 "questions_count": checklist.questions_count,
                 "offerings_count": checklist.offerings_count,
-                "category_name": checklist.category.name
-                if checklist.category
-                else None,
             }
             for checklist in checklists_queryset
         ]

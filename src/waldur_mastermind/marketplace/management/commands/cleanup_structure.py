@@ -8,9 +8,6 @@ from waldur_core.checklist.models import (
     ChecklistCompletion,
     Question,
 )
-from waldur_core.checklist.models import (
-    Category as ChecklistCategory,
-)
 from waldur_core.core.middleware import skip_side_effects
 from waldur_core.core.models import User
 from waldur_core.logging.models import Event, Feed
@@ -87,7 +84,6 @@ class Command(BaseCommand):
             "checklist_completions": {"deleted": 0, "errors": 0},
             "questions": {"deleted": 0, "errors": 0},
             "checklists": {"deleted": 0, "errors": 0},
-            "checklist_categories": {"deleted": 0, "errors": 0},
             "offering_users": {"deleted": 0, "errors": 0},
             "invoice_items": {"deleted": 0, "errors": 0},
             "invoices": {"deleted": 0, "errors": 0},
@@ -219,12 +215,11 @@ class Command(BaseCommand):
             # Delete offering users
             self.cleanup_offering_users()
 
-            # Delete checklist data (answers -> completions -> questions -> checklists -> categories)
+            # Delete checklist data (answers -> completions -> questions -> checklists)
             self.cleanup_answers()
             self.cleanup_checklist_completions()
             self.cleanup_questions()
             self.cleanup_checklists()
-            self.cleanup_checklist_categories()
 
             # Delete proposal/call management data (reverse dependency order)
             # reviews -> requested_resources -> proposals -> call_resource_templates -> rounds -> requested_offerings -> calls -> call_managing_organisations
@@ -312,7 +307,6 @@ class Command(BaseCommand):
             ("checklist_completions", "checklist_checklistcompletion"),
             ("questions", "checklist_question"),
             ("checklists", "checklist_checklist"),
-            ("checklist_categories", "checklist_category"),
             # Proposal/call management (reverse dependency order)
             ("reviews", "proposal_review"),
             ("requested_resources", "proposal_requestedresource"),
@@ -897,24 +891,6 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.WARNING(f"Failed to delete checklists: {e}"))
             self.stats["checklists"]["errors"] += 1
-
-    def cleanup_checklist_categories(self):
-        """Delete all checklist category data."""
-        self.stdout.write("Deleting checklist categories...")
-        try:
-            if not self.dry_run:
-                count = ChecklistCategory.objects.count()
-                ChecklistCategory.objects.all().delete()
-                self.stats["checklist_categories"]["deleted"] = count
-            else:
-                self.stats["checklist_categories"]["deleted"] = (
-                    ChecklistCategory.objects.count()
-                )
-        except Exception as e:
-            self.stdout.write(
-                self.style.WARNING(f"Failed to delete checklist categories: {e}")
-            )
-            self.stats["checklist_categories"]["errors"] += 1
 
     def cleanup_permission_requests(self):
         """Delete all permission request data."""

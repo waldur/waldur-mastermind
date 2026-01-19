@@ -12,33 +12,8 @@ from model_utils.models import TimeStampedModel
 from waldur_core.core import models as core_models
 from waldur_core.media import models as media_models
 from waldur_core.media import utils as media_utils
-from waldur_core.media.validators import ImageValidator
 
 from . import enums, utils
-
-
-class Category(
-    core_models.UuidMixin,
-    core_models.NameMixin,
-    core_models.DescribableMixin,
-):
-    """Groups checklists by category with icon support for UI display."""
-
-    checklists: models.Manager["Checklist"]
-
-    icon = models.FileField(
-        upload_to="checklist_category_icons",
-        blank=True,
-        null=True,
-        validators=[ImageValidator],
-    )
-
-    def __str__(self):
-        return self.name
-
-    class Meta:
-        ordering = ("name",)
-        verbose_name_plural = "Categories"
 
 
 class Checklist(
@@ -51,13 +26,6 @@ class Checklist(
 
     questions: models.Manager["Question"]
 
-    category = models.ForeignKey(
-        to=Category,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="checklists",
-    )
     checklist_type = models.CharField(
         max_length=20,
         choices=enums.ChecklistTypes.CHOICES,
