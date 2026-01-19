@@ -293,6 +293,12 @@ class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
                 # Only process intent fields (not customer fields)
                 if metadata.intent_field and not metadata.maps_to_customer_field:
                     display_value = question.get_answer_display(answer_value)
+
+                    # Format multi-select answers with quotes and proper spacing
+                    if isinstance(display_value, list):
+                        # Convert list to formatted string: "Option 1", "Option 2", "Option 3"
+                        display_value = ", ".join(f'"{item}"' for item in display_value)
+
                     metadata_display[metadata.intent_field] = display_value
 
         return metadata_display

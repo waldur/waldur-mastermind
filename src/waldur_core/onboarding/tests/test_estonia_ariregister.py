@@ -779,9 +779,10 @@ class EstonianAriregisterAPITest(APITestCase):
         self._assert_verification_status(verification, "verified")
 
         self.assertIn("intent", verification["onboarding_metadata"])
+        expected_intent = f'"{opt1.label}", "{opt3.label}"'
         self.assertEqual(
-            set(verification["onboarding_metadata"]["intent"]),
-            {str(opt1.label), str(opt3.label)},
+            verification["onboarding_metadata"]["intent"],
+            expected_intent,
         )
         self.assertNotIn("intent", verification["verified_company_data"])
 
