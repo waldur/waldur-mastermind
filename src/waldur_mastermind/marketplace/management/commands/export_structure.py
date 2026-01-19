@@ -14,9 +14,6 @@ from waldur_core.checklist.models import (
     QuestionDependency,
     QuestionOption,
 )
-from waldur_core.checklist.models import (
-    Category as ChecklistCategory,
-)
 from waldur_core.core.models import User
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.models import Customer, Project, UserAgreement
@@ -197,9 +194,6 @@ class Command(BaseCommand):
                 "offering_users", self.export_offering_users
             ),
             # Checklist exports
-            "checklist_categories": self.log_export_step(
-                "checklist_categories", self.export_checklist_categories
-            ),
             "checklists": self.log_export_step("checklists", self.export_checklists),
             "questions": self.log_export_step("questions", self.export_questions),
             "question_options": self.log_export_step(
@@ -1148,23 +1142,10 @@ class Command(BaseCommand):
             )
         return offering_users
 
-    def export_checklist_categories(self):
-        """Export checklist category data."""
-        categories = []
-        for category in ChecklistCategory.objects.all().order_by("name"):
-            categories.append(
-                {
-                    "uuid": category.uuid.hex,
-                    "name": category.name,
-                    "description": category.description,
-                }
-            )
-        return categories
-
     def export_checklists(self):
         """Export checklist data."""
         checklists = []
-        for checklist in Checklist.objects.select_related("category").order_by("name"):
+        for checklist in Checklist.objects.order_by("name"):
             checklist_data = {
                 "uuid": checklist.uuid.hex,
                 "name": checklist.name,
@@ -1175,9 +1156,6 @@ class Command(BaseCommand):
                 if checklist.modified
                 else None,
             }
-
-            if checklist.category:
-                checklist_data["category_uuid"] = checklist.category.uuid.hex
 
             checklists.append(checklist_data)
         return checklists

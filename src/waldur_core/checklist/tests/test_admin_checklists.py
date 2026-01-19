@@ -49,6 +49,35 @@ class ChecklistAdminCreateTest(test.APITransactionTestCase):
         response = self.client.post(self.url, self._get_payload())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertTrue(models.Checklist.objects.filter(name="my_checklist").exists())
+        # attempt to create another checklist with the same type
+        payload = self._get_payload()
+        payload["name"] = "my_checklist_2"
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(models.Checklist.objects.filter(name="my_checklist").exists())
+
+    @data("staff")
+    def test_user_cannot_create_multiple_checklists_with_onboarding_type(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        # Create the first checklist with onboarding type
+        payload = {
+            "name": "onboarding_checklist_1",
+            "checklist_type": enums.ChecklistTypes.ONBOARDING_CUSTOMER_DATA,
+        }
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            models.Checklist.objects.filter(name="onboarding_checklist_1").exists()
+        )
+
+        # Attempt to create a second checklist with onboarding type
+        payload["name"] = "onboarding_checklist_2"
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            models.Checklist.objects.filter(name="onboarding_checklist_2").exists()
+        )
 
     @data("owner")
     def test_user_cannot_create_checklist(self, user):

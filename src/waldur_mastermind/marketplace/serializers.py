@@ -760,7 +760,6 @@ class ServiceProviderChecklistSummarySerializer(serializers.Serializer):
     checklist_name = serializers.CharField(read_only=True)
     questions_count = serializers.IntegerField(read_only=True)
     offerings_count = serializers.IntegerField(read_only=True)
-    category_name = serializers.CharField(read_only=True, allow_null=True)
 
 
 class ServiceProviderOfferingUserComplianceSerializer(serializers.ModelSerializer):

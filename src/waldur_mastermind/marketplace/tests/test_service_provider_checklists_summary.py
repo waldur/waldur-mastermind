@@ -24,22 +24,15 @@ class ServiceProviderChecklistsSummaryTest(test.APITransactionTestCase):
             PermissionEnum.LIST_SERVICE_PROVIDER_CUSTOMERS
         )
 
-        # Create categories for checklists
-        self.category1 = checklist_factories.CategoryFactory(name="Security")
-        self.category2 = checklist_factories.CategoryFactory(name="Privacy")
-
         # Create compliance checklists with questions
         self.checklist1 = checklist_factories.ChecklistFactory(
             name="Security Compliance Checklist",
-            category=self.category1,
         )
         self.checklist2 = checklist_factories.ChecklistFactory(
             name="Data Protection Checklist",
-            category=self.category2,
         )
         self.checklist3 = checklist_factories.ChecklistFactory(
             name="Unused Checklist",
-            category=self.category1,
         )
 
         # Create questions for checklists to test questions_count
@@ -109,14 +102,12 @@ class ServiceProviderChecklistsSummaryTest(test.APITransactionTestCase):
         )
         self.assertEqual(checklist1_data["questions_count"], 5)
         self.assertEqual(checklist1_data["offerings_count"], 2)
-        self.assertEqual(checklist1_data["category_name"], "Security")
 
         # Check checklist2 data (used by 1 offering)
         checklist2_data = checklist_data[str(self.checklist2.uuid)]
         self.assertEqual(checklist2_data["checklist_name"], "Data Protection Checklist")
         self.assertEqual(checklist2_data["questions_count"], 3)
         self.assertEqual(checklist2_data["offerings_count"], 1)
-        self.assertEqual(checklist2_data["category_name"], "Privacy")
 
         # Unused checklist should not appear
         self.assertNotIn(str(self.checklist3.uuid), checklist_data)
@@ -156,47 +147,6 @@ class ServiceProviderChecklistsSummaryTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
 
-    def test_checklists_summary_checklist_without_category(self):
-        """Test summary for checklist without category."""
-        # Create checklist without category
-        checklist_no_category = checklist_factories.ChecklistFactory(
-            name="No Category Checklist",
-            category=None,
-        )
-        checklist_factories.QuestionFactory(
-            checklist=checklist_no_category,
-            description="Question without category",
-        )
-
-        # Create offering with this checklist
-        factories.OfferingFactory(
-            customer=self.fixture.customer,
-            name="Offering No Category",
-            compliance_checklist=checklist_no_category,
-        )
-
-        self.client.force_authenticate(user=self.fixture.owner)
-        url = factories.ServiceProviderFactory.get_compliance_url(
-            self.service_provider, "checklists-summary"
-        )
-
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        # Find the checklist without category
-        no_category_data = next(
-            (
-                item
-                for item in response.data
-                if item["checklist_uuid"] == str(checklist_no_category.uuid)
-            ),
-            None,
-        )
-        self.assertIsNotNone(no_category_data)
-        self.assertIsNone(no_category_data["category_name"])
-        self.assertEqual(no_category_data["questions_count"], 1)
-
     def test_checklists_summary_pagination(self):
         """Test pagination functionality for checklists summary."""
         # Create multiple checklists (more than default page size)
@@ -204,7 +154,6 @@ class ServiceProviderChecklistsSummaryTest(test.APITransactionTestCase):
         for i in range(15):  # Create 15 checklists
             checklist = checklist_factories.ChecklistFactory(
                 name=f"Checklist {i:02d}",
-                category=self.category1,
             )
             checklist_factories.QuestionFactory(
                 checklist=checklist,
@@ -267,7 +216,6 @@ class ServiceProviderChecklistsSummaryTest(test.APITransactionTestCase):
         # Create checklists with different usage counts
         checklist_low = checklist_factories.ChecklistFactory(
             name="Low Usage Checklist",
-            category=self.category1,
         )
         checklist_factories.QuestionFactory(checklist=checklist_low)
         factories.OfferingFactory(
@@ -277,7 +225,6 @@ class ServiceProviderChecklistsSummaryTest(test.APITransactionTestCase):
 
         checklist_high = checklist_factories.ChecklistFactory(
             name="High Usage Checklist",
-            category=self.category1,
         )
         checklist_factories.QuestionFactory(checklist=checklist_high)
         for i in range(5):  # 5 offerings
@@ -288,7 +235,6 @@ class ServiceProviderChecklistsSummaryTest(test.APITransactionTestCase):
 
         checklist_medium = checklist_factories.ChecklistFactory(
             name="Medium Usage Checklist",
-            category=self.category1,
         )
         checklist_factories.QuestionFactory(checklist=checklist_medium)
         for i in range(3):  # 3 offerings
@@ -413,17 +359,12 @@ class ServiceProviderChecklistsSummaryTest(test.APITransactionTestCase):
             self.assertIn("checklist_name", item)
             self.assertIn("questions_count", item)
             self.assertIn("offerings_count", item)
-            self.assertIn("category_name", item)
 
             # Type validation
             self.assertIsInstance(item["checklist_uuid"], str)
             self.assertIsInstance(item["checklist_name"], str)
             self.assertIsInstance(item["questions_count"], int)
             self.assertIsInstance(item["offerings_count"], int)
-            # category_name can be string or None
-            self.assertTrue(
-                item["category_name"] is None or isinstance(item["category_name"], str)
-            )
 
             # Value validation
             self.assertGreater(item["questions_count"], 0)
@@ -436,7 +377,6 @@ class ServiceProviderChecklistsSummaryTest(test.APITransactionTestCase):
         for i in range(5):
             checklist = checklist_factories.ChecklistFactory(
                 name=f"Performance Test Checklist {i}",
-                category=self.category1,
             )
             # Add varying number of questions
             for j in range(i + 1):

@@ -22,11 +22,6 @@ def register_in(router):
         views.QuestionDependencyViewSet,
         basename="checklists-admin-question-dependencies",
     )
-    router.register(
-        r"checklists-admin-categories",
-        views.CategoriesView,
-        basename="checklists-admin-categories",
-    )
 
 
 urlpatterns = []

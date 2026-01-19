@@ -18,9 +18,6 @@ from waldur_core.checklist.models import (
     QuestionDependency,
     QuestionOption,
 )
-from waldur_core.checklist.models import (
-    Category as ChecklistCategory,
-)
 from waldur_core.core.middleware import skip_side_effects
 from waldur_core.core.models import SshPublicKey, User
 from waldur_core.core.serializers import ConstanceSettingsSerializer
@@ -168,12 +165,6 @@ class Command(BaseCommand):
             "invoices": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "invoice_items": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "offering_users": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
-            "checklist_categories": {
-                "created": 0,
-                "updated": 0,
-                "skipped": 0,
-                "errors": 0,
-            },
             "checklists": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "questions": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "question_options": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
@@ -569,13 +560,7 @@ class Command(BaseCommand):
             )
 
         # Import checklist data BEFORE calls (calls may reference compliance checklists)
-        # Dependency order: categories -> checklists -> questions -> options -> dependencies
-        self._safe_import(
-            "checklist_categories",
-            lambda: self.import_checklist_categories(
-                data.get("checklist_categories", [])
-            ),
-        )
+        # Dependency order: checklists -> questions -> options -> dependencies
         self._safe_import(
             "checklists", lambda: self.import_checklists(data.get("checklists", []))
         )
@@ -732,13 +717,7 @@ class Command(BaseCommand):
             lambda: self.import_offering_users(data.get("offering_users", [])),
         )
 
-        # Import checklist data (dependency order: categories -> checklists -> questions -> completions -> answers)
-        self._safe_import(
-            "checklist_categories",
-            lambda: self.import_checklist_categories(
-                data.get("checklist_categories", [])
-            ),
-        )
+        # Import checklist data (dependency order: checklists -> questions -> completions -> answers)
         self._safe_import(
             "checklists", lambda: self.import_checklists(data.get("checklists", []))
         )
@@ -3663,63 +3642,6 @@ class Command(BaseCommand):
                 )
                 self.stats["offering_users"]["errors"] += 1
 
-    def import_checklist_categories(self, categories_data):
-        """Import checklist category data."""
-        self.stdout.write("Importing checklist categories...")
-
-        for category_data in categories_data:
-            try:
-                uuid = category_data.get("uuid")
-                name = category_data.get("name")
-
-                if not uuid or not name:
-                    self.stdout.write(
-                        self.style.WARNING(
-                            "Skipping checklist category without UUID or name"
-                        )
-                    )
-                    self.stats["checklist_categories"]["errors"] += 1
-                    continue
-
-                defaults = {
-                    "name": name,
-                    "description": category_data.get("description", ""),
-                }
-
-                if not self.dry_run:
-                    existing_category = ChecklistCategory.objects.filter(
-                        uuid=uuid
-                    ).first()
-
-                    if existing_category:
-                        if self.update_existing:
-                            ChecklistCategory.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
-                            self.stats["checklist_categories"]["updated"] += 1
-                        else:
-                            self.stats["checklist_categories"]["skipped"] += 1
-                    else:
-                        ChecklistCategory.objects.create(uuid=UUID(uuid), **defaults)
-                        self.stats["checklist_categories"]["created"] += 1
-                else:
-                    existing = ChecklistCategory.objects.filter(uuid=uuid).exists()
-                    if existing:
-                        if self.update_existing:
-                            self.stats["checklist_categories"]["updated"] += 1
-                        else:
-                            self.stats["checklist_categories"]["skipped"] += 1
-                    else:
-                        self.stats["checklist_categories"]["created"] += 1
-
-            except Exception as e:
-                self.stdout.write(
-                    self.style.WARNING(
-                        f"Failed to import checklist category {category_data.get('uuid')}: {e}"
-                    )
-                )
-                self.stats["checklist_categories"]["errors"] += 1
-
     def import_checklists(self, checklists_data):
         """Import checklist data."""
         self.stdout.write("Importing checklists...")
@@ -3735,14 +3657,6 @@ class Command(BaseCommand):
                     )
                     self.stats["checklists"]["errors"] += 1
                     continue
-
-                # Find category (optional)
-                category = None
-                category_uuid = checklist_data.get("category_uuid")
-                if category_uuid:
-                    category = ChecklistCategory.objects.filter(
-                        uuid=category_uuid
-                    ).first()
 
                 # Parse dates
                 created = None
@@ -3769,7 +3683,6 @@ class Command(BaseCommand):
                     "checklist_type": checklist_data.get(
                         "checklist_type", "project_compliance"
                     ),
-                    "category": category,
                 }
 
                 if not self.dry_run:

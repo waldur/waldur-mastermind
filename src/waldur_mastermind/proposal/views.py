@@ -711,7 +711,6 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
         checklists = (
             checklist_models.Checklist.objects.filter(checklist_type=checklist_type)
-            .select_related("category")
             .prefetch_related("questions")
             .order_by("name")
         )
