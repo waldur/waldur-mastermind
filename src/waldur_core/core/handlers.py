@@ -45,7 +45,10 @@ def delete_error_message(sender, instance, name, source, target, **kwargs):
 
 def set_default_token_lifetime(sender, instance: User, created=False, **kwargs):
     """Set the default token lifetime for a new user."""
-    if created:
+    # Skip if token_lifetime was explicitly set (e.g., during import)
+    if getattr(instance, "_token_lifetime_explicitly_set", False):
+        return
+    if created and instance.token_lifetime is None:
         # if settings used directly in model - django creates new migration every time settings change
         # Therefore - set default token_lifetime value in handler.
         if settings.WALDUR_CORE["TOKEN_LIFETIME"]:

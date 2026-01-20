@@ -85,6 +85,43 @@ class ExportStructureCommandTest(TestCase):
         self.assertTrue(exported_user["is_active"])
         self.assertIsNotNone(exported_user["date_joined"])
 
+    def test_export_users_with_token_lifetime(self):
+        """Test that export captures token_lifetime field correctly."""
+        # Test with explicit token_lifetime value
+        structure_factories.UserFactory(
+            username="user_with_lifetime",
+            email="lifetime@example.com",
+            token_lifetime=7200,  # 2 hours
+        )
+
+        # Test with token_lifetime = None (unlimited)
+        user_unlimited = structure_factories.UserFactory(
+            username="user_unlimited",
+            email="unlimited@example.com",
+        )
+        user_unlimited.token_lifetime = None
+        user_unlimited.save()
+
+        self._call_export_command()
+        data = self._load_exported_json()
+
+        # Find the exported users
+        exported_users = {u["username"]: u for u in data["users"]}
+
+        # Verify user with explicit token_lifetime
+        self.assertIn("user_with_lifetime", exported_users)
+        self.assertEqual(
+            exported_users["user_with_lifetime"]["token_lifetime"],
+            7200,
+        )
+
+        # Verify user with unlimited token (token_lifetime = None)
+        self.assertIn("user_unlimited", exported_users)
+        self.assertIsNone(
+            exported_users["user_unlimited"]["token_lifetime"],
+            "token_lifetime should be None for unlimited tokens",
+        )
+
     def test_export_customers_with_all_fields(self):
         """Test that export captures all customer fields correctly."""
         customer = structure_factories.CustomerFactory(
