@@ -377,6 +377,133 @@ class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
     set_reference_number_permissions = [structure_permissions.is_staff]
     set_reference_number_serializer_class = serializers.ReferenceNumberSerializer
 
+    @extend_schema(
+        summary="Import usage data",
+        description="Import component usage items as JSON data for multiple customers. "
+        "Creates invoice items for the specified billing period. "
+        "Items are deduplicated by name, customer, and billing period to prevent duplicates.",
+        request=serializers.ImportUsageSerializer,
+        responses=serializers.ImportUsageResponseSerializer,
+    )
+    @transaction.atomic
+    @action(detail=False, methods=["post"])
+    def import_usage(self, request):
+        serializer = serializers.ImportUsageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        year = serializer.validated_data["year"]
+        month = serializer.validated_data["month"]
+        items = serializer.validated_data["items"]
+
+        created = 0
+        skipped = 0
+        errors = []
+
+        # Pre-fetch all customers for name lookup (single query)
+        customers = list(structure_models.Customer.objects.all())
+        all_customers = {c.name.lower(): c for c in customers}
+        all_customers_by_uuid = {c.uuid.hex: c for c in customers}
+
+        for item in items:
+            customer = None
+            customer_identifier = None
+
+            # Try to find customer by UUID first, then by name
+            if item.get("customer_uuid"):
+                customer_uuid = str(item["customer_uuid"]).replace("-", "")
+                customer = all_customers_by_uuid.get(customer_uuid)
+                customer_identifier = customer_uuid
+            elif item.get("customer_name"):
+                customer_name = item["customer_name"].strip()
+                customer = all_customers.get(customer_name.lower())
+                customer_identifier = customer_name
+
+            if not customer:
+                errors.append(
+                    {
+                        "customer_name": customer_identifier or "Unknown",
+                        "reason": "Customer not found",
+                    }
+                )
+                continue
+
+            # Skip zero amounts
+            unit_price = item["unit_price"]
+            if unit_price == Decimal("0"):
+                skipped += 1
+                continue
+
+            # Get or create invoice for customer + year/month
+            invoice, _ = models.Invoice.objects.get_or_create(
+                customer=customer,
+                year=year,
+                month=month,
+            )
+
+            # Validate invoice state - only allow adding items to pending invoices
+            if invoice.state != models.Invoice.States.PENDING:
+                errors.append(
+                    {
+                        "customer_name": customer.name,
+                        "reason": f"Invoice is in '{invoice.state}' state, items can only be added to pending invoices",
+                    }
+                )
+                continue
+
+            # Build details dict for additional metadata
+            details = {}
+            if item.get("service_provider_name"):
+                details["service_provider_name"] = item["service_provider_name"]
+            if item.get("offering_name"):
+                details["offering_name"] = item["offering_name"]
+            if item.get("plan_name"):
+                details["plan_name"] = item["plan_name"]
+
+            # Check for duplicate items (idempotency)
+            existing_item = models.InvoiceItem.objects.filter(
+                invoice=invoice,
+                name=item["name"],
+                article_code=item.get("article_code", ""),
+            ).first()
+
+            if existing_item:
+                skipped += 1
+                continue
+
+            # Create invoice item
+            invoice_item = models.InvoiceItem.objects.create(
+                invoice=invoice,
+                name=item["name"],
+                unit_price=unit_price,
+                quantity=1,
+                unit=models.InvoiceItem.Units.QUANTITY,
+                article_code=item.get("article_code", ""),
+                details=details,
+            )
+
+            event_logger.emit(
+                "Invoice item {invoice_item_name} has been imported for {customer_name} ({month}/{year}).",
+                event_type=EventType.INVOICE_ITEM_CREATED,
+                event_context={
+                    "invoice_item": invoice_item,
+                    "invoice_item_name": invoice_item.name,
+                    "customer": customer,
+                    "month": month,
+                    "year": year,
+                },
+                scopes=[invoice, customer],
+            )
+
+            created += 1
+
+        return Response(
+            {"created": created, "skipped": skipped, "errors": errors},
+            status=status.HTTP_200_OK,
+        )
+
+    import_usage_permissions = [structure_permissions.is_staff]
+    import_usage_serializer_class = serializers.ImportUsageSerializer
+
 
 class InvoiceItemViewSet(core_views.ActionsViewSet):
     disabled_actions = ["create"]

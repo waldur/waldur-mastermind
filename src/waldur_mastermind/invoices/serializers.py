@@ -72,7 +72,9 @@ class InvoiceItemSerializer(serializers.HyperlinkedModelSerializer):
     measured_unit = serializers.CharField(read_only=True, source="get_measured_unit")
     resource_uuid = serializers.UUIDField(read_only=True, source="resource.uuid")
     resource_name = serializers.CharField(read_only=True, source="resource.name")
-    project_uuid = serializers.UUIDField(read_only=True, source="get_project_uuid")
+    project_uuid = serializers.UUIDField(
+        read_only=True, allow_null=True, source="get_project_uuid"
+    )
     project_name = serializers.CharField(read_only=True, source="get_project_name")
     details = InvoiceItemDetailsField()
     billing_type = serializers.SerializerMethodField()
@@ -128,6 +130,16 @@ class InvoiceItemDetailSerializer(serializers.HyperlinkedModelSerializer):
         read_only=True, source="resource.offering.uuid"
     )
     offering_component_type = serializers.SerializerMethodField()
+    project_uuid = serializers.UUIDField(
+        read_only=True, allow_null=True, source="get_project_uuid"
+    )
+    project_name = serializers.CharField(read_only=True, source="get_project_name")
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="invoice.customer.uuid"
+    )
+    customer_name = serializers.CharField(
+        read_only=True, source="invoice.customer.name"
+    )
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_offering_component_type(self, obj: models.InvoiceItem) -> str | None:
@@ -155,9 +167,14 @@ class InvoiceItemDetailSerializer(serializers.HyperlinkedModelSerializer):
             "name",
             "start",
             "end",
+            "price",
             "details",
             "offering_uuid",
             "offering_component_type",
+            "project_uuid",
+            "project_name",
+            "customer_uuid",
+            "customer_name",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid", "view_name": "invoice-item-detail"},
@@ -1374,4 +1391,43 @@ class CustomerCreditConsumptionSerializer(serializers.Serializer):
     date = serializers.DateField(read_only=True)
     price = serializers.DecimalField(
         read_only=True, max_digits=PRICE_MAX_DIGITS, decimal_places=2
+    )
+
+
+class ImportUsageItemSerializer(serializers.Serializer):
+    customer_name = serializers.CharField(required=False, allow_blank=True)
+    customer_uuid = serializers.UUIDField(required=False)
+    name = serializers.CharField(required=True)
+    unit_price = serializers.DecimalField(
+        max_digits=PRICE_MAX_DIGITS, decimal_places=PRICE_DECIMAL_PLACES
+    )
+    article_code = serializers.CharField(required=False, allow_blank=True)
+    service_provider_name = serializers.CharField(required=False, allow_blank=True)
+    offering_name = serializers.CharField(required=False, allow_blank=True)
+    plan_name = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if not attrs.get("customer_name") and not attrs.get("customer_uuid"):
+            raise serializers.ValidationError(
+                _("Either customer_name or customer_uuid must be provided.")
+            )
+        return attrs
+
+
+class ImportUsageSerializer(serializers.Serializer):
+    year = serializers.IntegerField(min_value=2000, max_value=2100)
+    month = serializers.IntegerField(min_value=1, max_value=12)
+    items = ImportUsageItemSerializer(many=True)
+
+    def validate_items(self, value):
+        if not value:
+            raise serializers.ValidationError(_("At least one item is required."))
+        return value
+
+
+class ImportUsageResponseSerializer(serializers.Serializer):
+    created = serializers.IntegerField()
+    skipped = serializers.IntegerField()
+    errors = serializers.ListField(
+        child=serializers.DictField(child=serializers.CharField())
     )
