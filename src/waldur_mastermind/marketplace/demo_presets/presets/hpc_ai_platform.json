@@ -1582,6 +1582,7 @@
       "project_uuid": "c3000000000000000000000000000001",
       "plan_uuid": "13000000000000000000000000000030",
       "state": 2,
+      "backend_id": "capstor-llm-training-data-store",
       "attributes": {
         "storage_data_type": "Store",
         "permissions": "2770"
@@ -1597,6 +1598,7 @@
       "project_uuid": "c3000000000000000000000000000001",
       "plan_uuid": "13000000000000000000000000000030",
       "state": 2,
+      "backend_id": "capstor-model-archive-storage",
       "attributes": {
         "storage_data_type": "Archive",
         "permissions": "2770"
@@ -1612,6 +1614,7 @@
       "project_uuid": "c3000000000000000000000000000001",
       "plan_uuid": "13000000000000000000000000000031",
       "state": 2,
+      "backend_id": "capstor-compute-scratch-space",
       "attributes": {
         "storage_data_type": "Scratch",
         "permissions": "2775"
@@ -1627,6 +1630,7 @@
       "project_uuid": "c3000000000000000000000000000002",
       "plan_uuid": "13000000000000000000000000000030",
       "state": 2,
+      "backend_id": "capstor-user-home-directories",
       "attributes": {
         "storage_data_type": "Users",
         "permissions": "770"
@@ -1642,6 +1646,7 @@
       "project_uuid": "c3000000000000000000000000000002",
       "plan_uuid": "13000000000000000000000000000032",
       "state": 2,
+      "backend_id": "vast-vision-model-training-data",
       "attributes": {
         "storage_data_type": "Store",
         "permissions": "2770"
@@ -1657,6 +1662,7 @@
       "project_uuid": "c3000000000000000000000000000001",
       "plan_uuid": "13000000000000000000000000000033",
       "state": 2,
+      "backend_id": "vast-ai-training-scratch",
       "attributes": {
         "storage_data_type": "Scratch",
         "permissions": "2775"
@@ -1672,6 +1678,7 @@
       "project_uuid": "c3000000000000000000000000000002",
       "plan_uuid": "13000000000000000000000000000030",
       "state": 2,
+      "backend_id": "capstor-hpc-simulation-archive",
       "attributes": {
         "storage_data_type": "Archive",
         "permissions": "2770"
@@ -1748,6 +1755,7 @@
       "project_uuid": "c3000000000000000000000000000001",
       "plan_uuid": "13000000000000000000000000000061",
       "state": 2,
+      "backend_id": "slurm-llm-training-batch",
       "attributes": {},
       "limits": {
         "cpu_hours": 500000,
@@ -1762,6 +1770,7 @@
       "project_uuid": "c3000000000000000000000000000002",
       "plan_uuid": "13000000000000000000000000000060",
       "state": 2,
+      "backend_id": "slurm-vision-model-batch",
       "attributes": {},
       "limits": {
         "cpu_hours": 100000,
