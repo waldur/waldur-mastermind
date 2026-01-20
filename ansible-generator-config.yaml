@@ -398,7 +398,6 @@ collections:
             check_filter_key: "target_tenant_uuid"
           network:
             base: "openstack_networks"
-            filter_by: *tenant_filter
             check_filter_key: "network_uuid"
 
       - name: server_group
