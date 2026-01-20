@@ -1,14 +1,19 @@
 {
   "_metadata": {
     "title": "HPC & AI Platform",
-    "description": "High-performance computing and AI/ML platform with GPU clusters, model training, inference services, and HPC storage systems.",
-    "version": "1.1.0",
+    "description": "Comprehensive high-performance computing and AI/ML platform featuring GPU clusters, model training infrastructure, HPC storage systems, and web-based interactive computing environments.",
+    "version": "1.2.0",
     "scenarios": [
-      "AI/ML model training",
-      "GPU computing services",
+      "AI/ML model training with GPU clusters",
+      "GPU computing services (A100/H100)",
       "Deep learning infrastructure",
-      "HPC parallel filesystem storage (CAPSTOR/VAST)",
-      "Storage quota management with data types"
+      "HPC parallel filesystem storage (CAPSTOR Lustre/VAST)",
+      "Storage quota management with data types",
+      "Open OnDemand web portal for HPC access",
+      "JupyterHub for interactive computing",
+      "SLURM batch job management",
+      "Web-based file management and shell access",
+      "Interactive desktop sessions via VNC"
     ]
   },
   "user_agreements": [
@@ -206,6 +211,12 @@
       "title": "HPC Storage",
       "description": "High-performance parallel filesystems for HPC workloads",
       "group_uuid": "c1d2e3f4a5b6789012345678abcdef02"
+    },
+    {
+      "uuid": "d3000000000000000000000000000005",
+      "title": "HPC Interactive Services",
+      "description": "Web-based portals and interactive computing environments for HPC users",
+      "group_uuid": "c1d2e3f4a5b6789012345678abcdef01"
     }
   ],
   "service_providers": [
@@ -349,7 +360,7 @@
       "billable": true,
       "category_uuid": "d3000000000000000000000000000004",
       "customer_uuid": "b3000000000000000000000000000001",
-      "description": "High-performance Lustre-based parallel filesystem for HPC workloads. Provides high-bandwidth storage for compute jobs, ML training data, and scientific simulations.",
+      "description": "High-performance Lustre-based parallel filesystem designed for demanding HPC and AI workloads. CAPSTOR delivers exceptional aggregate bandwidth (100+ GB/s) with linear scalability, making it ideal for large-scale simulations, checkpoint/restart operations, and distributed ML training. Features include progressive file layouts for optimal striping, DNE (Distributed Namespace) for metadata scaling, and integration with HSM for tiered archival storage. Supports POSIX I/O with MPI-IO optimization for parallel applications.",
       "options": {
         "order": ["storage_data_type", "permissions", "hard_quota_space", "soft_quota_inodes", "hard_quota_inodes"],
         "options": {
@@ -453,7 +464,7 @@
       "billable": true,
       "category_uuid": "d3000000000000000000000000000004",
       "customer_uuid": "b3000000000000000000000000000001",
-      "description": "VAST Data platform storage for AI/ML workloads. Optimized for high-throughput data access with flash-based performance and global namespace.",
+      "description": "VAST Data platform storage for AI/ML and HPC workloads. Features all-flash NVMe architecture with 50+ GB/s aggregate throughput, sub-millisecond latency, and intelligent tiering. Optimized for high-throughput data access patterns including random small-file I/O common in ML training, large sequential reads for model inference, and mixed workloads in scientific computing. Provides a global namespace with POSIX, NFS, S3, and SMB access protocols.",
       "options": {
         "order": ["storage_data_type", "permissions", "hard_quota_space", "soft_quota_inodes", "hard_quota_inodes"],
         "options": {
@@ -546,6 +557,51 @@
         "service_provider_can_create_offering_user": true
       },
       "getting_started": "## Getting Started with VAST HPC Storage\n\n### Mount Points\nYour storage is mounted at:\n- **Store**: `/vast/store/{customer}/{project}/`\n- **Archive**: `/vast/archive/{customer}/{project}/`\n- **Scratch**: `/vast/scratch/{customer}/{project}/`\n\n### Access\n```bash\n# From compute nodes\ncd /vast/store/your-org/your-project/\n\n# Check quota\nvast quota show /vast/store/your-org/your-project/\n```\n\n### AI/ML Optimizations\n- Flash-based storage for low-latency data loading\n- Global namespace for distributed training\n- Automatic tiering for cost optimization\n\n### Best Practices\n- Use store for active training data\n- Archive completed experiments\n- Scratch for ephemeral checkpoint data\n\n### Support\nStorage support: storage-support@aiplatform.com"
+    },
+    {
+      "uuid": "f3000000000000000000000000000040",
+      "name": "Open OnDemand HPC Portal",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000005",
+      "customer_uuid": "b3000000000000000000000000000001",
+      "description": "Open OnDemand is a web-based portal providing integrated access to HPC clusters. Features include a web-based file browser for managing files on cluster storage, interactive desktop sessions via VNC/noVNC, JupyterLab and RStudio Server integration, SLURM job composer and monitoring, shell access through the browser, and custom interactive applications. Eliminates the need for SSH clients and enables researchers to access HPC resources from any device with a web browser.",
+      "plugin_options": {
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with Open OnDemand\n\n### Access\nNavigate to: **https://ondemand.aiplatform.com**\n\nLogin with your institutional credentials (SSO/LDAP).\n\n### Features Overview\n\n#### 1. File Browser\n- Navigate to **Files** → **Home Directory** or **Project Storage**\n- Upload, download, edit, and manage files directly in browser\n- Create and extract archives\n\n#### 2. Interactive Applications\n\n**Desktop Sessions:**\n- Navigate to **Interactive Apps** → **HPC Desktop**\n- Select partition, time, and resources\n- Launch and connect via noVNC\n\n**JupyterLab:**\n- Navigate to **Interactive Apps** → **Jupyter**\n- Choose Python/R kernel and GPU resources\n- Access your notebooks with cluster resources\n\n**RStudio Server:**\n- Navigate to **Interactive Apps** → **RStudio**\n- Full RStudio IDE with access to HPC storage\n\n#### 3. Job Management\n\n**Job Composer:**\n```\n1. Navigate to Jobs → Job Composer\n2. Create from template or upload script\n3. Set job parameters\n4. Submit and monitor\n```\n\n**Active Jobs:**\n- View running and queued jobs\n- Cancel or hold jobs\n- View output in real-time\n\n#### 4. Shell Access\n- Navigate to **Clusters** → **Shell Access**\n- Full terminal in browser\n- Multiple cluster support\n\n### Best Practices\n- Use interactive sessions for development/debugging\n- Use job composer for production runs\n- Save custom job templates for reuse\n\n### Support\nHPC Portal Support: portal-support@aiplatform.com"
+    },
+    {
+      "uuid": "f3000000000000000000000000000041",
+      "name": "JupyterHub for HPC",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000005",
+      "customer_uuid": "b3000000000000000000000000000001",
+      "description": "Multi-user JupyterHub deployment integrated with HPC infrastructure. Provides isolated Jupyter environments with access to GPU nodes, parallel filesystems, and SLURM job submission. Supports multiple kernels including Python (with PyTorch, TensorFlow, JAX), R, Julia, and custom conda environments. Features include batch job spawning for long-running notebooks, Dask integration for distributed computing, and direct access to HPC storage. Ideal for interactive data analysis, ML model development, and scientific computing.",
+      "plugin_options": {
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with JupyterHub for HPC\n\n### Access\nNavigate to: **https://jupyter.aiplatform.com**\n\nLogin with your HPC credentials.\n\n### Spawner Options\n\nWhen starting your server, select:\n\n| Option | Description |\n|--------|-------------|\n| **Partition** | cpu, gpu, gpu-a100, bigmem |\n| **Time** | 1h, 4h, 8h, 24h, 72h |\n| **CPUs** | 1-64 cores |\n| **Memory** | 4GB - 512GB |\n| **GPUs** | 0-8 (A100/H100) |\n\n### Available Kernels\n\n- **Python 3.11** - NumPy, Pandas, Matplotlib\n- **PyTorch 2.x** - CUDA 12, cuDNN\n- **TensorFlow 2.x** - GPU support\n- **JAX** - TPU/GPU acceleration\n- **R 4.3** - tidyverse, Bioconductor\n- **Julia 1.10** - Flux, DifferentialEquations\n\n### Using HPC Storage\n\n```python\n# Access project storage\nimport os\nproject_dir = '/capstor/store/your-org/your-project'\nos.listdir(project_dir)\n\n# Load large datasets efficiently\nimport pandas as pd\ndf = pd.read_parquet(f'{project_dir}/data/dataset.parquet')\n```\n\n### GPU Computing\n\n```python\nimport torch\nprint(f'CUDA available: {torch.cuda.is_available()}')\nprint(f'GPU: {torch.cuda.get_device_name(0)}')\n\n# Use GPU\ndevice = torch.device('cuda')\nmodel = model.to(device)\n```\n\n### Submitting SLURM Jobs\n\n```python\n# Using dask-jobqueue\nfrom dask_jobqueue import SLURMCluster\n\ncluster = SLURMCluster(\n    cores=8,\n    memory='64GB',\n    processes=1,\n    walltime='04:00:00',\n    job_extra=['--gres=gpu:1']\n)\ncluster.scale(jobs=4)\n```\n\n### Extensions\n\n- **jupyterlab-git** - Git integration\n- **jupyterlab-nvdashboard** - GPU monitoring\n- **dask-labextension** - Dask dashboard\n- **jupyterlab-lsp** - Code intelligence\n\n### Best Practices\n- Use batch spawning for long computations\n- Save checkpoints to project storage\n- Close idle sessions to free resources\n\n### Support\nJupyterHub Support: jupyter-support@aiplatform.com"
+    },
+    {
+      "uuid": "f3000000000000000000000000000042",
+      "name": "SLURM Batch Computing",
+      "type": "Marketplace.Slurm",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "b3000000000000000000000000000001",
+      "description": "High-performance batch computing cluster managed by SLURM workload manager. Provides access to CPU and GPU partitions optimized for scientific simulations, ML training, data processing, and parallel computing. Features include fair-share scheduling, job arrays for parameter sweeps, job dependencies for complex workflows, and integration with parallel filesystems. Supports MPI, OpenMP, and hybrid parallel applications.",
+      "plugin_options": {
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with SLURM Batch Computing\n\n### Access\n```bash\nssh username@login.aiplatform.com\n```\n\n### Cluster Overview\n\n| Partition | Nodes | CPUs/Node | RAM | GPUs | Max Time |\n|-----------|-------|-----------|-----|------|----------|\n| cpu | 200 | 128 cores | 512GB | - | 7 days |\n| gpu | 50 | 64 cores | 512GB | 4x A100 | 3 days |\n| gpu-h100 | 20 | 96 cores | 1TB | 8x H100 | 3 days |\n| bigmem | 10 | 128 cores | 2TB | - | 7 days |\n| debug | 4 | 64 cores | 256GB | 2x A100 | 1 hour |\n\n### Basic Job Script\n\n```bash\n#!/bin/bash\n#SBATCH --job-name=my_job\n#SBATCH --partition=cpu\n#SBATCH --nodes=1\n#SBATCH --ntasks=32\n#SBATCH --time=04:00:00\n#SBATCH --output=%x_%j.out\n\nmodule load gcc/12 openmpi/4.1\nsrun ./my_application\n```\n\n### GPU Job Script\n\n```bash\n#!/bin/bash\n#SBATCH --job-name=gpu_train\n#SBATCH --partition=gpu\n#SBATCH --nodes=1\n#SBATCH --gres=gpu:a100:4\n#SBATCH --time=24:00:00\n\nmodule load cuda/12.0 python/3.11\nsource ~/envs/pytorch/bin/activate\n\ntorchrun --nproc_per_node=4 train.py\n```\n\n### Job Arrays\n\n```bash\n#!/bin/bash\n#SBATCH --array=1-100\n#SBATCH --partition=cpu\n\npython process.py --index=$SLURM_ARRAY_TASK_ID\n```\n\n### Useful Commands\n\n```bash\n# Submit job\nsbatch job.sh\n\n# Check queue\nsqueue -u $USER\n\n# Job info\nsacct -j <jobid> --format=JobID,Elapsed,MaxRSS,State\n\n# Cancel job\nscancel <jobid>\n\n# Interactive session\nsrun --partition=debug --pty bash\n\n# Check fairshare\nsshare -u $USER\n```\n\n### Support\nHPC Support: hpc-support@aiplatform.com"
     }
   ],
   "offering_endpoints": [
@@ -626,6 +682,96 @@
       "offering_uuid": "f3000000000000000000000000000031",
       "name": "VAST Quota Dashboard",
       "url": "https://vast.aiplatform.com/quota/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000034",
+      "offering_uuid": "f3000000000000000000000000000031",
+      "name": "VAST S3 Gateway",
+      "url": "https://vast-s3.aiplatform.com/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000040",
+      "offering_uuid": "f3000000000000000000000000000040",
+      "name": "Open OnDemand Portal",
+      "url": "https://ondemand.aiplatform.com/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000041",
+      "offering_uuid": "f3000000000000000000000000000040",
+      "name": "OnDemand File Browser",
+      "url": "https://ondemand.aiplatform.com/pun/sys/files/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000042",
+      "offering_uuid": "f3000000000000000000000000000040",
+      "name": "OnDemand Job Composer",
+      "url": "https://ondemand.aiplatform.com/pun/sys/myjobs/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000043",
+      "offering_uuid": "f3000000000000000000000000000040",
+      "name": "OnDemand Shell Access",
+      "url": "https://ondemand.aiplatform.com/pun/sys/shell/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000044",
+      "offering_uuid": "f3000000000000000000000000000040",
+      "name": "OnDemand Interactive Apps",
+      "url": "https://ondemand.aiplatform.com/pun/sys/dashboard/batch_connect/sessions"
+    },
+    {
+      "uuid": "a3000000000000000000000000000050",
+      "offering_uuid": "f3000000000000000000000000000041",
+      "name": "JupyterHub Portal",
+      "url": "https://jupyter.aiplatform.com/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000051",
+      "offering_uuid": "f3000000000000000000000000000041",
+      "name": "Dask Dashboard",
+      "url": "https://jupyter.aiplatform.com/user/{username}/proxy/8787/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000052",
+      "offering_uuid": "f3000000000000000000000000000041",
+      "name": "TensorBoard",
+      "url": "https://jupyter.aiplatform.com/user/{username}/proxy/6006/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000060",
+      "offering_uuid": "f3000000000000000000000000000042",
+      "name": "SLURM Web Portal",
+      "url": "https://slurm.aiplatform.com/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000061",
+      "offering_uuid": "f3000000000000000000000000000042",
+      "name": "Job Accounting",
+      "url": "https://slurm.aiplatform.com/accounting/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000062",
+      "offering_uuid": "f3000000000000000000000000000042",
+      "name": "Cluster Status",
+      "url": "https://slurm.aiplatform.com/status/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000063",
+      "offering_uuid": "f3000000000000000000000000000042",
+      "name": "Grafana Metrics",
+      "url": "https://grafana.aiplatform.com/d/hpc-cluster/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000035",
+      "offering_uuid": "f3000000000000000000000000000030",
+      "name": "Lustre Monitoring",
+      "url": "https://capstor.aiplatform.com/monitoring/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000036",
+      "offering_uuid": "f3000000000000000000000000000030",
+      "name": "Robinhood Reports",
+      "url": "https://capstor.aiplatform.com/robinhood/"
     }
   ],
   "offering_components": [
@@ -781,6 +927,78 @@
       "description": "VAST flash-based storage capacity",
       "billing_type": "limit",
       "measured_unit": "TB"
+    },
+    {
+      "uuid": "c3000000000000000000000000000401",
+      "offering_uuid": "f3000000000000000000000000000040",
+      "type": "users",
+      "name": "Concurrent Users",
+      "description": "Number of concurrent OnDemand users",
+      "billing_type": "limit",
+      "measured_unit": "users"
+    },
+    {
+      "uuid": "c3000000000000000000000000000402",
+      "offering_uuid": "f3000000000000000000000000000040",
+      "type": "desktop_hours",
+      "name": "Desktop Session Hours",
+      "description": "Interactive desktop session hours",
+      "billing_type": "usage",
+      "measured_unit": "hours"
+    },
+    {
+      "uuid": "c3000000000000000000000000000411",
+      "offering_uuid": "f3000000000000000000000000000041",
+      "type": "users",
+      "name": "JupyterHub Users",
+      "description": "Number of JupyterHub user accounts",
+      "billing_type": "limit",
+      "measured_unit": "users"
+    },
+    {
+      "uuid": "c3000000000000000000000000000412",
+      "offering_uuid": "f3000000000000000000000000000041",
+      "type": "gpu_hours",
+      "name": "GPU Hours",
+      "description": "GPU compute hours for notebooks",
+      "billing_type": "usage",
+      "measured_unit": "GPU-hours"
+    },
+    {
+      "uuid": "c3000000000000000000000000000413",
+      "offering_uuid": "f3000000000000000000000000000041",
+      "type": "storage",
+      "name": "User Storage",
+      "description": "Per-user notebook storage",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c3000000000000000000000000000421",
+      "offering_uuid": "f3000000000000000000000000000042",
+      "type": "cpu_hours",
+      "name": "CPU Core-Hours",
+      "description": "CPU compute allocation",
+      "billing_type": "limit",
+      "measured_unit": "core-hours"
+    },
+    {
+      "uuid": "c3000000000000000000000000000422",
+      "offering_uuid": "f3000000000000000000000000000042",
+      "type": "gpu_hours",
+      "name": "GPU Hours",
+      "description": "GPU compute allocation",
+      "billing_type": "limit",
+      "measured_unit": "GPU-hours"
+    },
+    {
+      "uuid": "c3000000000000000000000000000423",
+      "offering_uuid": "f3000000000000000000000000000042",
+      "type": "storage",
+      "name": "Scratch Storage",
+      "description": "Job scratch space allocation",
+      "billing_type": "limit",
+      "measured_unit": "TB"
     }
   ],
   "plans": [
@@ -857,6 +1075,48 @@
       "offering_uuid": "f3000000000000000000000000000031",
       "unit": "month",
       "description": "High-throughput VAST storage for AI workloads"
+    },
+    {
+      "uuid": "13000000000000000000000000000040",
+      "name": "Open OnDemand - Standard",
+      "offering_uuid": "f3000000000000000000000000000040",
+      "unit": "month",
+      "description": "Standard Open OnDemand access with web portal features"
+    },
+    {
+      "uuid": "13000000000000000000000000000041",
+      "name": "Open OnDemand - Premium",
+      "offering_uuid": "f3000000000000000000000000000040",
+      "unit": "month",
+      "description": "Premium OnDemand with priority scheduling and extended sessions"
+    },
+    {
+      "uuid": "13000000000000000000000000000050",
+      "name": "JupyterHub - Research",
+      "offering_uuid": "f3000000000000000000000000000041",
+      "unit": "month",
+      "description": "JupyterHub for research teams with GPU access"
+    },
+    {
+      "uuid": "13000000000000000000000000000051",
+      "name": "JupyterHub - Enterprise",
+      "offering_uuid": "f3000000000000000000000000000041",
+      "unit": "month",
+      "description": "Enterprise JupyterHub with dedicated resources"
+    },
+    {
+      "uuid": "13000000000000000000000000000060",
+      "name": "SLURM Batch - Standard",
+      "offering_uuid": "f3000000000000000000000000000042",
+      "unit": "month",
+      "description": "Standard SLURM batch computing allocation"
+    },
+    {
+      "uuid": "13000000000000000000000000000061",
+      "name": "SLURM Batch - Large Scale",
+      "offering_uuid": "f3000000000000000000000000000042",
+      "unit": "month",
+      "description": "Large-scale SLURM allocation with priority access"
     }
   ],
   "plan_components": [
@@ -1050,6 +1310,102 @@
       "plan_uuid": "13000000000000000000000000000033",
       "component_uuid": "c3000000000000000000000000000311",
       "price": "0.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000040",
+      "component_uuid": "c3000000000000000000000000000401",
+      "price": "50.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000040",
+      "component_uuid": "c3000000000000000000000000000402",
+      "price": "2.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000041",
+      "component_uuid": "c3000000000000000000000000000401",
+      "price": "75.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000041",
+      "component_uuid": "c3000000000000000000000000000402",
+      "price": "1.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000050",
+      "component_uuid": "c3000000000000000000000000000411",
+      "price": "25.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000050",
+      "component_uuid": "c3000000000000000000000000000412",
+      "price": "5.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000050",
+      "component_uuid": "c3000000000000000000000000000413",
+      "price": "0.10",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000051",
+      "component_uuid": "c3000000000000000000000000000411",
+      "price": "40.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000051",
+      "component_uuid": "c3000000000000000000000000000412",
+      "price": "4.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000051",
+      "component_uuid": "c3000000000000000000000000000413",
+      "price": "0.08",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000060",
+      "component_uuid": "c3000000000000000000000000000421",
+      "price": "0.02",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000060",
+      "component_uuid": "c3000000000000000000000000000422",
+      "price": "3.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000060",
+      "component_uuid": "c3000000000000000000000000000423",
+      "price": "30.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000061",
+      "component_uuid": "c3000000000000000000000000000421",
+      "price": "0.015",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000061",
+      "component_uuid": "c3000000000000000000000000000422",
+      "price": "2.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000061",
+      "component_uuid": "c3000000000000000000000000000423",
+      "price": "25.00",
       "amount": 0
     }
   ],
@@ -1329,6 +1685,88 @@
         "soft_quota_inodes": 1500000000,
         "hard_quota_inodes": 2000000000,
         "permissions": "2775"
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000040",
+      "name": "LLM Team OnDemand Access",
+      "offering_uuid": "f3000000000000000000000000000040",
+      "project_uuid": "c3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000041",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "users": 25,
+        "desktop_hours": 500
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000041",
+      "name": "Vision Team OnDemand",
+      "offering_uuid": "f3000000000000000000000000000040",
+      "project_uuid": "c3000000000000000000000000000002",
+      "plan_uuid": "13000000000000000000000000000040",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "users": 10,
+        "desktop_hours": 200
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000050",
+      "name": "ML Research JupyterHub",
+      "offering_uuid": "f3000000000000000000000000000041",
+      "project_uuid": "c3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000051",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "users": 50,
+        "gpu_hours": 1000,
+        "storage": 500
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000051",
+      "name": "Data Science JupyterHub",
+      "offering_uuid": "f3000000000000000000000000000041",
+      "project_uuid": "c3000000000000000000000000000002",
+      "plan_uuid": "13000000000000000000000000000050",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "users": 20,
+        "gpu_hours": 400,
+        "storage": 200
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000060",
+      "name": "LLM Training Batch Allocation",
+      "offering_uuid": "f3000000000000000000000000000042",
+      "project_uuid": "c3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000061",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 500000,
+        "gpu_hours": 10000,
+        "storage": 50
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000061",
+      "name": "Vision Model Batch Compute",
+      "offering_uuid": "f3000000000000000000000000000042",
+      "project_uuid": "c3000000000000000000000000000002",
+      "plan_uuid": "13000000000000000000000000000060",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu_hours": 100000,
+        "gpu_hours": 2000,
+        "storage": 20
       }
     }
   ],
