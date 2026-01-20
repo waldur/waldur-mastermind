@@ -2054,6 +2054,65 @@ class ImportStructureCommandTest(TestCase):
         existing_user.refresh_from_db()
         self.assertEqual(existing_user.token_lifetime, 10800)
 
+    def test_import_new_user_preserves_token_lifetime(self):
+        """Test that creating a new user via import preserves the imported token_lifetime value."""
+        new_user_uuid = "550e8400-e29b-41d4-a716-446655440111"
+
+        # Test data with explicit token_lifetime value
+        test_data = {
+            "users": [
+                {
+                    "uuid": new_user_uuid,
+                    "email": "newuser@example.com",
+                    "username": "new_user_with_token",
+                    "first_name": "New",
+                    "last_name": "User",
+                    "token_lifetime": 7200,  # 2 hours - should be preserved, not overwritten by default
+                }
+            ]
+        }
+
+        self._create_test_json(test_data)
+        self._call_import_command("-i", self.test_file_path)
+
+        # Verify the new user was created with the correct token_lifetime
+        from waldur_core.core.models import User
+
+        new_user = User.all_objects.filter(uuid=new_user_uuid).first()
+        self.assertIsNotNone(new_user)
+        self.assertEqual(new_user.token_lifetime, 7200)
+
+    def test_import_new_user_preserves_none_token_lifetime(self):
+        """Test that creating a new user via import preserves token_lifetime=None (unlimited)."""
+        new_user_uuid = "550e8400-e29b-41d4-a716-446655440222"
+
+        # Test data with token_lifetime explicitly set to None (unlimited)
+        test_data = {
+            "users": [
+                {
+                    "uuid": new_user_uuid,
+                    "email": "unlimiteduser@example.com",
+                    "username": "new_user_unlimited_token",
+                    "first_name": "Unlimited",
+                    "last_name": "User",
+                    "token_lifetime": None,  # Explicitly unlimited - should be preserved
+                }
+            ]
+        }
+
+        self._create_test_json(test_data)
+        self._call_import_command("-i", self.test_file_path)
+
+        # Verify the new user was created with token_lifetime=None (unlimited)
+        from waldur_core.core.models import User
+
+        new_user = User.all_objects.filter(uuid=new_user_uuid).first()
+        self.assertIsNotNone(new_user)
+        self.assertIsNone(
+            new_user.token_lifetime,
+            "token_lifetime should be None (unlimited) but was overwritten with default",
+        )
+
     # Credit Import Tests
 
     def test_import_customer_credits_with_all_fields(self):

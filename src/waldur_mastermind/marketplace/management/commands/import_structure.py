@@ -1032,8 +1032,10 @@ class Command(BaseCommand):
                         user.civil_number = user_data.get("civil_number")
 
                     # Handle token_lifetime - only set if provided in data
+                    # Mark the instance to prevent signal handler from overriding
                     if "token_lifetime" in user_data:
                         user.token_lifetime = user_data.get("token_lifetime")
+                        user._token_lifetime_explicitly_set = True
 
                     # Set password if provided, otherwise set unusable password
                     password = user_data.get("password")
