@@ -51,3 +51,20 @@ ui_registry.register(
         "properties": {"t": "string"},
     },
 )
+
+
+ui_registry.register(
+    key="table",
+    name="Data Table",
+    description="Interactive data table with columns and rows",
+    schema={
+        "type": "object",
+        "required": ["h", "r"],
+        "properties": {
+            "h": {"type": "array"},  # headers: ["Name", "Category ", "State", ...]
+            "r": {"type": "array"},  # rows: [["VM1", "Storage", "OK"], ...]
+            "n": "number",  # total count (optional)
+        },
+    },
+    has_loading_state=True,
+)

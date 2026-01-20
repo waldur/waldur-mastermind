@@ -77,7 +77,14 @@ class ToolExecutorShowUserResourcesTest(ToolExecutorBaseTest):
         self.assertEqual(result["type"], "success")
         self.assertEqual(result["data"]["resources"], [])
         self.assertEqual(result["data"]["total"], 0)
-        self.assertEqual(result["summary"], "No resources found.")
+        self.assertEqual(result["summary"], "Found 0 resources")
+        self.assertEqual(result["ui_component"], "table")
+        self.assertEqual(
+            result["ui_data"]["h"],
+            ["Name", "Category", "Offering", "Organization", "Project", "State"],
+        )
+        self.assertEqual(result["ui_data"]["r"], [])
+        self.assertEqual(result["ui_data"]["n"], 0)
 
     def test_returns_resources_accessible_by_user(self):
         resource = marketplace_factories.ResourceFactory(
@@ -95,9 +102,14 @@ class ToolExecutorShowUserResourcesTest(ToolExecutorBaseTest):
         resource_data = result["data"]["resources"][0]
         self.assertEqual(resource_data["uuid"], str(resource.uuid))
         self.assertEqual(resource_data["name"], "test-resource")
+        self.assertEqual(resource_data["category"], resource.offering.category.title)
+        self.assertEqual(resource_data["offering"], resource.offering.name)
+        self.assertEqual(
+            resource_data["organization"], self.fixture.project.customer.name
+        )
         self.assertEqual(resource_data["project"], self.fixture.project.name)
         self.assertEqual(resource_data["project_uuid"], str(self.fixture.project.uuid))
-        self.assertEqual(resource_data["customer"], self.fixture.customer.name)
+        self.assertEqual(resource_data["state"], resource.get_state_display())
 
     def test_excludes_terminated_resources(self):
         marketplace_factories.ResourceFactory(
@@ -128,36 +140,28 @@ class ToolExecutorShowUserResourcesTest(ToolExecutorBaseTest):
         self.assertEqual(result["data"]["total"], 0)
         self.assertEqual(result["data"]["resources"], [])
 
-    def test_returns_type_counts(self):
-        offering1 = marketplace_factories.OfferingFactory(type="Marketplace.Basic")
-        offering2 = marketplace_factories.OfferingFactory(type="Marketplace.Slurm")
-
-        marketplace_factories.ResourceFactory(
-            project=self.fixture.project, state=ResourceStates.OK, offering=offering1
-        )
-        marketplace_factories.ResourceFactory(
-            project=self.fixture.project, state=ResourceStates.OK, offering=offering1
-        )
-        marketplace_factories.ResourceFactory(
-            project=self.fixture.project, state=ResourceStates.OK, offering=offering2
-        )
-
-        result = self.tool_executor.execute_tool("show_user_resources", {})
-
-        self.assertEqual(result["data"]["total"], 3)
-        self.assertEqual(result["data"]["type_counts"]["Marketplace.Basic"], 2)
-        self.assertEqual(result["data"]["type_counts"]["Marketplace.Slurm"], 1)
-
-    def test_summary_includes_type_breakdown(self):
+    def test_returns_table_ui_component_with_structured_data(self):
         offering = marketplace_factories.OfferingFactory(type="Marketplace.Basic")
         marketplace_factories.ResourceFactory(
-            project=self.fixture.project, state=ResourceStates.OK, offering=offering
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+            offering=offering,
+            name="test-vm",
         )
 
         result = self.tool_executor.execute_tool("show_user_resources", {})
 
-        self.assertIn("1 resource", result["summary"])
-        self.assertIn("Marketplace.Basic", result["summary"])
+        self.assertEqual(result["ui_component"], "table")
+        self.assertIn("h", result["ui_data"])
+        self.assertIn("r", result["ui_data"])
+        self.assertIn("n", result["ui_data"])
+        self.assertEqual(
+            result["ui_data"]["h"],
+            ["Name", "Category", "Offering", "Organization", "Project", "State"],
+        )
+        self.assertEqual(len(result["ui_data"]["r"]), 1)
+        self.assertEqual(result["ui_data"]["r"][0][0], "test-vm")
+        self.assertEqual(result["ui_data"]["n"], 1)
 
     def test_summary_pluralizes_correctly(self):
         offering = marketplace_factories.OfferingFactory(type="Marketplace.Basic")

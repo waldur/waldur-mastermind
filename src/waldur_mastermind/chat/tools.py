@@ -13,7 +13,7 @@ class ToolDefinition(BaseModel):
 TOOL_REGISTRY = {
     "show_user_resources": ToolDefinition(
         name="show_user_resources",
-        description="Show all cloud resources that the current user has access to.",
+        description="List the user's actual cloud resources in a table. Use ONLY when the user explicitly asks to see/show/list/display their resources. NEVER use for questions starting with 'what/how/why' - those are conceptual questions requiring explanations, not data retrieval. Examples: USE for 'show my resources', 'I want to see resources'. DO NOT USE for 'what are resources?', 'what is resource management?'.",
         inputSchema={
             "type": "object",
             "properties": {},
@@ -47,3 +47,26 @@ def get_tools_prompt() -> str:
             f"- **{tool.name}**: {tool.description}\n Parameters:\n{params_str}"
         )
     return "\n\n".join(tools_desc)
+
+
+TOOL_INSTRUCTIONS = """{tools}
+
+=== CRITICAL: TOOLS ARE EXTREMELY RARE ===
+Tools should ONLY be used for showing actual data. Most requests do NOT need tools.
+
+NEVER use tools for:
+- Greetings: "hello", "hi", "hey" → Respond naturally
+- Questions: "what", "why", "how", "explain" → Answer conceptually
+- General conversation: "thanks", "tell me about", "help me understand" → Answer directly
+
+ONLY use show_user_resources when EXPLICITLY asked to see/list/display/show user's actual resources:
+✓ CORRECT: "show my resources", "list my VMs", "display my resources"
+✗ WRONG: "hello", "what are resources?", "create code", "how do I...", "explain resources"
+
+When using a tool:
+- Respond with ONLY the JSON object
+- Format: {{"tool": "show_user_resources", "arguments": {{}}}}
+- No prefix text, no explanation, JUST the JSON
+
+NEVER mention tools exist to the user.
+"""
