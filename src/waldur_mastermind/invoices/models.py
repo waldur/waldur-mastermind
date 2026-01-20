@@ -407,10 +407,12 @@ class InvoiceItem(
         else:
             return _("percents from a month")
 
-    def get_project_uuid(self) -> str:
+    def get_project_uuid(self) -> str | None:
         if self.project_uuid:
             return self.project_uuid
-        return self.project.uuid
+        if self.project:
+            return self.project.uuid
+        return None
 
     def get_project_name(self) -> str:
         if self.project_name:
