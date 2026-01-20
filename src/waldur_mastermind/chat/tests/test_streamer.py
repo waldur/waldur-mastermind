@@ -5,6 +5,29 @@ from unittest.mock import Mock, patch
 from waldur_mastermind.chat.ui_registry import ui_registry  # noqa: F401
 from waldur_mastermind.chat.views import LLMStreamer
 
+"""
+NDJSON streaming response format for chat messages.
+
+Uses single-character keys for bandwidth optimization. Each line is a JSON object
+containing one or more of these fields:
+
+- k: Component key (markdown, code, table, mermaid, load)
+- c: Content payload (text)
+- t: Type/tag (language for code blocks, component for loading)
+- h: Table headers (array of strings)
+- r: Table rows (array of arrays)
+- n: Row count (number)
+- m: Metadata (object with additional info like token counts)
+- e: Error message (string)
+
+Examples:
+    {"k":"markdown","c":"Hello!"}
+    {"k":"code","c":"print('hi')","t":"python"}
+    {"k":"table","h":["Name","State"],"r":[["VM1","OK"]],"n":1}
+    {"m":{"tokens":150}}
+    {"e":"Request failed"}
+"""
+
 
 class LLMStreamerTest(unittest.TestCase):
     def test_streamer_parses_content(self):
@@ -322,7 +345,7 @@ class LLMStreamerTest(unittest.TestCase):
             )
 
             # No unexpected event keys
-            valid_keys = {"k", "c", "t", "m", "e"}
+            valid_keys = {"k", "c", "t", "m", "e", "h", "r", "n"}
             for i, event in enumerate(events):
                 unexpected_keys = set(event.keys()) - valid_keys
                 self.assertEqual(
@@ -330,3 +353,107 @@ class LLMStreamerTest(unittest.TestCase):
                     set(),
                     f"Event {i} has unexpected keys: {unexpected_keys}. Event: {event}",
                 )
+
+    def test_streamer_handles_tool_call(self):
+        """Test that tool results are parsed using StreamParser."""
+        # LLM responds with a tool call JSON
+        fake_stream = [
+            "data: " + json.dumps({"content": '{"tool": "show_user_resources"'}),
+            "data: " + json.dumps({"content": ', "arguments": {}}'}),
+        ]
+
+        mock_response = Mock()
+        mock_response.iter_lines.return_value = fake_stream
+        mock_response.raise_for_status = Mock()
+
+        # Mock user for tool execution
+        mock_user = Mock()
+        mock_user.id = 1
+        mock_user.username = "testuser"
+
+        # Mock tool executor to return a result with UI component info
+        tool_result = {
+            "type": "success",
+            "data": {"resources": [], "total": 0, "type_counts": {}},
+            "summary": "Found 0 resources",
+            "ui_component": "table",
+            "ui_data": {
+                "h": ["Name", "Type", "State", "Project", "Customer"],
+                "r": [],
+                "n": 0,
+            },
+        }
+
+        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
+            with patch(
+                "waldur_mastermind.chat.views.ToolExecutor.execute_tool"
+            ) as mock_execute:
+                mock_post.return_value.__enter__.return_value = mock_response
+                mock_execute.return_value = tool_result
+
+                streamer = LLMStreamer(
+                    "show my resources",
+                    "https://example.com/stream",
+                    "dummy-token",
+                    mock_user,
+                )
+                chunks = list(streamer)
+
+                # Verify tool result was rendered as table via StreamParser
+                found_tool_result = False
+                for chunk in chunks:
+                    data = json.loads(chunk)
+                    if data.get("k") == "table" and data.get("n") == 0:
+                        found_tool_result = True
+
+                self.assertTrue(
+                    found_tool_result,
+                    f"Did not find tool result rendered as table. Chunks: {chunks}",
+                )
+                mock_execute.assert_called_once_with("show_user_resources", {})
+
+    def test_streamer_hides_tool_errors(self):
+        """Test that tool errors are not displayed to users."""
+        fake_stream = [
+            "data: " + json.dumps({"content": '{"tool": "unknown_tool"'}),
+            "data: " + json.dumps({"content": ', "arguments": {}}'}),
+        ]
+
+        mock_response = Mock()
+        mock_response.iter_lines.return_value = fake_stream
+        mock_response.raise_for_status = Mock()
+
+        mock_user = Mock()
+        mock_user.id = 1
+
+        # Mock tool executor to return an error
+        tool_result = {
+            "type": "error",
+            "error": "Unknown tool: unknown_tool",
+            "summary": "Unknown tool: unknown_tool",
+        }
+
+        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
+            with patch(
+                "waldur_mastermind.chat.views.ToolExecutor.execute_tool"
+            ) as mock_execute:
+                mock_post.return_value.__enter__.return_value = mock_response
+                mock_execute.return_value = tool_result
+
+                streamer = LLMStreamer(
+                    "test", "https://example.com/stream", "dummy-token", mock_user
+                )
+                chunks = list(streamer)
+
+                # Verify NO error message is displayed to user
+                for chunk in chunks:
+                    data = json.loads(chunk)
+                    # Should not contain error message
+                    if "c" in data:
+                        self.assertNotIn(
+                            "Unknown tool",
+                            data["c"],
+                            f"Error message leaked to user: {data}",
+                        )
+
+                mock_execute.assert_called_once()

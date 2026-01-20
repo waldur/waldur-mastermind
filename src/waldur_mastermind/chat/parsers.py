@@ -1,4 +1,6 @@
+import json
 import logging
+import re
 from collections.abc import Generator
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -6,6 +8,43 @@ from enum import Enum, auto
 from waldur_mastermind.chat.ui_registry import ui_registry
 
 logger = logging.getLogger(__name__)
+
+
+def parse_tool_call(content):
+    """
+    Try to parse a tool call from LLM response content.
+    Handles cases where LLM adds prefix text or wraps in markdown.
+    """
+    content = content.strip()
+
+    # Strip markdown code blocks if present
+    if content.startswith("```"):
+        content = re.sub(r"^```\w*\s*", "", content)
+        content = re.sub(r"\s*```$", "", content)
+        content = content.strip()
+
+    # Try parsing as-is first (handles clean JSON responses)
+    try:
+        data = json.loads(content)
+        if isinstance(data, dict) and "tool" in data:
+            return data
+    except json.JSONDecodeError:
+        pass
+
+    # Try to extract JSON from content with prefix/suffix text
+    # Match JSON objects that contain "tool" key
+    json_pattern = r'\{[^{}]*"tool"\s*:\s*"[^"]+"[^{}]*\}'
+    matches = re.finditer(json_pattern, content)
+
+    for match in matches:
+        try:
+            data = json.loads(match.group(0))
+            if isinstance(data, dict) and "tool" in data and "arguments" in data:
+                return data
+        except json.JSONDecodeError:
+            continue
+
+    return None
 
 
 class ParserState(Enum):
@@ -264,3 +303,30 @@ class StreamParser:
 
     def _to_ui_dict(self, ui_component) -> dict:
         return {"k": ui_component.key, **ui_component.data}
+
+    def parse_tool_result(self, result: dict) -> dict | None:
+        """
+        Parse tool execution result into UI component.
+        Returns None for errors (which should not be displayed to users).
+        """
+        if result.get("type") == "error":
+            # Don't display errors to users - they're logged in tool_executor
+            return None
+
+        # Extract UI component info from tool result
+        ui_key = result.get("ui_component", "markdown")
+        ui_data = result.get("ui_data", {"c": result.get("summary", "")})
+
+        try:
+            ui_component = ui_registry.create_content(ui_key, ui_data)
+            return self._to_ui_dict(ui_component)
+        except ValueError:
+            logger.warning(
+                "Failed to create UI content for tool result, falling back to markdown",
+                exc_info=True,
+            )
+            # Fallback to markdown with summary
+            ui_component = ui_registry.create_content(
+                "markdown", {"c": result.get("summary", "")}
+            )
+            return self._to_ui_dict(ui_component)

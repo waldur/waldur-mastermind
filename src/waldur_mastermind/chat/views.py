@@ -1,6 +1,5 @@
 import json
 import logging
-import re
 
 import requests
 from constance import config
@@ -15,39 +14,15 @@ from rest_framework.response import Response
 
 from waldur_core.core.exceptions import ExtensionDisabled
 from waldur_mastermind.chat import serializers
-from waldur_mastermind.chat.parsers import StreamParser
+from waldur_mastermind.chat.parsers import StreamParser, parse_tool_call
 from waldur_mastermind.chat.tool_executor import ToolExecutor
-from waldur_mastermind.chat.tools import TOOL_REGISTRY, get_tools_prompt
+from waldur_mastermind.chat.tools import (
+    TOOL_INSTRUCTIONS,
+    TOOL_REGISTRY,
+    get_tools_prompt,
+)
 
 logger = logging.getLogger(__name__)
-
-TOOL_INSTRUCTIONS = """{tools}
-
-RULES FOR TOOL USAGE:
-1. ONLY use a tool when the user EXPLICITLY asks for it (e.g., "show my resources", "list my resources")
-2. Do NOT use tools for greetings, general questions, or casual conversation
-3. When using a tool, respond with ONLY the JSON object - no other text
-4. Format: {{"tool": "show_user_resources", "arguments": {{}}}}
-5. NEVER mention tools to the user - do not suggest using tools or explain that tools exist
-"""
-
-
-def parse_tool_call(content):
-    """Try to parse a tool call from LLM response content."""
-    content = content.strip()
-    # Strip markdown code blocks if present
-    if content.startswith("```"):
-        content = re.sub(r"^```\w*\s*", "", content)
-        content = re.sub(r"\s*```$", "", content)
-
-    content = content.strip()
-    try:
-        data = json.loads(content)
-        if isinstance(data, dict) and "tool" in data:
-            return data
-    except json.JSONDecodeError:
-        pass
-    return None
 
 
 class LLMConfigurationMixin:
@@ -128,6 +103,7 @@ class LLMStreamer:
         self.accumulated_content = ""  # For tool call detection
         self.user = user
         self.is_tool_call = False  # Track if response looks like a tool call
+        self.might_be_tool_call = False  # Track if we're buffering potential tool call
 
     def _format_ndjson(self, data: dict) -> str:
         """
@@ -169,14 +145,32 @@ class LLMStreamer:
                     if content:
                         self.accumulated_content += content
 
-                        # Check if this looks like a tool call (starts with {)
-                        if (
-                            not self.is_tool_call
-                            and self.accumulated_content.strip().startswith("{")
-                        ):
-                            self.is_tool_call = True
+                        # Check if this looks like a tool call
+                        if not self.is_tool_call and not self.might_be_tool_call:
+                            stripped = self.accumulated_content.strip()
 
-                        if not self.is_tool_call:
+                            # Check if it could be a tool call
+                            if stripped.startswith("{"):
+                                # Might be a tool call - don't stream yet
+                                self.might_be_tool_call = True
+                                # Try to parse to see if it's complete
+                                tentative_parse = parse_tool_call(stripped)
+                                if tentative_parse:
+                                    self.is_tool_call = True
+                                # Continue buffering either way
+                                continue
+                        elif self.might_be_tool_call and not self.is_tool_call:
+                            # Already buffering, check if we can confirm it's a tool call
+                            tentative_parse = parse_tool_call(
+                                self.accumulated_content.strip()
+                            )
+                            if tentative_parse:
+                                self.is_tool_call = True
+                            # Continue buffering until confirmed or stream ends
+                            continue
+
+                        # Only stream if we know it's NOT a tool call
+                        if not self.is_tool_call and not self.might_be_tool_call:
                             for block in self.parser.parse(content):
                                 yield self._format_ndjson(block)
 
@@ -209,9 +203,10 @@ class LLMStreamer:
                         tool_executor = ToolExecutor(self.user)
                         result = tool_executor.execute_tool(tool_name, arguments)
 
-                        # Send summary as markdown content
-                        summary = result.get("summary", "Tool executed successfully.")
-                        yield self._format_ndjson({"c": summary, "k": "markdown"})
+                        # Parse tool result using StreamParser (same as markdown/code)
+                        tool_block = self.parser.parse_tool_result(result)
+                        if tool_block:
+                            yield self._format_ndjson(tool_block)
                     else:
                         # Looked like JSON but wasn't a valid tool call - send as-is
                         yield self._format_ndjson({"c": self.accumulated_content})

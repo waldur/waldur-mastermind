@@ -34,10 +34,13 @@ class ToolExecutor:
             if tool_name == "show_user_resources":
                 return self._show_user_resources()
 
+            error_msg = f"Unknown tool: {tool_name}"
             return {
                 "type": "error",
-                "error": f"Unknown tool: {tool_name}",
-                "summary": f"Unknown tool: {tool_name}",
+                "error": error_msg,
+                "summary": error_msg,
+                "ui_component": "markdown",
+                "ui_data": {"c": error_msg},
             }
 
         except PermissionDenied:
@@ -66,7 +69,7 @@ class ToolExecutor:
         """
         List all resources accessible by the current user.
 
-        NB! This returns only the number of total resources and a breakdown by type, it does not yet create a table view.
+        Returns structured table data for interactive UI rendering.
         """
 
         queryset = (
@@ -74,7 +77,9 @@ class ToolExecutor:
                 Resource.objects.exclude(state=ResourceStates.TERMINATED),
                 self.user,
             )
-            .select_related("project", "project__customer", "offering")
+            .select_related(
+                "project", "project__customer", "offering", "offering__category"
+            )
             .only(
                 "uuid",
                 "name",
@@ -83,62 +88,59 @@ class ToolExecutor:
                 "project__uuid",
                 "project__name",
                 "project__customer__name",
+                "offering__name",
                 "offering__type",
+                "offering__category__title",
             )[:DEFAULT_RESOURCE_LIMIT]
         )
 
         # Build resource list and count types
         resources = []
-        type_counts = {}
 
         for r in queryset:
-            offering_type = r.offering.type
-            type_counts[offering_type] = type_counts.get(offering_type, 0) + 1
-
             resources.append(
                 {
                     "uuid": str(r.uuid),
                     "name": r.name,
-                    "type": offering_type,
-                    "state": r.get_state_display(),
-                    "project": r.project.name if r.project else None,
-                    "project_uuid": str(r.project.uuid) if r.project else None,
-                    "customer": (
+                    "category": r.offering.category.title
+                    if r.offering.category
+                    else "",
+                    "offering": r.offering.name,
+                    "organization": (
                         r.project.customer.name
                         if r.project and r.project.customer
-                        else None
+                        else ""
                     ),
-                    "created": r.created.isoformat() if r.created else None,
+                    "project": r.project.name if r.project else "",
+                    "project_uuid": str(r.project.uuid) if r.project else None,
+                    "state": r.get_state_display(),
                 }
             )
 
         total = len(resources)
 
         # Generate summary for LLM (no sensitive data)
-        if total == 0:
-            summary = "No resources found."
-        else:
-            # Create Markdown table
-            header = (
-                "| Name | Type | State | Project | Customer |\n|---|---|---|---|---|\n"
-            )
-            rows = (
-                "\n".join(
-                    f"| {res['name']} | {res['type']} | {res['state']} | {res['project']} | {res['customer']} |"
-                    for res in resources
-                )
-                + "\n"
-            )
+        summary = f"Found {total} resource{'s' if total != 1 else ''}"
 
-            intro = f"Found {total} resource{'s' if total != 1 else ''}: \n\n"
-            summary = intro + header + rows
+        # Build structured table data matching frontend format
+        headers = ["Name", "Category", "Offering", "Organization", "Project", "State"]
+        rows = [
+            [
+                res["name"],
+                res["category"],
+                res["offering"],
+                res["organization"],
+                res["project"],
+                res["state"],
+            ]
+            for res in resources
+        ]
 
         logger.debug(
             "Resource query successful",
             extra={
                 "user_id": self.user.id,
                 "total_count": total,
-                "type_counts": type_counts,
             },
         )
 
@@ -147,7 +149,12 @@ class ToolExecutor:
             "data": {
                 "resources": resources,
                 "total": total,
-                "type_counts": type_counts,
             },
             "summary": summary,
+            "ui_component": "table",
+            "ui_data": {
+                "h": headers,
+                "r": rows,
+                "n": total,
+            },
         }
