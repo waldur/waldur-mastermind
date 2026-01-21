@@ -47,26 +47,3 @@ def get_tools_prompt() -> str:
             f"- **{tool.name}**: {tool.description}\n Parameters:\n{params_str}"
         )
     return "\n\n".join(tools_desc)
-
-
-TOOL_INSTRUCTIONS = """{tools}
-
-=== CRITICAL: TOOLS ARE EXTREMELY RARE ===
-Tools should ONLY be used for showing actual data. Most requests do NOT need tools.
-
-NEVER use tools for:
-- Greetings: "hello", "hi", "hey" → Respond naturally
-- Questions: "what", "why", "how", "explain" → Answer conceptually
-- General conversation: "thanks", "tell me about", "help me understand" → Answer directly
-
-ONLY use show_user_resources when EXPLICITLY asked to see/list/display/show user's actual resources:
-✓ CORRECT: "show my resources", "list my VMs", "display my resources"
-✗ WRONG: "hello", "what are resources?", "create code", "how do I...", "explain resources"
-
-When using a tool:
-- Respond with ONLY the JSON object
-- Format: {{"tool": "show_user_resources", "arguments": {{}}}}
-- No prefix text, no explanation, JUST the JSON
-
-NEVER mention tools exist to the user.
-"""

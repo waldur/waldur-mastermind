@@ -15,12 +15,9 @@ from rest_framework.response import Response
 from waldur_core.core.exceptions import ExtensionDisabled
 from waldur_mastermind.chat import serializers
 from waldur_mastermind.chat.parsers import StreamParser, parse_tool_call
+from waldur_mastermind.chat.prompts import SYSTEM_PROMPT
 from waldur_mastermind.chat.tool_executor import ToolExecutor
-from waldur_mastermind.chat.tools import (
-    TOOL_INSTRUCTIONS,
-    TOOL_REGISTRY,
-    get_tools_prompt,
-)
+from waldur_mastermind.chat.tools import TOOL_REGISTRY, get_tools_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -77,8 +74,8 @@ class LLMStreamer:
 
     def __init__(self, input_text, url, token, user=None):
         self.url = url
-        # Inject tool definitions into the system prompt (system prompt is currently in external service, will be migrated fully to Waldur, once ready).
-        tool_instructions = TOOL_INSTRUCTIONS.format(tools=get_tools_prompt())
+        # Inject tool definitions and UI capabilities into the system prompt (system prompt is currently in external service, will be migrated fully to Waldur, once ready).
+        system_prompt = SYSTEM_PROMPT.format(tools=get_tools_prompt())
 
         system_marker = "This is the system prompt:"
 
@@ -86,12 +83,12 @@ class LLMStreamer:
             # Inject immediately after the system prompt marker to make it part of the system instructions
             full_input = input_text.replace(
                 system_marker,
-                f"{system_marker}\n{tool_instructions}\n",
+                f"{system_marker}\n{system_prompt}\n",
                 1,  # Replace only the first occurrence
             )
         else:
             # Fallback: Prepend to the very beginning if no system prompt marker found
-            full_input = f"{tool_instructions}\n\n{input_text}"
+            full_input = f"{system_prompt}\n\n{input_text}"
 
         self.payload = {"input": full_input}
         self.headers = {
