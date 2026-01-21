@@ -195,5 +195,24 @@ class VolumeCreateProcessor(TenantMixin, processors.BaseCreateResourceProcessor)
     )
 
 
-class VolumeDeleteProcessor(processors.DeleteScopedResourceProcessor):
-    viewset = openstack_views.MarketplaceVolumeViewSet
+class VolumeDeleteProcessor(processors.AbstractDeleteResourceProcessor):
+    """
+    Volume delete processor that bypasses viewset permission filtering.
+
+    This processor directly calls delete_volume utility function instead of
+    making an internal API request through the viewset. This avoids permission
+    filtering issues where users with marketplace termination permissions
+    could not delete volumes due to GenericRoleFilter in the viewset.
+    """
+
+    def validate_order(self, request):
+        volume = cast(openstack_models.Volume, self.order.resource.scope)
+        if not volume:
+            return
+        # Validation is done in delete_volume function
+
+    def send_request(self, user, resource: models.Resource):
+        if not resource.scope:
+            return True
+        utils.delete_volume(resource.scope, self.order.attributes)
+        return False

@@ -9,7 +9,9 @@ from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions, serializers
 
+from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.structure.backend import ServiceBackend
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import plugins
@@ -611,6 +613,40 @@ def delete_instance(instance, attributes=None, is_async=True):
             force=force,
             delete_volumes=delete_volumes,
             release_floating_ips=release_floating_ips,
+            is_async=is_async,
+        )
+    )
+
+
+def delete_volume(volume, attributes=None, is_async=True):
+    """
+    Delete an OpenStack volume, bypassing viewset permission filtering.
+
+    This function is similar to delete_instance and is used by VolumeDeleteProcessor
+    to avoid permission filtering issues when deleting volumes through the marketplace.
+    """
+    if not attributes:
+        attributes = {}
+
+    # Validate volume state (same as MarketplaceVolumeViewSet._can_destroy_volume)
+    if volume.state == CoreStates.ERRED:
+        pass  # Allow deletion of errored volumes
+    elif volume.state != CoreStates.OK:
+        raise IncorrectStateException(_("Volume should be in OK state."))
+    else:
+        core_validators.RuntimeStateValidator(
+            "available", "error", "error_restoring", "error_extending", ""
+        )(volume)
+
+    # Check for dependent snapshots (same as MarketplaceVolumeViewSet._volume_snapshots_exist)
+    if volume.snapshots.exists():
+        raise IncorrectStateException(_("Volume has dependent snapshots."))
+
+    force = volume.state == CoreStates.ERRED
+    transaction.on_commit(
+        lambda: openstack_executors.VolumeDeleteExecutor.execute(
+            volume,
+            force=force,
             is_async=is_async,
         )
     )
