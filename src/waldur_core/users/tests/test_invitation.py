@@ -796,6 +796,50 @@ class InvitationCancelTest(BaseInvitationTest):
         self.assertEqual(len(mail.outbox), 1)
         self.assertTrue("expired" in mail.outbox[0].subject)
 
+    @freeze_time("2025-01-10")
+    def test_invitation_with_future_project_start_does_not_expire_early(self):
+        event_type = "invitation_expired"
+        structure_factories.NotificationFactory(key=f"users.{event_type}")
+        waldur_section = settings.WALDUR_CORE.copy()
+        waldur_section["INVITATION_LIFETIME"] = timedelta(days=7)
+
+        self.project.start_date = datetime.date(2025, 2, 1)
+        self.project.save()
+
+        with self.settings(WALDUR_CORE=waldur_section):
+            invitation = factories.ProjectInvitationFactory(
+                scope=self.project,
+                state=InvitationState.PENDING_PROJECT,
+                created=timezone.now() - timedelta(days=20),
+                created_by=self.project_admin,
+            )
+            tasks.cancel_expired_invitations(models.Invitation.objects.all())
+
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.state, InvitationState.PENDING_PROJECT)
+
+    @freeze_time("2025-02-09")
+    def test_invitation_expires_after_project_start_date_lifetime(self):
+        event_type = "invitation_expired"
+        structure_factories.NotificationFactory(key=f"users.{event_type}")
+        waldur_section = settings.WALDUR_CORE.copy()
+        waldur_section["INVITATION_LIFETIME"] = timedelta(days=7)
+
+        self.project.start_date = datetime.date(2025, 2, 1)
+        self.project.save()
+
+        with self.settings(WALDUR_CORE=waldur_section):
+            invitation = factories.ProjectInvitationFactory(
+                scope=self.project,
+                state=InvitationState.PENDING_PROJECT,
+                created=timezone.now() - timedelta(days=40),
+                created_by=self.project_admin,
+            )
+            tasks.cancel_expired_invitations(models.Invitation.objects.all())
+
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.state, InvitationState.EXPIRED)
+
     @override_settings(
         WALDUR_CORE={
             "INVITATION_LIFETIME": timedelta(weeks=1),
@@ -817,6 +861,32 @@ class InvitationCancelTest(BaseInvitationTest):
                 created_by=self.project_admin,
             )
             tasks.send_reminder_for_pending_invitations()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertTrue("REMINDER" in mail.outbox[0].subject)
+
+    @freeze_time("2025-02-07")
+    @override_settings(
+        WALDUR_CORE={
+            "INVITATION_LIFETIME": timedelta(days=7),
+            "TRANSLATION_DOMAIN": "TEST",
+        }
+    )
+    @override_config(HOMEPORT_URL="TEST")
+    def test_send_reminder_uses_project_start_date(self):
+        event_type = "invitation_created"
+        structure_factories.NotificationFactory(key=f"users.{event_type}")
+
+        self.project.start_date = datetime.date(2025, 2, 1)
+        self.project.save()
+
+        factories.ProjectInvitationFactory(
+            scope=self.project,
+            state=InvitationState.PENDING,
+            created=timezone.now() - timedelta(days=40),
+            created_by=self.project_admin,
+        )
+        tasks.send_reminder_for_pending_invitations()
 
         self.assertEqual(len(mail.outbox), 1)
         self.assertTrue("REMINDER" in mail.outbox[0].subject)
@@ -919,6 +989,30 @@ class InvitationSendTest(BaseInvitationTest):
         customer_expired_invitation.refresh_from_db()
         self.assertEqual(customer_expired_invitation.state, InvitationState.PENDING)
         self.assertEqual(customer_expired_invitation.created, timezone.now())
+
+    @freeze_time("2018-05-15")
+    def test_resend_for_future_project_marks_pending_project(self):
+        self.project.start_date = datetime.date(2018, 6, 1)
+        self.project.save()
+        invitation = factories.ProjectInvitationFactory(
+            scope=self.project,
+            state=InvitationState.EXPIRED,
+            created=timezone.now() - timedelta(days=10),
+        )
+
+        self.client.force_authenticate(user=self.staff)
+        with mock.patch(
+            "waldur_core.users.tasks.send_invitation_created.delay"
+        ) as send_invitation:
+            response = self.client.post(
+                factories.ProjectInvitationFactory.get_url(invitation, action="send")
+            )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.state, InvitationState.PENDING_PROJECT)
+        self.assertEqual(invitation.created, timezone.now())
+        send_invitation.assert_not_called()
 
     @override_settings(task_always_eager=True)
     def test_creating_of_email_log(self):

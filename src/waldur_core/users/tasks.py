@@ -29,13 +29,36 @@ def cancel_expired_invitations(invitations=None):
     Invitation lifetime must be specified in Waldur Core settings with parameter
     "INVITATION_LIFETIME". If invitation creation time is less than expiration time, the invitation will set as expired.
     """
-    expiration_date = timezone.now() - settings.WALDUR_CORE["INVITATION_LIFETIME"]
+    now = timezone.now()
     if not invitations:
-        invitations = models.Invitation.objects.filter(state=InvitationState.PENDING)
-    invitations = invitations.filter(created__lte=expiration_date)
-    invitations.update(state=InvitationState.EXPIRED)
+        invitations = models.Invitation.objects.filter(
+            state__in=[InvitationState.PENDING, InvitationState.PENDING_PROJECT]
+        )
+    elif hasattr(invitations, "filter"):
+        invitations = invitations.filter(
+            state__in=[InvitationState.PENDING, InvitationState.PENDING_PROJECT]
+        )
+    else:
+        invitations = [
+            invitation
+            for invitation in invitations
+            if invitation.state
+            in [InvitationState.PENDING, InvitationState.PENDING_PROJECT]
+        ]
 
-    for invitation in invitations:
+    expired_invitations = [
+        invitation
+        for invitation in invitations
+        if invitation.get_expiration_time() <= now
+    ]
+    if not expired_invitations:
+        return
+
+    models.Invitation.objects.filter(
+        uuid__in=[invitation.uuid for invitation in expired_invitations]
+    ).update(state=InvitationState.EXPIRED)
+
+    for invitation in expired_invitations:
         # Skip invitations where scope was deleted
         if invitation.scope is None:
             logger.warning(
@@ -205,14 +228,15 @@ def send_invitation_rejected(invitation_uuid, sender):
 @shared_task(name="waldur_core.users.send_reminder_for_pending_invitations")
 def send_reminder_for_pending_invitations():
     """Send reminder emails for pending invitations that are about to expire."""
-    expiration_date = (
-        timezone.now() - settings.WALDUR_CORE["INVITATION_LIFETIME"] + timedelta(days=1)
-    )
+    now = timezone.now()
     pending_invitations = models.Invitation.objects.filter(
-        state=InvitationState.PENDING, created__lte=expiration_date
+        state=InvitationState.PENDING
     )
 
     for invitation in pending_invitations:
+        reminder_date = invitation.get_expiration_time() - timedelta(days=1)
+        if reminder_date > now:
+            continue
         # Skip invitations where scope was deleted
         if invitation.scope is None:
             logger.warning(
