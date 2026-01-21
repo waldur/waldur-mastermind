@@ -1238,6 +1238,118 @@
       "description": "GPU hours by member"
     }
   ],
+  "invitations": [
+    {
+      "uuid": "aa200000000000000000000000000001",
+      "customer_uuid": "b2000000000000000000000000000003",
+      "role_name": "CUSTOMER.OWNER",
+      "email": "owner@demo.waldur.com",
+      "state": "pending",
+      "full_name": "Organization Owner",
+      "extra_invitation_text": "We would like to invite you to join the Bioinformatics Lab as an organization owner to help manage our computational biology resources.",
+      "scope_content_type": "structure.customer",
+      "scope_uuid": "b2000000000000000000000000000003"
+    },
+    {
+      "uuid": "aa200000000000000000000000000002",
+      "customer_uuid": "b2000000000000000000000000000003",
+      "role_name": "PROJECT.MEMBER",
+      "email": "member@demo.waldur.com",
+      "state": "pending",
+      "full_name": "Project Member",
+      "extra_invitation_text": "You are invited to join the Genome Sequencing Pipeline project as a team member.",
+      "scope_content_type": "structure.project",
+      "scope_uuid": "c2000000000000000000000000000002"
+    },
+    {
+      "uuid": "aa200000000000000000000000000003",
+      "customer_uuid": "b2000000000000000000000000000003",
+      "role_name": "PROJECT.MANAGER",
+      "email": "manager@demo.waldur.com",
+      "state": "pending",
+      "full_name": "Project Manager",
+      "extra_invitation_text": "We would like you to manage the Genome Sequencing Pipeline project.",
+      "scope_content_type": "structure.project",
+      "scope_uuid": "c2000000000000000000000000000002"
+    },
+    {
+      "uuid": "aa200000000000000000000000000004",
+      "customer_uuid": "b2000000000000000000000000000001",
+      "role_name": "CUSTOMER.MANAGER",
+      "email": "support@demo.waldur.com",
+      "state": "pending",
+      "full_name": "Support User",
+      "extra_invitation_text": "Join our management team at University Computing Center to help coordinate HPC resources.",
+      "scope_content_type": "structure.customer",
+      "scope_uuid": "b2000000000000000000000000000001"
+    },
+    {
+      "uuid": "aa200000000000000000000000000005",
+      "customer_uuid": "b2000000000000000000000000000002",
+      "role_name": "PROJECT.ADMIN",
+      "email": "staff@demo.waldur.com",
+      "state": "pending",
+      "full_name": "Staff User",
+      "extra_invitation_text": "Administrative access to the Particle Physics Simulation project for technical support.",
+      "scope_content_type": "structure.project",
+      "scope_uuid": "c2000000000000000000000000000001"
+    },
+    {
+      "uuid": "aa200000000000000000000000000006",
+      "customer_uuid": "b2000000000000000000000000000002",
+      "role_name": "PROJECT.MEMBER",
+      "email": "postdoc@physics.edu",
+      "state": "pending",
+      "full_name": "Jane Postdoc",
+      "extra_invitation_text": "Welcome to the Particle Physics Simulation team! You will have access to our HPC resources.",
+      "scope_content_type": "structure.project",
+      "scope_uuid": "c2000000000000000000000000000001"
+    },
+    {
+      "uuid": "aa200000000000000000000000000007",
+      "customer_uuid": "b2000000000000000000000000000003",
+      "role_name": "PROJECT.MEMBER",
+      "email": "gradstudent@biology.edu",
+      "state": "pending",
+      "full_name": "Alex Graduate",
+      "extra_invitation_text": "Join our genome sequencing team as a research member.",
+      "scope_content_type": "structure.project",
+      "scope_uuid": "c2000000000000000000000000000002"
+    }
+  ],
+  "group_invitations": [
+    {
+      "uuid": "ab200000000000000000000000000001",
+      "customer_uuid": "b2000000000000000000000000000001",
+      "role_name": "CUSTOMER.MANAGER",
+      "is_active": true,
+      "is_public": false,
+      "auto_create_project": false,
+      "scope_content_type": "structure.customer",
+      "scope_uuid": "b2000000000000000000000000000001"
+    },
+    {
+      "uuid": "ab200000000000000000000000000002",
+      "customer_uuid": "b2000000000000000000000000000002",
+      "role_name": "PROJECT.MEMBER",
+      "project_role_name": "PROJECT.MEMBER",
+      "is_active": true,
+      "is_public": true,
+      "auto_create_project": true,
+      "scope_content_type": "structure.customer",
+      "scope_uuid": "b2000000000000000000000000000002"
+    },
+    {
+      "uuid": "ab200000000000000000000000000003",
+      "customer_uuid": "b2000000000000000000000000000003",
+      "role_name": "PROJECT.MEMBER",
+      "is_active": true,
+      "is_public": false,
+      "auto_create_project": false,
+      "scope_content_type": "structure.project",
+      "scope_uuid": "c2000000000000000000000000000002"
+    }
+  ],
   "constance_settings": {
     "SITE_NAME": "Research Computing Platform",
     "SITE_DESCRIPTION": "Academic research computing platform providing high-performance computing clusters, GPU resources, and scientific software for universities and research institutions.",
