@@ -313,36 +313,14 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
         """
         Process an UPDATE order for resource options.
 
-        Uses select_for_update() to prevent race conditions where concurrent
-        operations might overwrite the state change. The resource is refreshed
-        from the database after the options save to ensure we have the latest
-        state before calling resource_update_succeeded.
+        Options handling is delegated to resource_update_succeeded which:
+        - Locks the resource with select_for_update() for atomic updates
+        - Updates options from order.attributes["new_options"]
+        - Sets resource state to OK
+        - Marks order as DONE
         """
         try:
-            new_options = self.order.attributes.get("new_options", {})
-
-            with transaction.atomic():
-                # Lock the resource row to prevent concurrent modifications
-                resource = models.Resource.objects.select_for_update().get(
-                    pk=self.order.resource.pk
-                )
-
-                current_options = resource.options or {}
-                current_options.update(new_options)
-                resource.options = current_options
-                resource.save(update_fields=["options"])
-
-                # Refresh the order's resource reference to use the locked instance
-                # This ensures resource_update_succeeded works with fresh data
-                self.order.resource = resource
-
-                resource_update_succeeded(resource)
-
-                logger.info(
-                    f"Updated options for resource {resource.name} "
-                    f"Order ID: {self.order.pk}"
-                )
-
+            resource_update_succeeded(self.order.resource)
         except Exception as e:
             # Set error message on order before calling callback
             self.order.error_message = str(e)
