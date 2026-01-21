@@ -126,6 +126,69 @@ class RemoteСategoriesTest(test.APITransactionTestCase):
         self.assertEqual(response.data, [])
 
 
+class RemoteOfferingsListTest(test.APITransactionTestCase):
+    def setUp(self):
+        super().setUp()
+        self.dns_patcher = create_selective_dns_mock()
+        self.dns_patcher.start()
+
+    def tearDown(self):
+        self.dns_patcher.stop()
+        super().tearDown()
+
+    @respx.mock
+    def test_remote_offerings_are_listed_and_serialized_correctly(self):
+        customer_uuid = uuid4().hex
+        mock_offerings = [
+            {
+                "uuid": uuid4().hex,
+                "name": "Test Offering",
+                "type": "Test.Type",
+                "state": "Active",
+                "category_title": "Test Category",
+            }
+        ]
+        offerings_mock = respx.get(
+            "https://remote-waldur.com/api/marketplace-public-offerings/"
+        ).respond(200, json=mock_offerings)
+        self.client.force_login(UserFactory())
+        response = self.client.post(
+            f"/api/remote-waldur-api/shared_offerings/?customer_uuid={customer_uuid}",
+            {
+                "api_url": "https://remote-waldur.com/",
+                "token": "valid_token",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(offerings_mock.called)
+        self.assertIsInstance(response.data, list)
+        if response.data:
+            self.assertIsInstance(response.data[0], dict)
+            self.assertIn("uuid", response.data[0])
+            self.assertIn("name", response.data[0])
+            self.assertIn("type", response.data[0])
+            self.assertIn("state", response.data[0])
+            self.assertIn("category_title", response.data[0])
+
+    @respx.mock
+    def test_remote_offerings_returns_empty_list_when_no_offerings(self):
+        customer_uuid = uuid4().hex
+        offerings_mock = respx.get(
+            "https://remote-waldur.com/api/marketplace-public-offerings/"
+        ).respond(200, json=[])
+        self.client.force_login(UserFactory())
+        response = self.client.post(
+            f"/api/remote-waldur-api/shared_offerings/?customer_uuid={customer_uuid}",
+            {
+                "api_url": "https://remote-waldur.com/",
+                "token": "valid_token",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+        self.assertTrue(offerings_mock.called)
+
+
 class OfferingDetailsPullTest(test.APITransactionTestCase):
     def setUp(self) -> None:
         self.dns_patcher = create_selective_dns_mock()
