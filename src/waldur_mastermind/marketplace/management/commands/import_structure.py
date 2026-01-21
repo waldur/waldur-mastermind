@@ -4247,10 +4247,11 @@ class Command(BaseCommand):
                 uuid = group_invitation_data.get("uuid")
                 customer_uuid = group_invitation_data.get("customer_uuid")
                 role_uuid = group_invitation_data.get("role_uuid")
-                if not uuid or not customer_uuid or not role_uuid:
+                role_name = group_invitation_data.get("role_name")
+                if not uuid or not customer_uuid or (not role_uuid and not role_name):
                     self.stdout.write(
                         self.style.WARNING(
-                            "Skipping group invitation without required fields"
+                            "Skipping group invitation without required fields (uuid, customer_uuid, role_uuid/role_name)"
                         )
                     )
                     self.stats["group_invitations"]["errors"] += 1
@@ -4267,22 +4268,53 @@ class Command(BaseCommand):
                     self.stats["group_invitations"]["errors"] += 1
                     continue
 
-                # Find role
-                role = Role.objects.filter(uuid=role_uuid).first()
+                # Find role by UUID or by name (create system role if needed)
+                role = None
+                if role_uuid:
+                    role = Role.objects.filter(uuid=role_uuid).first()
+                if not role and role_name:
+                    role = Role.objects.filter(name=role_name).first()
+                    # If role not found, create it as a system role
+                    if not role:
+                        # Determine content_type from role name prefix
+                        role_content_type = None
+                        if role_name.startswith("CUSTOMER."):
+                            role_content_type = ContentType.objects.get(
+                                app_label="structure", model="customer"
+                            )
+                        elif role_name.startswith("PROJECT."):
+                            role_content_type = ContentType.objects.get(
+                                app_label="structure", model="project"
+                            )
+                        if role_content_type:
+                            role = Role.objects.get_system_role(
+                                role_name, role_content_type
+                            )
                 if not role:
                     self.stdout.write(
                         self.style.WARNING(
-                            f"Skipping group invitation {uuid}: role {role_uuid} not found"
+                            f"Skipping group invitation {uuid}: role {role_uuid or role_name} not found"
                         )
                     )
                     self.stats["group_invitations"]["errors"] += 1
                     continue
 
-                # Find project role (optional)
+                # Find project role (optional) by UUID or by name
                 project_role = None
                 project_role_uuid = group_invitation_data.get("project_role_uuid")
+                project_role_name = group_invitation_data.get("project_role_name")
                 if project_role_uuid:
                     project_role = Role.objects.filter(uuid=project_role_uuid).first()
+                if not project_role and project_role_name:
+                    project_role = Role.objects.filter(name=project_role_name).first()
+                    # If project role not found, create it as a system role
+                    if not project_role:
+                        project_role_ct = ContentType.objects.get(
+                            app_label="structure", model="project"
+                        )
+                        project_role = Role.objects.get_system_role(
+                            project_role_name, project_role_ct
+                        )
 
                 # Find created_by (optional)
                 created_by = None
@@ -4315,8 +4347,9 @@ class Command(BaseCommand):
 
                 # Parse scope information
                 scope_content_type = group_invitation_data.get("scope_content_type")
-                scope_object_id = group_invitation_data.get("scope_object_id")
+                scope_uuid = group_invitation_data.get("scope_uuid")
                 content_type = None
+                object_id = None
                 if scope_content_type:
                     try:
                         app_label, model = scope_content_type.split(".")
@@ -4332,6 +4365,24 @@ class Command(BaseCommand):
                         self.stats["group_invitations"]["errors"] += 1
                         continue
 
+                    # Resolve scope object by UUID to get integer object_id
+                    if scope_uuid and content_type:
+                        model_class = content_type.model_class()
+                        if model_class:
+                            scope_object = model_class.objects.filter(
+                                uuid=scope_uuid
+                            ).first()
+                            if scope_object:
+                                object_id = scope_object.id
+                            else:
+                                self.stdout.write(
+                                    self.style.WARNING(
+                                        f"Skipping group invitation {uuid}: scope object {scope_uuid} not found"
+                                    )
+                                )
+                                self.stats["group_invitations"]["errors"] += 1
+                                continue
+
                 defaults = {
                     "customer": customer,
                     "role": role,
@@ -4343,7 +4394,7 @@ class Command(BaseCommand):
                         "auto_create_project", False
                     ),
                     "content_type": content_type,
-                    "object_id": scope_object_id,
+                    "object_id": object_id,
                 }
 
                 if not self.dry_run:
@@ -4394,11 +4445,17 @@ class Command(BaseCommand):
                 uuid = invitation_data.get("uuid")
                 customer_uuid = invitation_data.get("customer_uuid")
                 role_uuid = invitation_data.get("role_uuid")
+                role_name = invitation_data.get("role_name")
                 email = invitation_data.get("email")
-                if not uuid or not customer_uuid or not role_uuid or not email:
+                if (
+                    not uuid
+                    or not customer_uuid
+                    or (not role_uuid and not role_name)
+                    or not email
+                ):
                     self.stdout.write(
                         self.style.WARNING(
-                            "Skipping invitation without required fields"
+                            "Skipping invitation without required fields (uuid, customer_uuid, role_uuid/role_name, email)"
                         )
                     )
                     self.stats["invitations"]["errors"] += 1
@@ -4415,12 +4472,32 @@ class Command(BaseCommand):
                     self.stats["invitations"]["errors"] += 1
                     continue
 
-                # Find role
-                role = Role.objects.filter(uuid=role_uuid).first()
+                # Find role by UUID or by name (create system role if needed)
+                role = None
+                if role_uuid:
+                    role = Role.objects.filter(uuid=role_uuid).first()
+                if not role and role_name:
+                    role = Role.objects.filter(name=role_name).first()
+                    # If role not found, create it as a system role
+                    if not role:
+                        # Determine content_type from role name prefix
+                        role_content_type = None
+                        if role_name.startswith("CUSTOMER."):
+                            role_content_type = ContentType.objects.get(
+                                app_label="structure", model="customer"
+                            )
+                        elif role_name.startswith("PROJECT."):
+                            role_content_type = ContentType.objects.get(
+                                app_label="structure", model="project"
+                            )
+                        if role_content_type:
+                            role = Role.objects.get_system_role(
+                                role_name, role_content_type
+                            )
                 if not role:
                     self.stdout.write(
                         self.style.WARNING(
-                            f"Skipping invitation {uuid}: role {role_uuid} not found"
+                            f"Skipping invitation {uuid}: role {role_uuid or role_name} not found"
                         )
                     )
                     self.stats["invitations"]["errors"] += 1
@@ -4459,8 +4536,9 @@ class Command(BaseCommand):
 
                 # Parse scope information
                 scope_content_type = invitation_data.get("scope_content_type")
-                scope_object_id = invitation_data.get("scope_object_id")
+                scope_uuid = invitation_data.get("scope_uuid")
                 content_type = None
+                object_id = None
                 if scope_content_type:
                     try:
                         app_label, model = scope_content_type.split(".")
@@ -4475,6 +4553,24 @@ class Command(BaseCommand):
                         )
                         self.stats["invitations"]["errors"] += 1
                         continue
+
+                    # Resolve scope object by UUID to get integer object_id
+                    if scope_uuid and content_type:
+                        model_class = content_type.model_class()
+                        if model_class:
+                            scope_object = model_class.objects.filter(
+                                uuid=scope_uuid
+                            ).first()
+                            if scope_object:
+                                object_id = scope_object.id
+                            else:
+                                self.stdout.write(
+                                    self.style.WARNING(
+                                        f"Skipping invitation {uuid}: scope object {scope_uuid} not found"
+                                    )
+                                )
+                                self.stats["invitations"]["errors"] += 1
+                                continue
 
                 defaults = {
                     "customer": customer,
@@ -4494,7 +4590,7 @@ class Command(BaseCommand):
                     "error_message": invitation_data.get("error_message", ""),
                     "error_traceback": invitation_data.get("error_traceback", ""),
                     "content_type": content_type,
-                    "object_id": scope_object_id,
+                    "object_id": object_id,
                 }
 
                 if not self.dry_run:
