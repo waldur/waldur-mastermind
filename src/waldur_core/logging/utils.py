@@ -449,7 +449,7 @@ def publish_stomp_messages(
                 "auto-delete": "false",
                 "content-type": "application/json",
                 "expiration": str(get_message_ttl_for_type(message_type)),
-                "message-id": create_message_id(message_info),
+                "x-message-id": create_message_id(message_info),
                 "x-max-length": "10000",
                 "x-overflow": "reject-publish-dlx",
                 "x-dead-letter-exchange": "",

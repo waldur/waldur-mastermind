@@ -103,7 +103,9 @@ def sync_resource(serialized_instance):
     Send a message to Waldur Site Agent for the resource sync.
     Processes only resources that users have subscribed to receive updates for.
     """
+    logger.info("Syncing resource %s", serialized_instance)
     resource = core_utils.deserialize_instance(serialized_instance)
+    logger.info("Resource %s deserialized", resource)
     # Push update message to Waldur Site Agent
     utils.push_resource_update_message(resource)
 
