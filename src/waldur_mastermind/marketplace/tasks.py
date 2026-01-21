@@ -11,7 +11,7 @@ from constance import config
 from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Count, Exists, F, OuterRef, Q, Sum
+from django.db.models import Count, Exists, F, OuterRef, Q, Subquery, Sum
 from django.utils import timezone
 from rest_framework import status
 
@@ -357,8 +357,6 @@ def reset_stuck_updating_resources():
 
     For each stuck resource, the task transitions it to OK state.
     """
-    from django.db.models import Exists, OuterRef, Subquery
-
     # Subquery to get the latest UPDATE order state for each resource
     latest_update_order_state = (
         models.Order.objects.filter(
