@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from waldur_mastermind.chat import tools
+from waldur_mastermind.chat import prompts, tools
 
 
 class ToolDefinitionTest(TestCase):
@@ -83,3 +83,34 @@ class GetToolsPromptTest(TestCase):
         prompt = tools.get_tools_prompt()
         # show_user_resources has no parameters
         self.assertIn("no parameters", prompt)
+
+
+class UICapabilitiesTest(TestCase):
+    def test_ui_capabilities_is_string(self):
+        self.assertIsInstance(prompts.UI_CAPABILITIES, str)
+
+    def test_includes_mermaid_capabilities(self):
+        self.assertIn("mermaid", prompts.UI_CAPABILITIES.lower())
+        self.assertIn("```mermaid", prompts.UI_CAPABILITIES)
+
+    def test_includes_code_capabilities(self):
+        self.assertIn("code", prompts.UI_CAPABILITIES.lower())
+        self.assertIn("```python", prompts.UI_CAPABILITIES)
+
+    def test_includes_table_capabilities(self):
+        self.assertIn("table", prompts.UI_CAPABILITIES.lower())
+
+
+class SystemPromptTest(TestCase):
+    def test_system_prompt_is_string(self):
+        self.assertIsInstance(prompts.SYSTEM_PROMPT, str)
+
+    def test_system_prompt_includes_ui_capabilities(self):
+        # UI_CAPABILITIES should be part of SYSTEM_PROMPT
+        self.assertIn("UI RENDERING CAPABILITIES", prompts.SYSTEM_PROMPT)
+        self.assertIn("mermaid", prompts.SYSTEM_PROMPT.lower())
+
+    def test_system_prompt_includes_tool_instructions(self):
+        # TOOL_INSTRUCTIONS content should be in SYSTEM_PROMPT
+        self.assertIn("TOOLS ARE EXTREMELY RARE", prompts.SYSTEM_PROMPT)
+        self.assertIn("{tools}", prompts.SYSTEM_PROMPT)
