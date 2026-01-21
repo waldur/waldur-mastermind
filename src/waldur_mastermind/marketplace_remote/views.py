@@ -185,7 +185,7 @@ class OfferingsListView(RemoteView):
         )
 
         importable_offerings = [
-            offering
+            offering.to_dict()
             for offering in remote_offerings
             if offering.uuid.hex not in local_offerings
         ]
