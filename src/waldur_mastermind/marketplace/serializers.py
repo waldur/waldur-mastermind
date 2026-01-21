@@ -5812,22 +5812,69 @@ class OfferingUserSerializer(
 
         return super().to_internal_value(data)
 
+    def _has_active_terms_of_service(self, offering) -> bool:
+        """Check if offering has active ToS using prefetched data."""
+        # Use prefetched terms_of_service_configs to avoid N+1 query
+        if (
+            hasattr(offering, "_prefetched_objects_cache")
+            and "terms_of_service_configs" in offering._prefetched_objects_cache
+        ):
+            return any(tos.is_active for tos in offering.terms_of_service_configs.all())
+        # Fall back to model method if not prefetched
+        return offering.has_terms_of_service()
+
+    def _get_active_tos(self, offering):
+        """Get active ToS using prefetched data."""
+        # Use prefetched terms_of_service_configs to avoid N+1 query
+        if (
+            hasattr(offering, "_prefetched_objects_cache")
+            and "terms_of_service_configs" in offering._prefetched_objects_cache
+        ):
+            for tos in offering.terms_of_service_configs.all():
+                if tos.is_active:
+                    return tos
+            return None
+        # Fall back to query if not prefetched
+        return offering.terms_of_service_configs.filter(is_active=True).first()
+
+    def _get_user_consent(self, offering, user):
+        """Get user consent using prefetched data."""
+        # Use prefetched user_consents to avoid N+1 query
+        if (
+            hasattr(offering, "_prefetched_objects_cache")
+            and "user_consents" in offering._prefetched_objects_cache
+        ):
+            for consent in offering.user_consents.all():
+                if consent.user_id == user.id and consent.revocation_date is None:
+                    return consent
+            return None
+        # Fall back to model method if not prefetched
+        return offering.check_user_consent(user)
+
+    def _get_enforce_consent_config(self) -> bool:
+        """Get ENFORCE_USER_CONSENT_FOR_OFFERINGS config with request-level caching."""
+        request = self.context.get("request")
+        if request and hasattr(request, "_enforce_user_consent_cached"):
+            return request._enforce_user_consent_cached
+        value = config.ENFORCE_USER_CONSENT_FOR_OFFERINGS
+        if request:
+            request._enforce_user_consent_cached = value
+        return value
+
     def get_has_consent(self, obj) -> bool:
         """Check if the user has active consent for this offering."""
-        if not obj.offering.has_terms_of_service():
+        if not self._has_active_terms_of_service(obj.offering):
             return False
-        consent = obj.offering.check_user_consent(obj.user)
+        consent = self._get_user_consent(obj.offering, obj.user)
         return consent is not None
 
     def get_requires_reconsent(self, obj) -> bool:
         """Check if the user needs to re-consent due to ToS changes."""
-        consent = obj.offering.check_user_consent(obj.user)
+        consent = self._get_user_consent(obj.offering, obj.user)
         if not consent:
             return False
 
-        active_tos = obj.offering.terms_of_service_configs.filter(
-            is_active=True
-        ).first()
+        active_tos = self._get_active_tos(obj.offering)
         if not active_tos or not active_tos.requires_reconsent:
             return False
         return active_tos.version != consent.version
@@ -5861,13 +5908,26 @@ class OfferingUserSerializer(
     )
     def get_consent_data(self, obj):
         """Get the user's consent data for this offering."""
-        if not config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
+        if not self._get_enforce_consent_config():
             return None
 
-        if not obj.offering.has_terms_of_service():
+        if not self._has_active_terms_of_service(obj.offering):
             return None
 
-        consent = obj.offering.user_consents.filter(user=obj.user).first()
+        # Use prefetched user_consents - note: we need any consent for the user,
+        # not just active ones, so we iterate through all and find by user
+        consent = None
+        if (
+            hasattr(obj.offering, "_prefetched_objects_cache")
+            and "user_consents" in obj.offering._prefetched_objects_cache
+        ):
+            for c in obj.offering.user_consents.all():
+                if c.user_id == obj.user.id:
+                    consent = c
+                    break
+        else:
+            consent = obj.offering.user_consents.filter(user=obj.user).first()
+
         if not consent:
             return None
 

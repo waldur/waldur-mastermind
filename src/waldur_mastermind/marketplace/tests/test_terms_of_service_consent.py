@@ -2566,6 +2566,106 @@ class OfferingUsersViewSetPerformanceTest(APITransactionTestCase):
             self.assertEqual(len(offering_users), 1)
             self.assertEqual(offering_users[0].user, self.user)
 
+    def test_offering_users_serialization_no_n_plus_one_queries(self):
+        """Test that serializing offering users does not cause N+1 queries.
+
+        This test verifies that the serializer methods (get_has_consent,
+        get_requires_reconsent, get_consent_data) use prefetched data
+        and don't cause additional queries per item.
+
+        Fixes: PUHURI-PORTALS-DX2
+        """
+        # Create additional offering users to test N+1 pattern
+        additional_users = [UserFactory() for _ in range(5)]
+        for user in additional_users:
+            add_user_to_project(user, self.project, role=ProjectRole.MEMBER)
+            models.UserOfferingConsent.objects.create(
+                user=user,
+                offering=self.offering,
+                version="1.0",
+            )
+
+        staff_user = UserFactory(is_staff=True)
+        self.client.force_authenticate(staff_user)
+
+        with override_settings(DEBUG=True):
+            connection.queries.clear()
+
+            response = self.client.get(self.list_url)
+
+            query_count = len(connection.queries)
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            # Should have at least 7 offering users (2 from setUp + 5 additional)
+            self.assertGreaterEqual(len(response.data), 7)
+
+            # Query count should be constant regardless of number of items
+            # Allow for: 1 session, 1 user auth, 1 main query, 2 prefetches, 1 count
+            # The key is that query count should NOT scale with number of items
+            self.assertLessEqual(
+                query_count,
+                15,
+                f"Too many queries ({query_count}). N+1 query issue detected. "
+                f"Queries: {[q['sql'][:100] for q in connection.queries]}",
+            )
+
+    def test_offering_users_serialization_uses_prefetched_tos_configs(self):
+        """Test that has_terms_of_service check uses prefetched data."""
+        staff_user = UserFactory(is_staff=True)
+        self.client.force_authenticate(staff_user)
+
+        with override_settings(DEBUG=True):
+            connection.queries.clear()
+
+            response = self.client.get(self.list_url)
+
+            # Check that no query contains the N+1 pattern for terms_of_service
+            tos_queries = [
+                q["sql"]
+                for q in connection.queries
+                if "offeringtermsofservice" in q["sql"].lower()
+                and "EXISTS" in q["sql"].upper()
+            ]
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            # Should have 0 EXISTS queries for offeringtermsofservice (prefetched instead)
+            self.assertEqual(
+                len(tos_queries),
+                0,
+                f"Found N+1 ToS EXISTS queries: {tos_queries}",
+            )
+
+    def test_offering_users_serialization_caches_constance_config(self):
+        """Test that ENFORCE_USER_CONSENT_FOR_OFFERINGS config is cached per request."""
+        staff_user = UserFactory(is_staff=True)
+        self.client.force_authenticate(staff_user)
+
+        # Create additional offering users
+        for _ in range(3):
+            user = UserFactory()
+            add_user_to_project(user, self.project, role=ProjectRole.MEMBER)
+
+        with override_settings(DEBUG=True):
+            connection.queries.clear()
+
+            response = self.client.get(self.list_url)
+
+            # Count queries to constance_config table
+            constance_queries = [
+                q["sql"]
+                for q in connection.queries
+                if "constance_config" in q["sql"].lower()
+            ]
+
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            # Should have at most 1 query to constance_config (cached after first access)
+            self.assertLessEqual(
+                len(constance_queries),
+                1,
+                f"Too many constance_config queries ({len(constance_queries)}). "
+                f"Config should be cached per request. Queries: {constance_queries}",
+            )
+
 
 class OfferingTermsOfServiceFilterTest(APITransactionTestCase):
     """Test the has_active_terms_of_service filter for offerings."""
