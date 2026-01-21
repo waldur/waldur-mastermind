@@ -365,6 +365,79 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
         self.assertIsNotNone(integration_status.last_request_timestamp)
 
 
+@ddt
+class OfferingUserGlauthConfigQueryCountTest(test.APITransactionTestCase):
+    """Test that glauth_users_config endpoint has constant query count regardless of user count."""
+
+    def setUp(self) -> None:
+        self.fixture = GlauthUserFixture()
+
+    @data(5, 10)
+    def test_query_count_does_not_scale_with_user_count(self, num_users):
+        """
+        Verify that the number of queries does not grow linearly with the number of users.
+        This test creates multiple offering users and verifies query count stays bounded.
+
+        Before optimization: ~5 queries per user (user, ssh_keys, projects, groups, resources)
+        would result in ~55 queries for 10 users.
+        After optimization: should be constant (~5-10 queries) regardless of user count.
+        """
+        from django.db import connection, reset_queries
+        from django.test.utils import override_settings
+
+        offering = self.fixture.offering
+
+        # Create additional users with offering users
+        for i in range(num_users):
+            user = structure_factories.UserFactory(username=f"testuser{i}")
+            self.fixture.project.add_user(user, ProjectRole.MEMBER)
+            # Create offering user with required metadata
+            offering_user = marketplace_models.OfferingUser.objects.create(
+                offering=offering,
+                user=user,
+                username=f"testuser{i}",
+            )
+            marketplace_utils.setup_linux_related_data(offering_user, offering)
+            offering_user.save()
+            # Add SSH key for each user
+            structure_factories.SshPublicKeyFactory(user=user)
+
+        # Prepare queryset as done in views (with select_related and prefetch_related)
+        offering_users = (
+            marketplace_models.OfferingUser.objects.filter(offering=offering)
+            .exclude(username="")
+            .select_related("user")
+            .prefetch_related("user__sshpublickey_set")
+        )
+
+        # Enable query logging and count queries
+        with override_settings(DEBUG=True):
+            reset_queries()
+
+            marketplace_utils.generate_glauth_records_for_offering_users(
+                offering, offering_users
+            )
+
+            query_count = len(connection.queries)
+
+        # After optimization: query count should be constant regardless of user count
+        # Expected queries:
+        # 1. Evaluate offering_users queryset (with select_related user)
+        # 2. Prefetch SSH keys
+        # 3. Get ContentType for Project
+        # 4. Batch query UserRole for user->project mapping
+        # 5. Batch query OfferingUserGroup for project->gid mapping
+        # 6. Batch query Resource for users with active resources
+        # Total: ~6-10 queries max
+        max_allowed_queries = 15
+        self.assertLess(
+            query_count,
+            max_allowed_queries,
+            f"Query count ({query_count}) for {num_users} users exceeds limit ({max_allowed_queries}). "
+            f"This suggests N+1 query problem. Expected constant query count regardless of user count.",
+        )
+
+
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
 class UserOfferingsMappingTest(test.APITransactionTestCase):
     def setUp(self):

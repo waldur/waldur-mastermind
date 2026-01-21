@@ -2664,8 +2664,11 @@ class ProviderOfferingViewSet(
         integration_status.set_backend_active()
         integration_status.save()
 
-        offering_users = models.OfferingUser.objects.filter(offering=offering).exclude(
-            username=""
+        offering_users = (
+            models.OfferingUser.objects.filter(offering=offering)
+            .exclude(username="")
+            .select_related("user")
+            .prefetch_related("user__sshpublickey_set")
         )
 
         offering_groups = models.OfferingUserGroup.objects.filter(offering=offering)
@@ -6187,10 +6190,15 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
 
         user_ids = get_project_users(project.id)
 
-        offering_users = models.OfferingUser.objects.filter(
-            offering=offering,
-            user__id__in=user_ids,
-        ).exclude(username="")
+        offering_users = (
+            models.OfferingUser.objects.filter(
+                offering=offering,
+                user__id__in=user_ids,
+            )
+            .exclude(username="")
+            .select_related("user")
+            .prefetch_related("user__sshpublickey_set")
+        )
 
         offering_groups = models.OfferingUserGroup.objects.filter(offering=offering)
 
