@@ -1164,9 +1164,69 @@ def get_plans_available_for_user(
 
 
 def generate_glauth_records_for_offering_users(offering, offering_users):
+    """
+    Generate GLauth config records for offering users.
+
+    This function is optimized to minimize database queries by:
+    - Expecting offering_users to have user and sshpublickey_set prefetched
+    - Batch querying user-to-project mappings
+    - Batch querying project-to-group-gid mappings
+    - Batch querying users with active resources
+    """
+    # Convert to list to allow multiple iterations
+    offering_users_list = list(offering_users)
+    if not offering_users_list:
+        return []
+
+    # Collect all user IDs for batch queries
+    user_ids = [ou.user_id for ou in offering_users_list]
+
+    # Batch query: user_id -> list of project_ids
+    project_content_type = ContentType.objects.get_for_model(structure_models.Project)
+    user_project_mappings = defaultdict(set)
+    for user_role in UserRole.objects.filter(
+        is_active=True,
+        user_id__in=user_ids,
+        content_type=project_content_type,
+    ).values("user_id", "object_id"):
+        user_project_mappings[user_role["user_id"]].add(user_role["object_id"])
+
+    # Collect all project IDs that any user has access to
+    all_project_ids = set()
+    for project_ids in user_project_mappings.values():
+        all_project_ids.update(project_ids)
+
+    # Batch query: project_id -> list of gids from OfferingUserGroup
+    project_gid_mappings = defaultdict(set)
+    if all_project_ids:
+        for group in models.OfferingUserGroup.objects.filter(
+            projects__id__in=all_project_ids
+        ).prefetch_related("projects"):
+            gid = group.backend_metadata.get("gid")
+            if gid is not None:
+                for project in group.projects.all():
+                    if project.id in all_project_ids:
+                        project_gid_mappings[project.id].add(str(gid))
+
+    # Batch query: users with active (non-terminated) resources in this offering
+    users_with_active_resources = set(
+        models.Resource.objects.filter(
+            offering=offering,
+            project_id__in=all_project_ids,
+        )
+        .exclude(state=ResourceStates.TERMINATED)
+        .values_list("project_id", flat=True)
+    )
+    # Map user_id -> has_active_resource
+    users_with_access = set()
+    for user_id, project_ids in user_project_mappings.items():
+        if project_ids & users_with_active_resources:
+            users_with_access.add(user_id)
+
+    password_sha256 = generate_offering_password_hash(offering)
     user_records = []
 
-    for offering_user in offering_users:
+    for offering_user in offering_users_list:
         user = offering_user.user
         username = offering_user.username
         if "uidnumber" not in offering_user.backend_metadata:
@@ -1181,27 +1241,21 @@ def generate_glauth_records_for_offering_users(offering, offering_users):
         login_shell = offering_user.backend_metadata["loginShell"]
         home_dir = offering_user.backend_metadata["homeDir"]
 
+        # Use prefetched SSH keys (no additional query)
         ssh_keys = [
             f'"{ssh_key.public_key}"' for ssh_key in user.sshpublickey_set.all()
         ]
         ssh_keys_line = ",\n    ".join(ssh_keys)
 
-        password_sha256 = generate_offering_password_hash(offering)
+        # Use pre-computed user-to-project-to-gid mapping
+        user_project_ids = user_project_mappings.get(user.id, set())
+        group_ids = set()
+        for project_id in user_project_ids:
+            group_ids.update(project_gid_mappings.get(project_id, set()))
+        other_groups = ", ".join(sorted(group_ids))
 
-        user_projects = get_connected_projects(user)
-
-        group_ids = models.OfferingUserGroup.objects.filter(
-            projects__in=user_projects
-        ).values_list("backend_metadata__gid", flat=True)
-        group_ids = [str(gid) for gid in group_ids]
-
-        other_groups = ", ".join(group_ids)
-
-        user_disabled_status = "false"
-        # Check if user has access to non-terminated resources in offering
-        has_access = is_user_related_to_offering(offering, user)
-        if not has_access:
-            user_disabled_status = "true"
+        # Use pre-computed access check
+        user_disabled_status = "false" if user.id in users_with_access else "true"
 
         record = textwrap.dedent(
             f"""
