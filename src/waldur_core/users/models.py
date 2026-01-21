@@ -1,9 +1,11 @@
+from datetime import datetime, time
 from typing import cast
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models, transaction
 from django.db.models.query_utils import Q
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMField, transition
 from model_utils import FieldTracker
@@ -15,7 +17,7 @@ from waldur_core.core import models as core_models
 from waldur_core.core.mixins import ProjectNameTemplateMixin
 from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import add_user, validate_user_restrictions
-from waldur_core.structure.models import Customer
+from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.signals import permissions_request_approved
 from waldur_core.users.enums import InvitationState
 
@@ -153,8 +155,25 @@ class Invitation(
     full_name = models.CharField(_("full name"), max_length=100, blank=True)
     extra_invitation_text = models.TextField(blank=True, max_length=250)
 
+    def get_expiration_base_datetime(self):
+        if not self.scope:
+            return self.created
+
+        if isinstance(self.scope, Project) and self.scope.start_date:
+            if self.scope.start_date > self.created.date():
+                base_date = self.scope.start_date
+                base_dt = datetime.combine(base_date, time.min)
+                if settings.USE_TZ:
+                    return timezone.make_aware(base_dt, timezone.get_current_timezone())
+                return base_dt
+
+        return self.created
+
     def get_expiration_time(self):
-        return self.created + settings.WALDUR_CORE["INVITATION_LIFETIME"]
+        return (
+            self.get_expiration_base_datetime()
+            + settings.WALDUR_CORE["INVITATION_LIFETIME"]
+        )
 
     def accept(self, user):
         add_user(self.scope, user, self.role, self.created_by)

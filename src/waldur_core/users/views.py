@@ -254,13 +254,32 @@ class InvitationViewSet(viewsets.ModelViewSet):
                 _("Only pending, expired and canceled invitations can be resent.")
             )
 
+        reset_created = False
         if invitation.state in [
             InvitationState.EXPIRED,
             InvitationState.CANCELED,
         ]:
             invitation.state = InvitationState.PENDING
             invitation.created = timezone.now()
-            invitation.save()
+            reset_created = True
+
+        if isinstance(invitation.scope, Project):
+            project = cast(Project, invitation.scope)
+            if project.start_date and project.start_date > timezone.now().date():
+                invitation.state = InvitationState.PENDING_PROJECT
+                invitation.created = timezone.now()
+                invitation.save(update_fields=["state", "created"])
+                return Response(
+                    {
+                        "detail": _(
+                            "Invitation sending has been successfully scheduled."
+                        )
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+        if reset_created:
+            invitation.save(update_fields=["state", "created"])
 
         sender = request.user.full_name or request.user.username
         tasks.send_invitation_created.delay(invitation.uuid.hex, sender)
