@@ -340,6 +340,90 @@ def terminate_resources_in_state_erred_without_backend_id_and_failed_terminate_o
         resource.delete()
 
 
+@shared_task(name="waldur_mastermind.marketplace.reset_stuck_updating_resources")
+def reset_stuck_updating_resources():
+    """
+    Reset marketplace resources stuck in UPDATING state.
+
+    This task handles two scenarios where a resource remains in UPDATING state:
+
+    1. The resource's UPDATE order has been completed (state=DONE) but the resource
+       state wasn't transitioned to OK due to a race condition.
+
+    2. The resource was set to UPDATING by a backend operation (e.g., sync/pull)
+       without an order, but the operation finished without updating the state.
+       In this case, if no UPDATE order exists or is executing, and the resource
+       has been stuck for more than 1 hour, it is reset to OK.
+
+    For each stuck resource, the task transitions it to OK state.
+    """
+    from django.db.models import Exists, OuterRef, Subquery
+
+    # Subquery to get the latest UPDATE order state for each resource
+    latest_update_order_state = (
+        models.Order.objects.filter(
+            resource=OuterRef("pk"),
+            type=OrderTypes.UPDATE,
+        )
+        .order_by("-created")
+        .values("state")[:1]
+    )
+
+    # Check if there's any executing UPDATE order for the resource
+    has_executing_update_order = models.Order.objects.filter(
+        resource=OuterRef("pk"),
+        type=OrderTypes.UPDATE,
+        state=OrderStates.EXECUTING,
+    )
+
+    # Find all resources stuck in UPDATING state
+    stuck_resources = (
+        models.Resource.objects.filter(
+            state=ResourceStates.UPDATING,
+        )
+        .annotate(
+            latest_update_order_state=Subquery(latest_update_order_state),
+            has_executing_order=Exists(has_executing_update_order),
+        )
+        .filter(
+            # Case 1: Latest UPDATE order is completed (DONE)
+            # If the most recent order is done, reset regardless of older orders
+            Q(latest_update_order_state=OrderStates.DONE)
+            |
+            # Case 2: No executing order and stuck for more than 1 hour
+            # This handles resources set to UPDATING by backend operations without orders
+            Q(
+                has_executing_order=False,
+                modified__lt=timezone.now() - datetime.timedelta(hours=1),
+            )
+        )
+    )
+
+    for resource in stuck_resources:
+        try:
+            reason = (
+                "UPDATE order is completed"
+                if resource.latest_update_order_state == OrderStates.DONE
+                else "no active UPDATE order and stuck for over 1 hour"
+            )
+            logger.info(
+                "Resetting stuck resource %s (UUID: %s) from UPDATING to OK "
+                "because %s.",
+                resource.name,
+                resource.uuid.hex,
+                reason,
+            )
+            resource.set_state_ok()
+            resource.save(update_fields=["state"])
+        except Exception as e:
+            logger.exception(
+                "Failed to reset stuck resource %s (UUID: %s): %s",
+                resource.name,
+                resource.uuid.hex,
+                str(e),
+            )
+
+
 @shared_task(name="waldur_mastermind.marketplace.notify_about_stale_resource")
 def notify_about_stale_resource():
     """Notify customers about resources that have not generated invoice items in the last 3 months."""
