@@ -114,98 +114,147 @@ def resource_creation_canceled(resource: models.Resource, validate=False):
 
 
 def resource_update_succeeded(resource: models.Resource, validate=False):
-    order = set_order_state(
-        resource,
-        OrderTypes.UPDATE,
-        OrderStates.DONE,
-        validate,
-    )
+    """
+    Handle successful resource update completion.
 
-    email_context = {
-        "resource_name": resource.name,
-        "support_email": config.SITE_EMAIL,
-        "support_phone": config.SITE_PHONE,
-    }
+    This function is called either:
+    1. From process_order flow (via _process_options_update, etc.)
+    2. From set_state_done API endpoint (via sync_order_state)
 
-    if resource.state != ResourceStates.OK:
-        resource.set_state_ok()
-
-    limits_changed = False
-    if order:
-        email_context.update(
-            {
-                "order_user": order.created_by.get_full_name(),
-            }
+    Uses select_for_update() to prevent race conditions when multiple
+    processes try to update the resource simultaneously.
+    """
+    with transaction.atomic():
+        # Lock the resource row to prevent concurrent modifications
+        locked_resource = models.Resource.objects.select_for_update().get(
+            pk=resource.pk
         )
 
-        plan_changed = bool(order.plan and resource.plan != order.plan)
-        limits_changed = bool(order.limits and resource.limits != order.limits)
-        if plan_changed:
+        order = set_order_state(
+            locked_resource,
+            OrderTypes.UPDATE,
+            OrderStates.DONE,
+            validate,
+        )
+
+        email_context = {
+            "resource_name": locked_resource.name,
+            "support_email": config.SITE_EMAIL,
+            "support_phone": config.SITE_PHONE,
+        }
+
+        if locked_resource.state != ResourceStates.OK:
+            locked_resource.set_state_ok()
+
+        limits_changed = False
+        if order:
             email_context.update(
                 {
-                    "resource_old_plan": resource.plan.name,
-                    "resource_plan": order.plan.name,
+                    "order_user": order.created_by.get_full_name(),
                 }
             )
-            resource.plan = order.plan
-            transaction.on_commit(
-                lambda: tasks.notify_about_resource_change.delay(
-                    "marketplace_resource_update_succeeded",
-                    email_context,
-                    resource.uuid,
-                )
+
+            plan_changed = bool(order.plan and locked_resource.plan != order.plan)
+            limits_changed = bool(
+                order.limits and locked_resource.limits != order.limits
             )
+
+            # Handle options updates from order attributes
+            new_options = order.attributes.get("new_options")
+            if new_options:
+                current_options = locked_resource.options or {}
+                current_options.update(new_options)
+                locked_resource.options = current_options
+                logger.info(
+                    "Updated options for resource %s (UUID: %s) from order %s",
+                    locked_resource.name,
+                    locked_resource.uuid.hex,
+                    order.uuid.hex,
+                )
+
+            if plan_changed:
+                email_context.update(
+                    {
+                        "resource_old_plan": locked_resource.plan.name,
+                        "resource_plan": order.plan.name,
+                    }
+                )
+                locked_resource.plan = order.plan
+                transaction.on_commit(
+                    lambda: tasks.notify_about_resource_change.delay(
+                        "marketplace_resource_update_succeeded",
+                        email_context,
+                        locked_resource.uuid,
+                    )
+                )
+            if limits_changed:
+                components_map = order.offering.get_limit_components()
+                email_context.update(
+                    {
+                        "resource_old_limits": format_limits_list(
+                            components_map, locked_resource.limits
+                        ),
+                        "resource_limits": format_limits_list(
+                            components_map, order.limits
+                        ),
+                    }
+                )
+                locked_resource.limits = order.limits
+                transaction.on_commit(
+                    lambda: tasks.notify_about_resource_change.delay(
+                        "marketplace_resource_update_limits_succeeded",
+                        email_context,
+                        locked_resource.uuid,
+                    )
+                )
+
+            if plan_changed or limits_changed:
+                locked_resource.init_cost()
+
+        locked_resource.save()
+
         if limits_changed:
-            components_map = order.offering.get_limit_components()
-            email_context.update(
-                {
-                    "resource_old_limits": format_limits_list(
-                        components_map, resource.limits
-                    ),
-                    "resource_limits": format_limits_list(components_map, order.limits),
-                }
-            )
-            resource.limits = order.limits
-            transaction.on_commit(
-                lambda: tasks.notify_about_resource_change.delay(
-                    "marketplace_resource_update_limits_succeeded",
-                    email_context,
-                    resource.uuid,
-                )
-            )
+            log.log_resource_limit_update_succeeded(locked_resource)
 
-        if plan_changed or limits_changed:
-            resource.init_cost()
-
-    resource.save()
-
-    if limits_changed:
-        log.log_resource_limit_update_succeeded(resource)
-
-    return order
+        return order
 
 
 def resource_update_failed(resource: models.Resource, validate=False):
-    order = set_order_state(
-        resource,
-        OrderTypes.UPDATE,
-        OrderStates.ERRED,
-        validate,
-    )
-    if resource.state != ResourceStates.ERRED:
-        resource.set_state_erred()
-        resource.save(update_fields=["state"])
-    else:
-        logger.info("Resource %s is already in erred state, skip transition", resource)
+    """
+    Handle failed resource update.
 
-    event_logger.emit(
-        "Resource {resource_name} update has failed.",
-        event_type=EventType.MARKETPLACE_RESOURCE_UPDATE_FAILED,
-        event_context={"resource": resource},
-        scopes=log.get_resource_scopes(resource),
-        level="error",
-    )
-    return order
+    Uses select_for_update() to prevent race conditions when multiple
+    processes try to update the resource simultaneously.
+    """
+    with transaction.atomic():
+        # Lock the resource row to prevent concurrent modifications
+        locked_resource = models.Resource.objects.select_for_update().get(
+            pk=resource.pk
+        )
+
+        order = set_order_state(
+            locked_resource,
+            OrderTypes.UPDATE,
+            OrderStates.ERRED,
+            validate,
+        )
+        if locked_resource.state != ResourceStates.ERRED:
+            locked_resource.set_state_erred()
+            locked_resource.save(update_fields=["state"])
+        else:
+            logger.info(
+                "Resource %s is already in erred state, skip transition",
+                locked_resource,
+            )
+
+        event_logger.emit(
+            "Resource {resource_name} update has failed.",
+            event_type=EventType.MARKETPLACE_RESOURCE_UPDATE_FAILED,
+            event_context={"resource": locked_resource},
+            scopes=log.get_resource_scopes(locked_resource),
+            level="error",
+        )
+        return order
 
 
 def resource_update_canceled(resource: models.Resource, validate=False):
