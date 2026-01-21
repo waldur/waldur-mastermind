@@ -101,6 +101,11 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(minutes=10),
         "args": (),
     },
+    "marketplace-reset-stuck-updating-resources": {
+        "task": "waldur_mastermind.marketplace.reset_stuck_updating_resources",
+        "schedule": timedelta(minutes=10),
+        "args": (),
+    },
     "structure-set-erred-stuck-resources": {
         "task": "waldur_core.structure.SetErredStuckResources",
         "schedule": timedelta(hours=1),

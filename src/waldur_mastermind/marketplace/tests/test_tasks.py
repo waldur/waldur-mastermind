@@ -559,3 +559,182 @@ class UpdateResourceScopeAvailabilityTest(test.APITransactionTestCase):
         )
         self.instance.refresh_from_db()
         self.assertTrue(self.instance.can_be_managed)
+
+
+class ResetStuckUpdatingResourcesTest(test.APITransactionTestCase):
+    """
+    Test task that resets marketplace resources stuck in UPDATING state.
+
+    This task handles the case where a resource remains in UPDATING state even
+    though its related UPDATE order has been successfully completed.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+
+    def test_reset_stuck_resource_with_completed_update_order(self):
+        """
+        Test that a resource stuck in UPDATING state is reset to OK
+        when its UPDATE order is completed (DONE).
+        """
+        # Set resource to UPDATING state
+        self.resource.set_state_updating()
+        self.resource.save()
+
+        # Create a completed UPDATE order for the resource
+        factories.OrderFactory(
+            resource=self.resource,
+            type=OrderTypes.UPDATE,
+            state=OrderStates.DONE,
+        )
+
+        # Run the recovery task
+        tasks.reset_stuck_updating_resources()
+
+        # Verify the resource state is now OK
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, ResourceStates.OK)
+
+    def test_do_not_reset_resource_with_executing_update_order(self):
+        """
+        Test that a resource in UPDATING state is NOT reset if its
+        UPDATE order is still executing.
+        """
+        # Set resource to UPDATING state
+        self.resource.set_state_updating()
+        self.resource.save()
+
+        # Create an executing UPDATE order for the resource
+        factories.OrderFactory(
+            resource=self.resource,
+            type=OrderTypes.UPDATE,
+            state=OrderStates.EXECUTING,
+        )
+
+        # Run the recovery task
+        tasks.reset_stuck_updating_resources()
+
+        # Verify the resource state is still UPDATING
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, ResourceStates.UPDATING)
+
+    def test_do_not_reset_resource_with_erred_update_order(self):
+        """
+        Test that a resource in UPDATING state is NOT reset if its
+        UPDATE order has failed (ERRED).
+        """
+        # Set resource to UPDATING state
+        self.resource.set_state_updating()
+        self.resource.save()
+
+        # Create a failed UPDATE order for the resource
+        factories.OrderFactory(
+            resource=self.resource,
+            type=OrderTypes.UPDATE,
+            state=OrderStates.ERRED,
+        )
+
+        # Run the recovery task
+        tasks.reset_stuck_updating_resources()
+
+        # Verify the resource state is still UPDATING
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, ResourceStates.UPDATING)
+
+    def test_do_not_reset_ok_resource(self):
+        """
+        Test that a resource already in OK state is not affected by the task.
+        """
+        # Set resource to OK state
+        self.resource.set_state_ok()
+        self.resource.save()
+
+        # Create a completed UPDATE order for the resource
+        factories.OrderFactory(
+            resource=self.resource,
+            type=OrderTypes.UPDATE,
+            state=OrderStates.DONE,
+        )
+
+        # Run the recovery task
+        tasks.reset_stuck_updating_resources()
+
+        # Verify the resource state is still OK
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, ResourceStates.OK)
+
+    def test_reset_only_latest_order_matters(self):
+        """
+        Test that only the latest UPDATE order state is considered.
+        If the latest order is completed but there's an older executing order,
+        the resource should still be reset.
+        """
+        # Set resource to UPDATING state
+        self.resource.set_state_updating()
+        self.resource.save()
+
+        # Create an older executing UPDATE order
+        older_order = factories.OrderFactory(
+            resource=self.resource,
+            type=OrderTypes.UPDATE,
+            state=OrderStates.EXECUTING,
+        )
+
+        # Create a newer completed UPDATE order
+        newer_order = factories.OrderFactory(
+            resource=self.resource,
+            type=OrderTypes.UPDATE,
+            state=OrderStates.DONE,
+        )
+
+        # Ensure newer order is actually newer
+        older_order.created = timezone.now() - datetime.timedelta(hours=1)
+        older_order.save()
+        newer_order.created = timezone.now()
+        newer_order.save()
+
+        # Run the recovery task
+        tasks.reset_stuck_updating_resources()
+
+        # Verify the resource state is now OK (based on latest order)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, ResourceStates.OK)
+
+    def test_reset_stuck_resource_without_order_after_timeout(self):
+        """
+        Test that a resource stuck in UPDATING without any orders is reset
+        after the timeout period (1 hour).
+        """
+        # Set resource to UPDATING state without any order (simulating backend sync operation)
+        # Use update() to bypass auto_now on the modified field
+        models.Resource.objects.filter(pk=self.resource.pk).update(
+            state=ResourceStates.UPDATING,
+            modified=timezone.now() - datetime.timedelta(hours=2),
+        )
+
+        # Run the recovery task
+        tasks.reset_stuck_updating_resources()
+
+        # Verify the resource state is now OK
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, ResourceStates.OK)
+
+    def test_do_not_reset_recently_stuck_resource_without_order(self):
+        """
+        Test that a resource stuck in UPDATING without any orders is NOT reset
+        if it hasn't been stuck long enough (less than 1 hour).
+        """
+        # Set resource to UPDATING state without any order
+        # Use update() to bypass auto_now on the modified field
+        models.Resource.objects.filter(pk=self.resource.pk).update(
+            state=ResourceStates.UPDATING,
+            modified=timezone.now() - datetime.timedelta(minutes=30),
+        )
+
+        # Run the recovery task
+        tasks.reset_stuck_updating_resources()
+
+        # Verify the resource state is still UPDATING
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.state, ResourceStates.UPDATING)
