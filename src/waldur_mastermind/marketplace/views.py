@@ -7666,7 +7666,9 @@ class OfferingUsersViewSet(
                 .select_related(
                     "offering__compliance_checklist", "user", "offering__customer"
                 )
-                .prefetch_related("offering__user_consents")
+                .prefetch_related(
+                    "offering__user_consents", "offering__terms_of_service_configs"
+                )
             )
 
         # For non-staff users, apply both filtering and optimization
@@ -7677,7 +7679,9 @@ class OfferingUsersViewSet(
         # Apply performance optimizations to filtered queryset
         return filtered_queryset.select_related(
             "offering__compliance_checklist", "user", "offering__customer"
-        ).prefetch_related("offering__user_consents")
+        ).prefetch_related(
+            "offering__user_consents", "offering__terms_of_service_configs"
+        )
 
     @extend_schema(
         summary="Update restriction status",
