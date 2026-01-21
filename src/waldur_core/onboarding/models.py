@@ -416,7 +416,7 @@ class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
                 or self.legal_name  # Third priority: stored legal_name
                 or f"Company {self.legal_person_identifier}"  # Fallback: generated name
             ),
-            "country": self.country,
+            "country": self.country or extracted["customer_data"].get("country"),
             "registration_code": self.legal_person_identifier,
         }
 
