@@ -2393,7 +2393,7 @@ Base URL for LLM inference service API.
 
 #### LLM_INFERENCES_API_TOKEN
 
-**Type:** str
+**Type:** secret_field
 
 API key for authenticating with the LLM inference service.
 
