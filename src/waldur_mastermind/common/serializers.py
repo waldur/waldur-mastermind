@@ -1,3 +1,4 @@
+from django.core.validators import MinValueValidator
 from rest_framework import serializers
 
 
@@ -12,28 +13,27 @@ class EmailListSerializer(serializers.ListField):
 class ConditionalCascadeField(serializers.DictField):
     """Field for conditional cascade selections that stores step-value mappings"""
 
-    def to_internal_value(self, data):
-        if not isinstance(data, dict):
-            self.fail("not_a_dict", input=type(data).__name__)
-        return super().to_internal_value(data)
-
 
 class SingleDatacenterK8sConfigField(serializers.DictField):
     """Field for single-datacenter Kubernetes cluster configuration"""
-
-    def to_internal_value(self, data):
-        if not isinstance(data, dict):
-            self.fail("not_a_dict", input=type(data).__name__)
-        return super().to_internal_value(data)
 
 
 class MultiDatacenterK8sConfigField(serializers.DictField):
     """Field for multi-datacenter Kubernetes cluster configuration"""
 
-    def to_internal_value(self, data):
-        if not isinstance(data, dict):
-            self.fail("not_a_dict", input=type(data).__name__)
-        return super().to_internal_value(data)
+
+class StorageFolderManagerField(serializers.Serializer):
+    storage_data_type = serializers.CharField(required=True)
+    permissions = serializers.CharField(required=True)
+    hard_quota_space = serializers.FloatField(
+        required=False, validators=[MinValueValidator(0.01)]
+    )
+    soft_quota_inodes = serializers.IntegerField(
+        required=False, validators=[MinValueValidator(1)]
+    )
+    hard_quota_inodes = serializers.IntegerField(
+        required=False, validators=[MinValueValidator(1)]
+    )
 
 
 FIELD_CLASSES = {
@@ -51,6 +51,7 @@ FIELD_CLASSES = {
     "select_multiple_emails": EmailListSerializer,
     "conditional_cascade": ConditionalCascadeField,
     "component_multiplier": serializers.IntegerField,
+    "storage_folder_manager": StorageFolderManagerField,
     "single_datacenter_k8s_config": SingleDatacenterK8sConfigField,
     "multi_datacenter_k8s_config": MultiDatacenterK8sConfigField,
 }
