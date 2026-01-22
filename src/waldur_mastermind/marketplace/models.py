@@ -615,6 +615,11 @@ class Offering(
     organization_groups = models.ManyToManyField(
         structure_models.OrganizationGroup, related_name="offerings", blank=True
     )
+    tags = models.ManyToManyField(
+        "Tag",
+        related_name="offerings",
+        blank=True,
+    )
 
     # If offering is not shared, it is available only to following user categories:
     # 1) staff user;
@@ -2302,6 +2307,34 @@ class CategoryHelpArticle(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class Tag(
+    core_models.UuidMixin,
+    TimeStampedModel,
+):
+    """Free-form tag for categorizing offerings."""
+
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        on_delete=models.SET_NULL,
+        to=core_models.User,
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        verbose_name = _("Tag")
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    @classmethod
+    def get_url_name(cls):
+        return "marketplace-tag"
 
 
 class BaseServiceAccount(

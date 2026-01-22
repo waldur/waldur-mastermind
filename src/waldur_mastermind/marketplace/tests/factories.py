@@ -159,6 +159,29 @@ class CategoryGroupFactory(
         return url if action is None else url + action + "/"
 
 
+class TagFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Tag]
+):
+    class Meta:
+        model = models.Tag
+
+    name = factory.Sequence(lambda n: "tag-%s" % n)
+
+    @classmethod
+    def get_url(cls, tag=None, action=None):
+        if tag is None:
+            tag = TagFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-tag-detail", kwargs={"uuid": tag.uuid.hex}
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("marketplace-tag-list")
+        return url if action is None else url + action + "/"
+
+
 class CategoryComponentFactory(
     factory.django.DjangoModelFactory,
     metaclass=BaseMetaFactory[models.CategoryComponent],
