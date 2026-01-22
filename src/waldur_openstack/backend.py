@@ -431,6 +431,15 @@ class OpenStackBackend(ServiceBackend):
             image for image in remote_images if not image["status"] == "deleted"
         ]
 
+        def get_backend_created_at(image):
+            value = image.get("created_at")
+            if not value:
+                return None
+            parsed = dateparse.parse_datetime(value)
+            if parsed and timezone.is_naive(parsed):
+                parsed = timezone.make_aware(parsed, timezone=timezone.utc)
+            return parsed
+
         local_image_mapping = self._tenant_mappings(tenant.images.all())
         local_image_ids = set(local_image_mapping.keys())
 
@@ -454,6 +463,7 @@ class OpenStackBackend(ServiceBackend):
                     or remote_image["id"],
                     "min_ram": remote_image["min_ram"],
                     "min_disk": self.gb2mb(remote_image["min_disk"]),
+                    "backend_created_at": get_backend_created_at(remote_image),
                 },
             )
             tenant.images.add(local_image)
@@ -470,6 +480,7 @@ class OpenStackBackend(ServiceBackend):
                     or remote_image["id"],
                     "min_ram": remote_image["min_ram"],
                     "min_disk": self.gb2mb(remote_image["min_disk"]),
+                    "backend_created_at": get_backend_created_at(remote_image),
                 },
             )
 

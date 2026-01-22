@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 from django.core import validators
 from django.core.validators import RegexValidator
 from django.db import models
-from django.db.models import Q
+from django.db.models import F, OuterRef, Q, Subquery
 from django.template.defaultfilters import slugify
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
@@ -222,13 +222,30 @@ class Flavor(structure_models.ServiceProperty):
         return self.settings.get_backend()
 
 
+class ImageManager(models.Manager):
+    def get_queryset(self):
+        base_qs = models.QuerySet(self.model, using=self._db)
+        latest_id = (
+            base_qs.filter(name=OuterRef("name"), settings=OuterRef("settings"))
+            .order_by(
+                F("backend_created_at").desc(nulls_last=True),
+                "-id",
+            )
+            .values("id")[:1]
+        )
+        return base_qs.filter(id=Subquery(latest_id))
+
+
 class Image(structure_models.ServiceProperty):
+    objects = ImageManager()
+    all_objects = models.Manager()
     min_disk = models.PositiveIntegerField(
         default=0, help_text=_("Minimum disk size in MiB")
     )
     min_ram = models.PositiveIntegerField(
         default=0, help_text=_("Minimum memory size in MiB")
     )
+    backend_created_at = models.DateTimeField(null=True, blank=True)
     tenants = models.ManyToManyField(to=Tenant, related_name="images")
 
     class Permissions:
