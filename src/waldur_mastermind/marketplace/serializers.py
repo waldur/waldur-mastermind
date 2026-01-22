@@ -1673,6 +1673,17 @@ FIELD_TYPES = (
     "component_multiplier",
     "single_datacenter_k8s_config",
     "multi_datacenter_k8s_config",
+    "storage_folder_manager",
+)
+
+# Storage folder permission choices - exported via OpenAPI as StorageFolderPermissionEnum
+STORAGE_FOLDER_PERMISSIONS = (
+    ("2770", "2770 - Group write, setgid (recommended for shared projects)"),
+    ("2775", "2775 - Group write, world read, setgid"),
+    ("2777", "2777 - Full access, setgid (least secure)"),
+    ("770", "770 - Group write, no setgid"),
+    ("775", "775 - Group write, world read, no setgid"),
+    ("777", "777 - Full access, no setgid"),
 )
 
 
@@ -1938,6 +1949,55 @@ class ComponentMultiplierConfigSerializer(serializers.Serializer):
         return attrs
 
 
+class StorageDataTypeSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    label = serializers.CharField()
+
+
+class StorageFolderConfigSerializer(serializers.Serializer):
+    component_type = serializers.CharField(required=True)
+    default_hard_quota_multiplier = serializers.FloatField(default=1.0, min_value=1.0)
+    inode_soft_multiplier = serializers.IntegerField(default=7000, min_value=1)
+    inode_hard_multiplier = serializers.IntegerField(default=10000, min_value=1)
+    storage_data_types = StorageDataTypeSerializer(many=True, required=True)
+    default_permission = serializers.ChoiceField(
+        choices=STORAGE_FOLDER_PERMISSIONS,
+        default="2770",
+        help_text="Default permission to auto-select",
+    )
+
+    def validate_component_type(self, value):
+        # Component type validation will be handled at the offering level
+        return value
+
+    def validate(self, attrs):
+        storage_data_types = attrs.get("storage_data_types", [])
+
+        if not storage_data_types:
+            raise serializers.ValidationError(
+                {"storage_data_types": "At least one storage data type is required"}
+            )
+
+        # Validate unique keys for storage data types
+        data_type_keys = [dt.get("key") for dt in storage_data_types if dt.get("key")]
+        if len(data_type_keys) != len(set(data_type_keys)):
+            raise serializers.ValidationError(
+                {"storage_data_types": "Storage data type keys must be unique"}
+            )
+
+        # Validate inode multipliers
+        soft_multiplier = attrs.get("inode_soft_multiplier")
+        hard_multiplier = attrs.get("inode_hard_multiplier")
+        if soft_multiplier and hard_multiplier and hard_multiplier < soft_multiplier:
+            raise serializers.ValidationError(
+                {
+                    "inode_hard_multiplier": "Hard inode multiplier cannot be less than soft inode multiplier"
+                }
+            )
+
+        return attrs
+
+
 class OptionFieldSerializer(serializers.Serializer):
     type = serializers.ChoiceField(choices=FIELD_TYPES)
     label = serializers.CharField()
@@ -1949,6 +2009,7 @@ class OptionFieldSerializer(serializers.Serializer):
     max = serializers.IntegerField(required=False)
     cascade_config = CascadeConfigSerializer(required=False)
     component_multiplier_config = ComponentMultiplierConfigSerializer(required=False)
+    storage_folder_config = StorageFolderConfigSerializer(required=False)
     default_configs = K8sDefaultConfigurationSerializer(required=False)
 
     def validate(self, attrs):
@@ -1964,6 +2025,12 @@ class OptionFieldSerializer(serializers.Serializer):
             if not attrs.get("component_multiplier_config"):
                 raise serializers.ValidationError(
                     "component_multiplier_config is required for component_multiplier type"
+                )
+
+        if field_type == "storage_folder_manager":
+            if not attrs.get("storage_folder_config"):
+                raise serializers.ValidationError(
+                    "storage_folder_config is required for storage_folder_manager type"
                 )
 
         if field_type in (
