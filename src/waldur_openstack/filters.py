@@ -111,8 +111,19 @@ class FlavorFilter(
 class ImageFilter(
     SharedTenantFilterSet, structure_filters.ServicePropertySettingsFilter
 ):
+    show_duplicate_names = django_filters.BooleanFilter(
+        method="filter_show_duplicate_names",
+        label="Show duplicate image names",
+        widget=BooleanWidget,
+    )
+
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Image
+
+    def filter_show_duplicate_names(self, queryset, name, value):
+        if value:
+            return queryset.model.all_objects.all()  # type: ignore[attr-defined]
+        return queryset
 
 
 class VolumeTypeFilter(

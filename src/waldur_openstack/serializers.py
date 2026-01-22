@@ -278,6 +278,7 @@ class OpenStackImageSerializer(structure_serializers.BasePropertySerializer):
             "min_ram",
             "settings",
             "backend_id",
+            "backend_created_at",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
