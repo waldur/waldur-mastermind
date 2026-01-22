@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from constance import config
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
@@ -635,6 +636,13 @@ class OnboardingJustificationViewSet(core_views.ActionsViewSet):
                 "user_justification", None
             ),
         )
+
+        if verification.status == enums.VerificationStatus.VERIFIED:
+            verification.status = enums.VerificationStatus.ESCALATED
+            verification.error_traceback = _(
+                "Justification created for already automatically verified company. Verification set to ESCALATED for manual review."
+            )
+            verification.save()
 
         response_serializer = OnboardingJustificationSerializer(
             justification, context=self.get_serializer_context()
