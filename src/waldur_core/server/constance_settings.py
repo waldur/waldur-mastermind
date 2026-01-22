@@ -725,6 +725,7 @@ CONSTANCE_CONFIG = {
     "LLM_INFERENCES_API_TOKEN": (
         "",
         "API key for authenticating with the LLM inference service.",
+        "secret_field",
     ),
     "LLM_INFERENCES_MODEL": (
         "gemma3:27b",
