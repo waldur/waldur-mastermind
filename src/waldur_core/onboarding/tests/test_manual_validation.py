@@ -85,7 +85,7 @@ class CreateJustificationTest(APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_create_justification_for_verified_verification_fails(self):
+    def test_create_justification_for_verified_verification_success(self):
         verified_verification = factories.OnboardingVerificationFactory(
             user=self.user,
             status=enums.VerificationStatus.VERIFIED,
@@ -95,8 +95,12 @@ class CreateJustificationTest(APITestCase):
             verified_verification.uuid,
         )
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("verification_uuid", response.data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        verified_verification.refresh_from_db()
+        self.assertEqual(
+            verified_verification.status, enums.VerificationStatus.ESCALATED
+        )
+        self.assertIn("automatically verified", verified_verification.error_traceback)
 
     def test_create_justification_without_permission_fails(self):
         other_user = structure_factories.UserFactory()

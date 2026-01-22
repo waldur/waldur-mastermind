@@ -351,9 +351,10 @@ class OnboardingJustificationCreateSerializer(serializers.Serializer):
         if verification.status not in [
             enums.VerificationStatus.FAILED,
             enums.VerificationStatus.ESCALATED,
+            enums.VerificationStatus.VERIFIED,
         ]:
             raise serializers.ValidationError(
-                "Can only justify failed or escalated verifications"
+                f"Can not justify verifications in {verification.status} status"
             )
 
         return value
