@@ -722,7 +722,7 @@ class ServiceProviderSerializer(
             return fields
 
         if request.user.is_anonymous:
-            del fields["enable_notifications"]
+            fields.pop("enable_notifications", None)
         return fields
 
     def validate(self, attrs):
