@@ -1459,10 +1459,10 @@ def user_offerings_mapping(offerings):
                 if username
                 else OfferingUserStates.CREATION_REQUESTED
             )
-            models.OfferingUser.objects.create(
+            offering_user = models.OfferingUser.objects.create(
                 user=user, offering=offering, username=username, state=state
             )
-            logger.info("Offering user %s has been created.")
+            logger.info("Offering user %s has been created.", offering_user)
 
 
 def order_should_not_be_reviewed_by_provider(order: models.Order):
