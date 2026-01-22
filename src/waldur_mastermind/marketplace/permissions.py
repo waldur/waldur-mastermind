@@ -239,3 +239,49 @@ def check_tos_consent_permission(request, view, obj=None):
             f"Your Terms of Service consent for '{offering.name}' has expired. "
             f"Please accept the updated Terms of Service (version {active_tos.version}) "
         )
+
+
+def can_manage_tag(request, view, tag=None):
+    """
+    Check if user can update/delete a tag.
+    Staff can manage any tag.
+    Service providers can only manage tags they created.
+    """
+    if not tag:
+        return
+
+    user = request.user
+
+    # Staff can manage any tag
+    if user.is_staff:
+        return
+
+    # Creator can manage their own tag
+    if tag.created_by and tag.created_by == user:
+        return
+
+    raise exceptions.PermissionDenied(_("You can only modify tags you created."))
+
+
+def is_service_provider_or_staff(request, view, obj=None):
+    """
+    Check if user is staff or has service provider role.
+    Used for tag creation - only service providers and staff can create tags.
+    """
+    from waldur_core.structure.managers import get_connected_customers
+
+    user = request.user
+
+    if user.is_staff:
+        return
+
+    # Check if user belongs to any service provider organization
+    connected_customers = get_connected_customers(user)
+    if models.ServiceProvider.objects.filter(
+        customer_id__in=connected_customers,
+    ).exists():
+        return
+
+    raise exceptions.PermissionDenied(
+        _("Only staff and service providers can create tags.")
+    )

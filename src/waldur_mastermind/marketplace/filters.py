@@ -83,6 +83,15 @@ class ServiceProviderFilter(django_filters.FilterSet):
         )
 
 
+class TagFilter(django_filters.FilterSet):
+    name = django_filters.CharFilter(lookup_expr="icontains")
+    created_by = django_filters.UUIDFilter(field_name="created_by__uuid")
+
+    class Meta:
+        model = models.Tag
+        fields = ["name"]
+
+
 class OfferingFilter(
     core_filters.CreatedModifiedFilter,
     structure_filters.NameFilterSet,
@@ -121,6 +130,22 @@ class OfferingFilter(
     organization_group_uuid = LooseMultipleChoiceFilter(
         field_name="organization_groups__uuid",
         label="Organization group UUID",
+    )
+    tag = LooseMultipleChoiceFilter(
+        field_name="tags__uuid",
+        label="Tag UUID (OR logic)",
+    )
+    tags_and = django_filters.CharFilter(
+        method="filter_tags_and",
+        label="Tag UUIDs with AND logic (comma-separated)",
+    )
+    tag_name = LooseMultipleChoiceFilter(
+        field_name="tags__name",
+        label="Tag name (OR logic)",
+    )
+    tag_names_and = django_filters.CharFilter(
+        method="filter_tag_names_and",
+        label="Tag names with AND logic (comma-separated)",
     )
     category_uuid = django_filters.UUIDFilter(
         field_name="category__uuid", label="Category UUID"
@@ -353,6 +378,44 @@ class OfferingFilter(
             | Q(description__icontains=value)
         )
         return query
+
+    def filter_tags_and(self, queryset, name, value):
+        """
+        Filter offerings that have ALL specified tags (AND logic).
+        Accepts comma-separated tag UUIDs.
+        """
+        if not value:
+            return queryset
+
+        uuids = [u.strip() for u in value.split(",") if u.strip()]
+
+        if not uuids:
+            return queryset
+
+        # Filter offerings that have all specified tags
+        for tag_uuid in uuids:
+            queryset = queryset.filter(tags__uuid=tag_uuid)
+
+        return queryset.distinct()
+
+    def filter_tag_names_and(self, queryset, name, value):
+        """
+        Filter offerings that have ALL specified tag names (AND logic).
+        Accepts comma-separated tag names (exact match).
+        """
+        if not value:
+            return queryset
+
+        names = [n.strip() for n in value.split(",") if n.strip()]
+
+        if not names:
+            return queryset
+
+        # Filter offerings that have all specified tags by name
+        for tag_name in names:
+            queryset = queryset.filter(tags__name__iexact=tag_name)
+
+        return queryset.distinct()
 
 
 class OfferingCustomersFilterBackend(BaseFilterBackend):

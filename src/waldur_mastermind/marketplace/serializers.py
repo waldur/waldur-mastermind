@@ -987,6 +987,86 @@ class CategoryGroupSerializer(
         }
 
 
+class TagSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    offering_count = serializers.SerializerMethodField()
+    created_by_username = serializers.ReadOnlyField(source="created_by.username")
+    created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
+
+    class Meta:
+        model = models.Tag
+        fields = (
+            "url",
+            "uuid",
+            "name",
+            "description",
+            "offering_count",
+            "created",
+            "created_by_username",
+            "created_by_full_name",
+        )
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid", "view_name": "marketplace-tag-detail"},
+        }
+
+    def get_offering_count(self, tag) -> int:
+        """
+        Return offering count filtered by user permissions.
+        Staff sees all offerings.
+        Service providers see their own + active/paused/archived public offerings.
+        """
+        from waldur_core.structure.managers import get_connected_customers
+
+        request = self.context.get("request")
+        if not request:
+            return 0
+
+        user = request.user
+        offerings = tag.offerings.all()
+
+        # Staff sees all
+        if user.is_staff or user.is_support:
+            return offerings.count()
+
+        # Get connected customers for this user that have service providers
+        connected_customers = get_connected_customers(user)
+        user_customers = structure_models.Customer.objects.filter(
+            id__in=connected_customers,
+            serviceprovider__isnull=False,
+        )
+
+        # Filter: own offerings (any state) OR public visible states
+        visible_states = [
+            models.Offering.States.ACTIVE,
+            models.Offering.States.PAUSED,
+            models.Offering.States.ARCHIVED,
+        ]
+
+        return (
+            offerings.filter(
+                Q(customer__in=user_customers)  # Own offerings
+                | Q(state__in=visible_states)  # Public visible offerings
+            )
+            .distinct()
+            .count()
+        )
+
+    def create(self, validated_data):
+        # Set created_by from request
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            validated_data["created_by"] = request.user
+        return super().create(validated_data)
+
+
+class NestedTagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Tag
+        fields = ("uuid", "name")
+
+
 class MarketplaceCategorySerializer(
     core_serializers.AugmentedSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
@@ -2462,6 +2542,7 @@ class ProviderOfferingDetailsSerializer(
     organization_groups = structure_serializers.OrganizationGroupSerializer(
         many=True, read_only=True
     )
+    tags = NestedTagSerializer(many=True, read_only=True)
     total_customers = serializers.SerializerMethodField()
     total_cost = serializers.SerializerMethodField()
     total_cost_estimated = serializers.SerializerMethodField()
@@ -2539,6 +2620,7 @@ class ProviderOfferingDetailsSerializer(
             "country",
             "backend_id",
             "organization_groups",
+            "tags",
             "image",
             "total_customers",
             "total_cost",
@@ -6555,6 +6637,23 @@ class OrganizationGroupsSerializer(serializers.Serializer):
 
             if organization_groups:
                 customer.organization_groups.add(*organization_groups)
+
+
+class TagsSerializer(serializers.Serializer):
+    tags = serializers.SlugRelatedField(
+        queryset=models.Tag.objects.all(),
+        slug_field="uuid",
+        required=False,
+        many=True,
+    )
+
+    def save(self, **kwargs):
+        offering = self.instance
+        tags = self.validated_data["tags"]
+        offering.tags.clear()
+
+        if tags:
+            offering.tags.add(*tags)
 
 
 class ProviderOfferingCostsSerializer(serializers.Serializer):

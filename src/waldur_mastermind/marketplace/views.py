@@ -120,6 +120,7 @@ from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import callbacks
+from waldur_mastermind.marketplace import permissions as marketplace_permissions
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     SITE_AGENT_OFFERING,
@@ -1538,6 +1539,30 @@ class CategoryGroupViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
     ) = [structure_permissions.is_staff]
 
 
+class TagViewSet(core_views.ActionsViewSet):
+    """
+    Manage offering tags.
+
+    Staff users have full control.
+    Service providers can create tags and modify/delete their own tags.
+    All authenticated users can list and retrieve tags.
+    """
+
+    queryset = models.Tag.objects.all()
+    serializer_class = serializers.TagSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.TagFilter
+
+    # Only service providers and staff can create tags
+    create_permissions = [marketplace_permissions.is_service_provider_or_staff]
+
+    # Only tag owner or staff can update/delete
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        marketplace_permissions.can_manage_tag
+    ]
+
+
 # State transition validators and permissions will be handled by individual methods
 
 
@@ -2508,6 +2533,40 @@ class ProviderOfferingViewSet(
 
     delete_organization_groups_permissions = update_organization_groups_permissions
     delete_organization_groups_validators = update_validators
+
+    @extend_schema(
+        summary="Update tags for offering",
+        description="Sets the list of tags for this offering.",
+        request=serializers.TagsSerializer,
+        responses={200: None},
+    )
+    @action(detail=True, methods=["post"])
+    def update_tags(self, request, uuid):
+        offering: models.Offering = self.get_object()
+        serializer = serializers.TagsSerializer(
+            instance=offering, context={"request": request}, data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_200_OK)
+
+    update_tags_permissions = [structure_permissions.is_owner]
+    update_tags_validators = update_validators
+
+    @extend_schema(
+        summary="Delete tags for offering",
+        description="Removes all tag associations from this offering.",
+        request=None,
+        responses={204: None},
+    )
+    @action(detail=True, methods=["post"])
+    def delete_tags(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        offering.tags.clear()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    delete_tags_permissions = update_tags_permissions
+    delete_tags_validators = update_validators
 
     @extend_schema(
         summary="Add an access endpoint to an offering",
