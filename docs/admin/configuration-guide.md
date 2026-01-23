@@ -2111,25 +2111,13 @@ Comma-separated list of columns for users table.
 
 List of enabled languages
 
-### User settings
+### Authentication settings
 
 #### AUTO_APPROVE_USER_TOS
 
 **Type:** bool
 
 Mark terms of services as approved for new users.
-
-#### ENABLE_STRICT_CHECK_ACCEPTING_INVITATION
-
-**Type:** bool
-
-If true, user email in Waldur database and in invitatation must strictly match.
-
-#### INVITATION_DISABLE_MULTIPLE_ROLES
-
-**Type:** bool
-
-Do not allow user to accept multiple roles within the same scope (project or organization) using invitation. When enabled, users can still accept invitations to different scopes but cannot have multiple roles in the same scope.
 
 #### DEFAULT_IDP
 
@@ -2154,6 +2142,68 @@ If true, block creation of an account on OIDC login if user email is not provide
 **Type:** bool
 
 If true, OIDC complete view returns access token instead of Waldur token
+
+### Invitation settings
+
+#### ENABLE_STRICT_CHECK_ACCEPTING_INVITATION
+
+**Type:** bool
+
+If true, user email in Waldur database and in invitatation must strictly match.
+
+#### INVITATION_DISABLE_MULTIPLE_ROLES
+
+**Type:** bool
+
+Do not allow user to accept multiple roles within the same scope (project or organization) using invitation. When enabled, users can still accept invitations to different scopes but cannot have multiple roles in the same scope.
+
+#### INVITATION_ALLOWED_FIELDS
+
+**Type:** list_field
+
+**Default value:** ['full_name', 'organization', 'job_title']
+
+Fields that can be provided in invitations for email personalization. These are NOT copied to user profile.
+
+### User profile settings
+
+#### DEFAULT_OFFERING_USER_ATTRIBUTES
+
+**Type:** list_field
+
+**Default value:** ['username', 'full_name', 'email']
+
+Default user attributes exposed to service providers (OfferingUser API) when no explicit config exists. Available options: username, full_name, email, phone_number, organization, job_title, affiliations, gender, personal_title, birth_date, place_of_birth, country_of_residence, nationality, nationalities, organization_country, organization_type, eduperson_assurance, civil_number, identity_source.
+
+#### ENABLED_USER_PROFILE_ATTRIBUTES
+
+**Type:** list_field
+
+**Default value:** ['phone_number', 'organization', 'job_title', 'affiliations']
+
+List of enabled user profile attributes. Controls IdP sync and UI display. Core attributes (username, email, first_name, last_name, full_name) are always enabled. Available options: phone_number, organization, job_title, affiliations, gender, personal_title, birth_date, place_of_birth, country_of_residence, nationality, nationalities, organization_country, organization_type, eduperson_assurance, civil_number, identity_source.
+
+### Data privacy settings
+
+#### USER_DATA_ACCESS_LOGGING_ENABLED
+
+**Type:** bool
+
+Enable logging of user profile data access events for GDPR compliance.
+
+#### USER_DATA_ACCESS_LOG_RETENTION_DAYS
+
+**Type:** int
+
+**Default value:** 90
+
+Number of days to retain user data access logs before automatic cleanup.
+
+#### USER_DATA_ACCESS_LOG_SELF_ACCESS
+
+**Type:** bool
+
+Log when users access their own profile data. Disabled by default to reduce log volume.
 
 ### FreeIPA settings
 
@@ -2227,31 +2277,31 @@ List of username that users are not allowed to select
 
 Optionally disable creation of user groups in FreeIPA matching Waldur structure
 
-### OIDC auth settings
+### API token authentication
 
 #### OIDC_AUTH_URL
 
 **Type:** str
 
-OIDC authentication endpoint URL.
+OIDC authorization endpoint URL. Reserved for future OAuth 2.0 authorization code flow integration.
 
 #### OIDC_INTROSPECTION_URL
 
 **Type:** str
 
-OIDC introspection endpoint URL for validating access tokens.
+RFC 7662 Token Introspection endpoint URL. Used to validate API bearer tokens. When a client sends Authorization: Bearer <token>, Waldur calls this endpoint to verify the token is active.
 
 #### OIDC_CLIENT_ID
 
 **Type:** str
 
-Client ID for authenticating against the introspection endpoint.
+Client ID for HTTP Basic authentication when calling the token introspection endpoint. Required together with OIDC_CLIENT_SECRET and OIDC_INTROSPECTION_URL.
 
 #### OIDC_CLIENT_SECRET
 
 **Type:** str
 
-Client secret for authenticating against the introspection endpoint.
+Client secret for HTTP Basic authentication when calling the token introspection endpoint. Required together with OIDC_CLIENT_ID and OIDC_INTROSPECTION_URL.
 
 #### OIDC_USER_FIELD
 
@@ -2259,7 +2309,7 @@ Client secret for authenticating against the introspection endpoint.
 
 **Default value:** username
 
-Field name from the introspection response to identify the user (e.g., 'username', 'email', 'client_id').
+Field name from the introspection response JSON used to identify the Waldur user. Common values: 'username', 'email', 'sub', 'client_id'. The value is matched against User.username.
 
 #### OIDC_CACHE_TIMEOUT
 
@@ -2267,13 +2317,13 @@ Field name from the introspection response to identify the user (e.g., 'username
 
 **Default value:** 300
 
-Number of seconds to cache token introspection results.
+Seconds to cache successful token introspection results. Reduces load on the introspection endpoint. Set to 0 to disable caching. Default: 300 (5 minutes).
 
 #### WALDUR_AUTH_SOCIAL_ROLE_CLAIM
 
 **Type:** str
 
-Name of the claim that contains user roles.
+OAuth/OIDC token claim name containing user roles for automatic staff/support assignment. If the claim contains 'staff', user gets is_staff=True. If it contains 'support', user gets is_support=True. Leave empty to disable role synchronization from identity provider.
 
 ### Onboarding settings
 

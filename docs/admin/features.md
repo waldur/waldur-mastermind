@@ -188,15 +188,13 @@ Disable user termination in user workspace.
 
 Enable email and webhook notifications management in user workspace.
 
-## user.show_data_access
-
-Enable Data Access tab showing who can access user profile data. This provides
-GDPR-compliant transparency about administrative access, organizational access,
-and service provider access to user data. Also enables access history audit log.
-
 ## user.preferred_language
 
 Render preferred language column in users list.
+
+## user.show_data_access
+
+Enable Data Access tab showing who can access user profile data.
 
 ## user.show_slug
 
@@ -209,63 +207,3 @@ Enable display of username field in user tables.
 ## user.ssh_keys
 
 Enable SSH keys management in user workspace.
-
-## user_profile.phone_number
-
-Enable phone number attribute.
-
-## user_profile.organization
-
-Enable organization attribute.
-
-## user_profile.job_title
-
-Enable job title attribute.
-
-## user_profile.affiliations
-
-Enable affiliations attribute.
-
-## user_profile.gender
-
-Enable gender attribute.
-
-## user_profile.personal_title
-
-Enable personal title (honorific).
-
-## user_profile.birth_date
-
-Enable birth date attribute.
-
-## user_profile.place_of_birth
-
-Enable place of birth.
-
-## user_profile.country_of_residence
-
-Enable country of residence.
-
-## user_profile.nationality
-
-Enable nationality (primary citizenship).
-
-## user_profile.nationalities
-
-Enable multiple citizenships.
-
-## user_profile.organization_country
-
-Enable organization country.
-
-## user_profile.organization_type
-
-Enable organization type (SCHAC).
-
-## user_profile.eduperson_assurance
-
-Enable eduPerson assurance level.
-
-## user_profile.civil_number
-
-Enable civil/national ID number.

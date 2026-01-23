@@ -305,6 +305,7 @@
 - ssh_key_deletion_succeeded
 - user_activated
 - user_creation_succeeded
+- user_data_accessed
 - user_deactivated
 - user_deletion_succeeded
 - user_details_update_succeeded
