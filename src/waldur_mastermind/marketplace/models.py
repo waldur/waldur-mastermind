@@ -893,6 +893,86 @@ class OfferingTermsOfService(TimeStampedModel, core_models.UuidMixin):
             return False
         return timezone.now() < end_date
 
+    @property
+    def collected_attributes(self):
+        """Return list of user attributes that will be collected for this offering."""
+        return OfferingUserAttributeConfig.get_exposed_fields_for_offering(
+            self.offering
+        )
+
+
+class OfferingUserAttributeConfig(TimeStampedModel, core_models.UuidMixin):
+    """
+    Configures which user attributes an offering exposes to its service provider.
+    Supports GDPR compliance by declaring personal data processing.
+    """
+
+    offering = models.OneToOneField(
+        Offering,
+        on_delete=models.CASCADE,
+        related_name="user_attribute_config",
+    )
+
+    # Core attributes (enabled by default)
+    expose_username = models.BooleanField(default=True)
+    expose_full_name = models.BooleanField(default=True)
+    expose_email = models.BooleanField(default=True)
+
+    # Extended profile attributes
+    expose_phone_number = models.BooleanField(default=False)
+    expose_organization = models.BooleanField(default=False)
+    expose_job_title = models.BooleanField(default=False)
+    expose_affiliations = models.BooleanField(default=False)
+
+    # User profile attributes
+    expose_gender = models.BooleanField(default=False)
+    expose_personal_title = models.BooleanField(default=False)
+    expose_place_of_birth = models.BooleanField(default=False)
+    expose_country_of_residence = models.BooleanField(default=False)
+    expose_nationality = models.BooleanField(default=False)
+    expose_nationalities = models.BooleanField(default=False)
+    expose_organization_country = models.BooleanField(default=False)
+    expose_organization_type = models.BooleanField(default=False)
+    expose_eduperson_assurance = models.BooleanField(default=False)
+
+    # Legal and identity attributes (require explicit enabling)
+    expose_civil_number = models.BooleanField(default=False)
+    expose_birth_date = models.BooleanField(default=False)
+    expose_identity_source = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = _("Offering user attribute config")
+        verbose_name_plural = _("Offering user attribute configs")
+
+    def __str__(self):
+        return f"User attribute config for {self.offering}"
+
+    @classmethod
+    def get_url_name(cls):
+        return "marketplace-offering-user-attribute-config"
+
+    def get_exposed_fields(self) -> list[str]:
+        """Return list of field names configured for exposure."""
+        return [
+            field.name[7:]  # Remove 'expose_' prefix
+            for field in self._meta.fields
+            if field.name.startswith("expose_") and getattr(self, field.name)
+        ]
+
+    @classmethod
+    def get_exposed_fields_for_offering(cls, offering) -> list[str]:
+        """Get exposed fields for offering, falling back to Constance defaults."""
+        from constance import config
+
+        try:
+            return offering.user_attribute_config.get_exposed_fields()
+        except cls.DoesNotExist:
+            return config.DEFAULT_OFFERING_USER_ATTRIBUTES or [
+                "username",
+                "full_name",
+                "email",
+            ]
+
 
 class OfferingComponent(
     core_models.UuidMixin,

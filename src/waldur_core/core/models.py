@@ -23,12 +23,16 @@ from rest_framework.authtoken.models import Token
 from reversion import revisions as reversion
 
 from waldur_core.core import managers as core_managers
+from waldur_core.core.enums import GENDER_CHOICES as _GENDER_CHOICES_RAW
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.utils import normalize_unicode, send_mail
 from waldur_core.core.validators import (
+    validate_iso_3166_alpha2,
     validate_name,
     validate_phone_number,
+    validate_refeds_assurance_list,
+    validate_schac_organization_type,
     validate_ssh_public_key,
 )
 from waldur_core.logging.mixins import LoggableMixin
@@ -44,6 +48,9 @@ DESCRIPTION_LENGTH = 4096
 NAME_LENGTH = 150
 
 USERNAME_REGEX = r"^[a-zA-Z0-9_.][a-zA-Z0-9_.-]*[a-zA-Z0-9_.$-]?$"
+
+# ISO 5218 gender codes - re-export with translations from enums.py
+GENDER_CHOICES = [(code, _(label)) for code, label in _GENDER_CHOICES_RAW]
 
 
 class DescribableMixin(models.Model):
@@ -381,6 +388,71 @@ class User(
     first_name = models.CharField(_("first name"), max_length=100, blank=True)
     last_name = models.CharField(_("last name"), max_length=100, blank=True)
     birth_date = models.DateField(_("birth date"), null=True, blank=True)
+
+    # AAI (Authentication and Authorization Infrastructure) attributes
+    # Personal identity (from passport/IdP)
+    gender = models.PositiveSmallIntegerField(
+        _("gender"),
+        null=True,
+        blank=True,
+        choices=GENDER_CHOICES,
+        help_text=_("ISO 5218 gender code"),
+    )
+    personal_title = models.CharField(
+        _("personal title"),
+        max_length=50,
+        blank=True,
+        help_text=_("Honorific title (Mr, Ms, Dr, Prof, etc.)"),
+    )
+    place_of_birth = models.CharField(
+        _("place of birth"),
+        max_length=255,
+        blank=True,
+    )
+
+    # Geographic (ISO 3166-1 alpha-2)
+    country_of_residence = models.CharField(
+        _("country of residence"),
+        max_length=2,
+        blank=True,
+        validators=[validate_iso_3166_alpha2],
+    )
+    nationality = models.CharField(
+        _("nationality"),
+        max_length=2,
+        blank=True,
+        validators=[validate_iso_3166_alpha2],
+        help_text=_("Primary citizenship (ISO 3166-1 alpha-2 code)"),
+    )
+    nationalities = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_("List of all citizenships (ISO 3166-1 alpha-2 codes)"),
+    )
+
+    # Organization extended
+    organization_country = models.CharField(
+        _("organization country"),
+        max_length=2,
+        blank=True,
+        validators=[validate_iso_3166_alpha2],
+    )
+    organization_type = models.CharField(
+        _("organization type"),
+        max_length=255,
+        blank=True,
+        validators=[validate_schac_organization_type],
+        help_text=_("SCHAC URN (e.g., urn:schac:homeOrganizationType:int:university)"),
+    )
+
+    # Identity assurance (from IdP only)
+    eduperson_assurance = models.JSONField(
+        default=list,
+        blank=True,
+        validators=[validate_refeds_assurance_list],
+        help_text=_("REFEDS assurance profile URIs from identity provider"),
+    )
+
     query_field = models.CharField(max_length=300, blank=True)
     WHITELIST_FIELDS = [
         "is_superuser",
@@ -400,6 +472,16 @@ class User(
         "affiliations",
         "first_name",
         "last_name",
+        # User profile attributes
+        "gender",
+        "personal_title",
+        "place_of_birth",
+        "country_of_residence",
+        "nationality",
+        "nationalities",
+        "organization_country",
+        "organization_type",
+        "eduperson_assurance",
     ]
 
     @property
@@ -916,19 +998,48 @@ class UserDetailsMatchMixin(models.Model):
         help_text="List of allowed identity sources (identity providers).",
     )
 
+    # AAI-based filtering fields
+    user_nationalities = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_(
+            "List of allowed nationality codes (ISO 3166-1 alpha-2). "
+            "User must have one of these."
+        ),
+    )
+    user_organization_types = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_(
+            "List of allowed organization type URNs (SCHAC). User must match one."
+        ),
+    )
+    user_assurance_levels = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_("List of required assurance URIs. User must have ALL of these."),
+    )
+
     @classmethod
     def get_objects_by_user_patterns(cls, user: User, required=True):
         items = []
         for item in cls.objects.all():
-            if (
-                not required
-                and not item.user_email_patterns
+            # Check if item has no restrictions
+            has_no_restrictions = (
+                not item.user_email_patterns
                 and not item.user_affiliations
                 and not item.user_identity_sources
-            ):
-                items.append(item)
+                and not item.user_nationalities
+                and not item.user_organization_types
+                and not item.user_assurance_levels
+            )
 
-            if (
+            if not required and has_no_restrictions:
+                items.append(item)
+                continue
+
+            # Check basic matching (OR logic for email/affiliation/identity_source)
+            basic_match = (
                 set(user.affiliations or []) & set(item.user_affiliations)
                 or any(
                     cls._is_pattern_match(pattern, user.email)
@@ -938,17 +1049,84 @@ class UserDetailsMatchMixin(models.Model):
                     item.user_identity_sources
                     and user.identity_source in item.user_identity_sources
                 )
+            )
+
+            # If no basic filters configured, basic_match is True by default
+            if (
+                not item.user_email_patterns
+                and not item.user_affiliations
+                and not item.user_identity_sources
             ):
+                basic_match = True
+
+            # Check AAI filters (these are additional requirements)
+            aai_match = True
+
+            # Check nationality match (OR logic - user must have one of the allowed)
+            if item.user_nationalities:
+                user_nat = getattr(user, "nationality", "") or ""
+                user_nats = getattr(user, "nationalities", []) or []
+                all_user_nats = {user_nat} | set(user_nats)
+                all_user_nats.discard("")  # Remove empty string if present
+                if not (all_user_nats & set(item.user_nationalities)):
+                    aai_match = False
+
+            # Check organization type match (OR logic)
+            if aai_match and item.user_organization_types:
+                user_org_type = getattr(user, "organization_type", "") or ""
+                if user_org_type not in item.user_organization_types:
+                    aai_match = False
+
+            # Check assurance level (AND logic - user must have ALL required)
+            if aai_match and item.user_assurance_levels:
+                user_assurance = set(getattr(user, "eduperson_assurance", []) or [])
+                required_assurance = set(item.user_assurance_levels)
+                if not required_assurance.issubset(user_assurance):
+                    aai_match = False
+
+            if basic_match and aai_match:
                 items.append(item)
 
         return items
 
+    # Patterns that indicate potential ReDoS vulnerability
+    _REDOS_PATTERNS = [
+        r"\(\?P?<[^>]*>[^)]*[+*][^)]*\)[+*]",  # Nested quantifiers: (a+)+
+        r"\([^)]*\|[^)]*\)[+*]{2,}",  # Overlapping alternations with quantifiers
+        r"[+*]\?[+*]",  # Adjacent quantifiers
+    ]
+    _REDOS_REGEX = re.compile("|".join(_REDOS_PATTERNS))
+
+    # Maximum pattern length to prevent overly complex patterns
+    _MAX_PATTERN_LENGTH = 200
+
+    @staticmethod
+    def _is_potentially_dangerous_pattern(pattern: str) -> bool:
+        """Check if a regex pattern might cause ReDoS."""
+        if len(pattern) > UserDetailsMatchMixin._MAX_PATTERN_LENGTH:
+            return True
+        return bool(UserDetailsMatchMixin._REDOS_REGEX.search(pattern))
+
+    @staticmethod
     def _is_pattern_match(pattern, email):
         """Safely check if email matches pattern, handling invalid regex patterns."""
         if not pattern or not isinstance(pattern, str):
             return False
+        if not email or not isinstance(email, str):
+            return False
+
+        # Check for potentially dangerous patterns
+        if UserDetailsMatchMixin._is_potentially_dangerous_pattern(pattern):
+            logger.warning(
+                "Potentially dangerous regex pattern rejected: '%s'", pattern[:50]
+            )
+            return False
+
         try:
-            return bool(re.match(pattern, email))
+            # Use re.match with a compiled pattern for better performance
+            # re.match only matches at the beginning, limiting backtracking
+            compiled = re.compile(pattern)
+            return bool(compiled.match(email))
         except re.error as e:
             logger.warning("Invalid regex pattern '%s': %s", pattern, e)
             return False
@@ -956,6 +1134,7 @@ class UserDetailsMatchMixin(models.Model):
     @staticmethod
     def validate_user_email_patterns(patterns: list) -> None:
         invalid_patterns = []
+        dangerous_patterns = []
 
         for pattern in patterns:
             if not pattern or not isinstance(pattern, str):
@@ -965,11 +1144,22 @@ class UserDetailsMatchMixin(models.Model):
                 re.compile(pattern)
             except re.error:
                 invalid_patterns.append(pattern)
+                continue
 
+            # Check for ReDoS patterns
+            if UserDetailsMatchMixin._is_potentially_dangerous_pattern(pattern):
+                dangerous_patterns.append(pattern)
+
+        errors = []
         if invalid_patterns:
-            raise serializers.ValidationError(
-                f"Invalid regex patterns: {invalid_patterns}"
+            errors.append(f"Invalid regex patterns: {invalid_patterns}")
+        if dangerous_patterns:
+            errors.append(
+                f"Potentially dangerous patterns (nested quantifiers or too long): {dangerous_patterns}"
             )
+
+        if errors:
+            raise serializers.ValidationError(errors)
 
 
 class AvailableMixin(models.Model):

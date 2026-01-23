@@ -1025,3 +1025,10 @@ def cleanup_proposal_resources(proposal):
 
 - Review progress tracking
 - Resource utilization monitoring
+
+## Related Documentation
+
+- [Call Eligibility and Applicant Attributes](./proposals-eligibility.md) - AAI-based eligibility restrictions and GDPR-compliant attribute exposure
+- [Conflict of Interest Detection](./proposals-coi.md) - COI management and detection workflows
+- [Reviewer Matching](./proposals-matching.md) - Automated reviewer assignment algorithms
+- [User Profile Attributes](../user-profile-attributes.md) - User attribute reference for AAI integration

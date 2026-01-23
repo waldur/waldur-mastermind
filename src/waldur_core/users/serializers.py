@@ -1,5 +1,6 @@
 import re
 
+from constance import config
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
@@ -286,6 +287,16 @@ class InvitationSerializer(BaseInvitationSerializer):
         help_text="Expiration date and time of the invitation",
     )
 
+    # Fields that can be controlled by INVITATION_ALLOWED_FIELDS setting
+    CONFIGURABLE_FIELDS = (
+        "full_name",
+        "native_name",
+        "phone_number",
+        "organization",
+        "job_title",
+        "civil_number",
+    )
+
     class Meta:
         model = models.Invitation
         fields = BaseInvitationSerializer.Meta.fields + (
@@ -315,6 +326,27 @@ class InvitationSerializer(BaseInvitationSerializer):
                 "view_name": "user-invitation-detail",
             },
         }
+
+    def get_fields(self):
+        """Filter invitation fields based on INVITATION_ALLOWED_FIELDS setting.
+
+        Fields like full_name, organization, etc. are used for email personalization
+        and are NOT copied to user profile. This method controls which fields
+        are available when creating invitations.
+        """
+        fields = super().get_fields()
+
+        # Skip filtering during schema generation to ensure full OpenAPI export
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
+            return fields
+
+        allowed_fields = set(config.INVITATION_ALLOWED_FIELDS or [])
+
+        for field_name in self.CONFIGURABLE_FIELDS:
+            if field_name not in allowed_fields and field_name in fields:
+                del fields[field_name]
+
+        return fields
 
 
 class InvitationUpdateSerializer(serializers.ModelSerializer):

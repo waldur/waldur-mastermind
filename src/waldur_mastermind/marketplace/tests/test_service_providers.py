@@ -635,3 +635,451 @@ class ServiceProviderCourseAccountsTest(test.APITransactionTestCase):
         course_account = response.json()[0]
         self.assertEqual(course_account["username"], new_course_account.user.username)
         self.assertEqual(course_account["project_uuid"], new_project.uuid.hex)
+
+
+class ServiceProviderUsersGDPRFilteringTest(test.APITransactionTestCase):
+    """Test GDPR-aware attribute filtering on service provider users endpoint."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.service_provider = self.fixture.service_provider
+        self.offering = self.fixture.offering
+        # Enable service_provider_can_create_offering_user for the offering
+        self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        self.offering.save()
+
+        # Create user with profile data
+        self.user = structure_factories.UserFactory(
+            email="testuser@example.com",
+            phone_number="+1234567890",
+            organization="Test Org",
+            affiliations=["Affiliation1"],
+        )
+
+        # Create resource linking user to offering
+        self.resource = factories.ResourceFactory(
+            offering=self.offering,
+            state=ResourceStates.OK,
+        )
+        self.resource.project.add_user(self.user, ProjectRole.ADMIN)
+
+        # Create OfferingUser
+        models.OfferingUser.objects.create(user=self.user, offering=self.offering)
+
+        # Grant permission
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_SERVICE_PROVIDER_USERS)
+
+        self.url = (
+            f"/api/marketplace-service-providers/{self.service_provider.uuid}/users/"
+        )
+
+    def test_default_attributes_exposed_without_config(self):
+        """When no attribute config exists, default attributes are exposed."""
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should have at least one user
+        self.assertGreater(len(response.data), 0)
+
+        # Find our test user
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+
+        # Default attributes should be exposed
+        self.assertIn("username", user_data)
+        self.assertIn("full_name", user_data)
+        self.assertIn("email", user_data)
+
+    def test_restricted_attributes_hidden_when_not_in_config(self):
+        """Attributes not in the offering config are hidden."""
+        # Create attribute config that only exposes username, full_name, email (defaults)
+        # phone_number, organization, affiliations are disabled by default
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_phone_number=False,
+            expose_organization=False,
+            expose_affiliations=False,
+        )
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+
+        # Exposed attributes should be present
+        self.assertIn("username", user_data)
+        self.assertIn("full_name", user_data)
+        self.assertIn("email", user_data)
+
+        # Restricted attributes should be hidden
+        self.assertNotIn("phone_number", user_data)
+        self.assertNotIn("organization", user_data)
+        self.assertNotIn("affiliations", user_data)
+
+    def test_extended_attributes_exposed_when_in_config(self):
+        """Extended attributes are exposed when configured."""
+        # Create attribute config with extended fields enabled
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_phone_number=True,
+            expose_organization=True,
+        )
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+
+        # All configured attributes should be present
+        self.assertIn("username", user_data)
+        self.assertIn("email", user_data)
+        self.assertIn("phone_number", user_data)
+        self.assertIn("organization", user_data)
+
+    def test_intersection_of_multiple_offerings(self):
+        """When multiple offerings exist, uses intersection (most restrictive)."""
+        # Create first offering config - exposes phone_number but not organization
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_phone_number=True,
+            expose_organization=False,
+        )
+
+        # Create second offering with different config - exposes organization but not phone
+        offering2 = factories.OfferingFactory(
+            customer=self.service_provider.customer,
+            state=OfferingStates.ACTIVE,
+            plugin_options={"service_provider_can_create_offering_user": True},
+        )
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=offering2,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_phone_number=False,
+            expose_organization=True,
+        )
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+
+        # Only common attributes should be exposed (intersection)
+        self.assertIn("username", user_data)
+        self.assertIn("full_name", user_data)
+        self.assertIn("email", user_data)
+
+        # phone_number and organization are NOT in intersection
+        self.assertNotIn("phone_number", user_data)
+        self.assertNotIn("organization", user_data)
+
+    def test_uuid_and_projects_count_always_present(self):
+        """Non-GDPR fields like uuid and projects_count are always present."""
+        # Minimal config - only expose username
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=False,
+            expose_email=False,
+        )
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+
+        # These fields should always be present regardless of GDPR config
+        self.assertIn("uuid", user_data)
+        self.assertIn("projects_count", user_data)
+
+    def test_mixed_config_and_no_config_uses_intersection(self):
+        """When one offering has config and another uses defaults, intersection is applied."""
+        # First offering has restrictive config (no phone)
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_phone_number=False,
+            expose_organization=True,
+        )
+
+        # Second offering has NO config - will use defaults (username, full_name, email)
+        factories.OfferingFactory(
+            customer=self.service_provider.customer,
+            state=OfferingStates.ACTIVE,
+            plugin_options={"service_provider_can_create_offering_user": True},
+        )
+        # No OfferingUserAttributeConfig created for offering2
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+
+        # Intersection of config1 and defaults: username, full_name, email
+        self.assertIn("username", user_data)
+        self.assertIn("full_name", user_data)
+        self.assertIn("email", user_data)
+
+        # organization is in config1 but not in defaults - NOT exposed
+        self.assertNotIn("organization", user_data)
+
+    def test_first_name_last_name_not_in_attribute_map(self):
+        """first_name and last_name are not filtered by GDPR config (not in USER_ATTRIBUTE_FIELD_MAP)."""
+        # Note: first_name and last_name are included in the serializer but
+        # the USER_ATTRIBUTE_FIELD_MAP only has full_name, not first/last separately
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=False,  # Disable full_name
+            expose_email=False,
+        )
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+
+        # first_name and last_name are in Meta.fields but NOT in USER_ATTRIBUTE_FIELD_MAP
+        # So they should still be present (not filtered)
+        self.assertIn("first_name", user_data)
+        self.assertIn("last_name", user_data)
+        # But full_name should be filtered out
+        self.assertNotIn("full_name", user_data)
+
+    def test_affiliations_field_filtering(self):
+        """Test that affiliations field is properly filtered."""
+        # Config with affiliations disabled
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_affiliations=False,
+        )
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+
+        self.assertNotIn("affiliations", user_data)
+
+    def test_affiliations_field_exposed_when_enabled(self):
+        """Test that affiliations field is exposed when enabled."""
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_affiliations=True,
+        )
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+
+        self.assertIn("affiliations", user_data)
+        self.assertEqual(user_data["affiliations"], ["Affiliation1"])
+
+    def test_offerings_without_offering_user_feature_are_ignored(self):
+        """Offerings without service_provider_can_create_offering_user are ignored."""
+        # Config for main offering with phone enabled
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_phone_number=True,
+        )
+
+        # Create second offering WITHOUT service_provider_can_create_offering_user
+        offering2 = factories.OfferingFactory(
+            customer=self.service_provider.customer,
+            state=OfferingStates.ACTIVE,
+            plugin_options={"service_provider_can_create_offering_user": False},
+        )
+        # This config should be IGNORED since the offering doesn't have the feature
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=offering2,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_phone_number=False,  # Would restrict phone if not ignored
+        )
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+
+        # phone_number should be exposed because offering2 is ignored
+        self.assertIn("phone_number", user_data)
+
+    def test_staff_user_sees_is_active_field(self):
+        """Staff users can see the is_active field."""
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+
+        # Staff users should see is_active
+        self.assertIn("is_active", user_data)
+
+    def test_non_staff_user_cannot_see_is_active_field(self):
+        """Non-staff users cannot see the is_active field."""
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+        )
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+
+        # Non-staff users should NOT see is_active
+        self.assertNotIn("is_active", user_data)
+
+    def test_all_offerings_with_same_config_shows_all_fields(self):
+        """When all offerings have same permissive config, all fields are shown."""
+        # Both offerings expose everything
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_phone_number=True,
+            expose_organization=True,
+            expose_affiliations=True,
+        )
+
+        offering2 = factories.OfferingFactory(
+            customer=self.service_provider.customer,
+            state=OfferingStates.ACTIVE,
+            plugin_options={"service_provider_can_create_offering_user": True},
+        )
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=offering2,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_phone_number=True,
+            expose_organization=True,
+            expose_affiliations=True,
+        )
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+
+        # All configured fields should be present
+        self.assertIn("username", user_data)
+        self.assertIn("full_name", user_data)
+        self.assertIn("email", user_data)
+        self.assertIn("phone_number", user_data)
+        self.assertIn("organization", user_data)
+        self.assertIn("affiliations", user_data)
+
+    def test_multiple_users_all_filtered_consistently(self):
+        """All users in response have same fields filtered."""
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_phone_number=False,
+        )
+
+        # Create another user
+        user2 = structure_factories.UserFactory(
+            email="user2@example.com",
+            phone_number="+9876543210",
+        )
+        self.resource.project.add_user(user2, ProjectRole.MEMBER)
+        models.OfferingUser.objects.create(user=user2, offering=self.offering)
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Both users should have same fields filtered
+        for user_data in response.data:
+            self.assertIn("username", user_data)
+            self.assertIn("email", user_data)
+            self.assertNotIn("phone_number", user_data)

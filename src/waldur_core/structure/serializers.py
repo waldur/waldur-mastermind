@@ -39,6 +39,7 @@ from waldur_core.structure.managers import (
 from waldur_core.structure.models import CUSTOMER_DETAILS_FIELDS
 from waldur_core.structure.notifications import NOTIFICATIONS
 from waldur_core.structure.registry import get_resource_type, get_service_type
+from waldur_core.structure.utils_data_access import log_user_data_access_sync
 from waldur_mastermind.marketplace.enums import ResourceStates
 
 logger = logging.getLogger(__name__)
@@ -1189,6 +1190,16 @@ class UserSerializer(
             "identity_source",
             "has_active_session",
             "ip_address",
+            # User profile attributes
+            "gender",
+            "personal_title",
+            "place_of_birth",
+            "country_of_residence",
+            "nationality",
+            "nationalities",
+            "organization_country",
+            "organization_type",
+            "eduperson_assurance",
         )
         read_only_fields = (
             "uuid",
@@ -1258,9 +1269,20 @@ class UserSerializer(
                     "email",
                     "phone_number",
                     "organization",
+                    # User profile attributes
+                    "gender",
+                    "personal_title",
+                    "place_of_birth",
+                    "country_of_residence",
+                    "nationality",
+                    "nationalities",
+                    "organization_country",
+                    "organization_type",
+                    "eduperson_assurance",
                 )
                 for field in detail_fields:
-                    fields[field].read_only = True
+                    if field in fields:
+                        fields[field].read_only = True
 
         return fields
 
@@ -1315,6 +1337,58 @@ class UserSerializer(
         except django_exceptions.ValidationError as error:
             raise exceptions.ValidationError(error.message_dict)
         return attrs
+
+    # Personal data fields to track for GDPR data access logging.
+    # Technical fields (url, uuid, token, is_staff, image, etc.) are excluded.
+    PERSONAL_DATA_FIELDS = frozenset(
+        [
+            "username",
+            "full_name",
+            "native_name",
+            "first_name",
+            "last_name",
+            "job_title",
+            "email",
+            "phone_number",
+            "organization",
+            "civil_number",
+            "affiliations",
+            "birth_date",
+            "gender",
+            "personal_title",
+            "place_of_birth",
+            "country_of_residence",
+            "nationality",
+            "nationalities",
+            "organization_country",
+            "organization_type",
+            "eduperson_assurance",
+        ]
+    )
+
+    def to_representation(self, instance):
+        """
+        Override to log user data access for GDPR compliance.
+        """
+        data = super().to_representation(instance)
+
+        request = self.context.get("request")
+        if request and hasattr(request, "user") and request.user.is_authenticated:
+            # Skip logging during schema generation
+            if not getattr(self.context.get("view"), "swagger_fake_view", False):
+                # Only log access to personal data fields, not technical fields
+                personal_fields_accessed = [
+                    field for field in data.keys() if field in self.PERSONAL_DATA_FIELDS
+                ]
+                if personal_fields_accessed:
+                    log_user_data_access_sync(
+                        target_user=instance,
+                        accessor=request.user,
+                        request=request,
+                        accessed_fields=personal_fields_accessed,
+                    )
+
+        return data
 
 
 class UserEmailChangeSerializer(serializers.Serializer):

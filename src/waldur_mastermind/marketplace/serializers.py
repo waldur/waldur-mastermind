@@ -5837,6 +5837,15 @@ class OfferingReferralSerializer(
 class OfferingUserSerializer(
     core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
+    """
+    Serializer for OfferingUser that exposes user attributes based on
+    per-offering configuration (OfferingUserAttributeConfig).
+
+    All user attribute fields are defined in the schema for SDK generation.
+    At runtime, fields are filtered based on the offering's configuration,
+    supporting GDPR compliance by exposing only declared personal data.
+    """
+
     offering = serializers.HyperlinkedRelatedField(
         queryset=models.Offering.objects.all(),
         view_name="marketplace-provider-offering-detail",
@@ -5856,9 +5865,40 @@ class OfferingUserSerializer(
     user_uuid = serializers.SlugRelatedField(
         queryset=User.objects.all(), slug_field="uuid", required=False
     )
+
+    # Core user attributes (controlled by OfferingUserAttributeConfig)
     user_username = serializers.ReadOnlyField(source="user.username")
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
     user_email = serializers.ReadOnlyField(source="user.email")
+
+    # Extended profile attributes
+    user_phone_number = serializers.ReadOnlyField(source="user.phone_number")
+    user_organization = serializers.ReadOnlyField(source="user.organization")
+    user_job_title = serializers.ReadOnlyField(source="user.job_title")
+    user_affiliations = serializers.ReadOnlyField(source="user.affiliations")
+
+    # User profile attributes
+    user_gender = serializers.ReadOnlyField(source="user.gender")
+    user_personal_title = serializers.ReadOnlyField(source="user.personal_title")
+    user_place_of_birth = serializers.ReadOnlyField(source="user.place_of_birth")
+    user_country_of_residence = serializers.ReadOnlyField(
+        source="user.country_of_residence"
+    )
+    user_nationality = serializers.ReadOnlyField(source="user.nationality")
+    user_nationalities = serializers.ReadOnlyField(source="user.nationalities")
+    user_organization_country = serializers.ReadOnlyField(
+        source="user.organization_country"
+    )
+    user_organization_type = serializers.ReadOnlyField(source="user.organization_type")
+    user_eduperson_assurance = serializers.ReadOnlyField(
+        source="user.eduperson_assurance"
+    )
+
+    # Legal and identity attributes
+    user_civil_number = serializers.ReadOnlyField(source="user.civil_number")
+    user_birth_date = serializers.ReadOnlyField(source="user.birth_date")
+    user_identity_source = serializers.ReadOnlyField(source="user.identity_source")
+
     customer_uuid = serializers.UUIDField(
         read_only=True, source="offering.customer.uuid"
     )
@@ -5872,6 +5912,29 @@ class OfferingUserSerializer(
     has_compliance_checklist = serializers.SerializerMethodField()
     consent_data = serializers.SerializerMethodField()
 
+    # Mapping from config field names to serializer field names
+    USER_ATTRIBUTE_FIELD_MAP = {
+        "username": "user_username",
+        "full_name": "user_full_name",
+        "email": "user_email",
+        "phone_number": "user_phone_number",
+        "organization": "user_organization",
+        "job_title": "user_job_title",
+        "affiliations": "user_affiliations",
+        "gender": "user_gender",
+        "personal_title": "user_personal_title",
+        "place_of_birth": "user_place_of_birth",
+        "country_of_residence": "user_country_of_residence",
+        "nationality": "user_nationality",
+        "nationalities": "user_nationalities",
+        "organization_country": "user_organization_country",
+        "organization_type": "user_organization_type",
+        "eduperson_assurance": "user_eduperson_assurance",
+        "civil_number": "user_civil_number",
+        "birth_date": "user_birth_date",
+        "identity_source": "user_identity_source",
+    }
+
     class Meta:
         model = models.OfferingUser
         fields = (
@@ -5883,9 +5946,30 @@ class OfferingUserSerializer(
             "offering_uuid",
             "offering_name",
             "user_uuid",
+            # Core user attributes
             "user_username",
             "user_full_name",
             "user_email",
+            # Extended profile attributes
+            "user_phone_number",
+            "user_organization",
+            "user_job_title",
+            "user_affiliations",
+            # User profile attributes
+            "user_gender",
+            "user_personal_title",
+            "user_place_of_birth",
+            "user_country_of_residence",
+            "user_nationality",
+            "user_nationalities",
+            "user_organization_country",
+            "user_organization_type",
+            "user_eduperson_assurance",
+            # Legal and identity attributes
+            "user_civil_number",
+            "user_birth_date",
+            "user_identity_source",
+            # Other fields
             "created",
             "modified",
             "customer_uuid",
@@ -6089,14 +6173,118 @@ class OfferingUserSerializer(
         }
 
     def get_fields(self):
+        """
+        Filter user attribute fields based on OfferingUserAttributeConfig.
+
+        During schema generation (swagger_fake_view), all fields are included.
+        At runtime, only fields enabled in the offering's config are included.
+        """
         request = self.context["request"]
         fields = super().get_fields()
+
+        # Handle UUID field conversion for safe methods
         if request.method in SAFE_METHODS:
             if "user_uuid" in fields:
                 fields["user_uuid"] = serializers.UUIDField(source="user.uuid")
             if "offering_uuid" in fields:
                 fields["offering_uuid"] = serializers.UUIDField(source="offering.uuid")
+
+        # Skip attribute filtering during schema generation - show all fields in OpenAPI/SDK
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
+            return fields
+
+        # For detail views with a single instance, filter fields at schema level
+        # For list views, filtering happens in to_representation() per-instance
+        if self.instance and not isinstance(self.instance, list):
+            # Get exposed attributes from the offering's config
+            exposed_attributes = (
+                models.OfferingUserAttributeConfig.get_exposed_fields_for_offering(
+                    self.instance.offering
+                )
+            )
+
+            # Get serializer field names to keep
+            exposed_serializer_fields = {
+                self.USER_ATTRIBUTE_FIELD_MAP[attr]
+                for attr in exposed_attributes
+                if attr in self.USER_ATTRIBUTE_FIELD_MAP
+            }
+
+            # Remove user attribute fields that are not exposed
+            all_user_attribute_fields = set(self.USER_ATTRIBUTE_FIELD_MAP.values())
+            fields_to_remove = all_user_attribute_fields - exposed_serializer_fields
+
+            for field_name in fields_to_remove:
+                if field_name in fields:
+                    del fields[field_name]
+
         return fields
+
+    def _get_default_offering_user_attributes_cached(self):
+        """Get DEFAULT_OFFERING_USER_ATTRIBUTES config with request-level caching."""
+        request = self.context.get("request")
+        if request and hasattr(request, "_default_offering_user_attrs_cached"):
+            return request._default_offering_user_attrs_cached
+        value = config.DEFAULT_OFFERING_USER_ATTRIBUTES or [
+            "username",
+            "full_name",
+            "email",
+        ]
+        if request:
+            request._default_offering_user_attrs_cached = value
+        return value
+
+    def _get_exposed_attributes_cached(self, offering):
+        """Get exposed attributes for an offering with request-level caching."""
+        request = self.context.get("request")
+        cache_key = f"_offering_exposed_attrs_{offering.id}"
+
+        if request and hasattr(request, cache_key):
+            return getattr(request, cache_key)
+
+        # Try to get from offering's config, fallback to cached default
+        try:
+            exposed_attributes = offering.user_attribute_config.get_exposed_fields()
+        except models.OfferingUserAttributeConfig.DoesNotExist:
+            exposed_attributes = self._get_default_offering_user_attributes_cached()
+
+        if request:
+            setattr(request, cache_key, exposed_attributes)
+
+        return exposed_attributes
+
+    def to_representation(self, instance):
+        """
+        Filter user attributes based on offering config during serialization.
+
+        This ensures proper filtering for list views where different offerings
+        may have different attribute configurations.
+        """
+        data = super().to_representation(instance)
+
+        # Skip filtering during schema generation
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
+            return data
+
+        # Get exposed attributes for this specific offering (cached per request)
+        exposed_attributes = self._get_exposed_attributes_cached(instance.offering)
+
+        # Get serializer field names that should be exposed
+        exposed_serializer_fields = {
+            self.USER_ATTRIBUTE_FIELD_MAP[attr]
+            for attr in exposed_attributes
+            if attr in self.USER_ATTRIBUTE_FIELD_MAP
+        }
+
+        # Remove non-exposed user attribute fields from the output
+        all_user_attribute_fields = set(self.USER_ATTRIBUTE_FIELD_MAP.values())
+        fields_to_remove = all_user_attribute_fields - exposed_serializer_fields
+
+        for field_name in fields_to_remove:
+            if field_name in data:
+                del data[field_name]
+
+        return data
 
     def create(self, validated_data):
         request = self.context["request"]
@@ -7116,6 +7304,28 @@ class ProjectUserSerializer(serializers.ModelSerializer):
 class MarketplaceServiceProviderUserSerializer(
     core_serializers.RestrictedSerializerMixin, serializers.ModelSerializer
 ):
+    """
+    Serializer for users in the service provider users endpoint.
+
+    Applies GDPR-aware attribute filtering based on the intersection of exposed
+    fields from all offerings of the service provider. This ensures that only
+    attributes that are exposed by ALL offerings are shown.
+    """
+
+    # Map attribute names to serializer field names
+    # For User model, field names match attribute names (unlike OfferingUserSerializer)
+    # Note: first_name and last_name are NOT included here (matching OfferingUserSerializer)
+    # because OfferingUserAttributeConfig only has expose_full_name, not separate first/last
+    USER_ATTRIBUTE_FIELD_MAP = {
+        "username": "username",
+        "full_name": "full_name",
+        "email": "email",
+        "phone_number": "phone_number",
+        "organization": "organization",
+        "affiliations": "affiliations",
+        "registration_method": "registration_method",
+    }
+
     class Meta:
         model = User
         fields = (
@@ -7143,6 +7353,72 @@ class MarketplaceServiceProviderUserSerializer(
             user=user, object_id__in=projects, content_type=content_type, is_active=True
         ).count()
 
+    # Default attributes when no config exists
+    DEFAULT_EXPOSED_ATTRIBUTES = ["username", "full_name", "email"]
+
+    def _get_service_provider_exposed_attributes(self):
+        """
+        Get the intersection of exposed attributes across all service provider offerings.
+
+        Uses request-level caching to avoid repeated database queries.
+        Returns the most restrictive set of attributes (intersection).
+        """
+        # Check if this is schema generation context - return ALL possible attributes
+        # so the OpenAPI schema shows the maximum possible response shape
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
+            return list(self.USER_ATTRIBUTE_FIELD_MAP.keys())
+
+        request = self.context.get("request")
+        service_provider = self.context.get("service_provider")
+
+        if not service_provider:
+            # Fallback to default if no service provider in context
+            return (
+                config.DEFAULT_OFFERING_USER_ATTRIBUTES
+                or self.DEFAULT_EXPOSED_ATTRIBUTES
+            )
+
+        cache_key = f"_sp_exposed_attrs_{service_provider.id}"
+        if request and hasattr(request, cache_key):
+            return getattr(request, cache_key)
+
+        # Get all offerings for this service provider that can have offering users
+        offerings = models.Offering.objects.filter(
+            customer=service_provider.customer,
+            plugin_options__service_provider_can_create_offering_user=True,
+        ).prefetch_related("user_attribute_config")
+
+        if not offerings.exists():
+            # No offerings, use default
+            default_attrs = (
+                config.DEFAULT_OFFERING_USER_ATTRIBUTES
+                or self.DEFAULT_EXPOSED_ATTRIBUTES
+            )
+            if request:
+                setattr(request, cache_key, default_attrs)
+            return default_attrs
+
+        # Get intersection of exposed fields from all offerings
+        exposed_sets = []
+        for offering in offerings:
+            exposed_fields = (
+                models.OfferingUserAttributeConfig.get_exposed_fields_for_offering(
+                    offering
+                )
+            )
+            exposed_sets.append(set(exposed_fields))
+
+        # Intersection of all sets (most restrictive)
+        if exposed_sets:
+            result = set.intersection(*exposed_sets)
+        else:
+            result = set()
+
+        result_list = list(result)
+        if request:
+            setattr(request, cache_key, result_list)
+        return result_list
+
     def get_fields(self):
         fields = super().get_fields()
 
@@ -7157,6 +7433,7 @@ class MarketplaceServiceProviderUserSerializer(
         if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
 
+        # Remove is_active for non-staff/non-support users
         if (
             user.is_authenticated
             and "is_active" in fields
@@ -7164,6 +7441,24 @@ class MarketplaceServiceProviderUserSerializer(
             and not user.is_support
         ):
             del fields["is_active"]
+
+        # Apply GDPR-aware attribute filtering
+        exposed_attributes = self._get_service_provider_exposed_attributes()
+
+        # Get serializer field names that should be exposed
+        exposed_serializer_fields = {
+            self.USER_ATTRIBUTE_FIELD_MAP[attr]
+            for attr in exposed_attributes
+            if attr in self.USER_ATTRIBUTE_FIELD_MAP
+        }
+
+        # Remove user attribute fields that are not exposed
+        all_user_attribute_fields = set(self.USER_ATTRIBUTE_FIELD_MAP.values())
+        fields_to_remove = all_user_attribute_fields - exposed_serializer_fields
+
+        for field_name in fields_to_remove:
+            if field_name in fields:
+                del fields[field_name]
 
         return fields
 
@@ -8393,6 +8688,9 @@ class UserOfferingConsentSerializer(
 
     has_consent = serializers.SerializerMethodField()
     requires_reconsent = serializers.SerializerMethodField()
+    collected_attributes = serializers.SerializerMethodField(
+        help_text="List of user attributes that will be shared with service provider"
+    )
 
     class Meta:
         model = models.UserOfferingConsent
@@ -8413,8 +8711,15 @@ class UserOfferingConsentSerializer(
             "modified",
             "has_consent",
             "requires_reconsent",
+            "collected_attributes",
         )
         read_only_fields = ("agreement_date", "revocation_date", "created", "modified")
+
+    def get_collected_attributes(self, obj) -> list[str]:
+        """Return list of user attributes that will be collected for this offering."""
+        return models.OfferingUserAttributeConfig.get_exposed_fields_for_offering(
+            obj.offering
+        )
 
     def get_has_consent(self, obj) -> bool:
         return obj.revocation_date is None
@@ -8666,6 +8971,79 @@ class OfferingTermsOfServiceUpdateSerializer(serializers.Serializer):
     terms_of_service_link = serializers.URLField(required=False, allow_blank=True)
     version = serializers.CharField(max_length=50, required=False, allow_blank=True)
     requires_reconsent = serializers.BooleanField(required=False, default=False)
+
+
+class OfferingUserAttributeConfigSerializer(serializers.ModelSerializer):
+    """
+    Serializer for configuring which user attributes an offering exposes.
+    Supports GDPR compliance by declaring personal data processing.
+
+    Used as a nested action under ProviderOfferingViewSet.
+    """
+
+    offering = serializers.SlugRelatedField(
+        queryset=models.Offering.objects.all(),
+        slug_field="uuid",
+        write_only=True,
+        required=False,
+    )
+    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
+    offering_name = serializers.ReadOnlyField(source="offering.name")
+
+    exposed_fields = serializers.SerializerMethodField()
+    is_default = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.OfferingUserAttributeConfig
+        fields = (
+            "uuid",
+            "created",
+            "modified",
+            "offering",
+            "offering_uuid",
+            "offering_name",
+            # Core attributes
+            "expose_username",
+            "expose_full_name",
+            "expose_email",
+            # Extended profile
+            "expose_phone_number",
+            "expose_organization",
+            "expose_job_title",
+            "expose_affiliations",
+            # User profile attributes
+            "expose_gender",
+            "expose_personal_title",
+            "expose_place_of_birth",
+            "expose_country_of_residence",
+            "expose_nationality",
+            "expose_nationalities",
+            "expose_organization_country",
+            "expose_organization_type",
+            "expose_eduperson_assurance",
+            # Legal and identity attributes
+            "expose_civil_number",
+            "expose_birth_date",
+            "expose_identity_source",
+            # Computed
+            "exposed_fields",
+            "is_default",
+        )
+        read_only_fields = (
+            "uuid",
+            "created",
+            "modified",
+            "offering_uuid",
+            "offering_name",
+        )
+
+    def get_exposed_fields(self, obj) -> list[str]:
+        """Return list of field names currently configured for exposure."""
+        return obj.get_exposed_fields()
+
+    def get_is_default(self, obj) -> bool:
+        """Return True if this is a default (unsaved) config."""
+        return obj.pk is None
 
 
 class CourseAccountSerializer(serializers.HyperlinkedModelSerializer):

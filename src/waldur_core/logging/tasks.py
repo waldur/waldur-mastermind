@@ -1,13 +1,16 @@
 import logging
+from datetime import timedelta
 
 from celery import shared_task
+from constance import config
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q, QuerySet
+from django.utils import timezone
 
 from waldur_core.core.models import User
 from waldur_core.logging import backend, models, utils
 from waldur_core.logging.event_logger import get_event_groups
-from waldur_core.logging.models import BaseHook, Event, Feed
+from waldur_core.logging.models import BaseHook, Event, Feed, UserDataAccessLog
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
@@ -163,6 +166,93 @@ def publish_messages(self, messages: list[dict[str, str]]) -> dict:
         raise  # Re-raise to trigger Celery retry
 
     return results
+
+
+@shared_task(name="waldur_core.logging.log_user_data_access")
+def log_user_data_access(
+    target_user_uuid: str,
+    accessor_uuid: str,
+    accessor_type: str,
+    accessed_fields: list[str],
+    ip_address: str | None = None,
+    context: dict | None = None,
+) -> dict:
+    """
+    Asynchronously log user data access event.
+
+    Args:
+        target_user_uuid: UUID of the user whose data was accessed
+        accessor_uuid: UUID of the user who accessed the data
+        accessor_type: Type of accessor (staff, support, organization_member, self)
+        accessed_fields: List of field names that were accessed
+        ip_address: IP address of the accessor (optional)
+        context: Additional context dict (endpoint, offering UUID, etc.)
+
+    Returns:
+        dict with log entry UUID or error message
+    """
+    # Check if logging is enabled
+    if not config.USER_DATA_ACCESS_LOGGING_ENABLED:
+        return {"status": "skipped", "reason": "logging_disabled"}
+
+    # Skip self-access if configured
+    if (
+        target_user_uuid == accessor_uuid
+        and not config.USER_DATA_ACCESS_LOG_SELF_ACCESS
+    ):
+        return {"status": "skipped", "reason": "self_access_not_logged"}
+
+    try:
+        target_user = User.objects.get(uuid=target_user_uuid)
+        accessor = User.objects.get(uuid=accessor_uuid)
+
+        log_entry = UserDataAccessLog.objects.create(
+            target_user=target_user,
+            accessor=accessor,
+            accessor_type=accessor_type,
+            accessed_fields=accessed_fields,
+            ip_address=ip_address,
+            context=context or {},
+        )
+
+        logger.debug(
+            "Logged user data access: %s accessed %s data",
+            accessor.username,
+            target_user.username,
+        )
+
+        return {"status": "logged", "log_uuid": str(log_entry.uuid)}
+
+    except User.DoesNotExist as e:
+        logger.warning("User not found for data access log: %s", e)
+        return {"status": "error", "reason": "user_not_found"}
+    except Exception as e:
+        logger.exception("Error logging user data access: %s", e)
+        return {"status": "error", "reason": str(e)}
+
+
+@shared_task(name="waldur_core.logging.cleanup_user_data_access_logs")
+def cleanup_user_data_access_logs() -> dict:
+    """
+    Clean up old user data access logs based on retention period.
+
+    Returns:
+        dict with count of deleted records
+    """
+    retention_days = config.USER_DATA_ACCESS_LOG_RETENTION_DAYS
+    cutoff_date = timezone.now() - timedelta(days=retention_days)
+
+    deleted_count, _ = UserDataAccessLog.objects.filter(
+        timestamp__lt=cutoff_date
+    ).delete()
+
+    logger.info(
+        "Deleted %d user data access logs older than %d days",
+        deleted_count,
+        retention_days,
+    )
+
+    return {"deleted_count": deleted_count, "retention_days": retention_days}
 
 
 @shared_task(name="waldur_core.logging.delete_dangling_event_subscriptions")

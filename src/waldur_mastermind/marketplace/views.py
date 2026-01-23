@@ -902,6 +902,9 @@ class ServiceProviderUsersViewSet(mixins.ListModelMixin, rf_viewsets.GenericView
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
+        # During schema generation, don't query the database
+        if getattr(self, "swagger_fake_view", False):
+            return context
         return {
             **context,
             "service_provider": self.get_service_provider(),
@@ -4502,6 +4505,85 @@ class ProviderOfferingViewSet(
         return warnings
 
     import_offering_serializer_class = serializers.OfferingImportParametersSerializer
+
+    # User attribute config actions
+    @extend_schema(
+        summary="Get user attribute config",
+        description="Returns the user attribute configuration for this offering, "
+        "which determines which user attributes are exposed to the service provider.",
+        responses={200: serializers.OfferingUserAttributeConfigSerializer},
+    )
+    @action(detail=True, methods=["get"], url_path="user-attribute-config")
+    def user_attribute_config(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        try:
+            config = offering.user_attribute_config
+        except models.OfferingUserAttributeConfig.DoesNotExist:
+            # Return default config (unsaved instance with model defaults)
+            config = models.OfferingUserAttributeConfig(offering=offering)
+
+        serializer = serializers.OfferingUserAttributeConfigSerializer(
+            config, context=self.get_serializer_context()
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    user_attribute_config_permissions = [structure_permissions.is_owner]
+
+    @extend_schema(
+        summary="Update user attribute config",
+        description="Creates or updates the user attribute configuration for this offering. "
+        "This determines which user attributes are shared with the service provider.",
+        request=serializers.OfferingUserAttributeConfigSerializer,
+        responses={200: serializers.OfferingUserAttributeConfigSerializer},
+    )
+    @action(
+        detail=True,
+        methods=["post", "put", "patch"],
+        url_path="update-user-attribute-config",
+    )
+    def update_user_attribute_config(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+
+        try:
+            config = offering.user_attribute_config
+            serializer = serializers.OfferingUserAttributeConfigSerializer(
+                config,
+                data=request.data,
+                partial=request.method == "PATCH",
+                context=self.get_serializer_context(),
+            )
+        except models.OfferingUserAttributeConfig.DoesNotExist:
+            # Create new config
+            data = {**request.data, "offering": str(offering.uuid)}
+            serializer = serializers.OfferingUserAttributeConfigSerializer(
+                data=data,
+                context=self.get_serializer_context(),
+            )
+
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    update_user_attribute_config_permissions = [structure_permissions.is_owner]
+    update_user_attribute_config_validators = update_validators
+
+    @extend_schema(
+        summary="Delete user attribute config",
+        description="Deletes the user attribute configuration for this offering. "
+        "The offering will fall back to system defaults.",
+        responses={204: None},
+    )
+    @action(detail=True, methods=["delete"], url_path="delete-user-attribute-config")
+    def delete_user_attribute_config(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+        try:
+            offering.user_attribute_config.delete()
+        except models.OfferingUserAttributeConfig.DoesNotExist:
+            pass  # Already deleted or never existed
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    delete_user_attribute_config_permissions = [structure_permissions.is_owner]
+    delete_user_attribute_config_validators = update_validators
 
 
 @extend_schema_view(

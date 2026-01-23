@@ -10,6 +10,8 @@ from rest_framework.reverse import reverse
 
 from waldur_auth_social import models
 from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
+from waldur_auth_social.serializers import IdentityProviderSerializer
+from waldur_auth_social.utils import parse_schac_personal_unique_id
 from waldur_auth_social.views import (
     OIDC_CODE_VERIFIER_KEY,
     OIDC_REFERRER_KEY,
@@ -1115,8 +1117,6 @@ class IdentityProviderValidationTest(test.APITransactionTestCase):
 
     def setUp(self):
         super().setUp()
-        from waldur_auth_social.serializers import IdentityProviderSerializer
-
         self.serializer_class = IdentityProviderSerializer
 
     def test_reject_redirect_with_path(self):
@@ -1246,3 +1246,244 @@ class IdentityProviderValidationTest(test.APITransactionTestCase):
         # Should be lowercased
         self.assertEqual(result[0], "https://example.com")
         self.assertEqual(result[1], "https://test.example.com:8443")
+
+
+class SchacPersonalUniqueIDParsingTest(test.APITransactionTestCase):
+    """Test parsing of schacPersonalUniqueID to civil_number format."""
+
+    def test_parse_estonian_schac_id(self):
+        """Test parsing Estonian schacPersonalUniqueID."""
+        # Estonian format: urn:schac:personalUniqueID:EE:EST:<id>
+        value = "urn:schac:personalUniqueID:EE:EST:60001019906"
+        result = parse_schac_personal_unique_id(value)
+        self.assertEqual(result, "EE60001019906")
+
+    def test_parse_finnish_schac_id(self):
+        """Test parsing Finnish schacPersonalUniqueID."""
+        value = "urn:schac:personalUniqueID:FI:FIN:010170-1234"
+        result = parse_schac_personal_unique_id(value)
+        self.assertEqual(result, "FI010170-1234")
+
+    def test_passthrough_tara_format(self):
+        """Test that TARA format (already normalized) passes through unchanged."""
+        # TARA returns sub claim as country code + ID
+        value = "EE60001019906"
+        result = parse_schac_personal_unique_id(value)
+        self.assertEqual(result, "EE60001019906")
+
+    def test_passthrough_plain_id(self):
+        """Test that plain ID without URN prefix passes through unchanged."""
+        value = "60001019906"
+        result = parse_schac_personal_unique_id(value)
+        self.assertEqual(result, "60001019906")
+
+    def test_parse_international_schac_id(self):
+        """Test parsing international (int) schacPersonalUniqueID."""
+        value = "urn:schac:personalUniqueID:int:orcid:0000-0001-2345-6789"
+        result = parse_schac_personal_unique_id(value)
+        self.assertEqual(result, "int0000-0001-2345-6789")
+
+
+class EnabledUserProfileAttributesSyncTest(test.APITransactionTestCase):
+    """Test that IdP sync respects ENABLED_USER_PROFILE_ATTRIBUTES setting."""
+
+    def setUp(self):
+        super().setUp()
+        self.provider = models.IdentityProvider.objects.create(
+            provider=ProviderChoices.KEYCLOAK,
+            client_id="test_client_id",
+            client_secret="test_client_secret",
+            discovery_url="http://keycloak.test/.well-known/openid-configuration",
+            userinfo_url="http://keycloak.test/userinfo",
+            token_url="http://keycloak.test/token",
+            auth_url="http://keycloak.test/auth",
+            **PROVIDER_DEFAULTS[ProviderChoices.KEYCLOAK],
+        )
+        self.url = reverse(f"auth_{self.provider.provider}_complete")
+        self.state = "test_state"
+        self.code = "test_code"
+
+        # Setup session
+        session = self.client.session
+        session[OIDC_STATE_KEY] = self.state
+        session.save()
+
+        # Mock external requests
+        responses.start()
+        self.addCleanup(responses.stop)
+
+    def _mock_token_request(
+        self, access_token="test_access_token", refresh_token="test_refresh_token"
+    ):
+        return responses.add(
+            method="POST",
+            url=self.provider.token_url,
+            json={"access_token": access_token, "refresh_token": refresh_token},
+            status=status.HTTP_200_OK,
+        )
+
+    def _mock_userinfo_request(self, user_info):
+        responses.add(
+            method="GET",
+            url=self.provider.userinfo_url,
+            json=user_info,
+            status=status.HTTP_200_OK,
+        )
+
+    @override_config(ENABLED_USER_PROFILE_ATTRIBUTES=["phone_number", "organization"])
+    def test_enabled_attributes_are_synced(self):
+        """Test that enabled attributes are synced from IdP."""
+        user_info = {
+            "sub": "test_enabled",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "enabled@example.com",
+            "phone_number": "+1234567890",
+            "schac_home_organization": "Test University",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user = User.objects.get(username=user_info["sub"])
+        self.assertEqual(user.phone_number, "+1234567890")
+        self.assertEqual(user.organization, "Test University")
+
+    @override_config(ENABLED_USER_PROFILE_ATTRIBUTES=["organization"])
+    def test_disabled_attributes_are_not_synced(self):
+        """Test that disabled attributes are NOT synced from IdP."""
+        user_info = {
+            "sub": "test_disabled",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "disabled@example.com",
+            "phone_number": "+1234567890",  # phone_number is NOT enabled
+            "schac_home_organization": "Test University",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user = User.objects.get(username=user_info["sub"])
+        # phone_number should NOT be synced because it's not enabled
+        self.assertEqual(user.phone_number, "")
+        # organization should be synced because it's enabled
+        self.assertEqual(user.organization, "Test University")
+
+    @override_config(ENABLED_USER_PROFILE_ATTRIBUTES=[])
+    def test_core_attributes_synced_even_when_list_is_empty(self):
+        """Test that core attributes (first_name, last_name, email) are always synced."""
+        user_info = {
+            "sub": "test_core",
+            "given_name": "Core",
+            "family_name": "User",
+            "email": "core@example.com",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user = User.objects.get(username=user_info["sub"])
+        self.assertEqual(user.first_name, "Core")
+        self.assertEqual(user.last_name, "User")
+        self.assertEqual(user.email, "core@example.com")
+
+    @override_config(ENABLED_USER_PROFILE_ATTRIBUTES=["civil_number"])
+    def test_civil_number_sync_when_enabled(self):
+        """Test that civil_number is synced when enabled."""
+        user_info = {
+            "sub": "test_civil",
+            "given_name": "Civil",
+            "family_name": "User",
+            "email": "civil@example.com",
+            "schacPersonalUniqueID": "urn:schac:personalUniqueID:EE:EST:60001019906",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user = User.objects.get(username=user_info["sub"])
+        self.assertEqual(user.civil_number, "EE60001019906")
+
+    @override_config(ENABLED_USER_PROFILE_ATTRIBUTES=[])
+    def test_civil_number_not_synced_when_disabled(self):
+        """Test that civil_number is NOT synced when disabled."""
+        user_info = {
+            "sub": "test_civil_disabled",
+            "given_name": "Civil",
+            "family_name": "User",
+            "email": "civil_disabled@example.com",
+            "schacPersonalUniqueID": "urn:schac:personalUniqueID:EE:EST:60001019906",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user = User.objects.get(username=user_info["sub"])
+        # civil_number should NOT be synced (None or empty for new users)
+        self.assertFalse(user.civil_number)
+
+    @override_config(
+        ENABLED_USER_PROFILE_ATTRIBUTES=["organization", "identity_source"]
+    )
+    def test_multiple_attributes_synced_selectively(self):
+        """Test that multiple attributes are synced according to configuration."""
+        user_info = {
+            "sub": "test_multi",
+            "given_name": "Multi",
+            "family_name": "User",
+            "email": "multi@example.com",
+            "schac_home_organization": "Example University",  # maps to organization
+            "phone_number": "+9876543210",  # NOT enabled
+            "identity_source": "external_idp",  # enabled
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user = User.objects.get(username=user_info["sub"])
+        # Enabled attributes
+        self.assertEqual(user.organization, "Example University")
+        self.assertEqual(user.identity_source, "external_idp")
+        # Disabled attributes
+        self.assertEqual(user.phone_number, "")
+
+    @override_config(ENABLED_USER_PROFILE_ATTRIBUTES=["organization"])
+    def test_existing_user_attribute_not_updated_when_disabled(self):
+        """Test that existing user attributes are not updated when the attribute is disabled."""
+        # Create user with existing phone number
+        existing_user = structure_factories.UserFactory(
+            username="test_existing",
+            phone_number="+1111111111",
+        )
+        user_info = {
+            "sub": "test_existing",
+            "given_name": "Existing",
+            "family_name": "User",
+            "email": "existing@example.com",
+            "phone_number": "+2222222222",  # NOT enabled, should not update
+            "schac_home_organization": "New University",  # enabled, should update
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        existing_user.refresh_from_db()
+        # phone_number should remain unchanged
+        self.assertEqual(existing_user.phone_number, "+1111111111")
+        # organization should be updated
+        self.assertEqual(existing_user.organization, "New University")

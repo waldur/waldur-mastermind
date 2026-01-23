@@ -113,6 +113,28 @@ def items(self, request, uuid=None):
 
 See `docs/guides/openapi.md` for detailed patterns.
 
+**IMPORTANT: No database access during schema generation**
+
+When customizing serializer `get_fields()` or similar methods, **never access the database
+or Constance config** without first checking for schema generation context. Schema generation
+runs without a database connection.
+
+The OpenAPI schema should show **all possible fields** that could be returned, not a minimal
+set. This allows API consumers to see the maximum possible response shape.
+
+```python
+def get_fields(self):
+    fields = super().get_fields()
+
+    # ALWAYS check for schema generation FIRST, before any DB/Constance access
+    if getattr(self.context.get("view"), "swagger_fake_view", False):
+        return fields  # Return ALL fields for OpenAPI schema
+
+    # Now safe to access database or Constance config
+    some_config = config.MY_SETTING
+    # ... filter fields based on config
+```
+
 ## Documentation Structure
 
 Detailed guides are in `docs/guides/`:

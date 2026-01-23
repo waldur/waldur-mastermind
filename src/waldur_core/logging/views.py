@@ -22,6 +22,9 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.managers import SummaryQuerySet
 from waldur_core.logging import backend, filters, models, serializers, utils
 from waldur_core.logging.event_logger import get_event_groups
+from waldur_core.structure.serializers_data_access import (
+    GlobalUserDataAccessLogSerializer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -925,3 +928,32 @@ Requires staff permissions.""",
                 "note": "DLQ queues contain messages that failed delivery",
             }
         )
+
+
+class UserDataAccessLogViewSet(
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """
+    Global endpoint for viewing and managing user data access logs.
+
+    Staff and support users can view logs.
+    Only staff users can delete log entries.
+    """
+
+    queryset = models.UserDataAccessLog.objects.all().order_by("-timestamp")
+    lookup_field = "uuid"
+    serializer_class = GlobalUserDataAccessLogSerializer
+    permission_classes = (
+        permissions.IsAuthenticated,
+        core_permissions.IsSupport,
+    )
+    filterset_class = filters.UserDataAccessLogFilter
+
+    def get_permissions(self):
+        # Only staff can delete logs
+        if self.action == "destroy":
+            return [permissions.IsAuthenticated(), core_permissions.IsStaff()]
+        return super().get_permissions()

@@ -250,3 +250,76 @@ class EmailLog(UuidMixin):
 
     class Meta:
         ordering = ["-sent_at"]
+
+
+class UserDataAccessLog(UuidMixin):
+    """
+    Log of user profile data access events.
+
+    Tracks when and by whom a user's profile data was accessed via the API.
+    Used for GDPR compliance and audit purposes.
+    """
+
+    class AccessorType:
+        STAFF = "staff"
+        SUPPORT = "support"
+        ORGANIZATION_MEMBER = "organization_member"
+        SERVICE_PROVIDER = "service_provider"
+        SELF = "self"
+
+        CHOICES = (
+            (STAFF, "Staff"),
+            (SUPPORT, "Support"),
+            (ORGANIZATION_MEMBER, "Organization member"),
+            (SERVICE_PROVIDER, "Service provider"),
+            (SELF, "Self"),
+        )
+
+    target_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="data_access_logs",
+        help_text=_("The user whose data was accessed"),
+    )
+    accessor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="performed_data_accesses",
+        help_text=_("The user who accessed the data"),
+    )
+    timestamp = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        help_text=_("When the access occurred"),
+    )
+    ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        help_text=_("IP address of the accessor"),
+    )
+    accessor_type = models.CharField(
+        max_length=50,
+        choices=AccessorType.CHOICES,
+        help_text=_("Type of accessor"),
+    )
+    accessed_fields = models.JSONField(
+        default=list,
+        help_text=_("List of user profile fields that were accessed"),
+    )
+    context = models.JSONField(
+        default=dict,
+        help_text=_("Additional context (endpoint, offering UUID for providers, etc.)"),
+    )
+
+    class Meta:
+        ordering = ["-timestamp"]
+        indexes = [
+            models.Index(fields=["target_user", "-timestamp"]),
+        ]
+        verbose_name = _("User data access log")
+        verbose_name_plural = _("User data access logs")
+
+    def __str__(self):
+        accessor_name = self.accessor.username if self.accessor else "Unknown"
+        return f"{accessor_name} accessed {self.target_user.username} data at {self.timestamp}"

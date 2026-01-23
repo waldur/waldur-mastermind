@@ -595,27 +595,32 @@ CONSTANCE_CONFIG = {
     ),
     "OIDC_AUTH_URL": (
         "",
-        "OIDC authentication endpoint URL.",
+        "OIDC authorization endpoint URL. Reserved for future OAuth 2.0 authorization code flow integration.",
     ),
     "OIDC_INTROSPECTION_URL": (
         "",
-        "OIDC introspection endpoint URL for validating access tokens.",
+        "RFC 7662 Token Introspection endpoint URL. Used to validate API bearer tokens. "
+        "When a client sends Authorization: Bearer <token>, Waldur calls this endpoint to verify the token is active.",
     ),
     "OIDC_CLIENT_ID": (
         "",
-        "Client ID for authenticating against the introspection endpoint.",
+        "Client ID for HTTP Basic authentication when calling the token introspection endpoint. "
+        "Required together with OIDC_CLIENT_SECRET and OIDC_INTROSPECTION_URL.",
     ),
     "OIDC_CLIENT_SECRET": (
         "",
-        "Client secret for authenticating against the introspection endpoint.",
+        "Client secret for HTTP Basic authentication when calling the token introspection endpoint. "
+        "Required together with OIDC_CLIENT_ID and OIDC_INTROSPECTION_URL.",
     ),
     "OIDC_USER_FIELD": (
         "username",
-        "Field name from the introspection response to identify the user (e.g., 'username', 'email', 'client_id').",
+        "Field name from the introspection response JSON used to identify the Waldur user. "
+        "Common values: 'username', 'email', 'sub', 'client_id'. The value is matched against User.username.",
     ),
     "OIDC_CACHE_TIMEOUT": (
         300,
-        "Number of seconds to cache token introspection results.",
+        "Seconds to cache successful token introspection results. Reduces load on the introspection endpoint. "
+        "Set to 0 to disable caching. Default: 300 (5 minutes).",
     ),
     "OIDC_ACCESS_TOKEN_ENABLED": (
         False,
@@ -631,7 +636,35 @@ CONSTANCE_CONFIG = {
     ),
     "WALDUR_AUTH_SOCIAL_ROLE_CLAIM": (
         "",
-        "Name of the claim that contains user roles.",
+        "OAuth/OIDC token claim name containing user roles for automatic staff/support assignment. "
+        "If the claim contains 'staff', user gets is_staff=True. If it contains 'support', user gets is_support=True. "
+        "Leave empty to disable role synchronization from identity provider.",
+    ),
+    "DEFAULT_OFFERING_USER_ATTRIBUTES": (
+        ["username", "full_name", "email"],
+        "Default user attributes exposed to service providers (OfferingUser API) when no explicit config exists. "
+        "Available options: username, full_name, email, phone_number, organization, job_title, affiliations, "
+        "gender, personal_title, birth_date, place_of_birth, "
+        "country_of_residence, nationality, nationalities, "
+        "organization_country, organization_type, eduperson_assurance, "
+        "civil_number, identity_source.",
+        "list_field",
+    ),
+    "INVITATION_ALLOWED_FIELDS": (
+        ["full_name", "organization", "job_title"],
+        "Fields that can be provided in invitations for email personalization. These are NOT copied to user profile.",
+        "list_field",
+    ),
+    "ENABLED_USER_PROFILE_ATTRIBUTES": (
+        ["phone_number", "organization", "job_title", "affiliations"],
+        "List of enabled user profile attributes. Controls IdP sync and UI display. "
+        "Core attributes (username, email, first_name, last_name, full_name) are always enabled. "
+        "Available options: phone_number, organization, job_title, affiliations, "
+        "gender, personal_title, birth_date, place_of_birth, "
+        "country_of_residence, nationality, nationalities, "
+        "organization_country, organization_type, eduperson_assurance, "
+        "civil_number, identity_source.",
+        "list_field",
     ),
     "MAINTENANCE_ANNOUNCEMENT_NOTIFY_BEFORE_MINUTES": (
         60,
@@ -797,6 +830,19 @@ CONSTANCE_CONFIG = {
         [30, 14, 7, 1],
         "Default reminder schedule (days before expiration) for expiring resources. Can be overridden per offering via plugin_options.resource_expiration_reminders.",
         "list_field",
+    ),
+    # User Data Access Logging settings
+    "USER_DATA_ACCESS_LOGGING_ENABLED": (
+        False,
+        "Enable logging of user profile data access events for GDPR compliance.",
+    ),
+    "USER_DATA_ACCESS_LOG_RETENTION_DAYS": (
+        90,
+        "Number of days to retain user data access logs before automatic cleanup.",
+    ),
+    "USER_DATA_ACCESS_LOG_SELF_ACCESS": (
+        False,
+        "Log when users access their own profile data. Disabled by default to reduce log volume.",
     ),
 }
 
@@ -973,14 +1019,26 @@ CONSTANCE_CONFIG_FIELDSETS = {
     ),
     "Table settings": ("USER_TABLE_COLUMNS",),
     "Localization": ("LANGUAGE_CHOICES",),
-    "User settings": (
+    "Authentication settings": (
         "AUTO_APPROVE_USER_TOS",
-        "ENABLE_STRICT_CHECK_ACCEPTING_INVITATION",
-        "INVITATION_DISABLE_MULTIPLE_ROLES",
         "DEFAULT_IDP",
         "DEACTIVATE_USER_IF_NO_ROLES",
         "OIDC_BLOCK_CREATION_OF_UNINVITED_USERS",
         "OIDC_ACCESS_TOKEN_ENABLED",
+    ),
+    "Invitation settings": (
+        "ENABLE_STRICT_CHECK_ACCEPTING_INVITATION",
+        "INVITATION_DISABLE_MULTIPLE_ROLES",
+        "INVITATION_ALLOWED_FIELDS",
+    ),
+    "User profile settings": (
+        "DEFAULT_OFFERING_USER_ATTRIBUTES",
+        "ENABLED_USER_PROFILE_ATTRIBUTES",
+    ),
+    "Data privacy settings": (
+        "USER_DATA_ACCESS_LOGGING_ENABLED",
+        "USER_DATA_ACCESS_LOG_RETENTION_DAYS",
+        "USER_DATA_ACCESS_LOG_SELF_ACCESS",
     ),
     "FreeIPA settings": (
         "FREEIPA_ENABLED",
@@ -993,7 +1051,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "FREEIPA_BLACKLISTED_USERNAMES",
         "FREEIPA_GROUP_SYNCHRONIZATION_ENABLED",
     ),
-    "OIDC auth settings": (
+    "API token authentication": (
         "OIDC_AUTH_URL",
         "OIDC_INTROSPECTION_URL",
         "OIDC_CLIENT_ID",
@@ -1104,4 +1162,6 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "ONBOARDING_VALIDATION_METHODS",
     # User Actions
     "USER_ACTIONS_ENABLED",
+    # User profile attributes
+    "ENABLED_USER_PROFILE_ATTRIBUTES",
 )
