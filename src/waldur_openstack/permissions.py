@@ -2,6 +2,7 @@ from django.conf import settings
 from rest_framework import exceptions
 
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
 from waldur_core.permissions.utils import has_permission
 
 
@@ -57,5 +58,25 @@ def has_permissions_for_console(request, view, instance=None):
 
         if has_permission(request, permission, instance.project.customer):
             return
+
+    raise exceptions.PermissionDenied()
+
+
+def can_update_tenant_quotas_as_service_provider(request, view, tenant=None):
+    if not tenant:
+        return
+
+    if request.user.is_staff:
+        return
+
+    service_settings = tenant.service_settings
+    if not service_settings or not service_settings.customer:
+        raise exceptions.PermissionDenied()
+
+    customer = service_settings.customer
+    if customer.has_user(request.user, CustomerRole.OWNER) or customer.has_user(
+        request.user, ServiceProviderRole.MANAGER
+    ):
+        return
 
     raise exceptions.PermissionDenied()

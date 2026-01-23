@@ -29,7 +29,6 @@ from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
-from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import signals as structure_signals
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.managers import filter_queryset_for_user
@@ -509,7 +508,7 @@ class TenantViewSet(
 
     @extend_schema(
         summary="Set tenant quotas",
-        description="""A quota can be set for a particular tenant. Only staff users can do that.
+        description="""A quota can be set for a particular tenant. Only staff users and service provider owners/managers can do that.
 In order to set quota submit POST request to /api/openstack-tenants/<uuid>/set_quotas/.
 The quota values are propagated to the backend.
 
@@ -570,7 +569,9 @@ On successful completion the task will synchronize quotas with the backend.
             status=status.HTTP_202_ACCEPTED,
         )
 
-    set_quotas_permissions = [structure_permissions.is_staff]
+    set_quotas_permissions = [
+        openstack_permissions.can_update_tenant_quotas_as_service_provider
+    ]
     set_quotas_validators = [core_validators.StateValidator(CoreStates.OK)]
     set_quotas_serializer_class = serializers.OpenStackTenantQuotaSerializer
 
