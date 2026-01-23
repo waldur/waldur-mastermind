@@ -20,6 +20,7 @@ from waldur_auth_social.const import (
 from waldur_auth_social.exceptions import OAuthException
 from waldur_auth_social.models import IdentityProvider
 from waldur_core.core.models import SshPublicKey, User
+from waldur_core.core.user_attributes import get_enabled_idp_sync_fields
 from waldur_core.core.validators import validate_ssh_public_key
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.models import Invitation
@@ -52,17 +53,48 @@ def get_lookup_params(
     return {field_name: field_value}
 
 
+def parse_schac_personal_unique_id(value: str) -> str:
+    """
+    Parse schacPersonalUniqueID URN and extract country code + ID value.
+
+    schacPersonalUniqueID format: urn:schac:personalUniqueID:<country-code>:<idType>:<idValue>
+    Example: urn:schac:personalUniqueID:EE:EST:60001019906 -> EE60001019906
+
+    This normalizes to the same format as TARA's sub claim (e.g., EE60001019906),
+    allowing consistent storage regardless of the IdP source.
+    """
+    prefix = "urn:schac:personalUniqueID:"
+    if not value.startswith(prefix):
+        return value
+
+    # Remove prefix and split remaining parts
+    parts = value[len(prefix) :].split(":")
+    if len(parts) >= 3:
+        country_code = parts[0]
+        # idValue is the last part (in case idType contains colons)
+        id_value = parts[-1]
+        return f"{country_code}{id_value}"
+
+    return value
+
+
 def get_user_payload(
     identity_provider: IdentityProvider, backend_user: dict[str, str]
 ) -> dict[str, str]:
+    # Get enabled fields for IdP sync (intersection of WRITABLE_USER_FIELDS and enabled attributes)
+    enabled_sync_fields = get_enabled_idp_sync_fields()
+
     payload = {}
     for user_field, claims in identity_provider.attribute_mapping.items():
-        if user_field in WRITABLE_USER_FIELDS:
+        # Only sync if field is in WRITABLE_USER_FIELDS AND enabled in configuration
+        if user_field in WRITABLE_USER_FIELDS and user_field in enabled_sync_fields:
             for claim in claims.split():
                 claim = claim.strip()
                 value = backend_user.get(claim)
                 if user_field == "email" and isinstance(value, list):
                     value = value[0]
+                if user_field == "civil_number" and value:
+                    value = parse_schac_personal_unique_id(value)
                 if value:
                     payload[user_field] = value
                     break

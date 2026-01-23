@@ -138,6 +138,362 @@ def validate_x509_certificate(data):
         raise ValidationError(_("Invalid X509 certificate."))
 
 
+# ISO 3166-1 alpha-2 country codes (common subset, can be extended)
+# This is a subset - full validation can be done with pycountry if needed
+ISO_3166_1_ALPHA_2_CODES = {
+    "AD",
+    "AE",
+    "AF",
+    "AG",
+    "AI",
+    "AL",
+    "AM",
+    "AO",
+    "AQ",
+    "AR",
+    "AS",
+    "AT",
+    "AU",
+    "AW",
+    "AX",
+    "AZ",
+    "BA",
+    "BB",
+    "BD",
+    "BE",
+    "BF",
+    "BG",
+    "BH",
+    "BI",
+    "BJ",
+    "BL",
+    "BM",
+    "BN",
+    "BO",
+    "BQ",
+    "BR",
+    "BS",
+    "BT",
+    "BV",
+    "BW",
+    "BY",
+    "BZ",
+    "CA",
+    "CC",
+    "CD",
+    "CF",
+    "CG",
+    "CH",
+    "CI",
+    "CK",
+    "CL",
+    "CM",
+    "CN",
+    "CO",
+    "CR",
+    "CU",
+    "CV",
+    "CW",
+    "CX",
+    "CY",
+    "CZ",
+    "DE",
+    "DJ",
+    "DK",
+    "DM",
+    "DO",
+    "DZ",
+    "EC",
+    "EE",
+    "EG",
+    "EH",
+    "ER",
+    "ES",
+    "ET",
+    "FI",
+    "FJ",
+    "FK",
+    "FM",
+    "FO",
+    "FR",
+    "GA",
+    "GB",
+    "GD",
+    "GE",
+    "GF",
+    "GG",
+    "GH",
+    "GI",
+    "GL",
+    "GM",
+    "GN",
+    "GP",
+    "GQ",
+    "GR",
+    "GS",
+    "GT",
+    "GU",
+    "GW",
+    "GY",
+    "HK",
+    "HM",
+    "HN",
+    "HR",
+    "HT",
+    "HU",
+    "ID",
+    "IE",
+    "IL",
+    "IM",
+    "IN",
+    "IO",
+    "IQ",
+    "IR",
+    "IS",
+    "IT",
+    "JE",
+    "JM",
+    "JO",
+    "JP",
+    "KE",
+    "KG",
+    "KH",
+    "KI",
+    "KM",
+    "KN",
+    "KP",
+    "KR",
+    "KW",
+    "KY",
+    "KZ",
+    "LA",
+    "LB",
+    "LC",
+    "LI",
+    "LK",
+    "LR",
+    "LS",
+    "LT",
+    "LU",
+    "LV",
+    "LY",
+    "MA",
+    "MC",
+    "MD",
+    "ME",
+    "MF",
+    "MG",
+    "MH",
+    "MK",
+    "ML",
+    "MM",
+    "MN",
+    "MO",
+    "MP",
+    "MQ",
+    "MR",
+    "MS",
+    "MT",
+    "MU",
+    "MV",
+    "MW",
+    "MX",
+    "MY",
+    "MZ",
+    "NA",
+    "NC",
+    "NE",
+    "NF",
+    "NG",
+    "NI",
+    "NL",
+    "NO",
+    "NP",
+    "NR",
+    "NU",
+    "NZ",
+    "OM",
+    "PA",
+    "PE",
+    "PF",
+    "PG",
+    "PH",
+    "PK",
+    "PL",
+    "PM",
+    "PN",
+    "PR",
+    "PS",
+    "PT",
+    "PW",
+    "PY",
+    "QA",
+    "RE",
+    "RO",
+    "RS",
+    "RU",
+    "RW",
+    "SA",
+    "SB",
+    "SC",
+    "SD",
+    "SE",
+    "SG",
+    "SH",
+    "SI",
+    "SJ",
+    "SK",
+    "SL",
+    "SM",
+    "SN",
+    "SO",
+    "SR",
+    "SS",
+    "ST",
+    "SV",
+    "SX",
+    "SY",
+    "SZ",
+    "TC",
+    "TD",
+    "TF",
+    "TG",
+    "TH",
+    "TJ",
+    "TK",
+    "TL",
+    "TM",
+    "TN",
+    "TO",
+    "TR",
+    "TT",
+    "TV",
+    "TW",
+    "TZ",
+    "UA",
+    "UG",
+    "UM",
+    "US",
+    "UY",
+    "UZ",
+    "VA",
+    "VC",
+    "VE",
+    "VG",
+    "VI",
+    "VN",
+    "VU",
+    "WF",
+    "WS",
+    "YE",
+    "YT",
+    "ZA",
+    "ZM",
+    "ZW",
+    # Also include EU as it's commonly used
+    "EU",
+}
+
+
+@deconstructible
+class ISO3166Alpha2Validator:
+    """Validate ISO 3166-1 alpha-2 country codes."""
+
+    message = _(
+        "Enter a valid ISO 3166-1 alpha-2 country code (e.g., 'US', 'DE', 'EE')."
+    )
+    code = "invalid_country_code"
+
+    def __init__(self, message=None, code=None):
+        if message is not None:
+            self.message = message
+        if code is not None:
+            self.code = code
+
+    def __call__(self, value):
+        if value and value.upper() not in ISO_3166_1_ALPHA_2_CODES:
+            raise ValidationError(self.message, code=self.code)
+
+
+validate_iso_3166_alpha2 = ISO3166Alpha2Validator()
+
+
+def validate_schac_organization_type(value):
+    """
+    Validate SCHAC homeOrganizationType URN format.
+
+    SCHAC URN format: urn:schac:homeOrganizationType:<country>:<type>
+    Examples:
+    - urn:schac:homeOrganizationType:int:university
+    - urn:schac:homeOrganizationType:de:research-institution
+    """
+    if not value:
+        return
+
+    if not isinstance(value, str):
+        raise ValidationError(_("Organization type must be a string."))
+
+    # SCHAC URN pattern
+    schac_pattern = re.compile(
+        r"^urn:schac:homeOrganizationType:[a-z]{2,3}:[a-zA-Z0-9\-]+$"
+    )
+
+    # Also accept simple organization types without URN prefix
+    simple_pattern = re.compile(r"^[a-zA-Z0-9\-_]+$")
+
+    if not schac_pattern.match(value) and not simple_pattern.match(value):
+        raise ValidationError(
+            _(
+                "Invalid organization type format. Use SCHAC URN format "
+                "(e.g., 'urn:schac:homeOrganizationType:int:university') "
+                "or a simple identifier (e.g., 'university')."
+            )
+        )
+
+
+def validate_refeds_assurance_list(value):
+    """
+    Validate REFEDS Assurance Framework URIs.
+
+    REFEDS assurance URIs are typically in the format:
+    - https://refeds.org/assurance/IAP/...
+    - https://refeds.org/assurance/ID/...
+    - https://refeds.org/assurance/ATP/...
+    - urn:oasis:names:tc:SAML:2.0:ac:classes:...
+    """
+    if not value:
+        return
+
+    if not isinstance(value, list):
+        raise ValidationError(_("Assurance levels must be a list."))
+
+    # URI patterns for assurance levels
+    valid_patterns = [
+        re.compile(r"^https://refeds\.org/assurance/"),
+        re.compile(r"^urn:oasis:names:tc:SAML:"),
+        re.compile(r"^https://"),  # Allow other HTTPS URIs
+        re.compile(r"^urn:"),  # Allow other URNs
+    ]
+
+    invalid_items = []
+    for item in value:
+        if not isinstance(item, str):
+            invalid_items.append(str(item))
+            continue
+
+        if not any(pattern.match(item) for pattern in valid_patterns):
+            invalid_items.append(item)
+
+    if invalid_items:
+        raise ValidationError(
+            _(
+                "Invalid assurance URIs: %(items)s. "
+                "Expected REFEDS assurance URIs or valid URNs."
+            ),
+            params={"items": ", ".join(invalid_items)},
+        )
+
+
 def validate_unix_path(path):
     """Validate that the given path is a valid Unix/Linux file path."""
     if not isinstance(path, str):

@@ -260,18 +260,30 @@ Customers and Projects can define user restrictions that control which users can
 Both Customer and Project models support the following restriction fields:
 
 ```python
-# Available on Customer and Project models
-user_email_patterns: JSONField   # Regex patterns for allowed emails
-user_affiliations: JSONField     # List of allowed affiliations
-user_identity_sources: JSONField # List of allowed identity providers
+# Available on Customer, Project, and GroupInvitation models
+user_email_patterns: JSONField      # Regex patterns for allowed emails
+user_affiliations: JSONField        # List of allowed affiliations
+user_identity_sources: JSONField    # List of allowed identity providers
+
+# AAI-based filtering (also available on Customer, Project, and GroupInvitation)
+user_nationalities: JSONField       # List of allowed nationality codes (ISO 3166-1 alpha-2)
+user_organization_types: JSONField  # List of allowed organization type URNs (SCHAC)
+user_assurance_levels: JSONField    # List of required assurance URIs (REFEDS)
 ```
 
 ### Validation Logic
 
-Restrictions use **OR logic within a level** and **AND logic across levels**:
+Restrictions use **OR logic within a field** and **AND logic across fields and levels**:
 
-- **Within a level**: User matches if ANY email pattern OR ANY affiliation OR ANY identity source matches
-- **Across levels**: User must pass ALL levels that have restrictions set
+- **Within a field**: User matches if ANY email pattern OR ANY affiliation OR ANY identity source matches
+- **Across fields**: User must pass ALL fields that have restrictions set (e.g., if both email patterns and affiliations are set, user must match at least one of each)
+- **Across levels**: User must pass ALL levels that have restrictions set (Customer → Project → GroupInvitation)
+
+**Special AAI validation rules:**
+
+- **Nationalities**: User must have at least one nationality in the allowed list (checks both `nationality` and `nationalities` fields)
+- **Organization types**: User's `organization_type` must be in the allowed list
+- **Assurance levels**: User must have ALL required assurance URIs (AND logic, not OR)
 
 ```mermaid
 flowchart TD
@@ -341,6 +353,45 @@ customer.save()
 
 # User with identity_source="eduGAIN" can be added
 # User with identity_source="local" cannot be added
+```
+
+#### Nationality Restriction (AAI)
+
+```python
+# Only allow users from EU member states
+project.user_nationalities = ["DE", "FR", "IT", "ES", "NL", "BE", "AT", "PL"]
+project.save()
+
+# User with nationality="DE" or nationalities=["DE", "US"] can be added
+# User with nationality="US" and nationalities=["US"] cannot be added
+```
+
+#### Organization Type Restriction (AAI)
+
+```python
+# Only allow users from universities or research institutions
+customer.user_organization_types = [
+    "urn:schac:homeOrganizationType:int:university",
+    "urn:schac:homeOrganizationType:int:research-institution"
+]
+customer.save()
+
+# User with organization_type="urn:schac:homeOrganizationType:int:university" can be added
+# User with organization_type="urn:schac:homeOrganizationType:int:company" cannot be added
+```
+
+#### Assurance Level Restriction (AAI)
+
+```python
+# Require high assurance level for sensitive projects
+project.user_assurance_levels = [
+    "https://refeds.org/assurance/IAP/high",
+    "https://refeds.org/assurance/ID/eppn-unique-no-reassign"
+]
+project.save()
+
+# User must have BOTH assurance URIs in their eduperson_assurance list
+# This ensures strong identity verification from the identity provider
 ```
 
 #### Combined Customer and Project Restrictions

@@ -207,11 +207,21 @@ class GetOrCreateProjectWithTemplateTest(TestCase):
         self.rule.project_role = ProjectRole.MANAGER
         self.rule.save()
 
-        project = handlers.get_or_create_project(self.rule, self.user)
+        # Create a new user after setting project_role to MANAGER
+        # This avoids the signal handler creating a project with ADMIN role
+        # when the user is created in setUp (before project_role is set)
+        new_user = User.objects.create(
+            username="custom_role_user",
+            email="custom_role@example.com",
+            first_name="Custom",
+            last_name="Role",
+        )
+
+        project = handlers.get_or_create_project(self.rule, new_user)
 
         self.assertIsNotNone(project)
-        self.assertTrue(project.has_user(self.user, ProjectRole.MANAGER))
-        self.assertFalse(project.has_user(self.user, ProjectRole.ADMIN))
+        self.assertTrue(project.has_user(new_user, ProjectRole.MANAGER))
+        self.assertFalse(project.has_user(new_user, ProjectRole.ADMIN))
 
 
 class ProjectProvisionByOrganizationTest(TestCase):

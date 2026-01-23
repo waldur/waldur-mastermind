@@ -294,6 +294,7 @@ class EventType(str, Enum):
     AUTOMATIC_CREDIT_ADJUSTMENT = "automatic_credit_adjustment"
     USER_ACTIVATED = "user_activated"
     USER_CREATION_SUCCEEDED = "user_creation_succeeded"
+    USER_DATA_ACCESSED = "user_data_accessed"
     USER_DEACTIVATED = "user_deactivated"
     USER_DEACTIVATED_NO_ROLES = "user_deactivated_no_roles"
     USER_DELETION_SUCCEEDED = "user_deletion_succeeded"
@@ -613,6 +614,7 @@ EVENT_GROUP_MAPPING = {
         EventType.SSH_KEY_DELETION_SUCCEEDED,
         EventType.USER_ACTIVATED,
         EventType.USER_CREATION_SUCCEEDED,
+        EventType.USER_DATA_ACCESSED,
         EventType.USER_DEACTIVATED,
         EventType.USER_DELETION_SUCCEEDED,
         EventType.USER_DETAILS_UPDATE_SUCCEEDED,

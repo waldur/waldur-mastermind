@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # Falls back to the source location if not found
 DEFAULT_PERMISSIONS_PATHS = [
     Path("/etc/waldur/permissions.yaml"),  # Docker/production
-    Path(__file__).parent.parent.parent.parent.parent.parent.parent
+    Path(__file__).parent.parent.parent.parent.parent
     / "docker"
     / "rootfs"
     / "etc"

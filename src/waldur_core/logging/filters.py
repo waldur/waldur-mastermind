@@ -166,3 +166,45 @@ class EmailLogFilter(django_filters.FilterSet):
             "body",
             "emails",
         ]
+
+
+class UserDataAccessLogFilter(django_filters.FilterSet):
+    """Filter for global data access logs endpoint (staff/support only)."""
+
+    start_date = django_filters.DateFilter(
+        field_name="timestamp", lookup_expr="date__gte"
+    )
+    end_date = django_filters.DateFilter(
+        field_name="timestamp", lookup_expr="date__lte"
+    )
+    accessor_type = django_filters.ChoiceFilter(
+        choices=models.UserDataAccessLog.AccessorType.CHOICES
+    )
+    user_uuid = django_filters.UUIDFilter(field_name="target_user__uuid")
+    accessor_uuid = django_filters.UUIDFilter(field_name="accessor__uuid")
+    query = django_filters.CharFilter(method="filter_by_query")
+    o = django_filters.OrderingFilter(
+        fields=[
+            ("timestamp", "timestamp"),
+            ("accessor_type", "accessor_type"),
+            ("target_user__username", "user_username"),
+            ("accessor__username", "accessor_username"),
+        ]
+    )
+
+    class Meta:
+        model = models.UserDataAccessLog
+        fields = []
+
+    def filter_by_query(self, queryset, name, value):
+        """Full-text search across user and accessor names."""
+        return queryset.filter(
+            Q(target_user__username__icontains=value)
+            | Q(target_user__first_name__icontains=value)
+            | Q(target_user__last_name__icontains=value)
+            | Q(target_user__email__icontains=value)
+            | Q(accessor__username__icontains=value)
+            | Q(accessor__first_name__icontains=value)
+            | Q(accessor__last_name__icontains=value)
+            | Q(accessor__email__icontains=value)
+        ).distinct()

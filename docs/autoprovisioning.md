@@ -33,7 +33,17 @@ Rules use the `UserDetailsMatchMixin` for pattern matching:
 - **user_affiliations**: Organization affiliations for matching (e.g., `["staff", "faculty"]`)
 - **user_identity_sources**: Identity provider matching (e.g., `["eduGAIN", "SAML"]`)
 
-Pattern matching uses OR logic: a user matches if ANY email pattern OR ANY affiliation OR ANY identity source matches. Pattern matching supports standard regex syntax for email patterns and handles invalid patterns gracefully.
+#### AAI-Based Filtering
+
+Rules also support AAI (Authentication and Authorization Infrastructure) attributes for more granular user matching:
+
+- **user_nationalities**: ISO 3166-1 alpha-2 country codes (e.g., `["DE", "FR", "IT"]`)
+- **user_organization_types**: SCHAC organization type URNs (e.g., `["urn:schac:homeOrganizationType:int:university"]`)
+- **user_assurance_levels**: REFEDS assurance profile URIs (e.g., `["https://refeds.org/assurance/IAP/high"]`)
+
+Pattern matching uses OR logic within a field: a user matches if ANY email pattern OR ANY affiliation OR ANY identity source matches.
+
+**Note:** For assurance levels, AND logic is used - user must have ALL specified assurance URIs.
 
 ## Organization Mapping Feature
 
@@ -226,6 +236,29 @@ Support multiple universities with their own customers:
     }
 }
 ```
+
+### AAI-Based Access Control
+
+Restrict provisioning to users with verified identity from EU universities:
+
+```json
+{
+    "name": "EU Research Universities",
+    "user_email_patterns": [".+@.*\\.edu", ".+@.*\\.ac\\.[a-z]{2}"],
+    "user_nationalities": ["DE", "FR", "IT", "ES", "NL", "BE", "AT", "PL", "SE", "FI"],
+    "user_organization_types": ["urn:schac:homeOrganizationType:int:university"],
+    "user_assurance_levels": ["https://refeds.org/assurance/IAP/medium"],
+    "use_user_organization_as_customer_name": true,
+    "project_role_name": "PROJECT.ADMIN"
+}
+```
+
+This rule only matches users who:
+
+1. Have an academic email address
+2. Have nationality from one of the listed EU countries
+3. Are from a university (SCHAC organization type)
+4. Have medium or higher identity assurance from their IdP
 
 ## Security and Validation
 

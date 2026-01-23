@@ -180,6 +180,45 @@ class PublicCallViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = filters.CallFilter
     permission_classes = (rf_permissions.AllowAny,)
 
+    @extend_schema(
+        description="Check if the current user is eligible to submit proposals to this call.",
+        request=None,
+        responses={200: serializers.EligibilityCheckSerializer},
+    )
+    @decorators.action(
+        detail=True,
+        methods=["get"],
+        permission_classes=[rf_permissions.IsAuthenticated],
+    )
+    def check_eligibility(self, request, uuid=None):
+        """Check if the current user is eligible to submit proposals to this call."""
+        call = self.get_object()
+        user = request.user
+
+        try:
+            permissions_utils.validate_user_restrictions(call, user)
+            data = {"is_eligible": True, "restrictions": []}
+        except exceptions.ValidationError as e:
+            # Extract restriction messages
+            if hasattr(e, "detail"):
+                if isinstance(e.detail, list):
+                    restrictions = [str(msg) for msg in e.detail]
+                elif isinstance(e.detail, dict):
+                    restrictions = []
+                    for key, value in e.detail.items():
+                        if isinstance(value, list):
+                            restrictions.extend([str(v) for v in value])
+                        else:
+                            restrictions.append(str(value))
+                else:
+                    restrictions = [str(e.detail)]
+            else:
+                restrictions = [str(e)]
+            data = {"is_eligible": False, "restrictions": restrictions}
+
+        serializer = serializers.EligibilityCheckSerializer(data)
+        return response.Response(serializer.data)
+
 
 class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     lookup_field = "uuid"
@@ -1890,6 +1929,70 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         )
     ]
 
+    @extend_schema(
+        description="Get applicant attribute exposure configuration for this call.",
+        request=None,
+        responses=serializers.CallApplicantAttributeConfigSerializer,
+    )
+    @decorators.action(detail=True, methods=["get"])
+    def applicant_attribute_config(self, request, uuid=None):
+        """Get applicant attribute exposure configuration for this call."""
+        call = self.get_object()
+        try:
+            config = call.applicant_attribute_config
+        except models.CallApplicantAttributeConfig.DoesNotExist:
+            # Return default config (unsaved instance with model defaults)
+            config = models.CallApplicantAttributeConfig(call=call)
+
+        serializer = serializers.CallApplicantAttributeConfigSerializer(config)
+        return response.Response(serializer.data)
+
+    applicant_attribute_config_permissions = [
+        permission_factory(PermissionEnum.UPDATE_CALL)
+    ]
+
+    @extend_schema(
+        description="Create or update applicant attribute exposure configuration.",
+        request=serializers.CallApplicantAttributeConfigSerializer,
+        responses=serializers.CallApplicantAttributeConfigSerializer,
+    )
+    @decorators.action(detail=True, methods=["post", "patch"])
+    def update_applicant_attribute_config(self, request, uuid=None):
+        """Create or update applicant attribute exposure configuration."""
+        call = self.get_object()
+        config, created = models.CallApplicantAttributeConfig.objects.get_or_create(
+            call=call
+        )
+        serializer = serializers.CallApplicantAttributeConfigSerializer(
+            config, data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return response.Response(serializer.data)
+
+    update_applicant_attribute_config_permissions = [
+        permission_factory(PermissionEnum.UPDATE_CALL)
+    ]
+
+    @extend_schema(
+        description="Delete custom applicant attribute config, reverting to system defaults.",
+        request=None,
+        responses={204: None},
+    )
+    @decorators.action(detail=True, methods=["delete"])
+    def delete_applicant_attribute_config(self, request, uuid=None):
+        """Delete custom config, reverting to system defaults."""
+        call = self.get_object()
+        try:
+            call.applicant_attribute_config.delete()
+            return response.Response(status=status.HTTP_204_NO_CONTENT)
+        except models.CallApplicantAttributeConfig.DoesNotExist:
+            return response.Response(status=status.HTTP_204_NO_CONTENT)
+
+    delete_applicant_attribute_config_permissions = [
+        permission_factory(PermissionEnum.UPDATE_CALL)
+    ]
+
 
 class ProposalViewSet(
     UserChecklistMixin,
@@ -2043,6 +2146,12 @@ class ProposalViewSet(
     submit_permissions = [is_creator]
 
     def perform_create(self, serializer):
+        # Validate user eligibility against call restrictions before creating proposal
+        round_obj = serializer.validated_data.get("round")
+        if round_obj:
+            call = round_obj.call
+            permissions_utils.validate_user_restrictions(call, self.request.user)
+
         proposal: models.Proposal = serializer.save()
         proposal.add_user(
             self.request.user,

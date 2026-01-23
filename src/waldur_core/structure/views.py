@@ -47,6 +47,7 @@ from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
+from waldur_core.logging.models import UserDataAccessLog
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import (
@@ -55,6 +56,7 @@ from waldur_core.permissions.utils import (
 )
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters, models, permissions, serializers, utils
+from waldur_core.structure.data_access import get_user_data_access_visibility
 from waldur_core.structure.managers import (
     filter_queryset_by_user_ip,
     filter_queryset_for_user,
@@ -62,6 +64,10 @@ from waldur_core.structure.managers import (
     get_connected_customers,
     get_connected_projects,
     get_project_users,
+)
+from waldur_core.structure.serializers_data_access import (
+    UserDataAccessLogSerializer,
+    UserDataAccessSerializer,
 )
 from waldur_core.structure.utils import get_components_usage_data_from_resources
 from waldur_core.users import tasks as user_tasks
@@ -1303,6 +1309,107 @@ class UserViewSet(core_views.ActionsViewSet):
             response_data,
             status=status.HTTP_200_OK,
         )
+
+    @extend_schema(
+        summary="Get user data access visibility",
+        description=(
+            "Shows who has access to the user's profile data. "
+            "Includes administrative access (staff/support), organizational access "
+            "(same customer/project), and service provider access (via consent). "
+            "Regular users see counts for admin access; staff/support see individual records."
+        ),
+        responses={200: UserDataAccessSerializer},
+    )
+    @action(detail=True, methods=["get"])
+    def data_access(self, request, uuid=None):
+        user = self.get_object()
+
+        # Only allow users to view their own data access, or staff/support
+        if not (
+            request.user == user or request.user.is_staff or request.user.is_support
+        ):
+            raise PermissionDenied(
+                _("You do not have permission to view this user's data access.")
+            )
+
+        # Tiered visibility: staff/support see individual admin records,
+        # regular users see only counts for administrative access
+        include_admin_details = request.user.is_staff or request.user.is_support
+
+        data = get_user_data_access_visibility(user, include_admin_details)
+        serializer = UserDataAccessSerializer(data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Get user data access history",
+        description=(
+            "Shows historical log of who has accessed the user's profile data. "
+            "Regular users see anonymized accessor categories. "
+            "Staff/support see full details including accessor identity, IP, and context."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "start_date",
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description="Filter logs from this date (inclusive)",
+            ),
+            OpenApiParameter(
+                "end_date",
+                type=OpenApiTypes.DATE,
+                location=OpenApiParameter.QUERY,
+                description="Filter logs until this date (inclusive)",
+            ),
+            OpenApiParameter(
+                "accessor_type",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                description="Filter by accessor type (staff, support, organization_member, self)",
+            ),
+        ],
+        responses={200: UserDataAccessLogSerializer(many=True)},
+    )
+    @action(detail=True, methods=["get"])
+    def data_access_history(self, request, uuid=None):
+        user = self.get_object()
+
+        # Only allow users to view their own history, or staff/support
+        if not (
+            request.user == user or request.user.is_staff or request.user.is_support
+        ):
+            raise PermissionDenied(
+                _("You do not have permission to view this user's data access history.")
+            )
+
+        # Get access logs for the user
+        queryset = UserDataAccessLog.objects.filter(target_user=user).select_related(
+            "accessor"
+        )
+
+        # Apply filters
+        start_date = request.query_params.get("start_date")
+        end_date = request.query_params.get("end_date")
+        accessor_type = request.query_params.get("accessor_type")
+
+        if start_date:
+            queryset = queryset.filter(timestamp__date__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(timestamp__date__lte=end_date)
+        if accessor_type:
+            queryset = queryset.filter(accessor_type=accessor_type)
+
+        # Paginate results
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = UserDataAccessLogSerializer(
+                page, many=True, context={"request": request}
+            )
+            return self.get_paginated_response(serializer.data)
+
+        serializer = UserDataAccessLogSerializer(
+            queryset, many=True, context={"request": request}
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
         summary="Synchronize user details from eduTEAMS",

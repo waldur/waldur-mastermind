@@ -43,6 +43,13 @@ from . import models
 logger = logging.getLogger(__name__)
 
 
+class EligibilityCheckSerializer(serializers.Serializer):
+    """Serializer for eligibility check response."""
+
+    is_eligible = serializers.BooleanField()
+    restrictions = serializers.ListField(child=serializers.CharField())
+
+
 class NestedCallActionHyperlinkedRelatedField(serializers.HyperlinkedRelatedField):
     """
     HyperlinkedRelatedField for nested call actions that require two lookup fields:
@@ -624,6 +631,7 @@ class PublicCallSerializer(
     resource_templates = serializers.SerializerMethodField()
     fixed_duration_in_days = serializers.ReadOnlyField()
     description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    has_eligibility_restrictions = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Call
@@ -650,6 +658,7 @@ class PublicCallSerializer(
             "external_url",
             "reviewer_identity_visible_to_submitters",
             "reviews_visible_to_submitters",
+            "has_eligibility_restrictions",
         )
         view_name = "proposal-public-call-detail"
         extra_kwargs = {
@@ -722,6 +731,17 @@ class PublicCallSerializer(
             context=self.context,
         )
         return serializer.data
+
+    def get_has_eligibility_restrictions(self, obj) -> bool:
+        """Check if call has any eligibility restrictions configured."""
+        return bool(
+            obj.user_nationalities
+            or obj.user_organization_types
+            or obj.user_assurance_levels
+            or obj.user_email_patterns
+            or obj.user_affiliations
+            or obj.user_identity_sources
+        )
 
 
 class RequestedOfferingSerializer(
@@ -1005,6 +1025,38 @@ class ProtectedCallSerializer(PublicCallSerializer):
         ),
     )
 
+    # Eligibility restriction fields (from UserDetailsMatchMixin)
+    user_email_patterns = serializers.JSONField(
+        required=False,
+        default=list,
+        help_text="List of email regex patterns. User must match one.",
+    )
+    user_affiliations = serializers.JSONField(
+        required=False,
+        default=list,
+        help_text="List of allowed affiliations. User must have one.",
+    )
+    user_identity_sources = serializers.JSONField(
+        required=False,
+        default=list,
+        help_text="List of allowed identity sources (identity providers).",
+    )
+    user_nationalities = serializers.JSONField(
+        required=False,
+        default=list,
+        help_text="List of allowed nationality codes (ISO 3166-1 alpha-2). User must have one.",
+    )
+    user_organization_types = serializers.JSONField(
+        required=False,
+        default=list,
+        help_text="List of allowed organization type URNs (SCHAC). User must match one.",
+    )
+    user_assurance_levels = serializers.JSONField(
+        required=False,
+        default=list,
+        help_text="List of required assurance URIs (REFEDS). User must have ALL of these.",
+    )
+
     class Meta(PublicCallSerializer.Meta):
         fields = PublicCallSerializer.Meta.fields + (
             "created_by",
@@ -1012,6 +1064,12 @@ class ProtectedCallSerializer(PublicCallSerializer):
             "compliance_checklist",
             "compliance_checklist_name",
             "proposal_slug_template",
+            "user_email_patterns",
+            "user_affiliations",
+            "user_identity_sources",
+            "user_nationalities",
+            "user_organization_types",
+            "user_assurance_levels",
         )
         view_name = "proposal-protected-call-detail"
         protected_fields = ("manager",)
@@ -1119,6 +1177,53 @@ class ProtectedCallSerializer(PublicCallSerializer):
                 proposal.save()
 
         return super().update(instance, validated_data)
+
+
+class CallApplicantAttributeConfigSerializer(serializers.ModelSerializer):
+    """Serializer for configuring what applicant attributes are exposed in proposals."""
+
+    call = serializers.SlugRelatedField(
+        queryset=models.Call.objects.all(),
+        slug_field="uuid",
+        write_only=True,
+        required=False,
+    )
+    call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
+    call_name = serializers.CharField(source="call.name", read_only=True)
+    exposed_fields = serializers.SerializerMethodField()
+    is_default = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.CallApplicantAttributeConfig
+        fields = (
+            "uuid",
+            "call",
+            "call_uuid",
+            "call_name",
+            "expose_full_name",
+            "expose_email",
+            "expose_organization",
+            "expose_affiliations",
+            "expose_organization_type",
+            "expose_organization_country",
+            "expose_nationality",
+            "expose_nationalities",
+            "expose_country_of_residence",
+            "expose_eduperson_assurance",
+            "expose_identity_source",
+            "reviewers_see_applicant_details",
+            "exposed_fields",
+            "is_default",
+        )
+        read_only_fields = ("uuid", "exposed_fields", "is_default")
+
+    def get_exposed_fields(self, obj) -> list[str]:
+        """Return list of currently exposed field names."""
+        return obj.get_exposed_fields()
+
+    def get_is_default(self, obj) -> bool:
+        """Return True if this is a default (unsaved) config."""
+        return obj.pk is None
 
 
 class ProtectedRoundSerializer(

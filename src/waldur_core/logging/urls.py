@@ -16,6 +16,11 @@ def register_in(router):
         basename="event-subscription",
     )
     router.register(r"email-logs", views.EmailLogView, basename="email-log")
+    router.register(
+        r"data-access-logs",
+        views.UserDataAccessLogViewSet,
+        basename="data-access-log",
+    )
 
 
 # Debug router for staff-only debugging endpoints under /api/debug/

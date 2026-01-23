@@ -126,22 +126,12 @@ def get_or_create_user(invitation):
     if user:
         return user, False
 
-    payload = {
-        field: getattr(invitation, field)
-        for field in (
-            "full_name",
-            "native_name",
-            "organization",
-            "civil_number",
-            "job_title",
-            "phone_number",
-        )
-    }
+    # Create user with minimal data - profile fields should come from IdP or self-assertion,
+    # not from invitation. Invitation fields are for email personalization only.
     user = core_models.User.objects.create_user(
         username=username,
         email=invitation.email,
         registration_method="FREEIPA",
-        **payload,
     )
     user.set_unusable_password()
     user.save()

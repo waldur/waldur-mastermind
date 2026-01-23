@@ -232,6 +232,9 @@ for ext in WaldurExtension.get_extensions():
 AXES_LOCKOUT_PARAMETERS = ["username"]
 AXES_COOLOFF_TIME = timedelta(minutes=10)
 AXES_FAILURE_LIMIT = 5
+# By default django-axes masks username and ip_address in logs, making them useless
+# for security monitoring. Override to show actual values in login failure logs.
+AXES_SENSITIVE_PARAMETERS = []
 
 
 STORAGES = {

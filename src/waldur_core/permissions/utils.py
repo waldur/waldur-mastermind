@@ -307,12 +307,13 @@ def get_update_permission(model_class):
 
 def validate_user_restrictions(scope, user):
     """
-    Validate user matches scope's email/affiliation/identity_source restrictions.
+    Validate user matches scope's email/affiliation/identity_source/AAI restrictions.
 
     For Projects, also validates against parent Customer restrictions.
     User must match restrictions at each level (AND logic across levels).
     Within a level, user must match any email pattern OR any affiliation
-    OR any identity source (OR logic).
+    OR any identity source (OR logic for basic filters).
+    AAI filters (nationality, organization_type, assurance) are additional requirements.
 
     Raises ValidationError if user doesn't match restrictions.
     """
@@ -324,33 +325,75 @@ def validate_user_restrictions(scope, user):
     if hasattr(scope, "customer"):
         validate_user_restrictions(scope.customer, user)
 
-    # If no restrictions set on this scope, allow
-    if (
-        not scope.user_email_patterns
-        and not scope.user_affiliations
-        and not getattr(scope, "user_identity_sources", None)
-    ):
-        return
-
-    # Check affiliation match (OR logic within affiliations)
-    if scope.user_affiliations:
-        if set(user.affiliations or []) & set(scope.user_affiliations):
-            return  # Affiliation matches
-
-    # Check email pattern match (OR logic within patterns)
-    if scope.user_email_patterns:
-        for pattern in scope.user_email_patterns:
-            if UserDetailsMatchMixin._is_pattern_match(pattern, user.email):
-                return  # Email matches
-
-    # Check identity source match (OR logic within identity sources)
-    identity_sources = getattr(scope, "user_identity_sources", None)
-    if identity_sources:
-        if user.identity_source and user.identity_source in identity_sources:
-            return  # Identity source matches
-
-    # No match found
-    scope_name = scope._meta.model_name
-    raise ValidationError(
-        f"User email, affiliation, or identity source does not match the {scope_name} restrictions."
+    # Check basic restrictions (email/affiliation/identity_source)
+    has_basic_restrictions = (
+        scope.user_email_patterns
+        or scope.user_affiliations
+        or getattr(scope, "user_identity_sources", None)
     )
+
+    basic_match = False
+    if not has_basic_restrictions:
+        basic_match = True
+    else:
+        # Check affiliation match (OR logic within affiliations)
+        if scope.user_affiliations:
+            if set(user.affiliations or []) & set(scope.user_affiliations):
+                basic_match = True
+
+        # Check email pattern match (OR logic within patterns)
+        if not basic_match and scope.user_email_patterns:
+            for pattern in scope.user_email_patterns:
+                if UserDetailsMatchMixin._is_pattern_match(pattern, user.email):
+                    basic_match = True
+                    break
+
+        # Check identity source match (OR logic within identity sources)
+        if not basic_match:
+            identity_sources = getattr(scope, "user_identity_sources", None)
+            if identity_sources:
+                if user.identity_source and user.identity_source in identity_sources:
+                    basic_match = True
+
+    if not basic_match:
+        scope_name = scope._meta.model_name
+        raise ValidationError(
+            f"User email, affiliation, or identity source does not match the {scope_name} restrictions."
+        )
+
+    # Check AAI restrictions (additional requirements on top of basic match)
+    # These are AND logic - each configured restriction must be satisfied
+
+    # Check nationality restriction (OR logic - user must have one of the allowed)
+    user_nationalities = getattr(scope, "user_nationalities", None)
+    if user_nationalities:
+        user_nat = getattr(user, "nationality", "") or ""
+        user_nats = getattr(user, "nationalities", []) or []
+        all_user_nats = {user_nat} | set(user_nats)
+        all_user_nats.discard("")  # Remove empty string if present
+        if not (all_user_nats & set(user_nationalities)):
+            scope_name = scope._meta.model_name
+            raise ValidationError(
+                f"User nationality does not match the {scope_name} restrictions."
+            )
+
+    # Check organization type restriction (OR logic)
+    user_organization_types = getattr(scope, "user_organization_types", None)
+    if user_organization_types:
+        user_org_type = getattr(user, "organization_type", "") or ""
+        if user_org_type not in user_organization_types:
+            scope_name = scope._meta.model_name
+            raise ValidationError(
+                f"User organization type does not match the {scope_name} restrictions."
+            )
+
+    # Check assurance level restriction (AND logic - user must have ALL required)
+    user_assurance_levels = getattr(scope, "user_assurance_levels", None)
+    if user_assurance_levels:
+        user_assurance = set(getattr(user, "eduperson_assurance", []) or [])
+        required_assurance = set(user_assurance_levels)
+        if not required_assurance.issubset(user_assurance):
+            scope_name = scope._meta.model_name
+            raise ValidationError(
+                f"User assurance level does not match the {scope_name} restrictions."
+            )
