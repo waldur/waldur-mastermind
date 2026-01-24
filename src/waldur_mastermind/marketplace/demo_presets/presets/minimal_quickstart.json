@@ -201,7 +201,9 @@
       "customer_uuid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "description": "Production-ready Kubernetes cluster deployed in a single datacenter with automated provisioning, monitoring, and scaling capabilities.",
       "options": {
-        "order": ["cluster_config"],
+        "order": [
+          "cluster_config"
+        ],
         "options": {
           "cluster_config": {
             "type": "single_datacenter_k8s_config",
@@ -246,7 +248,9 @@
       "customer_uuid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "description": "High-availability Kubernetes cluster spanning multiple datacenters for disaster recovery and geo-distributed workloads.",
       "options": {
-        "order": ["cluster_config"],
+        "order": [
+          "cluster_config"
+        ],
         "options": {
           "cluster_config": {
             "type": "multi_datacenter_k8s_config",
@@ -700,7 +704,8 @@
         "cpu": 2,
         "ram": 4,
         "storage": 50
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d0000000000000000000000000000002",
@@ -714,7 +719,8 @@
         "cpu": 4,
         "ram": 8,
         "storage": 100
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d0000000000000000000000000000003",
@@ -728,7 +734,8 @@
         "cpu": 8,
         "ram": 16,
         "storage": 500
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d0000000000000000000000000000004",
@@ -742,7 +749,8 @@
         "cpu": 2,
         "ram": 4,
         "storage": 50
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d0000000000000000000000000000005",
@@ -756,7 +764,8 @@
         "cpu": 4,
         "ram": 16,
         "storage": 50
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d0000000000000000000000000000006",
@@ -770,7 +779,8 @@
         "cpu": 2,
         "ram": 8,
         "storage": 100
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d0000000000000000000000000000007",
@@ -784,7 +794,8 @@
         "cpu": 2,
         "ram": 4,
         "storage": 50
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d0000000000000000000000000000008",
@@ -798,7 +809,8 @@
         "cpu": 4,
         "ram": 8,
         "storage": 200
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d0000000000000000000000000000009",
@@ -812,7 +824,8 @@
         "cpu": 2,
         "ram": 4,
         "storage": 100
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d000000000000000000000000000000a",
@@ -826,7 +839,8 @@
         "cpu": 2,
         "ram": 8,
         "storage": 500
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d000000000000000000000000000000b",
@@ -840,7 +854,8 @@
         "cpu": 2,
         "ram": 4,
         "storage": 1000
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d000000000000000000000000000000c",
@@ -854,7 +869,8 @@
         "cpu": 4,
         "ram": 8,
         "storage": 100
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     }
   ],
   "user_roles": [

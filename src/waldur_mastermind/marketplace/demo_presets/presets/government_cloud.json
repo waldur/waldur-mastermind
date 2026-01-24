@@ -273,7 +273,9 @@
       "customer_uuid": "b1000000000000000000000000000001",
       "description": "Government-certified Kubernetes cluster with security hardening, audit logging, and GDPR compliance. Deployed in a single secure datacenter.",
       "options": {
-        "order": ["cluster_config"],
+        "order": [
+          "cluster_config"
+        ],
         "options": {
           "cluster_config": {
             "type": "single_datacenter_k8s_config",
@@ -320,7 +322,9 @@
       "customer_uuid": "b1000000000000000000000000000001",
       "description": "Multi-datacenter Kubernetes cluster for critical government workloads with disaster recovery and geographic redundancy across EU datacenters.",
       "options": {
-        "order": ["cluster_config"],
+        "order": [
+          "cluster_config"
+        ],
         "options": {
           "cluster_config": {
             "type": "multi_datacenter_k8s_config",
@@ -863,7 +867,8 @@
         "cpu": 4,
         "ram": 16,
         "storage": 100
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d1000000000000000000000000000002",
@@ -877,7 +882,8 @@
         "cpu": 8,
         "ram": 32,
         "storage": 500
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d1000000000000000000000000000003",
@@ -889,7 +895,8 @@
       "attributes": {},
       "limits": {
         "storage": 2000
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d1000000000000000000000000000004",
@@ -903,7 +910,8 @@
         "cpu": 8,
         "ram": 32,
         "storage": 200
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d1000000000000000000000000000005",
@@ -917,7 +925,8 @@
         "cpu": 4,
         "ram": 16,
         "storage": 50
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d1000000000000000000000000000006",
@@ -931,7 +940,8 @@
         "cpu": 16,
         "ram": 64,
         "storage": 1000
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d1000000000000000000000000000007",
@@ -943,7 +953,8 @@
       "attributes": {},
       "limits": {
         "storage": 5000
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d1000000000000000000000000000008",
@@ -957,7 +968,8 @@
         "cpu": 8,
         "ram": 32,
         "storage": 100
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d1000000000000000000000000000009",
@@ -971,7 +983,8 @@
         "cpu": 8,
         "ram": 32,
         "storage": 300
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d100000000000000000000000000000a",
@@ -985,7 +998,8 @@
         "vcpu": 64,
         "ram": 256,
         "storage": 1000
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d100000000000000000000000000000b",
@@ -999,7 +1013,8 @@
         "vcpu": 32,
         "ram": 128,
         "storage": 500
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d100000000000000000000000000000c",
@@ -1013,7 +1028,8 @@
         "vcpu": 96,
         "ram": 384,
         "storage": 2000
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     }
   ],
   "user_roles": [

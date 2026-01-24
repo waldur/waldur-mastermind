@@ -246,7 +246,9 @@
       "customer_uuid": "b2000000000000000000000000000001",
       "description": "Kubernetes cluster optimized for research workloads including Jupyter notebooks, ML frameworks, and scientific computing containers.",
       "options": {
-        "order": ["cluster_config"],
+        "order": [
+          "cluster_config"
+        ],
         "options": {
           "cluster_config": {
             "type": "single_datacenter_k8s_config",
@@ -293,7 +295,9 @@
       "customer_uuid": "b2000000000000000000000000000001",
       "description": "Federated Kubernetes cluster spanning multiple research institutions for collaborative projects and distributed computing.",
       "options": {
-        "order": ["cluster_config"],
+        "order": [
+          "cluster_config"
+        ],
         "options": {
           "cluster_config": {
             "type": "multi_datacenter_k8s_config",
@@ -731,7 +735,8 @@
       "attributes": {},
       "limits": {
         "storage": 5000
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d2000000000000000000000000000002",
@@ -743,7 +748,8 @@
       "attributes": {},
       "limits": {
         "storage": 100
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d2000000000000000000000000000003",
@@ -755,7 +761,8 @@
       "attributes": {},
       "limits": {
         "storage": 2000
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d2000000000000000000000000000004",
@@ -767,7 +774,8 @@
       "attributes": {},
       "limits": {
         "storage": 8000
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d2000000000000000000000000000005",
@@ -779,7 +787,8 @@
       "attributes": {},
       "limits": {
         "storage": 3000
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d2000000000000000000000000000006",
@@ -791,7 +800,8 @@
       "attributes": {},
       "limits": {
         "storage": 500
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d2000000000000000000000000000007",
@@ -803,7 +813,8 @@
       "attributes": {},
       "limits": {
         "storage": 200
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d2000000000000000000000000000008",
@@ -817,7 +828,8 @@
         "vcpu": 64,
         "ram": 256,
         "storage": 2000
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d2000000000000000000000000000009",
@@ -831,7 +843,8 @@
         "vcpu": 32,
         "ram": 128,
         "storage": 1000
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d200000000000000000000000000000a",
@@ -843,7 +856,8 @@
       "attributes": {},
       "limits": {
         "storage": 1500
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d200000000000000000000000000000b",
@@ -855,7 +869,8 @@
       "attributes": {},
       "limits": {
         "storage": 75
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     },
     {
       "uuid": "d200000000000000000000000000000c",
@@ -869,7 +884,8 @@
         "vcpu": 128,
         "ram": 512,
         "storage": 5000
-      }
+      },
+      "created": "2025-08-02T00:00:00Z"
     }
   ],
   "user_roles": [

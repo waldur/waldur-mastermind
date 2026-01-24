@@ -1093,6 +1093,62 @@ class ImportStructureCommandTest(TestCase):
         self.assertEqual(resource2.name, "Test Resource 2")
         self.assertIsNone(resource2.plan)
 
+    def test_import_resources_with_created_date(self):
+        """Test that importing resources with created field preserves the date."""
+        # Create dependencies
+        customer = structure_factories.CustomerFactory()
+        project = structure_factories.ProjectFactory(customer=customer)
+        offering = marketplace_factories.OfferingFactory()
+        plan = marketplace_factories.PlanFactory(offering=offering)
+
+        resources_data = [
+            {
+                "uuid": "aaaaaaaa-bbbb-cccc-dddd-111111111111",
+                "name": "Resource with created date",
+                "state": 2,
+                "offering_uuid": offering.uuid.hex,
+                "plan_uuid": plan.uuid.hex,
+                "project_uuid": project.uuid.hex,
+                "attributes": {},
+                "limits": {},
+                "created": "2025-08-01T10:30:00Z",
+            },
+            {
+                "uuid": "aaaaaaaa-bbbb-cccc-dddd-222222222222",
+                "name": "Resource without created date",
+                "state": 2,
+                "offering_uuid": offering.uuid.hex,
+                "plan_uuid": plan.uuid.hex,
+                "project_uuid": project.uuid.hex,
+                "attributes": {},
+                "limits": {},
+            },
+        ]
+
+        data = {"resources": resources_data}
+        self._create_test_json(data)
+
+        self._call_import_command("-i", self.test_file_path)
+
+        # Verify resources created with correct created dates
+        self.assertEqual(Resource.objects.count(), 2)
+
+        resource1 = Resource.objects.get(uuid="aaaaaaaa-bbbb-cccc-dddd-111111111111")
+        self.assertEqual(resource1.name, "Resource with created date")
+        # Check the created date was preserved
+        self.assertEqual(resource1.created.year, 2025)
+        self.assertEqual(resource1.created.month, 8)
+        self.assertEqual(resource1.created.day, 1)
+
+        resource2 = Resource.objects.get(uuid="aaaaaaaa-bbbb-cccc-dddd-222222222222")
+        self.assertEqual(resource2.name, "Resource without created date")
+        # Resource without created date should have a recent created date
+        from django.utils import timezone
+
+        self.assertGreater(
+            resource2.created, timezone.now() - timezone.timedelta(hours=1)
+        )
+
     def test_import_component_usages_creates_new_usages(self):
         """Test that importing component usages creates new usage objects."""
         # Create dependencies

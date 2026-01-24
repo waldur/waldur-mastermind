@@ -2738,6 +2738,16 @@ class Command(BaseCommand):
                     except (ValueError, TypeError):
                         pass
 
+                # Parse created date (optional)
+                created = None
+                if resource_data.get("created"):
+                    try:
+                        created = datetime.fromisoformat(resource_data["created"])
+                        if timezone.is_naive(created):
+                            created = timezone.make_aware(created)
+                    except (ValueError, TypeError):
+                        pass
+
                 defaults = {
                     "name": resource_data.get("name", ""),
                     "state": resource_data.get("state", 1),
@@ -2760,11 +2770,19 @@ class Command(BaseCommand):
                     if existing_resource:
                         if self.update_existing:
                             Resource.objects.filter(uuid=uuid).update(**defaults)
+                            # Update created date if provided (requires separate update)
+                            if created:
+                                Resource.objects.filter(uuid=uuid).update(
+                                    created=created
+                                )
                             self.stats["resources"]["updated"] += 1
                         else:
                             self.stats["resources"]["skipped"] += 1
                     else:
                         Resource.objects.create(uuid=uuid, **defaults)
+                        # Update created date if provided (auto_now_add prevents setting during create)
+                        if created:
+                            Resource.objects.filter(uuid=uuid).update(created=created)
                         self.stats["resources"]["created"] += 1
                 else:
                     existing = Resource.objects.filter(uuid=uuid).exists()
