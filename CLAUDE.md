@@ -17,6 +17,7 @@ This is a Django-based cloud orchestration platform. When working on this codeba
 - Disable tests instead of fixing them
 - Commit code that doesn't compile
 - Make assumptions - verify with existing code
+- Import modules inside functions - all imports must be at the top of the file
 
 **ALWAYS**:
 
@@ -50,6 +51,68 @@ fixture = fixtures.ProjectFixture()
 role = CustomerRole.SUPPORT  # Not MANAGER (doesn't exist)
 ```
 
+### Demo Presets
+
+Demo presets are JSON files in `src/waldur_mastermind/marketplace/demo_presets/presets/` that define complete marketplace ecosystems for testing and demos.
+
+**UUID Format Rules** (CRITICAL):
+
+- UUIDs must be **exactly 32 hexadecimal characters** (0-9, a-f only)
+- **NO hyphens** - use continuous string format
+- **NO letters g-z** - these are not valid hex characters
+- All `*_uuid` reference fields must match the referenced entity's UUID exactly
+
+```python
+# CORRECT UUID format
+"uuid": "afc00000000000000000000000000001"  # 32 hex chars
+
+# WRONG - contains non-hex letters
+"uuid": "afk00000000000000000000000000001"  # 'k' is not hex
+"uuid": "af3plan0000000000000000000000001"  # 'p', 'l', 'n' are not hex
+
+# WRONG - wrong length
+"uuid": "afc0000000000000000000000000001"   # 31 chars (missing one)
+```
+
+**Reference Consistency**: When referencing entities via `*_uuid` fields (e.g., `customer_uuid`, `offering_uuid`, `plan_uuid`), ensure the UUID exactly matches the target entity's `uuid` field.
+
+**Commands**:
+
+```bash
+# List available presets
+waldur demo_presets list
+
+# Load a preset (destructive - clears existing data)
+DJANGO_SETTINGS_MODULE=waldur_core.server.test_settings_local waldur demo_presets load <name> -y
+
+# Dry run (preview without changes)
+waldur demo_presets load <name> --dry-run
+```
+
+**Generating Billing Data**:
+
+Use the billing data generator script to add realistic invoices, credits, and usage data to presets:
+
+```bash
+# Generate 12 months of billing data (invoices, credits, usages)
+python scripts/generate_preset_billing_data.py src/waldur_mastermind/marketplace/demo_presets/presets/<preset>.json
+
+# Generate with specific months and reproducible seed
+python scripts/generate_preset_billing_data.py preset.json --months 6 --seed 42
+
+# Save to a different file
+python scripts/generate_preset_billing_data.py input.json --output output_with_billing.json
+```
+
+The script generates:
+
+- Invoices (monthly for each consuming customer)
+- Invoice items (per-resource cost breakdown)
+- Customer credits (organization-level allocations)
+- Project credits (project-level allocations)
+- Component usages (resource usage with growth trends)
+- Component user usages (per-user breakdown for reporting)
+
 ## REST API Development (DRF)
 
 ### ViewSet Structure
@@ -71,7 +134,22 @@ class MyViewSet(ActionsViewSet):
 
 ### Custom Actions
 
+**ALWAYS use serializers** for ViewSet actions - for both input validation and output schema generation.
+This ensures proper OpenAPI documentation and consistent API contracts.
+
 ```python
+# Define serializers for your action responses
+class MyActionResponseSerializer(serializers.Serializer):
+    """Serializer for MyAction response - used for OpenAPI schema."""
+    field_name = serializers.CharField()
+    count = serializers.IntegerField()
+
+# In the ViewSet:
+@extend_schema(
+    summary="Perform my action",
+    responses={200: MyActionResponseSerializer(many=True)},
+    description="Description for OpenAPI docs.",
+)
 @action(detail=True, methods=["post"])
 def my_action(self, request, uuid=None):
     """Docstring becomes OpenAPI description."""
@@ -79,10 +157,14 @@ def my_action(self, request, uuid=None):
     serializer = MyActionSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
     # ... implementation
-    return Response(status=status.HTTP_200_OK)
+    response_data = [{"field_name": "value", "count": 42}]
+    response_serializer = MyActionResponseSerializer(response_data, many=True)
+    return Response(response_serializer.data)
 
 # Define permissions for custom action
 my_action_permissions = [permission_factory(PermissionEnum.ACTION_X)]
+# Link serializer class for the action
+my_action_serializer_class = MyActionSerializer
 ```
 
 ### OpenAPI Schema Customization

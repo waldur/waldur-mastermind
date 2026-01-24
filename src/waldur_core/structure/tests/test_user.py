@@ -1063,3 +1063,184 @@ class UserPermissionsFieldTest(test.APITransactionTestCase):
         multi_role_data = users_by_uuid.get(self.user_with_multiple_roles.uuid.hex)
         self.assertIsNotNone(multi_role_data)
         self.assertEqual(len(multi_role_data["permissions"]), 2)
+
+
+class UserAggregationEndpointsTest(test.APITransactionTestCase):
+    """Tests for user aggregation endpoints (staff/support only)."""
+
+    def setUp(self):
+        self.staff = factories.UserFactory(is_staff=True, agreement_date=timezone.now())
+        self.support = factories.UserFactory(
+            is_support=True, agreement_date=timezone.now()
+        )
+        self.regular_user = factories.UserFactory(agreement_date=timezone.now())
+
+        # Create users with different statuses and languages
+        self.active_users = [
+            factories.UserFactory(is_active=True, preferred_language="en"),
+            factories.UserFactory(is_active=True, preferred_language="en"),
+            factories.UserFactory(is_active=True, preferred_language="de"),
+            factories.UserFactory(is_active=True, preferred_language=""),
+        ]
+        self.inactive_users = [
+            factories.UserFactory(is_active=False),
+            factories.UserFactory(is_active=False),
+        ]
+
+    def test_anonymous_cannot_access_user_active_status_count(self):
+        url = factories.UserFactory.get_list_url("user_active_status_count")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_regular_user_cannot_access_user_active_status_count(self):
+        self.client.force_authenticate(self.regular_user)
+        url = factories.UserFactory.get_list_url("user_active_status_count")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_can_access_user_active_status_count(self):
+        self.client.force_authenticate(self.staff)
+        url = factories.UserFactory.get_list_url("user_active_status_count")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        status_counts = {item["status"]: item["count"] for item in response.data}
+        self.assertIn("active", status_counts)
+        self.assertIn("inactive", status_counts)
+        # 3 setup users (staff, support, regular) + 4 active users = 7
+        self.assertEqual(status_counts["active"], 7)
+        self.assertEqual(status_counts["inactive"], 2)
+
+    def test_support_can_access_user_active_status_count(self):
+        self.client.force_authenticate(self.support)
+        url = factories.UserFactory.get_list_url("user_active_status_count")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_anonymous_cannot_access_user_language_count(self):
+        url = factories.UserFactory.get_list_url("user_language_count")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_regular_user_cannot_access_user_language_count(self):
+        self.client.force_authenticate(self.regular_user)
+        url = factories.UserFactory.get_list_url("user_language_count")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_can_access_user_language_count(self):
+        self.client.force_authenticate(self.staff)
+        url = factories.UserFactory.get_list_url("user_language_count")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check that response contains expected languages
+        language_counts = {item["language"]: item["count"] for item in response.data}
+        self.assertIn("en", language_counts)
+        self.assertIn("de", language_counts)
+        self.assertEqual(language_counts["en"], 2)
+        self.assertEqual(language_counts["de"], 1)
+
+    def test_support_can_access_user_language_count(self):
+        self.client.force_authenticate(self.support)
+        url = factories.UserFactory.get_list_url("user_language_count")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_empty_language_is_reported_as_unset(self):
+        self.client.force_authenticate(self.staff)
+        url = factories.UserFactory.get_list_url("user_language_count")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        language_counts = {item["language"]: item["count"] for item in response.data}
+        self.assertIn("unset", language_counts)
+
+    def test_anonymous_cannot_access_user_registration_trend(self):
+        url = factories.UserFactory.get_list_url("user_registration_trend")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_regular_user_cannot_access_user_registration_trend(self):
+        self.client.force_authenticate(self.regular_user)
+        url = factories.UserFactory.get_list_url("user_registration_trend")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_staff_can_access_user_registration_trend(self):
+        self.client.force_authenticate(self.staff)
+        url = factories.UserFactory.get_list_url("user_registration_trend")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # All users created in setUp should be in the same month
+        self.assertGreater(len(response.data), 0)
+        for item in response.data:
+            self.assertIn("month", item)
+            self.assertIn("count", item)
+            # Month format should be YYYY-MM
+            self.assertRegex(item["month"], r"^\d{4}-\d{2}$")
+
+    def test_support_can_access_user_registration_trend(self):
+        self.client.force_authenticate(self.support)
+        url = factories.UserFactory.get_list_url("user_registration_trend")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_language_count_only_includes_active_users(self):
+        """Language count should only count active users."""
+        # Create an inactive user with a unique language
+        factories.UserFactory(is_active=False, preferred_language="fr")
+
+        self.client.force_authenticate(self.staff)
+        url = factories.UserFactory.get_list_url("user_language_count")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        language_counts = {item["language"]: item["count"] for item in response.data}
+        # French should not appear since the user is inactive
+        self.assertNotIn("fr", language_counts)
+
+    def test_active_status_count_includes_all_users(self):
+        """Active status count should include both active and inactive users."""
+        self.client.force_authenticate(self.staff)
+        url = factories.UserFactory.get_list_url("user_active_status_count")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        status_counts = {item["status"]: item["count"] for item in response.data}
+        total = status_counts["active"] + status_counts["inactive"]
+        # Total should be all users created in setUp
+        self.assertEqual(total, 9)
+
+    def test_registration_trend_includes_all_users(self):
+        """Registration trend should include both active and inactive users."""
+        self.client.force_authenticate(self.staff)
+        url = factories.UserFactory.get_list_url("user_registration_trend")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        total_count = sum(item["count"] for item in response.data)
+        # Should include all 9 users (3 setup + 4 active + 2 inactive)
+        self.assertEqual(total_count, 9)
+
+    def test_registration_trend_is_ordered_by_month(self):
+        """Registration trend should be ordered by month ascending."""
+        self.client.force_authenticate(self.staff)
+        url = factories.UserFactory.get_list_url("user_registration_trend")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        months = [item["month"] for item in response.data]
+        self.assertEqual(months, sorted(months))
+
+    def test_language_count_is_ordered_by_count_descending(self):
+        """Language count should be ordered by count descending."""
+        self.client.force_authenticate(self.staff)
+        url = factories.UserFactory.get_list_url("user_language_count")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        counts = [item["count"] for item in response.data]
+        self.assertEqual(counts, sorted(counts, reverse=True))

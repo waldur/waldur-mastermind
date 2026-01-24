@@ -366,6 +366,16 @@ class Command(BaseCommand):
                     if user.birth_date
                     else None,
                     "affiliations": user.affiliations,
+                    # AAI (Authentication and Authorization Infrastructure) attributes
+                    "gender": user.gender,
+                    "personal_title": user.personal_title,
+                    "place_of_birth": user.place_of_birth,
+                    "country_of_residence": user.country_of_residence,
+                    "nationality": user.nationality,
+                    "nationalities": user.nationalities,
+                    "organization_country": user.organization_country,
+                    "organization_type": user.organization_type,
+                    "eduperson_assurance": user.eduperson_assurance,
                     "modified": user.modified.isoformat() if user.modified else None,
                     "slug": user.slug,
                     "query_field": user.query_field,

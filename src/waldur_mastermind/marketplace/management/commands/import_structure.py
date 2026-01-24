@@ -937,6 +937,30 @@ class Command(BaseCommand):
                         existing_user.backend_id = user_data.get("backend_id", "")
                         existing_user.affiliations = user_data.get("affiliations", [])
                         existing_user.slug = user_data.get("slug", "")
+
+                        # AAI (Authentication and Authorization Infrastructure) attributes
+                        if "gender" in user_data:
+                            existing_user.gender = user_data.get("gender")
+                        existing_user.personal_title = user_data.get(
+                            "personal_title", ""
+                        )
+                        existing_user.place_of_birth = user_data.get(
+                            "place_of_birth", ""
+                        )
+                        existing_user.country_of_residence = user_data.get(
+                            "country_of_residence", ""
+                        )
+                        existing_user.nationality = user_data.get("nationality", "")
+                        existing_user.nationalities = user_data.get("nationalities", [])
+                        existing_user.organization_country = user_data.get(
+                            "organization_country", ""
+                        )
+                        existing_user.organization_type = user_data.get(
+                            "organization_type", ""
+                        )
+                        existing_user.eduperson_assurance = user_data.get(
+                            "eduperson_assurance", []
+                        )
                         existing_user.query_field = user_data.get("query_field", "")
                         existing_user.is_superuser = user_data.get(
                             "is_superuser", False
@@ -1027,6 +1051,16 @@ class Command(BaseCommand):
                         slug=user_data.get("slug", ""),
                         query_field=user_data.get("query_field", ""),
                         is_superuser=user_data.get("is_superuser", False),
+                        # AAI attributes
+                        gender=user_data.get("gender"),
+                        personal_title=user_data.get("personal_title", ""),
+                        place_of_birth=user_data.get("place_of_birth", ""),
+                        country_of_residence=user_data.get("country_of_residence", ""),
+                        nationality=user_data.get("nationality", ""),
+                        nationalities=user_data.get("nationalities", []),
+                        organization_country=user_data.get("organization_country", ""),
+                        organization_type=user_data.get("organization_type", ""),
+                        eduperson_assurance=user_data.get("eduperson_assurance", []),
                     )
                     if user_data.get("civil_number"):
                         user.civil_number = user_data.get("civil_number")

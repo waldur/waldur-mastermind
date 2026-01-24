@@ -1395,6 +1395,27 @@ class UserEmailChangeSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
 
+class UserActiveStatusCountSerializer(serializers.Serializer):
+    """Serializer for user active status counts."""
+
+    status = serializers.CharField()
+    count = serializers.IntegerField()
+
+
+class UserLanguageCountSerializer(serializers.Serializer):
+    """Serializer for user language distribution counts."""
+
+    language = serializers.CharField()
+    count = serializers.IntegerField()
+
+
+class UserRegistrationTrendSerializer(serializers.Serializer):
+    """Serializer for user registration trends by month."""
+
+    month = serializers.CharField()
+    count = serializers.IntegerField()
+
+
 class SshKeySerializer(
     core_serializers.RestrictedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
