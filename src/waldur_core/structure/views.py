@@ -9,6 +9,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q, QuerySet
+from django.db.models.functions import TruncMonth
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -1492,6 +1493,84 @@ class UserViewSet(core_views.ActionsViewSet):
     token_serializer_class = refresh_token_serializer_class = (
         serializers.UserAuthTokenSerializer
     )
+
+    @extend_schema(
+        summary="Get user counts by active status",
+        responses={200: serializers.UserActiveStatusCountSerializer(many=True)},
+        description="Returns aggregated counts of users by active/inactive status. Staff or support only.",
+    )
+    @action(detail=False, methods=["get"])
+    def user_active_status_count(self, request):
+        """Get user counts grouped by active status."""
+        qs = core_models.User.all_objects.all()
+        active_count = qs.filter(is_active=True).count()
+        inactive_count = qs.filter(is_active=False).count()
+
+        data = [
+            {"status": "active", "count": active_count},
+            {"status": "inactive", "count": inactive_count},
+        ]
+        serializer = serializers.UserActiveStatusCountSerializer(data, many=True)
+        return Response(serializer.data)
+
+    user_active_status_count_permissions = [permissions.is_staff_or_support]
+
+    @extend_schema(
+        summary="Get user counts by preferred language",
+        responses={200: serializers.UserLanguageCountSerializer(many=True)},
+        description="Returns aggregated counts of users by preferred language. Staff or support only.",
+    )
+    @action(detail=False, methods=["get"])
+    def user_language_count(self, request):
+        """Get user counts grouped by preferred language."""
+        qs = core_models.User.all_objects.filter(is_active=True)
+        language_counts = (
+            qs.values("preferred_language")
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+
+        data = [
+            {
+                "language": item["preferred_language"] or "unset",
+                "count": item["count"],
+            }
+            for item in language_counts
+        ]
+        serializer = serializers.UserLanguageCountSerializer(data, many=True)
+        return Response(serializer.data)
+
+    user_language_count_permissions = [permissions.is_staff_or_support]
+
+    @extend_schema(
+        summary="Get user registration trends by month",
+        responses={200: serializers.UserRegistrationTrendSerializer(many=True)},
+        description="Returns user registration counts aggregated by month. Staff or support only.",
+    )
+    @action(detail=False, methods=["get"])
+    def user_registration_trend(self, request):
+        """Get user registration counts grouped by month."""
+        qs = core_models.User.all_objects.all()
+        monthly_counts = (
+            qs.annotate(month=TruncMonth("date_joined"))
+            .values("month")
+            .annotate(count=Count("id"))
+            .order_by("month")
+        )
+
+        data = [
+            {
+                "month": item["month"].strftime("%Y-%m")
+                if item["month"]
+                else "unknown",
+                "count": item["count"],
+            }
+            for item in monthly_counts
+        ]
+        serializer = serializers.UserRegistrationTrendSerializer(data, many=True)
+        return Response(serializer.data)
+
+    user_registration_trend_permissions = [permissions.is_staff_or_support]
 
     def perform_create(self, serializer):
         user = serializer.save()

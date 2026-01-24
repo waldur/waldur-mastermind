@@ -329,7 +329,7 @@ class DocValidator:
                 continue
             for candidate in sdir.rglob("*.md"):
                 if candidate.name.lower() == target_name:
-                    rel_path = candidate.relative_to(search_dir)
+                    rel_path = candidate.relative_to(sdir)
                     return f"Did you mean: {rel_path}?"
 
         return None

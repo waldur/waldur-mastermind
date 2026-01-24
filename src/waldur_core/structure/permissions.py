@@ -49,6 +49,11 @@ def is_staff(request, view, obj=None):
         raise exceptions.PermissionDenied()
 
 
+def is_staff_or_support(request, view, obj=None):
+    if not (request.user.is_staff or request.user.is_support):
+        raise exceptions.PermissionDenied()
+
+
 def is_owner(request, view, obj=None, **kwargs):
     if not obj:
         return
