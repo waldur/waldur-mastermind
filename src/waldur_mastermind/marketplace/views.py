@@ -9389,6 +9389,543 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        description="Return usage-based resources with no usage reported in the specified billing period.",
+        parameters=[
+            OpenApiParameter(
+                name="billing_period",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Billing period in YYYY-MM format. Defaults to current month.",
+            ),
+            OpenApiParameter(
+                name="provider_uuid",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by service provider UUID.",
+            ),
+        ],
+        responses=serializers.ResourceMissingUsageSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def resources_missing_usage(self, request, *args, **kwargs):
+        """Return usage-based resources with no usage reported for the billing period."""
+        from django.db.models import Max
+
+        billing_period = request.query_params.get("billing_period")
+        if billing_period:
+            try:
+                year, month = map(int, billing_period.split("-"))
+                target_year = year
+                target_month = month
+            except (ValueError, AttributeError):
+                raise rf_exceptions.ValidationError(
+                    "billing_period must be in YYYY-MM format"
+                )
+        else:
+            now = timezone.now()
+            target_year = now.year
+            target_month = now.month
+
+        provider_uuid = request.query_params.get("provider_uuid")
+
+        # Get resources with usage-based billing components in OK or Updating state
+        queryset = models.Resource.objects.filter(
+            offering__components__billing_type=BillingTypes.USAGE,
+            state__in=[ResourceStates.OK, ResourceStates.UPDATING],
+        ).distinct()
+
+        if provider_uuid:
+            queryset = queryset.filter(offering__customer__uuid=provider_uuid)
+
+        # Exclude resources that have usage for this billing period
+        queryset = queryset.exclude(
+            usages__billing_period__year=target_year,
+            usages__billing_period__month=target_month,
+        )
+
+        # Add last_usage_date annotation
+        queryset = queryset.annotate(
+            last_usage_date=Max("usages__date")
+        ).select_related(
+            "offering",
+            "offering__customer",
+            "project",
+            "project__customer",
+        )
+
+        # Transform to response format
+        result = []
+        now = timezone.now()
+        for resource in queryset:
+            days_since = None
+            if resource.last_usage_date:
+                days_since = (now - resource.last_usage_date).days
+
+            result.append(
+                {
+                    "uuid": resource.uuid,
+                    "name": resource.name or "Unnamed Resource",
+                    "state": resource.get_state_display(),
+                    "created": resource.created,
+                    "offering_name": resource.offering.name,
+                    "offering_uuid": resource.offering.uuid,
+                    "provider_name": resource.offering.customer.name,
+                    "provider_uuid": resource.offering.customer.uuid,
+                    "customer_name": resource.project.customer.name,
+                    "customer_uuid": resource.project.customer.uuid,
+                    "project_name": resource.project.name,
+                    "project_uuid": resource.project.uuid,
+                    "last_usage_date": resource.last_usage_date,
+                    "days_since_last_report": days_since,
+                }
+            )
+
+        serializer = serializers.ResourceMissingUsageSerializer(result, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Return comprehensive order statistics including daily breakdown, state/type aggregations, and summary stats.",
+        parameters=[
+            OpenApiParameter(
+                name="start",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Start date in YYYY-MM-DD format. Defaults to 30 days ago.",
+            ),
+            OpenApiParameter(
+                name="end",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="End date in YYYY-MM-DD format. Defaults to today.",
+            ),
+            OpenApiParameter(
+                name="provider_uuid",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by service provider UUID.",
+            ),
+            OpenApiParameter(
+                name="customer_uuid",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by customer UUID.",
+            ),
+        ],
+        responses=serializers.OrderStatsResponseSerializer,
+    )
+    @action(detail=False, methods=["get"])
+    def order_stats(self, request, *args, **kwargs):
+        """Return comprehensive order statistics for reporting."""
+
+        from django.db.models.functions import TruncDate
+
+        # Parse date parameters
+        start_str = request.query_params.get("start")
+        end_str = request.query_params.get("end")
+
+        if start_str:
+            try:
+                start_date = datetime.datetime.strptime(start_str, "%Y-%m-%d").date()
+            except ValueError:
+                raise rf_exceptions.ValidationError(
+                    "start must be in YYYY-MM-DD format"
+                )
+        else:
+            start_date = (timezone.now() - datetime.timedelta(days=30)).date()
+
+        if end_str:
+            try:
+                end_date = datetime.datetime.strptime(end_str, "%Y-%m-%d").date()
+            except ValueError:
+                raise rf_exceptions.ValidationError("end must be in YYYY-MM-DD format")
+        else:
+            end_date = timezone.now().date()
+
+        # Build base queryset
+        queryset = models.Order.objects.filter(
+            created__date__gte=start_date,
+            created__date__lte=end_date,
+        )
+
+        # Apply optional filters
+        provider_uuid = request.query_params.get("provider_uuid")
+        customer_uuid = request.query_params.get("customer_uuid")
+
+        if provider_uuid:
+            queryset = queryset.filter(offering__customer__uuid=provider_uuid)
+        if customer_uuid:
+            queryset = queryset.filter(project__customer__uuid=customer_uuid)
+
+        # Calculate summary stats
+        total = queryset.count()
+        total_cost = queryset.aggregate(total=Sum("cost"))["total"] or 0
+
+        # State counts using ORM
+        state_counts = dict(
+            queryset.values("state")
+            .annotate(count=Count("id"))
+            .values_list("state", "count")
+        )
+        type_counts = dict(
+            queryset.values("type")
+            .annotate(count=Count("id"))
+            .values_list("type", "count")
+        )
+
+        # Summary breakdown
+        summary = {
+            "total": total,
+            "total_cost": total_cost,
+            "pending": (
+                state_counts.get(OrderStates.PENDING_CONSUMER, 0)
+                + state_counts.get(OrderStates.PENDING_PROVIDER, 0)
+            ),
+            "executing": state_counts.get(OrderStates.EXECUTING, 0),
+            "done": state_counts.get(OrderStates.DONE, 0),
+            "erred": state_counts.get(OrderStates.ERRED, 0),
+            "canceled": state_counts.get(OrderStates.CANCELED, 0),
+            "rejected": state_counts.get(OrderStates.REJECTED, 0),
+        }
+
+        # Daily breakdown using ORM aggregation
+        daily_stats = list(
+            queryset.annotate(date=TruncDate("created"))
+            .values("date")
+            .annotate(total=Count("id"), total_cost=Sum("cost"))
+            .order_by("date")
+        )
+
+        # Get state and type breakdown per day efficiently
+        daily_state_counts = {}
+        daily_type_counts = {}
+
+        state_by_day = (
+            queryset.annotate(date=TruncDate("created"))
+            .values("date", "state")
+            .annotate(count=Count("id"))
+        )
+        for row in state_by_day:
+            date_str = row["date"].isoformat()
+            if date_str not in daily_state_counts:
+                daily_state_counts[date_str] = {}
+            daily_state_counts[date_str][row["state"]] = row["count"]
+
+        type_by_day = (
+            queryset.annotate(date=TruncDate("created"))
+            .values("date", "type")
+            .annotate(count=Count("id"))
+        )
+        for row in type_by_day:
+            date_str = row["date"].isoformat()
+            if date_str not in daily_type_counts:
+                daily_type_counts[date_str] = {}
+            daily_type_counts[date_str][row["type"]] = row["count"]
+
+        # Combine daily data
+        daily_data = []
+        for row in daily_stats:
+            date_str = row["date"].isoformat()
+            daily_data.append(
+                {
+                    "date": row["date"],
+                    "total": row["total"],
+                    "total_cost": row["total_cost"],
+                    "by_state": daily_state_counts.get(date_str, {}),
+                    "by_type": daily_type_counts.get(date_str, {}),
+                }
+            )
+
+        result = {
+            "summary": summary,
+            "by_state": state_counts,
+            "by_type": type_counts,
+            "daily": daily_data,
+        }
+
+        serializer = serializers.OrderStatsResponseSerializer(result)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Return resource statistics for a service provider.",
+        parameters=[
+            OpenApiParameter(
+                name="provider_uuid",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Service provider UUID.",
+            ),
+        ],
+        responses=serializers.ProviderResourceStatsSerializer,
+    )
+    @action(detail=False, methods=["get"])
+    def provider_resources(self, request, *args, **kwargs):
+        """Return resource statistics for a service provider."""
+        from dateutil.relativedelta import relativedelta
+        from django.db.models.functions import TruncMonth
+
+        provider_uuid = request.query_params.get("provider_uuid")
+        if not provider_uuid:
+            raise rf_exceptions.ValidationError("provider_uuid is required")
+
+        # Get provider
+        try:
+            provider = models.ServiceProvider.objects.get(uuid=provider_uuid)
+        except models.ServiceProvider.DoesNotExist:
+            raise rf_exceptions.NotFound("Service provider not found")
+
+        # Base queryset for provider's resources
+        queryset = models.Resource.objects.filter(offering__customer=provider.customer)
+
+        # Total and by state
+        total = queryset.exclude(state=ResourceStates.TERMINATED).count()
+        state_counts = dict(
+            queryset.values("state")
+            .annotate(count=Count("id"))
+            .values_list("state", "count")
+        )
+
+        # By offering (top 10)
+        by_offering = list(
+            queryset.exclude(state=ResourceStates.TERMINATED)
+            .values(
+                offering_uuid=F("offering__uuid"),
+                offering_name=F("offering__name"),
+            )
+            .annotate(count=Count("id"))
+            .order_by("-count")[:10]
+        )
+
+        # Monthly trend (last 12 months)
+        start_date = timezone.now() - relativedelta(months=12)
+        monthly = list(
+            queryset.filter(created__gte=start_date)
+            .annotate(month=TruncMonth("created"))
+            .values("month")
+            .annotate(count=Count("id"))
+            .order_by("month")
+        )
+        # Convert datetime to string for JSON serialization
+        for item in monthly:
+            item["month"] = item["month"].strftime("%Y-%m")
+
+        result = {
+            "total": total,
+            "by_state": state_counts,
+            "by_offering": by_offering,
+            "monthly": monthly,
+        }
+
+        serializer = serializers.ProviderResourceStatsSerializer(result)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Return customer statistics for a service provider.",
+        parameters=[
+            OpenApiParameter(
+                name="provider_uuid",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Service provider UUID.",
+            ),
+        ],
+        responses=serializers.ProviderCustomerStatsSerializer,
+    )
+    @action(detail=False, methods=["get"])
+    def provider_customers(self, request, *args, **kwargs):
+        """Return customer statistics for a service provider."""
+        from dateutil.relativedelta import relativedelta
+        from django.db.models.functions import TruncMonth
+
+        provider_uuid = request.query_params.get("provider_uuid")
+        if not provider_uuid:
+            raise rf_exceptions.ValidationError("provider_uuid is required")
+
+        # Get provider
+        try:
+            provider = models.ServiceProvider.objects.get(uuid=provider_uuid)
+        except models.ServiceProvider.DoesNotExist:
+            raise rf_exceptions.NotFound("Service provider not found")
+
+        # Get distinct customers with active resources
+        active_resources = models.Resource.objects.filter(
+            offering__customer=provider.customer
+        ).exclude(state=ResourceStates.TERMINATED)
+
+        customer_ids = active_resources.values_list(
+            "project__customer_id", flat=True
+        ).distinct()
+        total = len(set(customer_ids))
+
+        # New customers this month
+        month_start = timezone.now().replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+        new_this_month = (
+            active_resources.filter(created__gte=month_start)
+            .values_list("project__customer_id", flat=True)
+            .distinct()
+            .count()
+        )
+
+        # Top customers by resource count
+        top_by_resources = list(
+            active_resources.values(
+                customer_uuid=F("project__customer__uuid"),
+                customer_name=F("project__customer__name"),
+            )
+            .annotate(resource_count=Count("id"))
+            .order_by("-resource_count")[:10]
+        )
+
+        # Top customers by revenue (last 12 months)
+        start_date = timezone.now() - relativedelta(months=12)
+        top_by_revenue = list(
+            invoice_models.InvoiceItem.objects.filter(
+                invoice__created__gte=start_date,
+                resource__offering__customer=provider.customer,
+            )
+            .values(
+                customer_uuid=F("invoice__customer__uuid"),
+                customer_name=F("invoice__customer__name"),
+            )
+            .annotate(revenue=Sum(F("unit_price") * F("quantity")))
+            .order_by("-revenue")[:10]
+        )
+
+        # Monthly customer trend (last 12 months) - customers with resources created that month
+        monthly = list(
+            active_resources.filter(created__gte=start_date)
+            .annotate(month=TruncMonth("created"))
+            .values("month")
+            .annotate(customer_count=Count("project__customer_id", distinct=True))
+            .order_by("month")
+        )
+        for item in monthly:
+            item["month"] = item["month"].strftime("%Y-%m")
+
+        result = {
+            "total": total,
+            "new_this_month": new_this_month,
+            "top_by_revenue": top_by_revenue,
+            "top_by_resources": top_by_resources,
+            "monthly": monthly,
+        }
+
+        serializer = serializers.ProviderCustomerStatsSerializer(result)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Return offering performance statistics for a service provider.",
+        parameters=[
+            OpenApiParameter(
+                name="provider_uuid",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="Service provider UUID.",
+            ),
+        ],
+        responses=serializers.ProviderOfferingStatsSerializer,
+    )
+    @action(detail=False, methods=["get"])
+    def provider_offerings(self, request, *args, **kwargs):
+        """Return offering performance statistics for a service provider."""
+        from dateutil.relativedelta import relativedelta
+
+        provider_uuid = request.query_params.get("provider_uuid")
+        if not provider_uuid:
+            raise rf_exceptions.ValidationError("provider_uuid is required")
+
+        # Get provider
+        try:
+            provider = models.ServiceProvider.objects.get(uuid=provider_uuid)
+        except models.ServiceProvider.DoesNotExist:
+            raise rf_exceptions.NotFound("Service provider not found")
+
+        # Get all active/paused offerings for the provider
+        offerings = models.Offering.objects.filter(
+            customer=provider.customer,
+            state__in=(
+                OfferingStates.ACTIVE,
+                OfferingStates.PAUSED,
+                OfferingStates.UNAVAILABLE,
+            ),
+        )
+
+        # Calculate stats for each offering
+        start_date = timezone.now() - relativedelta(months=12)
+        result_offerings = []
+
+        for offering in offerings:
+            # Resource counts by state
+            resources = models.Resource.objects.filter(offering=offering)
+            active_count = resources.filter(
+                state__in=(ResourceStates.OK, ResourceStates.UPDATING)
+            ).count()
+            total_count = resources.exclude(state=ResourceStates.TERMINATED).count()
+
+            # Revenue (last 12 months)
+            revenue = (
+                invoice_models.InvoiceItem.objects.filter(
+                    invoice__created__gte=start_date,
+                    resource__offering=offering,
+                )
+                .aggregate(total=Sum(F("unit_price") * F("quantity")))
+                .get("total")
+                or 0
+            )
+
+            # Plan utilization (if plans have limits)
+            plans_data = []
+            for plan in offering.plans.filter(archived=False):
+                plan_usage = (
+                    models.Resource.objects.filter(
+                        offering=offering,
+                        plan=plan,
+                    )
+                    .exclude(state=ResourceStates.TERMINATED)
+                    .count()
+                )
+
+                plans_data.append(
+                    {
+                        "plan_uuid": str(plan.uuid),
+                        "plan_name": plan.name,
+                        "usage": plan_usage,
+                        "limit": plan.max_amount,
+                        "utilization": (
+                            round(plan_usage / plan.max_amount * 100, 1)
+                            if plan.max_amount
+                            else None
+                        ),
+                    }
+                )
+
+            result_offerings.append(
+                {
+                    "offering_uuid": str(offering.uuid),
+                    "offering_name": offering.name,
+                    "category_name": offering.category.title
+                    if offering.category
+                    else None,
+                    "state": offering.state,
+                    "active_resources": active_count,
+                    "total_resources": total_count,
+                    "revenue": float(revenue),
+                    "plans": plans_data,
+                }
+            )
+
+        # Sort by active resources descending
+        result_offerings.sort(key=lambda x: x["active_resources"], reverse=True)
+
+        result = {"offerings": result_offerings}
+        serializer = serializers.ProviderOfferingStatsSerializer(result)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class ProviderInvoiceItemsViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = invoice_models.InvoiceItem.objects.all().order_by("-invoice__created")
