@@ -1467,3 +1467,642 @@ class ComponentUsagesStatsTest(test.APITransactionTestCase):
         # Verify data integrity
         countries = {item["offering_country"] for item in response.data}
         self.assertEqual(countries, {"FI", "SE", "NO"})
+
+
+@ddt
+class ResourcesMissingUsageTest(test.APITransactionTestCase):
+    """Tests for /api/marketplace-stats/resources_missing_usage/ endpoint.
+
+    This endpoint returns resources with usage-based billing components
+    that have no usage reported for the specified billing period.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = "/api/marketplace-stats/resources_missing_usage/"
+
+        # Create an offering with usage-based component
+        self.offering_with_usage = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+        )
+        self.usage_component = factories.OfferingComponentFactory(
+            offering=self.offering_with_usage,
+            billing_type=BillingTypes.USAGE,
+            type="cpu",
+        )
+        self.plan = factories.PlanFactory(offering=self.offering_with_usage)
+        factories.PlanComponentFactory(
+            plan=self.plan,
+            component=self.usage_component,
+        )
+
+    @data("staff", "global_support")
+    def test_user_can_get_resources_missing_usage(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data("owner", "customer_support", "admin", "manager")
+    def test_user_cannot_get_resources_missing_usage(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_resource_with_no_usage_is_returned(self):
+        """Test that resources without usage reports are returned."""
+        resource = factories.ResourceFactory(
+            offering=self.offering_with_usage,
+            plan=self.plan,
+            state=ResourceStates.OK,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], str(resource.uuid))
+
+    def test_resource_with_usage_is_excluded(self):
+        """Test that resources with usage reports are not returned."""
+        resource = factories.ResourceFactory(
+            offering=self.offering_with_usage,
+            plan=self.plan,
+            state=ResourceStates.OK,
+        )
+        now = timezone.now()
+        factories.ComponentUsageFactory(
+            resource=resource,
+            component=self.usage_component,
+            billing_period=now.replace(day=1).date(),
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_billing_period_filter(self):
+        """Test filtering by specific billing period."""
+        resource = factories.ResourceFactory(
+            offering=self.offering_with_usage,
+            plan=self.plan,
+            state=ResourceStates.OK,
+        )
+        # Add usage for current month
+        now = timezone.now()
+        factories.ComponentUsageFactory(
+            resource=resource,
+            component=self.usage_component,
+            billing_period=now.replace(day=1).date(),
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Resource should not appear for current month
+        current_period = now.strftime("%Y-%m")
+        response = self.client.get(self.url, {"billing_period": current_period})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+        # Resource should appear for previous month
+        previous_month = (now.replace(day=1) - datetime.timedelta(days=1)).strftime(
+            "%Y-%m"
+        )
+        response = self.client.get(self.url, {"billing_period": previous_month})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    def test_invalid_billing_period_format(self):
+        """Test that invalid billing period format returns 400."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"billing_period": "invalid"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_provider_uuid_filter(self):
+        """Test filtering by provider UUID."""
+        factories.ResourceFactory(
+            offering=self.offering_with_usage,
+            plan=self.plan,
+            state=ResourceStates.OK,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Filter by correct provider
+        provider_uuid = self.offering_with_usage.customer.uuid
+        response = self.client.get(self.url, {"provider_uuid": str(provider_uuid)})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        # Filter by different provider
+        other_customer = structure_factories.CustomerFactory()
+        response = self.client.get(
+            self.url, {"provider_uuid": str(other_customer.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_terminated_resources_are_excluded(self):
+        """Test that terminated resources are not returned."""
+        factories.ResourceFactory(
+            offering=self.offering_with_usage,
+            plan=self.plan,
+            state=ResourceStates.TERMINATED,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_response_includes_all_required_fields(self):
+        """Test that response includes all expected fields."""
+        factories.ResourceFactory(
+            offering=self.offering_with_usage,
+            plan=self.plan,
+            state=ResourceStates.OK,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+        data = response.data[0]
+        expected_fields = [
+            "uuid",
+            "name",
+            "state",
+            "created",
+            "offering_name",
+            "offering_uuid",
+            "provider_name",
+            "provider_uuid",
+            "customer_name",
+            "customer_uuid",
+            "project_name",
+            "project_uuid",
+            "last_usage_date",
+            "days_since_last_report",
+        ]
+        for field in expected_fields:
+            self.assertIn(field, data)
+
+
+@ddt
+class OrderStatsTest(test.APITransactionTestCase):
+    """Tests for /api/marketplace-stats/order_stats/ endpoint.
+
+    This endpoint returns comprehensive order statistics including
+    daily breakdown, state/type aggregations, and summary stats.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = "/api/marketplace-stats/order_stats/"
+
+    @data("staff", "global_support")
+    def test_user_can_get_order_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data("owner", "customer_support", "admin", "manager")
+    def test_user_cannot_get_order_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_response_structure(self):
+        """Test that response has the expected structure."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIn("summary", response.data)
+        self.assertIn("by_state", response.data)
+        self.assertIn("by_type", response.data)
+        self.assertIn("daily", response.data)
+
+        summary = response.data["summary"]
+        expected_summary_fields = [
+            "total",
+            "total_cost",
+            "pending",
+            "executing",
+            "done",
+            "erred",
+            "canceled",
+            "rejected",
+        ]
+        for field in expected_summary_fields:
+            self.assertIn(field, summary)
+
+    def test_order_counts_by_state(self):
+        """Test that orders are correctly counted by state."""
+        # Create orders with different states
+        factories.OrderFactory(state=OrderStates.DONE)
+        factories.OrderFactory(state=OrderStates.DONE)
+        factories.OrderFactory(state=OrderStates.ERRED)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        summary = response.data["summary"]
+        # Note: fixture already creates 1 DONE order, so we expect 3 total
+        self.assertGreaterEqual(summary["done"], 2)
+        self.assertGreaterEqual(summary["erred"], 1)
+
+    def test_date_range_filter(self):
+        """Test filtering by date range."""
+        # Create order in the past
+        with freeze_time("2023-01-15"):
+            factories.OrderFactory(state=OrderStates.DONE)
+
+        # Create order today
+        factories.OrderFactory(state=OrderStates.DONE)
+
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Filter for specific date range
+        response = self.client.get(
+            self.url, {"start": "2023-01-01", "end": "2023-01-31"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["summary"]["total"], 1)
+
+    def test_invalid_date_format(self):
+        """Test that invalid date formats return 400."""
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.get(self.url, {"start": "invalid"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        response = self.client.get(self.url, {"end": "invalid"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_provider_uuid_filter(self):
+        """Test filtering by provider UUID."""
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        factories.OrderFactory(offering=offering, state=OrderStates.DONE)
+
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Filter by correct provider
+        response = self.client.get(
+            self.url, {"provider_uuid": str(offering.customer.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["summary"]["total"], 1)
+
+        # Filter by different provider
+        other_customer = structure_factories.CustomerFactory()
+        response = self.client.get(
+            self.url, {"provider_uuid": str(other_customer.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["summary"]["total"], 0)
+
+    def test_customer_uuid_filter(self):
+        """Test filtering by customer UUID."""
+        project = structure_factories.ProjectFactory()
+        factories.OrderFactory(project=project, state=OrderStates.DONE)
+
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Filter by correct customer
+        response = self.client.get(
+            self.url, {"customer_uuid": str(project.customer.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["summary"]["total"], 1)
+
+        # Filter by different customer
+        other_customer = structure_factories.CustomerFactory()
+        response = self.client.get(
+            self.url, {"customer_uuid": str(other_customer.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["summary"]["total"], 0)
+
+    def test_daily_breakdown(self):
+        """Test that daily breakdown structure is correct."""
+        # Create orders today
+        factories.OrderFactory(state=OrderStates.DONE)
+        factories.OrderFactory(state=OrderStates.DONE)
+
+        self.client.force_authenticate(self.fixture.staff)
+        # Use default date range (last 30 days)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        daily = response.data["daily"]
+        # Should have at least one entry (today)
+        self.assertGreaterEqual(len(daily), 1)
+
+        # Check daily entry structure
+        for entry in daily:
+            self.assertIn("date", entry)
+            self.assertIn("total", entry)
+            self.assertIn("total_cost", entry)
+            self.assertIn("by_state", entry)
+            self.assertIn("by_type", entry)
+
+
+@ddt
+class ProviderResourcesStatsTest(test.APITransactionTestCase):
+    """Tests for /api/marketplace-stats/provider_resources/ endpoint.
+
+    This endpoint returns resource statistics for a service provider.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = "/api/marketplace-stats/provider_resources/"
+
+    @data("staff", "global_support")
+    def test_user_can_get_provider_resources(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            self.url, {"provider_uuid": str(self.fixture.service_provider.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data("owner", "customer_support", "admin", "manager")
+    def test_user_cannot_get_provider_resources(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            self.url, {"provider_uuid": str(self.fixture.service_provider.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_provider_uuid_is_required(self):
+        """Test that provider_uuid is required."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_invalid_provider_uuid(self):
+        """Test that invalid provider UUID returns 404."""
+        self.client.force_authenticate(self.fixture.staff)
+        import uuid
+
+        response = self.client.get(self.url, {"provider_uuid": str(uuid.uuid4())})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_response_structure(self):
+        """Test that response has the expected structure."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"provider_uuid": str(self.fixture.service_provider.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIn("total", response.data)
+        self.assertIn("by_state", response.data)
+        self.assertIn("by_offering", response.data)
+        self.assertIn("monthly", response.data)
+
+    def test_resource_counts_by_state(self):
+        """Test that resources are correctly counted by state."""
+        # The fixture already creates resources; add more for testing
+        factories.ResourceFactory(
+            offering=self.fixture.offering,
+            state=ResourceStates.OK,
+        )
+        factories.ResourceFactory(
+            offering=self.fixture.offering,
+            state=ResourceStates.TERMINATED,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"provider_uuid": str(self.fixture.service_provider.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Total excludes terminated resources
+        self.assertGreaterEqual(response.data["total"], 1)
+
+    def test_resource_counts_by_offering(self):
+        """Test that resources are grouped by offering."""
+        factories.ResourceFactory(
+            offering=self.fixture.offering,
+            state=ResourceStates.OK,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"provider_uuid": str(self.fixture.service_provider.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        by_offering = response.data["by_offering"]
+        self.assertGreaterEqual(len(by_offering), 1)
+        self.assertIn("offering_uuid", by_offering[0])
+        self.assertIn("offering_name", by_offering[0])
+        self.assertIn("count", by_offering[0])
+
+
+@ddt
+class ProviderCustomersStatsTest(test.APITransactionTestCase):
+    """Tests for /api/marketplace-stats/provider_customers/ endpoint.
+
+    This endpoint returns customer statistics for a service provider.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = "/api/marketplace-stats/provider_customers/"
+
+    @data("staff", "global_support")
+    def test_user_can_get_provider_customers(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            self.url, {"provider_uuid": str(self.fixture.service_provider.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data("owner", "customer_support", "admin", "manager")
+    def test_user_cannot_get_provider_customers(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            self.url, {"provider_uuid": str(self.fixture.service_provider.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_provider_uuid_is_required(self):
+        """Test that provider_uuid is required."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_invalid_provider_uuid(self):
+        """Test that invalid provider UUID returns 404."""
+        self.client.force_authenticate(self.fixture.staff)
+        import uuid
+
+        response = self.client.get(self.url, {"provider_uuid": str(uuid.uuid4())})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_response_structure(self):
+        """Test that response has the expected structure."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"provider_uuid": str(self.fixture.service_provider.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIn("total", response.data)
+        self.assertIn("new_this_month", response.data)
+        self.assertIn("top_by_revenue", response.data)
+        self.assertIn("top_by_resources", response.data)
+        self.assertIn("monthly", response.data)
+
+    def test_customer_count_with_active_resources(self):
+        """Test that customers with active resources are counted."""
+        # Create a resource with a different customer
+        project = structure_factories.ProjectFactory()
+        factories.ResourceFactory(
+            offering=self.fixture.offering,
+            project=project,
+            state=ResourceStates.OK,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"provider_uuid": str(self.fixture.service_provider.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(response.data["total"], 1)
+
+
+@ddt
+class ProviderOfferingsStatsTest(test.APITransactionTestCase):
+    """Tests for /api/marketplace-stats/provider_offerings/ endpoint.
+
+    This endpoint returns offering performance statistics for a service provider.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = "/api/marketplace-stats/provider_offerings/"
+
+    @data("staff", "global_support")
+    def test_user_can_get_provider_offerings(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            self.url, {"provider_uuid": str(self.fixture.service_provider.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data("owner", "customer_support", "admin", "manager")
+    def test_user_cannot_get_provider_offerings(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            self.url, {"provider_uuid": str(self.fixture.service_provider.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_provider_uuid_is_required(self):
+        """Test that provider_uuid is required."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_invalid_provider_uuid(self):
+        """Test that invalid provider UUID returns 404."""
+        self.client.force_authenticate(self.fixture.staff)
+        import uuid
+
+        response = self.client.get(self.url, {"provider_uuid": str(uuid.uuid4())})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_response_structure(self):
+        """Test that response has the expected structure."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"provider_uuid": str(self.fixture.service_provider.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIn("offerings", response.data)
+
+    def test_offering_statistics(self):
+        """Test that offering statistics are correctly calculated."""
+        # Create active resources for the offering
+        factories.ResourceFactory(
+            offering=self.fixture.offering,
+            state=ResourceStates.OK,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"provider_uuid": str(self.fixture.service_provider.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        offerings = response.data["offerings"]
+        self.assertGreaterEqual(len(offerings), 1)
+
+        # Find our offering
+        offering_data = [
+            o
+            for o in offerings
+            if o["offering_uuid"] == str(self.fixture.offering.uuid)
+        ]
+        self.assertEqual(len(offering_data), 1)
+        offering = offering_data[0]
+
+        expected_fields = [
+            "offering_uuid",
+            "offering_name",
+            "state",
+            "active_resources",
+            "total_resources",
+            "revenue",
+            "plans",
+        ]
+        for field in expected_fields:
+            self.assertIn(field, offering)
+
+
+class PlanComponentSerializerTest(test.APITransactionTestCase):
+    """Tests for PlanComponentSerializer fields."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        # Ensure plan component is created by accessing it
+        self.plan_component = self.fixture.plan_component
+        self.url = "/api/marketplace-plan-components/"
+
+    def test_serializer_includes_offering_uuid(self):
+        """Test that offering_uuid is included in serializer output."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreater(
+            len(response.data), 0, "Expected at least one plan component"
+        )
+        # Check that offering_uuid field exists in response
+        pc = response.data[0]
+        self.assertIn("offering_uuid", pc)
+        self.assertIn("offering_name", pc)
+
+    def test_serializer_includes_plan_uuid(self):
+        """Test that plan_uuid is included in serializer output."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreater(
+            len(response.data), 0, "Expected at least one plan component"
+        )
+        # Check that plan_uuid field exists in response
+        pc = response.data[0]
+        self.assertIn("plan_uuid", pc)
+        self.assertIn("plan_name", pc)

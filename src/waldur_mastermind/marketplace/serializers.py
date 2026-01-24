@@ -2419,7 +2419,9 @@ class ExportImportOfferingSerializer(serializers.ModelSerializer):
 
 
 class PlanComponentSerializer(serializers.ModelSerializer):
+    offering_uuid = serializers.ReadOnlyField(source="plan.offering.uuid")
     offering_name = serializers.ReadOnlyField(source="plan.offering.name")
+    plan_uuid = serializers.ReadOnlyField(source="plan.uuid")
     plan_name = serializers.ReadOnlyField(source="plan.name")
     plan_unit = serializers.ReadOnlyField(source="plan.unit")
     component_name = serializers.ReadOnlyField(source="component.name")
@@ -2429,7 +2431,9 @@ class PlanComponentSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.PlanComponent
         fields = (
+            "offering_uuid",
             "offering_name",
+            "plan_uuid",
             "plan_name",
             "plan_unit",
             "component_name",
@@ -9957,3 +9961,129 @@ class DemoPresetLoadResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
     output = serializers.CharField(required=False, allow_blank=True)
     users = DemoPresetUserSerializer(many=True, required=False)
+
+
+class ResourceMissingUsageSerializer(serializers.Serializer):
+    """Serializer for resources with missing usage reports."""
+
+    uuid = serializers.UUIDField(help_text="UUID of the resource")
+    name = serializers.CharField(help_text="Name of the resource")
+    state = serializers.CharField(help_text="Current state of the resource")
+    created = serializers.DateTimeField(help_text="Creation date of the resource")
+    offering_name = serializers.CharField(help_text="Name of the offering")
+    offering_uuid = serializers.UUIDField(help_text="UUID of the offering")
+    provider_name = serializers.CharField(help_text="Name of the service provider")
+    provider_uuid = serializers.UUIDField(help_text="UUID of the service provider")
+    customer_name = serializers.CharField(help_text="Name of the customer organization")
+    customer_uuid = serializers.UUIDField(help_text="UUID of the customer organization")
+    project_name = serializers.CharField(help_text="Name of the project")
+    project_uuid = serializers.UUIDField(help_text="UUID of the project")
+    last_usage_date = serializers.DateTimeField(
+        allow_null=True, help_text="Date of the last usage report"
+    )
+    days_since_last_report = serializers.IntegerField(
+        allow_null=True, help_text="Number of days since last usage report"
+    )
+
+
+class DailyOrderStatsSerializer(serializers.Serializer):
+    """Serializer for daily aggregated order statistics."""
+
+    date = serializers.DateField(help_text="Date of the statistics")
+    total = serializers.IntegerField(help_text="Total number of orders")
+    total_cost = serializers.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        allow_null=True,
+        help_text="Total cost of orders",
+    )
+    by_state = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Order counts grouped by state",
+    )
+    by_type = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Order counts grouped by type",
+    )
+
+
+class OrderStatsSummarySerializer(serializers.Serializer):
+    """Serializer for order summary statistics."""
+
+    total = serializers.IntegerField(help_text="Total number of orders")
+    total_cost = serializers.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        allow_null=True,
+        help_text="Total cost of orders",
+    )
+    pending = serializers.IntegerField(help_text="Number of pending orders")
+    executing = serializers.IntegerField(help_text="Number of executing orders")
+    done = serializers.IntegerField(help_text="Number of completed orders")
+    erred = serializers.IntegerField(help_text="Number of erred orders")
+    canceled = serializers.IntegerField(help_text="Number of canceled orders")
+    rejected = serializers.IntegerField(help_text="Number of rejected orders")
+
+
+class OrderStatsResponseSerializer(serializers.Serializer):
+    """Comprehensive order statistics response."""
+
+    summary = OrderStatsSummarySerializer(help_text="Summary statistics")
+    by_state = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Total order counts grouped by state",
+    )
+    by_type = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Total order counts grouped by type",
+    )
+    daily = DailyOrderStatsSerializer(many=True, help_text="Daily breakdown")
+
+
+# Provider reporting serializers
+
+
+class ProviderResourceStatsSerializer(serializers.Serializer):
+    """Resource statistics for a service provider."""
+
+    total = serializers.IntegerField(help_text="Total number of resources")
+    by_state = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Resource counts grouped by state",
+    )
+    by_offering = serializers.ListField(
+        child=serializers.DictField(),
+        help_text="Resource counts grouped by offering",
+    )
+    monthly = serializers.ListField(
+        child=serializers.DictField(),
+        help_text="Monthly resource counts",
+    )
+
+
+class ProviderCustomerStatsSerializer(serializers.Serializer):
+    """Customer statistics for a service provider."""
+
+    total = serializers.IntegerField(help_text="Total number of customers")
+    new_this_month = serializers.IntegerField(help_text="New customers this month")
+    top_by_revenue = serializers.ListField(
+        child=serializers.DictField(),
+        help_text="Top customers by revenue",
+    )
+    top_by_resources = serializers.ListField(
+        child=serializers.DictField(),
+        help_text="Top customers by resource count",
+    )
+    monthly = serializers.ListField(
+        child=serializers.DictField(),
+        help_text="Monthly customer counts",
+    )
+
+
+class ProviderOfferingStatsSerializer(serializers.Serializer):
+    """Offering performance statistics for a service provider."""
+
+    offerings = serializers.ListField(
+        child=serializers.DictField(),
+        help_text="Offering statistics including resources, revenue, and utilization",
+    )
