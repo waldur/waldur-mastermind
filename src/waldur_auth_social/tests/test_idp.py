@@ -161,3 +161,213 @@ class IdentityProvidersViewSetTest(test.APITransactionTestCase):
         self.assertEqual(provider.user_claim, custom_values["user_claim"])
         self.assertEqual(provider.attribute_mapping, custom_values["attribute_mapping"])
         self.assertEqual(provider.extra_fields, custom_values["extra_fields"])
+
+    def get_discover_metadata_url(self):
+        return reverse("identity-providers-discover-metadata")
+
+    def get_generate_mapping_url(self):
+        return reverse("identity-providers-generate-mapping")
+
+    def _mock_openid_configuration_with_claims(
+        self, discovery_url, claims_supported=None, scopes_supported=None
+    ):
+        """Helper method to mock OpenID configuration with claims and scopes."""
+        base_url = discovery_url.replace("/.well-known/openid-configuration", "")
+
+        if claims_supported is None:
+            claims_supported = [
+                "sub",
+                "email",
+                "given_name",
+                "family_name",
+                "preferred_username",
+                "name",
+            ]
+
+        if scopes_supported is None:
+            scopes_supported = ["openid", "profile", "email"]
+
+        responses.add(
+            responses.GET,
+            discovery_url,
+            json={
+                "userinfo_endpoint": f"{base_url}/userinfo",
+                "token_endpoint": f"{base_url}/token",
+                "authorization_endpoint": f"{base_url}/auth",
+                "end_session_endpoint": f"{base_url}/logout",
+                "jwks_uri": f"{base_url}/jwks",
+                "claims_supported": claims_supported,
+                "scopes_supported": scopes_supported,
+            },
+            status=200,
+        )
+
+    @responses.activate
+    def test_discover_metadata_returns_claims_and_suggestions(self):
+        discovery_url = "https://example.com/.well-known/openid-configuration"
+        self._mock_openid_configuration_with_claims(
+            discovery_url,
+            claims_supported=[
+                "sub",
+                "email",
+                "given_name",
+                "family_name",
+                "schacHomeOrganization",
+                "phone_number",
+            ],
+            scopes_supported=["openid", "profile", "email", "phone"],
+        )
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(
+            self.get_discover_metadata_url(),
+            {"discovery_url": discovery_url},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        # Check claims are returned
+        self.assertIn("claims_supported", response.data)
+        self.assertIn("email", response.data["claims_supported"])
+        self.assertIn("given_name", response.data["claims_supported"])
+
+        # Check scopes are returned
+        self.assertIn("scopes_supported", response.data)
+        self.assertIn("openid", response.data["scopes_supported"])
+
+        # Check endpoints are returned
+        self.assertIn("endpoints", response.data)
+        self.assertIn("authorization_endpoint", response.data["endpoints"])
+        self.assertIn("token_endpoint", response.data["endpoints"])
+        self.assertIn("userinfo_endpoint", response.data["endpoints"])
+
+        # Check waldur_fields suggestions
+        self.assertIn("waldur_fields", response.data)
+        field_names = [f["field"] for f in response.data["waldur_fields"]]
+        self.assertIn("first_name", field_names)
+        self.assertIn("email", field_names)
+
+        # Check that available_claims are populated for fields with matching claims
+        email_field = next(
+            f for f in response.data["waldur_fields"] if f["field"] == "email"
+        )
+        self.assertIn("email", email_field["available_claims"])
+
+        first_name_field = next(
+            f for f in response.data["waldur_fields"] if f["field"] == "first_name"
+        )
+        self.assertIn("given_name", first_name_field["available_claims"])
+
+        # Check suggested scopes
+        self.assertIn("suggested_scopes", response.data)
+        self.assertIn("openid", response.data["suggested_scopes"])
+        self.assertIn("email", response.data["suggested_scopes"])
+
+    @responses.activate
+    def test_discover_metadata_handles_empty_claims(self):
+        """Test that discovery works even when claims_supported is not provided."""
+        discovery_url = "https://example.com/.well-known/openid-configuration"
+        base_url = "https://example.com"
+
+        # Mock without claims_supported (optional in OIDC spec)
+        responses.add(
+            responses.GET,
+            discovery_url,
+            json={
+                "userinfo_endpoint": f"{base_url}/userinfo",
+                "token_endpoint": f"{base_url}/token",
+                "authorization_endpoint": f"{base_url}/auth",
+            },
+            status=200,
+        )
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(
+            self.get_discover_metadata_url(),
+            {"discovery_url": discovery_url},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["claims_supported"], [])
+        self.assertEqual(response.data["scopes_supported"], [])
+
+    @responses.activate
+    def test_discover_metadata_fails_for_invalid_url(self):
+        import requests as req_lib
+
+        discovery_url = "https://invalid.example.com/.well-known/openid-configuration"
+
+        responses.add(
+            responses.GET,
+            discovery_url,
+            body=req_lib.exceptions.ConnectionError("Connection refused"),
+        )
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(
+            self.get_discover_metadata_url(),
+            {"discovery_url": discovery_url},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_discover_metadata_requires_authentication(self):
+        response = self.client.post(
+            self.get_discover_metadata_url(),
+            {"discovery_url": "https://example.com/.well-known/openid-configuration"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_discover_metadata_requires_staff(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            self.get_discover_metadata_url(),
+            {"discovery_url": "https://example.com/.well-known/openid-configuration"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_generate_mapping_requires_staff(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            self.get_generate_mapping_url(),
+            {"discovery_url": "https://example.com/.well-known/openid-configuration"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @responses.activate
+    def test_generate_mapping_returns_suggested_configuration(self):
+        discovery_url = "https://example.com/.well-known/openid-configuration"
+        self._mock_openid_configuration_with_claims(
+            discovery_url,
+            claims_supported=[
+                "sub",
+                "email",
+                "given_name",
+                "family_name",
+                "schacHomeOrganization",
+            ],
+            scopes_supported=["openid", "profile", "email"],
+        )
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(
+            self.get_generate_mapping_url(),
+            {"discovery_url": discovery_url},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        # Check attribute_mapping is returned
+        self.assertIn("attribute_mapping", response.data)
+        mapping = response.data["attribute_mapping"]
+
+        # Should have mappings for fields with available claims
+        self.assertIn("email", mapping)
+        self.assertIn("first_name", mapping)
+        self.assertIn("last_name", mapping)
+        self.assertIn("organization", mapping)
+
+        # Check extra_scope is returned
+        self.assertIn("extra_scope", response.data)
+        self.assertIn("profile", response.data["extra_scope"])
+        self.assertIn("email", response.data["extra_scope"])

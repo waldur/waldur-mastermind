@@ -413,5 +413,199 @@ The `allowed_redirects` field enforces strict validation:
 6. **Exact matching**: No wildcard or pattern matching support
 7. **Empty arrays**: Valid (falls back to `HOMEPORT_URL` setting)
 
+## OIDC Claim Discovery and Mapping Wizard
+
+Waldur provides API endpoints to help administrators discover available OIDC claims from identity providers and generate appropriate attribute mappings.
+
+### Discover OIDC Metadata
+
+Fetch the OIDC discovery document and get suggested claim mappings for Waldur user fields.
+
+**Endpoint**: `POST /api/identity-providers/discover_metadata/`
+
+**Permissions**: Staff only
+
+**Request**:
+
+```json
+{
+  "discovery_url": "https://idp.example.com/.well-known/openid-configuration",
+  "verify_ssl": true
+}
+```
+
+**Response**:
+
+```json
+{
+  "claims_supported": ["sub", "email", "given_name", "family_name", "schacHomeOrganization"],
+  "scopes_supported": ["openid", "profile", "email"],
+  "endpoints": {
+    "authorization_endpoint": "https://idp.example.com/auth",
+    "token_endpoint": "https://idp.example.com/token",
+    "userinfo_endpoint": "https://idp.example.com/userinfo",
+    "end_session_endpoint": "https://idp.example.com/logout"
+  },
+  "waldur_fields": [
+    {
+      "field": "first_name",
+      "description": "User's first/given name",
+      "suggested_claims": ["given_name", "first_name", "firstName"],
+      "available_claims": ["given_name"]
+    },
+    {
+      "field": "email",
+      "description": "User's email address",
+      "suggested_claims": ["email", "mail", "emailAddress"],
+      "available_claims": ["email"]
+    },
+    {
+      "field": "organization",
+      "description": "User's organization/institution name",
+      "suggested_claims": ["schac_home_organization", "schacHomeOrganization", "org"],
+      "available_claims": ["schacHomeOrganization"]
+    }
+  ],
+  "suggested_scopes": ["email", "openid", "profile"]
+}
+```
+
+**Response Fields**:
+
+| Field | Description |
+|-------|-------------|
+| `claims_supported` | Claims the OIDC provider can return (from discovery document) |
+| `scopes_supported` | Scopes the OIDC provider supports |
+| `endpoints` | OIDC endpoints extracted from discovery document |
+| `waldur_fields` | Waldur User model fields with suggested OIDC claim mappings |
+| `waldur_fields[].field` | Waldur User model field name |
+| `waldur_fields[].description` | Human-readable field description |
+| `waldur_fields[].suggested_claims` | Ordered list of OIDC claims that could map to this field |
+| `waldur_fields[].available_claims` | Claims from this IdP that match the suggestions |
+| `suggested_scopes` | Recommended scopes to request based on available claims |
+
+### Generate Default Mapping
+
+Generate a ready-to-use `attribute_mapping` configuration based on IdP's supported claims.
+
+**Endpoint**: `POST /api/identity-providers/generate-mapping/`
+
+**Permissions**: Staff only
+
+**Request**:
+
+```json
+{
+  "discovery_url": "https://idp.example.com/.well-known/openid-configuration",
+  "verify_ssl": true
+}
+```
+
+**Response**:
+
+```json
+{
+  "attribute_mapping": {
+    "first_name": "given_name",
+    "last_name": "family_name",
+    "email": "email",
+    "organization": "schacHomeOrganization",
+    "affiliations": "voperson_external_affiliation eduperson_scoped_affiliation"
+  },
+  "extra_scope": "email profile eduperson_assurance"
+}
+```
+
+The generated mapping can be used directly when creating or updating an identity provider.
+
+### Wizard Workflow
+
+1. **Discover**: Call `discover_metadata` with the IdP's discovery URL
+2. **Review**: Examine available claims and suggested mappings
+3. **Generate**: Call `generate-mapping` to get a ready-to-use configuration
+4. **Customize**: Modify the generated mapping if needed
+5. **Create**: Use the mapping when creating the identity provider
+
+### Example: Setting Up a New Identity Provider
+
+```bash
+# Step 1: Discover available claims
+curl -X POST https://api.waldur.example.com/api/identity-providers/discover_metadata/ \
+  -H "Authorization: Token YOUR_STAFF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "discovery_url": "https://keycloak.example.com/.well-known/openid-configuration"
+  }'
+
+# Step 2: Generate mapping
+curl -X POST https://api.waldur.example.com/api/identity-providers/generate-mapping/ \
+  -H "Authorization: Token YOUR_STAFF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "discovery_url": "https://keycloak.example.com/.well-known/openid-configuration"
+  }'
+
+# Step 3: Create identity provider with generated mapping
+curl -X POST https://api.waldur.example.com/api/identity-providers/ \
+  -H "Authorization: Token YOUR_STAFF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "keycloak",
+    "label": "Keycloak SSO",
+    "client_id": "waldur-client",
+    "client_secret": "your-secret",
+    "discovery_url": "https://keycloak.example.com/.well-known/openid-configuration",
+    "attribute_mapping": {
+      "first_name": "given_name",
+      "last_name": "family_name",
+      "email": "email",
+      "organization": "schacHomeOrganization"
+    },
+    "extra_scope": "email profile"
+  }'
+```
+
+### Claim Mapping Priority
+
+When generating suggestions, claims are prioritized in this order:
+
+1. **Existing provider defaults**: Claims from Waldur's built-in provider configurations (TARA, eduTEAMS, Keycloak)
+2. **Standard OIDC claims**: Common OIDC claim names (e.g., `given_name`, `email`)
+3. **SCHAC/eduPerson claims**: Research and education federation attributes
+
+This ensures generated mappings are compatible with known working configurations.
+
+### Supported Waldur User Fields
+
+The following user fields can be mapped from OIDC claims:
+
+| Field | Common OIDC Claims | Description |
+|-------|-------------------|-------------|
+| `first_name` | `given_name` | User's first/given name |
+| `last_name` | `family_name` | User's last/family name |
+| `email` | `email`, `mail` | User's email address |
+| `organization` | `schac_home_organization`, `org` | Organization name |
+| `affiliations` | `voperson_external_affiliation` | Organizational affiliations |
+| `civil_number` | `sub`, `schacPersonalUniqueID` | National identity number |
+| `phone_number` | `phone_number` | Phone number |
+| `birth_date` | `birthdate` | Date of birth |
+| `gender` | `gender` | Gender (ISO 5218) |
+| `nationality` | `schacCountryOfCitizenship` | Citizenship country code |
+| `eduperson_assurance` | `eduperson_assurance` | Identity assurance level |
+
+For a complete list, see [User Profile Attributes](user-profile-attributes.md).
+
+### Notes on `claims_supported`
+
+The `claims_supported` field in OIDC discovery is optional per the specification. If an IdP does not provide this field:
+
+- `claims_supported` will be an empty array in the response
+- `available_claims` for each Waldur field will also be empty
+- You can still manually configure `attribute_mapping` based on IdP documentation
+
+In such cases, consider performing a test authentication to discover actual claims returned by the IdP's userinfo endpoint.
+
 ## See Also
+
 - [OIDC Authentication Configuration](admin/configuration-guide.md#waldur_auth_social-plugin)
+- [User Profile Attributes](user-profile-attributes.md)
