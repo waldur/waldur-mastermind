@@ -1395,6 +1395,25 @@ class UserEmailChangeSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
 
+class ProfileCompletenessSerializer(serializers.Serializer):
+    """Serializer for profile completeness check response."""
+
+    is_complete = serializers.BooleanField(
+        help_text="Whether all mandatory profile fields are filled."
+    )
+    missing_fields = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="List of mandatory fields that are missing.",
+    )
+    mandatory_fields = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="List of all mandatory fields.",
+    )
+    enforcement_enabled = serializers.BooleanField(
+        help_text="Whether enforcement of mandatory attributes is enabled.",
+    )
+
+
 class UserActiveStatusCountSerializer(serializers.Serializer):
     """Serializer for user active status counts."""
 

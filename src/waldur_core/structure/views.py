@@ -44,6 +44,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.serializers import EmptySerializer
+from waldur_core.core.user_attributes import get_profile_completeness_details
 from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.logging import event_logger
@@ -1297,7 +1298,7 @@ class UserViewSet(core_views.ActionsViewSet):
 
     @extend_schema(
         summary="Get current user details",
-        description="Get current user details, including authentication token.",
+        description="Get current user details, including authentication token and profile completeness status.",
         parameters=[],
     )
     @action(detail=False, methods=["get"])
@@ -1305,11 +1306,25 @@ class UserViewSet(core_views.ActionsViewSet):
         serializer = self.get_serializer(request.user)
         response_data = serializer.data
         response_data["ip_address"] = get_ip_address(request)
+        response_data["profile_completeness"] = get_profile_completeness_details(
+            request.user
+        )
 
         return Response(
             response_data,
             status=status.HTTP_200_OK,
         )
+
+    @extend_schema(
+        summary="Check profile completeness",
+        description="Check if user profile is complete with all mandatory attributes.",
+        responses={200: serializers.ProfileCompletenessSerializer},
+    )
+    @action(detail=False, methods=["get"])
+    def profile_completeness(self, request):
+        """Check if user profile is complete with all mandatory attributes."""
+        completeness = get_profile_completeness_details(request.user)
+        return Response(completeness, status=status.HTTP_200_OK)
 
     @extend_schema(
         summary="Get user data access visibility",

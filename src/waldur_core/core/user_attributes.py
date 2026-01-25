@@ -89,3 +89,73 @@ def is_attribute_enabled(attribute_name: str) -> bool:
         True if the attribute is enabled (either core or configured)
     """
     return attribute_name in get_enabled_profile_attributes()
+
+
+def get_mandatory_attributes() -> list[str]:
+    """
+    Get the list of mandatory user attributes from Constance.
+
+    Returns:
+        List of attribute names that are configured as mandatory.
+    """
+    return config.MANDATORY_USER_ATTRIBUTES or []
+
+
+def get_user_missing_mandatory_attributes(user) -> list[str]:
+    """
+    Check which mandatory attributes are missing for a user.
+
+    Args:
+        user: User instance to check
+
+    Returns:
+        List of attribute names that are mandatory but missing/empty
+    """
+    mandatory = get_mandatory_attributes()
+    missing = []
+
+    for attr in mandatory:
+        value = getattr(user, attr, None)
+        # Consider empty strings, None, and empty lists as missing
+        if value is None or value == "" or value == []:
+            missing.append(attr)
+
+    return missing
+
+
+def is_user_profile_complete(user) -> bool:
+    """
+    Check if a user has completed all mandatory profile fields.
+
+    Args:
+        user: User instance to check
+
+    Returns:
+        True if all mandatory fields are filled, False otherwise
+    """
+    return len(get_user_missing_mandatory_attributes(user)) == 0
+
+
+def get_profile_completeness_details(user) -> dict:
+    """
+    Get full details about a user's profile completeness.
+
+    Args:
+        user: User instance to check
+
+    Returns:
+        Dictionary containing:
+        - is_complete: bool - whether all mandatory fields are filled
+        - missing_fields: list - fields that are mandatory but missing
+        - mandatory_fields: list - all mandatory fields
+        - enforcement_enabled: bool - whether enforcement is active
+    """
+    mandatory = get_mandatory_attributes()
+    missing = get_user_missing_mandatory_attributes(user)
+
+    return {
+        "is_complete": len(missing) == 0,
+        "missing_fields": missing,
+        "mandatory_fields": mandatory,
+        "enforcement_enabled": config.ENFORCE_MANDATORY_USER_ATTRIBUTES,
+    }
