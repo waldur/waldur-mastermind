@@ -360,6 +360,66 @@
         "service_provider_can_create_offering_user": true
       },
       "getting_started": "## Getting Started with HA Government Kubernetes\n\n### Multi-Datacenter Architecture\n- Primary: Tallinn, Estonia\n- Secondary: Frankfurt, Germany\n- Automatic failover with 99.99% SLA\n\n### Access\n```\nexport KUBECONFIG=~/Downloads/kubeconfig-ha-gov.yaml\nkubectl get nodes --label-columns=topology.kubernetes.io/zone\n```\n\n### Disaster Recovery\n- RPO: 5 minutes\n- RTO: 15 minutes\n- Automatic cross-DC replication\n\n### Compliance\n- All traffic encrypted with government-approved algorithms\n- Data sovereignty guaranteed (EU only)\n\nContact security@gov.cloud for DR testing requests."
+    },
+    {
+      "uuid": "f2000000000000000000000000000001",
+      "name": "Tallinn DC - Secure VPC",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d1000000000000000000000000000001",
+      "customer_uuid": "b1000000000000000000000000000001",
+      "description": "Primary Estonia datacenter for government workloads. OpenStack-based secure virtual private cloud with isolated compute, memory, and storage resources. Located in Tallinn, Estonia.",
+      "plugin_options": {
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with Tallinn DC Secure VPC\n\n### Location\n- **Datacenter**: Tallinn, Estonia (TLL-1)\n- **Availability Zone**: tll-az1\n- **Tier**: III+ certified\n\n### Access\n1. Access OpenStack Horizon dashboard\n2. Use API endpoint for programmatic access\n3. All connections require VPN or dedicated link\n\n### Resources Available\n- Secure vCPU cores with hardware isolation\n- Encrypted RAM (memory encryption at rest)\n- High-performance encrypted block storage\n\n### Compliance\n- ISKE L3 certified\n- GDPR compliant\n- Data residency: Estonia"
+    },
+    {
+      "uuid": "f2000000000000000000000000000002",
+      "name": "Tartu DC - Secure VPC",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d1000000000000000000000000000001",
+      "customer_uuid": "b1000000000000000000000000000001",
+      "description": "Secondary Estonia datacenter for redundancy and disaster recovery. OpenStack-based secure virtual private cloud providing geographic separation from Tallinn DC. Located in Tartu, Estonia.",
+      "plugin_options": {
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with Tartu DC Secure VPC\n\n### Location\n- **Datacenter**: Tartu, Estonia (TRT-1)\n- **Availability Zone**: trt-az1\n- **Tier**: III certified\n\n### DR Capabilities\n- Geographic separation from Tallinn DC (180km)\n- Cross-DC replication available\n- Failover automation supported\n\n### Access\n1. Access OpenStack Horizon dashboard\n2. Use API endpoint for programmatic access\n\n### Compliance\n- ISKE L2 certified\n- GDPR compliant\n- Data residency: Estonia"
+    },
+    {
+      "uuid": "f2000000000000000000000000000003",
+      "name": "Frankfurt DC - EU VPC",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d1000000000000000000000000000001",
+      "customer_uuid": "b1000000000000000000000000000001",
+      "description": "EU datacenter for GDPR-compliant cross-border services. OpenStack-based secure virtual private cloud for EU-wide government cooperation and citizen services. Located in Frankfurt, Germany.",
+      "plugin_options": {
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with Frankfurt DC EU VPC\n\n### Location\n- **Datacenter**: Frankfurt, Germany (FRA-1)\n- **Availability Zone**: fra-az1\n- **Tier**: IV certified\n\n### EU Services\n- Cross-border data exchange\n- EU citizen services hosting\n- GDPR data processing\n\n### Access\n1. Access OpenStack Horizon dashboard\n2. Use API endpoint for programmatic access\n3. Dedicated EU interconnect available\n\n### Compliance\n- BSI C5 certified\n- GDPR compliant\n- Data residency: Germany (EU)"
+    },
+    {
+      "uuid": "f2000000000000000000000000000004",
+      "name": "Helsinki DC - Nordic VPC",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d1000000000000000000000000000001",
+      "customer_uuid": "b1000000000000000000000000000001",
+      "description": "Nordic datacenter for regional cooperation. OpenStack-based secure virtual private cloud for Nordic government cooperation initiatives. Located in Helsinki, Finland.",
+      "plugin_options": {
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with Helsinki DC Nordic VPC\n\n### Location\n- **Datacenter**: Helsinki, Finland (HEL-1)\n- **Availability Zone**: hel-az1\n- **Tier**: III certified\n\n### Nordic Cooperation\n- Nordic Council services\n- Cross-border citizen services\n- Regional data exchange\n\n### Access\n1. Access OpenStack Horizon dashboard\n2. Use API endpoint for programmatic access\n3. Nordic interconnect via NORDUnet\n\n### Compliance\n- Katakri certified\n- GDPR compliant\n- Data residency: Finland (EU/Nordic)"
     }
   ],
   "offering_endpoints": [
@@ -416,6 +476,54 @@
       "offering_uuid": "f1000000000000000000000000000020",
       "name": "DR Status Portal",
       "url": "https://dr-status.gov.cloud/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000001",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "name": "Tallinn DC Horizon Dashboard",
+      "url": "https://tll-horizon.gov.cloud/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000002",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "name": "Tallinn DC API Endpoint",
+      "url": "https://tll-api.gov.cloud:5000/v3/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000003",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "name": "Tartu DC Horizon Dashboard",
+      "url": "https://trt-horizon.gov.cloud/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000004",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "name": "Tartu DC API Endpoint",
+      "url": "https://trt-api.gov.cloud:5000/v3/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000005",
+      "offering_uuid": "f2000000000000000000000000000003",
+      "name": "Frankfurt DC Horizon Dashboard",
+      "url": "https://fra-horizon.gov.cloud/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000006",
+      "offering_uuid": "f2000000000000000000000000000003",
+      "name": "Frankfurt DC API Endpoint",
+      "url": "https://fra-api.gov.cloud:5000/v3/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000007",
+      "offering_uuid": "f2000000000000000000000000000004",
+      "name": "Helsinki DC Horizon Dashboard",
+      "url": "https://hel-horizon.gov.cloud/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000008",
+      "offering_uuid": "f2000000000000000000000000000004",
+      "name": "Helsinki DC API Endpoint",
+      "url": "https://hel-api.gov.cloud:5000/v3/"
     }
   ],
   "offering_components": [
@@ -598,6 +706,114 @@
       "description": "Data transfer between datacenters",
       "billing_type": "usage",
       "measured_unit": "GB"
+    },
+    {
+      "uuid": "c2000000000000000000000000000001",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "type": "cores",
+      "name": "Secure vCPU",
+      "description": "Isolated CPU cores with hardware security",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "c2000000000000000000000000000002",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "type": "ram",
+      "name": "Encrypted RAM",
+      "description": "Memory with encryption at rest",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c2000000000000000000000000000003",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "type": "storage",
+      "name": "Secure Storage",
+      "description": "Encrypted block storage",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c2000000000000000000000000000004",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "type": "cores",
+      "name": "Secure vCPU",
+      "description": "Isolated CPU cores with hardware security",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "c2000000000000000000000000000005",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "type": "ram",
+      "name": "Encrypted RAM",
+      "description": "Memory with encryption at rest",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c2000000000000000000000000000006",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "type": "storage",
+      "name": "Secure Storage",
+      "description": "Encrypted block storage",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c2000000000000000000000000000007",
+      "offering_uuid": "f2000000000000000000000000000003",
+      "type": "cores",
+      "name": "Secure vCPU",
+      "description": "Isolated CPU cores with hardware security",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "c2000000000000000000000000000008",
+      "offering_uuid": "f2000000000000000000000000000003",
+      "type": "ram",
+      "name": "Encrypted RAM",
+      "description": "Memory with encryption at rest",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c2000000000000000000000000000009",
+      "offering_uuid": "f2000000000000000000000000000003",
+      "type": "storage",
+      "name": "Secure Storage",
+      "description": "Encrypted block storage",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c200000000000000000000000000000a",
+      "offering_uuid": "f2000000000000000000000000000004",
+      "type": "cores",
+      "name": "Secure vCPU",
+      "description": "Isolated CPU cores with hardware security",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "c200000000000000000000000000000b",
+      "offering_uuid": "f2000000000000000000000000000004",
+      "type": "ram",
+      "name": "Encrypted RAM",
+      "description": "Memory with encryption at rest",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "c200000000000000000000000000000c",
+      "offering_uuid": "f2000000000000000000000000000004",
+      "type": "storage",
+      "name": "Secure Storage",
+      "description": "Encrypted block storage",
+      "billing_type": "limit",
+      "measured_unit": "GB"
     }
   ],
   "plans": [
@@ -652,6 +868,62 @@
       "offering_uuid": "f1000000000000000000000000000020",
       "unit": "month",
       "description": "Mission-critical multi-DC cluster with 99.99% SLA"
+    },
+    {
+      "uuid": "12000000000000000000000000000001",
+      "name": "Standard VPC",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "unit": "month",
+      "description": "Standard Tallinn DC VPC with 99.9% SLA"
+    },
+    {
+      "uuid": "12000000000000000000000000000002",
+      "name": "Premium VPC",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "unit": "month",
+      "description": "Premium Tallinn DC VPC with 99.99% SLA and 24/7 support"
+    },
+    {
+      "uuid": "12000000000000000000000000000003",
+      "name": "Standard VPC",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "unit": "month",
+      "description": "Standard Tartu DC VPC with 99.9% SLA"
+    },
+    {
+      "uuid": "12000000000000000000000000000004",
+      "name": "Premium VPC",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "unit": "month",
+      "description": "Premium Tartu DC VPC with 99.99% SLA and 24/7 support"
+    },
+    {
+      "uuid": "12000000000000000000000000000005",
+      "name": "Standard VPC",
+      "offering_uuid": "f2000000000000000000000000000003",
+      "unit": "month",
+      "description": "Standard Frankfurt DC VPC with 99.9% SLA"
+    },
+    {
+      "uuid": "12000000000000000000000000000006",
+      "name": "Premium VPC",
+      "offering_uuid": "f2000000000000000000000000000003",
+      "unit": "month",
+      "description": "Premium Frankfurt DC VPC with 99.99% SLA and 24/7 support"
+    },
+    {
+      "uuid": "12000000000000000000000000000007",
+      "name": "Standard VPC",
+      "offering_uuid": "f2000000000000000000000000000004",
+      "unit": "month",
+      "description": "Standard Helsinki DC VPC with 99.9% SLA"
+    },
+    {
+      "uuid": "12000000000000000000000000000008",
+      "name": "Premium VPC",
+      "offering_uuid": "f2000000000000000000000000000004",
+      "unit": "month",
+      "description": "Premium Helsinki DC VPC with 99.99% SLA and 24/7 support"
     }
   ],
   "plan_components": [
@@ -852,6 +1124,150 @@
       "component_uuid": "c1000000000000000000000000000204",
       "price": "0.05",
       "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000001",
+      "price": "10.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000002",
+      "price": "5.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000003",
+      "price": "0.10",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000002",
+      "component_uuid": "c2000000000000000000000000000001",
+      "price": "15.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000002",
+      "component_uuid": "c2000000000000000000000000000002",
+      "price": "7.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000002",
+      "component_uuid": "c2000000000000000000000000000003",
+      "price": "0.15",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000004",
+      "price": "10.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000005",
+      "price": "5.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000006",
+      "price": "0.10",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000004",
+      "component_uuid": "c2000000000000000000000000000004",
+      "price": "15.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000004",
+      "component_uuid": "c2000000000000000000000000000005",
+      "price": "7.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000004",
+      "component_uuid": "c2000000000000000000000000000006",
+      "price": "0.15",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000007",
+      "price": "10.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000008",
+      "price": "5.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000009",
+      "price": "0.10",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000006",
+      "component_uuid": "c2000000000000000000000000000007",
+      "price": "15.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000006",
+      "component_uuid": "c2000000000000000000000000000008",
+      "price": "7.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000006",
+      "component_uuid": "c2000000000000000000000000000009",
+      "price": "0.15",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000007",
+      "component_uuid": "c200000000000000000000000000000a",
+      "price": "10.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000007",
+      "component_uuid": "c200000000000000000000000000000b",
+      "price": "5.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000007",
+      "component_uuid": "c200000000000000000000000000000c",
+      "price": "0.10",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000008",
+      "component_uuid": "c200000000000000000000000000000a",
+      "price": "15.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000008",
+      "component_uuid": "c200000000000000000000000000000b",
+      "price": "7.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000008",
+      "component_uuid": "c200000000000000000000000000000c",
+      "price": "0.15",
+      "amount": 0
     }
   ],
   "resources": [
@@ -1030,6 +1446,350 @@
         "storage": 2000
       },
       "created": "2025-08-02T00:00:00Z"
+    },
+    {
+      "uuid": "d2000000000000000000000000000001",
+      "name": "E-Gov Production VPC",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "project_uuid": "c1000000000000000000000000000001",
+      "plan_uuid": "12000000000000000000000000000002",
+      "state": 2,
+      "attributes": {
+        "datacenter": "tallinn",
+        "datacenter_region": "EE",
+        "availability_zone": "tll-az1",
+        "flavor_distribution": {
+          "m1.small": 5,
+          "m1.medium": 8,
+          "m1.large": 3,
+          "m1.xlarge": 2
+        },
+        "image_distribution": {
+          "Ubuntu 22.04 LTS": 10,
+          "Rocky Linux 9": 5,
+          "Windows Server 2022": 3
+        },
+        "security_groups_count": 12,
+        "floating_ips_count": 8,
+        "networks_count": 4,
+        "routers_count": 2,
+        "volumes_count": 15,
+        "snapshots_count": 8
+      },
+      "limits": {
+        "cores": 32,
+        "ram": 128,
+        "storage": 2048
+      },
+      "created": "2025-01-15T09:00:00Z"
+    },
+    {
+      "uuid": "d2000000000000000000000000000002",
+      "name": "E-Gov Staging VPC",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "project_uuid": "c1000000000000000000000000000001",
+      "plan_uuid": "12000000000000000000000000000001",
+      "state": 2,
+      "attributes": {
+        "datacenter": "tallinn",
+        "datacenter_region": "EE",
+        "availability_zone": "tll-az1",
+        "flavor_distribution": {
+          "m1.small": 8,
+          "m1.medium": 4,
+          "m1.large": 2
+        },
+        "image_distribution": {
+          "Ubuntu 22.04 LTS": 10,
+          "Rocky Linux 9": 4
+        },
+        "security_groups_count": 6,
+        "floating_ips_count": 4,
+        "networks_count": 2,
+        "routers_count": 1,
+        "volumes_count": 8,
+        "snapshots_count": 4
+      },
+      "limits": {
+        "cores": 16,
+        "ram": 64,
+        "storage": 1024
+      },
+      "created": "2025-01-20T10:00:00Z"
+    },
+    {
+      "uuid": "d2000000000000000000000000000003",
+      "name": "Tax Production VPC",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "project_uuid": "c1000000000000000000000000000002",
+      "plan_uuid": "12000000000000000000000000000004",
+      "state": 2,
+      "attributes": {
+        "datacenter": "tartu",
+        "datacenter_region": "EE",
+        "availability_zone": "trt-az1",
+        "flavor_distribution": {
+          "m1.medium": 10,
+          "m1.large": 8,
+          "m1.xlarge": 6,
+          "m1.2xlarge": 4
+        },
+        "image_distribution": {
+          "Rocky Linux 9": 18,
+          "Windows Server 2022": 8,
+          "Oracle Linux 8": 2
+        },
+        "security_groups_count": 24,
+        "floating_ips_count": 12,
+        "networks_count": 6,
+        "routers_count": 3,
+        "volumes_count": 32,
+        "snapshots_count": 16
+      },
+      "limits": {
+        "cores": 48,
+        "ram": 192,
+        "storage": 4096
+      },
+      "created": "2025-02-01T08:00:00Z"
+    },
+    {
+      "uuid": "d2000000000000000000000000000004",
+      "name": "Tax DR VPC",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "project_uuid": "c1000000000000000000000000000002",
+      "plan_uuid": "12000000000000000000000000000003",
+      "state": 2,
+      "attributes": {
+        "datacenter": "tartu",
+        "datacenter_region": "EE",
+        "availability_zone": "trt-az1",
+        "flavor_distribution": {
+          "m1.medium": 6,
+          "m1.large": 4,
+          "m1.xlarge": 2
+        },
+        "image_distribution": {
+          "Rocky Linux 9": 8,
+          "Windows Server 2022": 4
+        },
+        "security_groups_count": 12,
+        "floating_ips_count": 6,
+        "networks_count": 3,
+        "routers_count": 2,
+        "volumes_count": 16,
+        "snapshots_count": 24
+      },
+      "limits": {
+        "cores": 24,
+        "ram": 96,
+        "storage": 2048
+      },
+      "created": "2025-02-15T09:00:00Z"
+    },
+    {
+      "uuid": "d2000000000000000000000000000005",
+      "name": "EU Citizen Services VPC",
+      "offering_uuid": "f2000000000000000000000000000003",
+      "project_uuid": "c1000000000000000000000000000001",
+      "plan_uuid": "12000000000000000000000000000006",
+      "state": 2,
+      "attributes": {
+        "datacenter": "frankfurt",
+        "datacenter_region": "DE",
+        "availability_zone": "fra-az1",
+        "flavor_distribution": {
+          "m1.small": 4,
+          "m1.medium": 6,
+          "m1.large": 4
+        },
+        "image_distribution": {
+          "Ubuntu 22.04 LTS": 8,
+          "Debian 12": 4,
+          "Rocky Linux 9": 2
+        },
+        "security_groups_count": 10,
+        "floating_ips_count": 6,
+        "networks_count": 3,
+        "routers_count": 2,
+        "volumes_count": 12,
+        "snapshots_count": 6
+      },
+      "limits": {
+        "cores": 16,
+        "ram": 64,
+        "storage": 1024
+      },
+      "created": "2025-03-10T11:00:00Z"
+    },
+    {
+      "uuid": "d2000000000000000000000000000006",
+      "name": "GDPR Data Processing VPC",
+      "offering_uuid": "f2000000000000000000000000000003",
+      "project_uuid": "c1000000000000000000000000000002",
+      "plan_uuid": "12000000000000000000000000000005",
+      "state": 2,
+      "attributes": {
+        "datacenter": "frankfurt",
+        "datacenter_region": "DE",
+        "availability_zone": "fra-az1",
+        "flavor_distribution": {
+          "m1.medium": 4,
+          "m1.large": 2
+        },
+        "image_distribution": {
+          "Ubuntu 22.04 LTS": 4,
+          "Rocky Linux 9": 2
+        },
+        "security_groups_count": 8,
+        "floating_ips_count": 2,
+        "networks_count": 2,
+        "routers_count": 1,
+        "volumes_count": 6,
+        "snapshots_count": 4
+      },
+      "limits": {
+        "cores": 8,
+        "ram": 32,
+        "storage": 512
+      },
+      "created": "2025-03-20T14:00:00Z"
+    },
+    {
+      "uuid": "d2000000000000000000000000000007",
+      "name": "Nordic Cooperation VPC",
+      "offering_uuid": "f2000000000000000000000000000004",
+      "project_uuid": "c1000000000000000000000000000001",
+      "plan_uuid": "12000000000000000000000000000007",
+      "state": 2,
+      "attributes": {
+        "datacenter": "helsinki",
+        "datacenter_region": "FI",
+        "availability_zone": "hel-az1",
+        "flavor_distribution": {
+          "m1.small": 4,
+          "m1.medium": 3
+        },
+        "image_distribution": {
+          "Ubuntu 22.04 LTS": 5,
+          "Rocky Linux 9": 2
+        },
+        "security_groups_count": 6,
+        "floating_ips_count": 3,
+        "networks_count": 2,
+        "routers_count": 1,
+        "volumes_count": 6,
+        "snapshots_count": 3
+      },
+      "limits": {
+        "cores": 8,
+        "ram": 32,
+        "storage": 512
+      },
+      "created": "2025-04-20T10:00:00Z"
+    },
+    {
+      "uuid": "d2000000000000000000000000000008",
+      "name": "Cross-Border Services VPC",
+      "offering_uuid": "f2000000000000000000000000000004",
+      "project_uuid": "c1000000000000000000000000000002",
+      "plan_uuid": "12000000000000000000000000000007",
+      "state": 2,
+      "attributes": {
+        "datacenter": "helsinki",
+        "datacenter_region": "FI",
+        "availability_zone": "hel-az1",
+        "flavor_distribution": {
+          "m1.small": 3,
+          "m1.medium": 4
+        },
+        "image_distribution": {
+          "Ubuntu 22.04 LTS": 4,
+          "Debian 12": 3
+        },
+        "security_groups_count": 5,
+        "floating_ips_count": 2,
+        "networks_count": 2,
+        "routers_count": 1,
+        "volumes_count": 5,
+        "snapshots_count": 2
+      },
+      "limits": {
+        "cores": 8,
+        "ram": 32,
+        "storage": 512
+      },
+      "created": "2025-04-25T11:00:00Z"
+    },
+    {
+      "uuid": "d2000000000000000000000000000009",
+      "name": "ISKE Compliance Server",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "project_uuid": "c1000000000000000000000000000001",
+      "plan_uuid": "11000000000000000000000000000002",
+      "state": 2,
+      "attributes": {
+        "compliance_level": "ISKE L3",
+        "purpose": "Security compliance monitoring and audit"
+      },
+      "limits": {
+        "cpu": 4,
+        "ram": 16,
+        "storage": 100
+      },
+      "created": "2025-05-10T09:00:00Z"
+    },
+    {
+      "uuid": "d200000000000000000000000000000a",
+      "name": "Digital Signature Service",
+      "offering_uuid": "f1000000000000000000000000000001",
+      "project_uuid": "c1000000000000000000000000000002",
+      "plan_uuid": "11000000000000000000000000000002",
+      "state": 2,
+      "attributes": {
+        "compliance_level": "eIDAS",
+        "purpose": "Digital signature and document verification"
+      },
+      "limits": {
+        "cpu": 4,
+        "ram": 8,
+        "storage": 50
+      },
+      "created": "2025-05-15T10:00:00Z"
+    },
+    {
+      "uuid": "d200000000000000000000000000000b",
+      "name": "Citizen ID Backup Archive",
+      "offering_uuid": "f1000000000000000000000000000002",
+      "project_uuid": "c1000000000000000000000000000001",
+      "plan_uuid": "11000000000000000000000000000003",
+      "state": 2,
+      "attributes": {
+        "retention_policy": "7 years",
+        "encryption": "AES-256",
+        "purpose": "Long-term citizen ID backup storage"
+      },
+      "limits": {
+        "storage": 5000
+      },
+      "created": "2025-06-01T08:00:00Z"
+    },
+    {
+      "uuid": "d200000000000000000000000000000c",
+      "name": "Tax Declaration Archive",
+      "offering_uuid": "f1000000000000000000000000000002",
+      "project_uuid": "c1000000000000000000000000000002",
+      "plan_uuid": "11000000000000000000000000000003",
+      "state": 2,
+      "attributes": {
+        "retention_policy": "10 years",
+        "encryption": "AES-256",
+        "purpose": "Tax declaration document archive"
+      },
+      "limits": {
+        "storage": 10000
+      },
+      "created": "2025-06-10T09:00:00Z"
     }
   ],
   "user_roles": [
@@ -1127,6 +1887,62 @@
       "offering_uuid": "f1000000000000000000000000000003",
       "user_uuid": "00000000000000000000000000000005",
       "username": "member",
+      "state": 5
+    },
+    {
+      "uuid": "0a200000000000000000000000000001",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "user_uuid": "a1000000000000000000000000000001",
+      "username": "gov_admin",
+      "state": 5
+    },
+    {
+      "uuid": "0a200000000000000000000000000002",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "user_uuid": "00000000000000000000000000000004",
+      "username": "manager",
+      "state": 5
+    },
+    {
+      "uuid": "0a200000000000000000000000000003",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "user_uuid": "a1000000000000000000000000000001",
+      "username": "gov_admin",
+      "state": 5
+    },
+    {
+      "uuid": "0a200000000000000000000000000004",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "user_uuid": "00000000000000000000000000000004",
+      "username": "manager",
+      "state": 5
+    },
+    {
+      "uuid": "0a200000000000000000000000000005",
+      "offering_uuid": "f2000000000000000000000000000003",
+      "user_uuid": "a1000000000000000000000000000001",
+      "username": "gov_admin",
+      "state": 5
+    },
+    {
+      "uuid": "0a200000000000000000000000000006",
+      "offering_uuid": "f2000000000000000000000000000003",
+      "user_uuid": "00000000000000000000000000000004",
+      "username": "manager",
+      "state": 5
+    },
+    {
+      "uuid": "0a200000000000000000000000000007",
+      "offering_uuid": "f2000000000000000000000000000004",
+      "user_uuid": "a1000000000000000000000000000001",
+      "username": "gov_admin",
+      "state": 5
+    },
+    {
+      "uuid": "0a200000000000000000000000000008",
+      "offering_uuid": "f2000000000000000000000000000004",
+      "user_uuid": "00000000000000000000000000000004",
+      "username": "manager",
       "state": 5
     }
   ],
@@ -1320,6 +2136,456 @@
       "billing_period": "2025-12-01",
       "recurring": false,
       "description": "Object storage capacity usage for December 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000001",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000001",
+      "usage": "12.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "E-Gov Production VPC cores usage for September 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000002",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000002",
+      "usage": "48.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "E-Gov Production VPC RAM usage for September 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000003",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000003",
+      "usage": "512.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "E-Gov Production VPC storage usage for September 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000004",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000001",
+      "usage": "16.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "E-Gov Production VPC cores usage for October 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000005",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000002",
+      "usage": "64.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "E-Gov Production VPC RAM usage for October 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000006",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000003",
+      "usage": "768.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "E-Gov Production VPC storage usage for October 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000007",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000001",
+      "usage": "20.00",
+      "date": "2025-11-15T10:00:00",
+      "billing_period": "2025-11-01",
+      "recurring": false,
+      "description": "E-Gov Production VPC cores usage for November 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000008",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000002",
+      "usage": "80.00",
+      "date": "2025-11-15T10:00:00",
+      "billing_period": "2025-11-01",
+      "recurring": false,
+      "description": "E-Gov Production VPC RAM usage for November 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000009",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000003",
+      "usage": "1024.00",
+      "date": "2025-11-15T10:00:00",
+      "billing_period": "2025-11-01",
+      "recurring": false,
+      "description": "E-Gov Production VPC storage usage for November 2025"
+    },
+    {
+      "uuid": "ca20000000000000000000000000000a",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000001",
+      "usage": "28.00",
+      "date": "2025-12-15T10:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "E-Gov Production VPC cores usage for December 2025"
+    },
+    {
+      "uuid": "ca20000000000000000000000000000b",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000002",
+      "usage": "112.00",
+      "date": "2025-12-15T10:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "E-Gov Production VPC RAM usage for December 2025"
+    },
+    {
+      "uuid": "ca20000000000000000000000000000c",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000003",
+      "usage": "1536.00",
+      "date": "2025-12-15T10:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "E-Gov Production VPC storage usage for December 2025"
+    },
+    {
+      "uuid": "ca20000000000000000000000000000d",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000001",
+      "usage": "32.00",
+      "date": "2026-01-15T10:00:00",
+      "billing_period": "2026-01-01",
+      "recurring": false,
+      "description": "E-Gov Production VPC cores usage for January 2026"
+    },
+    {
+      "uuid": "ca20000000000000000000000000000e",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000002",
+      "usage": "128.00",
+      "date": "2026-01-15T10:00:00",
+      "billing_period": "2026-01-01",
+      "recurring": false,
+      "description": "E-Gov Production VPC RAM usage for January 2026"
+    },
+    {
+      "uuid": "ca20000000000000000000000000000f",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "component_uuid": "c2000000000000000000000000000003",
+      "usage": "2048.00",
+      "date": "2026-01-15T10:00:00",
+      "billing_period": "2026-01-01",
+      "recurring": false,
+      "description": "E-Gov Production VPC storage usage for January 2026"
+    },
+    {
+      "uuid": "ca200000000000000000000000000010",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000004",
+      "usage": "24.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Tax Production VPC cores usage for September 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000011",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000005",
+      "usage": "96.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Tax Production VPC RAM usage for September 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000012",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000006",
+      "usage": "1024.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Tax Production VPC storage usage for September 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000013",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000004",
+      "usage": "32.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Tax Production VPC cores usage for October 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000014",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000005",
+      "usage": "128.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Tax Production VPC RAM usage for October 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000015",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000006",
+      "usage": "1536.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Tax Production VPC storage usage for October 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000016",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000004",
+      "usage": "40.00",
+      "date": "2025-11-15T10:00:00",
+      "billing_period": "2025-11-01",
+      "recurring": false,
+      "description": "Tax Production VPC cores usage for November 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000017",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000005",
+      "usage": "160.00",
+      "date": "2025-11-15T10:00:00",
+      "billing_period": "2025-11-01",
+      "recurring": false,
+      "description": "Tax Production VPC RAM usage for November 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000018",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000006",
+      "usage": "2560.00",
+      "date": "2025-11-15T10:00:00",
+      "billing_period": "2025-11-01",
+      "recurring": false,
+      "description": "Tax Production VPC storage usage for November 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000019",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000004",
+      "usage": "44.00",
+      "date": "2025-12-15T10:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Tax Production VPC cores usage for December 2025"
+    },
+    {
+      "uuid": "ca20000000000000000000000000001a",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000005",
+      "usage": "176.00",
+      "date": "2025-12-15T10:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Tax Production VPC RAM usage for December 2025"
+    },
+    {
+      "uuid": "ca20000000000000000000000000001b",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000006",
+      "usage": "3072.00",
+      "date": "2025-12-15T10:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Tax Production VPC storage usage for December 2025"
+    },
+    {
+      "uuid": "ca20000000000000000000000000001c",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000004",
+      "usage": "48.00",
+      "date": "2026-01-15T10:00:00",
+      "billing_period": "2026-01-01",
+      "recurring": false,
+      "description": "Tax Production VPC cores usage for January 2026"
+    },
+    {
+      "uuid": "ca20000000000000000000000000001d",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000005",
+      "usage": "192.00",
+      "date": "2026-01-15T10:00:00",
+      "billing_period": "2026-01-01",
+      "recurring": false,
+      "description": "Tax Production VPC RAM usage for January 2026"
+    },
+    {
+      "uuid": "ca20000000000000000000000000001e",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "component_uuid": "c2000000000000000000000000000006",
+      "usage": "4096.00",
+      "date": "2026-01-15T10:00:00",
+      "billing_period": "2026-01-01",
+      "recurring": false,
+      "description": "Tax Production VPC storage usage for January 2026"
+    },
+    {
+      "uuid": "ca20000000000000000000000000001f",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000007",
+      "usage": "4.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "EU Citizen Services VPC cores usage for September 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000020",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000008",
+      "usage": "16.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "EU Citizen Services VPC RAM usage for September 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000021",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000009",
+      "usage": "256.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "EU Citizen Services VPC storage usage for September 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000022",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000007",
+      "usage": "8.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "EU Citizen Services VPC cores usage for October 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000023",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000008",
+      "usage": "32.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "EU Citizen Services VPC RAM usage for October 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000024",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000009",
+      "usage": "512.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "EU Citizen Services VPC storage usage for October 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000025",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000007",
+      "usage": "12.00",
+      "date": "2025-11-15T10:00:00",
+      "billing_period": "2025-11-01",
+      "recurring": false,
+      "description": "EU Citizen Services VPC cores usage for November 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000026",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000008",
+      "usage": "48.00",
+      "date": "2025-11-15T10:00:00",
+      "billing_period": "2025-11-01",
+      "recurring": false,
+      "description": "EU Citizen Services VPC RAM usage for November 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000027",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000009",
+      "usage": "768.00",
+      "date": "2025-11-15T10:00:00",
+      "billing_period": "2025-11-01",
+      "recurring": false,
+      "description": "EU Citizen Services VPC storage usage for November 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000028",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000007",
+      "usage": "14.00",
+      "date": "2025-12-15T10:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "EU Citizen Services VPC cores usage for December 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000029",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000008",
+      "usage": "56.00",
+      "date": "2025-12-15T10:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "EU Citizen Services VPC RAM usage for December 2025"
+    },
+    {
+      "uuid": "ca20000000000000000000000000002a",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000009",
+      "usage": "896.00",
+      "date": "2025-12-15T10:00:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "EU Citizen Services VPC storage usage for December 2025"
+    },
+    {
+      "uuid": "ca20000000000000000000000000002b",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000007",
+      "usage": "16.00",
+      "date": "2026-01-15T10:00:00",
+      "billing_period": "2026-01-01",
+      "recurring": false,
+      "description": "EU Citizen Services VPC cores usage for January 2026"
+    },
+    {
+      "uuid": "ca20000000000000000000000000002c",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000008",
+      "usage": "64.00",
+      "date": "2026-01-15T10:00:00",
+      "billing_period": "2026-01-01",
+      "recurring": false,
+      "description": "EU Citizen Services VPC RAM usage for January 2026"
+    },
+    {
+      "uuid": "ca20000000000000000000000000002d",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "component_uuid": "c2000000000000000000000000000009",
+      "usage": "1024.00",
+      "date": "2026-01-15T10:00:00",
+      "billing_period": "2026-01-01",
+      "recurring": false,
+      "description": "EU Citizen Services VPC storage usage for January 2026"
     }
   ],
   "component_user_usages": [
@@ -1450,6 +2716,164 @@
       "username": "member",
       "usage": "1100.00",
       "description": "Database queries by member"
+    }
+  ],
+  "orders": [
+    {
+      "uuid": "e2000000000000000000000000000001",
+      "project_uuid": "c1000000000000000000000000000001",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "created_by_uuid": "00000000000000000000000000000004",
+      "plan_uuid": "12000000000000000000000000000002",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "E-Gov Production VPC"
+      },
+      "limits": {
+        "cores": 16,
+        "ram": 64,
+        "storage": 1024
+      },
+      "created": "2025-01-15T09:00:00Z"
+    },
+    {
+      "uuid": "e2000000000000000000000000000002",
+      "project_uuid": "c1000000000000000000000000000002",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "created_by_uuid": "a1000000000000000000000000000001",
+      "plan_uuid": "12000000000000000000000000000004",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "Tax Production VPC"
+      },
+      "limits": {
+        "cores": 24,
+        "ram": 96,
+        "storage": 2048
+      },
+      "created": "2025-02-01T08:00:00Z"
+    },
+    {
+      "uuid": "e2000000000000000000000000000003",
+      "project_uuid": "c1000000000000000000000000000001",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "offering_uuid": "f2000000000000000000000000000003",
+      "created_by_uuid": "00000000000000000000000000000004",
+      "plan_uuid": "12000000000000000000000000000006",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "EU Citizen Services VPC"
+      },
+      "limits": {
+        "cores": 8,
+        "ram": 32,
+        "storage": 512
+      },
+      "created": "2025-03-10T11:00:00Z"
+    },
+    {
+      "uuid": "e2000000000000000000000000000004",
+      "project_uuid": "c1000000000000000000000000000001",
+      "resource_uuid": "d2000000000000000000000000000007",
+      "offering_uuid": "f2000000000000000000000000000004",
+      "created_by_uuid": "00000000000000000000000000000004",
+      "plan_uuid": "12000000000000000000000000000007",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "Nordic Cooperation VPC"
+      },
+      "limits": {
+        "cores": 8,
+        "ram": 32,
+        "storage": 512
+      },
+      "created": "2025-04-20T10:00:00Z"
+    },
+    {
+      "uuid": "e2000000000000000000000000000005",
+      "project_uuid": "c1000000000000000000000000000001",
+      "resource_uuid": "d2000000000000000000000000000001",
+      "offering_uuid": "f2000000000000000000000000000001",
+      "created_by_uuid": "00000000000000000000000000000004",
+      "plan_uuid": "12000000000000000000000000000002",
+      "type": 2,
+      "state": 3,
+      "attributes": {
+        "name": "E-Gov Production VPC",
+        "description": "Scale up for e-government platform launch"
+      },
+      "limits": {
+        "cores": 32,
+        "ram": 128,
+        "storage": 2048
+      },
+      "created": "2025-06-01T09:00:00Z"
+    },
+    {
+      "uuid": "e2000000000000000000000000000006",
+      "project_uuid": "c1000000000000000000000000000002",
+      "resource_uuid": "d2000000000000000000000000000003",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "created_by_uuid": "a1000000000000000000000000000001",
+      "plan_uuid": "12000000000000000000000000000004",
+      "type": 2,
+      "state": 3,
+      "attributes": {
+        "name": "Tax Production VPC",
+        "description": "Storage expansion for tax season data"
+      },
+      "limits": {
+        "cores": 48,
+        "ram": 192,
+        "storage": 4096
+      },
+      "created": "2025-07-15T10:00:00Z"
+    },
+    {
+      "uuid": "e2000000000000000000000000000007",
+      "project_uuid": "c1000000000000000000000000000001",
+      "resource_uuid": "d2000000000000000000000000000005",
+      "offering_uuid": "f2000000000000000000000000000003",
+      "created_by_uuid": "00000000000000000000000000000004",
+      "plan_uuid": "12000000000000000000000000000006",
+      "type": 2,
+      "state": 3,
+      "attributes": {
+        "name": "EU Citizen Services VPC",
+        "description": "Scale for cross-border service expansion"
+      },
+      "limits": {
+        "cores": 16,
+        "ram": 64,
+        "storage": 1024
+      },
+      "created": "2025-08-01T08:00:00Z"
+    },
+    {
+      "uuid": "e2000000000000000000000000000008",
+      "project_uuid": "c1000000000000000000000000000002",
+      "resource_uuid": "d2000000000000000000000000000004",
+      "offering_uuid": "f2000000000000000000000000000002",
+      "created_by_uuid": "a1000000000000000000000000000001",
+      "plan_uuid": "12000000000000000000000000000003",
+      "type": 2,
+      "state": 7,
+      "attributes": {
+        "name": "Tax DR VPC",
+        "description": "DR capacity increase for enhanced resilience"
+      },
+      "limits": {
+        "cores": 48,
+        "ram": 96,
+        "storage": 2048
+      },
+      "created": "2026-01-10T09:00:00Z"
     }
   ],
   "constance_settings": {
