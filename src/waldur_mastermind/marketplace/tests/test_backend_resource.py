@@ -3,8 +3,8 @@ from unittest import mock
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.logging.enums import ObservableObjectType
 from waldur_core.logging.tests import factories as logging_factories
-from waldur_core.logging.utils import ObservableObjectType
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
@@ -322,11 +322,18 @@ class BackendResourceRequestTest(test.APITransactionTestCase):
 
     @mock.patch("waldur_core.logging.tasks.publish_messages")
     def test_create_backend_resource_request(self, mock_publish_messages):
-        logging_factories.EventSubscriptionFactory(
+        event_subscription = logging_factories.EventSubscriptionFactory(
             user=self.fixture.offering_owner,
             observable_objects=[
                 {"object_type": ObservableObjectType.IMPORTABLE_RESOURCES.value}
             ],
+        )
+
+        # Create subscription queue (required for messages to be sent)
+        logging_factories.EventSubscriptionQueueFactory(
+            event_subscription=event_subscription,
+            offering_uuid=self.offering.uuid,
+            object_type=ObservableObjectType.IMPORTABLE_RESOURCES.value,
         )
 
         self.client.force_login(self.fixture.staff)

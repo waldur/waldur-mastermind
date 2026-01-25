@@ -640,3 +640,18 @@ RESOURCE_CHANGE_EVENTS = (
     EventType.MARKETPLACE_RESOURCE_TERMINATE_FAILED,
     EventType.MARKETPLACE_RESOURCE_UPDATE_LIMITS_FAILED,
 )
+
+
+class ObservableObjectType(Enum):
+    ORDER = "order"
+    USER_ROLE = "user_role"
+    RESOURCE = "resource"
+    OFFERING_USER = "offering_user"
+    IMPORTABLE_RESOURCES = "importable_resources"
+    SERVICE_ACCOUNT = "service_account"
+    COURSE_ACCOUNT = "course_account"
+    RESOURCE_PERIODIC_LIMITS = "resource_periodic_limits"
+
+    @classmethod
+    def choices(cls):
+        return [(t.value, t.value) for t in cls]

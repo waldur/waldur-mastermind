@@ -239,6 +239,46 @@ class EventSubscription(UuidMixin, TimeStampedModel, core_models.DescribableMixi
     )
 
 
+class EventSubscriptionQueue(UuidMixin, TimeStampedModel):
+    """Represents a RabbitMQ queue for an event subscription.
+
+    This model tracks queues that have been explicitly created via the API.
+    Receivers must create queues before subscribing via STOMP to ensure
+    queues are created with correct arguments (DLX, max-length, etc.).
+    """
+
+    event_subscription = models.ForeignKey(
+        EventSubscription,
+        on_delete=models.CASCADE,
+        related_name="queues",
+    )
+    offering_uuid = models.UUIDField(
+        help_text=_("UUID of the offering this queue receives events for"),
+    )
+    object_type = models.CharField(
+        max_length=50,
+        help_text=_("Observable object type (e.g., 'resource', 'order')"),
+    )
+
+    class Meta:
+        unique_together = ("event_subscription", "offering_uuid", "object_type")
+        verbose_name = _("Subscription queue")
+        ordering = ["-created"]
+
+    @property
+    def queue_name(self) -> str:
+        """Generate the RabbitMQ queue name."""
+        return f"subscription_{self.event_subscription.uuid.hex}_offering_{self.offering_uuid.hex}_{self.object_type}"
+
+    @property
+    def vhost(self) -> str:
+        """Get the RabbitMQ vhost (user UUID hex)."""
+        return self.event_subscription.user.uuid.hex
+
+    def __str__(self):
+        return self.queue_name
+
+
 class EmailLog(UuidMixin):
     sent_at = models.DateTimeField(auto_now_add=True)
     subject = models.CharField(max_length=255)

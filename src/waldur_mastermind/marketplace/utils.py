@@ -41,7 +41,7 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
 from waldur_core.logging import models as logging_models
 from waldur_core.logging import tasks as logging_tasks
-from waldur_core.logging import utils as logging_utils
+from waldur_core.logging.enums import ObservableObjectType
 from waldur_core.permissions.enums import PermissionEnum, RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
@@ -2351,7 +2351,7 @@ def move_offering(
 def prepare_messages(
     offering: models.Offering,
     message_payload: dict,
-    affected_object: logging_utils.ObservableObjectType,
+    affected_object: ObservableObjectType,
 ) -> list[dict[str, str]]:
     """Helper function to prepare event messages for marketplace events.
 
@@ -2412,6 +2412,22 @@ def prepare_messages(
             )
             continue
 
+        # Check if queue is registered (receiver must request queue creation first)
+        queue_exists = logging_models.EventSubscriptionQueue.objects.filter(
+            event_subscription=event_subscription,
+            offering_uuid=offering.uuid,
+            object_type=affected_object.value,
+        ).exists()
+
+        if not queue_exists:
+            logger.debug(
+                "Queue not registered for subscription %s, offering %s, type %s. Skipping.",
+                event_subscription.uuid.hex,
+                offering.uuid.hex,
+                affected_object.value,
+            )
+            continue
+
         topic_name = f"subscription/{event_subscription.uuid.hex}/offering/{offering.uuid.hex}/{affected_object.value}"
         message_payload["offering_uuid"] = offering.uuid.hex
         message_payload_str = json.dumps(message_payload)
@@ -2435,7 +2451,7 @@ def publish_backend_resource_request(request: models.BackendResourceRequest):
     messages = prepare_messages(
         request.offering,
         payload,
-        logging_utils.ObservableObjectType.IMPORTABLE_RESOURCES,
+        ObservableObjectType.IMPORTABLE_RESOURCES,
     )
     if messages:
         logging_tasks.publish_messages.delay(messages)

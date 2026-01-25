@@ -4,7 +4,7 @@ from django.db import transaction
 from rest_framework.authtoken.models import Token
 
 from waldur_core.logging import models, tasks, utils
-from waldur_core.logging.models import Event, SystemNotification
+from waldur_core.logging.models import Event, EventSubscriptionQueue, SystemNotification
 from waldur_core.logging.tasks import get_matching_hooks
 
 logger = logging.getLogger(__name__)
@@ -31,3 +31,21 @@ def delete_stale_event_subscriptions(sender, instance: Token, **kwargs):
         user,
     )
     utils.delete_stale_subscriptions(stale_event_subscriptions)
+
+
+def cleanup_rabbitmq_queue_on_delete(
+    sender, instance: EventSubscriptionQueue, **kwargs
+):
+    """Delete the corresponding RabbitMQ queue when an EventSubscriptionQueue record is deleted."""
+    from waldur_core.logging.backend import RabbitMQManagementBackend
+
+    rmq_backend = RabbitMQManagementBackend()
+    try:
+        rmq_backend.delete_queue(instance.vhost, instance.queue_name)
+    except Exception as e:
+        logger.warning(
+            "Failed to delete RabbitMQ queue %s in vhost %s: %s",
+            instance.queue_name,
+            instance.vhost,
+            e,
+        )

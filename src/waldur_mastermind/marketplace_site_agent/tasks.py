@@ -5,6 +5,7 @@ from celery import shared_task
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
+from waldur_core.logging import enums as logging_enums
 from waldur_core.logging import models as logging_models
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging import utils as logging_utils
@@ -81,7 +82,7 @@ def sync_resources():
     Processes only resources that users have subscribed to receive updates for.
     """
     offering_ids = get_offering_ids_for_active_subscriptions(
-        logging_utils.ObservableObjectType.RESOURCE.value
+        logging_enums.ObservableObjectType.RESOURCE.value
     )
 
     # Get resources that need updating
@@ -121,7 +122,7 @@ def send_messages_about_pending_orders():
     task execution.
     """
     offering_ids = get_offering_ids_for_active_subscriptions(
-        logging_utils.ObservableObjectType.ORDER.value
+        logging_enums.ObservableObjectType.ORDER.value
     )
 
     one_hour_ago = timezone.now() - datetime.timedelta(hours=1)
@@ -140,7 +141,7 @@ def send_messages_about_pending_orders():
         # Check if content has changed since last send (idempotency)
         if not logging_utils.MessageStateTracker.should_send_message(
             order.uuid.hex,
-            logging_utils.ObservableObjectType.ORDER.value,
+            logging_enums.ObservableObjectType.ORDER.value,
             payload,
         ):
             logger.debug(
@@ -150,12 +151,12 @@ def send_messages_about_pending_orders():
 
         # Add sequence number for consumer-side ordering
         payload["sequence_number"] = logging_utils.get_next_sequence_number(
-            order.uuid.hex, logging_utils.ObservableObjectType.ORDER.value
+            order.uuid.hex, logging_enums.ObservableObjectType.ORDER.value
         )
 
         offering = order.offering
         messages = marketplace_utils.prepare_messages(
-            offering, payload, logging_utils.ObservableObjectType.ORDER
+            offering, payload, logging_enums.ObservableObjectType.ORDER
         )
         if messages:
             logging_tasks.publish_messages.delay(messages)

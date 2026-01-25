@@ -1,5 +1,6 @@
 from waldur_core.checklist import enums as checklist_enums
 from waldur_core.core.enums import GENDER_CHOICES, CoreStates
+from waldur_core.logging.enums import ObservableObjectType
 from waldur_core.onboarding.enums import VerificationStatus
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.users.enums import InvitationState
@@ -88,6 +89,7 @@ SPECTACULAR_SETTINGS = {
         "AssignmentItemStatus": AssignmentItemStatuses.CHOICES,
         "AssignmentSource": AssignmentSources.CHOICES,
         "IssueStatusType": ISSUE_STATUS_TYPE_CHOICES,
+        "ObservableObjectTypeEnum": ObservableObjectType.choices(),
         "GenderEnum": GENDER_CHOICES,
     },
     "VERSION": None,

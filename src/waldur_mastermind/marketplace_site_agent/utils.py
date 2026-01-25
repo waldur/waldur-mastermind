@@ -1,5 +1,6 @@
 import logging
 
+from waldur_core.logging import enums as logging_enums
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging import utils as logging_utils
 from waldur_core.structure import models as structure_models
@@ -55,7 +56,7 @@ def push_resource_update_message(resource: marketplace_models.Resource) -> None:
     # Check if content has changed since last send (idempotency)
     if not logging_utils.MessageStateTracker.should_send_message(
         resource.uuid.hex,
-        logging_utils.ObservableObjectType.RESOURCE.value,
+        logging_enums.ObservableObjectType.RESOURCE.value,
         payload,
     ):
         logger.debug(
@@ -65,13 +66,13 @@ def push_resource_update_message(resource: marketplace_models.Resource) -> None:
 
     # Add sequence number for consumer-side ordering
     payload["sequence_number"] = logging_utils.get_next_sequence_number(
-        resource.uuid.hex, logging_utils.ObservableObjectType.RESOURCE.value
+        resource.uuid.hex, logging_enums.ObservableObjectType.RESOURCE.value
     )
 
     logger.info("Sending resource update message to topic for %s", resource)
 
     messages = marketplace_utils.prepare_messages(
-        resource.offering, payload, logging_utils.ObservableObjectType.RESOURCE
+        resource.offering, payload, logging_enums.ObservableObjectType.RESOURCE
     )
     if messages:
         logging_tasks.publish_messages.delay(messages)
@@ -102,7 +103,7 @@ def push_user_role_sync_message(project: structure_models.Project) -> None:
             "project_name": project.name,
         }
         messages = marketplace_utils.prepare_messages(
-            offering, payload, logging_utils.ObservableObjectType.USER_ROLE
+            offering, payload, logging_enums.ObservableObjectType.USER_ROLE
         )
         all_messages.extend(messages)
     if all_messages:

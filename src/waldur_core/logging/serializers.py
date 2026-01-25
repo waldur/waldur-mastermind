@@ -7,7 +7,7 @@ from rest_framework import serializers
 
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.serializers import RestrictedSerializerMixin
-from waldur_core.logging import backend, event_logger, models, utils
+from waldur_core.logging import backend, enums, event_logger, models
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +187,7 @@ class EventSubscriptionSerializer(serializers.HyperlinkedModelSerializer):
             if not isinstance(item.get("object_type"), str):
                 raise serializers.ValidationError("object_type value must be a string.")
 
-            object_types = [member.value for member in utils.ObservableObjectType]
+            object_types = [member.value for member in enums.ObservableObjectType]
 
             if item.get("object_type") not in object_types:
                 raise serializers.ValidationError(
@@ -230,6 +230,121 @@ class EventSubscriptionSerializer(serializers.HyperlinkedModelSerializer):
             raise serializers.ValidationError("Failed to assign RabbitMQ permissions")
 
         return super().create(validated_data)
+
+
+class EventSubscriptionQueueSerializer(serializers.HyperlinkedModelSerializer):
+    """Serializer for reading EventSubscriptionQueue instances."""
+
+    queue_name = serializers.CharField(read_only=True)
+    vhost = serializers.CharField(read_only=True)
+    event_subscription_uuid = serializers.UUIDField(
+        read_only=True, source="event_subscription.uuid"
+    )
+
+    class Meta:
+        model = models.EventSubscriptionQueue
+        fields = (
+            "uuid",
+            "url",
+            "event_subscription",
+            "event_subscription_uuid",
+            "offering_uuid",
+            "object_type",
+            "queue_name",
+            "vhost",
+            "created",
+        )
+        read_only_fields = ("queue_name", "vhost", "event_subscription")
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "subscription-queue-detail",
+            },
+            "event_subscription": {
+                "lookup_field": "uuid",
+                "view_name": "event-subscription-detail",
+            },
+        }
+
+
+class EventSubscriptionQueueCreateSerializer(serializers.Serializer):
+    """Serializer for creating EventSubscriptionQueue instances."""
+
+    offering_uuid = serializers.UUIDField(
+        help_text="UUID of the offering to receive events for"
+    )
+    object_type = serializers.ChoiceField(
+        choices=[(t.value, t.value) for t in enums.ObservableObjectType],
+        help_text="Type of observable object (e.g., 'resource', 'order')",
+    )
+
+    def validate_offering_uuid(self, value):
+        """Verify user has access to this offering."""
+        from waldur_mastermind.marketplace import models as marketplace_models
+
+        request = self.context.get("request")
+        if not request or not request.user:
+            raise serializers.ValidationError("Authentication required")
+
+        offering_exists = marketplace_models.Offering.objects.filter(
+            uuid=value
+        ).exists()
+        if not offering_exists:
+            raise serializers.ValidationError(
+                f"Offering with UUID {value} does not exist"
+            )
+
+        # Check user has access to the offering
+        user_offerings = marketplace_models.Offering.objects.all().filter_for_user(
+            request.user
+        )
+        if not user_offerings.filter(uuid=value).exists():
+            raise serializers.ValidationError("You do not have access to this offering")
+
+        return value
+
+    @transaction.atomic
+    def create(self, validated_data):
+        event_subscription = self.context["event_subscription"]
+        offering_uuid = validated_data["offering_uuid"]
+        object_type = validated_data["object_type"]
+
+        # Create the EventSubscriptionQueue in the database
+        queue = models.EventSubscriptionQueue.objects.create(
+            event_subscription=event_subscription,
+            offering_uuid=offering_uuid,
+            object_type=object_type,
+        )
+
+        # Create the queue in RabbitMQ with correct arguments
+        rmq_backend = backend.RabbitMQManagementBackend()
+        queue_created = rmq_backend.create_queue(
+            vhost=queue.vhost,
+            queue_name=queue.queue_name,
+            durable=True,
+            auto_delete=False,
+            arguments=backend.SUBSCRIPTION_QUEUE_ARGUMENTS,
+        )
+
+        if not queue_created:
+            logger.error(
+                "Failed to create RabbitMQ queue '%s' in vhost '%s'",
+                queue.queue_name,
+                queue.vhost,
+            )
+            raise serializers.ValidationError(
+                "Failed to create queue in RabbitMQ. Please try again."
+            )
+
+        logger.info(
+            "Created subscription queue '%s' for subscription %s, offering %s, type %s",
+            queue.queue_name,
+            event_subscription.uuid.hex,
+            offering_uuid,
+            object_type,
+        )
+
+        return queue
 
 
 class EventStatsSerializer(serializers.Serializer):
@@ -1003,7 +1118,7 @@ class TopQueueSerializer(serializers.Serializer):
     )
 
 
-class SubscriptionQueuesOverviewSerializer(serializers.Serializer):
+class EventSubscriptionQueuesOverviewSerializer(serializers.Serializer):
     """Serializer for subscription queues overview."""
 
     total_vhosts = serializers.IntegerField(

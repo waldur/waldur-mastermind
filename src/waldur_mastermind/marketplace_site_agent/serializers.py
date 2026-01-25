@@ -1,7 +1,7 @@
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from waldur_core.logging import utils as logging_utils
+from waldur_core.logging import enums as logging_enums
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
 from waldur_mastermind.marketplace_site_agent import enums, models
@@ -175,7 +175,7 @@ class AgentEventSubscriptionCreateSerializer(serializers.Serializer):
     observable_object_type = serializers.ChoiceField(
         choices=[
             (member.value, member.value)
-            for member in logging_utils.ObservableObjectType
+            for member in logging_enums.ObservableObjectType
         ],
         help_text="The type of object to observe for events",
     )

@@ -270,6 +270,110 @@ class AgentIdentityViewSet(ActionsViewSet):
         )
         return Response(output_serializer.data, status=status_code)
 
+    create_queue_permissions = [
+        permission_factory(
+            PermissionEnum.CREATE_OFFERING,
+            ["offering.customer"],
+        )
+    ]
+
+    @extend_schema(
+        description="Create a RabbitMQ queue for receiving events for a specific offering and object type. "
+        "The receiver must call this endpoint before subscribing via STOMP to ensure "
+        "the queue is created with correct arguments (DLX, max-length, etc.).",
+        request=logging_serializers.EventSubscriptionQueueCreateSerializer,
+        responses={
+            200: logging_serializers.EventSubscriptionQueueSerializer,
+            201: logging_serializers.EventSubscriptionQueueSerializer,
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def create_queue(self, request, uuid=None):
+        """
+        Create a RabbitMQ queue for the event subscription.
+
+        This endpoint pre-creates queues with the correct arguments before
+        the receiver subscribes via STOMP. This prevents precondition_failed
+        errors that occur when queues are created with mismatched arguments.
+
+        Returns 200 if queue already exists, 201 if newly created.
+        """
+        agent_identity = self.get_object()
+
+        # Extract object_type from request body for filtering
+        object_type = request.data.get("object_type")
+        if not object_type:
+            return Response(
+                {"detail": "object_type is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Find the user's event subscription that has this object_type in observable_objects
+        event_subscription = logging_models.EventSubscription.objects.filter(
+            user=request.user,
+            observable_objects__contains=[{"object_type": object_type}],
+        ).first()
+
+        if not event_subscription:
+            return Response(
+                {
+                    "detail": f"No event subscription found for object_type '{object_type}'. "
+                    "Please register an event subscription first."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate the full request
+        input_serializer = logging_serializers.EventSubscriptionQueueCreateSerializer(
+            data=request.data,
+            context={
+                "request": request,
+                "event_subscription": event_subscription,
+                "agent_identity": agent_identity,
+            },
+        )
+        input_serializer.is_valid(raise_exception=True)
+
+        offering_uuid = input_serializer.validated_data["offering_uuid"]
+        object_type = input_serializer.validated_data["object_type"]
+
+        # Check if queue already exists
+        existing_queue = logging_models.EventSubscriptionQueue.objects.filter(
+            event_subscription=event_subscription,
+            offering_uuid=offering_uuid,
+            object_type=object_type,
+        ).first()
+
+        if existing_queue:
+            logger.info(
+                "Queue already exists for subscription %s, offering %s, type %s",
+                event_subscription.uuid.hex,
+                offering_uuid,
+                object_type,
+            )
+            # Ensure queue exists in RabbitMQ (idempotent)
+            rmq_backend = logging_backend.RabbitMQManagementBackend()
+            from waldur_core.logging.backend import SUBSCRIPTION_QUEUE_ARGUMENTS
+
+            rmq_backend.create_queue(
+                vhost=existing_queue.vhost,
+                queue_name=existing_queue.queue_name,
+                durable=True,
+                auto_delete=False,
+                arguments=SUBSCRIPTION_QUEUE_ARGUMENTS,
+            )
+            output_serializer = logging_serializers.EventSubscriptionQueueSerializer(
+                existing_queue, context={"request": request}
+            )
+            return Response(output_serializer.data, status=status.HTTP_200_OK)
+
+        # Create new queue
+        queue = input_serializer.save()
+        output_serializer = logging_serializers.EventSubscriptionQueueSerializer(
+            queue, context={"request": request}
+        )
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
+
     cleanup_orphaned_permissions = [structure_permissions.is_staff]
 
     @extend_schema(

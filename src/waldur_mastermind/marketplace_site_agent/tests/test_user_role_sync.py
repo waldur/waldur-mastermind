@@ -4,7 +4,7 @@ from unittest import mock
 from rest_framework import status, test
 from rest_framework.reverse import reverse
 
-from waldur_core.logging import utils as logging_utils
+from waldur_core.logging import enums as logging_enums
 from waldur_core.logging.tests import factories as logging_factories
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING, ResourceStates
@@ -27,8 +27,15 @@ class UserRoleSyncAPITest(test.APITransactionTestCase):
         self.event_subscription = logging_factories.EventSubscriptionFactory(
             user=self.staff_user,
             observable_objects=[
-                {"object_type": logging_utils.ObservableObjectType.USER_ROLE.value}
+                {"object_type": logging_enums.ObservableObjectType.USER_ROLE.value}
             ],
+        )
+
+        # Create subscription queue (required for messages to be sent)
+        logging_factories.EventSubscriptionQueueFactory(
+            event_subscription=self.event_subscription,
+            offering_uuid=self.offering.uuid,
+            object_type=logging_enums.ObservableObjectType.USER_ROLE.value,
         )
 
         self.url = reverse(
@@ -90,6 +97,12 @@ class UserRoleSyncAPITest(test.APITransactionTestCase):
         )
         marketplace_factories.ResourceFactory(
             offering=offering2, project=self.project, state=ResourceStates.OK
+        )
+        # Create subscription queue for the second offering
+        logging_factories.EventSubscriptionQueueFactory(
+            event_subscription=self.event_subscription,
+            offering_uuid=offering2.uuid,
+            object_type=logging_enums.ObservableObjectType.USER_ROLE.value,
         )
         self.client.force_authenticate(self.staff_user)
 

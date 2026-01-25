@@ -141,6 +141,94 @@ class PurgeQueueTest(unittest.TestCase):
             backend.purge_queue("test_vhost", "test_queue")
 
 
+class CreateQueueTest(unittest.TestCase):
+    @patch("waldur_core.logging.backend.settings")
+    @patch("waldur_core.logging.backend.requests.put")
+    def test_create_queue_success(self, mock_put, mock_settings):
+        mock_settings.RABBITMQ = {
+            "HOST": "localhost",
+            "MANAGEMENT_PORT": 15672,
+            "USER": "guest",
+            "PASSWORD": "guest",
+        }
+        mock_response = MagicMock()
+        mock_response.status_code = 201
+        mock_put.return_value = mock_response
+
+        backend = RabbitMQManagementBackend()
+        result = backend.create_queue(
+            "test_vhost",
+            "test_queue",
+            durable=True,
+            auto_delete=False,
+            arguments={"x-max-length": 10000},
+        )
+
+        self.assertTrue(result)
+        mock_put.assert_called_once()
+        call_args = mock_put.call_args
+        self.assertIn("test_vhost", call_args[0][0])
+        self.assertIn("test_queue", call_args[0][0])
+        self.assertEqual(call_args[1]["json"]["durable"], True)
+        self.assertEqual(call_args[1]["json"]["auto_delete"], False)
+        self.assertEqual(call_args[1]["json"]["arguments"]["x-max-length"], 10000)
+
+    @patch("waldur_core.logging.backend.settings")
+    @patch("waldur_core.logging.backend.requests.put")
+    def test_create_queue_already_exists(self, mock_put, mock_settings):
+        mock_settings.RABBITMQ = {
+            "HOST": "localhost",
+            "MANAGEMENT_PORT": 15672,
+            "USER": "guest",
+            "PASSWORD": "guest",
+        }
+        mock_response = MagicMock()
+        mock_response.status_code = 204  # Already exists
+        mock_put.return_value = mock_response
+
+        backend = RabbitMQManagementBackend()
+        result = backend.create_queue("test_vhost", "test_queue")
+
+        self.assertTrue(result)
+
+    @patch("waldur_core.logging.backend.settings")
+    @patch("waldur_core.logging.backend.requests.put")
+    def test_create_queue_precondition_failed(self, mock_put, mock_settings):
+        mock_settings.RABBITMQ = {
+            "HOST": "localhost",
+            "MANAGEMENT_PORT": 15672,
+            "USER": "guest",
+            "PASSWORD": "guest",
+        }
+        mock_response = MagicMock()
+        mock_response.status_code = 409  # Precondition failed (args mismatch)
+        mock_response.text = "PRECONDITIONS_FAILED - inequivalent arg"
+        mock_put.return_value = mock_response
+
+        backend = RabbitMQManagementBackend()
+        result = backend.create_queue("test_vhost", "test_queue")
+
+        self.assertFalse(result)
+
+    @patch("waldur_core.logging.backend.settings")
+    @patch("waldur_core.logging.backend.requests.put")
+    def test_create_queue_connection_error(self, mock_put, mock_settings):
+        import requests
+
+        mock_settings.RABBITMQ = {
+            "HOST": "localhost",
+            "MANAGEMENT_PORT": 15672,
+            "USER": "guest",
+            "PASSWORD": "guest",
+        }
+        mock_put.side_effect = requests.RequestException("Connection failed")
+
+        backend = RabbitMQManagementBackend()
+        result = backend.create_queue("test_vhost", "test_queue")
+
+        self.assertFalse(result)
+
+
 class ListAllSubscriptionQueuesTest(unittest.TestCase):
     @patch("waldur_core.logging.backend.settings")
     @patch.object(RabbitMQManagementBackend, "list_rabbitmq_virtual_hosts")

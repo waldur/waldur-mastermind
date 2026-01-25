@@ -22,8 +22,7 @@ from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.core.models import User
 from waldur_core.logging import event_logger
 from waldur_core.logging import tasks as logging_tasks
-from waldur_core.logging import utils as logging_utils
-from waldur_core.logging.enums import EventType
+from waldur_core.logging.enums import EventType, ObservableObjectType
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import Customer, Project
 from waldur_core.users import models as users_models
@@ -2181,7 +2180,7 @@ def send_offering_user_created_message(
     messages = marketplace_utils.prepare_messages(
         offering,
         payload,
-        logging_utils.ObservableObjectType.OFFERING_USER,
+        ObservableObjectType.OFFERING_USER,
     )
     if messages:
         logging_tasks.publish_messages.delay(messages)
@@ -2217,7 +2216,7 @@ def send_offering_user_updated_message(
     messages = marketplace_utils.prepare_messages(
         offering,
         payload,
-        logging_utils.ObservableObjectType.OFFERING_USER,
+        ObservableObjectType.OFFERING_USER,
     )
     if messages:
         logging_tasks.publish_messages.delay(messages)
@@ -2242,7 +2241,7 @@ def send_offering_user_deleted_message(sender, instance: models.OfferingUser, **
     messages = marketplace_utils.prepare_messages(
         offering,
         payload,
-        logging_utils.ObservableObjectType.OFFERING_USER,
+        ObservableObjectType.OFFERING_USER,
     )
     if messages:
         logging_tasks.publish_messages.delay(messages)
