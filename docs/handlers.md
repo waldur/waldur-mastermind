@@ -36,6 +36,7 @@ td:nth-child(4) {
 | `change_email_has_been_requested` | `Django Signal (post_save)` | `core.ChangeEmailRequest` | Send a notification when a user requests to change their email. |
 | `change_users_quota` | `Custom Signal (role_granted)` | `—` | Update the user count quota for a customer when a user's role is changed. |
 | `change_users_quota` | `Custom Signal (role_revoked)` | `—` | Update the user count quota for a customer when a user's role is changed. |
+| `cleanup_rabbitmq_queue_on_delete` | `Django Signal (pre_delete)` | `logging.EventSubscriptionQueue` | Delete the corresponding RabbitMQ queue when an EventSubscriptionQueue record is deleted. |
 | `constance_updated` | `Custom Signal (config_updated)` | `—` | Clear the API configuration cache when a Constance setting is updated. |
 | `create_auth_token` | `Django Signal (post_save)` | `core.User` | Create a token for a new user. |
 | `create_existing_projects_completions` | `Django Signal (post_save)` | `structure.Customer` | Create ChecklistCompletion for existing projects when customer checklist is updated. |
@@ -784,11 +785,11 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 705
+Total unique handlers found: 706
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 354 handlers
+- **waldur_core**: 355 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
 - **waldur_mastermind**: 293 handlers

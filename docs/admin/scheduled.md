@@ -33,6 +33,7 @@ td:nth-child(4) {
 | `cleanup-dangling-user-actions` | `waldur_core.user_actions.cleanup_dangling_user_actions` | Cron: `30 3 * * * (m/h/dM/MY/d)` | Clean up user actions pointing to non-existent objects (fallback periodic cleanup) |
 | `cleanup-expired-silenced-actions` | `waldur_core.user_actions.cleanup_expired_silenced_actions` | Cron: `0 2 * * * (m/h/dM/MY/d)` | Remove or unsilence actions with expired temporary silence |
 | `cleanup-old-action-executions` | `waldur_core.user_actions.cleanup_old_action_executions` | Cron: `0 1 * * 0 (m/h/dM/MY/d)` | Clean up old action execution records |
+| `cleanup-orphan-subscription-queues` | `waldur_core.logging.cleanup_orphan_subscription_queues` | 6 hours | Delete RabbitMQ subscription queues that have no matching DB record.<br><br> This handles cases where:<br> - The pre_delete signal failed to clean up a queue<br> - DB records were deleted manually without triggering signals<br> - Data corruption left orphaned queues in RabbitMQ |
 | `cleanup-orphaned-answers` | `waldur_core.checklist.cleanup_orphaned_answers` | 1 day | Task not found in registry |
 | `cleanup_stale_offering_users` | `waldur_mastermind.marketplace.cleanup_stale_offering_users` | 1 day | Periodic task to clean up offering users who no longer have project access. |
 | `core-reset-updating-resources` | `waldur_core.reset_updating_resources` | 10 minutes | Reset resources stuck in UPDATING state when their Celery tasks are completed. |
