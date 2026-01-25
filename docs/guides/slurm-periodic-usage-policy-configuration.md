@@ -20,8 +20,8 @@ The `SlurmPeriodicUsagePolicy` enables automatic management of SLURM resource al
 
 ### SLURM-Specific Actions
 
-1. **`request_downscaling`** - Apply slowdown QoS (sets `resource.downscaled = True`)
-2. **`request_pausing`** - Apply blocked QoS (sets `resource.paused = True`)
+1. **`request_slurm_resource_downscaling`** - Apply slowdown QoS (sets `resource.downscaled = True`)
+2. **`request_slurm_resource_pausing`** - Apply blocked QoS (sets `resource.paused = True`)
 
 ## How It Works
 
@@ -29,16 +29,16 @@ The `SlurmPeriodicUsagePolicy` enables automatic management of SLURM resource al
 
 The policy checks usage percentages and triggers actions at different thresholds:
 
-- **80%**: Notification threshold (configurable)
-- **100%**: Normal threshold - triggers `request_downscaling`
-- **120%** (with 20% grace): Grace limit - triggers `request_pausing`
+- **80%**: Notification threshold (hardcoded)
+- **100%**: Normal threshold - triggers `request_slurm_resource_downscaling`
+- **120%** (with 20% grace): Grace limit - triggers `request_slurm_resource_pausing`
 
 ### Site Agent Integration
 
 When actions are triggered:
 
-1. `request_downscaling` → Site agent applies `qos_downscaled` (e.g., "limited")
-2. `request_pausing` → Site agent applies `qos_paused` (e.g., "paused")
+1. `request_slurm_resource_downscaling` → Site agent applies `qos_downscaled` (e.g., "limited")
+2. `request_slurm_resource_pausing` → Site agent applies `qos_paused` (e.g., "paused")
 3. Normal state → Site agent applies `qos_default` (e.g., "normal")
 
 ## Configuration Examples
@@ -66,7 +66,7 @@ Apply slowdown at 100% usage with notifications:
 ```python
 policy = models.SlurmPeriodicUsagePolicy.objects.create(
     offering=slurm_offering,
-    actions="notify_organization_owners,request_downscaling",
+    actions="notify_organization_owners,request_slurm_resource_downscaling",
     apply_to_all=True,
     grace_ratio=0.2,
     carryover_enabled=True,
@@ -81,7 +81,7 @@ Complete enforcement with notifications, slowdown, and blocking:
 # Policy for 100% threshold
 threshold_policy = models.SlurmPeriodicUsagePolicy.objects.create(
     offering=slurm_offering,
-    actions="notify_organization_owners,request_downscaling,block_creation_of_new_resources",
+    actions="notify_organization_owners,request_slurm_resource_downscaling,block_creation_of_new_resources",
     apply_to_all=True,
     grace_ratio=0.2,
     carryover_enabled=True,
@@ -90,7 +90,7 @@ threshold_policy = models.SlurmPeriodicUsagePolicy.objects.create(
 # Additional policy for grace limit (would need separate instance)
 grace_policy = models.SlurmPeriodicUsagePolicy.objects.create(
     offering=slurm_offering,
-    actions="notify_external_user,request_pausing",
+    actions="notify_external_user,request_slurm_resource_pausing",
     apply_to_all=True,
     grace_ratio=0.2,
     options={"notify_external_user": "hpc-admin@example.com"},
@@ -106,7 +106,7 @@ research_group = OrganizationGroup.objects.get(name="Research Universities")
 
 policy = models.SlurmPeriodicUsagePolicy.objects.create(
     offering=slurm_offering,
-    actions="request_downscaling",
+    actions="request_slurm_resource_downscaling",
     apply_to_all=False,  # Not universal
     grace_ratio=0.3,  # 30% grace for research
     carryover_enabled=True,
@@ -168,7 +168,7 @@ offerings:
 # 1000 node-hours per quarter with 20% grace
 policy = models.SlurmPeriodicUsagePolicy.objects.create(
     offering=academic_slurm,
-    actions="notify_organization_owners,request_downscaling",
+    actions="notify_organization_owners,request_slurm_resource_downscaling",
     apply_to_all=True,
     limit_type="GrpTRESMins",
     grace_ratio=0.2,
@@ -190,7 +190,7 @@ models.OfferingComponentLimit.objects.create(
 # No grace period, immediate blocking
 policy = models.SlurmPeriodicUsagePolicy.objects.create(
     offering=commercial_slurm,
-    actions="request_pausing,block_creation_of_new_resources",
+    actions="request_slurm_resource_pausing,block_creation_of_new_resources",
     apply_to_all=True,
     grace_ratio=0.0,  # No grace period
     carryover_enabled=False,  # No carryover
@@ -217,12 +217,12 @@ policy.organization_groups.add(consortium_members)
 ### Create Policy via API
 
 ```bash
-curl -X POST https://waldur.example.com/api/marketplace-offering-usage-policies/ \
+curl -X POST https://waldur.example.com/api/marketplace-slurm-periodic-usage-policies/ \
   -H "Authorization: Token YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "scope": "OFFERING_UUID",
-    "actions": "notify_organization_owners,request_downscaling",
+    "actions": "notify_organization_owners,request_slurm_resource_downscaling",
     "apply_to_all": true,
     "grace_ratio": 0.2,
     "carryover_enabled": true,
@@ -238,7 +238,7 @@ curl -X POST https://waldur.example.com/api/marketplace-offering-usage-policies/
 ### Check Policy Status
 
 ```bash
-curl https://waldur.example.com/api/marketplace-offering-usage-policies/POLICY_UUID/ \
+curl https://waldur.example.com/api/marketplace-slurm-periodic-usage-policies/POLICY_UUID/ \
   -H "Authorization: Token YOUR_TOKEN"
 ```
 

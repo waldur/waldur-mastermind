@@ -153,6 +153,12 @@
       "title": "Container Orchestration",
       "description": "Kubernetes clusters and container management services",
       "group_uuid": "a1b2c3d4e5f6789012345678abcdef01"
+    },
+    {
+      "uuid": "00c00000000000000000000000000001",
+      "title": "HPC",
+      "description": "High Performance Computing resources including SLURM-managed clusters",
+      "group_uuid": "a1b2c3d4e5f6789012345678abcdef01"
     }
   ],
   "service_providers": [
@@ -191,7 +197,7 @@
       "getting_started": "## Getting Started with Block Storage\n\n1. **Attach the volume**: The storage volume will be attached to your VM as a new device\n\n2. **Format the volume** (first time only):\n   ```\n   sudo mkfs.ext4 /dev/vdb\n   ```\n\n3. **Mount the volume**:\n   ```\n   sudo mkdir -p /mnt/data\n   sudo mount /dev/vdb /mnt/data\n   ```\n\n4. **Make it persistent**: Add to /etc/fstab for automatic mounting on reboot\n\nFor support, contact support@demo.waldur.com"
     },
     {
-      "uuid": "k8s00000000000000000000000000010",
+      "uuid": "08500000000000000000000000000010",
       "name": "Kubernetes Cluster (Single Datacenter)",
       "type": "Support.OfferingTemplate",
       "state": 2,
@@ -206,7 +212,7 @@
         ],
         "options": {
           "cluster_config": {
-            "type": "single_datacenter_k8s_config",
+            "type": "single_datacenter_085_config",
             "label": "Cluster Configuration",
             "help_text": "Configure your Kubernetes cluster including controller nodes, load balancers, and worker node groups",
             "required": true,
@@ -230,7 +236,7 @@
         }
       },
       "plugin_options": {
-        "backend_type": "k8s-single-dc",
+        "backend_type": "085-single-dc",
         "service_type": "kubernetes-cluster",
         "deployment_mode": "managed",
         "service_provider_can_create_offering_user": true
@@ -238,7 +244,7 @@
       "getting_started": "## Getting Started with Kubernetes Cluster\n\n1. **Access the cluster**:\n   Download your kubeconfig from the resource details page\n   ```\n   export KUBECONFIG=~/Downloads/kubeconfig.yaml\n   kubectl get nodes\n   ```\n\n2. **Deploy an application**:\n   ```\n   kubectl create deployment nginx --image=nginx\n   kubectl expose deployment nginx --port=80 --type=LoadBalancer\n   ```\n\n3. **Monitor your cluster**:\n   Access Grafana dashboard from the endpoints section\n\nFor support, contact support@demo.waldur.com"
     },
     {
-      "uuid": "k8s00000000000000000000000000020",
+      "uuid": "08500000000000000000000000000020",
       "name": "Kubernetes Cluster (Multi Datacenter)",
       "type": "Support.OfferingTemplate",
       "state": 2,
@@ -253,7 +259,7 @@
         ],
         "options": {
           "cluster_config": {
-            "type": "multi_datacenter_k8s_config",
+            "type": "multi_datacenter_085_config",
             "label": "Multi-Datacenter Cluster Configuration",
             "help_text": "Configure your Kubernetes cluster across multiple datacenters for high availability and disaster recovery",
             "required": true,
@@ -277,13 +283,32 @@
         }
       },
       "plugin_options": {
-        "backend_type": "k8s-multi-dc",
+        "backend_type": "085-multi-dc",
         "service_type": "kubernetes-cluster",
         "deployment_mode": "managed",
         "high_availability": true,
         "service_provider_can_create_offering_user": true
       },
       "getting_started": "## Getting Started with Multi-Datacenter Kubernetes Cluster\n\n1. **Access the cluster**:\n   Download your kubeconfig from the resource details page\n   ```\n   export KUBECONFIG=~/Downloads/kubeconfig.yaml\n   kubectl get nodes -o wide\n   ```\n\n2. **View datacenter distribution**:\n   ```\n   kubectl get nodes --label-columns=topology.kubernetes.io/zone\n   ```\n\n3. **Deploy a geo-distributed application**:\n   ```\n   kubectl apply -f https://raw.githubusercontent.com/kubernetes/examples/master/guestbook/all-in-one/guestbook-all-in-one.yaml\n   ```\n\n4. **Monitor cluster health**:\n   Access the federation dashboard from the endpoints section\n\nFor support, contact support@demo.waldur.com"
+    },
+    {
+      "uuid": "00500000000000000000000000000001",
+      "name": "HPC Cluster Access",
+      "type": "Marketplace.Slurm",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "00c00000000000000000000000000001",
+      "customer_uuid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "description": "SLURM-managed High Performance Computing cluster with CPU, memory, and GPU resources. Features periodic usage policies with QoS-based threshold enforcement, carryover logic, and fairshare decay.",
+      "plugin_options": {
+        "slurm_periodic_policy_enabled": true,
+        "service_provider_can_create_offering_user": true,
+        "hostname": "hpc-cluster.demo.waldur.com",
+        "username": "waldur-agent",
+        "default_account": "demo"
+      },
+      "getting_started": "## Getting Started with HPC Cluster\n\n1. **SSH Access**: Connect to the login node\n   ```\n   ssh username@hpc-cluster.demo.waldur.com\n   ```\n\n2. **Check available resources**:\n   ```\n   sinfo -N -l\n   squeue -u $USER\n   ```\n\n3. **Submit a job**:\n   ```\n   sbatch --time=01:00:00 --cpus-per-task=4 --mem=8G my_script.sh\n   ```\n\n4. **Monitor usage**:\n   View your allocation usage in the Waldur dashboard\n\nFor support, contact support@demo.waldur.com"
     }
   ],
   "offering_endpoints": [
@@ -306,28 +331,40 @@
       "url": "https://storage.demo.waldur.com/dashboard/"
     },
     {
-      "uuid": "k8s00000000000000000000000000011",
-      "offering_uuid": "k8s00000000000000000000000000010",
+      "uuid": "08500000000000000000000000000011",
+      "offering_uuid": "08500000000000000000000000000010",
       "name": "Kubernetes Dashboard",
-      "url": "https://k8s.demo.waldur.com/dashboard/"
+      "url": "https://085.demo.waldur.com/dashboard/"
     },
     {
-      "uuid": "k8s00000000000000000000000000012",
-      "offering_uuid": "k8s00000000000000000000000000010",
+      "uuid": "08500000000000000000000000000012",
+      "offering_uuid": "08500000000000000000000000000010",
       "name": "Grafana Monitoring",
       "url": "https://grafana.demo.waldur.com/"
     },
     {
-      "uuid": "k8s00000000000000000000000000021",
-      "offering_uuid": "k8s00000000000000000000000000020",
+      "uuid": "08500000000000000000000000000021",
+      "offering_uuid": "08500000000000000000000000000020",
       "name": "Federation Dashboard",
       "url": "https://federation.demo.waldur.com/dashboard/"
     },
     {
-      "uuid": "k8s00000000000000000000000000022",
-      "offering_uuid": "k8s00000000000000000000000000020",
+      "uuid": "08500000000000000000000000000022",
+      "offering_uuid": "08500000000000000000000000000020",
       "name": "Multi-DC Monitoring",
       "url": "https://multidc-grafana.demo.waldur.com/"
+    },
+    {
+      "uuid": "005e0000000000000000000000000001",
+      "offering_uuid": "00500000000000000000000000000001",
+      "name": "HPC Documentation",
+      "url": "https://docs.demo.waldur.com/hpc/"
+    },
+    {
+      "uuid": "005e0000000000000000000000000002",
+      "offering_uuid": "00500000000000000000000000000001",
+      "name": "Job Queue Status",
+      "url": "https://hpc-cluster.demo.waldur.com/status/"
     }
   ],
   "offering_components": [
@@ -386,8 +423,8 @@
       "measured_unit": "GB"
     },
     {
-      "uuid": "k8s000000000000000000000000c0001",
-      "offering_uuid": "k8s00000000000000000000000000010",
+      "uuid": "085000000000000000000000000c0001",
+      "offering_uuid": "08500000000000000000000000000010",
       "type": "vcpu",
       "name": "Virtual CPUs",
       "description": "Total vCPU cores allocated to the cluster",
@@ -395,8 +432,8 @@
       "measured_unit": "cores"
     },
     {
-      "uuid": "k8s000000000000000000000000c0002",
-      "offering_uuid": "k8s00000000000000000000000000010",
+      "uuid": "085000000000000000000000000c0002",
+      "offering_uuid": "08500000000000000000000000000010",
       "type": "ram",
       "name": "Memory",
       "description": "Total RAM allocated to the cluster",
@@ -404,8 +441,8 @@
       "measured_unit": "GB"
     },
     {
-      "uuid": "k8s000000000000000000000000c0003",
-      "offering_uuid": "k8s00000000000000000000000000010",
+      "uuid": "085000000000000000000000000c0003",
+      "offering_uuid": "08500000000000000000000000000010",
       "type": "storage",
       "name": "Storage",
       "description": "Persistent storage for the cluster",
@@ -413,8 +450,8 @@
       "measured_unit": "GB"
     },
     {
-      "uuid": "k8s000000000000000000000000c0004",
-      "offering_uuid": "k8s00000000000000000000000000010",
+      "uuid": "085000000000000000000000000c0004",
+      "offering_uuid": "08500000000000000000000000000010",
       "type": "node_hours",
       "name": "Node Hours",
       "description": "Compute node hours consumed",
@@ -422,8 +459,8 @@
       "measured_unit": "hours"
     },
     {
-      "uuid": "k8s000000000000000000000000c0011",
-      "offering_uuid": "k8s00000000000000000000000000020",
+      "uuid": "085000000000000000000000000c0011",
+      "offering_uuid": "08500000000000000000000000000020",
       "type": "vcpu",
       "name": "Virtual CPUs",
       "description": "Total vCPU cores allocated across all datacenters",
@@ -431,8 +468,8 @@
       "measured_unit": "cores"
     },
     {
-      "uuid": "k8s000000000000000000000000c0012",
-      "offering_uuid": "k8s00000000000000000000000000020",
+      "uuid": "085000000000000000000000000c0012",
+      "offering_uuid": "08500000000000000000000000000020",
       "type": "ram",
       "name": "Memory",
       "description": "Total RAM allocated across all datacenters",
@@ -440,8 +477,8 @@
       "measured_unit": "GB"
     },
     {
-      "uuid": "k8s000000000000000000000000c0013",
-      "offering_uuid": "k8s00000000000000000000000000020",
+      "uuid": "085000000000000000000000000c0013",
+      "offering_uuid": "08500000000000000000000000000020",
       "type": "storage",
       "name": "Storage",
       "description": "Persistent storage for the multi-datacenter cluster",
@@ -449,8 +486,8 @@
       "measured_unit": "GB"
     },
     {
-      "uuid": "k8s000000000000000000000000c0014",
-      "offering_uuid": "k8s00000000000000000000000000020",
+      "uuid": "085000000000000000000000000c0014",
+      "offering_uuid": "08500000000000000000000000000020",
       "type": "node_hours",
       "name": "Node Hours",
       "description": "Compute node hours consumed across all datacenters",
@@ -458,13 +495,40 @@
       "measured_unit": "hours"
     },
     {
-      "uuid": "k8s000000000000000000000000c0015",
-      "offering_uuid": "k8s00000000000000000000000000020",
+      "uuid": "085000000000000000000000000c0015",
+      "offering_uuid": "08500000000000000000000000000020",
       "type": "cross_dc_traffic",
       "name": "Cross-DC Traffic",
       "description": "Data transfer between datacenters",
       "billing_type": "usage",
       "measured_unit": "GB"
+    },
+    {
+      "uuid": "005c0000000000000000000000000001",
+      "offering_uuid": "00500000000000000000000000000001",
+      "type": "cpu",
+      "name": "CPU Hours",
+      "description": "CPU core hours consumed by SLURM jobs",
+      "billing_type": "usage",
+      "measured_unit": "hours"
+    },
+    {
+      "uuid": "005c0000000000000000000000000002",
+      "offering_uuid": "00500000000000000000000000000001",
+      "type": "ram",
+      "name": "Memory Hours",
+      "description": "Memory (GB) hours consumed by SLURM jobs",
+      "billing_type": "usage",
+      "measured_unit": "GB-hours"
+    },
+    {
+      "uuid": "005c0000000000000000000000000003",
+      "offering_uuid": "00500000000000000000000000000001",
+      "type": "gpu",
+      "name": "GPU Hours",
+      "description": "GPU hours consumed by SLURM jobs",
+      "billing_type": "usage",
+      "measured_unit": "hours"
     }
   ],
   "plans": [
@@ -487,32 +551,39 @@
       "unit": "month"
     },
     {
-      "uuid": "k8s0000000000000000000000000p001",
+      "uuid": "08500000000000000000000000000a01",
       "name": "Development",
-      "offering_uuid": "k8s00000000000000000000000000010",
+      "offering_uuid": "08500000000000000000000000000010",
       "unit": "month",
       "description": "Development and testing clusters"
     },
     {
-      "uuid": "k8s0000000000000000000000000p002",
+      "uuid": "08500000000000000000000000000a02",
       "name": "Production",
-      "offering_uuid": "k8s00000000000000000000000000010",
+      "offering_uuid": "08500000000000000000000000000010",
       "unit": "month",
       "description": "Production-ready clusters with SLA"
     },
     {
-      "uuid": "k8s0000000000000000000000000p011",
+      "uuid": "08500000000000000000000000000a11",
       "name": "Multi-DC Standard",
-      "offering_uuid": "k8s00000000000000000000000000020",
+      "offering_uuid": "08500000000000000000000000000020",
       "unit": "month",
       "description": "Standard multi-datacenter cluster"
     },
     {
-      "uuid": "k8s0000000000000000000000000p012",
+      "uuid": "08500000000000000000000000000a12",
       "name": "Multi-DC Enterprise",
-      "offering_uuid": "k8s00000000000000000000000000020",
+      "offering_uuid": "08500000000000000000000000000020",
       "unit": "month",
       "description": "Enterprise multi-datacenter cluster with premium support"
+    },
+    {
+      "uuid": "005a0000000000000000000000000001",
+      "name": "Standard HPC Allocation",
+      "offering_uuid": "00500000000000000000000000000001",
+      "unit": "month",
+      "description": "Standard HPC allocation with CPU, memory, and GPU resources"
     }
   ],
   "plan_components": [
@@ -583,111 +654,129 @@
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p001",
-      "component_uuid": "k8s000000000000000000000000c0001",
+      "plan_uuid": "08500000000000000000000000000a01",
+      "component_uuid": "085000000000000000000000000c0001",
       "price": "3.00",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p001",
-      "component_uuid": "k8s000000000000000000000000c0002",
+      "plan_uuid": "08500000000000000000000000000a01",
+      "component_uuid": "085000000000000000000000000c0002",
       "price": "1.50",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p001",
-      "component_uuid": "k8s000000000000000000000000c0003",
+      "plan_uuid": "08500000000000000000000000000a01",
+      "component_uuid": "085000000000000000000000000c0003",
       "price": "0.05",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p001",
-      "component_uuid": "k8s000000000000000000000000c0004",
+      "plan_uuid": "08500000000000000000000000000a01",
+      "component_uuid": "085000000000000000000000000c0004",
       "price": "0.02",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p002",
-      "component_uuid": "k8s000000000000000000000000c0001",
+      "plan_uuid": "08500000000000000000000000000a02",
+      "component_uuid": "085000000000000000000000000c0001",
       "price": "4.00",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p002",
-      "component_uuid": "k8s000000000000000000000000c0002",
+      "plan_uuid": "08500000000000000000000000000a02",
+      "component_uuid": "085000000000000000000000000c0002",
       "price": "2.00",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p002",
-      "component_uuid": "k8s000000000000000000000000c0003",
+      "plan_uuid": "08500000000000000000000000000a02",
+      "component_uuid": "085000000000000000000000000c0003",
       "price": "0.08",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p002",
-      "component_uuid": "k8s000000000000000000000000c0004",
+      "plan_uuid": "08500000000000000000000000000a02",
+      "component_uuid": "085000000000000000000000000c0004",
       "price": "0.03",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p011",
-      "component_uuid": "k8s000000000000000000000000c0011",
+      "plan_uuid": "08500000000000000000000000000a11",
+      "component_uuid": "085000000000000000000000000c0011",
       "price": "5.00",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p011",
-      "component_uuid": "k8s000000000000000000000000c0012",
+      "plan_uuid": "08500000000000000000000000000a11",
+      "component_uuid": "085000000000000000000000000c0012",
       "price": "2.50",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p011",
-      "component_uuid": "k8s000000000000000000000000c0013",
+      "plan_uuid": "08500000000000000000000000000a11",
+      "component_uuid": "085000000000000000000000000c0013",
       "price": "0.10",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p011",
-      "component_uuid": "k8s000000000000000000000000c0014",
+      "plan_uuid": "08500000000000000000000000000a11",
+      "component_uuid": "085000000000000000000000000c0014",
       "price": "0.04",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p011",
-      "component_uuid": "k8s000000000000000000000000c0015",
+      "plan_uuid": "08500000000000000000000000000a11",
+      "component_uuid": "085000000000000000000000000c0015",
       "price": "0.05",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p012",
-      "component_uuid": "k8s000000000000000000000000c0011",
+      "plan_uuid": "08500000000000000000000000000a12",
+      "component_uuid": "085000000000000000000000000c0011",
       "price": "6.00",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p012",
-      "component_uuid": "k8s000000000000000000000000c0012",
+      "plan_uuid": "08500000000000000000000000000a12",
+      "component_uuid": "085000000000000000000000000c0012",
       "price": "3.00",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p012",
-      "component_uuid": "k8s000000000000000000000000c0013",
+      "plan_uuid": "08500000000000000000000000000a12",
+      "component_uuid": "085000000000000000000000000c0013",
       "price": "0.12",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p012",
-      "component_uuid": "k8s000000000000000000000000c0014",
+      "plan_uuid": "08500000000000000000000000000a12",
+      "component_uuid": "085000000000000000000000000c0014",
       "price": "0.05",
       "amount": 0
     },
     {
-      "plan_uuid": "k8s0000000000000000000000000p012",
-      "component_uuid": "k8s000000000000000000000000c0015",
+      "plan_uuid": "08500000000000000000000000000a12",
+      "component_uuid": "085000000000000000000000000c0015",
       "price": "0.03",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "005a0000000000000000000000000001",
+      "component_uuid": "005c0000000000000000000000000001",
+      "price": "0.01",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "005a0000000000000000000000000001",
+      "component_uuid": "005c0000000000000000000000000002",
+      "price": "0.005",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "005a0000000000000000000000000001",
+      "component_uuid": "005c0000000000000000000000000003",
+      "price": "0.50",
       "amount": 0
     }
   ],
@@ -871,6 +960,42 @@
         "storage": 100
       },
       "created": "2025-08-02T00:00:00Z"
+    },
+    {
+      "uuid": "d0500000000000000000000000000001",
+      "name": "HPC Simulation Allocation",
+      "offering_uuid": "00500000000000000000000000000001",
+      "project_uuid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "plan_uuid": "005a0000000000000000000000000001",
+      "state": 2,
+      "attributes": {
+        "slurm_account": "demo_project",
+        "partition": "standard"
+      },
+      "limits": {
+        "cpu": 50000,
+        "ram": 100000,
+        "gpu": 500
+      },
+      "created": "2025-08-02T00:00:00Z"
+    },
+    {
+      "uuid": "d0500000000000000000000000000002",
+      "name": "ML Training Allocation",
+      "offering_uuid": "00500000000000000000000000000001",
+      "project_uuid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "plan_uuid": "005a0000000000000000000000000001",
+      "state": 2,
+      "attributes": {
+        "slurm_account": "ml_training",
+        "partition": "gpu"
+      },
+      "limits": {
+        "cpu": 25000,
+        "ram": 50000,
+        "gpu": 1000
+      },
+      "created": "2025-08-02T00:00:00Z"
     }
   ],
   "user_roles": [
@@ -988,6 +1113,106 @@
       "billing_period": "2025-12-01",
       "recurring": false,
       "description": "Storage usage for December 2025"
+    },
+    {
+      "uuid": "ca050000000000000000000000000001",
+      "resource_uuid": "d0500000000000000000000000000001",
+      "component_uuid": "005c0000000000000000000000000001",
+      "usage": "15000.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "CPU hours for September 2025"
+    },
+    {
+      "uuid": "ca050000000000000000000000000002",
+      "resource_uuid": "d0500000000000000000000000000001",
+      "component_uuid": "005c0000000000000000000000000002",
+      "usage": "30000.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "RAM usage for September 2025"
+    },
+    {
+      "uuid": "ca050000000000000000000000000003",
+      "resource_uuid": "d0500000000000000000000000000001",
+      "component_uuid": "005c0000000000000000000000000003",
+      "usage": "150.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "GPU hours for September 2025"
+    },
+    {
+      "uuid": "ca050000000000000000000000000004",
+      "resource_uuid": "d0500000000000000000000000000001",
+      "component_uuid": "005c0000000000000000000000000001",
+      "usage": "18500.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "CPU hours for October 2025"
+    },
+    {
+      "uuid": "ca050000000000000000000000000005",
+      "resource_uuid": "d0500000000000000000000000000001",
+      "component_uuid": "005c0000000000000000000000000002",
+      "usage": "37000.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "RAM usage for October 2025"
+    },
+    {
+      "uuid": "ca050000000000000000000000000006",
+      "resource_uuid": "d0500000000000000000000000000001",
+      "component_uuid": "005c0000000000000000000000000003",
+      "usage": "180.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "GPU hours for October 2025"
+    },
+    {
+      "uuid": "ca050000000000000000000000000007",
+      "resource_uuid": "d0500000000000000000000000000002",
+      "component_uuid": "005c0000000000000000000000000001",
+      "usage": "8000.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "ML training CPU hours for September 2025"
+    },
+    {
+      "uuid": "ca050000000000000000000000000008",
+      "resource_uuid": "d0500000000000000000000000000002",
+      "component_uuid": "005c0000000000000000000000000003",
+      "usage": "350.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "ML training GPU hours for September 2025"
+    },
+    {
+      "uuid": "ca050000000000000000000000000009",
+      "resource_uuid": "d0500000000000000000000000000002",
+      "component_uuid": "005c0000000000000000000000000001",
+      "usage": "10500.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "ML training CPU hours for October 2025"
+    },
+    {
+      "uuid": "ca05000000000000000000000000000a",
+      "resource_uuid": "d0500000000000000000000000000002",
+      "component_uuid": "005c0000000000000000000000000003",
+      "usage": "480.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "ML training GPU hours for October 2025"
     }
   ],
   "component_user_usages": [

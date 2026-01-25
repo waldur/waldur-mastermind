@@ -216,3 +216,143 @@ class SlurmPeriodicUsagePolicyActionsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIsInstance(response.data, list)
         self.assertIn("notify_organization_owners", response.data)
+
+
+@ddt
+class SlurmPeriodicUsagePolicyPreviewImpactTest(test.APITransactionTestCase):
+    def setUp(self):
+        self.customer = structure_factories.CustomerFactory()
+        self.offering = marketplace_factories.OfferingFactory(customer=self.customer)
+        self.user = structure_factories.UserFactory()
+        self.customer.add_user(self.user, CustomerRole.OWNER)
+        # Staff user for preview_impact tests (requires is_staff permission)
+        self.staff_user = structure_factories.UserFactory(is_staff=True)
+
+        self.url = SlurmPeriodicUsagePolicyFactory.get_list_url("preview_impact")
+
+    def _get_preview_payload(self, **kwargs):
+        payload = {
+            "allocation": 1000,
+            "grace_ratio": 0.2,
+            "previous_usage": 0,
+            "fairshare_decay_half_life": 15,
+            "carryover_enabled": True,
+            "days_elapsed": 90,
+            "current_usage": 500,
+            "daily_usage_rate": 10,
+        }
+        payload.update(kwargs)
+        return payload
+
+    def test_staff_can_preview_impact(self):
+        """Staff users can preview policy impact."""
+        self.client.force_authenticate(self.staff_user)
+
+        payload = self._get_preview_payload()
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify response structure
+        self.assertIn("thresholds", response.data)
+        self.assertIn("usage_percentage", response.data)
+        self.assertIn("current_qos_status", response.data)
+        self.assertIn("preview_commands", response.data)
+        self.assertIn("command_history", response.data)
+
+    def test_offering_owner_without_staff_cannot_preview_impact(self):
+        """Offering owners without staff privileges cannot preview impact."""
+        self.client.force_authenticate(self.user)
+
+        payload = self._get_preview_payload()
+        response = self.client.post(self.url, payload)
+        # preview_impact requires staff permission since it's a non-detail action
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthorized_user_cannot_preview_impact(self):
+        """Regular users cannot preview policy impact."""
+        unauthorized_user = structure_factories.UserFactory()
+        self.client.force_authenticate(unauthorized_user)
+
+        payload = self._get_preview_payload()
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unauthenticated_user_cannot_preview_impact(self):
+        payload = self._get_preview_payload()
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_preview_with_zero_allocation(self):
+        self.client.force_authenticate(self.staff_user)
+
+        payload = self._get_preview_payload(allocation=0)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_preview_with_carryover_disabled(self):
+        self.client.force_authenticate(self.staff_user)
+
+        payload = self._get_preview_payload(carryover_enabled=False, previous_usage=200)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # With carryover disabled, previous usage should not affect carryover
+        self.assertEqual(response.data.get("carryover_amount", 0), 0)
+
+    def test_preview_qos_status_normal(self):
+        self.client.force_authenticate(self.staff_user)
+
+        # Usage well below threshold
+        payload = self._get_preview_payload(
+            allocation=1000, current_usage=100, grace_ratio=0.2
+        )
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["current_qos_status"], "normal")
+
+    def test_preview_qos_status_slowdown(self):
+        self.client.force_authenticate(self.staff_user)
+
+        # Usage above threshold but below grace limit (slowdown zone)
+        payload = self._get_preview_payload(
+            allocation=1000, current_usage=1100, grace_ratio=0.2
+        )
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["current_qos_status"], "slowdown")
+
+    def test_preview_qos_status_blocked(self):
+        self.client.force_authenticate(self.staff_user)
+
+        # Usage above grace limit (1000 * 1.2 = 1200) - blocked zone
+        payload = self._get_preview_payload(
+            allocation=1000, current_usage=1300, grace_ratio=0.2
+        )
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["current_qos_status"], "blocked")
+
+    def test_preview_with_invalid_resource_uuid(self):
+        self.client.force_authenticate(self.staff_user)
+
+        payload = self._get_preview_payload(
+            resource_uuid="00000000-0000-0000-0000-000000000000"
+        )
+        response = self.client.post(self.url, payload)
+        # Should succeed but use provided values since resource not found
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data(
+        {"allocation": -100},
+        {"grace_ratio": -0.5},
+    )
+    def test_preview_with_invalid_values(self, invalid_payload):
+        self.client.force_authenticate(self.staff_user)
+
+        payload = self._get_preview_payload(**invalid_payload)
+        response = self.client.post(self.url, payload)
+        # Should either validate and reject or handle gracefully
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST],
+        )

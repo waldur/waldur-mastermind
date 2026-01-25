@@ -332,6 +332,26 @@
         "service_provider_can_create_offering_user": true
       },
       "getting_started": "## Getting Started with Multi-Site Research Kubernetes\n\n### Federation Overview\nThis cluster spans multiple research sites for:\n- Distributed ML training\n- Cross-site data processing\n- Collaborative research workloads\n\n### Access\n```\nexport KUBECONFIG=~/Downloads/kubeconfig-federation.yaml\nkubectl get nodes --label-columns=topology.kubernetes.io/zone\n```\n\n### Site-Specific Scheduling\n```yaml\nnodeSelector:\n  topology.kubernetes.io/zone: site-a\n```\n\n### Data Locality\nPrefer data-local scheduling for large datasets.\n\n### Support\nEmail: federation-support@research-network.edu"
+    },
+    {
+      "uuid": "f2000000000000000000000000000030",
+      "name": "SLURM Research Cluster",
+      "type": "Marketplace.Slurm",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d2000000000000000000000000000001",
+      "customer_uuid": "b2000000000000000000000000000001",
+      "description": "Site-agent managed SLURM cluster for research computing with periodic usage policies, QoS enforcement, and TRES billing.",
+      "plugin_options": {
+        "slurm_periodic_policy_enabled": true,
+        "service_provider_can_create_offering_user": true,
+        "hostname": "slurm.university.edu",
+        "username": "waldur-agent",
+        "default_account": "research",
+        "tres_billing_enabled": true
+      },
+      "getting_started": "## Getting Started with SLURM Research Cluster\n\n### Login\n```bash\nssh username@slurm.university.edu\n```\n\n### Check Allocation\n```bash\nsacctmgr show user $USER format=User,Account,QOS\nsqueue -u $USER\n```\n\n### Submit Jobs\n```bash\n#!/bin/bash\n#SBATCH --job-name=my_job\n#SBATCH --nodes=2\n#SBATCH --ntasks-per-node=64\n#SBATCH --time=24:00:00\n#SBATCH --partition=research\n\nsrun ./my_simulation\n```\n\n### GPU Jobs\n```bash\n#SBATCH --gres=gpu:4\n#SBATCH --partition=gpu\n```\n\n### Support\n- Documentation: https://docs.slurm.university.edu/\n- Support: hpc-support@university.edu"
     }
   ],
   "offering_endpoints": [
@@ -388,6 +408,18 @@
       "offering_uuid": "f2000000000000000000000000000020",
       "name": "Multi-Site Monitoring",
       "url": "https://monitoring.research-network.edu/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000030",
+      "offering_uuid": "f2000000000000000000000000000030",
+      "name": "SLURM Job Dashboard",
+      "url": "https://slurm.university.edu/dashboard/"
+    },
+    {
+      "uuid": "a2000000000000000000000000000031",
+      "offering_uuid": "f2000000000000000000000000000030",
+      "name": "Allocation Usage Reports",
+      "url": "https://slurm.university.edu/usage/"
     }
   ],
   "offering_components": [
@@ -516,6 +548,33 @@
       "description": "Data transfer between research sites",
       "billing_type": "usage",
       "measured_unit": "GB"
+    },
+    {
+      "uuid": "c2000000000000000000000000000301",
+      "offering_uuid": "f2000000000000000000000000000030",
+      "type": "cpu",
+      "name": "CPU Hours",
+      "description": "CPU core hours for SLURM jobs",
+      "billing_type": "usage",
+      "measured_unit": "hours"
+    },
+    {
+      "uuid": "c2000000000000000000000000000302",
+      "offering_uuid": "f2000000000000000000000000000030",
+      "type": "ram",
+      "name": "Memory Hours",
+      "description": "Memory allocation in GB-hours",
+      "billing_type": "usage",
+      "measured_unit": "GB-hours"
+    },
+    {
+      "uuid": "c2000000000000000000000000000303",
+      "offering_uuid": "f2000000000000000000000000000030",
+      "type": "gpu",
+      "name": "GPU Hours",
+      "description": "GPU compute hours for CUDA/OpenCL workloads",
+      "billing_type": "usage",
+      "measured_unit": "hours"
     }
   ],
   "plans": [
@@ -564,6 +623,13 @@
       "offering_uuid": "f2000000000000000000000000000020",
       "unit": "month",
       "description": "Premium multi-site cluster with priority scheduling"
+    },
+    {
+      "uuid": "12000000000000000000000000000030",
+      "name": "SLURM Research Allocation",
+      "offering_uuid": "f2000000000000000000000000000030",
+      "unit": "month",
+      "description": "SLURM allocation for research computing with periodic usage policies"
     }
   ],
   "plan_components": [
@@ -721,6 +787,24 @@
       "plan_uuid": "12000000000000000000000000000021",
       "component_uuid": "c2000000000000000000000000000204",
       "price": "0.03",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000030",
+      "component_uuid": "c2000000000000000000000000000301",
+      "price": "0.04",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000030",
+      "component_uuid": "c2000000000000000000000000000302",
+      "price": "0.005",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "12000000000000000000000000000030",
+      "component_uuid": "c2000000000000000000000000000303",
+      "price": "0.40",
       "amount": 0
     }
   ],
@@ -884,6 +968,42 @@
         "vcpu": 128,
         "ram": 512,
         "storage": 5000
+      },
+      "created": "2025-08-02T00:00:00Z"
+    },
+    {
+      "uuid": "d200000000000000000000000000000d",
+      "name": "Particle Physics SLURM Allocation",
+      "offering_uuid": "f2000000000000000000000000000030",
+      "project_uuid": "c2000000000000000000000000000001",
+      "plan_uuid": "12000000000000000000000000000030",
+      "state": 2,
+      "attributes": {
+        "slurm_account": "physics_sim",
+        "partition": "research"
+      },
+      "limits": {
+        "cpu": 200000,
+        "ram": 400000,
+        "gpu": 4000
+      },
+      "created": "2025-08-02T00:00:00Z"
+    },
+    {
+      "uuid": "d200000000000000000000000000000e",
+      "name": "Genome Analysis SLURM Allocation",
+      "offering_uuid": "f2000000000000000000000000000030",
+      "project_uuid": "c2000000000000000000000000000002",
+      "plan_uuid": "12000000000000000000000000000030",
+      "state": 2,
+      "attributes": {
+        "slurm_account": "genomics",
+        "partition": "large-mem"
+      },
+      "limits": {
+        "cpu": 150000,
+        "ram": 600000,
+        "gpu": 2000
       },
       "created": "2025-08-02T00:00:00Z"
     }
@@ -1058,6 +1178,96 @@
       "billing_period": "2025-12-01",
       "recurring": false,
       "description": "Storage capacity usage for December 2025"
+    },
+    {
+      "uuid": "ca20000000000000000000000000000b",
+      "resource_uuid": "d200000000000000000000000000000d",
+      "component_uuid": "c2000000000000000000000000000301",
+      "usage": "65000.00",
+      "date": "2025-09-15T08:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Particle physics CPU hours for September 2025"
+    },
+    {
+      "uuid": "ca20000000000000000000000000000c",
+      "resource_uuid": "d200000000000000000000000000000d",
+      "component_uuid": "c2000000000000000000000000000302",
+      "usage": "130000.00",
+      "date": "2025-09-15T08:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Particle physics RAM usage for September 2025"
+    },
+    {
+      "uuid": "ca20000000000000000000000000000d",
+      "resource_uuid": "d200000000000000000000000000000d",
+      "component_uuid": "c2000000000000000000000000000303",
+      "usage": "1200.00",
+      "date": "2025-09-15T08:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Particle physics GPU hours for September 2025"
+    },
+    {
+      "uuid": "ca20000000000000000000000000000e",
+      "resource_uuid": "d200000000000000000000000000000d",
+      "component_uuid": "c2000000000000000000000000000301",
+      "usage": "78000.00",
+      "date": "2025-10-15T08:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Particle physics CPU hours for October 2025"
+    },
+    {
+      "uuid": "ca20000000000000000000000000000f",
+      "resource_uuid": "d200000000000000000000000000000d",
+      "component_uuid": "c2000000000000000000000000000303",
+      "usage": "1550.00",
+      "date": "2025-10-15T08:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Particle physics GPU hours for October 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000010",
+      "resource_uuid": "d200000000000000000000000000000e",
+      "component_uuid": "c2000000000000000000000000000301",
+      "usage": "48000.00",
+      "date": "2025-09-15T08:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Genome analysis CPU hours for September 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000011",
+      "resource_uuid": "d200000000000000000000000000000e",
+      "component_uuid": "c2000000000000000000000000000302",
+      "usage": "200000.00",
+      "date": "2025-09-15T08:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Genome analysis RAM usage for September 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000012",
+      "resource_uuid": "d200000000000000000000000000000e",
+      "component_uuid": "c2000000000000000000000000000303",
+      "usage": "650.00",
+      "date": "2025-09-15T08:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Genome analysis GPU hours for September 2025"
+    },
+    {
+      "uuid": "ca200000000000000000000000000013",
+      "resource_uuid": "d200000000000000000000000000000e",
+      "component_uuid": "c2000000000000000000000000000301",
+      "usage": "55000.00",
+      "date": "2025-10-15T08:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Genome analysis CPU hours for October 2025"
     }
   ],
   "component_user_usages": [

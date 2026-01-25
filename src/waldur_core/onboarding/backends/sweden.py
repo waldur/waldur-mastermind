@@ -122,6 +122,9 @@ class SwedenRegisterBackend(CompanyRegistryBackend):
             "field": "civil_number",
             "label": "Personal ID (personnummer)",
             "description": "Swedish personal identification number",
+            "example": "800108-1234",
+            "pattern": r"^\d{6}-?\d{4}$",
+            "help_text": "Swedish personal identification number in format YYMMDD-XXXX",
         }
 
     @classmethod

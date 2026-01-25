@@ -51,6 +51,11 @@ from waldur_mastermind.marketplace.models import (
     ResourcePlanPeriod,
     ServiceProvider,
 )
+from waldur_mastermind.policy.models import (
+    OfferingComponentLimit,
+    SlurmCommandHistory,
+    SlurmPeriodicUsagePolicy,
+)
 from waldur_mastermind.proposal.models import (
     AssignmentBatch,
     AssignmentItem,
@@ -118,6 +123,18 @@ class Command(BaseCommand):
             "category_groups": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "categories": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "offerings": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "slurm_periodic_policies": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "slurm_command_history": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "roles": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "role_permissions": {
                 "created": 0,
@@ -511,6 +528,14 @@ class Command(BaseCommand):
             lambda: self.import_offering_endpoints(data.get("offering_endpoints", [])),
         )
 
+        # Import SLURM periodic policies (depends on offerings)
+        self._safe_import(
+            "slurm_periodic_policies",
+            lambda: self.import_slurm_periodic_policies(
+                data.get("slurm_periodic_policies", [])
+            ),
+        )
+
         # Import marketplace components and plans
         self._safe_import("plans", lambda: self.import_plans(data.get("plans", [])))
         self._safe_import(
@@ -546,6 +571,14 @@ class Command(BaseCommand):
             "component_user_usages",
             lambda: self.import_component_user_usages(
                 data.get("component_user_usages", [])
+            ),
+        )
+
+        # Import SLURM command history (depends on resources and slurm_periodic_policies)
+        self._safe_import(
+            "slurm_command_history",
+            lambda: self.import_slurm_command_history(
+                data.get("slurm_command_history", [])
             ),
         )
 
@@ -1905,6 +1938,221 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["offering_endpoints"]["errors"] += 1
+
+    def import_slurm_periodic_policies(self, policies_data):
+        """Import SLURM periodic usage policies."""
+        self.stdout.write("Importing SLURM periodic usage policies...")
+
+        for policy_data in policies_data:
+            try:
+                uuid = policy_data.get("uuid")
+                offering_uuid = policy_data.get("offering_uuid")
+
+                if not uuid or not offering_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping SLURM policy without UUID or offering_uuid"
+                        )
+                    )
+                    self.stats["slurm_periodic_policies"]["errors"] += 1
+                    continue
+
+                # Find offering
+                offering = Offering.objects.filter(uuid=offering_uuid).first()
+                if not offering:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping SLURM policy {uuid}: offering {offering_uuid} not found"
+                        )
+                    )
+                    self.stats["slurm_periodic_policies"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "scope": offering,
+                    "apply_to_all": policy_data.get("apply_to_all", True),
+                    "actions": policy_data.get("actions", "notify_organization_owners"),
+                    "limit_type": policy_data.get("limit_type", "GrpTRESMins"),
+                    "tres_billing_enabled": policy_data.get(
+                        "tres_billing_enabled", True
+                    ),
+                    "tres_billing_weights": policy_data.get("tres_billing_weights", {}),
+                    "fairshare_decay_half_life": policy_data.get(
+                        "fairshare_decay_half_life", 15
+                    ),
+                    "grace_ratio": policy_data.get("grace_ratio", 0.2),
+                    "carryover_enabled": policy_data.get("carryover_enabled", True),
+                    "raw_usage_reset": policy_data.get("raw_usage_reset", True),
+                    "qos_strategy": policy_data.get("qos_strategy", "threshold"),
+                }
+
+                if not self.dry_run:
+                    existing_policy = SlurmPeriodicUsagePolicy.objects.filter(
+                        uuid=uuid
+                    ).first()
+
+                    if existing_policy:
+                        if self.update_existing:
+                            SlurmPeriodicUsagePolicy.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["slurm_periodic_policies"]["updated"] += 1
+                        else:
+                            self.stats["slurm_periodic_policies"]["skipped"] += 1
+                    else:
+                        policy = SlurmPeriodicUsagePolicy.objects.create(
+                            uuid=uuid, **defaults
+                        )
+
+                        # Handle component limits if provided
+                        component_limits = policy_data.get("component_limits", [])
+                        for limit_data in component_limits:
+                            component_type = limit_data.get("type")
+                            limit_value = limit_data.get("limit")
+                            component = offering.components.filter(
+                                type=component_type
+                            ).first()
+                            if component and limit_value is not None:
+                                OfferingComponentLimit.objects.update_or_create(
+                                    policy=policy,
+                                    component=component,
+                                    defaults={"limit": limit_value},
+                                )
+
+                        self.stats["slurm_periodic_policies"]["created"] += 1
+                else:
+                    # Dry run
+                    existing = SlurmPeriodicUsagePolicy.objects.filter(
+                        uuid=uuid
+                    ).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["slurm_periodic_policies"]["updated"] += 1
+                        else:
+                            self.stats["slurm_periodic_policies"]["skipped"] += 1
+                    else:
+                        self.stats["slurm_periodic_policies"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import SLURM policy {policy_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["slurm_periodic_policies"]["errors"] += 1
+
+    def import_slurm_command_history(self, history_data):
+        """Import SLURM command history records."""
+        self.stdout.write("Importing SLURM command history...")
+
+        for record_data in history_data:
+            try:
+                uuid = record_data.get("uuid")
+                resource_uuid = record_data.get("resource_uuid")
+                policy_uuid = record_data.get("policy_uuid")
+
+                if not uuid or not resource_uuid or not policy_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping command history without UUID, resource_uuid, or policy_uuid"
+                        )
+                    )
+                    self.stats["slurm_command_history"]["errors"] += 1
+                    continue
+
+                # Find resource
+                resource = Resource.objects.filter(uuid=resource_uuid).first()
+                if not resource:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping command history {uuid}: resource {resource_uuid} not found"
+                        )
+                    )
+                    self.stats["slurm_command_history"]["errors"] += 1
+                    continue
+
+                # Find policy
+                policy = SlurmPeriodicUsagePolicy.objects.filter(
+                    uuid=policy_uuid
+                ).first()
+                if not policy:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping command history {uuid}: policy {policy_uuid} not found"
+                        )
+                    )
+                    self.stats["slurm_command_history"]["errors"] += 1
+                    continue
+
+                # Parse billing_period
+                billing_period_str = record_data.get("billing_period")
+                if billing_period_str:
+                    billing_period = datetime.strptime(
+                        billing_period_str, "%Y-%m-%d"
+                    ).date()
+                else:
+                    billing_period = timezone.now().date().replace(day=1)
+
+                # Parse executed_at
+                executed_at_str = record_data.get("executed_at")
+                if executed_at_str:
+                    executed_at = datetime.fromisoformat(
+                        executed_at_str.replace("Z", "+00:00")
+                    )
+                else:
+                    executed_at = timezone.now()
+
+                defaults = {
+                    "policy": policy,
+                    "resource": resource,
+                    "billing_period": billing_period,
+                    "command_type": record_data.get("command_type", "fairshare"),
+                    "description": record_data.get("description", ""),
+                    "shell_command": record_data.get("shell_command", ""),
+                    "parameters": record_data.get("parameters", {}),
+                    "execution_mode": record_data.get("execution_mode", "emulator"),
+                    "success": record_data.get("success", True),
+                    "error_message": record_data.get("error_message", ""),
+                }
+
+                if not self.dry_run:
+                    existing = SlurmCommandHistory.objects.filter(uuid=uuid).first()
+
+                    if existing:
+                        if self.update_existing:
+                            SlurmCommandHistory.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["slurm_command_history"]["updated"] += 1
+                        else:
+                            self.stats["slurm_command_history"]["skipped"] += 1
+                    else:
+                        # Create with specific executed_at (can't use auto_now_add)
+                        history = SlurmCommandHistory(uuid=uuid, **defaults)
+                        history.save()
+                        # Update executed_at since auto_now_add overrides it
+                        SlurmCommandHistory.objects.filter(uuid=uuid).update(
+                            executed_at=executed_at
+                        )
+                        self.stats["slurm_command_history"]["created"] += 1
+                else:
+                    # Dry run
+                    existing = SlurmCommandHistory.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["slurm_command_history"]["updated"] += 1
+                        else:
+                            self.stats["slurm_command_history"]["skipped"] += 1
+                    else:
+                        self.stats["slurm_command_history"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import command history {record_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["slurm_command_history"]["errors"] += 1
 
     def import_roles(self, roles_data):
         """Import role definitions."""

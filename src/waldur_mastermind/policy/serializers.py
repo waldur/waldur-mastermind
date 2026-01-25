@@ -501,3 +501,152 @@ class SlurmPeriodicUsagePolicySerializer(OfferingUsagePolicySerializer):
             "qos_strategy",
         )
         extra_kwargs = OfferingUsagePolicySerializer.Meta.extra_kwargs
+
+
+class SlurmPolicyPreviewRequestSerializer(serializers.Serializer):
+    """Serializer for SLURM policy impact preview request."""
+
+    allocation = serializers.FloatField(
+        required=False,
+        default=1000,
+        help_text="Base allocation for the period (in node-hours or billing units)",
+    )
+    grace_ratio = serializers.FloatField(
+        required=False,
+        default=0.2,
+        min_value=0,
+        max_value=1,
+        help_text="Grace ratio for overconsumption allowance (0.2 = 20%)",
+    )
+    previous_usage = serializers.FloatField(
+        required=False,
+        default=0,
+        help_text="Usage from the previous period",
+    )
+    fairshare_decay_half_life = serializers.IntegerField(
+        required=False,
+        default=15,
+        min_value=1,
+        help_text="Decay half-life in days for fairshare calculations",
+    )
+    carryover_enabled = serializers.BooleanField(
+        required=False,
+        default=True,
+        help_text="Whether unused allocation carries over to next period",
+    )
+    days_elapsed = serializers.IntegerField(
+        required=False,
+        default=90,
+        min_value=0,
+        help_text="Days elapsed since previous period (90 for quarterly)",
+    )
+    resource_uuid = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        help_text="Optional resource UUID to use for current usage data",
+    )
+    current_usage = serializers.FloatField(
+        required=False,
+        default=0,
+        help_text="Current usage in this period (manual input or from resource)",
+    )
+    daily_usage_rate = serializers.FloatField(
+        required=False,
+        default=0,
+        help_text="Average daily usage rate for projections",
+    )
+
+
+class SlurmPolicyThresholdsSerializer(serializers.Serializer):
+    """Serializer for QoS threshold values."""
+
+    allocation = serializers.FloatField()
+    grace_ratio = serializers.FloatField()
+    notification_ratio = serializers.FloatField()
+    notification_threshold = serializers.FloatField()
+    slowdown_threshold = serializers.FloatField()
+    blocked_threshold = serializers.FloatField()
+
+
+class SlurmPolicyCarryoverSerializer(serializers.Serializer):
+    """Serializer for carryover calculation details."""
+
+    previous_usage = serializers.FloatField()
+    days_elapsed = serializers.IntegerField()
+    half_life = serializers.IntegerField()
+    decay_factor = serializers.FloatField()
+    effective_usage = serializers.FloatField()
+    base_allocation = serializers.FloatField()
+    unused_carryover = serializers.FloatField()
+    total_allocation = serializers.FloatField()
+
+
+class SlurmPolicyDateProjectionSerializer(serializers.Serializer):
+    """Serializer for a single date projection."""
+
+    days = serializers.IntegerField(allow_null=True)
+    date = serializers.DateField(allow_null=True)
+    status = serializers.ChoiceField(choices=["never", "exceeded", "projected"])
+
+
+class SlurmPolicyDateProjectionsSerializer(serializers.Serializer):
+    """Serializer for all date projections."""
+
+    notification = SlurmPolicyDateProjectionSerializer()
+    slowdown = SlurmPolicyDateProjectionSerializer()
+    blocked = SlurmPolicyDateProjectionSerializer()
+
+
+class SlurmCommandSerializer(serializers.Serializer):
+    """Serializer for a SLURM command preview."""
+
+    type = serializers.CharField(
+        help_text="Command type: fairshare, limits, qos, reset_usage"
+    )
+    description = serializers.CharField(help_text="Human-readable description")
+    command = serializers.CharField(help_text="Actual shell command")
+    parameters = serializers.DictField(help_text="Command parameters")
+
+
+class SlurmCommandHistorySerializer(serializers.ModelSerializer):
+    """Serializer for executed command history."""
+
+    class Meta:
+        model = models.SlurmCommandHistory
+        fields = [
+            "uuid",
+            "command_type",
+            "description",
+            "shell_command",
+            "parameters",
+            "executed_at",
+            "execution_mode",
+            "success",
+            "error_message",
+        ]
+
+
+class SlurmPolicyPreviewResponseSerializer(serializers.Serializer):
+    """Serializer for SLURM policy impact preview response."""
+
+    base_allocation = serializers.FloatField()
+    effective_allocation = serializers.FloatField()
+    carryover_enabled = serializers.BooleanField()
+    carryover = SlurmPolicyCarryoverSerializer(allow_null=True)
+    thresholds = SlurmPolicyThresholdsSerializer()
+    grace_ratio = serializers.FloatField()
+    half_life = serializers.IntegerField()
+    # Resource-specific fields (optional)
+    current_usage = serializers.FloatField(required=False)
+    daily_usage_rate = serializers.FloatField(required=False)
+    usage_percentage = serializers.FloatField(required=False)
+    current_qos_status = serializers.ChoiceField(
+        choices=["normal", "notification", "slowdown", "blocked"],
+        required=False,
+    )
+    date_projections = SlurmPolicyDateProjectionsSerializer(required=False)
+    # Command preview and history (new fields)
+    preview_commands = SlurmCommandSerializer(many=True, required=False)
+    command_history = SlurmCommandHistorySerializer(many=True, required=False)
+    billing_period_start = serializers.DateField(required=False)
+    billing_period_end = serializers.DateField(required=False)

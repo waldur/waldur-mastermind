@@ -1,12 +1,14 @@
 {
   "_metadata": {
     "title": "HPC & AI Platform",
-    "description": "Comprehensive high-performance computing and AI/ML platform featuring GPU clusters, model training infrastructure, HPC storage systems, and web-based interactive computing environments.",
+    "description": "Comprehensive high-performance computing and AI/ML platform featuring GPU clusters, model training infrastructure, HPC storage systems, web-based interactive computing environments, and SLURM periodic usage policy demonstration with carryover and threshold scenarios.",
     "version": "1.2.0",
     "scenarios": [
       "AI/ML model training with GPU clusters",
       "GPU computing services (A100/H100)",
       "Deep learning infrastructure",
+      "SLURM periodic usage policy thresholds",
+      "Carryover and fairshare decay demonstrations",
       "HPC parallel filesystem storage (CAPSTOR Lustre/VAST)",
       "Storage quota management with data types",
       "Open OnDemand web portal for HPC access",
@@ -375,6 +377,27 @@
       "getting_started": "## Getting Started with Multi-Region AI Platform\n\n### Global Architecture\n- **Primary**: US-East (NVIDIA H100)\n- **Secondary**: EU-West (NVIDIA A100)\n- **Tertiary**: APAC (NVIDIA A100)\n\n### Access\n```\nexport KUBECONFIG=~/Downloads/kubeconfig-global-ai.yaml\nkubectl get nodes --label-columns=topology.kubernetes.io/region\n```\n\n### Federated Learning\n```yaml\napiVersion: fl.aiplatform.com/v1\nkind: FederatedLearningJob\nspec:\n  regions: [us-east, eu-west, apac]\n  aggregationStrategy: FedAvg\n```\n\n### Model Registry\nPush models to global registry for serving across regions.\n\n### Support\n24/7 AI Platform Support: ai-enterprise@aiplatform.com"
     },
     {
+      "uuid": "f3000000000000000000000000000005",
+      "name": "SLURM HPC Cluster",
+      "type": "Marketplace.Slurm",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "b3000000000000000000000000000001",
+      "description": "SLURM-managed HPC cluster with GPU nodes for large-scale AI training and scientific computing. Features periodic usage policies with QoS enforcement, fairshare scheduling, and carryover allocation.\n\n## Demo Scenarios\n\nThis preset includes resources demonstrating different policy thresholds:\n- **LLM Pre-training**: Normal usage (~64%)\n- **Vision Model Training**: At notification threshold (80%)\n- **Fine-tuning Jobs**: Near downscaling threshold (97.5%)\n- **RL Agent Training**: Exceeds grace limit (123%)\n- **Speech Recognition**: Just below notification (78%)\n- **NLP Research**: Normal low usage (50%)\n\nThe preset includes a SlurmPeriodicUsagePolicy with progressive QoS strategy and historical Q3 2025 data for carryover demonstrations.",
+      "plugin_options": {
+        "slurm_periodic_policy_enabled": true,
+        "service_provider_can_create_offering_user": true,
+        "hostname": "slurm.aiplatform.com",
+        "username": "waldur-agent",
+        "default_account": "aiplatform",
+        "gpu_partition": "a100,h100",
+        "cpu_partition": "compute"
+      },
+      "getting_started": "## Getting Started with SLURM HPC Cluster\n\n### SSH Access\n```\nssh username@slurm.aiplatform.com\n```\n\n### Check Available Resources\n```bash\n# View available partitions\nsinfo -N -l\n\n# View your job queue\nsqueue -u $USER\n\n# Check your allocation usage\nsacctmgr show assoc user=$USER format=user,account,grptresrunmins\n```\n\n### Submit GPU Training Job\n```bash\n#!/bin/bash\n#SBATCH --job-name=training\n#SBATCH --partition=a100\n#SBATCH --gres=gpu:4\n#SBATCH --cpus-per-task=32\n#SBATCH --mem=256G\n#SBATCH --time=24:00:00\n\nmodule load cuda/12.0 pytorch/2.0\npython train_model.py\n```\n\n### Monitor Usage\nView your allocation and usage in the Waldur dashboard.\n\n### Support\nEmail: hpc-support@aiplatform.com"
+    },
+    {
       "uuid": "f3000000000000000000000000000030",
       "name": "CAPSTOR HPC Storage",
       "type": "Marketplace.Slurm",
@@ -499,7 +522,6 @@
       },
       "plugin_options": {
         "disable_autoapprove": true,
-        "unique_resource_per_attribute": "storage_data_type",
         "maximal_resource_count_per_project": 4,
         "is_resource_termination_date_required": true,
         "create_orders_on_resource_option_change": true,
@@ -743,6 +765,18 @@
       "offering_uuid": "f3000000000000000000000000000020",
       "name": "Federated Learning Console",
       "url": "https://fl.aiplatform.com/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000010",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "name": "SLURM Job Dashboard",
+      "url": "https://slurm.aiplatform.com/dashboard/"
+    },
+    {
+      "uuid": "a3000000000000000000000000000011",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "name": "Allocation Usage",
+      "url": "https://slurm.aiplatform.com/usage/"
     },
     {
       "uuid": "a3000000000000000000000000000030",
@@ -996,6 +1030,33 @@
       "measured_unit": "GB"
     },
     {
+      "uuid": "c3000000000000000000000000000501",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "type": "cpu",
+      "name": "CPU Hours",
+      "description": "CPU core hours consumed by SLURM jobs",
+      "billing_type": "usage",
+      "measured_unit": "hours"
+    },
+    {
+      "uuid": "c3000000000000000000000000000502",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "type": "ram",
+      "name": "Memory Hours",
+      "description": "Memory (GB) hours consumed by SLURM jobs",
+      "billing_type": "usage",
+      "measured_unit": "GB-hours"
+    },
+    {
+      "uuid": "c3000000000000000000000000000503",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "type": "gpu",
+      "name": "GPU Hours",
+      "description": "GPU hours consumed by SLURM jobs (A100/H100)",
+      "billing_type": "usage",
+      "measured_unit": "hours"
+    },
+    {
       "uuid": "c3000000000000000000000000000301",
       "offering_uuid": "f3000000000000000000000000000030",
       "type": "storage",
@@ -1132,6 +1193,20 @@
       "offering_uuid": "f3000000000000000000000000000020",
       "unit": "month",
       "description": "Enterprise global AI platform with SLA"
+    },
+    {
+      "uuid": "13000000000000000000000000000005",
+      "name": "SLURM Standard Allocation",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "unit": "month",
+      "description": "Standard HPC allocation with usage-based billing"
+    },
+    {
+      "uuid": "13000000000000000000000000000006",
+      "name": "SLURM Premium Allocation",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "unit": "month",
+      "description": "Premium HPC allocation with priority scheduling"
     },
     {
       "uuid": "13000000000000000000000000000030",
@@ -1371,6 +1446,42 @@
       "plan_uuid": "13000000000000000000000000000021",
       "component_uuid": "c3000000000000000000000000000204",
       "price": "0.05",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000005",
+      "component_uuid": "c3000000000000000000000000000501",
+      "price": "0.02",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000005",
+      "component_uuid": "c3000000000000000000000000000502",
+      "price": "0.01",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000005",
+      "component_uuid": "c3000000000000000000000000000503",
+      "price": "2.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000006",
+      "component_uuid": "c3000000000000000000000000000501",
+      "price": "0.015",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000006",
+      "component_uuid": "c3000000000000000000000000000502",
+      "price": "0.008",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "13000000000000000000000000000006",
+      "component_uuid": "c3000000000000000000000000000503",
+      "price": "2.00",
       "amount": 0
     },
     {
@@ -1649,7 +1760,7 @@
       "name": "Benchmark Dataset Storage",
       "offering_uuid": "f3000000000000000000000000000002",
       "project_uuid": "c3000000000000000000000000000002",
-      "plan_uuid": "13000000000000000000000000000004",
+      "plan_uuid": "13000000000000000000000000000003",
       "state": 2,
       "attributes": {},
       "limits": {
@@ -1671,6 +1782,108 @@
         "storage": 10000
       },
       "created": "2025-08-02T00:00:00Z"
+    },
+    {
+      "uuid": "d300000000000000000000000000000d",
+      "name": "LLM Pre-training Allocation",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "project_uuid": "c3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000006",
+      "state": 2,
+      "attributes": {
+        "slurm_account": "llm_training",
+        "partition": "a100"
+      },
+      "limits": {
+        "cpu": 50000,
+        "ram": 100000,
+        "gpu": 1000
+      }
+    },
+    {
+      "uuid": "d300000000000000000000000000000e",
+      "name": "Fine-tuning Jobs Allocation",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "project_uuid": "c3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000005",
+      "state": 2,
+      "attributes": {
+        "slurm_account": "finetune",
+        "partition": "h100"
+      },
+      "limits": {
+        "cpu": 20000,
+        "ram": 40000,
+        "gpu": 500
+      }
+    },
+    {
+      "uuid": "d300000000000000000000000000000f",
+      "name": "Vision Model Training",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "project_uuid": "c3000000000000000000000000000002",
+      "plan_uuid": "13000000000000000000000000000005",
+      "state": 2,
+      "attributes": {
+        "slurm_account": "vision",
+        "partition": "a100"
+      },
+      "limits": {
+        "cpu": 30000,
+        "ram": 60000,
+        "gpu": 800
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000020",
+      "name": "Speech Recognition Training",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "project_uuid": "c3000000000000000000000000000002",
+      "plan_uuid": "13000000000000000000000000000005",
+      "state": 2,
+      "attributes": {
+        "slurm_account": "speech",
+        "partition": "a100"
+      },
+      "limits": {
+        "cpu": 10000,
+        "ram": 20000,
+        "gpu": 250
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000021",
+      "name": "RL Agent Training",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "project_uuid": "c3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000006",
+      "state": 2,
+      "attributes": {
+        "slurm_account": "rl_training",
+        "partition": "h100"
+      },
+      "limits": {
+        "cpu": 15000,
+        "ram": 30000,
+        "gpu": 400
+      }
+    },
+    {
+      "uuid": "d3000000000000000000000000000022",
+      "name": "NLP Research Allocation",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "project_uuid": "c3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000005",
+      "state": 2,
+      "attributes": {
+        "slurm_account": "nlp_research",
+        "partition": "a100"
+      },
+      "limits": {
+        "cpu": 8000,
+        "ram": 16000,
+        "gpu": 200
+      }
     },
     {
       "uuid": "d3000000000000000000000000000030",
@@ -2049,6 +2262,456 @@
       "billing_period": "2025-12-01",
       "recurring": false,
       "description": "Storage capacity usage for December 2025"
+    },
+    {
+      "uuid": "ca300000000000000000000000000500",
+      "resource_uuid": "d300000000000000000000000000000d",
+      "component_uuid": "c3000000000000000000000000000501",
+      "usage": "27500.00",
+      "date": "2025-07-31T23:59:00",
+      "billing_period": "2025-07-01",
+      "recurring": false,
+      "description": "CPU hours for LLM pre-training Q3 July 2025 (55%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000501",
+      "resource_uuid": "d300000000000000000000000000000d",
+      "component_uuid": "c3000000000000000000000000000502",
+      "usage": "55000.00",
+      "date": "2025-07-31T23:59:00",
+      "billing_period": "2025-07-01",
+      "recurring": false,
+      "description": "Memory hours for LLM pre-training Q3 July 2025 (55%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000502",
+      "resource_uuid": "d300000000000000000000000000000d",
+      "component_uuid": "c3000000000000000000000000000503",
+      "usage": "550.00",
+      "date": "2025-07-31T23:59:00",
+      "billing_period": "2025-07-01",
+      "recurring": false,
+      "description": "GPU hours for LLM pre-training Q3 July 2025 (55%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000510",
+      "resource_uuid": "d300000000000000000000000000000d",
+      "component_uuid": "c3000000000000000000000000000501",
+      "usage": "28000.00",
+      "date": "2025-08-31T23:59:00",
+      "billing_period": "2025-08-01",
+      "recurring": false,
+      "description": "CPU hours for LLM pre-training Q3 August 2025 (56%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000511",
+      "resource_uuid": "d300000000000000000000000000000d",
+      "component_uuid": "c3000000000000000000000000000502",
+      "usage": "56000.00",
+      "date": "2025-08-31T23:59:00",
+      "billing_period": "2025-08-01",
+      "recurring": false,
+      "description": "Memory hours for LLM pre-training Q3 August 2025 (56%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000512",
+      "resource_uuid": "d300000000000000000000000000000d",
+      "component_uuid": "c3000000000000000000000000000503",
+      "usage": "560.00",
+      "date": "2025-08-31T23:59:00",
+      "billing_period": "2025-08-01",
+      "recurring": false,
+      "description": "GPU hours for LLM pre-training Q3 August 2025 (56%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000520",
+      "resource_uuid": "d300000000000000000000000000000d",
+      "component_uuid": "c3000000000000000000000000000501",
+      "usage": "30000.00",
+      "date": "2025-09-30T23:59:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "CPU hours for LLM pre-training Q3 September 2025 (60%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000521",
+      "resource_uuid": "d300000000000000000000000000000d",
+      "component_uuid": "c3000000000000000000000000000502",
+      "usage": "60000.00",
+      "date": "2025-09-30T23:59:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Memory hours for LLM pre-training Q3 September 2025 (60%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000522",
+      "resource_uuid": "d300000000000000000000000000000d",
+      "component_uuid": "c3000000000000000000000000000503",
+      "usage": "600.00",
+      "date": "2025-09-30T23:59:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "GPU hours for LLM pre-training Q3 September 2025 (60%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000600",
+      "resource_uuid": "d300000000000000000000000000000e",
+      "component_uuid": "c3000000000000000000000000000501",
+      "usage": "8000.00",
+      "date": "2025-07-31T23:59:00",
+      "billing_period": "2025-07-01",
+      "recurring": false,
+      "description": "CPU hours for Fine-tuning Q3 July 2025 (40%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000601",
+      "resource_uuid": "d300000000000000000000000000000e",
+      "component_uuid": "c3000000000000000000000000000502",
+      "usage": "16000.00",
+      "date": "2025-07-31T23:59:00",
+      "billing_period": "2025-07-01",
+      "recurring": false,
+      "description": "Memory hours for Fine-tuning Q3 July 2025 (40%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000602",
+      "resource_uuid": "d300000000000000000000000000000e",
+      "component_uuid": "c3000000000000000000000000000503",
+      "usage": "200.00",
+      "date": "2025-07-31T23:59:00",
+      "billing_period": "2025-07-01",
+      "recurring": false,
+      "description": "GPU hours for Fine-tuning Q3 July 2025 (40%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000610",
+      "resource_uuid": "d300000000000000000000000000000e",
+      "component_uuid": "c3000000000000000000000000000501",
+      "usage": "12000.00",
+      "date": "2025-08-31T23:59:00",
+      "billing_period": "2025-08-01",
+      "recurring": false,
+      "description": "CPU hours for Fine-tuning Q3 August 2025 (60%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000611",
+      "resource_uuid": "d300000000000000000000000000000e",
+      "component_uuid": "c3000000000000000000000000000502",
+      "usage": "24000.00",
+      "date": "2025-08-31T23:59:00",
+      "billing_period": "2025-08-01",
+      "recurring": false,
+      "description": "Memory hours for Fine-tuning Q3 August 2025 (60%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000612",
+      "resource_uuid": "d300000000000000000000000000000e",
+      "component_uuid": "c3000000000000000000000000000503",
+      "usage": "300.00",
+      "date": "2025-08-31T23:59:00",
+      "billing_period": "2025-08-01",
+      "recurring": false,
+      "description": "GPU hours for Fine-tuning Q3 August 2025 (60%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000620",
+      "resource_uuid": "d300000000000000000000000000000e",
+      "component_uuid": "c3000000000000000000000000000501",
+      "usage": "16000.00",
+      "date": "2025-09-30T23:59:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "CPU hours for Fine-tuning Q3 September 2025 (80%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000621",
+      "resource_uuid": "d300000000000000000000000000000e",
+      "component_uuid": "c3000000000000000000000000000502",
+      "usage": "32000.00",
+      "date": "2025-09-30T23:59:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Memory hours for Fine-tuning Q3 September 2025 (80%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000622",
+      "resource_uuid": "d300000000000000000000000000000e",
+      "component_uuid": "c3000000000000000000000000000503",
+      "usage": "400.00",
+      "date": "2025-09-30T23:59:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "GPU hours for Fine-tuning Q3 September 2025 (80%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000700",
+      "resource_uuid": "d300000000000000000000000000000f",
+      "component_uuid": "c3000000000000000000000000000501",
+      "usage": "15000.00",
+      "date": "2025-07-31T23:59:00",
+      "billing_period": "2025-07-01",
+      "recurring": false,
+      "description": "CPU hours for Vision Model Q3 July 2025 (50%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000701",
+      "resource_uuid": "d300000000000000000000000000000f",
+      "component_uuid": "c3000000000000000000000000000502",
+      "usage": "30000.00",
+      "date": "2025-07-31T23:59:00",
+      "billing_period": "2025-07-01",
+      "recurring": false,
+      "description": "Memory hours for Vision Model Q3 July 2025 (50%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000702",
+      "resource_uuid": "d300000000000000000000000000000f",
+      "component_uuid": "c3000000000000000000000000000503",
+      "usage": "400.00",
+      "date": "2025-07-31T23:59:00",
+      "billing_period": "2025-07-01",
+      "recurring": false,
+      "description": "GPU hours for Vision Model Q3 July 2025 (50%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000710",
+      "resource_uuid": "d300000000000000000000000000000f",
+      "component_uuid": "c3000000000000000000000000000501",
+      "usage": "15000.00",
+      "date": "2025-08-31T23:59:00",
+      "billing_period": "2025-08-01",
+      "recurring": false,
+      "description": "CPU hours for Vision Model Q3 August 2025 (50%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000711",
+      "resource_uuid": "d300000000000000000000000000000f",
+      "component_uuid": "c3000000000000000000000000000502",
+      "usage": "30000.00",
+      "date": "2025-08-31T23:59:00",
+      "billing_period": "2025-08-01",
+      "recurring": false,
+      "description": "Memory hours for Vision Model Q3 August 2025 (50%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000712",
+      "resource_uuid": "d300000000000000000000000000000f",
+      "component_uuid": "c3000000000000000000000000000503",
+      "usage": "400.00",
+      "date": "2025-08-31T23:59:00",
+      "billing_period": "2025-08-01",
+      "recurring": false,
+      "description": "GPU hours for Vision Model Q3 August 2025 (50%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000720",
+      "resource_uuid": "d300000000000000000000000000000f",
+      "component_uuid": "c3000000000000000000000000000501",
+      "usage": "15000.00",
+      "date": "2025-09-30T23:59:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "CPU hours for Vision Model Q3 September 2025 (50%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000721",
+      "resource_uuid": "d300000000000000000000000000000f",
+      "component_uuid": "c3000000000000000000000000000502",
+      "usage": "30000.00",
+      "date": "2025-09-30T23:59:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Memory hours for Vision Model Q3 September 2025 (50%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000722",
+      "resource_uuid": "d300000000000000000000000000000f",
+      "component_uuid": "c3000000000000000000000000000503",
+      "usage": "400.00",
+      "date": "2025-09-30T23:59:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "GPU hours for Vision Model Q3 September 2025 (50%)"
+    },
+    {
+      "uuid": "ca30000000000000000000000000000a",
+      "resource_uuid": "d300000000000000000000000000000d",
+      "component_uuid": "c3000000000000000000000000000501",
+      "usage": "32000.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "CPU hours for LLM pre-training December 2025"
+    },
+    {
+      "uuid": "ca30000000000000000000000000000b",
+      "resource_uuid": "d300000000000000000000000000000d",
+      "component_uuid": "c3000000000000000000000000000502",
+      "usage": "64000.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Memory hours for LLM pre-training December 2025"
+    },
+    {
+      "uuid": "ca30000000000000000000000000000c",
+      "resource_uuid": "d300000000000000000000000000000d",
+      "component_uuid": "c3000000000000000000000000000503",
+      "usage": "720.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "GPU hours for LLM pre-training December 2025"
+    },
+    {
+      "uuid": "ca30000000000000000000000000000d",
+      "resource_uuid": "d300000000000000000000000000000e",
+      "component_uuid": "c3000000000000000000000000000501",
+      "usage": "19500.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "CPU hours for fine-tuning December 2025 - near 100% threshold (97.5%)"
+    },
+    {
+      "uuid": "ca30000000000000000000000000000e",
+      "resource_uuid": "d300000000000000000000000000000e",
+      "component_uuid": "c3000000000000000000000000000502",
+      "usage": "39000.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Memory hours for fine-tuning December 2025 - near 100% threshold (97.5%)"
+    },
+    {
+      "uuid": "ca30000000000000000000000000000f",
+      "resource_uuid": "d300000000000000000000000000000e",
+      "component_uuid": "c3000000000000000000000000000503",
+      "usage": "490.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "GPU hours for fine-tuning December 2025 - near 100% threshold (98%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000010",
+      "resource_uuid": "d300000000000000000000000000000f",
+      "component_uuid": "c3000000000000000000000000000501",
+      "usage": "24000.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "CPU hours for vision model training December 2025 - at notification threshold (80%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000011",
+      "resource_uuid": "d300000000000000000000000000000f",
+      "component_uuid": "c3000000000000000000000000000502",
+      "usage": "48000.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Memory hours for vision model training December 2025 - at notification threshold (80%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000012",
+      "resource_uuid": "d300000000000000000000000000000f",
+      "component_uuid": "c3000000000000000000000000000503",
+      "usage": "640.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "GPU hours for vision model training December 2025 - at notification threshold (80%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000200",
+      "resource_uuid": "d3000000000000000000000000000020",
+      "component_uuid": "c3000000000000000000000000000501",
+      "usage": "7800.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "CPU hours for Speech Recognition - just below notification (78%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000201",
+      "resource_uuid": "d3000000000000000000000000000020",
+      "component_uuid": "c3000000000000000000000000000502",
+      "usage": "15600.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Memory hours for Speech Recognition - just below notification (78%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000202",
+      "resource_uuid": "d3000000000000000000000000000020",
+      "component_uuid": "c3000000000000000000000000000503",
+      "usage": "195.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "GPU hours for Speech Recognition - just below notification (78%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000300",
+      "resource_uuid": "d3000000000000000000000000000021",
+      "component_uuid": "c3000000000000000000000000000501",
+      "usage": "18500.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "CPU hours for RL Agent Training - exceeds grace limit (123%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000301",
+      "resource_uuid": "d3000000000000000000000000000021",
+      "component_uuid": "c3000000000000000000000000000502",
+      "usage": "37000.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Memory hours for RL Agent Training - exceeds grace limit (123%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000302",
+      "resource_uuid": "d3000000000000000000000000000021",
+      "component_uuid": "c3000000000000000000000000000503",
+      "usage": "495.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "GPU hours for RL Agent Training - exceeds grace limit (124%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000400",
+      "resource_uuid": "d3000000000000000000000000000022",
+      "component_uuid": "c3000000000000000000000000000501",
+      "usage": "4000.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "CPU hours for NLP Research - normal usage (50%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000401",
+      "resource_uuid": "d3000000000000000000000000000022",
+      "component_uuid": "c3000000000000000000000000000502",
+      "usage": "8000.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "Memory hours for NLP Research - normal usage (50%)"
+    },
+    {
+      "uuid": "ca300000000000000000000000000402",
+      "resource_uuid": "d3000000000000000000000000000022",
+      "component_uuid": "c3000000000000000000000000000503",
+      "usage": "100.00",
+      "date": "2025-12-20T14:30:00",
+      "billing_period": "2025-12-01",
+      "recurring": false,
+      "description": "GPU hours for NLP Research - normal usage (50%)"
     }
   ],
   "component_user_usages": [
@@ -2151,429 +2814,263 @@
   ],
   "orders": [
     {
-      "uuid": "e3000000000000000000000000000001",
-      "type": 1,
-      "state": 3,
+      "uuid": "o3000000000000000000000000000001",
       "project_uuid": "c3000000000000000000000000000001",
       "resource_uuid": "d3000000000000000000000000000001",
       "offering_uuid": "f3000000000000000000000000000001",
       "plan_uuid": "13000000000000000000000000000002",
-      "created_by_uuid": "a3000000000000000000000000000002",
-      "consumer_reviewed_by_uuid": "a3000000000000000000000000000002",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-01-01T10:00:00Z",
-      "provider_reviewed_at": "2025-01-01T10:05:00Z",
-      "completed_at": "2025-01-01T10:10:00Z",
-      "attributes": {},
-      "limits": {
-        "gpu": 8,
-        "cpu": 128,
-        "ram": 512,
-        "nvme_storage": 10000
-      }
-    },
-    {
-      "uuid": "e3000000000000000000000000000002",
+      "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
+      "attributes": {"name": "LLM Training Cluster"},
+      "limits": {"gpu": 8, "cpu": 128, "ram": 512, "nvme_storage": 10000},
+      "completed_at": "2025-06-01T10:00:00"
+    },
+    {
+      "uuid": "o3000000000000000000000000000002",
       "project_uuid": "c3000000000000000000000000000002",
       "resource_uuid": "d3000000000000000000000000000002",
       "offering_uuid": "f3000000000000000000000000000002",
       "plan_uuid": "13000000000000000000000000000003",
-      "created_by_uuid": "00000000000000000000000000000004",
-      "consumer_reviewed_by_uuid": "00000000000000000000000000000004",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-01-02T09:00:00Z",
-      "provider_reviewed_at": "2025-01-02T09:10:00Z",
-      "completed_at": "2025-01-02T09:15:00Z",
-      "attributes": {},
-      "limits": {
-        "storage": 50
-      }
-    },
-    {
-      "uuid": "e3000000000000000000000000000003",
+      "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
+      "attributes": {"name": "Vision Model Storage"},
+      "limits": {"storage": 50},
+      "completed_at": "2025-06-01T10:00:00"
+    },
+    {
+      "uuid": "o3000000000000000000000000000003",
       "project_uuid": "c3000000000000000000000000000001",
       "resource_uuid": "d3000000000000000000000000000003",
       "offering_uuid": "f3000000000000000000000000000001",
       "plan_uuid": "13000000000000000000000000000001",
-      "created_by_uuid": "a3000000000000000000000000000002",
-      "consumer_reviewed_by_uuid": "a3000000000000000000000000000002",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-01-03T11:00:00Z",
-      "provider_reviewed_at": "2025-01-03T11:05:00Z",
-      "completed_at": "2025-01-03T11:10:00Z",
-      "attributes": {},
-      "limits": {
-        "gpu": 4,
-        "cpu": 64,
-        "ram": 256,
-        "nvme_storage": 2000
-      }
+      "created_by_uuid": "00000000000000000000000000000003",
+      "type": 1,
+      "state": 3,
+      "attributes": {"name": "NLP Inference GPU Nodes"},
+      "limits": {"gpu": 4, "cpu": 64, "ram": 256, "nvme_storage": 2000},
+      "completed_at": "2025-06-01T10:00:00"
     },
     {
-      "uuid": "e3000000000000000000000000000009",
+      "uuid": "o3000000000000000000000000000004",
+      "project_uuid": "c3000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000004",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000002",
+      "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
-      "state": 7,
+      "state": 3,
+      "attributes": {"name": "Diffusion Model Training"},
+      "limits": {"gpu": 8, "cpu": 128, "ram": 1024, "nvme_storage": 20000},
+      "completed_at": "2025-06-01T10:00:00"
+    },
+    {
+      "uuid": "o3000000000000000000000000000005",
+      "project_uuid": "c3000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000005",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000001",
+      "created_by_uuid": "00000000000000000000000000000003",
+      "type": 1,
+      "state": 3,
+      "attributes": {"name": "Speech Recognition Cluster"},
+      "limits": {"gpu": 4, "cpu": 64, "ram": 256, "nvme_storage": 5000},
+      "completed_at": "2025-06-01T10:00:00"
+    },
+    {
+      "uuid": "o3000000000000000000000000000006",
+      "project_uuid": "c3000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000006",
+      "offering_uuid": "f3000000000000000000000000000002",
+      "plan_uuid": "13000000000000000000000000000003",
+      "created_by_uuid": "00000000000000000000000000000003",
+      "type": 1,
+      "state": 3,
+      "attributes": {"name": "Training Dataset Archive"},
+      "limits": {"storage": 200},
+      "completed_at": "2025-06-01T10:00:00"
+    },
+    {
+      "uuid": "o3000000000000000000000000000007",
+      "project_uuid": "c3000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000007",
+      "offering_uuid": "f3000000000000000000000000000002",
+      "plan_uuid": "13000000000000000000000000000003",
+      "created_by_uuid": "00000000000000000000000000000003",
+      "type": 1,
+      "state": 3,
+      "attributes": {"name": "Model Checkpoint Storage"},
+      "limits": {"storage": 100},
+      "completed_at": "2025-06-01T10:00:00"
+    },
+    {
+      "uuid": "o3000000000000000000000000000008",
+      "project_uuid": "c3000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000008",
+      "offering_uuid": "f3000000000000000000000000000001",
+      "plan_uuid": "13000000000000000000000000000002",
+      "created_by_uuid": "00000000000000000000000000000003",
+      "type": 1,
+      "state": 3,
+      "attributes": {"name": "Reinforcement Learning Cluster"},
+      "limits": {"gpu": 8, "cpu": 128, "ram": 512, "nvme_storage": 8000},
+      "completed_at": "2025-06-01T10:00:00"
+    },
+    {
+      "uuid": "o3000000000000000000000000000009",
       "project_uuid": "c3000000000000000000000000000001",
       "resource_uuid": "d3000000000000000000000000000009",
       "offering_uuid": "f3000000000000000000000000000010",
       "plan_uuid": "13000000000000000000000000000010",
-      "created_by_uuid": "a3000000000000000000000000000002",
-      "consumer_reviewed_by_uuid": "a3000000000000000000000000000002",
-      "consumer_reviewed_at": "2025-06-15T08:00:00Z",
-      "attributes": {},
-      "limits": {
-        "vcpu": 64,
-        "ram": 256,
-        "storage": 2000
-      }
+      "created_by_uuid": "00000000000000000000000000000003",
+      "type": 1,
+      "state": 3,
+      "attributes": {"name": "MLOps K8s Cluster"},
+      "limits": {"vcpu": 64, "ram": 256, "storage": 2000},
+      "completed_at": "2025-06-01T10:00:00"
     },
     {
-      "uuid": "e300000000000000000000000000000c",
+      "uuid": "o300000000000000000000000000000a",
+      "project_uuid": "c3000000000000000000000000000002",
+      "resource_uuid": "d300000000000000000000000000000a",
+      "offering_uuid": "f3000000000000000000000000000010",
+      "plan_uuid": "13000000000000000000000000000011",
+      "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
-      "state": 2,
+      "state": 3,
+      "attributes": {"name": "Model Serving K8s"},
+      "limits": {"vcpu": 48, "ram": 192, "storage": 1500},
+      "completed_at": "2025-06-01T10:00:00"
+    },
+    {
+      "uuid": "o300000000000000000000000000000b",
+      "project_uuid": "c3000000000000000000000000000002",
+      "resource_uuid": "d300000000000000000000000000000b",
+      "offering_uuid": "f3000000000000000000000000000002",
+      "plan_uuid": "13000000000000000000000000000003",
+      "created_by_uuid": "00000000000000000000000000000003",
+      "type": 1,
+      "state": 3,
+      "attributes": {"name": "Benchmark Dataset Storage"},
+      "limits": {"storage": 30},
+      "completed_at": "2025-06-01T10:00:00"
+    },
+    {
+      "uuid": "o300000000000000000000000000000c",
       "project_uuid": "c3000000000000000000000000000001",
       "resource_uuid": "d300000000000000000000000000000c",
       "offering_uuid": "f3000000000000000000000000000020",
       "plan_uuid": "13000000000000000000000000000021",
-      "created_by_uuid": "a3000000000000000000000000000002",
-      "consumer_reviewed_by_uuid": "a3000000000000000000000000000002",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-06-20T14:00:00Z",
-      "provider_reviewed_at": "2025-06-20T14:30:00Z",
-      "attributes": {},
-      "limits": {
-        "vcpu": 256,
-        "ram": 1024,
-        "storage": 10000
-      }
-    },
-    {
-      "uuid": "e3000000000000000000000000000030",
+      "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "project_uuid": "c3000000000000000000000000000001",
-      "resource_uuid": "d3000000000000000000000000000030",
-      "offering_uuid": "f3000000000000000000000000000030",
-      "plan_uuid": "13000000000000000000000000000030",
-      "created_by_uuid": "a3000000000000000000000000000002",
-      "consumer_reviewed_by_uuid": "a3000000000000000000000000000002",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-02-01T10:00:00Z",
-      "provider_reviewed_at": "2025-02-01T10:05:00Z",
-      "completed_at": "2025-02-01T10:10:00Z",
-      "attributes": {
-        "storage_data_type": "Store",
-        "permissions": "2770"
-      },
-      "limits": {
-        "storage": 100
-      }
+      "attributes": {"name": "Multi-Site AI Training"},
+      "limits": {"vcpu": 256, "ram": 1024, "storage": 10000},
+      "completed_at": "2025-06-01T10:00:00"
     },
     {
-      "uuid": "e3000000000000000000000000000031",
+      "uuid": "o300000000000000000000000000000d",
+      "project_uuid": "c3000000000000000000000000000001",
+      "resource_uuid": "d300000000000000000000000000000d",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "plan_uuid": "13000000000000000000000000000006",
+      "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "project_uuid": "c3000000000000000000000000000001",
-      "resource_uuid": "d3000000000000000000000000000031",
-      "offering_uuid": "f3000000000000000000000000000030",
-      "plan_uuid": "13000000000000000000000000000030",
-      "created_by_uuid": "a3000000000000000000000000000002",
-      "consumer_reviewed_by_uuid": "a3000000000000000000000000000002",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-02-05T09:00:00Z",
-      "provider_reviewed_at": "2025-02-05T09:10:00Z",
-      "completed_at": "2025-02-05T09:15:00Z",
-      "attributes": {
-        "storage_data_type": "Archive",
-        "permissions": "2770"
-      },
-      "limits": {
-        "storage": 500
-      }
+      "attributes": {"name": "LLM Pre-training Allocation", "slurm_account": "llm_training", "partition": "a100"},
+      "limits": {"cpu": 50000, "ram": 100000, "gpu": 1000},
+      "completed_at": "2025-06-01T10:00:00"
     },
     {
-      "uuid": "e3000000000000000000000000000032",
+      "uuid": "o300000000000000000000000000000e",
+      "project_uuid": "c3000000000000000000000000000001",
+      "resource_uuid": "d300000000000000000000000000000e",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "plan_uuid": "13000000000000000000000000000005",
+      "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "project_uuid": "c3000000000000000000000000000001",
-      "resource_uuid": "d3000000000000000000000000000032",
-      "offering_uuid": "f3000000000000000000000000000030",
-      "plan_uuid": "13000000000000000000000000000031",
-      "created_by_uuid": "00000000000000000000000000000004",
-      "consumer_reviewed_by_uuid": "00000000000000000000000000000004",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-02-10T11:00:00Z",
-      "provider_reviewed_at": "2025-02-10T11:10:00Z",
-      "completed_at": "2025-02-10T11:15:00Z",
-      "attributes": {
-        "storage_data_type": "Scratch",
-        "permissions": "2775"
-      },
-      "limits": {
-        "storage": 50
-      }
+      "attributes": {"name": "Fine-tuning Jobs Allocation", "slurm_account": "finetune", "partition": "h100"},
+      "limits": {"cpu": 20000, "ram": 40000, "gpu": 500},
+      "completed_at": "2025-06-01T10:00:00"
     },
     {
-      "uuid": "e3000000000000000000000000000033",
+      "uuid": "o300000000000000000000000000000f",
+      "project_uuid": "c3000000000000000000000000000002",
+      "resource_uuid": "d300000000000000000000000000000f",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "plan_uuid": "13000000000000000000000000000005",
+      "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "project_uuid": "c3000000000000000000000000000002",
-      "resource_uuid": "d3000000000000000000000000000033",
-      "offering_uuid": "f3000000000000000000000000000030",
-      "plan_uuid": "13000000000000000000000000000030",
-      "created_by_uuid": "00000000000000000000000000000004",
-      "consumer_reviewed_by_uuid": "00000000000000000000000000000004",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-02-15T08:00:00Z",
-      "provider_reviewed_at": "2025-02-15T08:05:00Z",
-      "completed_at": "2025-02-15T08:10:00Z",
-      "attributes": {
-        "storage_data_type": "Users",
-        "permissions": "770"
-      },
-      "limits": {
-        "storage": 10
-      }
+      "attributes": {"name": "Vision Model Training", "slurm_account": "vision", "partition": "a100"},
+      "limits": {"cpu": 30000, "ram": 60000, "gpu": 800},
+      "completed_at": "2025-06-01T10:00:00"
     },
     {
-      "uuid": "e3000000000000000000000000000034",
+      "uuid": "o3000000000000000000000000000020",
+      "project_uuid": "c3000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000020",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "plan_uuid": "13000000000000000000000000000005",
+      "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "project_uuid": "c3000000000000000000000000000002",
-      "resource_uuid": "d3000000000000000000000000000034",
-      "offering_uuid": "f3000000000000000000000000000031",
-      "plan_uuid": "13000000000000000000000000000032",
-      "created_by_uuid": "00000000000000000000000000000004",
-      "consumer_reviewed_by_uuid": "00000000000000000000000000000004",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-03-01T10:00:00Z",
-      "provider_reviewed_at": "2025-03-01T10:10:00Z",
-      "completed_at": "2025-03-01T10:15:00Z",
-      "attributes": {
-        "storage_data_type": "Store",
-        "permissions": "2770"
-      },
-      "limits": {
-        "storage": 200
-      }
+      "attributes": {"name": "Speech Recognition Training", "slurm_account": "speech", "partition": "a100"},
+      "limits": {"cpu": 10000, "ram": 20000, "gpu": 250},
+      "completed_at": "2025-06-01T10:00:00"
     },
     {
-      "uuid": "e3000000000000000000000000000035",
+      "uuid": "o3000000000000000000000000000021",
+      "project_uuid": "c3000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000021",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "plan_uuid": "13000000000000000000000000000006",
+      "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "project_uuid": "c3000000000000000000000000000001",
-      "resource_uuid": "d3000000000000000000000000000035",
-      "offering_uuid": "f3000000000000000000000000000031",
-      "plan_uuid": "13000000000000000000000000000033",
-      "created_by_uuid": "a3000000000000000000000000000002",
-      "consumer_reviewed_by_uuid": "a3000000000000000000000000000002",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-03-05T14:00:00Z",
-      "provider_reviewed_at": "2025-03-05T14:05:00Z",
-      "completed_at": "2025-03-05T14:10:00Z",
-      "attributes": {
-        "storage_data_type": "Scratch",
-        "permissions": "2775"
-      },
-      "limits": {
-        "storage": 150
-      }
+      "attributes": {"name": "RL Agent Training", "slurm_account": "rl_training", "partition": "h100"},
+      "limits": {"cpu": 15000, "ram": 30000, "gpu": 400},
+      "completed_at": "2025-06-01T10:00:00"
     },
     {
-      "uuid": "e3000000000000000000000000000036",
+      "uuid": "o3000000000000000000000000000022",
+      "project_uuid": "c3000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000022",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "plan_uuid": "13000000000000000000000000000005",
+      "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "project_uuid": "c3000000000000000000000000000002",
-      "resource_uuid": "d3000000000000000000000000000036",
-      "offering_uuid": "f3000000000000000000000000000030",
-      "plan_uuid": "13000000000000000000000000000030",
-      "created_by_uuid": "00000000000000000000000000000004",
-      "consumer_reviewed_by_uuid": "00000000000000000000000000000004",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-03-10T09:00:00Z",
-      "provider_reviewed_at": "2025-03-10T09:05:00Z",
-      "completed_at": "2025-03-10T09:10:00Z",
-      "attributes": {
-        "storage_data_type": "Archive",
-        "permissions": "2770"
+      "attributes": {"name": "NLP Research Allocation", "slurm_account": "nlp_research", "partition": "a100"},
+      "limits": {"cpu": 8000, "ram": 16000, "gpu": 200},
+      "completed_at": "2025-06-01T10:00:00"
+    }
+  ],
+  "slurm_periodic_policies": [
+    {
+      "uuid": "p3000000000000000000000000000001",
+      "offering_uuid": "f3000000000000000000000000000005",
+      "apply_to_all": true,
+      "actions": "notify_organization_owners,request_slurm_resource_downscaling,request_slurm_resource_pausing",
+      "limit_type": "GrpTRESMins",
+      "tres_billing_enabled": true,
+      "tres_billing_weights": {
+        "CPU": 0.015625,
+        "Mem": 0.001953125,
+        "GRES/gpu": 0.25
       },
-      "limits": {
-        "storage": 1000
-      }
-    },
-    {
-      "uuid": "e3000000000000000000000000000050",
-      "type": 2,
-      "state": 7,
-      "project_uuid": "c3000000000000000000000000000001",
-      "resource_uuid": "d3000000000000000000000000000030",
-      "offering_uuid": "f3000000000000000000000000000030",
-      "plan_uuid": "13000000000000000000000000000030",
-      "created_by_uuid": "a3000000000000000000000000000002",
-      "consumer_reviewed_by_uuid": "a3000000000000000000000000000002",
-      "consumer_reviewed_at": "2025-06-01T10:00:00Z",
-      "attributes": {
-        "old_limits": {
-          "storage": 100
-        }
-      },
-      "limits": {
-        "storage": 150
-      }
-    },
-    {
-      "uuid": "e3000000000000000000000000000051",
-      "type": 2,
-      "state": 2,
-      "project_uuid": "c3000000000000000000000000000001",
-      "resource_uuid": "d3000000000000000000000000000031",
-      "offering_uuid": "f3000000000000000000000000000030",
-      "plan_uuid": "13000000000000000000000000000030",
-      "created_by_uuid": "a3000000000000000000000000000002",
-      "consumer_reviewed_by_uuid": "a3000000000000000000000000000002",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-06-05T11:00:00Z",
-      "provider_reviewed_at": "2025-06-05T11:30:00Z",
-      "attributes": {
-        "old_limits": {
-          "storage": 500
-        }
-      },
-      "limits": {
-        "storage": 750
-      }
-    },
-    {
-      "uuid": "e3000000000000000000000000000052",
-      "type": 2,
-      "state": 3,
-      "project_uuid": "c3000000000000000000000000000002",
-      "resource_uuid": "d3000000000000000000000000000034",
-      "offering_uuid": "f3000000000000000000000000000031",
-      "plan_uuid": "13000000000000000000000000000032",
-      "created_by_uuid": "00000000000000000000000000000004",
-      "consumer_reviewed_by_uuid": "00000000000000000000000000000004",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-05-01T09:00:00Z",
-      "provider_reviewed_at": "2025-05-01T09:10:00Z",
-      "completed_at": "2025-05-01T09:30:00Z",
-      "attributes": {
-        "old_limits": {
-          "storage": 150
-        }
-      },
-      "limits": {
-        "storage": 200
-      }
-    },
-    {
-      "uuid": "e3000000000000000000000000000055",
-      "type": 2,
-      "state": 7,
-      "project_uuid": "c3000000000000000000000000000001",
-      "resource_uuid": "d3000000000000000000000000000032",
-      "offering_uuid": "f3000000000000000000000000000030",
-      "plan_uuid": "13000000000000000000000000000031",
-      "created_by_uuid": "00000000000000000000000000000004",
-      "consumer_reviewed_by_uuid": "00000000000000000000000000000004",
-      "consumer_reviewed_at": "2025-06-10T12:00:00Z",
-      "attributes": {
-        "old_options": {
-          "permissions": "2775"
-        },
-        "new_options": {
-          "permissions": "2770"
-        }
-      },
-      "limits": {}
-    },
-    {
-      "uuid": "e3000000000000000000000000000056",
-      "type": 2,
-      "state": 2,
-      "project_uuid": "c3000000000000000000000000000002",
-      "resource_uuid": "d3000000000000000000000000000036",
-      "offering_uuid": "f3000000000000000000000000000030",
-      "plan_uuid": "13000000000000000000000000000030",
-      "created_by_uuid": "00000000000000000000000000000004",
-      "consumer_reviewed_by_uuid": "00000000000000000000000000000004",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-06-12T08:00:00Z",
-      "provider_reviewed_at": "2025-06-12T08:15:00Z",
-      "attributes": {
-        "old_options": {
-          "soft_quota_space": 1000,
-          "hard_quota_space": 1200,
-          "soft_quota_inodes": 1500000000,
-          "hard_quota_inodes": 2000000000
-        },
-        "new_options": {
-          "soft_quota_space": 1100,
-          "hard_quota_space": 1300,
-          "soft_quota_inodes": 1650000000,
-          "hard_quota_inodes": 2200000000
-        }
-      },
-      "limits": {}
-    },
-    {
-      "uuid": "e3000000000000000000000000000057",
-      "type": 2,
-      "state": 3,
-      "project_uuid": "c3000000000000000000000000000001",
-      "resource_uuid": "d3000000000000000000000000000035",
-      "offering_uuid": "f3000000000000000000000000000031",
-      "plan_uuid": "13000000000000000000000000000033",
-      "created_by_uuid": "a3000000000000000000000000000002",
-      "consumer_reviewed_by_uuid": "a3000000000000000000000000000002",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-05-20T14:00:00Z",
-      "provider_reviewed_at": "2025-05-20T14:10:00Z",
-      "completed_at": "2025-05-20T14:20:00Z",
-      "attributes": {
-        "old_options": {
-          "permissions": "2775"
-        },
-        "new_options": {
-          "permissions": "777"
-        }
-      },
-      "limits": {}
-    },
-    {
-      "uuid": "e3000000000000000000000000000070",
-      "type": 3,
-      "state": 1,
-      "project_uuid": "c3000000000000000000000000000002",
-      "resource_uuid": "d3000000000000000000000000000033",
-      "offering_uuid": "f3000000000000000000000000000030",
-      "plan_uuid": "13000000000000000000000000000030",
-      "created_by_uuid": "00000000000000000000000000000004",
-      "termination_comment": "User home directories no longer needed after project migration",
-      "attributes": {},
-      "limits": {}
-    },
-    {
-      "uuid": "e3000000000000000000000000000071",
-      "type": 3,
-      "state": 3,
-      "project_uuid": "c3000000000000000000000000000002",
-      "resource_uuid": "d300000000000000000000000000000b",
-      "offering_uuid": "f3000000000000000000000000000002",
-      "plan_uuid": "13000000000000000000000000000004",
-      "created_by_uuid": "00000000000000000000000000000004",
-      "consumer_reviewed_by_uuid": "00000000000000000000000000000004",
-      "provider_reviewed_by_uuid": "a3000000000000000000000000000001",
-      "consumer_reviewed_at": "2025-06-18T15:00:00Z",
-      "provider_reviewed_at": "2025-06-18T15:30:00Z",
-      "completed_at": "2025-06-18T15:45:00Z",
-      "termination_comment": "Benchmark dataset storage being decommissioned",
-      "attributes": {},
-      "limits": {}
+      "fairshare_decay_half_life": 15,
+      "grace_ratio": 0.2,
+      "carryover_enabled": true,
+      "raw_usage_reset": true,
+      "qos_strategy": "progressive",
+      "component_limits": [
+        {"type": "cpu", "limit": 150000},
+        {"type": "ram", "limit": 300000},
+        {"type": "gpu", "limit": 3000}
+      ]
     }
   ],
   "role_permissions": [
