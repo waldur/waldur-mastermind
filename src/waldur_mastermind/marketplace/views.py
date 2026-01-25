@@ -30,6 +30,7 @@ from django.db.models.aggregates import Sum
 from django.db.models.fields import FloatField, IntegerField
 from django.db.models.functions import Coalesce
 from django.db.models.functions.math import Ceil
+from django.http import HttpResponse
 from django.http.response import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -143,6 +144,7 @@ from waldur_mastermind.marketplace.utils import (
     get_model_serializer,
     validate_attributes,
 )
+from waldur_mastermind.policy.models import SlurmPeriodicUsagePolicy
 from waldur_mastermind.promotions import models as promotions_models
 from waldur_mastermind.support import models as support_models
 from waldur_pid import models as pid_models
@@ -634,6 +636,171 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
         data = serializers.NameUUIDSerializer(page, many=True).data
         return self.get_paginated_response(data)
 
+    generate_site_agent_config_permissions = [
+        permission_factory(
+            PermissionEnum.GET_SERVICE_PROVIDER_API_SECRET_CODE,
+            ["customer"],
+        )
+    ]
+
+    @extend_schema(
+        summary="Generate site agent configuration",
+        description=(
+            "Generates a YAML configuration file for waldur-site-agent based on selected SLURM offerings. "
+            "The configuration includes offering details, components, backend settings, and optionally "
+            "SLURM periodic usage policy settings. Secrets are shown as placeholders that need to be filled in."
+        ),
+        request=serializers.SiteAgentConfigGenerationSerializer,
+        responses={
+            status.HTTP_200_OK: OpenApiTypes.BINARY,
+        },
+    )
+    @action(detail=True, methods=["POST"])
+    def generate_site_agent_config(self, request, uuid=None):
+        """Generate site agent configuration YAML for SLURM offerings."""
+        service_provider: models.ServiceProvider = self.get_object()
+
+        serializer = serializers.SiteAgentConfigGenerationSerializer(
+            data=request.data,
+            context={"request": request, "service_provider": service_provider},
+        )
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
+
+        offerings = serializer.context.get("validated_offerings", [])
+        include_policy = validated_data.get("include_policy_settings", True)
+        waldur_api_url = validated_data.get(
+            "waldur_api_url"
+        ) or request.build_absolute_uri("/api/")
+        tz = validated_data.get("timezone", "UTC")
+
+        config = self._build_site_agent_config(
+            offerings=offerings,
+            waldur_api_url=waldur_api_url,
+            timezone_str=tz,
+            include_policy_settings=include_policy,
+        )
+
+        # Generate YAML with header comments
+        yaml_content = self._generate_yaml_with_header(config)
+
+        return HttpResponse(yaml_content, content_type="text/plain; charset=utf-8")
+
+    def _build_site_agent_config(
+        self, offerings, waldur_api_url, timezone_str, include_policy_settings
+    ):
+        """Build site agent configuration dictionary."""
+        config = {
+            "sentry_dsn": "",
+            "timezone": timezone_str,
+            "offerings": [],
+        }
+
+        for offering in offerings:
+            offering_config = self._build_offering_config(
+                offering, waldur_api_url, include_policy_settings
+            )
+            config["offerings"].append(offering_config)
+
+        return config
+
+    def _build_offering_config(self, offering, waldur_api_url, include_policy_settings):
+        """Build configuration for a single offering."""
+        offering_config = {
+            "name": offering.name,
+            "waldur_api_url": waldur_api_url,
+            "waldur_api_token": "<YOUR_API_TOKEN_HERE>",
+            "waldur_offering_uuid": str(offering.uuid),
+            "order_processing_backend": "slurm",
+            "membership_sync_backend": "slurm",
+            "reporting_backend": "slurm",
+            "backend_settings": self._build_backend_settings(offering),
+            "backend_components": self._build_backend_components(offering),
+        }
+
+        if include_policy_settings:
+            policy_settings = self._build_policy_settings(offering)
+            if policy_settings:
+                offering_config["policy_settings"] = policy_settings
+
+        return offering_config
+
+    def _build_backend_settings(self, offering):
+        """Build backend_settings from offering plugin_options."""
+        plugin_options = offering.plugin_options or {}
+
+        return {
+            "default_account": plugin_options.get("default_account", "root"),
+            "customer_prefix": plugin_options.get("customer_prefix", ""),
+            "project_prefix": plugin_options.get("project_prefix", ""),
+            "allocation_prefix": plugin_options.get("allocation_prefix", ""),
+            "qos_downscaled": plugin_options.get("qos_downscaled", "limited"),
+            "qos_paused": plugin_options.get("qos_paused", "paused"),
+            "qos_default": plugin_options.get("qos_default", "normal"),
+            "hostname": plugin_options.get("hostname", "<YOUR_SLURM_HOST>"),
+            "enable_user_homedir_account_creation": plugin_options.get(
+                "enable_user_homedir_account_creation", False
+            ),
+        }
+
+    def _build_backend_components(self, offering):
+        """Convert offering components to backend_components format."""
+        components = {}
+        for component in offering.components.all():
+            components[component.type] = {
+                "measured_unit": component.measured_unit or "",
+                "unit_factor": component.unit_factor or 1,
+                "accounting_type": "usage"
+                if component.billing_type == BillingTypes.USAGE
+                else "limit",
+                "label": component.name,
+            }
+        return components
+
+    def _build_policy_settings(self, offering):
+        """Build policy settings from SlurmPeriodicUsagePolicy if exists."""
+        try:
+            policy = SlurmPeriodicUsagePolicy.objects.get(scope=offering)
+            return {
+                "limit_type": policy.limit_type,
+                "tres_billing_enabled": policy.tres_billing_enabled,
+                "tres_billing_weights": policy.tres_billing_weights or {},
+                "fairshare_decay_half_life": policy.fairshare_decay_half_life,
+                "grace_ratio": float(policy.grace_ratio),
+                "carryover_enabled": policy.carryover_enabled,
+                "raw_usage_reset": policy.raw_usage_reset,
+                "qos_strategy": policy.qos_strategy,
+            }
+        except SlurmPeriodicUsagePolicy.DoesNotExist:
+            return None
+
+    def _generate_yaml_with_header(self, config):
+        """Generate YAML string with instructional header comments."""
+        header = (
+            textwrap.dedent("""
+            # Waldur Site Agent Configuration
+            # Generated: {timestamp}
+            #
+            # IMPORTANT - SECRETS TO CONFIGURE:
+            #   - waldur_api_token: Generate an API token from Waldur user settings
+            #     (User Profile -> Credentials -> API Token)
+            #   - hostname: Your SLURM cluster hostname (if shown as placeholder)
+            #
+            # Documentation: https://docs.waldur.com/admin-guide/providers/remote-offerings/
+            #
+            # Place this file at /etc/waldur/waldur-site-agent-config.yaml
+            # and start the site agent service.
+
+        """)
+            .format(timestamp=timezone.now().isoformat())
+            .lstrip()
+        )
+
+        yaml_content = yaml.dump(
+            config, default_flow_style=False, allow_unicode=True, sort_keys=False
+        )
+        return header + yaml_content
+
 
 SERVICE_PROVIDER_UUID = OpenApiParameter(
     name="service_provider_uuid",
@@ -658,8 +825,8 @@ class ServiceProviderCustomersViewSet(
     queryset = structure_models.Customer.objects.all()
 
     def get_service_provider(self):
-        service_provider = models.ServiceProvider.objects.get(
-            uuid=self.kwargs["service_provider_uuid"]
+        service_provider = get_object_or_404(
+            models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
         if not has_permission(
             self.request,
@@ -708,8 +875,8 @@ class ServiceProviderCustomerProjectsViewSet(
     queryset = structure_models.Project.available_objects.all()
 
     def get_service_provider(self):
-        service_provider = models.ServiceProvider.objects.get(
-            uuid=self.kwargs["service_provider_uuid"]
+        service_provider = get_object_or_404(
+            models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
         if not has_permission(
             self.request,
@@ -752,8 +919,8 @@ class ServiceProviderProjectsViewSet(mixins.ListModelMixin, rf_viewsets.GenericV
     queryset = structure_models.Project.available_objects.all()
 
     def get_service_provider(self):
-        service_provider = models.ServiceProvider.objects.get(
-            uuid=self.kwargs["service_provider_uuid"]
+        service_provider = get_object_or_404(
+            models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
         if not has_permission(
             self.request,
@@ -793,8 +960,8 @@ class ServiceProviderProjectPermissionsViewSet(
     filterset_class = UserPermissionFilter
 
     def get_service_provider(self):
-        service_provider = models.ServiceProvider.objects.get(
-            uuid=self.kwargs["service_provider_uuid"]
+        service_provider = get_object_or_404(
+            models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
         if not has_permission(
             self.request,
@@ -831,8 +998,8 @@ class ServiceProviderKeysViewSet(mixins.ListModelMixin, rf_viewsets.GenericViewS
     filterset_class = structure_filters.SshKeyFilter
 
     def get_service_provider(self):
-        service_provider = models.ServiceProvider.objects.get(
-            uuid=self.kwargs["service_provider_uuid"]
+        service_provider = get_object_or_404(
+            models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
         if not has_permission(
             self.request,
@@ -863,8 +1030,8 @@ class ServiceProviderUsersViewSet(mixins.ListModelMixin, rf_viewsets.GenericView
     filterset_class = structure_filters.UserFilter
 
     def get_service_provider(self):
-        service_provider = models.ServiceProvider.objects.get(
-            uuid=self.kwargs["service_provider_uuid"]
+        service_provider = get_object_or_404(
+            models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
         if not has_permission(
             self.request,
@@ -927,9 +1094,13 @@ class ServiceProviderOfferingsViewSet(
     filterset_class = filters.OfferingFilter
 
     def get_service_provider(self):
-        return models.ServiceProvider.objects.get(
-            uuid=self.kwargs["service_provider_uuid"]
-        )
+        uuid = self.kwargs["service_provider_uuid"]
+        # Try to find by service provider UUID first
+        service_provider = models.ServiceProvider.objects.filter(uuid=uuid).first()
+        if service_provider:
+            return service_provider
+        # Fallback: try to find by customer UUID (for frontend compatibility)
+        return get_object_or_404(models.ServiceProvider, customer__uuid=uuid)
 
     def get_queryset(self):
         return self.queryset.filter(
@@ -970,8 +1141,8 @@ class ServiceProviderUserCustomersViewSet(
     filterset_class = structure_filters.CustomerFilter
 
     def get_service_provider(self):
-        service_provider = models.ServiceProvider.objects.get(
-            uuid=self.kwargs["service_provider_uuid"]
+        service_provider = get_object_or_404(
+            models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
         if not has_permission(
             self.request,
@@ -1086,8 +1257,8 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
 
     def get_service_provider(self):
         """Get service provider and check permissions."""
-        service_provider = models.ServiceProvider.objects.get(
-            uuid=self.kwargs["service_provider_uuid"]
+        service_provider = get_object_or_404(
+            models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
         if not has_permission(
             self.request,
@@ -1341,8 +1512,8 @@ class ServiceProviderProjectServiceAccountsViewSet(
     filterset_class = filters.ProjectServiceAccountFilter
 
     def get_service_provider(self):
-        service_provider = models.ServiceProvider.objects.get(
-            uuid=self.kwargs["service_provider_uuid"]
+        service_provider = get_object_or_404(
+            models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
         if not has_permission(
             self.request,
@@ -1396,8 +1567,8 @@ class ServiceProviderCourseAccountsViewSet(
     filterset_class = filters.CourseAccountFilter
 
     def get_service_provider(self):
-        service_provider = models.ServiceProvider.objects.get(
-            uuid=self.kwargs["service_provider_uuid"]
+        service_provider = get_object_or_404(
+            models.ServiceProvider, uuid=self.kwargs["service_provider_uuid"]
         )
         if not has_permission(
             self.request,

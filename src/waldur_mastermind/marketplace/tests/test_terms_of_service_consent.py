@@ -1378,7 +1378,11 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
             self.assertIsNone(response.data["consent_data"])
 
     def test_offering_user_serializer_consent_data_with_revoked_consent(self):
-        """Test that consent_data returns data even when consent is revoked."""
+        """Test that consent_data returns data even when consent is revoked.
+
+        The consent_data field returns any consent for the user (not just active ones)
+        to show consent history. The has_consent field indicates if consent is active.
+        """
         consent = models.UserOfferingConsent.objects.create(
             user=self.user,
             offering=self.offering,

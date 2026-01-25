@@ -1,3 +1,8 @@
+import datetime
+import logging
+
+from django.db.models import Sum
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
@@ -5,11 +10,15 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.serializers import ValidationError
 
+from waldur_core.core import utils as core_utils
 from waldur_core.core.views import ActionsViewSet
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
+from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import filters, models, serializers
+from . import filters, models, serializers, slurm_commands, slurm_preview
+
+logger = logging.getLogger(__name__)
 
 
 class ProjectEstimatedCostPolicyViewSet(ActionsViewSet):
@@ -142,9 +151,253 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
     destroy_permissions = update_permissions = partial_update_permissions = [
         structure_permissions.is_owner
     ]
+    # preview_impact is a non-detail action (no specific object), so we use is_staff
+    # instead of is_owner which requires an object to check ownership against
+    preview_impact_permissions = [structure_permissions.is_staff]
 
     @extend_schema(parameters=[])
     @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
         data = list(models.SlurmPeriodicUsagePolicy.available_actions)
         return Response(data, status=status.HTTP_200_OK)
+
+    def _get_quarter_period(self, today):
+        """Calculate the current quarter's start and end dates."""
+        current_quarter = (today.month - 1) // 3 + 1
+        quarter_start_month = (current_quarter - 1) * 3 + 1
+        period_start = datetime.date(today.year, quarter_start_month, 1)
+
+        if current_quarter == 4:
+            period_end = datetime.date(today.year, 12, 31)
+        else:
+            next_quarter_month = quarter_start_month + 3
+            period_end = datetime.date(
+                today.year, next_quarter_month, 1
+            ) - datetime.timedelta(days=1)
+
+        return period_start, period_end, current_quarter, quarter_start_month
+
+    def _get_previous_quarter_period(self, today, current_quarter, quarter_start_month):
+        """Calculate the previous quarter's start and end dates."""
+        if current_quarter == 1:
+            prev_quarter_start = datetime.date(today.year - 1, 10, 1)
+            prev_quarter_end = datetime.date(today.year - 1, 12, 31)
+        else:
+            prev_quarter_start_month = quarter_start_month - 3
+            prev_quarter_start = datetime.date(today.year, prev_quarter_start_month, 1)
+            period_start = datetime.date(today.year, quarter_start_month, 1)
+            prev_quarter_end = period_start - datetime.timedelta(days=1)
+
+        return prev_quarter_start, prev_quarter_end
+
+    def _fetch_resource_usage_data(self, resource_uuid, defaults):
+        """Fetch usage data from resource if available.
+
+        Returns a dict with allocation, current_usage, daily_usage_rate, and previous_usage.
+        """
+        result = defaults.copy()
+
+        try:
+            resource = marketplace_models.Resource.objects.get(uuid=resource_uuid)
+        except marketplace_models.Resource.DoesNotExist:
+            logger.debug(
+                "Resource with UUID %s not found, using provided values", resource_uuid
+            )
+            return result
+
+        # Get resource limit as allocation
+        if hasattr(resource, "limits") and resource.limits:
+            for key, value in resource.limits.items():
+                if value and value > 0:
+                    result["allocation"] = float(value)
+                    break
+
+        today = timezone.now().date()
+        period_start, period_end, current_quarter, quarter_start_month = (
+            self._get_quarter_period(today)
+        )
+
+        # Get usages for the current quarter
+        usages = marketplace_models.ComponentUsage.objects.filter(
+            resource=resource,
+            billing_period__gte=period_start,
+            billing_period__lte=period_end,
+        )
+        usage_sum = usages.aggregate(total=Sum("usage"))["total"]
+        current_usage = float(usage_sum) if usage_sum else 0
+
+        # If no usage in current quarter, try to get most recent usage
+        if current_usage == 0:
+            recent_usage = (
+                marketplace_models.ComponentUsage.objects.filter(resource=resource)
+                .order_by("-billing_period")
+                .first()
+            )
+            if recent_usage:
+                current_usage = float(recent_usage.usage)
+                period_start = recent_usage.billing_period
+
+        result["current_usage"] = current_usage
+
+        # Calculate daily usage rate
+        days_in_period = max(1, (today - period_start).days + 1)
+        if current_usage > 0:
+            result["daily_usage_rate"] = current_usage / days_in_period
+
+        # Get previous quarter usage
+        prev_quarter_start, prev_quarter_end = self._get_previous_quarter_period(
+            today, current_quarter, quarter_start_month
+        )
+        prev_usages = marketplace_models.ComponentUsage.objects.filter(
+            resource=resource,
+            billing_period__gte=prev_quarter_start,
+            billing_period__lte=prev_quarter_end,
+        )
+        prev_usage_sum = prev_usages.aggregate(total=Sum("usage"))["total"]
+        if prev_usage_sum:
+            result["previous_usage"] = float(prev_usage_sum)
+
+        return result
+
+    def _build_command_preview_data(
+        self, resource_uuid, data, allocation, grace_ratio, current_usage, current_qos
+    ):
+        """Build command preview and history data for a resource."""
+        preview_commands = []
+        command_history = []
+        billing_period_start = None
+        billing_period_end = None
+
+        try:
+            resource = marketplace_models.Resource.objects.get(uuid=resource_uuid)
+        except marketplace_models.Resource.DoesNotExist:
+            logger.debug(
+                "Resource with UUID %s not found for command preview", resource_uuid
+            )
+            return (
+                preview_commands,
+                command_history,
+                billing_period_start,
+                billing_period_end,
+            )
+
+        today = timezone.now().date()
+        billing_period_start = core_utils.month_start(today).date()
+        billing_period_end = core_utils.month_end(today)
+
+        account = resource.backend_id or resource.name
+
+        settings = {
+            "fairshare": data.get("fairshare", 500),
+            "threshold": allocation,
+            "grace_limit": allocation * (1 + grace_ratio) if allocation else None,
+            "reset_raw_usage": data.get("raw_usage_reset", False),
+        }
+
+        if hasattr(resource, "limits") and resource.limits:
+            limit_type = data.get("limit_type", "GrpTRESMins")
+            if limit_type == "GrpTRESMins":
+                settings["grp_tres_mins"] = resource.limits
+            elif limit_type == "MaxTRESMins":
+                settings["max_tres_mins"] = resource.limits
+            elif limit_type == "GrpTRES":
+                settings["grp_tres"] = resource.limits
+
+        preview_commands = slurm_commands.generate_preview_commands(
+            account=account,
+            settings=settings,
+            current_usage=current_usage,
+            current_qos=current_qos,
+        )
+
+        command_history = list(
+            models.SlurmCommandHistory.objects.filter(
+                resource=resource,
+                billing_period__gte=billing_period_start,
+            ).order_by("-executed_at")[:50]
+        )
+
+        return (
+            preview_commands,
+            command_history,
+            billing_period_start,
+            billing_period_end,
+        )
+
+    @extend_schema(
+        request=serializers.SlurmPolicyPreviewRequestSerializer,
+        responses={200: serializers.SlurmPolicyPreviewResponseSerializer},
+        description="Preview policy impact without saving. "
+        "Returns threshold calculations, carryover projections, and QoS trigger points.",
+    )
+    @action(detail=False, methods=["post"])
+    def preview_impact(self, request, *args, **kwargs):
+        """Preview policy impact based on configuration parameters.
+
+        If resource_uuid is provided, fetches current usage from the resource.
+        Otherwise, uses current_usage and daily_usage_rate from the request.
+        """
+        serializer = serializers.SlurmPolicyPreviewRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        data = serializer.validated_data
+        resource_uuid = data.get("resource_uuid")
+
+        # Set default values from request data
+        defaults = {
+            "allocation": data.get("allocation", 1000),
+            "current_usage": data.get("current_usage", 0),
+            "daily_usage_rate": data.get("daily_usage_rate", 0),
+            "previous_usage": data.get("previous_usage", 0),
+        }
+
+        # Override defaults with resource data if resource_uuid is provided
+        if resource_uuid:
+            defaults = self._fetch_resource_usage_data(resource_uuid, defaults)
+
+        allocation = defaults["allocation"]
+        grace_ratio = data.get("grace_ratio", 0.2)
+
+        # Calculate policy impact preview
+        result = slurm_preview.preview_policy_impact_with_resource(
+            allocation=allocation,
+            grace_ratio=grace_ratio,
+            previous_usage=defaults["previous_usage"],
+            half_life=data.get("fairshare_decay_half_life", 15),
+            carryover_enabled=data.get("carryover_enabled", True),
+            days_elapsed=data.get("days_elapsed", 90),
+            current_usage=defaults["current_usage"],
+            daily_usage_rate=defaults["daily_usage_rate"],
+        )
+
+        # Build command preview data if resource is available
+        preview_commands = []
+        command_history = []
+        billing_period_start = None
+        billing_period_end = None
+
+        if resource_uuid:
+            current_qos = result.get("current_qos_status", "normal")
+            (
+                preview_commands,
+                command_history,
+                billing_period_start,
+                billing_period_end,
+            ) = self._build_command_preview_data(
+                resource_uuid,
+                data,
+                allocation,
+                grace_ratio,
+                defaults["current_usage"],
+                current_qos,
+            )
+
+        result["preview_commands"] = preview_commands
+        result["command_history"] = serializers.SlurmCommandHistorySerializer(
+            command_history, many=True
+        ).data
+        result["billing_period_start"] = billing_period_start
+        result["billing_period_end"] = billing_period_end
+
+        response_serializer = serializers.SlurmPolicyPreviewResponseSerializer(result)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)

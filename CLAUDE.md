@@ -373,6 +373,51 @@ Subagents are automatically available. When you need specialized help, Claude wi
 
 See `CLAUDE_SUBAGENT_USAGE.md` for detailed examples and workflows.
 
+## Demo Preset UUIDs
+
+When creating or modifying JSON files in `src/waldur_mastermind/marketplace/demo_presets/presets/`:
+
+### UUID Format Rules
+
+UUIDs must be **exactly 32 hexadecimal characters** (0-9, a-f only). Invalid characters cause import failures:
+
+```text
+✓ Valid:   "a3000000000000000000000000000001"
+✓ Valid:   "f3000000000000000000000000000005"
+✗ Invalid: "p3000000000000000000000000000001"  (p is not hex)
+✗ Invalid: "o3000000000000000000000000000001"  (o is not hex)
+```
+
+### Entity Prefix Convention
+
+Use hex-safe prefixes to organize UUIDs by entity type:
+
+| Entity Type | Prefix | Example |
+|-------------|--------|---------|
+| Users | `00` | `00000000000000000000000000000001` |
+| Customers | `a3` | `a3000000000000000000000000000001` |
+| Projects | `c3` | `c3000000000000000000000000000001` |
+| Resources | `d3` | `d3000000000000000000000000000001` |
+| Offerings | `f3` | `f3000000000000000000000000000001` |
+| Orders | `73` | `73000000000000000000000000000001` |
+| Policies | `93` | `93000000000000000000000000000001` |
+| Plans | `b3` | `b3000000000000000000000000000001` |
+| Categories | `e3` | `e3000000000000000000000000000001` |
+
+### Generating Valid UUIDs
+
+```python
+# Generate a valid preset UUID with a prefix
+def make_preset_uuid(prefix: str, number: int) -> str:
+    """Generate a 32-char hex UUID for presets."""
+    suffix = f"{number:030x}"  # 30 hex digits, zero-padded
+    return f"{prefix}{suffix}"[-32:]
+
+# Examples:
+make_preset_uuid("a3", 1)   # "a3000000000000000000000000000001"
+make_preset_uuid("f3", 10)  # "f300000000000000000000000000000a"
+```
+
 ## Remember
 
 - Incremental progress over big changes

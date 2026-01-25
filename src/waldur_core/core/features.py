@@ -109,6 +109,8 @@ class UserSection(FeatureSection):
 
     show_username = Feature("Enable display of username field in user tables.")
 
+    pending_user_actions = Feature("Show pending user actions.")
+
     show_data_access = Feature(
         "Enable Data Access tab showing who can access user profile data."
     )

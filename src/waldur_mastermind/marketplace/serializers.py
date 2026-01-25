@@ -65,6 +65,7 @@ from waldur_mastermind.invoices.utils import get_billing_price_estimate_for_reso
 from waldur_mastermind.marketplace.billing_utils import convert_slurm_usage
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_TENANT_OFFERING,
+    SITE_AGENT_OFFERING,
     BillingTypes,
     CourseAccountState,
     LimitPeriods,
@@ -374,6 +375,13 @@ class AgentPluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="Enable display of order actions for service provider",
         default=True,
+    )
+    slurm_periodic_policy_enabled = serializers.BooleanField(
+        required=False,
+        help_text="Enable SLURM periodic usage policy configuration. "
+        "When enabled, allows configuring QoS-based threshold enforcement, "
+        "carryover logic, and fairshare decay for site-agent managed SLURM offerings.",
+        default=False,
     )
 
 
@@ -6164,7 +6172,6 @@ class OfferingUserSerializer(
                     break
         else:
             consent = obj.offering.user_consents.filter(user=obj.user).first()
-
         if not consent:
             return None
 
@@ -9961,6 +9968,62 @@ class DemoPresetLoadResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
     output = serializers.CharField(required=False, allow_blank=True)
     users = DemoPresetUserSerializer(many=True, required=False)
+
+
+# Site Agent Configuration Serializers
+
+
+class SiteAgentConfigGenerationSerializer(serializers.Serializer):
+    """Request serializer for site agent configuration generation."""
+
+    offering_uuids = serializers.ListField(
+        child=serializers.UUIDField(),
+        min_length=1,
+        help_text="List of SLURM offering UUIDs to include in configuration",
+    )
+    include_policy_settings = serializers.BooleanField(
+        default=True,
+        help_text="Include SLURM periodic usage policy settings in configuration",
+    )
+    waldur_api_url = serializers.URLField(
+        required=False,
+        allow_blank=True,
+        help_text="Waldur API URL (defaults to current server URL)",
+    )
+    timezone = serializers.CharField(
+        required=False,
+        default="UTC",
+        help_text="Timezone for the site agent",
+    )
+
+    def validate_offering_uuids(self, value):
+        """Validate that all offerings exist and belong to the service provider."""
+        service_provider = self.context.get("service_provider")
+        if not service_provider:
+            raise serializers.ValidationError("Service provider context is required.")
+
+        # Find valid offerings that belong to this service provider and are SLURM type
+        valid_offerings = models.Offering.objects.filter(
+            uuid__in=value,
+            customer=service_provider.customer,
+            type=SITE_AGENT_OFFERING,
+        )
+
+        # Use .hex for consistent UUID comparison (no dashes)
+        valid_uuids = set(o.uuid.hex for o in valid_offerings)
+        provided_uuids = set(u.hex for u in value)
+        invalid_uuids = provided_uuids - valid_uuids
+
+        if invalid_uuids:
+            # Format UUIDs with dashes for display
+            formatted_invalid = {str(u) for u in value if u.hex in invalid_uuids}
+            raise serializers.ValidationError(
+                f"Invalid, non-SLURM, or unauthorized offerings: {formatted_invalid}"
+            )
+
+        # Store offerings for later use
+        self.context["validated_offerings"] = list(valid_offerings)
+        return value
 
 
 class ResourceMissingUsageSerializer(serializers.Serializer):

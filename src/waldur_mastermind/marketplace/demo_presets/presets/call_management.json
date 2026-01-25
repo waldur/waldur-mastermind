@@ -1179,6 +1179,26 @@
       "customer_uuid": "b4000000000000000000000000000001",
       "description": "Virtual machine package for flexible computing needs",
       "getting_started": "## Getting Started with Cloud VMs\n\n### Access Portal\nhttps://cloud.research-council.edu\n\n### VM Management\nUse the web interface or API"
+    },
+    {
+      "uuid": "f4000000000000000000000000000005",
+      "name": "SLURM HPC Allocation",
+      "type": "Marketplace.Slurm",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d4000000000000000000000000000001",
+      "customer_uuid": "b4000000000000000000000000000001",
+      "description": "Site-agent managed SLURM HPC allocation with periodic usage policies, QoS-based threshold enforcement, and TRES billing support.",
+      "plugin_options": {
+        "slurm_periodic_policy_enabled": true,
+        "service_provider_can_create_offering_user": true,
+        "hostname": "slurm.research-council.edu",
+        "username": "waldur-agent",
+        "default_account": "research",
+        "tres_billing_enabled": true
+      },
+      "getting_started": "## Getting Started with SLURM HPC Allocation\n\n### Access\n```bash\nssh username@slurm.research-council.edu\n```\n\n### Check Your Allocation\n```bash\nsacctmgr show user $USER format=User,Account,QOS\nsbalance -u $USER\n```\n\n### Submit a Job\n```bash\n#!/bin/bash\n#SBATCH --job-name=my_job\n#SBATCH --nodes=2\n#SBATCH --ntasks-per-node=48\n#SBATCH --time=24:00:00\n\nsrun ./my_application\n```\n\n### Support\nEmail: hpc-support@research-council.edu"
     }
   ],
   "offering_components": [
@@ -1244,6 +1264,33 @@
       "description": "RAM allocation",
       "billing_type": "limit",
       "measured_unit": "GB"
+    },
+    {
+      "uuid": "c4000000000000000000000000000501",
+      "offering_uuid": "f4000000000000000000000000000005",
+      "type": "cpu",
+      "name": "CPU Hours",
+      "description": "CPU core hours for SLURM jobs",
+      "billing_type": "usage",
+      "measured_unit": "hours"
+    },
+    {
+      "uuid": "c4000000000000000000000000000502",
+      "offering_uuid": "f4000000000000000000000000000005",
+      "type": "ram",
+      "name": "Memory Hours",
+      "description": "Memory allocation in GB-hours",
+      "billing_type": "usage",
+      "measured_unit": "GB-hours"
+    },
+    {
+      "uuid": "c4000000000000000000000000000503",
+      "offering_uuid": "f4000000000000000000000000000005",
+      "type": "gpu",
+      "name": "GPU Hours",
+      "description": "GPU compute hours for accelerated workloads",
+      "billing_type": "usage",
+      "measured_unit": "hours"
     }
   ],
   "plans": [
@@ -1270,6 +1317,13 @@
       "name": "Cloud VM Plan",
       "offering_uuid": "f4000000000000000000000000000004",
       "unit": "month"
+    },
+    {
+      "uuid": "14000000000000000000000000000005",
+      "name": "SLURM Grant Allocation",
+      "offering_uuid": "f4000000000000000000000000000005",
+      "unit": "month",
+      "description": "SLURM allocation for competitive research grants with periodic usage policies"
     }
   ],
   "plan_components": [
@@ -1313,6 +1367,24 @@
       "plan_uuid": "14000000000000000000000000000004",
       "component_uuid": "c4000000000000000000000000000402",
       "price": "2.50",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000005",
+      "component_uuid": "c4000000000000000000000000000501",
+      "price": "0.05",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000005",
+      "component_uuid": "c4000000000000000000000000000502",
+      "price": "0.005",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "14000000000000000000000000000005",
+      "component_uuid": "c4000000000000000000000000000503",
+      "price": "0.50",
       "amount": 0
     }
   ],
@@ -2122,6 +2194,57 @@
         "cpu_hours": 40000,
         "storage": 300
       }
+    },
+    {
+      "uuid": "d400000000000000000000000000000d",
+      "name": "Quantum Simulation SLURM Allocation",
+      "offering_uuid": "f4000000000000000000000000000005",
+      "project_uuid": "c4000000000000000000000000000001",
+      "plan_uuid": "14000000000000000000000000000005",
+      "state": 2,
+      "attributes": {
+        "slurm_account": "quantum_sim",
+        "partition": "research"
+      },
+      "limits": {
+        "cpu": 100000,
+        "ram": 200000,
+        "gpu": 2000
+      }
+    },
+    {
+      "uuid": "d400000000000000000000000000000e",
+      "name": "Materials Discovery SLURM Allocation",
+      "offering_uuid": "f4000000000000000000000000000005",
+      "project_uuid": "c4000000000000000000000000000002",
+      "plan_uuid": "14000000000000000000000000000005",
+      "state": 2,
+      "attributes": {
+        "slurm_account": "materials_disc",
+        "partition": "research"
+      },
+      "limits": {
+        "cpu": 80000,
+        "ram": 160000,
+        "gpu": 1500
+      }
+    },
+    {
+      "uuid": "d400000000000000000000000000000f",
+      "name": "Climate Modeling SLURM Allocation",
+      "offering_uuid": "f4000000000000000000000000000005",
+      "project_uuid": "c4000000000000000000000000000003",
+      "plan_uuid": "14000000000000000000000000000005",
+      "state": 2,
+      "attributes": {
+        "slurm_account": "climate_model",
+        "partition": "large"
+      },
+      "limits": {
+        "cpu": 150000,
+        "ram": 300000,
+        "gpu": 500
+      }
     }
   ],
   "user_roles": [
@@ -2338,6 +2461,108 @@
       "scope_uuid": "ca600000000000000000000000000004",
       "is_active": true,
       "_comment": "Team member on LLM Fine-tuning proposal"
+    }
+  ],
+  "component_usages": [
+    {
+      "uuid": "ca400000000000000000000000000001",
+      "resource_uuid": "d400000000000000000000000000000d",
+      "component_uuid": "c4000000000000000000000000000501",
+      "usage": "35000.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Quantum simulation CPU hours for September 2025"
+    },
+    {
+      "uuid": "ca400000000000000000000000000002",
+      "resource_uuid": "d400000000000000000000000000000d",
+      "component_uuid": "c4000000000000000000000000000502",
+      "usage": "70000.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Quantum simulation RAM usage for September 2025"
+    },
+    {
+      "uuid": "ca400000000000000000000000000003",
+      "resource_uuid": "d400000000000000000000000000000d",
+      "component_uuid": "c4000000000000000000000000000503",
+      "usage": "750.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Quantum simulation GPU hours for September 2025"
+    },
+    {
+      "uuid": "ca400000000000000000000000000004",
+      "resource_uuid": "d400000000000000000000000000000d",
+      "component_uuid": "c4000000000000000000000000000501",
+      "usage": "42000.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Quantum simulation CPU hours for October 2025"
+    },
+    {
+      "uuid": "ca400000000000000000000000000005",
+      "resource_uuid": "d400000000000000000000000000000d",
+      "component_uuid": "c4000000000000000000000000000503",
+      "usage": "920.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Quantum simulation GPU hours for October 2025"
+    },
+    {
+      "uuid": "ca400000000000000000000000000006",
+      "resource_uuid": "d400000000000000000000000000000e",
+      "component_uuid": "c4000000000000000000000000000501",
+      "usage": "28000.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Materials discovery CPU hours for September 2025"
+    },
+    {
+      "uuid": "ca400000000000000000000000000007",
+      "resource_uuid": "d400000000000000000000000000000e",
+      "component_uuid": "c4000000000000000000000000000503",
+      "usage": "550.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Materials discovery GPU hours for September 2025"
+    },
+    {
+      "uuid": "ca400000000000000000000000000008",
+      "resource_uuid": "d400000000000000000000000000000f",
+      "component_uuid": "c4000000000000000000000000000501",
+      "usage": "55000.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Climate modeling CPU hours for September 2025"
+    },
+    {
+      "uuid": "ca400000000000000000000000000009",
+      "resource_uuid": "d400000000000000000000000000000f",
+      "component_uuid": "c4000000000000000000000000000502",
+      "usage": "110000.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Climate modeling RAM usage for September 2025"
+    },
+    {
+      "uuid": "ca40000000000000000000000000000a",
+      "resource_uuid": "d400000000000000000000000000000f",
+      "component_uuid": "c4000000000000000000000000000501",
+      "usage": "68000.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Climate modeling CPU hours for October 2025"
     }
   ],
   "constance_settings": {

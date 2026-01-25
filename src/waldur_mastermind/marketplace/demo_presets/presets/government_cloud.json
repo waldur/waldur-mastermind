@@ -207,6 +207,12 @@
       "title": "Secure Container Orchestration",
       "description": "Government-certified Kubernetes clusters with security hardening",
       "group_uuid": "b1c2d3e4f5a6789012345678abcdef01"
+    },
+    {
+      "uuid": "d1000000000000000000000000000005",
+      "title": "Secure HPC",
+      "description": "Government-certified high performance computing resources",
+      "group_uuid": "b1c2d3e4f5a6789012345678abcdef01"
     }
   ],
   "service_providers": [
@@ -362,6 +368,26 @@
       "getting_started": "## Getting Started with HA Government Kubernetes\n\n### Multi-Datacenter Architecture\n- Primary: Tallinn, Estonia\n- Secondary: Frankfurt, Germany\n- Automatic failover with 99.99% SLA\n\n### Access\n```\nexport KUBECONFIG=~/Downloads/kubeconfig-ha-gov.yaml\nkubectl get nodes --label-columns=topology.kubernetes.io/zone\n```\n\n### Disaster Recovery\n- RPO: 5 minutes\n- RTO: 15 minutes\n- Automatic cross-DC replication\n\n### Compliance\n- All traffic encrypted with government-approved algorithms\n- Data sovereignty guaranteed (EU only)\n\nContact security@gov.cloud for DR testing requests."
     },
     {
+      "uuid": "f1000000000000000000000000000005",
+      "name": "Secure Government HPC",
+      "type": "Marketplace.Slurm",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d1000000000000000000000000000005",
+      "customer_uuid": "b1000000000000000000000000000001",
+      "description": "Government-certified SLURM cluster for secure high-performance computing. Features periodic usage policies with QoS enforcement, security hardening, and full audit logging.",
+      "plugin_options": {
+        "slurm_periodic_policy_enabled": true,
+        "service_provider_can_create_offering_user": true,
+        "hostname": "hpc.gov.cloud",
+        "username": "waldur-agent",
+        "default_account": "gov",
+        "security_level": "confidential"
+      },
+      "getting_started": "## Getting Started with Secure Government HPC\n\n### Security Requirements\n1. **Government-issued SSH keys required**\n2. All access is logged and audited\n3. Security clearance required for access\n\n### SSH Access\n```\nssh -i ~/.ssh/gov_hpc_key username@hpc.gov.cloud\n```\n\n### Check Available Resources\n```bash\nsinfo -N -l\nsqueue -u $USER\n```\n\n### Submit a Secure Job\n```bash\n#!/bin/bash\n#SBATCH --job-name=secure_job\n#SBATCH --partition=secure\n#SBATCH --cpus-per-task=16\n#SBATCH --mem=64G\n#SBATCH --time=4:00:00\n\nmodule load security-tools\npython secure_analysis.py\n```\n\n### Compliance\n- ISO 27001 certified infrastructure\n- GDPR-compliant data handling\n- Audit logs retained for 7 years\n\nContact security@gov.cloud for compliance questions."
+    },
+    {
       "uuid": "f2000000000000000000000000000001",
       "name": "Tallinn DC - Secure VPC",
       "type": "Marketplace.Basic",
@@ -476,6 +502,18 @@
       "offering_uuid": "f1000000000000000000000000000020",
       "name": "DR Status Portal",
       "url": "https://dr-status.gov.cloud/"
+    },
+    {
+      "uuid": "a1000000000000000000000000000010",
+      "offering_uuid": "f1000000000000000000000000000005",
+      "name": "Secure HPC Dashboard",
+      "url": "https://hpc.gov.cloud/dashboard/"
+    },
+    {
+      "uuid": "a1000000000000000000000000000011",
+      "offering_uuid": "f1000000000000000000000000000005",
+      "name": "HPC Audit Logs",
+      "url": "https://hpc-audit.gov.cloud/"
     },
     {
       "uuid": "a2000000000000000000000000000001",
@@ -708,6 +746,33 @@
       "measured_unit": "GB"
     },
     {
+      "uuid": "c1000000000000000000000000000501",
+      "offering_uuid": "f1000000000000000000000000000005",
+      "type": "cpu",
+      "name": "Secure CPU Hours",
+      "description": "CPU core hours in secure partitions",
+      "billing_type": "usage",
+      "measured_unit": "hours"
+    },
+    {
+      "uuid": "c1000000000000000000000000000502",
+      "offering_uuid": "f1000000000000000000000000000005",
+      "type": "ram",
+      "name": "Secure Memory Hours",
+      "description": "Memory (GB) hours in secure environment",
+      "billing_type": "usage",
+      "measured_unit": "GB-hours"
+    },
+    {
+      "uuid": "c1000000000000000000000000000503",
+      "offering_uuid": "f1000000000000000000000000000005",
+      "type": "storage",
+      "name": "Secure Scratch Storage",
+      "description": "Encrypted scratch storage for jobs",
+      "billing_type": "usage",
+      "measured_unit": "GB-hours"
+    },
+    {
       "uuid": "c2000000000000000000000000000001",
       "offering_uuid": "f2000000000000000000000000000001",
       "type": "cores",
@@ -868,6 +933,13 @@
       "offering_uuid": "f1000000000000000000000000000020",
       "unit": "month",
       "description": "Mission-critical multi-DC cluster with 99.99% SLA"
+    },
+    {
+      "uuid": "11000000000000000000000000000005",
+      "name": "Secure HPC Standard",
+      "offering_uuid": "f1000000000000000000000000000005",
+      "unit": "month",
+      "description": "Standard secure HPC allocation for government workloads"
     },
     {
       "uuid": "12000000000000000000000000000001",
@@ -1125,6 +1197,26 @@
       "price": "0.05",
       "amount": 0
     },
+    {
+      "plan_uuid": "11000000000000000000000000000005",
+      "component_uuid": "c1000000000000000000000000000501",
+      "price": "0.03",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000005",
+      "component_uuid": "c1000000000000000000000000000502",
+      "price": "0.015",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "11000000000000000000000000000005",
+      "component_uuid": "c1000000000000000000000000000503",
+      "price": "0.005",
+      "amount": 0
+    }
+  ],
+  "resources": [
     {
       "plan_uuid": "12000000000000000000000000000001",
       "component_uuid": "c2000000000000000000000000000001",
@@ -1444,6 +1536,42 @@
         "vcpu": 96,
         "ram": 384,
         "storage": 2000
+      },
+      "created": "2025-08-02T00:00:00Z"
+    },
+    {
+      "uuid": "d100000000000000000000000000000d",
+      "name": "Secure Analytics HPC Allocation",
+      "offering_uuid": "f1000000000000000000000000000005",
+      "project_uuid": "c1000000000000000000000000000001",
+      "plan_uuid": "11000000000000000000000000000005",
+      "state": 2,
+      "attributes": {
+        "slurm_account": "gov_analytics",
+        "partition": "secure"
+      },
+      "limits": {
+        "cpu": 25000,
+        "ram": 50000,
+        "storage": 10000
+      },
+      "created": "2025-08-02T00:00:00Z"
+    },
+    {
+      "uuid": "d100000000000000000000000000000e",
+      "name": "Tax Processing HPC Allocation",
+      "offering_uuid": "f1000000000000000000000000000005",
+      "project_uuid": "c1000000000000000000000000000002",
+      "plan_uuid": "11000000000000000000000000000005",
+      "state": 2,
+      "attributes": {
+        "slurm_account": "tax_processing",
+        "partition": "confidential"
+      },
+      "limits": {
+        "cpu": 40000,
+        "ram": 80000,
+        "storage": 20000
       },
       "created": "2025-08-02T00:00:00Z"
     },
@@ -2136,6 +2264,76 @@
       "billing_period": "2025-12-01",
       "recurring": false,
       "description": "Object storage capacity usage for December 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000016",
+      "resource_uuid": "d100000000000000000000000000000d",
+      "component_uuid": "c1000000000000000000000000000501",
+      "usage": "8500.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Secure Analytics HPC CPU hours for September 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000017",
+      "resource_uuid": "d100000000000000000000000000000d",
+      "component_uuid": "c1000000000000000000000000000502",
+      "usage": "17000.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Secure Analytics HPC RAM usage for September 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000018",
+      "resource_uuid": "d100000000000000000000000000000d",
+      "component_uuid": "c1000000000000000000000000000501",
+      "usage": "10200.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Secure Analytics HPC CPU hours for October 2025"
+    },
+    {
+      "uuid": "ca100000000000000000000000000019",
+      "resource_uuid": "d100000000000000000000000000000e",
+      "component_uuid": "c1000000000000000000000000000501",
+      "usage": "15000.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Tax Processing HPC CPU hours for September 2025"
+    },
+    {
+      "uuid": "ca10000000000000000000000000001a",
+      "resource_uuid": "d100000000000000000000000000000e",
+      "component_uuid": "c1000000000000000000000000000502",
+      "usage": "30000.00",
+      "date": "2025-09-15T10:00:00",
+      "billing_period": "2025-09-01",
+      "recurring": false,
+      "description": "Tax Processing HPC RAM usage for September 2025"
+    },
+    {
+      "uuid": "ca10000000000000000000000000001b",
+      "resource_uuid": "d100000000000000000000000000000e",
+      "component_uuid": "c1000000000000000000000000000501",
+      "usage": "18500.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Tax Processing HPC CPU hours for October 2025"
+    },
+    {
+      "uuid": "ca10000000000000000000000000001c",
+      "resource_uuid": "d100000000000000000000000000000e",
+      "component_uuid": "c1000000000000000000000000000502",
+      "usage": "37000.00",
+      "date": "2025-10-15T10:00:00",
+      "billing_period": "2025-10-01",
+      "recurring": false,
+      "description": "Tax Processing HPC RAM usage for October 2025"
     },
     {
       "uuid": "ca200000000000000000000000000001",

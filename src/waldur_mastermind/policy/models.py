@@ -1049,3 +1049,72 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
                 f"Failed to publish STOMP message for resource {resource.uuid}: {e}"
             )
             return False
+
+
+class SlurmCommandHistory(core_models.UuidMixin, TimeStampedModel):
+    """Stores history of SLURM commands executed via periodic policies.
+
+    This model tracks:
+    - Commands that were executed (or would be executed in emulator mode)
+    - Command type, description, and actual shell command
+    - Execution metadata: timestamp, mode, success/failure
+    """
+
+    policy = models.ForeignKey(
+        "SlurmPeriodicUsagePolicy",
+        on_delete=models.CASCADE,
+        related_name="command_history",
+    )
+    resource = models.ForeignKey(
+        "marketplace.Resource",
+        on_delete=models.CASCADE,
+        related_name="slurm_command_history",
+    )
+    billing_period = models.DateField(
+        help_text=_("First day of the billing period when command was executed")
+    )
+
+    # Command details
+    command_type = models.CharField(
+        max_length=50,
+        help_text=_("Type of command: fairshare, limits, qos, reset_usage"),
+    )
+    description = models.TextField(
+        help_text=_("Human-readable description of what the command does")
+    )
+    shell_command = models.TextField(
+        help_text=_("Actual shell command that was/would be executed")
+    )
+    parameters = models.JSONField(
+        default=dict,
+        help_text=_("Command parameters as key-value pairs"),
+    )
+
+    # Execution metadata
+    executed_at = models.DateTimeField(auto_now_add=True)
+    execution_mode = models.CharField(
+        max_length=20,
+        choices=[("production", "Production"), ("emulator", "Emulator")],
+        default="production",
+        help_text=_("Whether command was executed in production or emulator mode"),
+    )
+    success = models.BooleanField(
+        default=True,
+        help_text=_("Whether the command execution was successful"),
+    )
+    error_message = models.TextField(
+        blank=True,
+        help_text=_("Error message if command execution failed"),
+    )
+
+    class Meta:
+        ordering = ["-executed_at"]
+        verbose_name = _("SLURM Command History")
+        verbose_name_plural = _("SLURM Command History")
+        indexes = [
+            models.Index(fields=["resource", "billing_period"]),
+            models.Index(fields=["policy", "billing_period"]),
+        ]
+
+    def __str__(self):
+        return f"{self.command_type} for {self.resource} at {self.executed_at}"
