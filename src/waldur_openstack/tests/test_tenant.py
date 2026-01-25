@@ -461,8 +461,16 @@ class TenantQuotasTest(BaseTenantActionsTest):
         self.client.force_authenticate(user=structure_factories.UserFactory())
         response = self.client.post(self.get_url())
 
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
         self.assertFalse(mocked_task.called)
+
+    def test_service_manager_can_set_tenant_quotas(self, mocked_task):
+        self.client.force_authenticate(self.fixture.service_manager)
+        quotas_data = {"security_group_count": 100, "security_group_rule_count": 100}
+        response = self.client.post(self.get_url(), data=quotas_data)
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mocked_task.assert_called_once_with(self.tenant, quotas=quotas_data)
 
     def test_staff_can_set_tenant_quotas(self, mocked_task):
         self.client.force_authenticate(self.fixture.staff)
