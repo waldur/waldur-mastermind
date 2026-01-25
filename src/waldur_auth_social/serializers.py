@@ -215,3 +215,48 @@ class IdentityProviderSerializer(serializers.ModelSerializer):
 
 class RemoteEduteamsUUIDSerializer(serializers.Serializer):
     uuid = serializers.UUIDField()
+
+
+class DiscoverMetadataRequestSerializer(serializers.Serializer):
+    discovery_url = serializers.URLField(
+        help_text="OIDC discovery URL (e.g., https://idp.example.com/.well-known/openid-configuration)"
+    )
+    verify_ssl = serializers.BooleanField(
+        default=True, help_text="Whether to verify SSL certificate"
+    )
+
+
+class WaldurFieldSuggestionSerializer(serializers.Serializer):
+    field = serializers.CharField(help_text="Waldur User model field name")
+    description = serializers.CharField(help_text="Human-readable field description")
+    suggested_claims = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="OIDC claims that could map to this field, ordered by likelihood",
+    )
+    available_claims = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Claims from this IdP that match the suggestions",
+    )
+
+
+class DiscoverMetadataResponseSerializer(serializers.Serializer):
+    claims_supported = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="List of claims supported by the OIDC provider",
+    )
+    scopes_supported = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="List of scopes supported by the OIDC provider",
+    )
+    endpoints = serializers.DictField(
+        child=serializers.CharField(),
+        help_text="OIDC endpoints (authorization, token, userinfo, logout)",
+    )
+    waldur_fields = WaldurFieldSuggestionSerializer(
+        many=True,
+        help_text="Waldur User fields with suggested OIDC claim mappings",
+    )
+    suggested_scopes = serializers.ListField(
+        child=serializers.CharField(),
+        help_text="Recommended scopes to request based on claim mappings",
+    )

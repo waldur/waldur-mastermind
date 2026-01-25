@@ -11,10 +11,17 @@ from django.shortcuts import redirect
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, status, viewsets
+from rest_framework import permissions as rf_permissions
+from rest_framework.decorators import action
 from rest_framework.exceptions import AuthenticationFailed, NotFound, ValidationError
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 
+from waldur_auth_social.claim_mapping import (
+    generate_default_mapping,
+    get_suggested_scopes,
+    get_waldur_field_suggestions,
+)
 from waldur_auth_social.const import ProviderChoices
 from waldur_auth_social.exceptions import OAuthException
 from waldur_auth_social.models import OAuthToken
@@ -32,6 +39,8 @@ from waldur_core.logging.enums import EventType
 from . import models
 from .serializers import (
     AuthSerializer,
+    DiscoverMetadataRequestSerializer,
+    DiscoverMetadataResponseSerializer,
     IdentityProviderSerializer,
     RemoteEduteamsRequestSerializer,
     RemoteEduteamsUUIDSerializer,
@@ -306,6 +315,172 @@ class IdentityProvidersViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_staff:
             return qs.filter(is_active=True)
         return qs
+
+    @extend_schema(
+        summary="Discover OIDC provider metadata",
+        description="Fetches OIDC discovery metadata from the provider and returns "
+        "supported claims, scopes, and suggested mappings to Waldur User fields. "
+        "Use this to configure attribute_mapping when setting up a new identity provider.",
+        request=DiscoverMetadataRequestSerializer,
+        responses={200: DiscoverMetadataResponseSerializer},
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        permission_classes=[rf_permissions.IsAdminUser],
+    )
+    def discover_metadata(self, request):
+        serializer = DiscoverMetadataRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        discovery_url = serializer.validated_data["discovery_url"]
+        verify_ssl = serializer.validated_data["verify_ssl"]
+
+        # Fetch OIDC discovery document
+        try:
+            response = requests.get(discovery_url, verify=verify_ssl, timeout=10)
+            response.raise_for_status()
+        except requests.exceptions.SSLError:
+            raise ValidationError(
+                {
+                    "discovery_url": "SSL certificate verification failed. "
+                    "Set verify_ssl to false if using a self-signed certificate."
+                }
+            )
+        except requests.exceptions.ConnectionError:
+            raise ValidationError(
+                {"discovery_url": "Unable to connect to the discovery URL."}
+            )
+        except requests.exceptions.Timeout:
+            raise ValidationError(
+                {
+                    "discovery_url": "Request timed out while fetching discovery document."
+                }
+            )
+        except requests.exceptions.RequestException as e:
+            raise ValidationError(
+                {"discovery_url": f"Unable to fetch discovery document: {e}"}
+            )
+
+        try:
+            discovery_doc = response.json()
+        except requests.JSONDecodeError:
+            raise ValidationError(
+                {"discovery_url": "Invalid JSON in discovery response."}
+            )
+
+        # Extract claims and scopes (these are optional in OIDC spec)
+        claims_supported = discovery_doc.get("claims_supported", [])
+        scopes_supported = discovery_doc.get("scopes_supported", [])
+
+        # Extract endpoints
+        try:
+            endpoints = {
+                "authorization_endpoint": discovery_doc["authorization_endpoint"],
+                "token_endpoint": discovery_doc["token_endpoint"],
+                "userinfo_endpoint": discovery_doc["userinfo_endpoint"],
+            }
+            # Optional endpoints
+            if "end_session_endpoint" in discovery_doc:
+                endpoints["end_session_endpoint"] = discovery_doc[
+                    "end_session_endpoint"
+                ]
+            if "jwks_uri" in discovery_doc:
+                endpoints["jwks_uri"] = discovery_doc["jwks_uri"]
+        except KeyError as e:
+            raise ValidationError(
+                {
+                    "discovery_url": f"Missing required endpoint in discovery document: {e}"
+                }
+            )
+
+        # Generate suggestions
+        waldur_fields = get_waldur_field_suggestions(claims_supported)
+        suggested_scopes = get_suggested_scopes(claims_supported, scopes_supported)
+
+        response_data = {
+            "claims_supported": claims_supported,
+            "scopes_supported": scopes_supported,
+            "endpoints": endpoints,
+            "waldur_fields": waldur_fields,
+            "suggested_scopes": suggested_scopes,
+        }
+
+        response_serializer = DiscoverMetadataResponseSerializer(response_data)
+        return Response(response_serializer.data)
+
+    discover_metadata_serializer_class = DiscoverMetadataRequestSerializer
+
+    @extend_schema(
+        summary="Generate default attribute mapping",
+        description="Generates a suggested attribute_mapping configuration based on "
+        "the claims supported by an OIDC provider. This can be used as a starting "
+        "point when creating a new identity provider.",
+        request=DiscoverMetadataRequestSerializer,
+        responses={
+            200: {
+                "type": "object",
+                "properties": {
+                    "attribute_mapping": {
+                        "type": "object",
+                        "additionalProperties": {"type": "string"},
+                        "description": "Suggested mapping of Waldur fields to OIDC claims",
+                    },
+                    "extra_scope": {
+                        "type": "string",
+                        "description": "Suggested scopes to request (space-separated)",
+                    },
+                },
+            }
+        },
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="generate-mapping",
+        permission_classes=[rf_permissions.IsAdminUser],
+    )
+    def generate_mapping(self, request):
+        serializer = DiscoverMetadataRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        discovery_url = serializer.validated_data["discovery_url"]
+        verify_ssl = serializer.validated_data["verify_ssl"]
+
+        # Fetch OIDC discovery document
+        try:
+            response = requests.get(discovery_url, verify=verify_ssl, timeout=10)
+            response.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            raise ValidationError(
+                {"discovery_url": f"Unable to fetch discovery document: {e}"}
+            )
+
+        try:
+            discovery_doc = response.json()
+        except requests.JSONDecodeError:
+            raise ValidationError(
+                {"discovery_url": "Invalid JSON in discovery response."}
+            )
+
+        claims_supported = discovery_doc.get("claims_supported", [])
+        scopes_supported = discovery_doc.get("scopes_supported", [])
+
+        # Generate mapping and scopes
+        attribute_mapping = generate_default_mapping(claims_supported)
+        suggested_scopes = get_suggested_scopes(claims_supported, scopes_supported)
+
+        # Format extra_scope as space-separated string (excluding 'openid' which is implicit)
+        extra_scope = " ".join(s for s in suggested_scopes if s != "openid")
+
+        return Response(
+            {
+                "attribute_mapping": attribute_mapping,
+                "extra_scope": extra_scope,
+            }
+        )
+
+    generate_mapping_serializer_class = DiscoverMetadataRequestSerializer
 
 
 class RemoteEduteamsView(generics.GenericAPIView):
