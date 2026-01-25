@@ -151,6 +151,19 @@ class EventSubscriptionFilter(django_filters.FilterSet):
         fields = []
 
 
+class EventSubscriptionQueueFilter(django_filters.FilterSet):
+    o = django_filters.OrderingFilter(fields=["created"])
+    event_subscription_uuid = django_filters.UUIDFilter(
+        field_name="event_subscription__uuid"
+    )
+    offering_uuid = django_filters.UUIDFilter(field_name="offering_uuid")
+    object_type = django_filters.CharFilter(field_name="object_type")
+
+    class Meta:
+        model = models.EventSubscriptionQueue
+        fields = []
+
+
 class EmailLogFilter(django_filters.FilterSet):
     subject = django_filters.CharFilter(lookup_expr="icontains")
     body = django_filters.CharFilter(lookup_expr="icontains")

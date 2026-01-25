@@ -242,6 +242,96 @@ class EventSubscriptionViewSet(
                 )
         super().perform_destroy(instance)
 
+    @extend_schema(
+        description="Create a RabbitMQ queue for receiving events for a specific offering and object type. "
+        "The receiver must call this endpoint before subscribing via STOMP to ensure "
+        "the queue is created with correct arguments (DLX, max-length, etc.).",
+        request=serializers.EventSubscriptionQueueCreateSerializer,
+        responses={
+            200: serializers.EventSubscriptionQueueSerializer,
+            201: serializers.EventSubscriptionQueueSerializer,
+        },
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def create_queue(self, request, uuid=None):
+        """
+        Create a RabbitMQ queue for the event subscription.
+
+        This endpoint pre-creates queues with the correct arguments before
+        the receiver subscribes via STOMP. This prevents precondition_failed
+        errors that occur when queues are created with mismatched arguments.
+
+        Returns 200 if queue already exists, 201 if newly created.
+        """
+        event_subscription = self.get_object()
+
+        # Validate the request
+        input_serializer = serializers.EventSubscriptionQueueCreateSerializer(
+            data=request.data,
+            context={
+                "request": request,
+                "event_subscription": event_subscription,
+            },
+        )
+        input_serializer.is_valid(raise_exception=True)
+
+        offering_uuid = input_serializer.validated_data["offering_uuid"]
+        object_type = input_serializer.validated_data["object_type"]
+
+        # Check if queue already exists
+        existing_queue = models.EventSubscriptionQueue.objects.filter(
+            event_subscription=event_subscription,
+            offering_uuid=offering_uuid,
+            object_type=object_type,
+        ).first()
+
+        if existing_queue:
+            logger.info(
+                "Queue already exists for subscription %s, offering %s, type %s",
+                event_subscription.uuid.hex,
+                offering_uuid,
+                object_type,
+            )
+            # Ensure queue exists in RabbitMQ (idempotent)
+            rmq_backend = backend.RabbitMQManagementBackend()
+            rmq_backend.create_queue(
+                vhost=existing_queue.vhost,
+                queue_name=existing_queue.queue_name,
+                durable=True,
+                auto_delete=False,
+                arguments=backend.SUBSCRIPTION_QUEUE_ARGUMENTS,
+            )
+            output_serializer = serializers.EventSubscriptionQueueSerializer(
+                existing_queue, context={"request": request}
+            )
+            return response.Response(output_serializer.data, status=status.HTTP_200_OK)
+
+        # Create new queue
+        queue = input_serializer.save()
+        output_serializer = serializers.EventSubscriptionQueueSerializer(
+            queue, context={"request": request}
+        )
+        return response.Response(output_serializer.data, status=status.HTTP_201_CREATED)
+
+
+class EventSubscriptionQueueViewSet(
+    mixins.RetrieveModelMixin,
+    mixins.ListModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    lookup_field = "uuid"
+    queryset = models.EventSubscriptionQueue.objects.all().order_by("-created")
+    serializer_class = serializers.EventSubscriptionQueueSerializer
+    filterset_class = filters.EventSubscriptionQueueFilter
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.request.user.is_staff or self.request.user.is_support:
+            return queryset
+
+        return queryset.filter(event_subscription__user=self.request.user)
+
 
 class RabbitMQVhostStats(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated, core_permissions.IsSupport]
