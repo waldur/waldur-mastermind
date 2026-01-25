@@ -237,9 +237,10 @@ class EventSubscriptionQueueSerializer(serializers.HyperlinkedModelSerializer):
 
     queue_name = serializers.CharField(read_only=True)
     vhost = serializers.CharField(read_only=True)
-    event_subscription_uuid = serializers.UUIDField(
-        read_only=True, source="event_subscription.uuid"
+    event_subscription_uuid = serializers.CharField(
+        read_only=True, source="event_subscription.uuid.hex"
     )
+    offering_uuid = serializers.CharField(read_only=True, source="offering_uuid.hex")
 
     class Meta:
         model = models.EventSubscriptionQueue
@@ -258,7 +259,7 @@ class EventSubscriptionQueueSerializer(serializers.HyperlinkedModelSerializer):
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
-                "view_name": "subscription-queue-detail",
+                "view_name": "event-subscription-queue-detail",
             },
             "event_subscription": {
                 "lookup_field": "uuid",

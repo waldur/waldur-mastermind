@@ -1,7 +1,7 @@
 import uuid
 from unittest.mock import patch
 
-from rest_framework import test
+from rest_framework import status, test
 
 from waldur_core.logging import models, tasks
 from waldur_core.logging.tests import factories
@@ -370,3 +370,390 @@ class CleanupOrphanSubscriptionQueuesTest(test.APITransactionTestCase):
         tasks.cleanup_orphan_subscription_queues()
 
         self.assertEqual(mock_task_backend.delete_queue.call_count, 2)
+
+
+class EventSubscriptionCreateQueueActionTest(test.APITransactionTestCase):
+    """Tests for the create_queue action on EventSubscriptionViewSet."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.event_subscription = factories.EventSubscriptionFactory(
+            user=self.fixture.owner,
+            observable_objects=[{"object_type": "resource"}],
+        )
+        self.url = factories.EventSubscriptionFactory.get_url(
+            self.event_subscription, action="create_queue"
+        )
+
+    @patch("waldur_core.logging.backend.RabbitMQManagementBackend")
+    def test_create_queue_success(self, mock_backend_class):
+        from waldur_mastermind.marketplace.tests import (
+            factories as marketplace_factories,
+        )
+
+        mock_backend = mock_backend_class.return_value
+        mock_backend.create_queue.return_value = True
+
+        # Create an offering the user has access to
+        offering = marketplace_factories.OfferingFactory(customer=self.fixture.customer)
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(
+            self.url,
+            {
+                "offering_uuid": str(offering.uuid),
+                "object_type": "resource",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(models.EventSubscriptionQueue.objects.count(), 1)
+
+        queue = models.EventSubscriptionQueue.objects.first()
+        self.assertEqual(queue.event_subscription, self.event_subscription)
+        self.assertEqual(queue.offering_uuid, offering.uuid)
+        self.assertEqual(queue.object_type, "resource")
+
+    @patch("waldur_core.logging.backend.RabbitMQManagementBackend")
+    def test_create_queue_idempotent_returns_200(self, mock_backend_class):
+        from waldur_mastermind.marketplace.tests import (
+            factories as marketplace_factories,
+        )
+
+        mock_backend = mock_backend_class.return_value
+        mock_backend.create_queue.return_value = True
+
+        offering = marketplace_factories.OfferingFactory(customer=self.fixture.customer)
+
+        # Create queue first time
+        self.client.force_authenticate(self.fixture.owner)
+        response1 = self.client.post(
+            self.url,
+            {
+                "offering_uuid": str(offering.uuid),
+                "object_type": "resource",
+            },
+        )
+        self.assertEqual(response1.status_code, status.HTTP_201_CREATED)
+
+        # Create same queue again - should return 200
+        response2 = self.client.post(
+            self.url,
+            {
+                "offering_uuid": str(offering.uuid),
+                "object_type": "resource",
+            },
+        )
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
+        self.assertEqual(models.EventSubscriptionQueue.objects.count(), 1)
+
+    def test_create_queue_unauthorized(self):
+        from waldur_mastermind.marketplace.tests import (
+            factories as marketplace_factories,
+        )
+
+        offering = marketplace_factories.OfferingFactory()
+
+        # Not authenticated
+        response = self.client.post(
+            self.url,
+            {
+                "offering_uuid": str(offering.uuid),
+                "object_type": "resource",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @patch("waldur_core.logging.backend.RabbitMQManagementBackend")
+    def test_create_queue_wrong_user_cannot_access(self, mock_backend_class):
+        from waldur_mastermind.marketplace.tests import (
+            factories as marketplace_factories,
+        )
+
+        other_user = self.fixture.admin
+        offering = marketplace_factories.OfferingFactory(customer=self.fixture.customer)
+
+        # Authenticate as different user
+        self.client.force_authenticate(other_user)
+        response = self.client.post(
+            self.url,
+            {
+                "offering_uuid": str(offering.uuid),
+                "object_type": "resource",
+            },
+        )
+        # Should get 404 because queryset is filtered by user
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_create_queue_invalid_object_type(self):
+        from waldur_mastermind.marketplace.tests import (
+            factories as marketplace_factories,
+        )
+
+        offering = marketplace_factories.OfferingFactory(customer=self.fixture.customer)
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(
+            self.url,
+            {
+                "offering_uuid": str(offering.uuid),
+                "object_type": "invalid_type",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("object_type", response.data)
+
+    def test_create_queue_nonexistent_offering(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(
+            self.url,
+            {
+                "offering_uuid": str(uuid.uuid4()),
+                "object_type": "resource",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("offering_uuid", response.data)
+
+    @patch("waldur_core.logging.backend.RabbitMQManagementBackend")
+    def test_create_queue_no_access_to_offering(self, mock_backend_class):
+        from waldur_mastermind.marketplace.tests import (
+            factories as marketplace_factories,
+        )
+
+        # Create offering in different customer
+        other_customer = fixtures.CustomerFixture().customer
+        offering = marketplace_factories.OfferingFactory(customer=other_customer)
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(
+            self.url,
+            {
+                "offering_uuid": str(offering.uuid),
+                "object_type": "resource",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("offering_uuid", response.data)
+
+
+class EventSubscriptionQueueViewSetTest(test.APITransactionTestCase):
+    """Tests for EventSubscriptionQueueViewSet (list, retrieve, destroy)."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.event_subscription = factories.EventSubscriptionFactory(
+            user=self.fixture.owner,
+            observable_objects=[{"object_type": "resource"}],
+        )
+        self.offering_uuid = uuid.uuid4()
+        self.queue = factories.EventSubscriptionQueueFactory(
+            event_subscription=self.event_subscription,
+            offering_uuid=self.offering_uuid,
+            object_type="resource",
+        )
+
+    def test_list_queues_for_owner(self):
+        url = factories.EventSubscriptionQueueFactory.get_list_url()
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], str(self.queue.uuid))
+
+    def test_list_queues_filtered_by_user(self):
+        # Create another user's subscription and queue
+        other_fixture = fixtures.ProjectFixture()
+        other_subscription = factories.EventSubscriptionFactory(
+            user=other_fixture.owner,
+            observable_objects=[{"object_type": "order"}],
+        )
+        factories.EventSubscriptionQueueFactory(
+            event_subscription=other_subscription,
+            offering_uuid=uuid.uuid4(),
+            object_type="order",
+        )
+
+        url = factories.EventSubscriptionQueueFactory.get_list_url()
+
+        # User should only see their own queues
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], str(self.queue.uuid))
+
+    def test_list_queues_staff_sees_all(self):
+        # Create another user's queue
+        other_fixture = fixtures.ProjectFixture()
+        other_subscription = factories.EventSubscriptionFactory(
+            user=other_fixture.owner,
+            observable_objects=[{"object_type": "order"}],
+        )
+        factories.EventSubscriptionQueueFactory(
+            event_subscription=other_subscription,
+            offering_uuid=uuid.uuid4(),
+            object_type="order",
+        )
+
+        url = factories.EventSubscriptionQueueFactory.get_list_url()
+
+        # Staff should see all queues
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+    def test_retrieve_queue(self):
+        url = factories.EventSubscriptionQueueFactory.get_url(self.queue)
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["uuid"], str(self.queue.uuid))
+        self.assertEqual(response.data["object_type"], "resource")
+
+    def test_retrieve_queue_not_owned_returns_404(self):
+        other_fixture = fixtures.ProjectFixture()
+        other_subscription = factories.EventSubscriptionFactory(
+            user=other_fixture.owner,
+            observable_objects=[{"object_type": "order"}],
+        )
+        other_queue = factories.EventSubscriptionQueueFactory(
+            event_subscription=other_subscription,
+            offering_uuid=uuid.uuid4(),
+            object_type="order",
+        )
+
+        url = factories.EventSubscriptionQueueFactory.get_url(other_queue)
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @patch("waldur_core.logging.backend.RabbitMQManagementBackend")
+    def test_destroy_queue(self, mock_backend_class):
+        mock_backend = mock_backend_class.return_value
+        mock_backend.delete_queue.return_value = True
+
+        url = factories.EventSubscriptionQueueFactory.get_url(self.queue)
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(models.EventSubscriptionQueue.objects.count(), 0)
+
+    def test_destroy_queue_not_owned_returns_404(self):
+        other_fixture = fixtures.ProjectFixture()
+        other_subscription = factories.EventSubscriptionFactory(
+            user=other_fixture.owner,
+            observable_objects=[{"object_type": "order"}],
+        )
+        other_queue = factories.EventSubscriptionQueueFactory(
+            event_subscription=other_subscription,
+            offering_uuid=uuid.uuid4(),
+            object_type="order",
+        )
+
+        url = factories.EventSubscriptionQueueFactory.get_url(other_queue)
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.delete(url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(models.EventSubscriptionQueue.objects.count(), 2)
+
+    def test_create_not_allowed(self):
+        """Creating queues via POST is not allowed - must use create_queue action."""
+        url = factories.EventSubscriptionQueueFactory.get_list_url()
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(
+            url,
+            {
+                "event_subscription": str(self.event_subscription.uuid),
+                "offering_uuid": str(uuid.uuid4()),
+                "object_type": "resource",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_update_not_allowed(self):
+        """Updating queues is not allowed."""
+        url = factories.EventSubscriptionQueueFactory.get_url(self.queue)
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.put(
+            url,
+            {
+                "object_type": "order",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_filter_by_offering_uuid(self):
+        # Create another queue with different offering
+        other_offering_uuid = uuid.uuid4()
+        factories.EventSubscriptionQueueFactory(
+            event_subscription=self.event_subscription,
+            offering_uuid=other_offering_uuid,
+            object_type="order",
+        )
+
+        url = factories.EventSubscriptionQueueFactory.get_list_url()
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(url, {"offering_uuid": str(self.offering_uuid)})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], str(self.queue.uuid))
+
+    def test_filter_by_object_type(self):
+        # Create another queue with different object type
+        factories.EventSubscriptionQueueFactory(
+            event_subscription=self.event_subscription,
+            offering_uuid=uuid.uuid4(),
+            object_type="order",
+        )
+
+        url = factories.EventSubscriptionQueueFactory.get_list_url()
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(url, {"object_type": "resource"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["object_type"], "resource")
+
+    def test_filter_by_event_subscription_uuid(self):
+        # Create another subscription and queue
+        other_subscription = factories.EventSubscriptionFactory(
+            user=self.fixture.owner,
+            observable_objects=[{"object_type": "order"}],
+        )
+        factories.EventSubscriptionQueueFactory(
+            event_subscription=other_subscription,
+            offering_uuid=uuid.uuid4(),
+            object_type="order",
+        )
+
+        url = factories.EventSubscriptionQueueFactory.get_list_url()
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(
+            url, {"event_subscription_uuid": str(self.event_subscription.uuid)}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], str(self.queue.uuid))

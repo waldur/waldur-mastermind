@@ -99,6 +99,21 @@ class EventSubscriptionFactory(
 
     user = factory.SubFactory(structure_factories.UserFactory)
 
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("event-subscription-list")
+
+    @classmethod
+    def get_url(cls, subscription=None, action=None):
+        if subscription is None:
+            subscription = EventSubscriptionFactory()
+        url = "http://testserver" + reverse(
+            "event-subscription-detail", kwargs={"uuid": subscription.uuid.hex}
+        )
+        if action:
+            url += f"{action}/"
+        return url
+
 
 class EmailLogFactory(
     factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.EmailLog]
@@ -138,3 +153,15 @@ class EventSubscriptionQueueFactory(
     event_subscription = factory.SubFactory(EventSubscriptionFactory)
     offering_uuid = factory.Faker("uuid4")
     object_type = "resource"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("event-subscription-queue-list")
+
+    @classmethod
+    def get_url(cls, queue=None):
+        if queue is None:
+            queue = EventSubscriptionQueueFactory()
+        return "http://testserver" + reverse(
+            "event-subscription-queue-detail", kwargs={"uuid": queue.uuid.hex}
+        )
