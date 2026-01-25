@@ -539,7 +539,7 @@ Upload configuration guide:
     - git push origin HEAD:${CI_COMMIT_BRANCH} || exit 0
   before_script: []
 
-Upload MCP metadata:
+.Upload MCP metadata:  # Temporarily disabled
   stage: postdeploy
   interruptible: true
   rules:
