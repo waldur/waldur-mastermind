@@ -666,6 +666,19 @@ CONSTANCE_CONFIG = {
         "civil_number, identity_source.",
         "list_field",
     ),
+    "MANDATORY_USER_ATTRIBUTES": (
+        [],
+        "List of user profile attributes that are mandatory. Users with missing mandatory "
+        "attributes will have limited API access until their profile is complete. "
+        "Available: phone_number, organization, job_title, affiliations, civil_number, "
+        "first_name, last_name, email, etc.",
+        "list_field",
+    ),
+    "ENFORCE_MANDATORY_USER_ATTRIBUTES": (
+        False,
+        "If True, users with incomplete mandatory attributes will be blocked from most API "
+        "endpoints until they complete their profile.",
+    ),
     "MAINTENANCE_ANNOUNCEMENT_NOTIFY_BEFORE_MINUTES": (
         60,
         "How many minutes before scheduled maintenance users should be notified.",
@@ -1034,6 +1047,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "User profile settings": (
         "DEFAULT_OFFERING_USER_ATTRIBUTES",
         "ENABLED_USER_PROFILE_ATTRIBUTES",
+        "MANDATORY_USER_ATTRIBUTES",
+        "ENFORCE_MANDATORY_USER_ATTRIBUTES",
     ),
     "Data privacy settings": (
         "USER_DATA_ACCESS_LOGGING_ENABLED",
@@ -1164,4 +1179,6 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "USER_ACTIONS_ENABLED",
     # User profile attributes
     "ENABLED_USER_PROFILE_ATTRIBUTES",
+    "MANDATORY_USER_ATTRIBUTES",
+    "ENFORCE_MANDATORY_USER_ATTRIBUTES",
 )

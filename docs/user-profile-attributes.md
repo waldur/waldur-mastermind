@@ -270,6 +270,99 @@ Content-Type: application/json
 }
 ```
 
+## Mandatory User Attributes
+
+Administrators can configure certain profile attributes as mandatory, requiring users to complete their profile before using the platform. This feature supports both soft enforcement (frontend prompts) and hard enforcement (API blocking).
+
+### Configuration
+
+Two Constance settings control mandatory attributes:
+
+| Setting | Type | Description |
+|---------|------|-------------|
+| `MANDATORY_USER_ATTRIBUTES` | List | Attributes users must fill in |
+| `ENFORCE_MANDATORY_USER_ATTRIBUTES` | Boolean | Enable API-level enforcement |
+
+Configure via Django admin or API:
+
+```http
+PATCH /api/configuration/
+Content-Type: application/json
+
+{
+  "MANDATORY_USER_ATTRIBUTES": ["phone_number", "organization"],
+  "ENFORCE_MANDATORY_USER_ATTRIBUTES": false
+}
+```
+
+Both settings are publicly accessible via `/api/configuration/` for frontend integration.
+
+### Profile Completeness Check
+
+Users can check their profile completeness status:
+
+```http
+GET /api/users/profile_completeness/
+```
+
+Response:
+
+```json
+{
+  "is_complete": false,
+  "missing_fields": ["phone_number"],
+  "mandatory_fields": ["phone_number", "organization"],
+  "enforcement_enabled": false
+}
+```
+
+The `/api/users/me/` endpoint also includes `profile_completeness` in its response.
+
+### Enforcement Modes
+
+```mermaid
+flowchart TD
+    subgraph Soft["Soft Enforcement (Default)"]
+        S1[Frontend reads MANDATORY_USER_ATTRIBUTES]
+        S2[Shows prompt to complete profile]
+        S3[User can still use API]
+    end
+
+    subgraph Hard["Hard Enforcement"]
+        H1[ENFORCE_MANDATORY_USER_ATTRIBUTES = true]
+        H2[API returns 428 Precondition Required]
+        H3[User must complete profile first]
+    end
+
+    Config[Configuration] --> |enforcement_enabled: false| Soft
+    Config --> |enforcement_enabled: true| Hard
+```
+
+**Soft enforcement** (recommended): Frontend uses the public settings and `/me` endpoint to prompt users to complete their profile. Users can still access the API.
+
+**Hard enforcement**: When `ENFORCE_MANDATORY_USER_ATTRIBUTES` is `true`, users with incomplete profiles receive HTTP 428 errors:
+
+```json
+{
+  "detail": "User profile is incomplete. Please fill in all mandatory fields.",
+  "code": "incomplete_profile",
+  "missing_fields": ["phone_number"]
+}
+```
+
+Staff users bypass enforcement checks.
+
+### Available Mandatory Attributes
+
+Any user profile attribute can be made mandatory:
+
+- Core: `first_name`, `last_name`, `email`
+- Contact: `phone_number`, `organization`, `job_title`
+- Identity: `civil_number`, `affiliations`
+- Personal: `gender`, `birth_date`, `nationality`
+
+See [Attribute Reference](#attribute-reference) for the complete list.
+
 ## Access Control Based on Attributes
 
 User profile attributes can be used for access control in:

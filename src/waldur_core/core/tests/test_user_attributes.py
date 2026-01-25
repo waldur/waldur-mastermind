@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
@@ -7,7 +7,11 @@ from waldur_core.core.user_attributes import (
     CORE_USER_ATTRIBUTES,
     get_enabled_idp_sync_fields,
     get_enabled_profile_attributes,
+    get_mandatory_attributes,
+    get_profile_completeness_details,
+    get_user_missing_mandatory_attributes,
     is_attribute_enabled,
+    is_user_profile_complete,
 )
 
 
@@ -130,3 +134,147 @@ class TestIsAttributeEnabled(TestCase):
     def test_invalid_attribute_disabled(self, mock_config):
         mock_config.ENABLED_USER_PROFILE_ATTRIBUTES = ["invalid_attr"]
         self.assertFalse(is_attribute_enabled("invalid_attr"))
+
+
+class TestGetMandatoryAttributes(TestCase):
+    """Test get_mandatory_attributes function."""
+
+    @patch("waldur_core.core.user_attributes.config")
+    def test_returns_configured_mandatory_attributes(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = ["phone_number", "organization"]
+        result = get_mandatory_attributes()
+        self.assertEqual(result, ["phone_number", "organization"])
+
+    @patch("waldur_core.core.user_attributes.config")
+    def test_returns_empty_list_when_not_configured(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = []
+        result = get_mandatory_attributes()
+        self.assertEqual(result, [])
+
+    @patch("waldur_core.core.user_attributes.config")
+    def test_returns_empty_list_when_none(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = None
+        result = get_mandatory_attributes()
+        self.assertEqual(result, [])
+
+
+class TestGetUserMissingMandatoryAttributes(TestCase):
+    """Test get_user_missing_mandatory_attributes function."""
+
+    @patch("waldur_core.core.user_attributes.config")
+    def test_returns_empty_when_no_mandatory_attributes(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = []
+        user = MagicMock()
+        result = get_user_missing_mandatory_attributes(user)
+        self.assertEqual(result, [])
+
+    @patch("waldur_core.core.user_attributes.config")
+    def test_returns_missing_fields_when_none(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = ["phone_number", "organization"]
+        user = MagicMock()
+        user.phone_number = None
+        user.organization = "Test Org"
+        result = get_user_missing_mandatory_attributes(user)
+        self.assertEqual(result, ["phone_number"])
+
+    @patch("waldur_core.core.user_attributes.config")
+    def test_returns_missing_fields_when_empty_string(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = ["phone_number", "job_title"]
+        user = MagicMock()
+        user.phone_number = ""
+        user.job_title = "Developer"
+        result = get_user_missing_mandatory_attributes(user)
+        self.assertEqual(result, ["phone_number"])
+
+    @patch("waldur_core.core.user_attributes.config")
+    def test_returns_missing_fields_when_empty_list(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = ["affiliations"]
+        user = MagicMock()
+        user.affiliations = []
+        result = get_user_missing_mandatory_attributes(user)
+        self.assertEqual(result, ["affiliations"])
+
+    @patch("waldur_core.core.user_attributes.config")
+    def test_returns_empty_when_all_mandatory_filled(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = ["phone_number", "organization"]
+        user = MagicMock()
+        user.phone_number = "+1234567890"
+        user.organization = "Test Org"
+        result = get_user_missing_mandatory_attributes(user)
+        self.assertEqual(result, [])
+
+    @patch("waldur_core.core.user_attributes.config")
+    def test_handles_missing_attribute_on_user(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = ["nonexistent_field"]
+        user = MagicMock(spec=["phone_number"])
+        result = get_user_missing_mandatory_attributes(user)
+        self.assertEqual(result, ["nonexistent_field"])
+
+
+class TestIsUserProfileComplete(TestCase):
+    """Test is_user_profile_complete function."""
+
+    @patch("waldur_core.core.user_attributes.config")
+    def test_returns_true_when_no_mandatory_attributes(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = []
+        user = MagicMock()
+        self.assertTrue(is_user_profile_complete(user))
+
+    @patch("waldur_core.core.user_attributes.config")
+    def test_returns_true_when_all_mandatory_filled(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = ["phone_number"]
+        user = MagicMock()
+        user.phone_number = "+1234567890"
+        self.assertTrue(is_user_profile_complete(user))
+
+    @patch("waldur_core.core.user_attributes.config")
+    def test_returns_false_when_mandatory_missing(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = ["phone_number"]
+        user = MagicMock()
+        user.phone_number = None
+        self.assertFalse(is_user_profile_complete(user))
+
+
+class TestGetProfileCompletenessDetails(TestCase):
+    """Test get_profile_completeness_details function."""
+
+    @patch("waldur_core.core.user_attributes.config")
+    def test_returns_complete_details(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = ["phone_number", "organization"]
+        mock_config.ENFORCE_MANDATORY_USER_ATTRIBUTES = True
+        user = MagicMock()
+        user.phone_number = "+1234567890"
+        user.organization = None
+
+        result = get_profile_completeness_details(user)
+
+        self.assertFalse(result["is_complete"])
+        self.assertEqual(result["missing_fields"], ["organization"])
+        self.assertEqual(result["mandatory_fields"], ["phone_number", "organization"])
+        self.assertTrue(result["enforcement_enabled"])
+
+    @patch("waldur_core.core.user_attributes.config")
+    def test_returns_complete_when_all_filled(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = ["phone_number"]
+        mock_config.ENFORCE_MANDATORY_USER_ATTRIBUTES = False
+        user = MagicMock()
+        user.phone_number = "+1234567890"
+
+        result = get_profile_completeness_details(user)
+
+        self.assertTrue(result["is_complete"])
+        self.assertEqual(result["missing_fields"], [])
+        self.assertEqual(result["mandatory_fields"], ["phone_number"])
+        self.assertFalse(result["enforcement_enabled"])
+
+    @patch("waldur_core.core.user_attributes.config")
+    def test_returns_complete_when_no_mandatory(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = []
+        mock_config.ENFORCE_MANDATORY_USER_ATTRIBUTES = False
+        user = MagicMock()
+
+        result = get_profile_completeness_details(user)
+
+        self.assertTrue(result["is_complete"])
+        self.assertEqual(result["missing_fields"], [])
+        self.assertEqual(result["mandatory_fields"], [])

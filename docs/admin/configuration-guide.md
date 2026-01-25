@@ -2183,6 +2183,22 @@ Default user attributes exposed to service providers (OfferingUser API) when no 
 
 List of enabled user profile attributes. Controls IdP sync and UI display. Core attributes (username, email, first_name, last_name, full_name) are always enabled. Available options: phone_number, organization, job_title, affiliations, gender, personal_title, birth_date, place_of_birth, country_of_residence, nationality, nationalities, organization_country, organization_type, eduperson_assurance, civil_number, identity_source.
 
+#### MANDATORY_USER_ATTRIBUTES
+
+**Type:** list_field
+
+**Default value:** []
+
+List of user profile attributes that are mandatory. Users with missing mandatory attributes will have limited API access until their profile is complete. Available: phone_number, organization, job_title, affiliations, civil_number, first_name, last_name, email, etc. See [User Profile Attributes](../user-profile-attributes.md#mandatory-user-attributes) for details.
+
+#### ENFORCE_MANDATORY_USER_ATTRIBUTES
+
+**Type:** bool
+
+**Default value:** False
+
+If True, users with incomplete mandatory attributes will be blocked from most API endpoints until they complete their profile. Staff users bypass this check. When disabled (default), frontend can still prompt users using the public settings and `/api/users/profile_completeness/` endpoint.
+
 ### Data privacy settings
 
 #### USER_DATA_ACCESS_LOGGING_ENABLED

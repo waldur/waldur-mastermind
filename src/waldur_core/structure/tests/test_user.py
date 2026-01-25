@@ -1244,3 +1244,91 @@ class UserAggregationEndpointsTest(test.APITransactionTestCase):
 
         counts = [item["count"] for item in response.data]
         self.assertEqual(counts, sorted(counts, reverse=True))
+
+
+class ProfileCompletenessTest(test.APITransactionTestCase):
+    """Test profile completeness endpoint and /me endpoint update."""
+
+    def setUp(self):
+        self.user = factories.UserFactory(
+            agreement_date=timezone.now(),
+            phone_number="",
+            organization="",
+        )
+
+    def test_anonymous_cannot_access_profile_completeness(self):
+        url = factories.UserFactory.get_list_url("profile_completeness")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @mock.patch("waldur_core.core.user_attributes.config")
+    def test_profile_completeness_returns_correct_structure(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = ["phone_number", "organization"]
+        mock_config.ENFORCE_MANDATORY_USER_ATTRIBUTES = True
+
+        self.client.force_authenticate(self.user)
+        url = factories.UserFactory.get_list_url("profile_completeness")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("is_complete", response.data)
+        self.assertIn("missing_fields", response.data)
+        self.assertIn("mandatory_fields", response.data)
+        self.assertIn("enforcement_enabled", response.data)
+
+    @mock.patch("waldur_core.core.user_attributes.config")
+    def test_profile_completeness_shows_missing_fields(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = ["phone_number"]
+        mock_config.ENFORCE_MANDATORY_USER_ATTRIBUTES = False
+
+        self.client.force_authenticate(self.user)
+        url = factories.UserFactory.get_list_url("profile_completeness")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_complete"])
+        self.assertIn("phone_number", response.data["missing_fields"])
+
+    @mock.patch("waldur_core.core.user_attributes.config")
+    def test_profile_completeness_shows_complete_when_filled(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = ["phone_number"]
+        mock_config.ENFORCE_MANDATORY_USER_ATTRIBUTES = False
+
+        self.user.phone_number = "+1234567890"
+        self.user.save()
+
+        self.client.force_authenticate(self.user)
+        url = factories.UserFactory.get_list_url("profile_completeness")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_complete"])
+        self.assertEqual(response.data["missing_fields"], [])
+
+    @mock.patch("waldur_core.core.user_attributes.config")
+    def test_me_endpoint_includes_profile_completeness(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = ["phone_number"]
+        mock_config.ENFORCE_MANDATORY_USER_ATTRIBUTES = True
+
+        self.client.force_authenticate(self.user)
+        url = factories.UserFactory.get_list_url("me")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("profile_completeness", response.data)
+        self.assertIn("is_complete", response.data["profile_completeness"])
+        self.assertIn("missing_fields", response.data["profile_completeness"])
+        self.assertIn("mandatory_fields", response.data["profile_completeness"])
+        self.assertIn("enforcement_enabled", response.data["profile_completeness"])
+
+    @mock.patch("waldur_core.core.user_attributes.config")
+    def test_profile_completeness_shows_enforcement_status(self, mock_config):
+        mock_config.MANDATORY_USER_ATTRIBUTES = []
+        mock_config.ENFORCE_MANDATORY_USER_ATTRIBUTES = True
+
+        self.client.force_authenticate(self.user)
+        url = factories.UserFactory.get_list_url("profile_completeness")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["enforcement_enabled"])
