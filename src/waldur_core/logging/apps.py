@@ -24,3 +24,9 @@ class EventsConfig(AppConfig):
             sender=Token,
             dispatch_uid="waldur_core.logging.handlers.delete_stale_event_subscriptions",
         )
+
+        signals.pre_delete.connect(
+            handlers.cleanup_rabbitmq_queue_on_delete,
+            sender=models.EventSubscriptionQueue,
+            dispatch_uid="waldur_core.logging.handlers.cleanup_rabbitmq_queue_on_delete",
+        )

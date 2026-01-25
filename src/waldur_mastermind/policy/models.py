@@ -1008,7 +1008,7 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         import datetime
 
         from waldur_core.logging import tasks as logging_tasks
-        from waldur_core.logging.utils import ObservableObjectType
+        from waldur_core.logging.enums import ObservableObjectType
         from waldur_mastermind.marketplace import utils as marketplace_utils
 
         try:

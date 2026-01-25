@@ -5,7 +5,7 @@ from constance.test.unittest import override_config as override_constance_config
 from ddt import data, ddt
 from rest_framework import test
 
-from waldur_core.logging import utils as logging_utils
+from waldur_core.logging import enums as logging_enums
 from waldur_core.logging.tests import factories as logging_factories
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
@@ -92,11 +92,18 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
         """
         Test that the offering user message is created after the offering user creation.
         """
-        logging_factories.EventSubscriptionFactory(
+        event_subscription = logging_factories.EventSubscriptionFactory(
             user=self.offering_admin,
             observable_objects=[
-                {"object_type": logging_utils.ObservableObjectType.OFFERING_USER.value}
+                {"object_type": logging_enums.ObservableObjectType.OFFERING_USER.value}
             ],
+        )
+
+        # Create subscription queue (required for messages to be sent)
+        logging_factories.EventSubscriptionQueueFactory(
+            event_subscription=event_subscription,
+            offering_uuid=self.resource.offering.uuid,
+            object_type=logging_enums.ObservableObjectType.OFFERING_USER.value,
         )
 
         self.resource.project.add_user(self.offering_admin, ProjectRole.ADMIN)

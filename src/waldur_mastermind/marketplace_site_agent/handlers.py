@@ -1,8 +1,8 @@
 import logging
 
 from waldur_core.core.middleware import get_skip_side_effects
+from waldur_core.logging import enums as logging_enums
 from waldur_core.logging import tasks as logging_tasks
-from waldur_core.logging import utils as logging_utils
 from waldur_core.permissions import models as permission_models
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import enums as marketplace_enums
@@ -38,7 +38,7 @@ def send_done_order_to_message_queue(sender, instance: Order, created=False, **k
 
     payload = {"order_uuid": order.uuid.hex, "order_state": order.get_state_display()}
     messages = marketplace_utils.prepare_messages(
-        offering, payload, logging_utils.ObservableObjectType.ORDER
+        offering, payload, logging_enums.ObservableObjectType.ORDER
     )
     if messages:
         logging_tasks.publish_messages.delay(messages)
@@ -70,7 +70,7 @@ def send_pending_order_to_message_queue(
 
     payload = {"order_uuid": order.uuid.hex, "order_state": order.get_state_display()}
     messages = marketplace_utils.prepare_messages(
-        offering, payload, logging_utils.ObservableObjectType.ORDER
+        offering, payload, logging_enums.ObservableObjectType.ORDER
     )
     if messages:
         logging_tasks.publish_messages.delay(messages)
@@ -102,7 +102,7 @@ def send_offering_user_username_message(
     messages = marketplace_utils.prepare_messages(
         offering_user.offering,
         payload,
-        logging_utils.ObservableObjectType.OFFERING_USER,
+        logging_enums.ObservableObjectType.OFFERING_USER,
     )
     if messages:
         logging_tasks.publish_messages.delay(messages)
@@ -146,7 +146,7 @@ def process_role_changed(permission: permission_models.UserRole, granted: bool):
             "granted": granted,
         }
         messages = marketplace_utils.prepare_messages(
-            offering, payload, logging_utils.ObservableObjectType.USER_ROLE
+            offering, payload, logging_enums.ObservableObjectType.USER_ROLE
         )
         all_messages.extend(messages)
 
@@ -197,16 +197,16 @@ def send_account_message(
     action = "create" if created else "delete"
     project = account.project
     username = ""
-    observable_object_type = logging_utils.ObservableObjectType.SERVICE_ACCOUNT
+    observable_object_type = logging_enums.ObservableObjectType.SERVICE_ACCOUNT
     match account:
         case service_account if isinstance(
             account, marketplace_models.ProjectServiceAccount
         ):
             username = service_account.username
-            observable_object_type = logging_utils.ObservableObjectType.SERVICE_ACCOUNT
+            observable_object_type = logging_enums.ObservableObjectType.SERVICE_ACCOUNT
         case course_account if isinstance(account, marketplace_models.CourseAccount):
             username = course_account.user.username
-            observable_object_type = logging_utils.ObservableObjectType.COURSE_ACCOUNT
+            observable_object_type = logging_enums.ObservableObjectType.COURSE_ACCOUNT
     payload = {
         "account_uuid": account.uuid.hex,
         "account_username": username,

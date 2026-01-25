@@ -2,7 +2,7 @@ from unittest import mock
 
 from rest_framework import test
 
-from waldur_core.logging import utils as logging_utils
+from waldur_core.logging import enums as logging_enums
 from waldur_core.logging.tests import factories as logging_factories
 from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING, ServiceAccountState
 from waldur_mastermind.marketplace.tests import (
@@ -28,9 +28,16 @@ class ServiceAccountMessageTest(test.APITransactionTestCase):
             user=self.fixture.offering_owner,
             observable_objects=[
                 {
-                    "object_type": logging_utils.ObservableObjectType.SERVICE_ACCOUNT.value
+                    "object_type": logging_enums.ObservableObjectType.SERVICE_ACCOUNT.value
                 }
             ],
+        )
+
+        # Create subscription queue (required for messages to be sent)
+        logging_factories.EventSubscriptionQueueFactory(
+            event_subscription=self.event_subscription,
+            offering_uuid=self.offering.uuid,
+            object_type=logging_enums.ObservableObjectType.SERVICE_ACCOUNT.value,
         )
 
     @mock.patch("waldur_core.logging.tasks.publish_messages.delay")

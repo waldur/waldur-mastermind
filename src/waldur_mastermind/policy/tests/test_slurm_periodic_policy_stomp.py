@@ -66,6 +66,13 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITransactionTestCase):
             observable_objects=[{"object_type": "resource_periodic_limits"}],
         )
 
+        # Create subscription queue (required for messages to be sent)
+        logging_factories.EventSubscriptionQueueFactory(
+            event_subscription=self.event_subscription,
+            offering_uuid=self.offering.uuid,
+            object_type="resource_periodic_limits",
+        )
+
     @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
     def test_periodic_limits_stomp_message_emitted_on_policy_trigger(
         self, mock_publish_messages
@@ -474,6 +481,13 @@ class SlurmPeriodicUsagePolicyEventTest(test.APITransactionTestCase):
             observable_objects=[{"object_type": "resource_periodic_limits"}],
         )
 
+        # Create subscription queue (required for messages to be sent)
+        logging_factories.EventSubscriptionQueueFactory(
+            event_subscription=self.event_subscription,
+            offering_uuid=self.offering.uuid,
+            object_type="resource_periodic_limits",
+        )
+
     @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
     def test_component_usage_change_triggers_stomp_message(self, mock_publish_messages):
         """Test that ComponentUsage changes trigger periodic limits STOMP messages."""
@@ -680,6 +694,13 @@ class SlurmPeriodicUsagePolicyIntegrationTest(test.APITransactionTestCase):
         self.event_subscription = logging_factories.EventSubscriptionFactory(
             user=self.fixture.offering_owner,
             observable_objects=[{"object_type": "resource_periodic_limits"}],
+        )
+
+        # Create subscription queue (required for messages to be sent)
+        logging_factories.EventSubscriptionQueueFactory(
+            event_subscription=self.event_subscription,
+            offering_uuid=self.offering.uuid,
+            object_type="resource_periodic_limits",
         )
 
     @mock.patch("waldur_core.logging.tasks.publish_messages.delay")

@@ -4,8 +4,8 @@ from unittest import mock
 from ddt import data, ddt
 from rest_framework import status, test
 
+from waldur_core.logging import enums as logging_enums
 from waldur_core.logging import models as logging_models
-from waldur_core.logging import utils as logging_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_mastermind.marketplace import enums
@@ -171,7 +171,7 @@ class AgentIdentityEventSubscriptionTest(test.APITransactionTestCase):
         url = self._get_register_event_subscription_url(agent_identity)
 
         payload = {
-            "observable_object_type": logging_utils.ObservableObjectType.ORDER.value,
+            "observable_object_type": logging_enums.ObservableObjectType.ORDER.value,
             "description": "Test event subscription for orders",
         }
 
@@ -222,7 +222,7 @@ class AgentIdentityEventSubscriptionTest(test.APITransactionTestCase):
         url = self._get_register_event_subscription_url(agent_identity)
 
         payload = {
-            "observable_object_type": logging_utils.ObservableObjectType.RESOURCE.value,
+            "observable_object_type": logging_enums.ObservableObjectType.RESOURCE.value,
         }
 
         # Create first subscription
@@ -277,7 +277,7 @@ class AgentIdentityEventSubscriptionTest(test.APITransactionTestCase):
         url = self._get_register_event_subscription_url(agent_identity)
 
         payload = {
-            "observable_object_type": logging_utils.ObservableObjectType.RESOURCE.value,
+            "observable_object_type": logging_enums.ObservableObjectType.RESOURCE.value,
         }
 
         # Create first subscription
@@ -324,7 +324,7 @@ class AgentIdentityEventSubscriptionTest(test.APITransactionTestCase):
         url = self._get_register_event_subscription_url(agent_identity)
 
         payload = {
-            "observable_object_type": logging_utils.ObservableObjectType.USER_ROLE.value,
+            "observable_object_type": logging_enums.ObservableObjectType.USER_ROLE.value,
         }
 
         response = self.client.post(url, payload)
@@ -355,7 +355,7 @@ class AgentIdentityEventSubscriptionTest(test.APITransactionTestCase):
         url = self._get_register_event_subscription_url(agent_identity)
 
         payload = {
-            "observable_object_type": logging_utils.ObservableObjectType.ORDER.value,
+            "observable_object_type": logging_enums.ObservableObjectType.ORDER.value,
         }
 
         response = self.client.post(url, payload)
@@ -443,7 +443,7 @@ class AgentIdentityEventSubscriptionTest(test.APITransactionTestCase):
         url = f"/api/marketplace-site-agent-identities/{fake_uuid}/register_event_subscription/"
 
         payload = {
-            "observable_object_type": logging_utils.ObservableObjectType.ORDER.value,
+            "observable_object_type": logging_enums.ObservableObjectType.ORDER.value,
         }
 
         response = self.client.post(url, payload)

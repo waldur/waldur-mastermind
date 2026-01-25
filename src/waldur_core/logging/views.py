@@ -821,7 +821,7 @@ Note: For detailed queue management, use /api/rabbitmq-stats/ endpoint.
 
 Requires staff permissions.""",
         responses={
-            status.HTTP_200_OK: serializers.SubscriptionQueuesOverviewSerializer,
+            status.HTTP_200_OK: serializers.EventSubscriptionQueuesOverviewSerializer,
             status.HTTP_503_SERVICE_UNAVAILABLE: serializers.RmqStatsErrorSerializer,
         },
     )

@@ -62,4 +62,9 @@ class MarketplaceSiteAgentExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "cleanup-orphan-subscription-queues": {
+                "task": "waldur_core.logging.cleanup_orphan_subscription_queues",
+                "schedule": timedelta(hours=6),
+                "args": (),
+            },
         }

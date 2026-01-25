@@ -2414,14 +2414,21 @@ class OfferingUserSignalTest(test.APITransactionTestCase):
         self.offering.project.add_user(self.user, ProjectRole.ADMIN)
 
         # Create event subscription for the offering user
-        from waldur_core.logging import utils as logging_utils
+        from waldur_core.logging import enums as logging_enums
         from waldur_core.logging.tests import factories as logging_factories
 
-        logging_factories.EventSubscriptionFactory(
+        self.event_subscription = logging_factories.EventSubscriptionFactory(
             user=self.user,
             observable_objects=[
-                {"object_type": logging_utils.ObservableObjectType.OFFERING_USER.value}
+                {"object_type": logging_enums.ObservableObjectType.OFFERING_USER.value}
             ],
+        )
+
+        # Create subscription queue (required for messages to be sent)
+        logging_factories.EventSubscriptionQueueFactory(
+            event_subscription=self.event_subscription,
+            offering_uuid=self.offering.uuid,
+            object_type=logging_enums.ObservableObjectType.OFFERING_USER.value,
         )
 
     @mock.patch("waldur_core.logging.tasks.publish_messages.delay")

@@ -10,6 +10,17 @@ from waldur_core.logging.exceptions import RabbitMQError
 
 logger = logging.getLogger(__name__)
 
+# Standard queue arguments for subscription queues.
+# These arguments must be set when creating queues to avoid precondition_failed
+# errors when publishers send messages with these headers.
+SUBSCRIPTION_QUEUE_ARGUMENTS = {
+    "x-message-ttl": 60 * 60 * 1000,  # one hour in milliseconds
+    "x-max-length": 10000,
+    "x-overflow": "reject-publish-dlx",
+    "x-dead-letter-exchange": "",
+    "x-dead-letter-routing-key": "waldur.dlq.messages",
+}
+
 
 class RabbitMQManagementBackend:
     def __init__(self) -> None:
@@ -746,6 +757,77 @@ class RabbitMQManagementBackend:
                 response.text,
             )
             raise RabbitMQError(f"Failed to delete queue {queue} in vhost {vhost}")
+
+    def create_queue(
+        self,
+        vhost: str,
+        queue_name: str,
+        durable: bool = True,
+        auto_delete: bool = False,
+        arguments: dict | None = None,
+    ) -> bool:
+        """Create a queue in RabbitMQ with specified arguments.
+
+        This method creates a queue via the RabbitMQ Management HTTP API.
+        It should be used to pre-create queues before STOMP subscribers connect,
+        ensuring queues have the correct arguments (DLX, max-length, etc.).
+
+        Args:
+            vhost: The virtual host name
+            queue_name: The queue name to create
+            durable: Whether the queue survives broker restart (default: True)
+            auto_delete: Whether queue is deleted when last consumer disconnects (default: False)
+            arguments: Additional queue arguments (x-max-length, x-dead-letter-exchange, etc.)
+
+        Returns:
+            bool: True if queue was created successfully or already exists with matching args,
+                  False if creation failed
+        """
+        vhost_encoded = requests.utils.quote(vhost, safe="")
+        queue_encoded = requests.utils.quote(queue_name, safe="")
+        url = f"{self.rmq_management_url}/queues/{vhost_encoded}/{queue_encoded}"
+
+        payload = {
+            "durable": durable,
+            "auto_delete": auto_delete,
+        }
+        if arguments:
+            payload["arguments"] = arguments
+
+        try:
+            logger.info(
+                "Creating queue '%s' in vhost '%s' with arguments %s",
+                queue_name,
+                vhost,
+                arguments,
+            )
+            response = requests.put(url, json=payload, auth=self.rmq_auth, timeout=10)
+        except requests.RequestException as exc:
+            logger.error(
+                "Failed to create queue '%s' in vhost '%s': %s",
+                queue_name,
+                vhost,
+                exc,
+            )
+            return False
+
+        if response.status_code == status.HTTP_201_CREATED:
+            logger.info(
+                "Queue '%s' created successfully in vhost '%s'", queue_name, vhost
+            )
+            return True
+        elif response.status_code == status.HTTP_204_NO_CONTENT:
+            logger.debug("Queue '%s' already exists in vhost '%s'", queue_name, vhost)
+            return True
+        else:
+            logger.error(
+                "Failed to create queue '%s' in vhost '%s', status code: %s, response: %s",
+                queue_name,
+                vhost,
+                response.status_code,
+                response.text,
+            )
+            return False
 
     def list_all_subscription_queues(self) -> list[dict]:
         """List all subscription queues across all vhosts.

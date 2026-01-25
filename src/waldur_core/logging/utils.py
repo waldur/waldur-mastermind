@@ -4,7 +4,6 @@ import logging
 import re
 import threading
 import time
-from enum import Enum
 
 import stomp
 from django.apps import apps
@@ -266,17 +265,6 @@ def get_message_ttl_for_type(message_type: str) -> int:
 _stomp_rate_limiter = RateLimiter(rate=500.0, burst=1000)
 
 
-class ObservableObjectType(Enum):
-    ORDER = "order"
-    USER_ROLE = "user_role"
-    RESOURCE = "resource"
-    OFFERING_USER = "offering_user"
-    IMPORTABLE_RESOURCES = "importable_resources"
-    SERVICE_ACCOUNT = "service_account"
-    COURSE_ACCOUNT = "course_account"
-    RESOURCE_PERIODIC_LIMITS = "resource_periodic_limits"
-
-
 def parse_subscription_queue_name(queue_name: str) -> dict | None:
     """Parse a subscription queue name into its components.
 
@@ -435,25 +423,20 @@ def publish_stomp_messages(
             destination = "/queue/" + message_info["topic"].replace("/", "_")
 
             # Determine message type from topic for TTL
-            message_type = message_info.get("message_type", "default")
+            message_info.get("message_type", "default")
             if "_order" in message_info["topic"]:
-                message_type = "order"
+                pass
             elif "_resource" in message_info["topic"]:
-                message_type = "resource"
+                pass
             elif "_user_role" in message_info["topic"]:
-                message_type = "user_role"
+                pass
 
             headers = {
                 "persistent": "true",
                 "durable": "true",
                 "auto-delete": "false",
                 "content-type": "application/json",
-                "expiration": str(get_message_ttl_for_type(message_type)),
                 "x-message-id": create_message_id(message_info),
-                "x-max-length": "10000",
-                "x-overflow": "reject-publish-dlx",
-                "x-dead-letter-exchange": "",
-                "x-dead-letter-routing-key": "waldur.dlq.messages",
             }
             logger.info(
                 "Sending STOMP message %s to %s", message_info["payload"], destination

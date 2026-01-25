@@ -126,3 +126,15 @@ class EmailLogFactory(
         return "http://testserver" + reverse(
             "email-log-detail", kwargs={"uuid": email_log.uuid.hex}
         )
+
+
+class EventSubscriptionQueueFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.EventSubscriptionQueue],
+):
+    class Meta:
+        model = models.EventSubscriptionQueue
+
+    event_subscription = factory.SubFactory(EventSubscriptionFactory)
+    offering_uuid = factory.Faker("uuid4")
+    object_type = "resource"
