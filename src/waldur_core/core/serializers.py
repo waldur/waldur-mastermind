@@ -1253,3 +1253,57 @@ class DatabaseStatsResponseSerializer(serializers.Serializer):
     replication = ReplicationStatsSerializer(
         read_only=True, help_text="Replication status (if applicable)"
     )
+
+
+class TableGrowthStatsSerializer(serializers.Serializer):
+    """Serializer for individual table growth statistics."""
+
+    table_name = serializers.CharField(help_text="Name of the database table")
+    current_total_size = serializers.IntegerField(
+        help_text="Current total size including indexes in bytes"
+    )
+    current_data_size = serializers.IntegerField(
+        help_text="Current data-only size in bytes"
+    )
+    current_row_estimate = serializers.IntegerField(
+        allow_null=True, help_text="Current estimated row count"
+    )
+    week_ago_total_size = serializers.IntegerField(
+        allow_null=True, help_text="Total size from 7 days ago in bytes"
+    )
+    week_ago_row_estimate = serializers.IntegerField(
+        allow_null=True, help_text="Row estimate from 7 days ago"
+    )
+    month_ago_total_size = serializers.IntegerField(
+        allow_null=True, help_text="Total size from 30 days ago in bytes"
+    )
+    month_ago_row_estimate = serializers.IntegerField(
+        allow_null=True, help_text="Row estimate from 30 days ago"
+    )
+    weekly_growth_percent = serializers.FloatField(
+        allow_null=True, help_text="Percentage growth over the past week"
+    )
+    monthly_growth_percent = serializers.FloatField(
+        allow_null=True, help_text="Percentage growth over the past month"
+    )
+    weekly_row_growth_percent = serializers.FloatField(
+        allow_null=True, help_text="Percentage row count growth over the past week"
+    )
+    monthly_row_growth_percent = serializers.FloatField(
+        allow_null=True, help_text="Percentage row count growth over the past month"
+    )
+
+
+class TableGrowthStatsResponseSerializer(serializers.Serializer):
+    """Response serializer for table growth statistics endpoint."""
+
+    date = serializers.DateField(help_text="Current date of the statistics")
+    weekly_threshold_percent = serializers.IntegerField(
+        help_text="Configured weekly growth alert threshold"
+    )
+    monthly_threshold_percent = serializers.IntegerField(
+        help_text="Configured monthly growth alert threshold"
+    )
+    tables = TableGrowthStatsSerializer(
+        many=True, help_text="Table growth statistics sorted by growth rate"
+    )

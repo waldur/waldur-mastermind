@@ -818,6 +818,27 @@ CONSTANCE_CONFIG = {
         90,
         "Number of days to retain old catalog versions",
     ),
+    # Table Growth Monitoring settings
+    "TABLE_GROWTH_MONITORING_ENABLED": (
+        True,
+        "Enable table growth monitoring to detect potential data leaks from bugs.",
+    ),
+    "TABLE_GROWTH_WEEKLY_THRESHOLD_PERCENT": (
+        50,
+        "Alert if a table grows by more than this percentage in a week.",
+    ),
+    "TABLE_GROWTH_MONTHLY_THRESHOLD_PERCENT": (
+        200,
+        "Alert if a table grows by more than this percentage in a month.",
+    ),
+    "TABLE_GROWTH_RETENTION_DAYS": (
+        90,
+        "Number of days to retain table size history data.",
+    ),
+    "TABLE_GROWTH_MIN_SIZE_BYTES": (
+        1048576,
+        "Minimum table size in bytes (default 1MB) to monitor. Smaller tables are ignored.",
+    ),
     # User Actions Configuration
     "USER_ACTIONS_ENABLED": (
         True,
@@ -1108,6 +1129,13 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES",
         "SOFTWARE_CATALOG_CLEANUP_ENABLED",
         "SOFTWARE_CATALOG_RETENTION_DAYS",
+    ),
+    "Table Growth Monitoring": (
+        "TABLE_GROWTH_MONITORING_ENABLED",
+        "TABLE_GROWTH_WEEKLY_THRESHOLD_PERCENT",
+        "TABLE_GROWTH_MONTHLY_THRESHOLD_PERCENT",
+        "TABLE_GROWTH_RETENTION_DAYS",
+        "TABLE_GROWTH_MIN_SIZE_BYTES",
     ),
     "User Actions": (
         "USER_ACTIONS_ENABLED",

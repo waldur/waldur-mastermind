@@ -1,0 +1,1 @@
+[{{ site_name }}] Table Growth Alert: {{ alerts|length }} table(s) with abnormal growth

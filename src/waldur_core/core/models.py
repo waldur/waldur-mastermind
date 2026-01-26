@@ -1167,3 +1167,27 @@ class AvailableMixin(models.Model):
         abstract = True
 
     can_be_managed = models.BooleanField(default=True)
+
+
+class DailyTableSizeHistory(models.Model):
+    """
+    Stores daily snapshots of database table sizes for trend analysis.
+    Used to detect abnormal growth patterns that may indicate bugs.
+    """
+
+    table_name = models.CharField(max_length=150, db_index=True)
+    date = models.DateField(db_index=True)
+    total_size = models.BigIntegerField(
+        help_text="Total size including indexes in bytes"
+    )
+    data_size = models.BigIntegerField(help_text="Data-only size in bytes")
+    row_estimate = models.BigIntegerField(null=True, help_text="Estimated row count")
+
+    class Meta:
+        unique_together = ("table_name", "date")
+        verbose_name = "Daily table size history"
+        verbose_name_plural = "Daily table size history"
+        ordering = ["-date", "table_name"]
+
+    def __str__(self):
+        return f"{self.table_name} ({self.date})"

@@ -59,6 +59,7 @@ from waldur_core.core.serializers import (
     LogoutSerializer,
     ObtainAuthTokenSerializer,
     QuerySerializer,
+    TableGrowthStatsResponseSerializer,
     VersionSerializer,
 )
 from waldur_core.core.utils import format_homeport_link
@@ -1244,6 +1245,156 @@ class QueryViewSet(generics.GenericAPIView):
                 return Response(data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class TableGrowthStatsViewSet(APIView):
+    """
+    API endpoint for monitoring database table growth to detect potential data leaks.
+
+    This endpoint provides historical data about table sizes and growth rates,
+    which can help identify bugs that cause unbounded table growth.
+    """
+
+    permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
+
+    @extend_schema(
+        summary="Get table growth statistics",
+        description="""Retrieves historical table growth statistics for detecting abnormal patterns.
+
+This endpoint returns:
+- **date**: Current date of the statistics
+- **weekly_threshold_percent**: Configured alert threshold for weekly growth
+- **monthly_threshold_percent**: Configured alert threshold for monthly growth
+- **tables**: List of tables with their growth statistics, sorted by growth rate
+
+Each table entry includes:
+- Current size and row estimates
+- Size and row estimates from 7 days ago
+- Size and row estimates from 30 days ago
+- Weekly and monthly growth percentages
+
+Use this data to identify tables that may be experiencing abnormal growth,
+which could indicate bugs like the version-based get_or_create issue.
+
+Query parameters:
+- **table_name** (optional): Filter to a specific table name
+- **days** (optional, default 30): Number of days of history to include
+
+Requires support user permissions.""",
+        request=None,
+        responses={status.HTTP_200_OK: TableGrowthStatsResponseSerializer},
+    )
+    def get(self, request, *args, **kwargs):
+        from django.utils import timezone
+
+        from waldur_core.core.models import DailyTableSizeHistory
+
+        today = timezone.now().date()
+        week_ago = today - timezone.timedelta(days=7)
+        month_ago = today - timezone.timedelta(days=30)
+
+        # Get query parameters
+        table_name_filter = request.query_params.get("table_name")
+        int(request.query_params.get("days", 30))
+
+        # Build queryset for current data
+        current_qs = DailyTableSizeHistory.objects.filter(date=today)
+        if table_name_filter:
+            current_qs = current_qs.filter(table_name__icontains=table_name_filter)
+
+        # Build lookup dictionaries
+        week_ago_data = {
+            entry.table_name: entry
+            for entry in DailyTableSizeHistory.objects.filter(date=week_ago)
+        }
+        month_ago_data = {
+            entry.table_name: entry
+            for entry in DailyTableSizeHistory.objects.filter(date=month_ago)
+        }
+
+        tables = []
+        for entry in current_qs:
+            table_data = {
+                "table_name": entry.table_name,
+                "current_total_size": entry.total_size,
+                "current_data_size": entry.data_size,
+                "current_row_estimate": entry.row_estimate,
+                "week_ago_total_size": None,
+                "week_ago_row_estimate": None,
+                "month_ago_total_size": None,
+                "month_ago_row_estimate": None,
+                "weekly_growth_percent": None,
+                "monthly_growth_percent": None,
+                "weekly_row_growth_percent": None,
+                "monthly_row_growth_percent": None,
+            }
+
+            # Calculate weekly growth
+            if entry.table_name in week_ago_data:
+                week_entry = week_ago_data[entry.table_name]
+                table_data["week_ago_total_size"] = week_entry.total_size
+                table_data["week_ago_row_estimate"] = week_entry.row_estimate
+                if week_entry.total_size and week_entry.total_size > 0:
+                    table_data["weekly_growth_percent"] = round(
+                        (entry.total_size - week_entry.total_size)
+                        / week_entry.total_size
+                        * 100,
+                        1,
+                    )
+                if (
+                    week_entry.row_estimate
+                    and week_entry.row_estimate > 0
+                    and entry.row_estimate
+                ):
+                    table_data["weekly_row_growth_percent"] = round(
+                        (entry.row_estimate - week_entry.row_estimate)
+                        / week_entry.row_estimate
+                        * 100,
+                        1,
+                    )
+
+            # Calculate monthly growth
+            if entry.table_name in month_ago_data:
+                month_entry = month_ago_data[entry.table_name]
+                table_data["month_ago_total_size"] = month_entry.total_size
+                table_data["month_ago_row_estimate"] = month_entry.row_estimate
+                if month_entry.total_size and month_entry.total_size > 0:
+                    table_data["monthly_growth_percent"] = round(
+                        (entry.total_size - month_entry.total_size)
+                        / month_entry.total_size
+                        * 100,
+                        1,
+                    )
+                if (
+                    month_entry.row_estimate
+                    and month_entry.row_estimate > 0
+                    and entry.row_estimate
+                ):
+                    table_data["monthly_row_growth_percent"] = round(
+                        (entry.row_estimate - month_entry.row_estimate)
+                        / month_entry.row_estimate
+                        * 100,
+                        1,
+                    )
+
+            tables.append(table_data)
+
+        # Sort by growth rate (weekly first, then monthly)
+        def growth_sort_key(t):
+            weekly = t.get("weekly_growth_percent") or 0
+            monthly = t.get("monthly_growth_percent") or 0
+            return -(weekly + monthly)
+
+        tables.sort(key=growth_sort_key)
+
+        response_data = {
+            "date": today,
+            "weekly_threshold_percent": config.TABLE_GROWTH_WEEKLY_THRESHOLD_PERCENT,
+            "monthly_threshold_percent": config.TABLE_GROWTH_MONTHLY_THRESHOLD_PERCENT,
+            "tables": tables,
+        }
+
+        return Response(response_data, status=status.HTTP_200_OK)
 
 
 @extend_schema(exclude=True)

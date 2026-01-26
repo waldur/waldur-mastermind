@@ -194,6 +194,18 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=3, minute=30),
         "args": (),
     },
+    # Table growth monitoring - sample sizes daily at 1 AM
+    "sample-table-sizes": {
+        "task": "waldur_core.sample_table_sizes",
+        "schedule": crontab(hour=1, minute=0),
+        "args": (),
+    },
+    # Table growth monitoring - check alerts daily at 2 AM
+    "check-table-growth-alerts": {
+        "task": "waldur_core.check_table_growth_alerts",
+        "schedule": crontab(hour=2, minute=0),
+        "args": (),
+    },
 }
 
 for ext in WaldurExtension.get_extensions():

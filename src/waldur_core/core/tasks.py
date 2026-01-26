@@ -597,3 +597,208 @@ def reset_updating_resources():
                 instance.set_ok()
                 instance.task_id = None
                 instance.save(update_fields=["state", "task_id"])
+
+
+@shared_task(name="waldur_core.sample_table_sizes")
+def sample_table_sizes():
+    """
+    Sample all database table sizes and store them for trend analysis.
+    This task runs daily to collect historical data for detecting abnormal growth patterns.
+    """
+    from constance import config
+    from django.db import connection
+    from django.utils import timezone
+
+    if not config.TABLE_GROWTH_MONITORING_ENABLED:
+        logger.info("Table growth monitoring is disabled, skipping sample_table_sizes")
+        return
+
+    today = timezone.now().date()
+    min_size_bytes = config.TABLE_GROWTH_MIN_SIZE_BYTES
+
+    # Query PostgreSQL for table sizes and row estimates
+    sql = """
+    SELECT
+        relname AS table_name,
+        pg_total_relation_size(relid) AS total_size,
+        pg_relation_size(relid) AS data_size,
+        n_live_tup AS row_estimate
+    FROM
+        pg_catalog.pg_statio_user_tables
+    LEFT JOIN
+        pg_stat_user_tables ON pg_statio_user_tables.relid = pg_stat_user_tables.relid
+    WHERE
+        pg_total_relation_size(pg_statio_user_tables.relid) >= %s
+    ORDER BY
+        pg_total_relation_size(pg_statio_user_tables.relid) DESC;
+    """
+
+    with connection.cursor() as cursor:
+        cursor.execute(sql, [min_size_bytes])
+        rows = cursor.fetchall()
+
+    count = 0
+    for row in rows:
+        table_name, total_size, data_size, row_estimate = row
+        models.DailyTableSizeHistory.objects.update_or_create(
+            table_name=table_name,
+            date=today,
+            defaults={
+                "total_size": total_size,
+                "data_size": data_size,
+                "row_estimate": row_estimate,
+            },
+        )
+        count += 1
+
+    logger.info(
+        "Sampled table sizes for %d tables on %s",
+        count,
+        today,
+    )
+
+    # Clean up old history entries
+    retention_days = config.TABLE_GROWTH_RETENTION_DAYS
+    cutoff_date = today - timezone.timedelta(days=retention_days)
+    deleted_count, _ = models.DailyTableSizeHistory.objects.filter(
+        date__lt=cutoff_date
+    ).delete()
+    if deleted_count:
+        logger.info(
+            "Deleted %d old table size history entries older than %s",
+            deleted_count,
+            cutoff_date,
+        )
+
+
+@shared_task(name="waldur_core.check_table_growth_alerts")
+def check_table_growth_alerts():
+    """
+    Check for tables that have grown abnormally fast and send alerts.
+    Compares current sizes against 7-day and 30-day historical data.
+    """
+    from constance import config
+    from django.utils import timezone
+
+    from waldur_core.core.utils import broadcast_mail
+
+    if not config.TABLE_GROWTH_MONITORING_ENABLED:
+        logger.info(
+            "Table growth monitoring is disabled, skipping check_table_growth_alerts"
+        )
+        return
+
+    today = timezone.now().date()
+    week_ago = today - timezone.timedelta(days=7)
+    month_ago = today - timezone.timedelta(days=30)
+
+    weekly_threshold = config.TABLE_GROWTH_WEEKLY_THRESHOLD_PERCENT
+    monthly_threshold = config.TABLE_GROWTH_MONTHLY_THRESHOLD_PERCENT
+
+    # Get current table sizes
+    current_sizes = {
+        entry.table_name: entry
+        for entry in models.DailyTableSizeHistory.objects.filter(date=today)
+    }
+
+    # Get week-ago sizes
+    week_ago_sizes = {
+        entry.table_name: entry
+        for entry in models.DailyTableSizeHistory.objects.filter(date=week_ago)
+    }
+
+    # Get month-ago sizes
+    month_ago_sizes = {
+        entry.table_name: entry
+        for entry in models.DailyTableSizeHistory.objects.filter(date=month_ago)
+    }
+
+    alerts = []
+
+    for table_name, current in current_sizes.items():
+        # Check weekly growth
+        if table_name in week_ago_sizes:
+            week_ago_entry = week_ago_sizes[table_name]
+            if week_ago_entry.total_size > 0:
+                weekly_growth = (
+                    (current.total_size - week_ago_entry.total_size)
+                    / week_ago_entry.total_size
+                    * 100
+                )
+                if weekly_growth > weekly_threshold:
+                    alerts.append(
+                        {
+                            "table_name": table_name,
+                            "period": "weekly",
+                            "growth_percent": round(weekly_growth, 1),
+                            "threshold": weekly_threshold,
+                            "old_size": week_ago_entry.total_size,
+                            "current_size": current.total_size,
+                            "old_rows": week_ago_entry.row_estimate,
+                            "current_rows": current.row_estimate,
+                        }
+                    )
+
+        # Check monthly growth
+        if table_name in month_ago_sizes:
+            month_ago_entry = month_ago_sizes[table_name]
+            if month_ago_entry.total_size > 0:
+                monthly_growth = (
+                    (current.total_size - month_ago_entry.total_size)
+                    / month_ago_entry.total_size
+                    * 100
+                )
+                if monthly_growth > monthly_threshold:
+                    alerts.append(
+                        {
+                            "table_name": table_name,
+                            "period": "monthly",
+                            "growth_percent": round(monthly_growth, 1),
+                            "threshold": monthly_threshold,
+                            "old_size": month_ago_entry.total_size,
+                            "current_size": current.total_size,
+                            "old_rows": month_ago_entry.row_estimate,
+                            "current_rows": current.row_estimate,
+                        }
+                    )
+
+    if alerts:
+        logger.warning(
+            "Table growth alerts triggered for %d table(s): %s",
+            len(alerts),
+            [a["table_name"] for a in alerts],
+        )
+
+        # Get staff/support users to notify
+        from django.db.models import Q
+
+        from waldur_core.core.models import User
+
+        recipients = list(
+            User.objects.filter(is_active=True, notifications_enabled=True)
+            .filter(Q(is_staff=True) | Q(is_support=True))
+            .values_list("email", flat=True)
+            .distinct()
+        )
+
+        # Filter out empty emails
+        recipients = [email for email in recipients if email]
+
+        if recipients:
+            context = {
+                "alerts": alerts,
+                "date": today,
+                "site_name": config.SITE_NAME,
+            }
+            broadcast_mail(
+                "core",
+                "table_growth_alert",
+                context,
+                recipients,
+            )
+            logger.info(
+                "Sent table growth alert notification to %d recipients",
+                len(recipients),
+            )
+    else:
+        logger.info("No table growth alerts triggered")
