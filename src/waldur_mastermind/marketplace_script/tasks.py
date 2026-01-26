@@ -42,6 +42,8 @@ def pull_resource(resource_id):
         key.upper(): json.dumps(value) if isinstance(value, dict | list) else str(value)
         for key, value in dict(serializer.data).items()
     }
+    # ORDER_UUID is required for k8s job naming; use resource UUID for pull operations
+    environment["ORDER_UUID"] = str(resource.uuid)
     for opt in options.get("environ", []):
         if isinstance(opt, dict):
             environment.update({opt["name"]: opt["value"]})
@@ -144,6 +146,8 @@ def resource_options_have_been_changed(resource_id, options_old):
         key.upper(): json.dumps(value) if isinstance(value, dict | list) else str(value)
         for key, value in dict(serializer.data).items()
     }
+    # ORDER_UUID is required for k8s job naming; use resource UUID for options handler
+    environment["ORDER_UUID"] = str(resource.uuid)
     for opt in options.get("environ", []):
         if isinstance(opt, dict):
             environment.update({opt["name"]: opt["value"]})
