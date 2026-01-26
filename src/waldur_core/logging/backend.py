@@ -817,7 +817,7 @@ class RabbitMQManagementBackend:
             )
             return True
         elif response.status_code == status.HTTP_204_NO_CONTENT:
-            logger.debug("Queue '%s' already exists in vhost '%s'", queue_name, vhost)
+            logger.info("Queue '%s' already exists in vhost '%s'", queue_name, vhost)
             return True
         else:
             logger.error(
