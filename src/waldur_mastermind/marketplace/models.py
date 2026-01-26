@@ -3220,6 +3220,26 @@ reversion.register(OfferingComponent)
 reversion.register(PlanComponent)
 reversion.register(Plan, follow=("components",))
 reversion.register(Offering, follow=("components", "plans", "screenshots"))
+reversion.register(
+    Resource,
+    fields=[
+        # Business-relevant fields to track:
+        "name",
+        "description",
+        "slug",
+        "state",
+        "limits",
+        "attributes",
+        "options",
+        "cost",
+        "end_date",
+        "downscaled",
+        "restrict_member_access",
+        "paused",
+        # Note: plan_id is tracked to capture plan switches
+        "plan",
+    ],
+)
 
 
 class MaintenanceAnnouncement(
