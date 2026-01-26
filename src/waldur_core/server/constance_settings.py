@@ -811,7 +811,7 @@ CONSTANCE_CONFIG = {
         "Update existing packages during catalog refresh",
     ),
     "SOFTWARE_CATALOG_CLEANUP_ENABLED": (
-        False,
+        True,
         "Enable automatic cleanup of old catalog data",
     ),
     "SOFTWARE_CATALOG_RETENTION_DAYS": (

@@ -300,6 +300,43 @@ class CatalogTasksTest(TestCase):
         self.assertIn("Test failure", catalog.update_errors)
         self.assertIsNone(catalog.last_successful_update)
 
+    def test_catalog_update_reuses_existing_catalog(self):
+        """Test that catalog updates reuse existing catalog instead of creating new one."""
+        # Create an existing catalog
+        existing_catalog = SoftwareCatalog.objects.create(
+            name="Spack",
+            version="2025.01.01",  # Old version
+            catalog_type="source_package",
+        )
+        original_pk = existing_catalog.pk
+
+        # Mock loader with new version
+        mock_loader = Mock()
+        mock_loader.catalog_version = "2026.01.25"  # New version
+        mock_loader.load_catalog.return_value = {
+            "packages_created": 10,
+            "versions_created": 50,
+            "targets_created": 100,
+        }
+
+        # Call the update function
+        with override_config(SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES=True):
+            result_catalog = _update_catalog_with_error_handling(
+                loader=mock_loader, catalog_name="Spack", catalog_type="source_package"
+            )
+
+        # Verify the same catalog record was updated
+        self.assertEqual(result_catalog.pk, original_pk)
+        self.assertEqual(result_catalog.version, "2026.01.25")
+
+        # Verify no new catalog was created
+        self.assertEqual(
+            SoftwareCatalog.objects.filter(
+                name="Spack", catalog_type="source_package"
+            ).count(),
+            1,
+        )
+
 
 class CatalogTaskPerformanceTest(TestCase):
     """Performance and resource usage tests for catalog tasks."""
@@ -443,3 +480,175 @@ class CatalogTaskPerformanceTest(TestCase):
         for catalog_result in result["results"].values():
             self.assertEqual(catalog_result["status"], "error")
             self.assertIn("Configuration validation failed", catalog_result["error"])
+
+
+class CatalogCleanupTasksTest(TestCase):
+    """Test cases for software catalog cleanup task."""
+
+    def setUp(self):
+        """Create test catalogs with different ages."""
+        from datetime import timedelta
+
+        now = timezone.now()
+
+        # Create a recent catalog (should be kept)
+        self.recent_catalog = SoftwareCatalog.objects.create(
+            name="Spack",
+            version="2026.01.25",
+            catalog_type="source_package",
+            last_successful_update=now - timedelta(days=1),
+        )
+
+        # Create an old catalog (should be deleted with default 90 days retention)
+        self.old_catalog = SoftwareCatalog.objects.create(
+            name="OldCatalog",
+            version="2025.10.01",
+            catalog_type="source_package",
+            last_successful_update=now - timedelta(days=100),
+        )
+
+    @override_config(
+        SOFTWARE_CATALOG_CLEANUP_ENABLED=True, SOFTWARE_CATALOG_RETENTION_DAYS=90
+    )
+    def test_cleanup_deletes_old_catalogs(self):
+        """Test that cleanup deletes catalogs older than retention period."""
+        from waldur_mastermind.marketplace.tasks import cleanup_old_software_catalogs
+
+        result = cleanup_old_software_catalogs()
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["deleted_count"], 1)
+        self.assertEqual(len(result["deleted_catalogs"]), 1)
+        self.assertEqual(result["deleted_catalogs"][0]["name"], "OldCatalog")
+
+        # Recent catalog should still exist
+        self.assertTrue(
+            SoftwareCatalog.objects.filter(pk=self.recent_catalog.pk).exists()
+        )
+        # Old catalog should be deleted
+        self.assertFalse(
+            SoftwareCatalog.objects.filter(pk=self.old_catalog.pk).exists()
+        )
+
+    @override_config(SOFTWARE_CATALOG_CLEANUP_ENABLED=False)
+    def test_cleanup_disabled_does_nothing(self):
+        """Test that cleanup does nothing when disabled."""
+        from waldur_mastermind.marketplace.tasks import cleanup_old_software_catalogs
+
+        result = cleanup_old_software_catalogs()
+
+        self.assertEqual(result["status"], "disabled")
+        self.assertEqual(result["deleted_count"], 0)
+
+        # Both catalogs should still exist
+        self.assertTrue(
+            SoftwareCatalog.objects.filter(pk=self.recent_catalog.pk).exists()
+        )
+        self.assertTrue(SoftwareCatalog.objects.filter(pk=self.old_catalog.pk).exists())
+
+    @override_config(
+        SOFTWARE_CATALOG_CLEANUP_ENABLED=True, SOFTWARE_CATALOG_RETENTION_DAYS=30
+    )
+    def test_cleanup_respects_retention_days_setting(self):
+        """Test that cleanup respects the retention days setting."""
+        from datetime import timedelta
+
+        from waldur_mastermind.marketplace.tasks import cleanup_old_software_catalogs
+
+        # Create a catalog that's 50 days old (should be deleted with 30 day retention)
+        medium_old_catalog = SoftwareCatalog.objects.create(
+            name="MediumOld",
+            version="2025.12.01",
+            catalog_type="source_package",
+            last_successful_update=timezone.now() - timedelta(days=50),
+        )
+
+        result = cleanup_old_software_catalogs()
+
+        self.assertEqual(result["status"], "success")
+        # Both old catalogs should be deleted (100 days and 50 days old, both > 30 days)
+        self.assertEqual(result["deleted_count"], 2)
+        self.assertEqual(result["retention_days"], 30)
+
+        # Recent catalog should still exist
+        self.assertTrue(
+            SoftwareCatalog.objects.filter(pk=self.recent_catalog.pk).exists()
+        )
+        # Old catalogs should be deleted
+        self.assertFalse(
+            SoftwareCatalog.objects.filter(pk=self.old_catalog.pk).exists()
+        )
+        self.assertFalse(
+            SoftwareCatalog.objects.filter(pk=medium_old_catalog.pk).exists()
+        )
+
+    @override_config(
+        SOFTWARE_CATALOG_CLEANUP_ENABLED=True, SOFTWARE_CATALOG_RETENTION_DAYS=200
+    )
+    def test_cleanup_with_large_retention_keeps_all(self):
+        """Test that cleanup keeps all catalogs when retention is very large."""
+        from waldur_mastermind.marketplace.tasks import cleanup_old_software_catalogs
+
+        result = cleanup_old_software_catalogs()
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["deleted_count"], 0)
+
+        # All catalogs should still exist
+        self.assertTrue(
+            SoftwareCatalog.objects.filter(pk=self.recent_catalog.pk).exists()
+        )
+        self.assertTrue(SoftwareCatalog.objects.filter(pk=self.old_catalog.pk).exists())
+
+    @override_config(
+        SOFTWARE_CATALOG_CLEANUP_ENABLED=True, SOFTWARE_CATALOG_RETENTION_DAYS=200
+    )
+    def test_cleanup_removes_duplicate_catalogs(self):
+        """Test that cleanup removes duplicate catalogs, keeping only the newest."""
+        from datetime import timedelta
+
+        from waldur_mastermind.marketplace.tasks import cleanup_old_software_catalogs
+
+        now = timezone.now()
+
+        # Create duplicate catalogs with same name/type but different versions
+        older_duplicate = SoftwareCatalog.objects.create(
+            name="Spack",
+            version="2026.01.20",
+            catalog_type="source_package",
+            last_successful_update=now - timedelta(days=5),
+        )
+        oldest_duplicate = SoftwareCatalog.objects.create(
+            name="Spack",
+            version="2026.01.15",
+            catalog_type="source_package",
+            last_successful_update=now - timedelta(days=10),
+        )
+
+        # Now we have 3 Spack catalogs - self.recent_catalog is newest
+        self.assertEqual(
+            SoftwareCatalog.objects.filter(
+                name="Spack", catalog_type="source_package"
+            ).count(),
+            3,
+        )
+
+        result = cleanup_old_software_catalogs()
+
+        self.assertEqual(result["status"], "success")
+        self.assertEqual(result["duplicates_deleted"], 2)
+
+        # Only the newest Spack catalog should remain
+        self.assertEqual(
+            SoftwareCatalog.objects.filter(
+                name="Spack", catalog_type="source_package"
+            ).count(),
+            1,
+        )
+        self.assertTrue(
+            SoftwareCatalog.objects.filter(pk=self.recent_catalog.pk).exists()
+        )
+        self.assertFalse(SoftwareCatalog.objects.filter(pk=older_duplicate.pk).exists())
+        self.assertFalse(
+            SoftwareCatalog.objects.filter(pk=oldest_duplicate.pk).exists()
+        )

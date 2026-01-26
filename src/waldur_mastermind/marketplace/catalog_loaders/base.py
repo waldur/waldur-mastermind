@@ -225,12 +225,13 @@ class BaseCatalogLoader(ABC):
             return stats
 
         with transaction.atomic():
-            # Create or update catalog
+            # Create or update catalog - lookup by name + catalog_type only
+            # Version is updated, not used as lookup key
             catalog, created = SoftwareCatalog.objects.get_or_create(
                 name=catalog_data.name,
-                version=catalog_data.version,
                 catalog_type=catalog_data.catalog_type,
                 defaults={
+                    "version": catalog_data.version,
                     "source_url": catalog_data.source_url,
                     "description": catalog_data.description,
                     "metadata": catalog_data.metadata,
@@ -238,11 +239,14 @@ class BaseCatalogLoader(ABC):
                 },
             )
 
-            if not created and update_existing:
-                catalog.source_url = catalog_data.source_url
-                catalog.description = catalog_data.description
-                catalog.metadata = catalog_data.metadata
+            if not created:
+                # Always update version and timestamps
+                catalog.version = catalog_data.version
                 catalog.last_successful_update = timezone.now()
+                if update_existing:
+                    catalog.source_url = catalog_data.source_url
+                    catalog.description = catalog_data.description
+                    catalog.metadata = catalog_data.metadata
                 catalog.save()
 
             # Process packages
