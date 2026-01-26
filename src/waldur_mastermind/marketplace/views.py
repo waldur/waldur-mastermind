@@ -9732,31 +9732,51 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
         total = queryset.count()
         total_cost = queryset.aggregate(total=Sum("cost"))["total"] or 0
 
+        # Calculate revenue (cost from create/update orders only)
+        revenue_queryset = queryset.filter(
+            type__in=[OrderTypes.CREATE, OrderTypes.UPDATE]
+        )
+        total_revenue = revenue_queryset.aggregate(total=Sum("cost"))["total"] or 0
+
         # State counts using ORM
-        state_counts = dict(
+        state_counts_raw = dict(
             queryset.values("state")
             .annotate(count=Count("id"))
             .values_list("state", "count")
         )
-        type_counts = dict(
+        # Convert integer state keys to string labels
+        state_int_to_label = dict(OrderStates.CHOICES)
+        state_counts = {
+            state_int_to_label.get(state, state): count
+            for state, count in state_counts_raw.items()
+        }
+        # Convert integer type keys to string labels
+        type_int_to_label = dict(OrderTypes.CHOICES)
+        type_counts_raw = dict(
             queryset.values("type")
             .annotate(count=Count("id"))
             .values_list("type", "count")
         )
+        type_counts = {
+            type_int_to_label.get(t, t): count for t, count in type_counts_raw.items()
+        }
 
-        # Summary breakdown
+        # Summary breakdown - use string labels since state_counts keys are converted to labels
         summary = {
             "total": total,
             "total_cost": total_cost,
+            "total_revenue": total_revenue,
             "pending": (
-                state_counts.get(OrderStates.PENDING_CONSUMER, 0)
-                + state_counts.get(OrderStates.PENDING_PROVIDER, 0)
+                state_counts.get("pending-consumer", 0)
+                + state_counts.get("pending-provider", 0)
+                + state_counts.get("pending-project", 0)
+                + state_counts.get("pending-start-date", 0)
             ),
-            "executing": state_counts.get(OrderStates.EXECUTING, 0),
-            "done": state_counts.get(OrderStates.DONE, 0),
-            "erred": state_counts.get(OrderStates.ERRED, 0),
-            "canceled": state_counts.get(OrderStates.CANCELED, 0),
-            "rejected": state_counts.get(OrderStates.REJECTED, 0),
+            "executing": state_counts.get("executing", 0),
+            "done": state_counts.get("done", 0),
+            "erred": state_counts.get("erred", 0),
+            "canceled": state_counts.get("canceled", 0),
+            "rejected": state_counts.get("rejected", 0),
         }
 
         # Daily breakdown using ORM aggregation
@@ -9765,6 +9785,14 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             .values("date")
             .annotate(total=Count("id"), total_cost=Sum("cost"))
             .order_by("date")
+        )
+
+        # Daily revenue (cost from create/update orders)
+        daily_revenue = dict(
+            revenue_queryset.annotate(date=TruncDate("created"))
+            .values("date")
+            .annotate(revenue=Sum("cost"))
+            .values_list("date", "revenue")
         )
 
         # Get state and type breakdown per day efficiently
@@ -9780,7 +9808,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             date_str = row["date"].isoformat()
             if date_str not in daily_state_counts:
                 daily_state_counts[date_str] = {}
-            daily_state_counts[date_str][row["state"]] = row["count"]
+            # Convert integer state to string label
+            state_label = state_int_to_label.get(row["state"], row["state"])
+            daily_state_counts[date_str][state_label] = row["count"]
 
         type_by_day = (
             queryset.annotate(date=TruncDate("created"))
@@ -9791,7 +9821,9 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             date_str = row["date"].isoformat()
             if date_str not in daily_type_counts:
                 daily_type_counts[date_str] = {}
-            daily_type_counts[date_str][row["type"]] = row["count"]
+            # Convert integer type to string label
+            type_label = type_int_to_label.get(row["type"], row["type"])
+            daily_type_counts[date_str][type_label] = row["count"]
 
         # Combine daily data
         daily_data = []
@@ -9802,6 +9834,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
                     "date": row["date"],
                     "total": row["total"],
                     "total_cost": row["total_cost"],
+                    "revenue": daily_revenue.get(row["date"]) or 0,
                     "by_state": daily_state_counts.get(date_str, {}),
                     "by_type": daily_type_counts.get(date_str, {}),
                 }

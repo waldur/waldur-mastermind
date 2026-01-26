@@ -10060,6 +10060,12 @@ class DailyOrderStatsSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Total cost of orders",
     )
+    revenue = serializers.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        allow_null=True,
+        help_text="Revenue from create/update orders",
+    )
     by_state = serializers.DictField(
         child=serializers.IntegerField(),
         help_text="Order counts grouped by state",
@@ -10079,6 +10085,12 @@ class OrderStatsSummarySerializer(serializers.Serializer):
         decimal_places=2,
         allow_null=True,
         help_text="Total cost of orders",
+    )
+    total_revenue = serializers.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        allow_null=True,
+        help_text="Total revenue from create/update orders",
     )
     pending = serializers.IntegerField(help_text="Number of pending orders")
     executing = serializers.IntegerField(help_text="Number of executing orders")
