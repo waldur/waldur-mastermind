@@ -5164,6 +5164,41 @@ class ResourceRestrictMemberAccessSerializer(serializers.ModelSerializer):
         fields = ("restrict_member_access",)
 
 
+class ResourceVersionUserSerializer(serializers.Serializer):
+    """Serializer for user information in resource version history."""
+
+    uuid = serializers.UUIDField()
+    username = serializers.CharField()
+    full_name = serializers.CharField()
+
+
+class ResourceVersionSerializer(serializers.Serializer):
+    """Serializer for reversion Version objects for Resource history."""
+
+    id = serializers.IntegerField()
+    revision_date = serializers.DateTimeField(source="revision.date_created")
+    revision_user = serializers.SerializerMethodField()
+    revision_comment = serializers.CharField(
+        source="revision.comment", allow_blank=True
+    )
+    serialized_data = serializers.SerializerMethodField()
+
+    def get_revision_user(self, obj) -> dict | None:
+        user = obj.revision.user
+        if user:
+            return {
+                "uuid": user.uuid,
+                "username": user.username,
+                "full_name": user.full_name,
+            }
+        return None
+
+    def get_serialized_data(self, obj) -> dict:
+        import json
+
+        return json.loads(obj.serialized_data)[0]["fields"]
+
+
 class ResourceOptionsSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Resource
