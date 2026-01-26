@@ -1716,15 +1716,21 @@ def _update_catalog_with_error_handling(loader, catalog_name: str, catalog_type:
 
     try:
         # Find or create catalog record for tracking
+        # Lookup by name + catalog_type only - version is updated, not used as lookup key
         catalog, catalog_created = models.SoftwareCatalog.objects.get_or_create(
             name=catalog_name,
-            version=loader.catalog_version,
             catalog_type=catalog_type,
             defaults={
+                "version": loader.catalog_version,
                 "description": f"{catalog_name} software catalog",
                 "auto_update_enabled": True,
             },
         )
+
+        # Update version if it changed
+        if not catalog_created and catalog.version != loader.catalog_version:
+            catalog.version = loader.catalog_version
+            catalog.save(update_fields=["version"])
 
         # Update attempt timestamp
         catalog.last_update_attempt = timezone.now()
@@ -1786,6 +1792,138 @@ def _validate_catalog_config(catalog_config):
         errors.append("Catalog name is required")
 
     return errors
+
+
+@shared_task(name="marketplace.cleanup_old_software_catalogs")
+def cleanup_old_software_catalogs():
+    """
+    Periodic task to clean up old and duplicate software catalog data.
+
+    This task performs two cleanup operations:
+    1. Removes duplicate catalogs, keeping only the newest one per (name, catalog_type)
+    2. Removes catalogs that haven't been updated within the retention period
+
+    This task respects the SOFTWARE_CATALOG_CLEANUP_ENABLED setting.
+    """
+    if not config.SOFTWARE_CATALOG_CLEANUP_ENABLED:
+        logger.info("Software catalog cleanup is disabled")
+        return {"status": "disabled", "deleted_count": 0, "duplicates_deleted": 0}
+
+    retention_days = config.SOFTWARE_CATALOG_RETENTION_DAYS
+    cutoff_date = timezone.now() - timedelta(days=retention_days)
+
+    logger.info(
+        f"Starting software catalog cleanup (retention: {retention_days} days, "
+        f"cutoff: {cutoff_date.date()})"
+    )
+
+    deleted_count = 0
+    deleted_catalogs = []
+
+    # Step 1: Remove duplicate catalogs (keep only newest per name/catalog_type)
+    duplicates_deleted = _cleanup_duplicate_catalogs()
+    deleted_count += duplicates_deleted
+
+    # Step 2: Find catalogs that haven't been updated within the retention period
+    old_catalogs = models.SoftwareCatalog.objects.filter(
+        last_successful_update__lt=cutoff_date
+    )
+
+    for catalog in old_catalogs:
+        catalog_info = {
+            "name": catalog.name,
+            "version": catalog.version,
+            "reason": "retention_expired",
+            "last_update": catalog.last_successful_update.isoformat()
+            if catalog.last_successful_update
+            else None,
+        }
+
+        logger.info(
+            f"Deleting old catalog {catalog.name} v{catalog.version} "
+            f"(exceeded {retention_days} day retention)"
+        )
+
+        catalog.delete()
+        deleted_count += 1
+        deleted_catalogs.append(catalog_info)
+
+    result = {
+        "status": "success",
+        "deleted_count": deleted_count,
+        "duplicates_deleted": duplicates_deleted,
+        "retention_days": retention_days,
+        "cutoff_date": cutoff_date.isoformat(),
+        "deleted_catalogs": deleted_catalogs,
+    }
+
+    if deleted_count > 0:
+        logger.info(
+            f"Software catalog cleanup completed: {deleted_count} catalogs deleted "
+            f"({duplicates_deleted} duplicates)"
+        )
+    else:
+        logger.info("Software catalog cleanup completed: no catalogs to delete")
+
+    return result
+
+
+def _cleanup_duplicate_catalogs():
+    """
+    Remove duplicate catalogs, keeping only the newest one per (name, catalog_type).
+
+    Updates OfferingSoftwareCatalog references before deletion to preserve relationships.
+    Returns the count of deleted duplicate catalogs.
+    """
+    deleted_count = 0
+
+    # Find unique (name, catalog_type) combinations with more than one catalog
+    from django.db.models import Count
+
+    duplicated_groups = (
+        models.SoftwareCatalog.objects.values("name", "catalog_type")
+        .annotate(count=Count("id"))
+        .filter(count__gt=1)
+    )
+
+    for group in duplicated_groups:
+        # Get all catalogs for this group, newest first
+        catalogs = list(
+            models.SoftwareCatalog.objects.filter(
+                name=group["name"], catalog_type=group["catalog_type"]
+            ).order_by("-last_successful_update", "-created")
+        )
+
+        if len(catalogs) <= 1:
+            continue
+
+        # Keep the newest catalog
+        newest_catalog = catalogs[0]
+        catalogs_to_delete = catalogs[1:]
+
+        logger.info(
+            f"Found {len(catalogs_to_delete)} duplicate catalogs for "
+            f"{group['name']}/{group['catalog_type']}, keeping v{newest_catalog.version}"
+        )
+
+        # Update OfferingSoftwareCatalog references to point to newest catalog
+        for old_catalog in catalogs_to_delete:
+            updated = models.OfferingSoftwareCatalog.objects.filter(
+                catalog=old_catalog
+            ).update(catalog=newest_catalog)
+            if updated:
+                logger.info(
+                    f"Migrated {updated} offering references from "
+                    f"v{old_catalog.version} to v{newest_catalog.version}"
+                )
+
+            logger.info(
+                f"Deleting duplicate catalog {old_catalog.name} v{old_catalog.version}"
+            )
+            old_catalog.delete()
+            deleted_count += 1
+
+    return deleted_count
 
 
 @shared_task(name="waldur_mastermind.marketplace.update_resource_scope_availability")

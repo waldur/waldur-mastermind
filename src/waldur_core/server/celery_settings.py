@@ -152,6 +152,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=3, minute=0),
         "args": (),
     },
+    # Software catalog cleanup - run once daily at 4 AM (after updates)
+    "cleanup-software-catalogs": {
+        "task": "marketplace.cleanup_old_software_catalogs",
+        "schedule": crontab(hour=4, minute=0),
+        "args": (),
+    },
     # User actions - update every 6 hours
     "update-user-actions": {
         "task": "waldur_core.user_actions.update_user_actions",
