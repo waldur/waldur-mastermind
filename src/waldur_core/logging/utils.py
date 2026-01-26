@@ -420,16 +420,12 @@ def publish_stomp_messages(
                 heartbeats=(10000, 10000),  # 10 second heartbeat
             )
             connection.connect(username=username, passcode=password, wait=True)
-            destination = "/queue/" + message_info["topic"].replace("/", "_")
-
-            # Determine message type from topic for TTL
-            message_info.get("message_type", "default")
-            if "_order" in message_info["topic"]:
-                pass
-            elif "_resource" in message_info["topic"]:
-                pass
-            elif "_user_role" in message_info["topic"]:
-                pass
+            # Use /amq/queue/ destination to send to pre-declared queues without
+            # attempting to re-declare them. This avoids PRECONDITION_FAILED errors
+            # when queues were created with specific arguments (e.g., x-message-ttl).
+            # See: https://www.rabbitmq.com/docs/stomp#d.aqd
+            queue_name = message_info["topic"].replace("/", "_")
+            destination = "/amq/queue/" + queue_name
 
             headers = {
                 "persistent": "true",

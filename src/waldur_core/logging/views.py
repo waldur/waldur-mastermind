@@ -289,7 +289,7 @@ class EventSubscriptionViewSet(
             logger.info(
                 "Queue already exists for subscription %s, offering %s, type %s",
                 event_subscription.uuid.hex,
-                offering_uuid,
+                offering_uuid.hex,
                 object_type,
             )
             # Ensure queue exists in RabbitMQ (idempotent)
