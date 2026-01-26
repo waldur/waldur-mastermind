@@ -2339,12 +2339,6 @@ OAuth/OIDC token claim name containing user roles for automatic staff/support as
 
 ### Onboarding settings
 
-#### ONBOARDING_SUPPORTED_COUNTRIES
-
-**Type:** country_list_field
-
-List of ISO 3166-1 alpha-2 country codes supported by this portal (e.g., EE, AT, SE). Used to restrict available countries in onboarding.
-
 #### ONBOARDING_VALIDATION_METHODS
 
 **Type:** list_field
