@@ -10240,6 +10240,72 @@ class OrderStatsResponseSerializer(serializers.Serializer):
     daily = DailyOrderStatsSerializer(many=True, help_text="Daily breakdown")
 
 
+# Maintenance reporting serializers
+
+
+class MaintenanceStatsSummarySerializer(serializers.Serializer):
+    """Summary statistics for maintenance announcements."""
+
+    total = serializers.IntegerField(
+        help_text="Total number of maintenance announcements"
+    )
+    active = serializers.IntegerField(
+        help_text="Number of currently active maintenances"
+    )
+    scheduled = serializers.IntegerField(help_text="Number of scheduled maintenances")
+    completed = serializers.IntegerField(help_text="Number of completed maintenances")
+    average_duration_hours = serializers.FloatField(
+        allow_null=True, help_text="Average duration of completed maintenances in hours"
+    )
+    on_time_completion_rate = serializers.FloatField(
+        allow_null=True, help_text="Percentage of maintenances completed on time"
+    )
+
+
+class DailyMaintenanceStatsSerializer(serializers.Serializer):
+    """Daily maintenance statistics."""
+
+    date = serializers.DateField(help_text="Date")
+    count = serializers.IntegerField(help_text="Number of maintenances on this day")
+    by_state = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Maintenance counts grouped by state",
+    )
+
+
+class MaintenanceProviderStatsSerializer(serializers.Serializer):
+    """Maintenance statistics per provider."""
+
+    uuid = serializers.CharField(help_text="Service provider UUID")
+    name = serializers.CharField(help_text="Service provider name")
+    total = serializers.IntegerField(help_text="Total maintenances")
+    active = serializers.IntegerField(help_text="Active maintenances")
+    scheduled = serializers.IntegerField(help_text="Scheduled maintenances")
+    completed = serializers.IntegerField(help_text="Completed maintenances")
+
+
+class MaintenanceStatsResponseSerializer(serializers.Serializer):
+    """Comprehensive maintenance statistics response for reporting dashboards."""
+
+    summary = MaintenanceStatsSummarySerializer(help_text="Summary statistics")
+    by_state = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Total counts grouped by state",
+    )
+    by_type = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Total counts grouped by maintenance type",
+    )
+    by_impact_level = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Total counts grouped by max impact level",
+    )
+    daily = DailyMaintenanceStatsSerializer(many=True, help_text="Daily breakdown")
+    providers = MaintenanceProviderStatsSerializer(
+        many=True, help_text="Statistics per provider"
+    )
+
+
 # Provider reporting serializers
 
 

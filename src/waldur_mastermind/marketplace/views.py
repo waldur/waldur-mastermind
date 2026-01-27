@@ -28,7 +28,7 @@ from django.db.models import (
 )
 from django.db.models.aggregates import Sum
 from django.db.models.fields import FloatField, IntegerField
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, TruncDate, TruncMonth
 from django.db.models.functions.math import Ceil
 from django.http import HttpResponse
 from django.http.response import JsonResponse
@@ -128,7 +128,9 @@ from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
     SUPPORT_OFFERING,
     BillingTypes,
+    ImpactLevel,
     MaintenanceState,
+    MaintenanceType,
     OfferingStates,
     OfferingUserStates,
     OrderStates,
@@ -9837,8 +9839,6 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
     def order_stats(self, request, *args, **kwargs):
         """Return comprehensive order statistics for reporting."""
 
-        from django.db.models.functions import TruncDate
-
         # Parse date parameters
         start_str = request.query_params.get("start")
         end_str = request.query_params.get("end")
@@ -10015,7 +10015,6 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
     def provider_resources(self, request, *args, **kwargs):
         """Return resource statistics for a service provider."""
         from dateutil.relativedelta import relativedelta
-        from django.db.models.functions import TruncMonth
 
         provider_uuid = request.query_params.get("provider_uuid")
         if not provider_uuid:
@@ -10089,7 +10088,6 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
     def provider_customers(self, request, *args, **kwargs):
         """Return customer statistics for a service provider."""
         from dateutil.relativedelta import relativedelta
-        from django.db.models.functions import TruncMonth
 
         provider_uuid = request.query_params.get("provider_uuid")
         if not provider_uuid:
@@ -11646,6 +11644,221 @@ class MaintenanceAnnouncementViewSet(core_views.ActionsViewSet):
             {"detail": "Maintenance announcement has been cancelled"},
             status=status.HTTP_200_OK,
         )
+
+    @extend_schema(
+        summary="Get maintenance announcement statistics",
+        description="Returns comprehensive statistics for maintenance announcements including counts by state, type, impact level, and daily breakdown.",
+        parameters=[
+            OpenApiParameter(
+                name="start",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Start date in YYYY-MM-DD format. Defaults to 90 days ago.",
+            ),
+            OpenApiParameter(
+                name="end",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="End date in YYYY-MM-DD format. Defaults to 30 days in the future.",
+            ),
+            OpenApiParameter(
+                name="provider_uuid",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by service provider UUID.",
+            ),
+        ],
+        responses=serializers.MaintenanceStatsResponseSerializer,
+    )
+    @action(detail=False, methods=["get"])
+    def maintenance_stats(self, request, *args, **kwargs):
+        """Return comprehensive maintenance statistics for reporting dashboards."""
+
+        # Parse date parameters
+        start_str = request.query_params.get("start")
+        end_str = request.query_params.get("end")
+
+        if start_str:
+            try:
+                start_date = datetime.datetime.strptime(start_str, "%Y-%m-%d").date()
+            except ValueError:
+                raise rf_exceptions.ValidationError(
+                    "start must be in YYYY-MM-DD format"
+                )
+        else:
+            start_date = (timezone.now() - datetime.timedelta(days=90)).date()
+
+        if end_str:
+            try:
+                end_date = datetime.datetime.strptime(end_str, "%Y-%m-%d").date()
+            except ValueError:
+                raise rf_exceptions.ValidationError("end must be in YYYY-MM-DD format")
+        else:
+            end_date = (timezone.now() + datetime.timedelta(days=30)).date()
+
+        # Build base queryset with role-based filtering applied
+        # GenericRoleFilter ensures users only see announcements they have access to:
+        # - Staff: all announcements
+        # - Service provider owners/managers: their provider's announcements
+        # - Project members: announcements affecting offerings they consume
+        queryset = self.filter_queryset(self.get_queryset()).filter(
+            scheduled_start__date__gte=start_date,
+            scheduled_end__date__lte=end_date,
+        )
+
+        # Apply optional provider filter
+        provider_uuid = request.query_params.get("provider_uuid")
+        if provider_uuid:
+            queryset = queryset.filter(service_provider__uuid=provider_uuid)
+
+        # Calculate summary stats
+        total = queryset.count()
+
+        # Count currently active (in progress)
+        active_count = queryset.filter(state=MaintenanceState.IN_PROGRESS).count()
+
+        # Count scheduled (upcoming)
+        scheduled_count = queryset.filter(state=MaintenanceState.SCHEDULED).count()
+
+        # Calculate average duration (for completed maintenances with actual times)
+        completed_with_times = queryset.filter(
+            state=MaintenanceState.COMPLETED,
+            actual_start__isnull=False,
+            actual_end__isnull=False,
+        )
+        avg_duration_hours = None
+        if completed_with_times.exists():
+            durations = []
+            for m in completed_with_times:
+                duration = (m.actual_end - m.actual_start).total_seconds() / 3600
+                durations.append(duration)
+            if durations:
+                avg_duration_hours = sum(durations) / len(durations)
+
+        # On-time completion rate (completed within scheduled window)
+        completed_count = queryset.filter(state=MaintenanceState.COMPLETED).count()
+        on_time_count = queryset.filter(
+            state=MaintenanceState.COMPLETED,
+            actual_end__isnull=False,
+            actual_end__lte=F("scheduled_end"),
+        ).count()
+        on_time_rate = (
+            (on_time_count / completed_count * 100) if completed_count > 0 else None
+        )
+
+        # State counts
+        state_counts_raw = dict(
+            queryset.values("state")
+            .annotate(count=Count("id"))
+            .values_list("state", "count")
+        )
+        state_int_to_label = dict(MaintenanceState.CHOICES)
+        state_counts = {
+            state_int_to_label.get(state, str(state)): count
+            for state, count in state_counts_raw.items()
+        }
+
+        # Type counts
+        type_counts_raw = dict(
+            queryset.values("maintenance_type")
+            .annotate(count=Count("id"))
+            .values_list("maintenance_type", "count")
+        )
+        type_int_to_label = dict(MaintenanceType.CHOICES)
+        type_counts = {
+            type_int_to_label.get(t, str(t)): count
+            for t, count in type_counts_raw.items()
+        }
+
+        # Impact level counts (max impact per announcement)
+        # We need to get the max impact level from affected offerings
+        impact_counts = {label: 0 for _, label in ImpactLevel.CHOICES}
+        for announcement in queryset.prefetch_related("affected_offerings"):
+            max_impact = 1  # Default: No impact
+            for offering in announcement.affected_offerings.all():
+                if offering.impact_level and offering.impact_level > max_impact:
+                    max_impact = offering.impact_level
+            impact_label = dict(ImpactLevel.CHOICES).get(max_impact, "No impact")
+            impact_counts[impact_label] = impact_counts.get(impact_label, 0) + 1
+
+        # Daily breakdown
+        daily_stats = list(
+            queryset.annotate(date=TruncDate("scheduled_start"))
+            .values("date")
+            .annotate(count=Count("id"))
+            .order_by("date")
+        )
+
+        # Daily state breakdown
+        daily_state_counts = {}
+        state_by_day = (
+            queryset.annotate(date=TruncDate("scheduled_start"))
+            .values("date", "state")
+            .annotate(count=Count("id"))
+        )
+        for row in state_by_day:
+            date_str = row["date"].isoformat()
+            if date_str not in daily_state_counts:
+                daily_state_counts[date_str] = {}
+            state_label = state_int_to_label.get(row["state"], str(row["state"]))
+            daily_state_counts[date_str][state_label] = row["count"]
+
+        # Combine daily data
+        daily_data = []
+        for row in daily_stats:
+            date_str = row["date"].isoformat()
+            daily_data.append(
+                {
+                    "date": row["date"],
+                    "count": row["count"],
+                    "by_state": daily_state_counts.get(date_str, {}),
+                }
+            )
+
+        # Provider breakdown
+        providers = list(
+            queryset.values(
+                "service_provider__uuid",
+                "service_provider__customer__name",
+            )
+            .annotate(
+                total=Count("id"),
+                active=Count("id", filter=Q(state=MaintenanceState.IN_PROGRESS)),
+                scheduled=Count("id", filter=Q(state=MaintenanceState.SCHEDULED)),
+                completed=Count("id", filter=Q(state=MaintenanceState.COMPLETED)),
+            )
+            .order_by("-total")
+        )
+
+        result = {
+            "summary": {
+                "total": total,
+                "active": active_count,
+                "scheduled": scheduled_count,
+                "completed": completed_count,
+                "average_duration_hours": avg_duration_hours,
+                "on_time_completion_rate": on_time_rate,
+            },
+            "by_state": state_counts,
+            "by_type": type_counts,
+            "by_impact_level": impact_counts,
+            "daily": daily_data,
+            "providers": [
+                {
+                    "uuid": str(p["service_provider__uuid"]),
+                    "name": p["service_provider__customer__name"],
+                    "total": p["total"],
+                    "active": p["active"],
+                    "scheduled": p["scheduled"],
+                    "completed": p["completed"],
+                }
+                for p in providers
+                if p["service_provider__uuid"]
+            ],
+        }
+
+        serializer = serializers.MaintenanceStatsResponseSerializer(result)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 @extend_schema_view(
