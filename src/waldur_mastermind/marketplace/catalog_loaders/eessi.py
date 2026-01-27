@@ -250,20 +250,25 @@ class EESSICatalogLoader(BaseCatalogLoader):
         return PackageWithVersions(package_data=package_data, versions=versions)
 
     def _process_eessi_version(self, version_info: dict) -> VersionWithTargets:
-        """Process a single EESSI version."""
+        """Process a single EESSI version using the new API format."""
+
+        # Get module dict (new format only)
+        module = version_info.get("module", {})
+        required_modules = version_info.get("required_modules", [])
 
         # Extract version metadata
         version_data = VersionData(
             version=version_info["version"],
-            dependencies=version_info.get("required_modules", []),
+            dependencies=required_modules,
             metadata={
                 "versionsuffix": version_info.get("versionsuffix", ""),
                 "toolchain": version_info.get("toolchain", {}),
                 "toolchain_families_compatibility": version_info.get(
                     "toolchain_families_compatibility", []
                 ),
-                "modulename": version_info.get("modulename", ""),
-                "required_modules": version_info.get("required_modules", []),
+                "module": module,
+                "required_modules": required_modules,
+                "extensions": version_info.get("extensions", []),
                 "license": version_info.get("license", []),
                 "image": version_info.get("image", ""),
                 "categories": version_info.get("categories", []),

@@ -5164,6 +5164,41 @@ class ResourceRestrictMemberAccessSerializer(serializers.ModelSerializer):
         fields = ("restrict_member_access",)
 
 
+class ResourceVersionUserSerializer(serializers.Serializer):
+    """Serializer for user information in resource version history."""
+
+    uuid = serializers.UUIDField()
+    username = serializers.CharField()
+    full_name = serializers.CharField()
+
+
+class ResourceVersionSerializer(serializers.Serializer):
+    """Serializer for reversion Version objects for Resource history."""
+
+    id = serializers.IntegerField()
+    revision_date = serializers.DateTimeField(source="revision.date_created")
+    revision_user = serializers.SerializerMethodField()
+    revision_comment = serializers.CharField(
+        source="revision.comment", allow_blank=True
+    )
+    serialized_data = serializers.SerializerMethodField()
+
+    def get_revision_user(self, obj) -> dict | None:
+        user = obj.revision.user
+        if user:
+            return {
+                "uuid": user.uuid,
+                "username": user.username,
+                "full_name": user.full_name,
+            }
+        return None
+
+    def get_serialized_data(self, obj) -> dict:
+        import json
+
+        return json.loads(obj.serialized_data)[0]["fields"]
+
+
 class ResourceOptionsSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Resource
@@ -9290,6 +9325,13 @@ class NestedSoftwareVersionSerializer(serializers.ModelSerializer):
 
     targets = NestedSoftwareTargetSerializer(many=True, read_only=True)
 
+    # Expose key EESSI fields at top level for convenience
+    module = serializers.SerializerMethodField()
+    required_modules = serializers.SerializerMethodField()
+    extensions = serializers.SerializerMethodField()
+    toolchain = serializers.SerializerMethodField()
+    toolchain_families_compatibility = serializers.SerializerMethodField()
+
     class Meta:
         model = models.SoftwareVersion
         fields = (
@@ -9297,7 +9339,37 @@ class NestedSoftwareVersionSerializer(serializers.ModelSerializer):
             "version",
             "release_date",
             "targets",
+            "module",
+            "required_modules",
+            "extensions",
+            "toolchain",
+            "toolchain_families_compatibility",
         )
+
+    @extend_schema_field(serializers.DictField())
+    def get_module(self, obj):
+        """Return structured module info."""
+        return obj.metadata.get("module", {})
+
+    @extend_schema_field(serializers.ListField())
+    def get_required_modules(self, obj):
+        """Return structured required_modules list."""
+        return obj.metadata.get("required_modules", [])
+
+    @extend_schema_field(serializers.ListField())
+    def get_extensions(self, obj):
+        """Return extensions bundled with this version."""
+        return obj.metadata.get("extensions", [])
+
+    @extend_schema_field(serializers.DictField())
+    def get_toolchain(self, obj):
+        """Return toolchain info."""
+        return obj.metadata.get("toolchain", {})
+
+    @extend_schema_field(serializers.ListField())
+    def get_toolchain_families_compatibility(self, obj):
+        """Return toolchain compatibility list."""
+        return obj.metadata.get("toolchain_families_compatibility", [])
 
 
 class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
@@ -9385,6 +9457,13 @@ class SoftwareVersionSerializer(serializers.HyperlinkedModelSerializer):
     )
     target_count = serializers.SerializerMethodField()
 
+    # Expose key EESSI fields at top level for convenience
+    module = serializers.SerializerMethodField()
+    required_modules = serializers.SerializerMethodField()
+    extensions = serializers.SerializerMethodField()
+    toolchain = serializers.SerializerMethodField()
+    toolchain_families_compatibility = serializers.SerializerMethodField()
+
     class Meta:
         model = models.SoftwareVersion
         fields = (
@@ -9399,6 +9478,11 @@ class SoftwareVersionSerializer(serializers.HyperlinkedModelSerializer):
             "package_name",
             "catalog_type",
             "target_count",
+            "module",
+            "required_modules",
+            "extensions",
+            "toolchain",
+            "toolchain_families_compatibility",
         )
         read_only_fields = fields
         extra_kwargs = {
@@ -9412,6 +9496,31 @@ class SoftwareVersionSerializer(serializers.HyperlinkedModelSerializer):
     def get_target_count(self, obj):
         """Get number of targets for this version."""
         return obj.targets.count()
+
+    @extend_schema_field(serializers.DictField())
+    def get_module(self, obj):
+        """Return structured module info."""
+        return obj.metadata.get("module", {})
+
+    @extend_schema_field(serializers.ListField())
+    def get_required_modules(self, obj):
+        """Return structured required_modules list."""
+        return obj.metadata.get("required_modules", [])
+
+    @extend_schema_field(serializers.ListField())
+    def get_extensions(self, obj):
+        """Return extensions bundled with this version."""
+        return obj.metadata.get("extensions", [])
+
+    @extend_schema_field(serializers.DictField())
+    def get_toolchain(self, obj):
+        """Return toolchain info."""
+        return obj.metadata.get("toolchain", {})
+
+    @extend_schema_field(serializers.ListField())
+    def get_toolchain_families_compatibility(self, obj):
+        """Return toolchain compatibility list."""
+        return obj.metadata.get("toolchain_families_compatibility", [])
 
 
 class SoftwareTargetSerializer(serializers.HyperlinkedModelSerializer):

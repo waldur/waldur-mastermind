@@ -593,7 +593,7 @@ class RobotAccountInline(admin.StackedInline):
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 
-class ResourceAdmin(core_admin.ExtraActionsMixin, admin.ModelAdmin):
+class ResourceAdmin(core_admin.ExtraActionsMixin, VersionAdmin):
     form = ResourceForm
     list_display = ("uuid", "name", "project", "state", "category", "created")
     list_filter = (

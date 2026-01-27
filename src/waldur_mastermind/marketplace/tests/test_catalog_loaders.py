@@ -465,6 +465,164 @@ class CatalogLoaderIntegrationTest(BaseLoaderTestCase):
             self.assertEqual(catalog.update_errors, "")
 
 
+class EESSINewAPIFormatTest(BaseLoaderTestCase):
+    """Test cases for EESSI new API format with dict-based module and required_modules."""
+
+    def setUp(self):
+        self.eessi_new_format_data = self.load_test_fixture(
+            "eessi_new_format_test.json"
+        )
+
+    @patch("requests.get")
+    def test_new_format_module_dict_parsing(self, mock_get):
+        """Test that new format module dict is parsed correctly."""
+
+        def mock_requests_side_effect(url, **kwargs):
+            mock_response = Mock()
+            if "software.json" in url:
+                mock_response.json.return_value = self.eessi_new_format_data
+            else:
+                mock_response.json.return_value = {}
+            mock_response.raise_for_status.return_value = None
+            return mock_response
+
+        mock_get.side_effect = mock_requests_side_effect
+
+        loader = EESSICatalogLoader(catalog_version="2023.06", include_extensions=False)
+        catalog_data = loader.fetch_catalog_data()
+
+        # Check that NewFormatPackage is loaded
+        self.assertIn("NewFormatPackage", catalog_data.packages)
+        package = catalog_data.packages["NewFormatPackage"]
+        version = package.versions["3.0.0"]
+
+        # Verify module is a dict with correct structure
+        module = version.version_data.metadata.get("module", {})
+        self.assertIsInstance(module, dict)
+        self.assertEqual(
+            module.get("full_module_name"), "NewFormatPackage/3.0.0-foss-2023b"
+        )
+        self.assertEqual(module.get("module_name"), "NewFormatPackage")
+        self.assertEqual(module.get("module_version"), "3.0.0-foss-2023b")
+
+    @patch("requests.get")
+    def test_new_format_required_modules_dict_list(self, mock_get):
+        """Test that new format required_modules (list of dicts) is parsed correctly."""
+
+        def mock_requests_side_effect(url, **kwargs):
+            mock_response = Mock()
+            if "software.json" in url:
+                mock_response.json.return_value = self.eessi_new_format_data
+            else:
+                mock_response.json.return_value = {}
+            mock_response.raise_for_status.return_value = None
+            return mock_response
+
+        mock_get.side_effect = mock_requests_side_effect
+
+        loader = EESSICatalogLoader(catalog_version="2023.06", include_extensions=False)
+        catalog_data = loader.fetch_catalog_data()
+
+        package = catalog_data.packages["NewFormatPackage"]
+        version = package.versions["3.0.0"]
+
+        # Verify required_modules is a list of dicts
+        required_modules = version.version_data.metadata.get("required_modules", [])
+        self.assertIsInstance(required_modules, list)
+        self.assertGreater(len(required_modules), 0)
+
+        # Check structure of first required module
+        first_rm = required_modules[0]
+        self.assertIsInstance(first_rm, dict)
+        self.assertEqual(first_rm.get("full_module_name"), "EESSI/2023.06")
+        self.assertEqual(first_rm.get("module_name"), "EESSI")
+        self.assertEqual(first_rm.get("module_version"), "2023.06")
+
+    @patch("requests.get")
+    def test_new_format_extensions_field(self, mock_get):
+        """Test that new format extensions field is parsed correctly."""
+
+        def mock_requests_side_effect(url, **kwargs):
+            mock_response = Mock()
+            if "software.json" in url:
+                mock_response.json.return_value = self.eessi_new_format_data
+            else:
+                mock_response.json.return_value = {}
+            mock_response.raise_for_status.return_value = None
+            return mock_response
+
+        mock_get.side_effect = mock_requests_side_effect
+
+        loader = EESSICatalogLoader(catalog_version="2023.06", include_extensions=False)
+        catalog_data = loader.fetch_catalog_data()
+
+        # Check package with extensions
+        package = catalog_data.packages["PackageWithExtensions"]
+        version = package.versions["2.0.0"]
+
+        extensions = version.version_data.metadata.get("extensions", [])
+        self.assertIsInstance(extensions, list)
+        self.assertEqual(len(extensions), 2)
+
+        # Verify extension structure
+        ext_types = {ext.get("type") for ext in extensions}
+        self.assertEqual(ext_types, {"python", "component"})
+
+        python_ext = next(ext for ext in extensions if ext.get("type") == "python")
+        self.assertEqual(python_ext.get("name"), "gmxapi")
+        self.assertEqual(python_ext.get("version"), "0.4.2")
+
+        # Check package without extensions
+        package_no_ext = catalog_data.packages["PackageNoExtensions"]
+        version_no_ext = package_no_ext.versions["1.5.0"]
+        extensions_no_ext = version_no_ext.version_data.metadata.get("extensions", [])
+        self.assertEqual(extensions_no_ext, [])
+
+    @patch("requests.get")
+    def test_new_format_database_loading(self, mock_get):
+        """Test loading new format EESSI data into database models."""
+
+        def mock_requests_side_effect(url, **kwargs):
+            mock_response = Mock()
+            if "software.json" in url:
+                mock_response.json.return_value = self.eessi_new_format_data
+            else:
+                mock_response.json.return_value = {}
+            mock_response.raise_for_status.return_value = None
+            return mock_response
+
+        mock_get.side_effect = mock_requests_side_effect
+
+        loader = EESSICatalogLoader(catalog_version="2023.06", include_extensions=False)
+        stats = loader.load_catalog(update_existing=True, dry_run=False)
+
+        # Verify statistics
+        self.assertGreater(stats["packages_created"], 0)
+        self.assertGreater(stats["versions_created"], 0)
+
+        # Verify database objects
+        catalog = SoftwareCatalog.objects.get(name="EESSI", version="2023.06")
+
+        # Check package with extensions was loaded
+        package = SoftwarePackage.objects.get(
+            catalog=catalog, name="PackageWithExtensions"
+        )
+        version = SoftwareVersion.objects.get(package=package, version="2.0.0")
+
+        # Verify metadata contains new fields
+        self.assertIn("module", version.metadata)
+        self.assertIn("extensions", version.metadata)
+        self.assertIn("required_modules", version.metadata)
+
+        # Verify extensions field
+        extensions = version.metadata["extensions"]
+        self.assertEqual(len(extensions), 2)
+
+        # Verify module structure
+        module = version.metadata["module"]
+        self.assertEqual(module["module_name"], "PackageWithExtensions")
+
+
 class CatalogLoaderErrorHandlingTest(TestCase):
     """Test error handling and resilience of catalog loaders."""
 

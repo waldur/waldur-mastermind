@@ -1,0 +1,165 @@
+{
+  "timestamp": "2026-01-27T12:00:00.000000Z",
+  "architectures_map": {
+    "2023.06": {
+      "x86_64/generic": "x86_64/generic",
+      "x86_64/amd/zen3": "x86_64/amd/zen3",
+      "aarch64/generic": "aarch64/generic"
+    }
+  },
+  "gpu_architectures_map": {},
+  "category_details": {},
+  "software": {
+    "NewFormatPackage": {
+      "versions": [
+        {
+          "homepage": "https://example.com/newpackage",
+          "license": ["GPL-3.0"],
+          "image": "",
+          "categories": ["science"],
+          "identifier": "",
+          "toolchain": {
+            "name": "foss",
+            "version": "2023b"
+          },
+          "toolchain_families_compatibility": [
+            "2023b_foss"
+          ],
+          "module": {
+            "full_module_name": "NewFormatPackage/3.0.0-foss-2023b",
+            "module_name": "NewFormatPackage",
+            "module_version": "3.0.0-foss-2023b"
+          },
+          "required_modules": [
+            {
+              "full_module_name": "EESSI/2023.06",
+              "module_name": "EESSI",
+              "module_version": "2023.06"
+            },
+            {
+              "full_module_name": "GCCcore/13.2.0",
+              "module_name": "GCCcore",
+              "module_version": "13.2.0"
+            },
+            {
+              "full_module_name": "Python/3.11.5-GCCcore-13.2.0",
+              "module_name": "Python",
+              "module_version": "3.11.5-GCCcore-13.2.0"
+            }
+          ],
+          "extensions": [
+            {"type": "python", "name": "numpy", "version": "1.26.0"},
+            {"type": "python", "name": "scipy", "version": "1.11.0"}
+          ],
+          "cpu_arch": [
+            "x86_64/generic",
+            "x86_64/amd/zen3",
+            "aarch64/generic"
+          ],
+          "gpu_arch": {},
+          "description": "A test package using the new EESSI API format with dict-based module and required_modules.",
+          "version": "3.0.0",
+          "versionsuffix": ""
+        }
+      ],
+      "homepage": "https://example.com/newpackage",
+      "license": ["GPL-3.0"],
+      "image": "",
+      "categories": ["science"],
+      "identifier": "",
+      "description": "A test package using the new EESSI API format with dict-based module and required_modules."
+    },
+    "PackageWithExtensions": {
+      "versions": [
+        {
+          "homepage": "https://example.com/withext",
+          "license": ["Apache-2.0"],
+          "image": "",
+          "categories": ["chemistry"],
+          "identifier": "",
+          "toolchain": {
+            "name": "gfbf",
+            "version": "2023b"
+          },
+          "toolchain_families_compatibility": [
+            "2023b_gfbf"
+          ],
+          "module": {
+            "full_module_name": "PackageWithExtensions/2.0.0-gfbf-2023b",
+            "module_name": "PackageWithExtensions",
+            "module_version": "2.0.0-gfbf-2023b"
+          },
+          "required_modules": [
+            {
+              "full_module_name": "EESSI/2023.06",
+              "module_name": "EESSI",
+              "module_version": "2023.06"
+            }
+          ],
+          "extensions": [
+            {"type": "python", "name": "gmxapi", "version": "0.4.2"},
+            {"type": "component", "name": "cuda-bindings", "version": "12.0"}
+          ],
+          "cpu_arch": [
+            "x86_64/generic"
+          ],
+          "gpu_arch": {},
+          "description": "A test package with bundled extensions.",
+          "version": "2.0.0",
+          "versionsuffix": ""
+        }
+      ],
+      "homepage": "https://example.com/withext",
+      "license": ["Apache-2.0"],
+      "image": "",
+      "categories": ["chemistry"],
+      "identifier": "",
+      "description": "A test package with bundled extensions."
+    },
+    "PackageNoExtensions": {
+      "versions": [
+        {
+          "homepage": "https://example.com/noext",
+          "license": [],
+          "image": "",
+          "categories": [],
+          "identifier": "",
+          "toolchain": {
+            "name": "foss",
+            "version": "2023a"
+          },
+          "toolchain_families_compatibility": [
+            "2023a_foss"
+          ],
+          "module": {
+            "full_module_name": "PackageNoExtensions/1.5.0-foss-2023a",
+            "module_name": "PackageNoExtensions",
+            "module_version": "1.5.0-foss-2023a"
+          },
+          "required_modules": [
+            {
+              "full_module_name": "EESSI/2023.06",
+              "module_name": "EESSI",
+              "module_version": "2023.06"
+            }
+          ],
+          "extensions": [],
+          "cpu_arch": [
+            "x86_64/generic",
+            "aarch64/generic"
+          ],
+          "gpu_arch": {},
+          "description": "A test package without extensions.",
+          "version": "1.5.0",
+          "versionsuffix": ""
+        }
+      ],
+      "homepage": "https://example.com/noext",
+      "license": [],
+      "image": "",
+      "categories": [],
+      "identifier": "",
+      "description": "A test package without extensions."
+    }
+  }
+}

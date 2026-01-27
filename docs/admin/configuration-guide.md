@@ -2533,6 +2533,8 @@ Update existing packages during catalog refresh
 
 **Type:** bool
 
+**Default value:** True
+
 Enable automatic cleanup of old catalog data
 
 #### SOFTWARE_CATALOG_RETENTION_DAYS

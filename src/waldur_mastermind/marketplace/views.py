@@ -58,6 +58,7 @@ from rest_framework.permissions import SAFE_METHODS
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.serializers import Serializer
+from reversion.models import Version
 
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.mixins import ReviewerChecklistMixin, UserChecklistMixin
@@ -6033,6 +6034,13 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
             self.ensure_resource_operations_allowed(resource)
         return resource
 
+    def perform_update(self, serializer):
+        """Wrap resource updates with reversion tracking."""
+        with reversion.create_revision():
+            serializer.save()
+            reversion.set_user(self.request.user)
+            reversion.set_comment("Updated via REST API")
+
     def list(self, request, *args, **kwargs):
         utils.refresh_integration_agent_status(
             request, models.IntegrationStatus.AgentTypes.USAGE_REPORTING
@@ -6267,7 +6275,10 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         old_slug = resource.slug
         if new_slug != old_slug:
             resource.slug = serializer.validated_data["slug"]
-            resource.save()
+            with reversion.create_revision():
+                resource.save()
+                reversion.set_user(request.user)
+                reversion.set_comment(f"Slug changed from '{old_slug}' to '{new_slug}'")
             logger.info(
                 "%s has changed slug from %s to %s",
                 request.user.full_name,
@@ -6309,7 +6320,12 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         old_downscaled = resource.downscaled
         if new_downscaled != old_downscaled:
             resource.downscaled = new_downscaled
-            resource.save()
+            with reversion.create_revision():
+                resource.save()
+                reversion.set_user(request.user)
+                reversion.set_comment(
+                    f"Downscaled changed from {old_downscaled} to {new_downscaled}"
+                )
             logger.info(
                 "%s has changed downscaled from %s to %s for resource %s",
                 request.user.full_name,
@@ -6351,7 +6367,12 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         old_paused = resource.paused
         if new_paused != old_paused:
             resource.paused = new_paused
-            resource.save()
+            with reversion.create_revision():
+                resource.save()
+                reversion.set_user(request.user)
+                reversion.set_comment(
+                    f"Paused changed from {old_paused} to {new_paused}"
+                )
             logger.info(
                 "%s has changed paused from %s to %s for resource %s",
                 request.user.full_name,
@@ -6393,7 +6414,12 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
         old_restrict = resource.restrict_member_access
         if new_restrict != old_restrict:
             resource.restrict_member_access = new_restrict
-            resource.save()
+            with reversion.create_revision():
+                resource.save()
+                reversion.set_user(request.user)
+                reversion.set_comment(
+                    f"Restrict member access changed from {old_restrict} to {new_restrict}"
+                )
             logger.info(
                 "%s has changed restrict_member_access from %s to %s for resource %s",
                 request.user.full_name,
@@ -6685,6 +6711,128 @@ class BaseResourceViewSet(ConnectedOfferingDetailsMixin, core_views.ActionsViewS
     update_options_validators = [
         core_validators.StateValidator(ResourceStates.OK, state_enum=ResourceStates),
     ]
+
+    @extend_schema(
+        summary="Get resource version history",
+        description="Returns the version history of changes made to this resource. Only accessible by staff and support users.",
+        parameters=[
+            OpenApiParameter(
+                "created_before",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter versions created before this timestamp (ISO 8601)",
+            ),
+            OpenApiParameter(
+                "created_after",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter versions created after this timestamp (ISO 8601)",
+            ),
+        ],
+        responses=serializers.ResourceVersionSerializer(many=True),
+    )
+    @action(detail=True, methods=["get"])
+    def history(self, request, uuid=None):
+        """Return version history for a resource."""
+        from dateutil.parser import parse as parse_datetime
+
+        resource: models.Resource = self.get_object()
+        content_type = ContentType.objects.get_for_model(models.Resource)
+        versions = (
+            Version.objects.filter(
+                content_type=content_type,
+                object_id=str(resource.pk),
+            )
+            .select_related("revision", "revision__user")
+            .order_by("-revision__date_created")
+        )
+
+        # Apply date filters
+        created_before = request.query_params.get("created_before")
+        created_after = request.query_params.get("created_after")
+
+        if created_before:
+            try:
+                created_before_dt = parse_datetime(created_before)
+                versions = versions.filter(revision__date_created__lt=created_before_dt)
+            except (ValueError, TypeError):
+                raise ValidationError({"created_before": "Invalid timestamp format."})
+
+        if created_after:
+            try:
+                created_after_dt = parse_datetime(created_after)
+                versions = versions.filter(revision__date_created__gt=created_after_dt)
+            except (ValueError, TypeError):
+                raise ValidationError({"created_after": "Invalid timestamp format."})
+
+        page = self.paginate_queryset(versions)
+        if page is not None:
+            serializer = serializers.ResourceVersionSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = serializers.ResourceVersionSerializer(versions, many=True)
+        return Response(serializer.data)
+
+    history_permissions = [structure_permissions.is_staff_or_support]
+
+    @extend_schema(
+        summary="Get resource state at a specific timestamp",
+        description="Returns the state of the resource as it was at the specified timestamp. Only accessible by staff and support users.",
+        parameters=[
+            OpenApiParameter(
+                "timestamp",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="ISO 8601 timestamp to query the resource state at",
+                required=True,
+            ),
+        ],
+        responses={
+            200: serializers.ResourceVersionSerializer,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+        },
+    )
+    @action(detail=True, methods=["get"], url_path="history/at")
+    def history_at(self, request, uuid=None):
+        """Return resource state at a specific timestamp."""
+        from dateutil.parser import parse as parse_datetime
+
+        resource: models.Resource = self.get_object()
+        timestamp_str = request.query_params.get("timestamp")
+
+        if not timestamp_str:
+            raise ValidationError({"timestamp": "This parameter is required."})
+
+        try:
+            timestamp = parse_datetime(timestamp_str)
+        except (ValueError, TypeError):
+            raise ValidationError({"timestamp": "Invalid timestamp format."})
+
+        content_type = ContentType.objects.get_for_model(models.Resource)
+        version = (
+            Version.objects.filter(
+                content_type=content_type,
+                object_id=str(resource.pk),
+                revision__date_created__lte=timestamp,
+            )
+            .select_related("revision", "revision__user")
+            .order_by("-revision__date_created")
+            .first()
+        )
+
+        if not version:
+            return Response(
+                {"detail": "No version found before the specified timestamp."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = serializers.ResourceVersionSerializer(version)
+        data = serializer.data
+        data["queried_at"] = timestamp_str
+        return Response(data)
+
+    history_at_permissions = [structure_permissions.is_staff_or_support]
 
 
 def check_prepaid_resource(resource):

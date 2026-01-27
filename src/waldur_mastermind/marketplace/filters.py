@@ -582,6 +582,16 @@ class SoftwarePackageFilter(django_filters.FilterSet):
         label="Has version",
         help_text="Filter packages that have a specific version",
     )
+    extension_type = django_filters.CharFilter(
+        method="filter_by_extension_type",
+        label="Extension type",
+        help_text="Filter packages having extensions of a specific type (e.g., 'python')",
+    )
+    extension_name = django_filters.CharFilter(
+        method="filter_by_extension_name",
+        label="Extension name",
+        help_text="Filter packages having extensions with a specific name",
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -631,6 +641,18 @@ class SoftwarePackageFilter(django_filters.FilterSet):
             Q(name__icontains=value)
             | Q(description__icontains=value)
             | Q(versions__version__icontains=value)
+        ).distinct()
+
+    def filter_by_extension_type(self, queryset, name, value):
+        """Filter packages having extensions of a specific type (e.g., 'python')."""
+        return queryset.filter(
+            versions__metadata__extensions__contains=[{"type": value}]
+        ).distinct()
+
+    def filter_by_extension_name(self, queryset, name, value):
+        """Filter packages having extensions with a specific name."""
+        return queryset.filter(
+            versions__metadata__extensions__contains=[{"name": value}]
         ).distinct()
 
 
