@@ -55,7 +55,7 @@ sequenceDiagram
 | Component | Location | Purpose |
 |-----------|----------|---------|
 | `EventSubscriptionQueue` model | `waldur_core/logging/models.py` | Tracks queue registrations |
-| `create_queue` API action | `marketplace_site_agent/views.py` | Creates queues via API |
+| `create_queue` API action | `waldur_core/logging/views.py` | Creates queues via API |
 | `RabbitMQManagementBackend.create_queue()` | `waldur_core/logging/backend.py` | RabbitMQ Management API calls |
 | `prepare_messages()` queue check | `marketplace/utils.py` | Skips unregistered queues |
 | `pre_delete` signal handler | `waldur_core/logging/handlers.py` | Cleans up RabbitMQ on deletion |
@@ -77,6 +77,7 @@ All subscription queues are created with these RabbitMQ arguments:
 
 ```python
 SUBSCRIPTION_QUEUE_ARGUMENTS = {
+    "x-message-ttl": 60 * 60 * 1000,  # one hour in milliseconds
     "x-max-length": 10000,
     "x-overflow": "reject-publish-dlx",
     "x-dead-letter-exchange": "",
@@ -95,7 +96,7 @@ sequenceDiagram
     participant DB as PostgreSQL
     participant RMQ as RabbitMQ
 
-    Agent->>API: POST /agent-identities/{uuid}/create_queue/
+    Agent->>API: POST /event-subscriptions/{uuid}/create_queue/
     Note over Agent,API: {offering_uuid, object_type}
 
     API->>API: Validate offering access
@@ -204,7 +205,7 @@ sequenceDiagram
 ### Create Queue
 
 ```http
-POST /api/marketplace-site-agent-identities/{uuid}/create_queue/
+POST /api/event-subscriptions/{uuid}/create_queue/
 ```
 
 **Request:**
