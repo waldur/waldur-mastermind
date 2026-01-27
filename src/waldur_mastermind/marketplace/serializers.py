@@ -2926,10 +2926,14 @@ set_override(
 class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
     class Meta(ProviderOfferingDetailsSerializer.Meta):
         view_name = "marketplace-public-offering-detail"
-        fields = ProviderOfferingDetailsSerializer.Meta.fields + ("user_has_consent",)
+        fields = ProviderOfferingDetailsSerializer.Meta.fields + (
+            "user_has_consent",
+            "is_accessible",
+        )
 
     plugin_options = MergedPluginOptionsField(read_only=True)
     user_has_consent = serializers.SerializerMethodField()
+    is_accessible = serializers.SerializerMethodField()
 
     @extend_schema_field(BasePublicPlanSerializer(many=True))
     def get_filtered_plans(self, offering: models.Offering):
@@ -2950,6 +2954,18 @@ class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
         return models.UserOfferingConsent.objects.filter(
             user=request.user, offering=offering, revocation_date__isnull=True
         ).exists()
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_accessible(self, offering: models.Offering) -> bool:
+        """Returns True if current user can order this offering."""
+        request = self.context.get("request")
+        if not request or not request.user or request.user.is_anonymous:
+            return False
+        if request.user.is_staff or request.user.is_support:
+            return True
+        # Check if user has accessible plans for this offering
+        plans = utils.get_plans_available_for_user(request.user, offering)
+        return plans.filter(archived=False).exists()
 
     def get_fields(self):
         fields = super().get_fields()

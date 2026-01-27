@@ -57,34 +57,75 @@ class OfferingQuerySet(django_models.QuerySet):
             else:
                 return queryset.filter(shared=True)
 
+        # Staff/support ALWAYS see all offerings regardless of visibility setting
         if user.is_staff or user.is_support:
             plans = models.Plan.objects.filter(archived=False)
             return queryset.filter(
                 Q(shared=True) | Q(plans__in=plans) | Q(parent__plans__in=plans)
             ).distinct()
 
-        # filtering by available plans
-        plans = models.Plan.objects.filter(
+        # Get user's organization groups
+        user_organization_groups = get_organization_groups(user)
+
+        # Filter plans by user's organization groups
+        accessible_plans = models.Plan.objects.filter(
             Q(organization_groups__isnull=True)
-            | Q(organization_groups__in=get_organization_groups(user))
+            | Q(organization_groups__in=user_organization_groups)
         ).filter(archived=False)
 
-        # filtering by customers and projects
+        # Get user connections
         connected_projects = get_connected_projects(user)
         connected_customers = get_connected_customers(user)
         connected_offerings = get_connected_offerings(user)
 
-        return queryset.filter(
-            Q(shared=True)
-            | (
-                (
-                    Q(customer__in=connected_customers)
-                    | Q(project__in=connected_projects)
-                    | Q(id__in=connected_offerings)
-                )
-                & (Q(plans__in=plans) | Q(parent__plans__in=plans))
+        visibility_mode = getattr(
+            config, "RESTRICTED_OFFERING_VISIBILITY_MODE", "show_all"
+        )
+
+        # require_membership: user must belong to at least one org/project
+        if visibility_mode == "require_membership":
+            has_membership = (
+                connected_customers.exists()
+                or connected_projects.exists()
+                or connected_offerings.exists()
             )
-        ).distinct()
+            if not has_membership:
+                return self.none()
+            # Fall through to hide_inaccessible logic for members
+            visibility_mode = "hide_inaccessible"
+
+        if visibility_mode == "hide_inaccessible":
+            # Shared offerings: must match org groups AND have accessible plans
+            shared_filter = (
+                Q(shared=True, organization_groups__isnull=True)
+                | Q(shared=True, organization_groups__in=user_organization_groups)
+            ) & (Q(plans__in=accessible_plans) | Q(parent__plans__in=accessible_plans))
+
+            # Private offerings: user connected AND has plan access
+            private_filter = (
+                Q(customer__in=connected_customers)
+                | Q(project__in=connected_projects)
+                | Q(id__in=connected_offerings)
+            ) & (Q(plans__in=accessible_plans) | Q(parent__plans__in=accessible_plans))
+
+            return queryset.filter(shared_filter | private_filter).distinct()
+        else:
+            # "show_all" or "show_restricted_disabled" - return all shared offerings
+            # (show_restricted_disabled is handled by frontend marking)
+            return queryset.filter(
+                Q(shared=True)
+                | (
+                    (
+                        Q(customer__in=connected_customers)
+                        | Q(project__in=connected_projects)
+                        | Q(id__in=connected_offerings)
+                    )
+                    & (
+                        Q(plans__in=accessible_plans)
+                        | Q(parent__plans__in=accessible_plans)
+                    )
+                )
+            ).distinct()
 
     def filter_for_customer(self, value):
         if not is_uuid_like(value):
