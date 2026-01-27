@@ -1281,7 +1281,13 @@ class SchacPersonalUniqueIDParsingTest(test.APITransactionTestCase):
         """Test parsing international (int) schacPersonalUniqueID."""
         value = "urn:schac:personalUniqueID:int:orcid:0000-0001-2345-6789"
         result = parse_schac_personal_unique_id(value)
-        self.assertEqual(result, "int0000-0001-2345-6789")
+        self.assertEqual(result, "INT0000-0001-2345-6789")
+
+    def test_lowercase_country_code_is_uppercased(self):
+        """Test that lowercase country code is normalized to uppercase."""
+        value = "urn:schac:personalUniqueID:lt:LTU:37510040173"
+        result = parse_schac_personal_unique_id(value)
+        self.assertEqual(result, "LT37510040173")
 
 
 class EnabledUserProfileAttributesSyncTest(test.APITransactionTestCase):
