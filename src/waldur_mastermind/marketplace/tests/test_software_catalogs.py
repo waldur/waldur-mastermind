@@ -602,3 +602,294 @@ class OfferingSoftwareCatalogActionsTest(test.APITransactionTestCase):
         self.assertIn("name", nested_catalog)
         self.assertIn("version", nested_catalog)
         self.assertIn("description", nested_catalog)
+
+
+class SoftwareVersionNewFieldsTest(test.APITransactionTestCase):
+    """Test new fields in software version serializers (module, extensions, etc.)."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog = factories.SoftwareCatalogFactory(name="EESSI", version="2023.06")
+        self.package = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="TestPackage",
+            description="Test package with EESSI metadata",
+        )
+        self.version = factories.SoftwareVersionFactory(
+            package=self.package,
+            version="1.0.0",
+            metadata={
+                "module": {
+                    "full_module_name": "TestPackage/1.0.0-foss-2023b",
+                    "module_name": "TestPackage",
+                    "module_version": "1.0.0-foss-2023b",
+                },
+                "modulename": "TestPackage/1.0.0-foss-2023b",
+                "required_modules": [
+                    {
+                        "full_module_name": "EESSI/2023.06",
+                        "module_name": "EESSI",
+                        "module_version": "2023.06",
+                    },
+                    {
+                        "full_module_name": "GCCcore/13.2.0",
+                        "module_name": "GCCcore",
+                        "module_version": "13.2.0",
+                    },
+                ],
+                "extensions": [
+                    {"type": "python", "name": "numpy", "version": "1.26.0"},
+                    {"type": "python", "name": "scipy", "version": "1.11.0"},
+                ],
+                "toolchain": {"name": "foss", "version": "2023b"},
+                "toolchain_families_compatibility": ["2023b_foss"],
+            },
+        )
+        self.package_url = factories.SoftwarePackageFactory.get_url(self.package)
+        self.version_list_url = factories.SoftwareVersionFactory.get_list_url()
+
+    def test_nested_version_includes_module_field(self):
+        """Test that nested version serializer includes module dict."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.package_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("versions", response.data)
+        self.assertEqual(len(response.data["versions"]), 1)
+
+        version_data = response.data["versions"][0]
+        self.assertIn("module", version_data)
+        self.assertIsInstance(version_data["module"], dict)
+        self.assertEqual(
+            version_data["module"]["full_module_name"], "TestPackage/1.0.0-foss-2023b"
+        )
+        self.assertEqual(version_data["module"]["module_name"], "TestPackage")
+        self.assertEqual(version_data["module"]["module_version"], "1.0.0-foss-2023b")
+
+    def test_nested_version_includes_modulename_field(self):
+        """Test that nested version serializer includes modulename string for backwards compatibility."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.package_url)
+
+        version_data = response.data["versions"][0]
+        self.assertIn("modulename", version_data)
+        self.assertEqual(version_data["modulename"], "TestPackage/1.0.0-foss-2023b")
+
+    def test_nested_version_includes_required_modules_field(self):
+        """Test that nested version serializer includes structured required_modules."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.package_url)
+
+        version_data = response.data["versions"][0]
+        self.assertIn("required_modules", version_data)
+        self.assertIsInstance(version_data["required_modules"], list)
+        self.assertEqual(len(version_data["required_modules"]), 2)
+
+        # Check structure of required modules
+        eessi_rm = next(
+            rm
+            for rm in version_data["required_modules"]
+            if rm.get("module_name") == "EESSI"
+        )
+        self.assertEqual(eessi_rm["full_module_name"], "EESSI/2023.06")
+        self.assertEqual(eessi_rm["module_version"], "2023.06")
+
+    def test_nested_version_includes_extensions_field(self):
+        """Test that nested version serializer includes extensions list."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.package_url)
+
+        version_data = response.data["versions"][0]
+        self.assertIn("extensions", version_data)
+        self.assertIsInstance(version_data["extensions"], list)
+        self.assertEqual(len(version_data["extensions"]), 2)
+
+        # Verify extension structure
+        ext_names = {ext.get("name") for ext in version_data["extensions"]}
+        self.assertEqual(ext_names, {"numpy", "scipy"})
+
+    def test_nested_version_includes_toolchain_field(self):
+        """Test that nested version serializer includes toolchain dict."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.package_url)
+
+        version_data = response.data["versions"][0]
+        self.assertIn("toolchain", version_data)
+        self.assertIsInstance(version_data["toolchain"], dict)
+        self.assertEqual(version_data["toolchain"]["name"], "foss")
+        self.assertEqual(version_data["toolchain"]["version"], "2023b")
+
+    def test_nested_version_includes_toolchain_families_compatibility(self):
+        """Test that nested version serializer includes toolchain_families_compatibility."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.package_url)
+
+        version_data = response.data["versions"][0]
+        self.assertIn("toolchain_families_compatibility", version_data)
+        self.assertIsInstance(version_data["toolchain_families_compatibility"], list)
+        self.assertIn("2023b_foss", version_data["toolchain_families_compatibility"])
+
+    def test_version_detail_includes_new_fields(self):
+        """Test that version detail serializer includes new EESSI fields."""
+        self.client.force_authenticate(self.fixture.staff)
+        version_url = factories.SoftwareVersionFactory.get_url(self.version)
+        response = self.client.get(version_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check all new fields are present
+        self.assertIn("module", response.data)
+        self.assertIn("modulename", response.data)
+        self.assertIn("required_modules", response.data)
+        self.assertIn("extensions", response.data)
+        self.assertIn("toolchain", response.data)
+        self.assertIn("toolchain_families_compatibility", response.data)
+
+        # Verify values
+        self.assertEqual(response.data["module"]["module_name"], "TestPackage")
+        self.assertEqual(len(response.data["extensions"]), 2)
+
+    def test_empty_extensions_field(self):
+        """Test that versions without extensions return empty list."""
+        # Create version without extensions
+        version_no_ext = factories.SoftwareVersionFactory(
+            package=self.package,
+            version="2.0.0",
+            metadata={
+                "module": {},
+                "extensions": [],
+                "required_modules": [],
+            },
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        version_url = factories.SoftwareVersionFactory.get_url(version_no_ext)
+        response = self.client.get(version_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["extensions"], [])
+
+    def test_missing_metadata_fields_return_empty(self):
+        """Test that versions with missing metadata fields return empty values."""
+        # Create version with minimal metadata
+        version_minimal = factories.SoftwareVersionFactory(
+            package=self.package,
+            version="3.0.0",
+            metadata={},  # Empty metadata
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        version_url = factories.SoftwareVersionFactory.get_url(version_minimal)
+        response = self.client.get(version_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["module"], {})
+        self.assertEqual(response.data["modulename"], "")
+        self.assertEqual(response.data["required_modules"], [])
+        self.assertEqual(response.data["extensions"], [])
+        self.assertEqual(response.data["toolchain"], {})
+        self.assertEqual(response.data["toolchain_families_compatibility"], [])
+
+
+class SoftwarePackageExtensionFilterTest(test.APITransactionTestCase):
+    """Test extension filtering for software packages."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog = factories.SoftwareCatalogFactory(name="EESSI", version="2023.06")
+
+        # Package with Python extensions
+        self.pkg_with_python_ext = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="PackageWithPython",
+        )
+        factories.SoftwareVersionFactory(
+            package=self.pkg_with_python_ext,
+            version="1.0.0",
+            metadata={
+                "extensions": [
+                    {"type": "python", "name": "numpy", "version": "1.26.0"},
+                    {"type": "python", "name": "scipy", "version": "1.11.0"},
+                ],
+            },
+        )
+
+        # Package with component extensions
+        self.pkg_with_component_ext = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="PackageWithComponent",
+        )
+        factories.SoftwareVersionFactory(
+            package=self.pkg_with_component_ext,
+            version="2.0.0",
+            metadata={
+                "extensions": [
+                    {"type": "component", "name": "cuda-bindings", "version": "12.0"},
+                ],
+            },
+        )
+
+        # Package without extensions
+        self.pkg_no_extensions = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="PackageNoExtensions",
+        )
+        factories.SoftwareVersionFactory(
+            package=self.pkg_no_extensions,
+            version="1.0.0",
+            metadata={"extensions": []},
+        )
+
+        self.url = factories.SoftwarePackageFactory.get_list_url()
+
+    def test_filter_by_extension_type_python(self):
+        """Test filtering packages by extension type 'python'."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?extension_type=python")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        package_names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(package_names, {"PackageWithPython"})
+
+    def test_filter_by_extension_type_component(self):
+        """Test filtering packages by extension type 'component'."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?extension_type=component")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        package_names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(package_names, {"PackageWithComponent"})
+
+    def test_filter_by_extension_name(self):
+        """Test filtering packages by extension name."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?extension_name=numpy")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        package_names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(package_names, {"PackageWithPython"})
+
+    def test_filter_by_extension_name_cuda(self):
+        """Test filtering packages by extension name 'cuda-bindings'."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?extension_name=cuda-bindings")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        package_names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(package_names, {"PackageWithComponent"})
+
+    def test_filter_by_nonexistent_extension_type(self):
+        """Test filtering by non-existent extension type returns empty result."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?extension_type=nonexistent")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_filter_by_nonexistent_extension_name(self):
+        """Test filtering by non-existent extension name returns empty result."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?extension_name=nonexistent")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
