@@ -39,6 +39,8 @@ from waldur_mastermind.marketplace.models import (
     ComponentUserUsage,
     CourseAccount,
     CustomerServiceAccount,
+    MaintenanceAnnouncement,
+    MaintenanceAnnouncementOffering,
     Offering,
     OfferingAccessEndpoint,
     OfferingComponent,
@@ -341,6 +343,18 @@ class Command(BaseCommand):
                 "skipped": 0,
                 "errors": 0,
             },
+            "maintenance_announcements": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "maintenance_announcement_offerings": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
         }
         self.dry_run = False
         self.update_existing = False
@@ -526,6 +540,21 @@ class Command(BaseCommand):
         self._safe_import(
             "offering_endpoints",
             lambda: self.import_offering_endpoints(data.get("offering_endpoints", [])),
+        )
+
+        # Import maintenance announcements (depends on service_providers and users)
+        self._safe_import(
+            "maintenance_announcements",
+            lambda: self.import_maintenance_announcements(
+                data.get("maintenance_announcements", [])
+            ),
+        )
+        # Import maintenance announcement offerings (depends on maintenance_announcements and offerings)
+        self._safe_import(
+            "maintenance_announcement_offerings",
+            lambda: self.import_maintenance_announcement_offerings(
+                data.get("maintenance_announcement_offerings", [])
+            ),
         )
 
         # Import SLURM periodic policies (depends on offerings)
@@ -1513,6 +1542,209 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["service_providers"]["errors"] += 1
+
+    def import_maintenance_announcements(self, announcements_data):
+        """Import maintenance announcement data."""
+        self.stdout.write("Importing maintenance announcements...")
+
+        for announcement_data in announcements_data:
+            try:
+                uuid = announcement_data.get("uuid")
+                service_provider_uuid = announcement_data.get("service_provider_uuid")
+
+                if not uuid or not service_provider_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping maintenance announcement without UUID or service_provider_uuid"
+                        )
+                    )
+                    self.stats["maintenance_announcements"]["errors"] += 1
+                    continue
+
+                # Find service provider
+                service_provider = ServiceProvider.objects.filter(
+                    uuid=service_provider_uuid
+                ).first()
+                if not service_provider:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping maintenance announcement {uuid}: service provider {service_provider_uuid} not found"
+                        )
+                    )
+                    self.stats["maintenance_announcements"]["errors"] += 1
+                    continue
+
+                # Find created_by user (optional)
+                created_by = None
+                created_by_uuid = announcement_data.get("created_by_uuid")
+                if created_by_uuid:
+                    created_by = User.all_objects.filter(uuid=created_by_uuid).first()
+
+                # Parse datetime fields
+                scheduled_start = self._parse_datetime(
+                    announcement_data.get("scheduled_start")
+                )
+                scheduled_end = self._parse_datetime(
+                    announcement_data.get("scheduled_end")
+                )
+                actual_start = self._parse_datetime(
+                    announcement_data.get("actual_start")
+                )
+                actual_end = self._parse_datetime(announcement_data.get("actual_end"))
+
+                if not scheduled_start or not scheduled_end:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping maintenance announcement {uuid}: missing scheduled_start or scheduled_end"
+                        )
+                    )
+                    self.stats["maintenance_announcements"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "name": announcement_data.get("name", ""),
+                    "message": announcement_data.get("message", ""),
+                    "internal_notes": announcement_data.get("internal_notes", ""),
+                    "maintenance_type": announcement_data.get("maintenance_type", 1),
+                    "state": announcement_data.get("state", 1),
+                    "scheduled_start": scheduled_start,
+                    "scheduled_end": scheduled_end,
+                    "actual_start": actual_start,
+                    "actual_end": actual_end,
+                    "service_provider": service_provider,
+                    "created_by": created_by,
+                    "external_reference_url": announcement_data.get(
+                        "external_reference_url", ""
+                    ),
+                }
+
+                if not self.dry_run:
+                    existing = MaintenanceAnnouncement.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            MaintenanceAnnouncement.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["maintenance_announcements"]["updated"] += 1
+                        else:
+                            self.stats["maintenance_announcements"]["skipped"] += 1
+                    else:
+                        MaintenanceAnnouncement.objects.create(uuid=uuid, **defaults)
+                        self.stats["maintenance_announcements"]["created"] += 1
+                else:
+                    existing = MaintenanceAnnouncement.objects.filter(
+                        uuid=uuid
+                    ).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["maintenance_announcements"]["updated"] += 1
+                        else:
+                            self.stats["maintenance_announcements"]["skipped"] += 1
+                    else:
+                        self.stats["maintenance_announcements"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import maintenance announcement {announcement_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["maintenance_announcements"]["errors"] += 1
+
+    def import_maintenance_announcement_offerings(self, offerings_data):
+        """Import maintenance announcement offering data."""
+        self.stdout.write("Importing maintenance announcement offerings...")
+
+        for offering_data in offerings_data:
+            try:
+                uuid = offering_data.get("uuid")
+                maintenance_uuid = offering_data.get("maintenance_uuid")
+                offering_uuid = offering_data.get("offering_uuid")
+
+                if not uuid or not maintenance_uuid or not offering_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping maintenance announcement offering without UUID, maintenance_uuid, or offering_uuid"
+                        )
+                    )
+                    self.stats["maintenance_announcement_offerings"]["errors"] += 1
+                    continue
+
+                # Find maintenance announcement
+                maintenance = MaintenanceAnnouncement.objects.filter(
+                    uuid=maintenance_uuid
+                ).first()
+                if not maintenance:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping maintenance announcement offering {uuid}: maintenance {maintenance_uuid} not found"
+                        )
+                    )
+                    self.stats["maintenance_announcement_offerings"]["errors"] += 1
+                    continue
+
+                # Find offering
+                offering = Offering.objects.filter(uuid=offering_uuid).first()
+                if not offering:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping maintenance announcement offering {uuid}: offering {offering_uuid} not found"
+                        )
+                    )
+                    self.stats["maintenance_announcement_offerings"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "maintenance": maintenance,
+                    "offering": offering,
+                    "impact_level": offering_data.get("impact_level", 2),
+                    "impact_description": offering_data.get("impact_description", ""),
+                }
+
+                if not self.dry_run:
+                    existing = MaintenanceAnnouncementOffering.objects.filter(
+                        uuid=uuid
+                    ).first()
+                    if existing:
+                        if self.update_existing:
+                            MaintenanceAnnouncementOffering.objects.filter(
+                                uuid=uuid
+                            ).update(**defaults)
+                            self.stats["maintenance_announcement_offerings"][
+                                "updated"
+                            ] += 1
+                        else:
+                            self.stats["maintenance_announcement_offerings"][
+                                "skipped"
+                            ] += 1
+                    else:
+                        MaintenanceAnnouncementOffering.objects.create(
+                            uuid=uuid, **defaults
+                        )
+                        self.stats["maintenance_announcement_offerings"]["created"] += 1
+                else:
+                    existing = MaintenanceAnnouncementOffering.objects.filter(
+                        uuid=uuid
+                    ).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["maintenance_announcement_offerings"][
+                                "updated"
+                            ] += 1
+                        else:
+                            self.stats["maintenance_announcement_offerings"][
+                                "skipped"
+                            ] += 1
+                    else:
+                        self.stats["maintenance_announcement_offerings"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import maintenance announcement offering {offering_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["maintenance_announcement_offerings"]["errors"] += 1
 
     def import_projects(self, projects_data):
         """Import project data."""

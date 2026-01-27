@@ -1,0 +1,1552 @@
+{
+  "_metadata": {
+    "title": "EuroHPC Federation Platform",
+    "description": "Demo preset featuring the EuroHPC JU supercomputing infrastructure with 10 hosting entities operating petascale and pre-exascale systems across Europe. Includes sample allocations for research projects with various partitions (CPU, GPU, Development, Regular access modes).",
+    "version": "1.0.0",
+    "scenarios": [
+      "EuroHPC supercomputer allocations management",
+      "Multi-site HPC resource federation",
+      "GPU and CPU partition allocations",
+      "Development and regular access modes",
+      "Node-hour based billing",
+      "Cross-border research collaboration"
+    ]
+  },
+  "users": [
+    {
+      "uuid": "00000000000000000000000000000001",
+      "username": "staff",
+      "email": "staff@efp.demo",
+      "first_name": "Platform",
+      "last_name": "Administrator",
+      "is_staff": true,
+      "is_active": true,
+      "password": "demo",
+      "organization": "EuroHPC JU",
+      "job_title": "Platform Administrator"
+    },
+    {
+      "uuid": "00000000000000000000000000000002",
+      "username": "support",
+      "email": "support@efp.demo",
+      "first_name": "Support",
+      "last_name": "Agent",
+      "is_support": true,
+      "is_active": true,
+      "password": "demo",
+      "organization": "EuroHPC JU",
+      "job_title": "Technical Support"
+    },
+    {
+      "uuid": "00000000000000000000000000000010",
+      "username": "bsc-operator",
+      "email": "operator@bsc.demo",
+      "first_name": "BSC",
+      "last_name": "Operator",
+      "is_active": true,
+      "password": "demo",
+      "organization": "Barcelona Supercomputing Center",
+      "job_title": "System Operator"
+    },
+    {
+      "uuid": "00000000000000000000000000000011",
+      "username": "cineca-operator",
+      "email": "operator@cineca.demo",
+      "first_name": "CINECA",
+      "last_name": "Operator",
+      "is_active": true,
+      "password": "demo",
+      "organization": "CINECA",
+      "job_title": "System Operator"
+    },
+    {
+      "uuid": "00000000000000000000000000000012",
+      "username": "csc-operator",
+      "email": "operator@csc.demo",
+      "first_name": "CSC",
+      "last_name": "Operator",
+      "is_active": true,
+      "password": "demo",
+      "organization": "CSC",
+      "job_title": "System Operator"
+    },
+    {
+      "uuid": "00000000000000000000000000000013",
+      "username": "it4i-operator",
+      "email": "operator@it4i.demo",
+      "first_name": "IT4I",
+      "last_name": "Operator",
+      "is_active": true,
+      "password": "demo",
+      "organization": "IT4Innovations",
+      "job_title": "System Operator"
+    },
+    {
+      "uuid": "00000000000000000000000000000014",
+      "username": "izum-operator",
+      "email": "operator@izum.demo",
+      "first_name": "IZUM",
+      "last_name": "Operator",
+      "is_active": true,
+      "password": "demo",
+      "organization": "IZUM",
+      "job_title": "System Operator"
+    },
+    {
+      "uuid": "00000000000000000000000000000015",
+      "username": "jsc-operator",
+      "email": "operator@jsc.demo",
+      "first_name": "JSC",
+      "last_name": "Operator",
+      "is_active": true,
+      "password": "demo",
+      "organization": "Jülich Supercomputing Centre",
+      "job_title": "System Operator"
+    },
+    {
+      "uuid": "00000000000000000000000000000016",
+      "username": "luxprovide-operator",
+      "email": "operator@luxprovide.demo",
+      "first_name": "LuxProvide",
+      "last_name": "Operator",
+      "is_active": true,
+      "password": "demo",
+      "organization": "LuxProvide",
+      "job_title": "System Operator"
+    },
+    {
+      "uuid": "00000000000000000000000000000017",
+      "username": "macc-operator",
+      "email": "operator@macc.demo",
+      "first_name": "MACC",
+      "last_name": "Operator",
+      "is_active": true,
+      "password": "demo",
+      "organization": "Minho Advanced Computing Center",
+      "job_title": "System Operator"
+    },
+    {
+      "uuid": "00000000000000000000000000000018",
+      "username": "naiss-operator",
+      "email": "operator@naiss.demo",
+      "first_name": "NAISS",
+      "last_name": "Operator",
+      "is_active": true,
+      "password": "demo",
+      "organization": "NAISS",
+      "job_title": "System Operator"
+    },
+    {
+      "uuid": "00000000000000000000000000000019",
+      "username": "sofiatech-operator",
+      "email": "operator@sofiatech.demo",
+      "first_name": "Sofia Tech",
+      "last_name": "Operator",
+      "is_active": true,
+      "password": "demo",
+      "organization": "Sofia Tech Park",
+      "job_title": "System Operator"
+    },
+    {
+      "uuid": "00000000000000000000000000000020",
+      "username": "reviewer",
+      "email": "reviewer@efp.demo",
+      "first_name": "Review",
+      "last_name": "Manager",
+      "is_active": true,
+      "password": "demo",
+      "organization": "EuroHPC JU",
+      "job_title": "Review Portal Manager"
+    },
+    {
+      "uuid": "00000000000000000000000000000030",
+      "username": "researcher-alpha",
+      "email": "alpha@university.demo",
+      "first_name": "Alice",
+      "last_name": "Researcher",
+      "is_active": true,
+      "password": "demo",
+      "organization": "Demo University",
+      "job_title": "Principal Investigator"
+    },
+    {
+      "uuid": "00000000000000000000000000000031",
+      "username": "researcher-beta",
+      "email": "beta@institute.demo",
+      "first_name": "Bob",
+      "last_name": "Scientist",
+      "is_active": true,
+      "password": "demo",
+      "organization": "Demo Research Institute",
+      "job_title": "Senior Researcher"
+    },
+    {
+      "uuid": "00000000000000000000000000000032",
+      "username": "researcher-gamma",
+      "email": "gamma@lab.demo",
+      "first_name": "Carol",
+      "last_name": "Engineer",
+      "is_active": true,
+      "password": "demo",
+      "organization": "Demo National Lab",
+      "job_title": "Research Engineer"
+    }
+  ],
+  "customers": [
+    {
+      "uuid": "a3000000000000000000000000000001",
+      "name": "Barcelona Supercomputing Center",
+      "abbreviation": "BSC",
+      "description": "The Barcelona Supercomputing Center hosts MareNostrum 5, a pre-exascale supercomputer with ACC, GPP, and HBM partitions. The system undergoes periodic maintenance for storage stability and power infrastructure.",
+      "email": "info@bsc.demo",
+      "country": "ES"
+    },
+    {
+      "uuid": "a3000000000000000000000000000002",
+      "name": "CINECA",
+      "abbreviation": "CINECA",
+      "description": "CINECA operates Leonardo, featuring BOOSTER and DCGP partitions with NVIDIA GPUs. Regular maintenance windows for system software updates and facility operations.",
+      "email": "info@cineca.demo",
+      "country": "IT"
+    },
+    {
+      "uuid": "a3000000000000000000000000000003",
+      "name": "CSC – IT Center for Science",
+      "abbreviation": "CSC",
+      "description": "CSC operates LUMI, the most powerful supercomputer in Europe, with GPU and CPU partitions. Located in Kajaani, Finland, with scheduled maintenance for software upgrades and facility operations.",
+      "email": "info@csc.demo",
+      "country": "FI"
+    },
+    {
+      "uuid": "a3000000000000000000000000000004",
+      "name": "IT4Innovations National Supercomputing Center",
+      "abbreviation": "IT4I",
+      "description": "IT4Innovations operates Karolina with CPU and GPU partitions. Maintenance typically focuses on network infrastructure and storage configuration updates.",
+      "email": "info@it4i.demo",
+      "country": "CZ"
+    },
+    {
+      "uuid": "a3000000000000000000000000000005",
+      "name": "IZUM",
+      "abbreviation": "IZUM",
+      "description": "IZUM operates Vega supercomputer with CPU and GPU partitions. Regular seasonal maintenance windows for system updates.",
+      "email": "info@izum.demo",
+      "country": "SI"
+    },
+    {
+      "uuid": "a3000000000000000000000000000006",
+      "name": "Jülich Supercomputing Centre",
+      "abbreviation": "JSC",
+      "description": "Jülich Supercomputing Centre operates JUPITER, one of Europe's first exascale systems, with Booster partition featuring advanced GPU acceleration.",
+      "email": "info@jsc.demo",
+      "country": "DE"
+    },
+    {
+      "uuid": "a3000000000000000000000000000007",
+      "name": "EuroHPC JU Review Portal",
+      "abbreviation": "JU-RP",
+      "description": "Central portal for EuroHPC JU allocation review and project management.",
+      "email": "review@eurohpc.demo",
+      "country": "LU"
+    },
+    {
+      "uuid": "a3000000000000000000000000000008",
+      "name": "LuxProvide",
+      "abbreviation": "LUXP",
+      "description": "LuxProvide operates MeluXina with CPU, GPU, and FPGA partitions. Known for minimal-downtime rolling maintenance approach for OS and storage updates.",
+      "email": "info@luxprovide.demo",
+      "country": "LU"
+    },
+    {
+      "uuid": "a3000000000000000000000000000009",
+      "name": "Minho Advanced Computing Center",
+      "abbreviation": "MACC",
+      "description": "MACC operates Deucalion with CPU ARM, CPU X86, and GPU partitions. Located in Portugal with infrastructure for hybrid computing architectures.",
+      "email": "info@macc.demo",
+      "country": "PT"
+    },
+    {
+      "uuid": "a300000000000000000000000000000a",
+      "name": "National Academic Infrastructure for Super­computing in Sweden",
+      "abbreviation": "NAISS",
+      "description": "NAISS operates Arrhenius supercomputer providing computing resources for Swedish and European research communities.",
+      "email": "info@naiss.demo",
+      "country": "SE"
+    },
+    {
+      "uuid": "a300000000000000000000000000000b",
+      "name": "Sofia Tech Park",
+      "abbreviation": "ST",
+      "description": "Sofia Tech Park operates Discoverer with CPU and GPU partitions. Scheduled maintenance for electrical system and infrastructure updates.",
+      "email": "info@sofiatech.demo",
+      "country": "BG"
+    }
+  ],
+  "service_providers": [
+    {
+      "uuid": "e3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000001",
+      "description": "Barcelona Supercomputing Center - MareNostrum 5 operator"
+    },
+    {
+      "uuid": "e3000000000000000000000000000002",
+      "customer_uuid": "a3000000000000000000000000000002",
+      "description": "CINECA - Leonardo operator"
+    },
+    {
+      "uuid": "e3000000000000000000000000000003",
+      "customer_uuid": "a3000000000000000000000000000003",
+      "description": "CSC - LUMI operator"
+    },
+    {
+      "uuid": "e3000000000000000000000000000004",
+      "customer_uuid": "a3000000000000000000000000000004",
+      "description": "IT4Innovations - Karolina operator"
+    },
+    {
+      "uuid": "e3000000000000000000000000000005",
+      "customer_uuid": "a3000000000000000000000000000005",
+      "description": "IZUM - Vega operator"
+    },
+    {
+      "uuid": "e3000000000000000000000000000006",
+      "customer_uuid": "a3000000000000000000000000000006",
+      "description": "Jülich Supercomputing Centre - JUPITER operator"
+    },
+    {
+      "uuid": "e3000000000000000000000000000008",
+      "customer_uuid": "a3000000000000000000000000000008",
+      "description": "LuxProvide - MeluXina operator"
+    },
+    {
+      "uuid": "e3000000000000000000000000000009",
+      "customer_uuid": "a3000000000000000000000000000009",
+      "description": "MACC - Deucalion operator"
+    },
+    {
+      "uuid": "e300000000000000000000000000000a",
+      "customer_uuid": "a300000000000000000000000000000a",
+      "description": "NAISS - Arrhenius operator"
+    },
+    {
+      "uuid": "e300000000000000000000000000000b",
+      "customer_uuid": "a300000000000000000000000000000b",
+      "description": "Sofia Tech Park - Discoverer operator"
+    }
+  ],
+  "categories": [
+    {
+      "uuid": "d3000000000000000000000000000001",
+      "title": "HPC",
+      "description": "High Performance Computing resources including CPU and GPU partitions"
+    },
+    {
+      "uuid": "d3000000000000000000000000000002",
+      "title": "Support Services",
+      "description": "Technical support and consulting services"
+    }
+  ],
+  "offerings": [
+    {
+      "uuid": "f3000000000000000000000000000001",
+      "name": "Arrhenius",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a300000000000000000000000000000a",
+      "description": "Arrhenius CPU partition for general-purpose HPC workloads."
+    },
+    {
+      "uuid": "f3000000000000000000000000000002",
+      "name": "Arrhenius / Development",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a300000000000000000000000000000a",
+      "description": "Arrhenius development access for testing and debugging."
+    },
+    {
+      "uuid": "f3000000000000000000000000000010",
+      "name": "Deucalion CPU ARM",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000009",
+      "description": "Deucalion ARM CPU partition featuring energy-efficient ARM processors for suitable workloads."
+    },
+    {
+      "uuid": "f3000000000000000000000000000011",
+      "name": "Deucalion CPU X86",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000009",
+      "description": "Deucalion x86 CPU partition for traditional HPC workloads."
+    },
+    {
+      "uuid": "f3000000000000000000000000000012",
+      "name": "Deucalion GPU",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000009",
+      "description": "Deucalion GPU partition for accelerated computing and AI workloads."
+    },
+    {
+      "uuid": "f3000000000000000000000000000020",
+      "name": "Discoverer CPU",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a300000000000000000000000000000b",
+      "description": "Discoverer CPU partition for general HPC applications."
+    },
+    {
+      "uuid": "f3000000000000000000000000000021",
+      "name": "Discoverer / Development",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a300000000000000000000000000000b",
+      "description": "Discoverer development access with limited resources for testing."
+    },
+    {
+      "uuid": "f3000000000000000000000000000022",
+      "name": "Discoverer GPU",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a300000000000000000000000000000b",
+      "description": "Discoverer GPU partition for accelerated computing."
+    },
+    {
+      "uuid": "f3000000000000000000000000000023",
+      "name": "Discoverer / Regular",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a300000000000000000000000000000b",
+      "description": "Discoverer regular access for production workloads."
+    },
+    {
+      "uuid": "f3000000000000000000000000000030",
+      "name": "JUPITER Booster",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000006",
+      "description": "JUPITER Booster partition with advanced GPU acceleration for exascale computing."
+    },
+    {
+      "uuid": "f3000000000000000000000000000031",
+      "name": "JUPITER / Development",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000006",
+      "description": "JUPITER development access for code porting and testing."
+    },
+    {
+      "uuid": "f3000000000000000000000000000032",
+      "name": "JUPITER / Regular",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000006",
+      "description": "JUPITER regular access for production workloads."
+    },
+    {
+      "uuid": "f3000000000000000000000000000040",
+      "name": "Karolina CPU",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000004",
+      "description": "Karolina CPU partition for general HPC workloads."
+    },
+    {
+      "uuid": "f3000000000000000000000000000041",
+      "name": "Karolina / Development",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000004",
+      "description": "Karolina development access for testing and debugging."
+    },
+    {
+      "uuid": "f3000000000000000000000000000042",
+      "name": "Karolina GPU",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000004",
+      "description": "Karolina GPU partition with NVIDIA GPUs for accelerated computing."
+    },
+    {
+      "uuid": "f3000000000000000000000000000043",
+      "name": "Karolina / Regular",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000004",
+      "description": "Karolina regular access for production workloads."
+    },
+    {
+      "uuid": "f3000000000000000000000000000044",
+      "name": "Karolina / Test offering basic",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000004",
+      "description": "Karolina test offering with multi-partition configuration."
+    },
+    {
+      "uuid": "f3000000000000000000000000000050",
+      "name": "Leonardo BOOSTER",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000002",
+      "description": "Leonardo BOOSTER partition with NVIDIA GPUs for AI and HPC acceleration."
+    },
+    {
+      "uuid": "f3000000000000000000000000000051",
+      "name": "Leonardo DCGP",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000002",
+      "description": "Leonardo Data Centric GPU partition for large-scale data processing."
+    },
+    {
+      "uuid": "f3000000000000000000000000000052",
+      "name": "Leonardo / Development",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000002",
+      "description": "Leonardo development access for testing and code optimization."
+    },
+    {
+      "uuid": "f3000000000000000000000000000053",
+      "name": "Leonardo / Regular",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000002",
+      "description": "Leonardo regular access for production workloads."
+    },
+    {
+      "uuid": "f3000000000000000000000000000060",
+      "name": "LUMI-C",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000003",
+      "description": "LUMI CPU partition with AMD EPYC processors for scalable HPC workloads."
+    },
+    {
+      "uuid": "f3000000000000000000000000000061",
+      "name": "LUMI / Development",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000003",
+      "description": "LUMI development access for porting and testing applications."
+    },
+    {
+      "uuid": "f3000000000000000000000000000062",
+      "name": "LUMI-G",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000003",
+      "description": "LUMI GPU partition with AMD MI250X GPUs for AI and accelerated computing."
+    },
+    {
+      "uuid": "f3000000000000000000000000000063",
+      "name": "LUMI / Regular",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000003",
+      "description": "LUMI regular access for production workloads."
+    },
+    {
+      "uuid": "f3000000000000000000000000000070",
+      "name": "MareNostrum5 ACC",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000001",
+      "description": "MareNostrum 5 ACC partition with accelerators for GPU computing."
+    },
+    {
+      "uuid": "f3000000000000000000000000000071",
+      "name": "MareNostrum 5 Development",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000001",
+      "description": "MareNostrum 5 development access for testing and optimization."
+    },
+    {
+      "uuid": "f3000000000000000000000000000072",
+      "name": "MareNostrum5 GPP",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000001",
+      "description": "MareNostrum 5 General Purpose Partition for traditional HPC workloads."
+    },
+    {
+      "uuid": "f3000000000000000000000000000073",
+      "name": "MareNostrum5 HBM",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000001",
+      "description": "MareNostrum 5 HBM partition with high-bandwidth memory for memory-intensive applications."
+    },
+    {
+      "uuid": "f3000000000000000000000000000074",
+      "name": "MareNostrum 5 / Regular",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000001",
+      "description": "MareNostrum 5 regular access for production workloads."
+    },
+    {
+      "uuid": "f3000000000000000000000000000080",
+      "name": "MeluXina CPU",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000008",
+      "description": "MeluXina CPU partition for general-purpose computing."
+    },
+    {
+      "uuid": "f3000000000000000000000000000081",
+      "name": "MeluXina / Development",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000008",
+      "description": "MeluXina development access for testing and debugging."
+    },
+    {
+      "uuid": "f3000000000000000000000000000082",
+      "name": "MeluXina FPGA",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000008",
+      "description": "MeluXina FPGA partition for specialized accelerated computing."
+    },
+    {
+      "uuid": "f3000000000000000000000000000083",
+      "name": "MeluXina GPU",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000008",
+      "description": "MeluXina GPU partition with NVIDIA GPUs for AI and HPC."
+    },
+    {
+      "uuid": "f3000000000000000000000000000084",
+      "name": "MeluXina / Regular",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000008",
+      "description": "MeluXina regular access for production workloads."
+    },
+    {
+      "uuid": "f3000000000000000000000000000090",
+      "name": "Vega CPU",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000005",
+      "description": "Vega CPU partition for general HPC workloads."
+    },
+    {
+      "uuid": "f3000000000000000000000000000091",
+      "name": "Vega / Development",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000005",
+      "description": "Vega development access for testing and optimization."
+    },
+    {
+      "uuid": "f3000000000000000000000000000092",
+      "name": "Vega GPU",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000005",
+      "description": "Vega GPU partition with NVIDIA GPUs for accelerated computing."
+    },
+    {
+      "uuid": "f3000000000000000000000000000093",
+      "name": "Vega / Regular",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000005",
+      "description": "Vega regular access for production workloads."
+    },
+    {
+      "uuid": "f30000000000000000000000000000a0",
+      "name": "New Offering?",
+      "type": "SlurmInvoices.SlurmPackage",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "d3000000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000000006",
+      "description": "Placeholder offering for testing SLURM invoicing integration."
+    }
+  ],
+  "offering_components": [
+    {"uuid": "0c000000000000000000000000000001", "offering_uuid": "f3000000000000000000000000000001", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000002", "offering_uuid": "f3000000000000000000000000000002", "type": "cpu", "name": "CPU hours", "billing_type": "limit", "measured_unit": "CPU-hours"},
+    {"uuid": "0c000000000000000000000000000003", "offering_uuid": "f3000000000000000000000000000002", "type": "storage", "name": "GB hours", "billing_type": "limit", "measured_unit": "GB-hours"},
+    {"uuid": "0c000000000000000000000000000004", "offering_uuid": "f3000000000000000000000000000002", "type": "gpu", "name": "GPU hours", "billing_type": "limit", "measured_unit": "GPU-hours"},
+    {"uuid": "0c000000000000000000000000000010", "offering_uuid": "f3000000000000000000000000000010", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000011", "offering_uuid": "f3000000000000000000000000000011", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000012", "offering_uuid": "f3000000000000000000000000000012", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000020", "offering_uuid": "f3000000000000000000000000000020", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000021", "offering_uuid": "f3000000000000000000000000000021", "type": "cpu", "name": "CPU hours", "billing_type": "limit", "measured_unit": "CPU-hours"},
+    {"uuid": "0c000000000000000000000000000022", "offering_uuid": "f3000000000000000000000000000021", "type": "storage", "name": "GB hours", "billing_type": "limit", "measured_unit": "GB-hours"},
+    {"uuid": "0c000000000000000000000000000023", "offering_uuid": "f3000000000000000000000000000021", "type": "gpu", "name": "GPU hours", "billing_type": "limit", "measured_unit": "GPU-hours"},
+    {"uuid": "0c000000000000000000000000000024", "offering_uuid": "f3000000000000000000000000000022", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000025", "offering_uuid": "f3000000000000000000000000000023", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000030", "offering_uuid": "f3000000000000000000000000000030", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000031", "offering_uuid": "f3000000000000000000000000000031", "type": "cpu", "name": "CPU hours", "billing_type": "limit", "measured_unit": "CPU-hours"},
+    {"uuid": "0c000000000000000000000000000032", "offering_uuid": "f3000000000000000000000000000031", "type": "storage", "name": "GB hours", "billing_type": "limit", "measured_unit": "GB-hours"},
+    {"uuid": "0c000000000000000000000000000033", "offering_uuid": "f3000000000000000000000000000031", "type": "gpu", "name": "GPU hours", "billing_type": "limit", "measured_unit": "GPU-hours"},
+    {"uuid": "0c000000000000000000000000000034", "offering_uuid": "f3000000000000000000000000000032", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000040", "offering_uuid": "f3000000000000000000000000000040", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000041", "offering_uuid": "f3000000000000000000000000000041", "type": "cpu", "name": "CPU hours", "billing_type": "limit", "measured_unit": "CPU-hours"},
+    {"uuid": "0c000000000000000000000000000042", "offering_uuid": "f3000000000000000000000000000041", "type": "storage", "name": "GB hours", "billing_type": "limit", "measured_unit": "GB-hours"},
+    {"uuid": "0c000000000000000000000000000043", "offering_uuid": "f3000000000000000000000000000041", "type": "gpu", "name": "GPU hours", "billing_type": "limit", "measured_unit": "GPU-hours"},
+    {"uuid": "0c000000000000000000000000000044", "offering_uuid": "f3000000000000000000000000000042", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000045", "offering_uuid": "f3000000000000000000000000000043", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000046", "offering_uuid": "f3000000000000000000000000000044", "type": "karolina-cpu", "name": "Karolina CPU", "billing_type": "limit", "measured_unit": "Node-hour"},
+    {"uuid": "0c000000000000000000000000000047", "offering_uuid": "f3000000000000000000000000000044", "type": "karolina-fat", "name": "Karolina FAT", "billing_type": "limit", "measured_unit": "Node-hour"},
+    {"uuid": "0c000000000000000000000000000048", "offering_uuid": "f3000000000000000000000000000044", "type": "karolina-gpu", "name": "Karolina GPU", "billing_type": "limit", "measured_unit": "Node-hour"},
+    {"uuid": "0c000000000000000000000000000049", "offering_uuid": "f3000000000000000000000000000044", "type": "karolina-viz", "name": "Karolina VIZ", "billing_type": "limit", "measured_unit": "Node-hour"},
+    {"uuid": "0c000000000000000000000000000050", "offering_uuid": "f3000000000000000000000000000050", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000051", "offering_uuid": "f3000000000000000000000000000051", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000052", "offering_uuid": "f3000000000000000000000000000052", "type": "cpu", "name": "CPU hours", "billing_type": "limit", "measured_unit": "CPU-hours"},
+    {"uuid": "0c000000000000000000000000000053", "offering_uuid": "f3000000000000000000000000000052", "type": "storage", "name": "GB hours", "billing_type": "limit", "measured_unit": "GB-hours"},
+    {"uuid": "0c000000000000000000000000000054", "offering_uuid": "f3000000000000000000000000000052", "type": "gpu", "name": "GPU hours", "billing_type": "limit", "measured_unit": "GPU-hours"},
+    {"uuid": "0c000000000000000000000000000055", "offering_uuid": "f3000000000000000000000000000053", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000060", "offering_uuid": "f3000000000000000000000000000060", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c00000000000000000000000000060b", "offering_uuid": "f3000000000000000000000000000060", "type": "TBh", "name": "storageHours", "billing_type": "limit", "measured_unit": "TBh"},
+    {"uuid": "0c000000000000000000000000000061", "offering_uuid": "f3000000000000000000000000000061", "type": "cpu", "name": "CPU hours", "billing_type": "limit", "measured_unit": "CPU-hours"},
+    {"uuid": "0c000000000000000000000000000062", "offering_uuid": "f3000000000000000000000000000061", "type": "storage", "name": "GB hours", "billing_type": "limit", "measured_unit": "GB-hours"},
+    {"uuid": "0c000000000000000000000000000063", "offering_uuid": "f3000000000000000000000000000061", "type": "gpu", "name": "GPU hours", "billing_type": "limit", "measured_unit": "GPU-hours"},
+    {"uuid": "0c000000000000000000000000000064", "offering_uuid": "f3000000000000000000000000000062", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c00000000000000000000000000064b", "offering_uuid": "f3000000000000000000000000000062", "type": "TBh", "name": "storageHours", "billing_type": "limit", "measured_unit": "TBh"},
+    {"uuid": "0c000000000000000000000000000065", "offering_uuid": "f3000000000000000000000000000063", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000070", "offering_uuid": "f3000000000000000000000000000070", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000071", "offering_uuid": "f3000000000000000000000000000071", "type": "cpu", "name": "CPU hours", "billing_type": "limit", "measured_unit": "CPU-hours"},
+    {"uuid": "0c000000000000000000000000000072", "offering_uuid": "f3000000000000000000000000000071", "type": "storage", "name": "GB hours", "billing_type": "limit", "measured_unit": "GB-hours"},
+    {"uuid": "0c000000000000000000000000000073", "offering_uuid": "f3000000000000000000000000000071", "type": "gpu", "name": "GPU hours", "billing_type": "limit", "measured_unit": "GPU-hours"},
+    {"uuid": "0c000000000000000000000000000074", "offering_uuid": "f3000000000000000000000000000072", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000075", "offering_uuid": "f3000000000000000000000000000073", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000076", "offering_uuid": "f3000000000000000000000000000074", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000080", "offering_uuid": "f3000000000000000000000000000080", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000081", "offering_uuid": "f3000000000000000000000000000081", "type": "cpu", "name": "CPU hours", "billing_type": "limit", "measured_unit": "CPU-hours"},
+    {"uuid": "0c000000000000000000000000000082", "offering_uuid": "f3000000000000000000000000000081", "type": "storage", "name": "GB hours", "billing_type": "limit", "measured_unit": "GB-hours"},
+    {"uuid": "0c000000000000000000000000000083", "offering_uuid": "f3000000000000000000000000000081", "type": "gpu", "name": "GPU hours", "billing_type": "limit", "measured_unit": "GPU-hours"},
+    {"uuid": "0c000000000000000000000000000084", "offering_uuid": "f3000000000000000000000000000082", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000085", "offering_uuid": "f3000000000000000000000000000083", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000086", "offering_uuid": "f3000000000000000000000000000084", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000090", "offering_uuid": "f3000000000000000000000000000090", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000091", "offering_uuid": "f3000000000000000000000000000091", "type": "cpu", "name": "CPU hours", "billing_type": "limit", "measured_unit": "CPU-hours"},
+    {"uuid": "0c000000000000000000000000000092", "offering_uuid": "f3000000000000000000000000000091", "type": "storage", "name": "GB hours", "billing_type": "limit", "measured_unit": "GB-hours"},
+    {"uuid": "0c000000000000000000000000000093", "offering_uuid": "f3000000000000000000000000000091", "type": "gpu", "name": "GPU hours", "billing_type": "limit", "measured_unit": "GPU-hours"},
+    {"uuid": "0c000000000000000000000000000094", "offering_uuid": "f3000000000000000000000000000092", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c000000000000000000000000000095", "offering_uuid": "f3000000000000000000000000000093", "type": "node_hours", "name": "Node hours", "billing_type": "limit", "measured_unit": "Node-hours"},
+    {"uuid": "0c0000000000000000000000000000a0", "offering_uuid": "f30000000000000000000000000000a0", "type": "cpu", "name": "CPU", "billing_type": "usage", "measured_unit": "hours"},
+    {"uuid": "0c0000000000000000000000000000a1", "offering_uuid": "f30000000000000000000000000000a0", "type": "gpu", "name": "GPU", "billing_type": "usage", "measured_unit": "hours"},
+    {"uuid": "0c0000000000000000000000000000a2", "offering_uuid": "f30000000000000000000000000000a0", "type": "ram", "name": "RAM", "billing_type": "usage", "measured_unit": "GB-hours"}
+  ],
+  "plans": [
+    {"uuid": "b3000000000000000000000000000001", "offering_uuid": "f3000000000000000000000000000001", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000002", "offering_uuid": "f3000000000000000000000000000002", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000010", "offering_uuid": "f3000000000000000000000000000010", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000011", "offering_uuid": "f3000000000000000000000000000011", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000012", "offering_uuid": "f3000000000000000000000000000012", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000020", "offering_uuid": "f3000000000000000000000000000020", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000021", "offering_uuid": "f3000000000000000000000000000021", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000022", "offering_uuid": "f3000000000000000000000000000022", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000023", "offering_uuid": "f3000000000000000000000000000023", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000030", "offering_uuid": "f3000000000000000000000000000030", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000031", "offering_uuid": "f3000000000000000000000000000031", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000032", "offering_uuid": "f3000000000000000000000000000032", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000040", "offering_uuid": "f3000000000000000000000000000040", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000041", "offering_uuid": "f3000000000000000000000000000041", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000042", "offering_uuid": "f3000000000000000000000000000042", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000043", "offering_uuid": "f3000000000000000000000000000043", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000044", "offering_uuid": "f3000000000000000000000000000044", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000050", "offering_uuid": "f3000000000000000000000000000050", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000051", "offering_uuid": "f3000000000000000000000000000051", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000052", "offering_uuid": "f3000000000000000000000000000052", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000053", "offering_uuid": "f3000000000000000000000000000053", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000060", "offering_uuid": "f3000000000000000000000000000060", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000061", "offering_uuid": "f3000000000000000000000000000061", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000062", "offering_uuid": "f3000000000000000000000000000062", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000063", "offering_uuid": "f3000000000000000000000000000063", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000070", "offering_uuid": "f3000000000000000000000000000070", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000071", "offering_uuid": "f3000000000000000000000000000071", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000072", "offering_uuid": "f3000000000000000000000000000072", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000073", "offering_uuid": "f3000000000000000000000000000073", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000074", "offering_uuid": "f3000000000000000000000000000074", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000080", "offering_uuid": "f3000000000000000000000000000080", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000081", "offering_uuid": "f3000000000000000000000000000081", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000082", "offering_uuid": "f3000000000000000000000000000082", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000083", "offering_uuid": "f3000000000000000000000000000083", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000084", "offering_uuid": "f3000000000000000000000000000084", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000090", "offering_uuid": "f3000000000000000000000000000090", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000091", "offering_uuid": "f3000000000000000000000000000091", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000092", "offering_uuid": "f3000000000000000000000000000092", "name": "Default", "unit": "month"},
+    {"uuid": "b3000000000000000000000000000093", "offering_uuid": "f3000000000000000000000000000093", "name": "Default", "unit": "month"},
+    {"uuid": "b30000000000000000000000000000a0", "offering_uuid": "f30000000000000000000000000000a0", "name": "Default", "unit": "month"}
+  ],
+  "projects": [
+    {
+      "uuid": "c3000000000000000000000000000001",
+      "name": "Climate Modeling Initiative",
+      "description": "Large-scale climate simulation project using multiple EuroHPC systems",
+      "customer_uuid": "a3000000000000000000000000000007"
+    },
+    {
+      "uuid": "c3000000000000000000000000000002",
+      "name": "AI Drug Discovery",
+      "description": "Machine learning for pharmaceutical research",
+      "customer_uuid": "a3000000000000000000000000000007"
+    },
+    {
+      "uuid": "c3000000000000000000000000000003",
+      "name": "Quantum Materials Simulation",
+      "description": "First-principles calculations for novel materials",
+      "customer_uuid": "a3000000000000000000000000000007"
+    },
+    {
+      "uuid": "c3000000000000000000000000000004",
+      "name": "Genomics Analysis Pipeline",
+      "description": "Large-scale genomic data processing and analysis",
+      "customer_uuid": "a3000000000000000000000000000007"
+    },
+    {
+      "uuid": "c3000000000000000000000000000005",
+      "name": "Astrophysics Simulation",
+      "description": "Cosmological N-body and hydrodynamic simulations",
+      "customer_uuid": "a3000000000000000000000000000007"
+    },
+    {
+      "uuid": "c3000000000000000000000000000006",
+      "name": "Development Test Project",
+      "description": "Test project for development access verification",
+      "customer_uuid": "a3000000000000000000000000000006"
+    }
+  ],
+  "resources": [
+    {
+      "uuid": "d3000000000000000000000000000001",
+      "name": "Climate-LUMI-G-allocation",
+      "state": 6,
+      "offering_uuid": "f3000000000000000000000000000062",
+      "plan_uuid": "b3000000000000000000000000000062",
+      "project_uuid": "c3000000000000000000000000000001",
+      "attributes": {"name": "Climate-LUMI-G-allocation"},
+      "limits": {"node_hours": 50000, "TBh": 1000}
+    },
+    {
+      "uuid": "d3000000000000000000000000000002",
+      "name": "Climate-Leonardo-BOOSTER-allocation",
+      "state": 6,
+      "offering_uuid": "f3000000000000000000000000000050",
+      "plan_uuid": "b3000000000000000000000000000050",
+      "project_uuid": "c3000000000000000000000000000001",
+      "attributes": {"name": "Climate-Leonardo-BOOSTER-allocation"},
+      "limits": {"node_hours": 30000}
+    },
+    {
+      "uuid": "d3000000000000000000000000000003",
+      "name": "AI-Drug-MeluXina-GPU-allocation",
+      "state": 6,
+      "offering_uuid": "f3000000000000000000000000000083",
+      "plan_uuid": "b3000000000000000000000000000083",
+      "project_uuid": "c3000000000000000000000000000002",
+      "attributes": {"name": "AI-Drug-MeluXina-GPU-allocation"},
+      "limits": {"node_hours": 20000}
+    },
+    {
+      "uuid": "d3000000000000000000000000000004",
+      "name": "AI-Drug-JUPITER-Booster-allocation",
+      "state": 6,
+      "offering_uuid": "f3000000000000000000000000000030",
+      "plan_uuid": "b3000000000000000000000000000030",
+      "project_uuid": "c3000000000000000000000000000002",
+      "attributes": {"name": "AI-Drug-JUPITER-Booster-allocation"},
+      "limits": {"node_hours": 40000}
+    },
+    {
+      "uuid": "d3000000000000000000000000000005",
+      "name": "Quantum-Karolina-CPU-allocation",
+      "state": 6,
+      "offering_uuid": "f3000000000000000000000000000040",
+      "plan_uuid": "b3000000000000000000000000000040",
+      "project_uuid": "c3000000000000000000000000000003",
+      "attributes": {"name": "Quantum-Karolina-CPU-allocation"},
+      "limits": {"node_hours": 15000}
+    },
+    {
+      "uuid": "d3000000000000000000000000000006",
+      "name": "Quantum-Vega-CPU-allocation",
+      "state": 6,
+      "offering_uuid": "f3000000000000000000000000000090",
+      "plan_uuid": "b3000000000000000000000000000090",
+      "project_uuid": "c3000000000000000000000000000003",
+      "attributes": {"name": "Quantum-Vega-CPU-allocation"},
+      "limits": {"node_hours": 10000}
+    },
+    {
+      "uuid": "d3000000000000000000000000000007",
+      "name": "Genomics-LUMI-C-allocation",
+      "state": 6,
+      "offering_uuid": "f3000000000000000000000000000060",
+      "plan_uuid": "b3000000000000000000000000000060",
+      "project_uuid": "c3000000000000000000000000000004",
+      "attributes": {"name": "Genomics-LUMI-C-allocation"},
+      "limits": {"node_hours": 25000, "TBh": 500}
+    },
+    {
+      "uuid": "d3000000000000000000000000000008",
+      "name": "Genomics-Discoverer-CPU-allocation",
+      "state": 6,
+      "offering_uuid": "f3000000000000000000000000000020",
+      "plan_uuid": "b3000000000000000000000000000020",
+      "project_uuid": "c3000000000000000000000000000004",
+      "attributes": {"name": "Genomics-Discoverer-CPU-allocation"},
+      "limits": {"node_hours": 8000}
+    },
+    {
+      "uuid": "d3000000000000000000000000000009",
+      "name": "Astro-MareNostrum5-ACC-allocation",
+      "state": 6,
+      "offering_uuid": "f3000000000000000000000000000070",
+      "plan_uuid": "b3000000000000000000000000000070",
+      "project_uuid": "c3000000000000000000000000000005",
+      "attributes": {"name": "Astro-MareNostrum5-ACC-allocation"},
+      "limits": {"node_hours": 35000}
+    },
+    {
+      "uuid": "d300000000000000000000000000000a",
+      "name": "Astro-Deucalion-GPU-allocation",
+      "state": 6,
+      "offering_uuid": "f3000000000000000000000000000012",
+      "plan_uuid": "b3000000000000000000000000000012",
+      "project_uuid": "c3000000000000000000000000000005",
+      "attributes": {"name": "Astro-Deucalion-GPU-allocation"},
+      "limits": {"node_hours": 12000}
+    },
+    {
+      "uuid": "d300000000000000000000000000000b",
+      "name": "DevTest-JUPITER-Dev-allocation",
+      "state": 6,
+      "offering_uuid": "f3000000000000000000000000000031",
+      "plan_uuid": "b3000000000000000000000000000031",
+      "project_uuid": "c3000000000000000000000000000006",
+      "attributes": {"name": "DevTest-JUPITER-Dev-allocation"},
+      "limits": {"cpu": 100, "storage": 50, "gpu": 20}
+    },
+    {
+      "uuid": "d300000000000000000000000000000c",
+      "name": "Climate-Arrhenius-allocation",
+      "state": 6,
+      "offering_uuid": "f3000000000000000000000000000001",
+      "plan_uuid": "b3000000000000000000000000000001",
+      "project_uuid": "c3000000000000000000000000000001",
+      "attributes": {"name": "Climate-Arrhenius-allocation"},
+      "limits": {"node_hours": 18000}
+    }
+  ],
+  "orders": [
+    {
+      "uuid": "73000000000000000000000000000001",
+      "type": 1,
+      "state": 7,
+      "project_uuid": "c3000000000000000000000000000001",
+      "resource_uuid": "d3000000000000000000000000000001",
+      "offering_uuid": "f3000000000000000000000000000062",
+      "plan_uuid": "b3000000000000000000000000000062",
+      "created_by_uuid": "00000000000000000000000000000030",
+      "attributes": {"name": "Climate-LUMI-G-allocation"},
+      "limits": {"node_hours": 50000, "TBh": 1000}
+    },
+    {
+      "uuid": "73000000000000000000000000000002",
+      "type": 1,
+      "state": 7,
+      "project_uuid": "c3000000000000000000000000000002",
+      "resource_uuid": "d3000000000000000000000000000003",
+      "offering_uuid": "f3000000000000000000000000000083",
+      "plan_uuid": "b3000000000000000000000000000083",
+      "created_by_uuid": "00000000000000000000000000000031",
+      "attributes": {"name": "AI-Drug-MeluXina-GPU-allocation"},
+      "limits": {"node_hours": 20000}
+    },
+    {
+      "uuid": "73000000000000000000000000000003",
+      "type": 1,
+      "state": 7,
+      "project_uuid": "c3000000000000000000000000000003",
+      "resource_uuid": "d3000000000000000000000000000005",
+      "offering_uuid": "f3000000000000000000000000000040",
+      "plan_uuid": "b3000000000000000000000000000040",
+      "created_by_uuid": "00000000000000000000000000000032",
+      "attributes": {"name": "Quantum-Karolina-CPU-allocation"},
+      "limits": {"node_hours": 15000}
+    }
+  ],
+  "user_roles": [
+    {
+      "uuid": "83000000000000000000000000000001",
+      "user_uuid": "00000000000000000000000000000010",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_uuid": "a3000000000000000000000000000001",
+      "scope_type": "structure.customer",
+      "is_active": true
+    },
+    {
+      "uuid": "83000000000000000000000000000002",
+      "user_uuid": "00000000000000000000000000000011",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_uuid": "a3000000000000000000000000000002",
+      "scope_type": "structure.customer",
+      "is_active": true
+    },
+    {
+      "uuid": "83000000000000000000000000000003",
+      "user_uuid": "00000000000000000000000000000012",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_uuid": "a3000000000000000000000000000003",
+      "scope_type": "structure.customer",
+      "is_active": true
+    },
+    {
+      "uuid": "83000000000000000000000000000004",
+      "user_uuid": "00000000000000000000000000000013",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_uuid": "a3000000000000000000000000000004",
+      "scope_type": "structure.customer",
+      "is_active": true
+    },
+    {
+      "uuid": "83000000000000000000000000000005",
+      "user_uuid": "00000000000000000000000000000014",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_uuid": "a3000000000000000000000000000005",
+      "scope_type": "structure.customer",
+      "is_active": true
+    },
+    {
+      "uuid": "83000000000000000000000000000006",
+      "user_uuid": "00000000000000000000000000000015",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_uuid": "a3000000000000000000000000000006",
+      "scope_type": "structure.customer",
+      "is_active": true
+    },
+    {
+      "uuid": "83000000000000000000000000000007",
+      "user_uuid": "00000000000000000000000000000016",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_uuid": "a3000000000000000000000000000008",
+      "scope_type": "structure.customer",
+      "is_active": true
+    },
+    {
+      "uuid": "83000000000000000000000000000008",
+      "user_uuid": "00000000000000000000000000000017",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_uuid": "a3000000000000000000000000000009",
+      "scope_type": "structure.customer",
+      "is_active": true
+    },
+    {
+      "uuid": "83000000000000000000000000000009",
+      "user_uuid": "00000000000000000000000000000018",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_uuid": "a300000000000000000000000000000a",
+      "scope_type": "structure.customer",
+      "is_active": true
+    },
+    {
+      "uuid": "8300000000000000000000000000000a",
+      "user_uuid": "00000000000000000000000000000019",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_uuid": "a300000000000000000000000000000b",
+      "scope_type": "structure.customer",
+      "is_active": true
+    },
+    {
+      "uuid": "8300000000000000000000000000000b",
+      "user_uuid": "00000000000000000000000000000020",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_uuid": "a3000000000000000000000000000007",
+      "scope_type": "structure.customer",
+      "is_active": true
+    },
+    {
+      "uuid": "8300000000000000000000000000000c",
+      "user_uuid": "00000000000000000000000000000030",
+      "role_name": "PROJECT.ADMIN",
+      "scope_uuid": "c3000000000000000000000000000001",
+      "scope_type": "structure.project",
+      "is_active": true
+    },
+    {
+      "uuid": "8300000000000000000000000000000d",
+      "user_uuid": "00000000000000000000000000000031",
+      "role_name": "PROJECT.ADMIN",
+      "scope_uuid": "c3000000000000000000000000000002",
+      "scope_type": "structure.project",
+      "is_active": true
+    },
+    {
+      "uuid": "8300000000000000000000000000000e",
+      "user_uuid": "00000000000000000000000000000032",
+      "role_name": "PROJECT.ADMIN",
+      "scope_uuid": "c3000000000000000000000000000003",
+      "scope_type": "structure.project",
+      "is_active": true
+    }
+  ],
+  "maintenance_announcements": [
+    {
+      "uuid": "ca000000000000000000000000000001",
+      "name": "LUMI Software Stack Update",
+      "message": "Scheduled software stack update including compiler toolchains, MPI libraries, and system modules. Users should recompile applications after maintenance.",
+      "internal_notes": "Coordinated with vendor support team",
+      "maintenance_type": 4,
+      "state": 4,
+      "scheduled_start": "2025-06-02T06:00:00+00:00",
+      "scheduled_end": "2025-06-02T18:00:00+00:00",
+      "actual_start": "2025-06-02T06:15:00+00:00",
+      "actual_end": "2025-06-02T16:30:00+00:00",
+      "service_provider_uuid": "e3000000000000000000000000000003",
+      "external_reference_url": ""
+    },
+    {
+      "uuid": "ca000000000000000000000000000002",
+      "name": "Leonardo Workload Manager Update",
+      "message": "Update to the SLURM workload manager with improved scheduling algorithms and bug fixes. Brief queue drain required.",
+      "internal_notes": "",
+      "maintenance_type": 4,
+      "state": 4,
+      "scheduled_start": "2025-03-15T22:00:00+00:00",
+      "scheduled_end": "2025-03-16T06:00:00+00:00",
+      "actual_start": "2025-03-15T22:00:00+00:00",
+      "actual_end": "2025-03-16T04:45:00+00:00",
+      "service_provider_uuid": "e3000000000000000000000000000002",
+      "external_reference_url": ""
+    },
+    {
+      "uuid": "ca000000000000000000000000000003",
+      "name": "Vega Spring Maintenance Window",
+      "message": "Annual spring maintenance including firmware updates, storage system checks, and cooling system inspection.",
+      "internal_notes": "Part of regular seasonal maintenance schedule",
+      "maintenance_type": 1,
+      "state": 4,
+      "scheduled_start": "2025-04-14T00:00:00+00:00",
+      "scheduled_end": "2025-04-15T12:00:00+00:00",
+      "actual_start": "2025-04-14T00:00:00+00:00",
+      "actual_end": "2025-04-15T10:00:00+00:00",
+      "service_provider_uuid": "e3000000000000000000000000000005",
+      "external_reference_url": ""
+    },
+    {
+      "uuid": "ca000000000000000000000000000004",
+      "name": "Karolina Network Infrastructure Update",
+      "message": "Network switch firmware update and InfiniBand fabric optimization. Some partitions may experience brief connectivity interruptions.",
+      "internal_notes": "",
+      "maintenance_type": 4,
+      "state": 4,
+      "scheduled_start": "2025-08-10T20:00:00+00:00",
+      "scheduled_end": "2025-08-11T08:00:00+00:00",
+      "actual_start": "2025-08-10T20:00:00+00:00",
+      "actual_end": "2025-08-11T06:30:00+00:00",
+      "service_provider_uuid": "e3000000000000000000000000000004",
+      "external_reference_url": ""
+    },
+    {
+      "uuid": "ca000000000000000000000000000005",
+      "name": "Discoverer Facility Maintenance",
+      "message": "Scheduled facility maintenance for electrical system inspection and UPS testing. Full system shutdown required.",
+      "internal_notes": "Coordinated with facility management",
+      "maintenance_type": 1,
+      "state": 4,
+      "scheduled_start": "2025-02-22T06:00:00+00:00",
+      "scheduled_end": "2025-02-22T18:00:00+00:00",
+      "actual_start": "2025-02-22T06:00:00+00:00",
+      "actual_end": "2025-02-22T17:00:00+00:00",
+      "service_provider_uuid": "e300000000000000000000000000000b",
+      "external_reference_url": ""
+    },
+    {
+      "uuid": "ca000000000000000000000000000006",
+      "name": "MeluXina Rolling OS Update",
+      "message": "Rolling operating system security patches. Minimal impact expected as updates are applied to compute nodes in batches.",
+      "internal_notes": "Using rolling update procedure to minimize downtime",
+      "maintenance_type": 5,
+      "state": 4,
+      "scheduled_start": "2025-05-05T08:00:00+00:00",
+      "scheduled_end": "2025-05-05T12:00:00+00:00",
+      "actual_start": "2025-05-05T08:00:00+00:00",
+      "actual_end": "2025-05-05T11:30:00+00:00",
+      "service_provider_uuid": "e3000000000000000000000000000008",
+      "external_reference_url": ""
+    },
+    {
+      "uuid": "ca000000000000000000000000000007",
+      "name": "Deucalion Storage System Update",
+      "message": "Parallel filesystem software update and performance tuning. Storage access will be unavailable during the maintenance window.",
+      "internal_notes": "",
+      "maintenance_type": 4,
+      "state": 4,
+      "scheduled_start": "2025-07-20T00:00:00+00:00",
+      "scheduled_end": "2025-07-20T12:00:00+00:00",
+      "actual_start": "2025-07-20T00:30:00+00:00",
+      "actual_end": "2025-07-20T14:00:00+00:00",
+      "service_provider_uuid": "e3000000000000000000000000000009",
+      "external_reference_url": ""
+    },
+    {
+      "uuid": "ca000000000000000000000000000008",
+      "name": "MareNostrum5 Storage Optimization",
+      "message": "GPFS filesystem maintenance and quota system optimization. Read-only access during part of the window.",
+      "internal_notes": "Follow-up to previous storage issues",
+      "maintenance_type": 1,
+      "state": 4,
+      "scheduled_start": "2025-04-28T04:00:00+00:00",
+      "scheduled_end": "2025-04-28T14:00:00+00:00",
+      "actual_start": "2025-04-28T04:00:00+00:00",
+      "actual_end": "2025-04-28T13:00:00+00:00",
+      "service_provider_uuid": "e3000000000000000000000000000001",
+      "external_reference_url": ""
+    },
+    {
+      "uuid": "ca000000000000000000000000000009",
+      "name": "LUMI Facility Power System Test",
+      "message": "Scheduled datacenter power system testing. Backup power systems will be engaged during the test period.",
+      "internal_notes": "Annual facility safety compliance",
+      "maintenance_type": 1,
+      "state": 2,
+      "scheduled_start": "2026-06-15T00:00:00+00:00",
+      "scheduled_end": "2026-06-15T12:00:00+00:00",
+      "actual_start": null,
+      "actual_end": null,
+      "service_provider_uuid": "e3000000000000000000000000000003",
+      "external_reference_url": ""
+    },
+    {
+      "uuid": "ca00000000000000000000000000000a",
+      "name": "Vega Autumn Maintenance",
+      "message": "Annual autumn maintenance including system health checks, cooling system preparation, and firmware updates.",
+      "internal_notes": "Regular seasonal maintenance",
+      "maintenance_type": 1,
+      "state": 2,
+      "scheduled_start": "2026-10-12T00:00:00+00:00",
+      "scheduled_end": "2026-10-13T12:00:00+00:00",
+      "actual_start": null,
+      "actual_end": null,
+      "service_provider_uuid": "e3000000000000000000000000000005",
+      "external_reference_url": ""
+    },
+    {
+      "uuid": "ca00000000000000000000000000000b",
+      "name": "MeluXina Storage Controller Update",
+      "message": "DDN storage controller firmware update. Brief I/O pause expected during failover.",
+      "internal_notes": "Vendor-recommended update",
+      "maintenance_type": 5,
+      "state": 2,
+      "scheduled_start": "2026-02-15T06:00:00+00:00",
+      "scheduled_end": "2026-02-15T10:00:00+00:00",
+      "actual_start": null,
+      "actual_end": null,
+      "service_provider_uuid": "e3000000000000000000000000000008",
+      "external_reference_url": ""
+    },
+    {
+      "uuid": "ca00000000000000000000000000000c",
+      "name": "Leonardo GPU Driver Update",
+      "message": "NVIDIA GPU driver update for improved performance and bug fixes. GPU partitions will be unavailable.",
+      "internal_notes": "",
+      "maintenance_type": 4,
+      "state": 1,
+      "scheduled_start": "2026-03-20T22:00:00+00:00",
+      "scheduled_end": "2026-03-21T10:00:00+00:00",
+      "actual_start": null,
+      "actual_end": null,
+      "service_provider_uuid": "e3000000000000000000000000000002",
+      "external_reference_url": ""
+    }
+  ],
+  "maintenance_announcement_offerings": [
+    {
+      "uuid": "cb000000000000000000000000000001",
+      "maintenance_uuid": "ca000000000000000000000000000001",
+      "offering_uuid": "f3000000000000000000000000000060",
+      "impact_level": 4,
+      "impact_description": "LUMI-C partition unavailable during software update"
+    },
+    {
+      "uuid": "cb000000000000000000000000000002",
+      "maintenance_uuid": "ca000000000000000000000000000001",
+      "offering_uuid": "f3000000000000000000000000000062",
+      "impact_level": 4,
+      "impact_description": "LUMI-G partition unavailable during software update"
+    },
+    {
+      "uuid": "cb000000000000000000000000000003",
+      "maintenance_uuid": "ca000000000000000000000000000002",
+      "offering_uuid": "f3000000000000000000000000000050",
+      "impact_level": 4,
+      "impact_description": "Leonardo BOOSTER unavailable during SLURM update"
+    },
+    {
+      "uuid": "cb000000000000000000000000000004",
+      "maintenance_uuid": "ca000000000000000000000000000002",
+      "offering_uuid": "f3000000000000000000000000000051",
+      "impact_level": 4,
+      "impact_description": "Leonardo DCGP unavailable during SLURM update"
+    },
+    {
+      "uuid": "cb000000000000000000000000000005",
+      "maintenance_uuid": "ca000000000000000000000000000003",
+      "offering_uuid": "f3000000000000000000000000000090",
+      "impact_level": 4,
+      "impact_description": "Vega CPU partition offline for maintenance"
+    },
+    {
+      "uuid": "cb000000000000000000000000000006",
+      "maintenance_uuid": "ca000000000000000000000000000003",
+      "offering_uuid": "f3000000000000000000000000000092",
+      "impact_level": 4,
+      "impact_description": "Vega GPU partition offline for maintenance"
+    },
+    {
+      "uuid": "cb000000000000000000000000000007",
+      "maintenance_uuid": "ca000000000000000000000000000004",
+      "offering_uuid": "f3000000000000000000000000000040",
+      "impact_level": 3,
+      "impact_description": "Brief network interruptions possible on Karolina CPU"
+    },
+    {
+      "uuid": "cb000000000000000000000000000008",
+      "maintenance_uuid": "ca000000000000000000000000000004",
+      "offering_uuid": "f3000000000000000000000000000042",
+      "impact_level": 3,
+      "impact_description": "Brief network interruptions possible on Karolina GPU"
+    },
+    {
+      "uuid": "cb000000000000000000000000000009",
+      "maintenance_uuid": "ca000000000000000000000000000005",
+      "offering_uuid": "f3000000000000000000000000000020",
+      "impact_level": 4,
+      "impact_description": "Discoverer CPU offline during facility maintenance"
+    },
+    {
+      "uuid": "cb00000000000000000000000000000a",
+      "maintenance_uuid": "ca000000000000000000000000000005",
+      "offering_uuid": "f3000000000000000000000000000022",
+      "impact_level": 4,
+      "impact_description": "Discoverer GPU offline during facility maintenance"
+    },
+    {
+      "uuid": "cb00000000000000000000000000000b",
+      "maintenance_uuid": "ca000000000000000000000000000006",
+      "offering_uuid": "f3000000000000000000000000000080",
+      "impact_level": 2,
+      "impact_description": "MeluXina CPU may experience brief delays during rolling update"
+    },
+    {
+      "uuid": "cb00000000000000000000000000000c",
+      "maintenance_uuid": "ca000000000000000000000000000006",
+      "offering_uuid": "f3000000000000000000000000000083",
+      "impact_level": 2,
+      "impact_description": "MeluXina GPU may experience brief delays during rolling update"
+    },
+    {
+      "uuid": "cb00000000000000000000000000000d",
+      "maintenance_uuid": "ca000000000000000000000000000007",
+      "offering_uuid": "f3000000000000000000000000000010",
+      "impact_level": 4,
+      "impact_description": "Deucalion CPU ARM unavailable during storage update"
+    },
+    {
+      "uuid": "cb00000000000000000000000000000e",
+      "maintenance_uuid": "ca000000000000000000000000000007",
+      "offering_uuid": "f3000000000000000000000000000012",
+      "impact_level": 4,
+      "impact_description": "Deucalion GPU unavailable during storage update"
+    },
+    {
+      "uuid": "cb00000000000000000000000000000f",
+      "maintenance_uuid": "ca000000000000000000000000000008",
+      "offering_uuid": "f3000000000000000000000000000070",
+      "impact_level": 3,
+      "impact_description": "MareNostrum5 ACC read-only access during optimization"
+    },
+    {
+      "uuid": "cb000000000000000000000000000010",
+      "maintenance_uuid": "ca000000000000000000000000000008",
+      "offering_uuid": "f3000000000000000000000000000072",
+      "impact_level": 3,
+      "impact_description": "MareNostrum5 GPP read-only access during optimization"
+    },
+    {
+      "uuid": "cb000000000000000000000000000011",
+      "maintenance_uuid": "ca000000000000000000000000000009",
+      "offering_uuid": "f3000000000000000000000000000060",
+      "impact_level": 4,
+      "impact_description": "LUMI-C offline during power system test"
+    },
+    {
+      "uuid": "cb000000000000000000000000000012",
+      "maintenance_uuid": "ca000000000000000000000000000009",
+      "offering_uuid": "f3000000000000000000000000000062",
+      "impact_level": 4,
+      "impact_description": "LUMI-G offline during power system test"
+    },
+    {
+      "uuid": "cb000000000000000000000000000013",
+      "maintenance_uuid": "ca00000000000000000000000000000a",
+      "offering_uuid": "f3000000000000000000000000000090",
+      "impact_level": 4,
+      "impact_description": "Vega CPU offline for autumn maintenance"
+    },
+    {
+      "uuid": "cb000000000000000000000000000014",
+      "maintenance_uuid": "ca00000000000000000000000000000a",
+      "offering_uuid": "f3000000000000000000000000000092",
+      "impact_level": 4,
+      "impact_description": "Vega GPU offline for autumn maintenance"
+    },
+    {
+      "uuid": "cb000000000000000000000000000015",
+      "maintenance_uuid": "ca00000000000000000000000000000b",
+      "offering_uuid": "f3000000000000000000000000000080",
+      "impact_level": 2,
+      "impact_description": "MeluXina CPU brief I/O pause expected"
+    },
+    {
+      "uuid": "cb000000000000000000000000000016",
+      "maintenance_uuid": "ca00000000000000000000000000000b",
+      "offering_uuid": "f3000000000000000000000000000083",
+      "impact_level": 2,
+      "impact_description": "MeluXina GPU brief I/O pause expected"
+    },
+    {
+      "uuid": "cb000000000000000000000000000017",
+      "maintenance_uuid": "ca00000000000000000000000000000c",
+      "offering_uuid": "f3000000000000000000000000000050",
+      "impact_level": 4,
+      "impact_description": "Leonardo BOOSTER unavailable during GPU driver update"
+    },
+    {
+      "uuid": "cb000000000000000000000000000018",
+      "maintenance_uuid": "ca00000000000000000000000000000c",
+      "offering_uuid": "f3000000000000000000000000000051",
+      "impact_level": 4,
+      "impact_description": "Leonardo DCGP unavailable during GPU driver update"
+    }
+  ]
+}
