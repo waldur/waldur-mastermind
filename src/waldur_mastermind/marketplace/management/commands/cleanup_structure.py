@@ -27,6 +27,8 @@ from waldur_mastermind.marketplace.models import (
     ComponentUsage,
     CourseAccount,
     CustomerServiceAccount,
+    MaintenanceAnnouncement,
+    MaintenanceAnnouncementOffering,
     Offering,
     OfferingComponent,
     OfferingUser,
@@ -121,6 +123,9 @@ class Command(BaseCommand):
             "requested_offerings": {"deleted": 0, "errors": 0},
             "calls": {"deleted": 0, "errors": 0},
             "call_managing_organisations": {"deleted": 0, "errors": 0},
+            # Maintenance announcement stats
+            "maintenance_announcement_offerings": {"deleted": 0, "errors": 0},
+            "maintenance_announcements": {"deleted": 0, "errors": 0},
         }
         self.dry_run = False
 
@@ -271,6 +276,10 @@ class Command(BaseCommand):
             self.cleanup_offering_components()
             self.cleanup_plans()
 
+            # Delete maintenance announcements (depends on service_providers, offerings)
+            self.cleanup_maintenance_announcement_offerings()
+            self.cleanup_maintenance_announcements()
+
             # Delete offerings, service providers, projects, customers, categories
             self.cleanup_offerings()
             self.cleanup_service_providers()
@@ -342,6 +351,12 @@ class Command(BaseCommand):
             ("plan_components", "marketplace_plancomponent"),
             ("offering_components", "marketplace_offeringcomponent"),
             ("plans", "marketplace_plan"),
+            # Maintenance announcements
+            (
+                "maintenance_announcement_offerings",
+                "marketplace_maintenanceannouncementoffering",
+            ),
+            ("maintenance_announcements", "marketplace_maintenanceannouncement"),
             # Offerings, service providers, projects, customers, categories
             ("offerings", "marketplace_offering"),
             ("service_providers", "marketplace_serviceprovider"),
@@ -1069,6 +1084,44 @@ class Command(BaseCommand):
                 self.style.WARNING(f"Failed to delete call managing organisations: {e}")
             )
             self.stats["call_managing_organisations"]["errors"] += 1
+
+    def cleanup_maintenance_announcements(self):
+        """Delete all maintenance announcement data."""
+        self.stdout.write("Deleting maintenance announcements...")
+        try:
+            if not self.dry_run:
+                count = MaintenanceAnnouncement.objects.count()
+                MaintenanceAnnouncement.objects.all().delete()
+                self.stats["maintenance_announcements"]["deleted"] = count
+            else:
+                self.stats["maintenance_announcements"]["deleted"] = (
+                    MaintenanceAnnouncement.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete maintenance announcements: {e}")
+            )
+            self.stats["maintenance_announcements"]["errors"] += 1
+
+    def cleanup_maintenance_announcement_offerings(self):
+        """Delete all maintenance announcement offering data."""
+        self.stdout.write("Deleting maintenance announcement offerings...")
+        try:
+            if not self.dry_run:
+                count = MaintenanceAnnouncementOffering.objects.count()
+                MaintenanceAnnouncementOffering.objects.all().delete()
+                self.stats["maintenance_announcement_offerings"]["deleted"] = count
+            else:
+                self.stats["maintenance_announcement_offerings"]["deleted"] = (
+                    MaintenanceAnnouncementOffering.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Failed to delete maintenance announcement offerings: {e}"
+                )
+            )
+            self.stats["maintenance_announcement_offerings"]["errors"] += 1
 
     def print_summary(self):
         """Print cleanup summary statistics."""

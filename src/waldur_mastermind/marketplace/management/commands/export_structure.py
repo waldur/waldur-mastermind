@@ -30,6 +30,8 @@ from waldur_mastermind.marketplace.models import (
     ComponentUsage,
     CourseAccount,
     CustomerServiceAccount,
+    MaintenanceAnnouncement,
+    MaintenanceAnnouncementOffering,
     Offering,
     OfferingComponent,
     OfferingUser,
@@ -247,6 +249,14 @@ class Command(BaseCommand):
             ),
             "assignment_items": self.log_export_step(
                 "assignment_items", self.export_assignment_items
+            ),
+            # Maintenance announcement exports
+            "maintenance_announcements": self.log_export_step(
+                "maintenance_announcements", self.export_maintenance_announcements
+            ),
+            "maintenance_announcement_offerings": self.log_export_step(
+                "maintenance_announcement_offerings",
+                self.export_maintenance_announcement_offerings,
             ),
         }
 
@@ -1825,3 +1835,67 @@ class Command(BaseCommand):
                 }
             )
         return items
+
+    def export_maintenance_announcements(self):
+        """Export maintenance announcement data."""
+        announcements = []
+        for announcement in MaintenanceAnnouncement.objects.select_related(
+            "service_provider", "service_provider__customer", "created_by"
+        ).order_by("-scheduled_start"):
+            announcements.append(
+                {
+                    "uuid": announcement.uuid.hex,
+                    "name": announcement.name,
+                    "message": announcement.message,
+                    "internal_notes": announcement.internal_notes,
+                    "maintenance_type": announcement.maintenance_type,
+                    "state": announcement.state,
+                    "scheduled_start": announcement.scheduled_start.isoformat()
+                    if announcement.scheduled_start
+                    else None,
+                    "scheduled_end": announcement.scheduled_end.isoformat()
+                    if announcement.scheduled_end
+                    else None,
+                    "actual_start": announcement.actual_start.isoformat()
+                    if announcement.actual_start
+                    else None,
+                    "actual_end": announcement.actual_end.isoformat()
+                    if announcement.actual_end
+                    else None,
+                    "service_provider_uuid": announcement.service_provider.uuid.hex,
+                    "created_by_uuid": announcement.created_by.uuid.hex
+                    if announcement.created_by
+                    else None,
+                    "external_reference_url": announcement.external_reference_url,
+                    "created": announcement.created.isoformat()
+                    if announcement.created
+                    else None,
+                    "modified": announcement.modified.isoformat()
+                    if announcement.modified
+                    else None,
+                }
+            )
+        return announcements
+
+    def export_maintenance_announcement_offerings(self):
+        """Export maintenance announcement offering data."""
+        offerings = []
+        for offering in MaintenanceAnnouncementOffering.objects.select_related(
+            "maintenance", "offering"
+        ).order_by("maintenance__scheduled_start", "offering__name"):
+            offerings.append(
+                {
+                    "uuid": offering.uuid.hex,
+                    "maintenance_uuid": offering.maintenance.uuid.hex,
+                    "offering_uuid": offering.offering.uuid.hex,
+                    "impact_level": offering.impact_level,
+                    "impact_description": offering.impact_description,
+                    "created": offering.created.isoformat()
+                    if offering.created
+                    else None,
+                    "modified": offering.modified.isoformat()
+                    if offering.modified
+                    else None,
+                }
+            )
+        return offerings
