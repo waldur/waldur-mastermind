@@ -192,15 +192,7 @@ class ExcludedFieldsAdminMixin(admin.ModelAdmin):
         return list(map(self.exclude_fields_from_fieldset, fieldsets))
 
 
-class NativeNameAdminMixin(ExcludedFieldsAdminMixin):
-    @cached_property
-    def excluded_fields(self):
-        if not settings.WALDUR_CORE["NATIVE_NAME_ENABLED"]:
-            return ["native_name"]
-        return []
-
-
-class UserAdmin(NativeNameAdminMixin, auth_admin.UserAdmin, VersionAdmin):
+class UserAdmin(auth_admin.UserAdmin, VersionAdmin):
     list_display = (
         "username",
         "uuid",

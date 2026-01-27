@@ -24,7 +24,6 @@ from waldur_core.core.admin import (
     ExecutorAdminAction,
     ExtraActionsMixin,
     JsonWidget,
-    NativeNameAdminMixin,
     PasswordWidget,
     ReadOnlyAdminMixin,
 )
@@ -195,7 +194,6 @@ class CustomerAdminForm(ModelForm):
 class CustomerAdmin(
     VersionAdmin,
     FormRequestAdminMixin,
-    NativeNameAdminMixin,
     ProtectedModelMixin,
     admin.ModelAdmin,
 ):
