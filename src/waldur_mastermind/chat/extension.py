@@ -15,3 +15,25 @@ class MarketplaceChatExtension(WaldurExtension):
         from .urls import register_in
 
         return register_in
+
+    @staticmethod
+    def celery_tasks():
+        from celery.schedules import crontab
+
+        return {
+            "waldur-chat-reset-daily-token-usage": {
+                "task": "waldur_mastermind.chat.reset_daily_token_usage",
+                "schedule": crontab(minute=0, hour=0),
+                "args": (),
+            },
+            "waldur-chat-reset-weekly-token-usage": {
+                "task": "waldur_mastermind.chat.reset_weekly_token_usage",
+                "schedule": crontab(minute=0, hour=0, day_of_week=1),
+                "args": (),
+            },
+            "waldur-chat-reset-monthly-token-usage": {
+                "task": "waldur_mastermind.chat.reset_monthly_token_usage",
+                "schedule": crontab(minute=0, hour=0, day_of_month=1),
+                "args": (),
+            },
+        }

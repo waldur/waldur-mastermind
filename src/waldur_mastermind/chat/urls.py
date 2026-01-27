@@ -8,6 +8,11 @@ def register_in(router):
         basename="chat",
     )
     router.register(
+        r"chat-quota",
+        views.TokenQuotaViewSet,
+        basename="chatquota",
+    )
+    router.register(
         r"chat-tools",
         views.ToolViewSet,
         basename="chat-tools",
