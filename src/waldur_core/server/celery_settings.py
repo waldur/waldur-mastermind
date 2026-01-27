@@ -83,7 +83,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     "cancel-expired-invitations": {
         "task": "waldur_core.users.cancel_expired_invitations",
-        "schedule": timedelta(hours=24),
+        "schedule": timedelta(hours=6),
         "args": (),
     },
     "send-reminder-for-pending-invitations": {

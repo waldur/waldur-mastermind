@@ -27,7 +27,7 @@ td:nth-child(4) {
 
 | Job Name | Task | Schedule | Description |
 |----------|------|----------|-------------|
-| `cancel-expired-invitations` | `waldur_core.users.cancel_expired_invitations` | 1 day | Invitation lifetime must be specified in Waldur Core settings with parameter<br> "INVITATION_LIFETIME". If invitation creation time is less than expiration time, the invitation will set as expired. |
+| `cancel-expired-invitations` | `waldur_core.users.cancel_expired_invitations` | 6 hours | Invitation lifetime must be specified in Waldur Core settings with parameter<br> "INVITATION_LIFETIME". If invitation creation time is less than expiration time, the invitation will set as expired. |
 | `check-expired-permissions` | `waldur_core.permissions.check_expired_permissions` | 1 day | Task not found in registry |
 | `check-polices` | `waldur_mastermind.policy.check_polices` | Cron: `* * 1 * * (m/h/dM/MY/d)` | Evaluate all policies across all policy types in the system. |
 | `check-table-growth-alerts` | `waldur_core.check_table_growth_alerts` | Cron: `0 2 * * * (m/h/dM/MY/d)` | Check for tables that have grown abnormally fast and send alerts.<br> Compares current sizes against 7-day and 30-day historical data. |
