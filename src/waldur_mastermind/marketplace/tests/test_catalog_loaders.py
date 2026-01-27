@@ -472,9 +472,6 @@ class EESSINewAPIFormatTest(BaseLoaderTestCase):
         self.eessi_new_format_data = self.load_test_fixture(
             "eessi_new_format_test.json"
         )
-        self.eessi_old_format_data = self.load_test_fixture(
-            "eessi_old_format_test.json"
-        )
 
     @patch("requests.get")
     def test_new_format_module_dict_parsing(self, mock_get):
@@ -580,63 +577,6 @@ class EESSINewAPIFormatTest(BaseLoaderTestCase):
         version_no_ext = package_no_ext.versions["1.5.0"]
         extensions_no_ext = version_no_ext.version_data.metadata.get("extensions", [])
         self.assertEqual(extensions_no_ext, [])
-
-    @patch("requests.get")
-    def test_old_format_string_based_parsing(self, mock_get):
-        """Test that old format (string-based modulename and required_modules) is still handled."""
-
-        def mock_requests_side_effect(url, **kwargs):
-            mock_response = Mock()
-            if "software.json" in url:
-                mock_response.json.return_value = self.eessi_old_format_data
-            else:
-                mock_response.json.return_value = {}
-            mock_response.raise_for_status.return_value = None
-            return mock_response
-
-        mock_get.side_effect = mock_requests_side_effect
-
-        loader = EESSICatalogLoader(catalog_version="2023.06", include_extensions=False)
-        catalog_data = loader.fetch_catalog_data()
-
-        # Check OldFormatPackage
-        self.assertIn("OldFormatPackage", catalog_data.packages)
-        package = catalog_data.packages["OldFormatPackage"]
-        version = package.versions["1.0.0"]
-
-        # Verify module is converted from modulename string
-        module = version.version_data.metadata.get("module", {})
-        self.assertIsInstance(module, dict)
-        self.assertEqual(
-            module.get("full_module_name"), "OldFormatPackage/1.0.0-foss-2022b"
-        )
-        self.assertEqual(module.get("module_name"), "OldFormatPackage")
-        self.assertEqual(module.get("module_version"), "1.0.0-foss-2022b")
-
-        # Verify required_modules are converted from strings to dicts
-        required_modules = version.version_data.metadata.get("required_modules", [])
-        self.assertIsInstance(required_modules, list)
-        self.assertGreater(len(required_modules), 0)
-
-        # Check EESSI module is converted correctly
-        eessi_rm = next(
-            rm for rm in required_modules if rm.get("module_name") == "EESSI"
-        )
-        self.assertEqual(eessi_rm.get("full_module_name"), "EESSI/2023.06")
-        self.assertEqual(eessi_rm.get("module_version"), "2023.06")
-
-        # Check GCCcore module is converted correctly
-        gcc_rm = next(
-            rm for rm in required_modules if rm.get("module_name") == "GCCcore"
-        )
-        self.assertEqual(gcc_rm.get("full_module_name"), "GCCcore/12.2.0")
-        self.assertEqual(gcc_rm.get("module_version"), "12.2.0")
-
-        # Verify backwards compatibility - modulename string is preserved
-        self.assertEqual(
-            version.version_data.metadata.get("modulename"),
-            "OldFormatPackage/1.0.0-foss-2022b",
-        )
 
     @patch("requests.get")
     def test_new_format_database_loading(self, mock_get):

@@ -624,7 +624,6 @@ class SoftwareVersionNewFieldsTest(test.APITransactionTestCase):
                     "module_name": "TestPackage",
                     "module_version": "1.0.0-foss-2023b",
                 },
-                "modulename": "TestPackage/1.0.0-foss-2023b",
                 "required_modules": [
                     {
                         "full_module_name": "EESSI/2023.06",
@@ -665,15 +664,6 @@ class SoftwareVersionNewFieldsTest(test.APITransactionTestCase):
         )
         self.assertEqual(version_data["module"]["module_name"], "TestPackage")
         self.assertEqual(version_data["module"]["module_version"], "1.0.0-foss-2023b")
-
-    def test_nested_version_includes_modulename_field(self):
-        """Test that nested version serializer includes modulename string for backwards compatibility."""
-        self.client.force_authenticate(self.fixture.staff)
-        response = self.client.get(self.package_url)
-
-        version_data = response.data["versions"][0]
-        self.assertIn("modulename", version_data)
-        self.assertEqual(version_data["modulename"], "TestPackage/1.0.0-foss-2023b")
 
     def test_nested_version_includes_required_modules_field(self):
         """Test that nested version serializer includes structured required_modules."""
@@ -739,7 +729,6 @@ class SoftwareVersionNewFieldsTest(test.APITransactionTestCase):
 
         # Check all new fields are present
         self.assertIn("module", response.data)
-        self.assertIn("modulename", response.data)
         self.assertIn("required_modules", response.data)
         self.assertIn("extensions", response.data)
         self.assertIn("toolchain", response.data)
@@ -784,7 +773,6 @@ class SoftwareVersionNewFieldsTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["module"], {})
-        self.assertEqual(response.data["modulename"], "")
         self.assertEqual(response.data["required_modules"], [])
         self.assertEqual(response.data["extensions"], [])
         self.assertEqual(response.data["toolchain"], {})
