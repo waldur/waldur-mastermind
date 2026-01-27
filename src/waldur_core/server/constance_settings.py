@@ -73,6 +73,14 @@ CONSTANCE_CONFIG = {
         "Allow anonymous users to see shared offerings in active, paused and archived states",
     ),
     "ANONYMOUS_USER_CAN_VIEW_PLANS": (True, "Allow anonymous users to see plans"),
+    "RESTRICTED_OFFERING_VISIBILITY_MODE": (
+        "show_all",
+        "Controls offering visibility for regular users. "
+        "'show_all': Show all shared offerings (current behavior). "
+        "'show_restricted_disabled': Show all but mark inaccessible as disabled. "
+        "'hide_inaccessible': Hide offerings user cannot access. "
+        "'require_membership': Hide all unless user belongs to an organization/project.",
+    ),
     "NOTIFY_STAFF_ABOUT_APPROVALS": (
         False,
         "If true, users with staff role are notified when request for order approval is generated",
@@ -901,6 +909,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "THUMBNAIL_SIZE",
         "ANONYMOUS_USER_CAN_VIEW_OFFERINGS",
         "ANONYMOUS_USER_CAN_VIEW_PLANS",
+        "RESTRICTED_OFFERING_VISIBILITY_MODE",
         "NOTIFY_STAFF_ABOUT_APPROVALS",
         "NOTIFY_ABOUT_RESOURCE_CHANGE",
         "DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE",
@@ -1156,6 +1165,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "SITE_PHONE",
     "CURRENCY_NAME",
     "ANONYMOUS_USER_CAN_VIEW_OFFERINGS",
+    "RESTRICTED_OFFERING_VISIBILITY_MODE",
     "DOCS_URL",
     "SHORT_PAGE_TITLE",
     "FULL_PAGE_TITLE",

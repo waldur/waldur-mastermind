@@ -3480,3 +3480,176 @@ class OfferingBillingTypeClassificationTest(test.APITransactionTestCase):
 
         self.assertEqual(limit_offering["billing_type_classification"], "limit_only")
         self.assertEqual(usage_offering["billing_type_classification"], "usage_only")
+
+
+class RestrictedOfferingVisibilityModeTest(test.APITransactionTestCase):
+    """Tests for RESTRICTED_OFFERING_VISIBILITY_MODE setting."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        # Create a shared offering with a public plan
+        self.shared_offering = factories.OfferingFactory(
+            shared=True,
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+        )
+        self.public_plan = factories.PlanFactory(
+            offering=self.shared_offering,
+            archived=False,
+        )
+
+        # Create a shared offering with a restricted plan (org group)
+        self.org_group = structure_factories.OrganizationGroupFactory()
+        self.restricted_offering = factories.OfferingFactory(
+            shared=True,
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+        )
+        self.restricted_plan = factories.PlanFactory(
+            offering=self.restricted_offering,
+            archived=False,
+        )
+        self.restricted_plan.organization_groups.add(self.org_group)
+
+        # Create an unrelated user without memberships
+        self.unrelated_user = UserFactory()
+
+    @override_config(RESTRICTED_OFFERING_VISIBILITY_MODE="show_all")
+    def test_show_all_mode_shows_all_shared_offerings(self):
+        """In show_all mode, regular users see all shared offerings."""
+        self.client.force_authenticate(self.unrelated_user)
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering_uuids = [o["uuid"] for o in response.data]
+        self.assertIn(str(self.shared_offering.uuid), offering_uuids)
+        self.assertIn(str(self.restricted_offering.uuid), offering_uuids)
+
+    @override_config(RESTRICTED_OFFERING_VISIBILITY_MODE="show_restricted_disabled")
+    def test_show_restricted_disabled_mode_shows_all_with_is_accessible(self):
+        """In show_restricted_disabled mode, all offerings shown with is_accessible field."""
+        self.client.force_authenticate(self.unrelated_user)
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering_uuids = [o["uuid"] for o in response.data]
+        self.assertIn(str(self.shared_offering.uuid), offering_uuids)
+        self.assertIn(str(self.restricted_offering.uuid), offering_uuids)
+
+    @override_config(RESTRICTED_OFFERING_VISIBILITY_MODE="show_restricted_disabled")
+    def test_is_accessible_true_for_accessible_offering(self):
+        """is_accessible should be True for offering with public plans."""
+        self.client.force_authenticate(self.unrelated_user)
+        url = factories.OfferingFactory.get_public_url(self.shared_offering)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_accessible"])
+
+    @override_config(RESTRICTED_OFFERING_VISIBILITY_MODE="show_restricted_disabled")
+    def test_is_accessible_false_for_restricted_offering(self):
+        """is_accessible should be False for offering with only restricted plans."""
+        self.client.force_authenticate(self.unrelated_user)
+        url = factories.OfferingFactory.get_public_url(self.restricted_offering)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_accessible"])
+
+    @override_config(RESTRICTED_OFFERING_VISIBILITY_MODE="hide_inaccessible")
+    def test_hide_inaccessible_mode_hides_restricted_offerings(self):
+        """In hide_inaccessible mode, offerings without accessible plans are hidden."""
+        self.client.force_authenticate(self.unrelated_user)
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering_uuids = [o["uuid"] for o in response.data]
+        self.assertIn(str(self.shared_offering.uuid), offering_uuids)
+        self.assertNotIn(str(self.restricted_offering.uuid), offering_uuids)
+
+    @override_config(RESTRICTED_OFFERING_VISIBILITY_MODE="hide_inaccessible")
+    def test_hide_inaccessible_mode_shows_offerings_when_user_in_org_group(self):
+        """In hide_inaccessible mode, user in org group sees restricted offerings."""
+        # Add user's customer to the org group
+        self.fixture.customer.organization_groups.add(self.org_group)
+
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering_uuids = [o["uuid"] for o in response.data]
+        self.assertIn(str(self.shared_offering.uuid), offering_uuids)
+        self.assertIn(str(self.restricted_offering.uuid), offering_uuids)
+
+    @override_config(RESTRICTED_OFFERING_VISIBILITY_MODE="require_membership")
+    def test_require_membership_mode_shows_nothing_for_user_without_membership(self):
+        """In require_membership mode, user without membership sees no offerings."""
+        self.client.force_authenticate(self.unrelated_user)
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    @override_config(RESTRICTED_OFFERING_VISIBILITY_MODE="require_membership")
+    def test_require_membership_mode_shows_offerings_for_user_with_membership(self):
+        """In require_membership mode, user with membership sees accessible offerings."""
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering_uuids = [o["uuid"] for o in response.data]
+        # Owner should see public offering, but not restricted (not in org group)
+        self.assertIn(str(self.shared_offering.uuid), offering_uuids)
+        self.assertNotIn(str(self.restricted_offering.uuid), offering_uuids)
+
+    @override_config(RESTRICTED_OFFERING_VISIBILITY_MODE="hide_inaccessible")
+    def test_staff_always_sees_all_offerings(self):
+        """Staff should always see all offerings regardless of visibility mode."""
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering_uuids = [o["uuid"] for o in response.data]
+        self.assertIn(str(self.shared_offering.uuid), offering_uuids)
+        self.assertIn(str(self.restricted_offering.uuid), offering_uuids)
+
+    @override_config(RESTRICTED_OFFERING_VISIBILITY_MODE="require_membership")
+    def test_staff_sees_all_even_in_require_membership_mode(self):
+        """Staff should see all offerings even in require_membership mode."""
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering_uuids = [o["uuid"] for o in response.data]
+        self.assertIn(str(self.shared_offering.uuid), offering_uuids)
+        self.assertIn(str(self.restricted_offering.uuid), offering_uuids)
+
+    @override_config(RESTRICTED_OFFERING_VISIBILITY_MODE="hide_inaccessible")
+    def test_support_always_sees_all_offerings(self):
+        """Support user should always see all offerings regardless of visibility mode."""
+        self.client.force_authenticate(self.fixture.global_support)
+        url = factories.OfferingFactory.get_public_list_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering_uuids = [o["uuid"] for o in response.data]
+        self.assertIn(str(self.shared_offering.uuid), offering_uuids)
+        self.assertIn(str(self.restricted_offering.uuid), offering_uuids)
+
+    @override_config(RESTRICTED_OFFERING_VISIBILITY_MODE="show_all")
+    def test_is_accessible_true_for_staff(self):
+        """Staff should always have is_accessible=True."""
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_public_url(self.restricted_offering)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_accessible"])
