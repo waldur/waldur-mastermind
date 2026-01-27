@@ -1,0 +1,99 @@
+# Marketplace Offering Visibility
+
+This document describes how marketplace offering visibility can be configured to control which offerings regular users can see.
+
+## Overview
+
+The `RESTRICTED_OFFERING_VISIBILITY_MODE` Constance setting controls how offerings with restrictions (organization group-limited plans) are displayed to regular users. Staff and support users always see all offerings regardless of this setting.
+
+## Configuration
+
+The setting is configured in the backend via Constance (Admin > Config > Marketplace section):
+
+**Setting name:** `RESTRICTED_OFFERING_VISIBILITY_MODE`
+
+**Default value:** `show_all`
+
+## Visibility Modes
+
+| Mode | Description |
+|------|-------------|
+| `show_all` | **Default behavior.** Show all shared offerings. Users see restricted offerings but cannot order if they lack access to any plans. |
+| `show_restricted_disabled` | Show all offerings, but inaccessible ones are visually marked as disabled with a lock icon and tooltip explaining why the user cannot order. |
+| `hide_inaccessible` | Hide offerings where the user has no accessible plans (due to organization group restrictions). |
+| `require_membership` | Most restrictive mode. Hide ALL offerings unless the user belongs to at least one organization or project. Users with membership then see only accessible offerings (same as `hide_inaccessible`). |
+
+## Key Behaviors Matrix
+
+| User Type | `show_all` | `show_restricted_disabled` | `hide_inaccessible` | `require_membership` |
+|-----------|------------|---------------------------|---------------------|---------------------|
+| Anonymous | Shared only | Shared only | Shared only | Shared only |
+| Staff/Support | All | All | All | All |
+| Regular (no membership) | All shared | All shared (some disabled) | Only accessible | **None** |
+| Regular (with membership) | All shared | All shared (some disabled) | Only accessible | Only accessible |
+
+### Notes
+
+- **Anonymous users** are controlled by the separate `ANONYMOUS_USER_CAN_VIEW_OFFERINGS` setting
+- **Staff/Support** users always see all offerings regardless of the visibility mode
+- **"Accessible"** means the user has at least one non-archived plan available (either public plans or plans whose organization groups include the user's organization)
+- **"Membership"** means the user has a role in at least one organization, project, or offering
+
+## Frontend Behavior
+
+### `show_restricted_disabled` Mode
+
+When this mode is active, the frontend:
+
+1. Checks the `is_accessible` field returned by the API for each offering
+2. For offerings where `is_accessible === false`:
+   - Applies a `disabled` CSS class to gray out the card
+   - Shows a lock icon with tooltip: "This offering is restricted. Contact your organization admin for access."
+   - Disables the "Deploy" button
+
+### Other Modes
+
+For `show_all`, `hide_inaccessible`, and `require_membership` modes, the backend handles filtering - the frontend simply displays what the API returns.
+
+## API Changes
+
+The `PublicOfferingDetailsSerializer` includes an `is_accessible` boolean field that indicates whether the current user can order the offering. This field is:
+
+- `true` for staff/support users (always)
+- `true` if the user has at least one accessible, non-archived plan
+- `false` if all plans are restricted to organization groups the user doesn't belong to
+
+## Use Cases
+
+### Public Marketplace (default)
+
+Use `show_all` for open marketplaces where users should see all available offerings and learn about restrictions when they try to order.
+
+### Enterprise with Soft Restrictions
+
+Use `show_restricted_disabled` when you want users to be aware of offerings they cannot access (e.g., premium tiers) while clearly indicating they need to contact their admin for access.
+
+### Enterprise with Hard Restrictions
+
+Use `hide_inaccessible` when users should only see offerings they can actually order, reducing confusion and support requests.
+
+### Closed Community
+
+Use `require_membership` for portals where only registered organization members should browse offerings. New users without any affiliation see an empty marketplace until they're added to an organization.
+
+## Implementation Details
+
+### Backend Files
+
+- `src/waldur_core/server/constance_settings.py` - Setting definition
+- `src/waldur_mastermind/marketplace/managers.py` - `filter_by_ordering_availability_for_user()` method
+- `src/waldur_mastermind/marketplace/serializers.py` - `is_accessible` field in `PublicOfferingDetailsSerializer`
+
+### Frontend Files
+
+- `src/auth/types.ts` - `OfferingVisibilityMode` type and `RESTRICTED_OFFERING_VISIBILITY_MODE` in config
+- `src/marketplace/common/OfferingCard.tsx` - Disabled display logic
+
+### Tests
+
+Backend tests are in `src/waldur_mastermind/marketplace/tests/test_offerings.py` in the `RestrictedOfferingVisibilityModeTest` class.
