@@ -70,7 +70,7 @@ def parse_schac_personal_unique_id(value: str) -> str:
     # Remove prefix and split remaining parts
     parts = value[len(prefix) :].split(":")
     if len(parts) >= 3:
-        country_code = parts[0]
+        country_code = parts[0].upper()
         # idValue is the last part (in case idType contains colons)
         id_value = parts[-1]
         return f"{country_code}{id_value}"
