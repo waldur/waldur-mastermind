@@ -37,6 +37,15 @@ class AdminAnnouncementCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.data["type"], "information")
         self.assertFalse(response.data["is_active"])
 
+    @freeze_time("2025-01-01")
+    def test_support_can_create_admin_announcement(self):
+        payload = self.payload.copy()
+        payload["active_from"] = "2025-01-01T00:00:00Z"
+        response = self.create_admin_announcement(self.fixture.global_support, payload)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["description"], "admin announcement")
+        self.assertEqual(response.data["type"], "information")
+
     def test_user_cannot_create_admin_announcement(self):
         payload = {
             "description": "admin announcement",
