@@ -53,10 +53,6 @@ class WaldurCore(BaseModel):
         False,
         description="Enables generation of the first project on organization creation.",
     )
-    NATIVE_NAME_ENABLED: bool = Field(
-        False,
-        description="Allows to render native name field in customer and user forms.",
-    )
     NOTIFICATIONS_PROFILE_CHANGES: dict[str, Any] = Field(
         {
             "FIELDS": ("email", "phone_number", "job_title"),
@@ -269,7 +265,6 @@ class WaldurCore(BaseModel):
             "AUTHENTICATION_METHODS",
             "INVITATIONS_ENABLED",
             "VALIDATE_INVITATION_EMAIL",
-            "NATIVE_NAME_ENABLED",
             "PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS",
             "TRANSLATION_DOMAIN",
             "MATOMO_URL_BASE",
