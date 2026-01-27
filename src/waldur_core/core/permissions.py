@@ -120,6 +120,14 @@ class IsSupport(BasePermission):
         )
 
 
+class IsSupportOrReadOnly(BasePermission):
+    def has_permission(self, request, view):
+        return request.method in SAFE_METHODS or (
+            request.user.is_authenticated
+            and (request.user.is_staff or request.user.is_support)
+        )
+
+
 class IsStaff(BasePermission):
     def has_permission(self, request, view):
         return request.user.is_active and request.user.is_staff
