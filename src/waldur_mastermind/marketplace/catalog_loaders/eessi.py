@@ -122,16 +122,6 @@ class EESSICatalogLoader(BaseCatalogLoader):
     ) -> CatalogData:
         """Build unified catalog data from EESSI API responses."""
 
-        # Detect API format by checking first package
-        main_software = software_data.get("software", {})
-        if main_software:
-            first_pkg = next(iter(main_software.values()), {})
-            first_version = (first_pkg.get("versions") or [{}])[0]
-            has_new_format = isinstance(first_version.get("module"), dict)
-            self.logger.info(
-                f"Detected EESSI API format: {'new (dict-based)' if has_new_format else 'old (string-based)'}"
-            )
-
         # Extract metadata from software data
         timestamp = software_data.get("timestamp", datetime.now().isoformat())
         architectures_map = software_data.get("architectures_map", {})
@@ -260,73 +250,25 @@ class EESSICatalogLoader(BaseCatalogLoader):
         return PackageWithVersions(package_data=package_data, versions=versions)
 
     def _process_eessi_version(self, version_info: dict) -> VersionWithTargets:
-        """Process a single EESSI version with support for both old and new API formats."""
+        """Process a single EESSI version using the new API format."""
 
-        # Handle module field - support both old 'modulename' string and new 'module' dict
-        module_data = version_info.get("module")
-        if module_data and isinstance(module_data, dict):
-            # New format: module is a dict
-            module = module_data
-        else:
-            # Old format: modulename is a string, convert to dict
-            modulename = version_info.get("modulename", "")
-            if modulename and "/" in modulename:
-                name, version = modulename.split("/", 1)
-                module = {
-                    "full_module_name": modulename,
-                    "module_name": name,
-                    "module_version": version,
-                }
-            else:
-                module = {
-                    "full_module_name": modulename,
-                    "module_name": modulename,
-                    "module_version": "",
-                }
+        # Get module dict (new format only)
+        module = version_info.get("module", {})
+        required_modules = version_info.get("required_modules", [])
 
-        # Handle required_modules - support both string list and dict list
-        raw_required_modules = version_info.get("required_modules", [])
-        required_modules = []
-        for rm in raw_required_modules:
-            if isinstance(rm, dict):
-                # New format: already a dict
-                required_modules.append(rm)
-            elif isinstance(rm, str):
-                # Old format: string like "GCCcore/12.2.0"
-                if "/" in rm:
-                    name, version = rm.split("/", 1)
-                    required_modules.append(
-                        {
-                            "full_module_name": rm,
-                            "module_name": name,
-                            "module_version": version,
-                        }
-                    )
-                else:
-                    required_modules.append(
-                        {
-                            "full_module_name": rm,
-                            "module_name": rm,
-                            "module_version": "",
-                        }
-                    )
-
-        # Extract version metadata with new fields
+        # Extract version metadata
         version_data = VersionData(
             version=version_info["version"],
-            dependencies=required_modules,  # Store structured deps in dependencies
+            dependencies=required_modules,
             metadata={
                 "versionsuffix": version_info.get("versionsuffix", ""),
                 "toolchain": version_info.get("toolchain", {}),
                 "toolchain_families_compatibility": version_info.get(
                     "toolchain_families_compatibility", []
                 ),
-                "module": module,  # New structured module field
-                "modulename": version_info.get(
-                    "modulename", ""
-                ),  # Keep for backwards compat
-                "required_modules": required_modules,  # Structured required_modules
-                "extensions": version_info.get("extensions", []),  # NEW field
+                "module": module,
+                "required_modules": required_modules,
+                "extensions": version_info.get("extensions", []),
                 "license": version_info.get("license", []),
                 "image": version_info.get("image", ""),
                 "categories": version_info.get("categories", []),

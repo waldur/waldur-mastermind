@@ -292,6 +292,12 @@ curl "https://your-waldur.example.com/api/marketplace-software-packages/?query=c
 # Filter by offering and catalog version
 curl "https://your-waldur.example.com/api/marketplace-software-packages/?offering_uuid=def-456&catalog_version=2023.06"
 
+# Filter by extension type (e.g., packages with Python extensions)
+curl "https://your-waldur.example.com/api/marketplace-software-packages/?extension_type=python"
+
+# Filter by extension name (e.g., packages bundling numpy)
+curl "https://your-waldur.example.com/api/marketplace-software-packages/?extension_name=numpy"
+
 # Order by catalog version
 curl "https://your-waldur.example.com/api/marketplace-software-packages/?o=catalog_version"
 ```
@@ -317,7 +323,7 @@ Example response:
 
 ### Package Detail with Nested Versions and Targets
 
-When viewing package details, the response includes nested versions with their targets:
+When viewing package details, the response includes nested versions with their targets and EESSI-specific metadata:
 
 ```bash
 # Get package detail with nested versions and targets
@@ -329,49 +335,69 @@ Example detailed response:
 ```json
 {
   "uuid": "package-uuid",
-  "name": "SampleApp",
-  "description": "Scientific computing application...",
-  "homepage": "https://example.com/sampleapp",
+  "name": "GROMACS",
+  "description": "Molecular dynamics simulation package...",
+  "homepage": "https://www.gromacs.org/",
   "catalog": "abc-123-def-456",
   "version_count": 2,
   "versions": [
     {
       "uuid": "version-uuid-1",
-      "version": "1.2.0",
-      "release_date": "2023-06-15",
-      "metadata": {},
+      "version": "2024.4",
+      "release_date": "2024-01-15",
+      "module": {
+        "full_module_name": "GROMACS/2024.4-foss-2023b",
+        "module_name": "GROMACS",
+        "module_version": "2024.4-foss-2023b"
+      },
+      "required_modules": [
+        {
+          "full_module_name": "EESSI/2023.06",
+          "module_name": "EESSI",
+          "module_version": "2023.06"
+        },
+        {
+          "full_module_name": "GCCcore/13.2.0",
+          "module_name": "GCCcore",
+          "module_version": "13.2.0"
+        }
+      ],
+      "extensions": [
+        {"type": "python", "name": "gmxapi", "version": "0.4.2"}
+      ],
+      "toolchain": {"name": "foss", "version": "2023b"},
+      "toolchain_families_compatibility": ["2023b_foss"],
       "targets": [
         {
           "uuid": "target-uuid-1",
-          "cpu_family": "x86_64",
-          "cpu_microarchitecture": "generic",
-          "path": "/cvmfs/software.eessi.io/versions/2023.06/software/linux/x86_64/generic"
+          "target_type": "cpu_architecture",
+          "target_name": "x86_64",
+          "target_subtype": "generic",
+          "location": "/cvmfs/software.eessi.io/versions/2023.06/software/linux/x86_64/generic"
         },
         {
           "uuid": "target-uuid-2",
-          "cpu_family": "aarch64",
-          "cpu_microarchitecture": "generic",
-          "path": "/cvmfs/software.eessi.io/versions/2023.06/software/linux/aarch64/generic"
-        }
-      ]
-    },
-    {
-      "uuid": "version-uuid-2",
-      "version": "1.3.0",
-      "release_date": "2023-08-20",
-      "metadata": {},
-      "targets": [
-        {
-          "uuid": "target-uuid-3",
-          "cpu_family": "x86_64",
-          "cpu_microarchitecture": "generic",
-          "path": "/cvmfs/software.eessi.io/versions/2023.06/software/linux/x86_64/generic"
+          "target_type": "cpu_architecture",
+          "target_name": "aarch64",
+          "target_subtype": "generic",
+          "location": "/cvmfs/software.eessi.io/versions/2023.06/software/linux/aarch64/generic"
         }
       ]
     }
   ]
 }
 ```
+
+#### Version Response Fields (EESSI)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `module` | object | Structured module information with `full_module_name`, `module_name`, `module_version` |
+| `required_modules` | array | List of required module objects with structured info |
+| `extensions` | array | Bundled extensions (e.g., Python packages) with `type`, `name`, `version` |
+| `toolchain` | object | Toolchain info with `name` and `version` |
+| `toolchain_families_compatibility` | array | List of compatible toolchain families |
+| `targets` | array | Available architecture targets |
 
 ### Browse Software Versions
 
@@ -500,45 +526,68 @@ Both loaders handle:
 
 ## Integration Details
 
-### EESSI New API Format
+### EESSI API Format
 
-The EESSI loader uses the new API format that separates main software and extensions.
-
-#### Main Software Structure
+The EESSI loader uses the dict-based format from [EESSI API PR #11](https://github.com/EESSI/api_data/pull/11) with structured objects for `module` and `required_modules`:
 
 ```json
-
 {
-  "timestamp": "2024-12-02T10:00:00Z",
+  "timestamp": "2026-01-27T10:00:00Z",
   "architectures_map": {
     "2023.06": ["x86_64/generic", "aarch64/generic", "x86_64/zen3"]
   },
   "software": {
-    "Python": {
-      "description": "Python programming language",
-      "homepage": "https://www.python.org/",
-      "categories": ["lang"],
+    "GROMACS": {
+      "description": "Molecular dynamics simulation package",
+      "homepage": "https://www.gromacs.org/",
+      "categories": ["chem"],
       "versions": [
         {
-          "version": "3.11.3",
+          "version": "2024.4",
           "cpu_arch": ["x86_64/generic", "aarch64/generic"],
-          "toolchain": {"name": "GCCcore", "version": "12.3.0"},
-          "required_modules": ["GCCcore/12.3.0"],
-          "modulename": "Python/3.11.3-GCCcore-12.3.0"
+          "toolchain": {"name": "foss", "version": "2023b"},
+          "toolchain_families_compatibility": ["2023b_foss"],
+          "module": {
+            "full_module_name": "GROMACS/2024.4-foss-2023b",
+            "module_name": "GROMACS",
+            "module_version": "2024.4-foss-2023b"
+          },
+          "required_modules": [
+            {
+              "full_module_name": "EESSI/2023.06",
+              "module_name": "EESSI",
+              "module_version": "2023.06"
+            },
+            {
+              "full_module_name": "GCCcore/13.2.0",
+              "module_name": "GCCcore",
+              "module_version": "13.2.0"
+            }
+          ],
+          "extensions": [
+            {"type": "python", "name": "gmxapi", "version": "0.4.2"}
+          ]
         }
       ]
     }
   }
 }
-
 ```
+
+#### Key Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `module` | object | Structured module info: `full_module_name`, `module_name`, `module_version` |
+| `required_modules` | array of objects | Each with `full_module_name`, `module_name`, `module_version` |
+| `extensions` | array | Bundled packages with `type`, `name`, `version` |
+| `toolchain_families_compatibility` | array | Compatible toolchain families (e.g., `"2023b_foss"`) |
 
 #### Extension Structure
 
 ```json
-
 {
-  "timestamp": "2024-12-02T10:00:00Z",
+  "timestamp": "2026-01-27T10:00:00Z",
   "software": {
     "numpy": {
       "description": "Fundamental package for array computing with Python",
@@ -546,16 +595,26 @@ The EESSI loader uses the new API format that separates main software and extens
       "categories": ["math", "lib"],
       "versions": [
         {
-          "version": "1.24.2",
+          "version": "1.26.0",
           "cpu_arch": ["x86_64/generic"],
-          "parent_software": {"name": "Python", "version": "3.11.3"},
-          "modulename": "numpy/1.24.2-gfbf-2023a"
+          "parent_software": {"name": "SciPy-bundle", "version": "2023.11"},
+          "module": {
+            "full_module_name": "SciPy-bundle/2023.11-gfbf-2023b",
+            "module_name": "SciPy-bundle",
+            "module_version": "2023.11-gfbf-2023b"
+          },
+          "required_modules": [
+            {
+              "full_module_name": "EESSI/2023.06",
+              "module_name": "EESSI",
+              "module_version": "2023.06"
+            }
+          ]
         }
       ]
     }
   }
 }
-
 ```
 
 ### Spack Repology Format

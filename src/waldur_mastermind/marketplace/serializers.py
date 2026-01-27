@@ -9327,7 +9327,6 @@ class NestedSoftwareVersionSerializer(serializers.ModelSerializer):
 
     # Expose key EESSI fields at top level for convenience
     module = serializers.SerializerMethodField()
-    modulename = serializers.SerializerMethodField()
     required_modules = serializers.SerializerMethodField()
     extensions = serializers.SerializerMethodField()
     toolchain = serializers.SerializerMethodField()
@@ -9341,7 +9340,6 @@ class NestedSoftwareVersionSerializer(serializers.ModelSerializer):
             "release_date",
             "targets",
             "module",
-            "modulename",
             "required_modules",
             "extensions",
             "toolchain",
@@ -9352,11 +9350,6 @@ class NestedSoftwareVersionSerializer(serializers.ModelSerializer):
     def get_module(self, obj):
         """Return structured module info."""
         return obj.metadata.get("module", {})
-
-    @extend_schema_field(serializers.CharField())
-    def get_modulename(self, obj):
-        """Return modulename for backwards compatibility."""
-        return obj.metadata.get("modulename", "")
 
     @extend_schema_field(serializers.ListField())
     def get_required_modules(self, obj):
@@ -9466,7 +9459,6 @@ class SoftwareVersionSerializer(serializers.HyperlinkedModelSerializer):
 
     # Expose key EESSI fields at top level for convenience
     module = serializers.SerializerMethodField()
-    modulename = serializers.SerializerMethodField()
     required_modules = serializers.SerializerMethodField()
     extensions = serializers.SerializerMethodField()
     toolchain = serializers.SerializerMethodField()
@@ -9487,7 +9479,6 @@ class SoftwareVersionSerializer(serializers.HyperlinkedModelSerializer):
             "catalog_type",
             "target_count",
             "module",
-            "modulename",
             "required_modules",
             "extensions",
             "toolchain",
@@ -9510,11 +9501,6 @@ class SoftwareVersionSerializer(serializers.HyperlinkedModelSerializer):
     def get_module(self, obj):
         """Return structured module info."""
         return obj.metadata.get("module", {})
-
-    @extend_schema_field(serializers.CharField())
-    def get_modulename(self, obj):
-        """Return modulename for backwards compatibility."""
-        return obj.metadata.get("modulename", "")
 
     @extend_schema_field(serializers.ListField())
     def get_required_modules(self, obj):
