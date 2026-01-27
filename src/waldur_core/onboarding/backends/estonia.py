@@ -239,7 +239,8 @@ class EstonianAriregisterBackend(CompanyRegistryBackend):
                 )
                 return None
 
-            return response_data
+            # Return only body in raw_response
+            return {"keha": keha}
 
         except requests.exceptions.JSONDecodeError:
             logger.error(
