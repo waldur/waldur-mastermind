@@ -1233,6 +1233,14 @@ Allow anonymous users to see shared offerings in active, paused and archived sta
 
 Allow anonymous users to see plans
 
+#### RESTRICTED_OFFERING_VISIBILITY_MODE
+
+**Type:** str
+
+**Default value:** show_all
+
+Controls offering visibility for regular users. 'show_all': Show all shared offerings (current behavior). 'show_restricted_disabled': Show all but mark inaccessible as disabled. 'hide_inaccessible': Hide offerings user cannot access. 'require_membership': Hide all unless user belongs to an organization/project.
+
 #### NOTIFY_STAFF_ABOUT_APPROVALS
 
 **Type:** bool
@@ -2467,6 +2475,30 @@ API key for authenticating with the LLM inference service.
 
 Name of the LLM model to use for inference.
 
+#### LLM_TOKEN_LIMIT_DAILY
+
+**Type:** int
+
+**Default value:** -1
+
+Default daily token limit (integer). -1 means unlimited.
+
+#### LLM_TOKEN_LIMIT_WEEKLY
+
+**Type:** int
+
+**Default value:** -1
+
+Default weekly token limit (integer). -1 means unlimited.
+
+#### LLM_TOKEN_LIMIT_MONTHLY
+
+**Type:** int
+
+**Default value:** -1
+
+Default monthly token limit (integer). -1 means unlimited.
+
 ### Software catalog settings
 
 #### SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED
@@ -2544,6 +2576,48 @@ Enable automatic cleanup of old catalog data
 **Default value:** 90
 
 Number of days to retain old catalog versions
+
+### Table Growth Monitoring
+
+#### TABLE_GROWTH_MONITORING_ENABLED
+
+**Type:** bool
+
+**Default value:** True
+
+Enable table growth monitoring to detect potential data leaks from bugs.
+
+#### TABLE_GROWTH_WEEKLY_THRESHOLD_PERCENT
+
+**Type:** int
+
+**Default value:** 50
+
+Alert if a table grows by more than this percentage in a week.
+
+#### TABLE_GROWTH_MONTHLY_THRESHOLD_PERCENT
+
+**Type:** int
+
+**Default value:** 200
+
+Alert if a table grows by more than this percentage in a month.
+
+#### TABLE_GROWTH_RETENTION_DAYS
+
+**Type:** int
+
+**Default value:** 90
+
+Number of days to retain table size history data.
+
+#### TABLE_GROWTH_MIN_SIZE_BYTES
+
+**Type:** int
+
+**Default value:** 1048576
+
+Minimum table size in bytes (default 1MB) to monitor. Smaller tables are ignored.
 
 ### User Actions
 

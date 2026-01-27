@@ -30,6 +30,7 @@ td:nth-child(4) {
 | `cancel-expired-invitations` | `waldur_core.users.cancel_expired_invitations` | 1 day | Invitation lifetime must be specified in Waldur Core settings with parameter<br> "INVITATION_LIFETIME". If invitation creation time is less than expiration time, the invitation will set as expired. |
 | `check-expired-permissions` | `waldur_core.permissions.check_expired_permissions` | 1 day | Task not found in registry |
 | `check-polices` | `waldur_mastermind.policy.check_polices` | Cron: `* * 1 * * (m/h/dM/MY/d)` | Evaluate all policies across all policy types in the system. |
+| `check-table-growth-alerts` | `waldur_core.check_table_growth_alerts` | Cron: `0 2 * * * (m/h/dM/MY/d)` | Check for tables that have grown abnormally fast and send alerts.<br> Compares current sizes against 7-day and 30-day historical data. |
 | `cleanup-dangling-user-actions` | `waldur_core.user_actions.cleanup_dangling_user_actions` | Cron: `30 3 * * * (m/h/dM/MY/d)` | Clean up user actions pointing to non-existent objects (fallback periodic cleanup) |
 | `cleanup-expired-silenced-actions` | `waldur_core.user_actions.cleanup_expired_silenced_actions` | Cron: `0 2 * * * (m/h/dM/MY/d)` | Remove or unsilence actions with expired temporary silence |
 | `cleanup-old-action-executions` | `waldur_core.user_actions.cleanup_old_action_executions` | Cron: `0 1 * * 0 (m/h/dM/MY/d)` | Clean up old action execution records |
@@ -78,6 +79,7 @@ td:nth-child(4) {
 | `remove_deleted_robot_accounts` | `waldur_mastermind.marketplace.remove_deleted_robot_accounts` | 1 day | Remove robot accounts that are in DELETED state.<br> This task runs daily to clean up robot accounts that have been marked for deletion. |
 | `resend-stuck-invitations` | `waldur_core.users.resend_stuck_invitations` | 1 hour | Reconcile stuck invitations that were never sent due to errors or broker/worker downtime. |
 | `revoke_outdated_consents` | `waldur_mastermind.marketplace.revoke_outdated_consents` | 1 day | Revoke consents for users who haven't re-consented within grace period.<br><br> Finds all active ToS with requires_reconsent=True where grace period has expired,<br> and revokes all consents that don't match the current active ToS version. |
+| `sample-table-sizes` | `waldur_core.sample_table_sizes` | Cron: `0 1 * * * (m/h/dM/MY/d)` | Sample all database table sizes and store them for trend analysis.<br> This task runs daily to collect historical data for detecting abnormal growth patterns. |
 | `send-action-digest-notifications` | `waldur_core.user_actions.send_action_digest_notifications` | Cron: `0 9 * * * (m/h/dM/MY/d)` | Send daily digest notifications to users with pending actions |
 | `send-assignment-expiry-reminders` | `waldur_mastermind.proposal.send_assignment_expiry_reminders` | 1 day | Send reminder to reviewers before their assignment expires. |
 | `send-messages-about-pending-orders` | `waldur_mastermind.marketplace_site_agent.send_messages_about_pending_orders` | 1 hour | Send a message about pending orders created 1 hour ago.<br><br> Uses MessageStateTracker to skip sending if order state hasn't changed<br> since the last notification, preventing redundant messages from hourly<br> task execution. |
@@ -100,6 +102,9 @@ td:nth-child(4) {
 | `update-user-actions` | `waldur_core.user_actions.update_user_actions` | Cron: `0 */6 * * * (m/h/dM/MY/d)` | Update actions for all providers or specific provider |
 | `update_daily_consent_history` | `waldur_mastermind.marketplace.update_daily_consent_history` | 1 day | Daily task to update consent history statistics for dashboard reporting.<br> Uses quota system + DailyQuotaHistory for historical tracking. |
 | `valimo-auth-cleanup-auth-results` | `waldur_auth_valimo.cleanup_auth_results` | 1 hour | Clean up Valimo authentication results older than 7 days. |
+| `waldur-chat-reset-daily-token-usage` | `waldur_mastermind.chat.reset_daily_token_usage` | Daily (at midnight) | Task not found in registry |
+| `waldur-chat-reset-monthly-token-usage` | `waldur_mastermind.chat.reset_monthly_token_usage` | Monthly (1st day of month at midnight) | Task not found in registry |
+| `waldur-chat-reset-weekly-token-usage` | `waldur_mastermind.chat.reset_weekly_token_usage` | Cron: `0 0 * * 1 (m/h/dM/MY/d)` | Task not found in registry |
 | `waldur-create-invoices` | `invoices.create_monthly_invoices` | Monthly (1st day of month at midnight) | - For every customer change state of the invoices for previous months from "pending" to "billed"<br> and freeze their items.<br> - Create new invoice for every customer in current month if not created yet. |
 | `waldur-create-offering-users-for-site-agent-offerings` | `waldur_mastermind.marketplace_site_agent.sync_offering_users` | 1 day | No description available |
 | `waldur-firecrest-pull-jobs` | `waldur_firecrest.pull_jobs` | 1 hour | Pull SLURM jobs from Firecrest API for all offering users with valid OAuth tokens. |

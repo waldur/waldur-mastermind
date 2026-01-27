@@ -1159,6 +1159,9 @@ Raise exception if extension is disabled
 **Description:**
 
 Validates that LLM chat is enabled and properly configured.
+Extends ConstanceCheckExtensionMixin to check LLM_CHAT_ENABLED flag.
+
+**Base classes:** `ConstanceCheckExtensionMixin`
 
 ### PeriodMixin
 
