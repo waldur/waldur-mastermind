@@ -10354,3 +10354,70 @@ class ProviderOfferingStatsSerializer(serializers.Serializer):
         child=serializers.DictField(),
         help_text="Offering statistics including resources, revenue, and utilization",
     )
+
+
+# Report summary serializers
+
+
+class OfferingCostsSummarySerializer(serializers.Serializer):
+    """Summary statistics for offering costs."""
+
+    total_cost = serializers.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        help_text="Total cost of all active resources across all offerings",
+    )
+    offering_count = serializers.IntegerField(
+        help_text="Number of offerings with active resources"
+    )
+    average_cost = serializers.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        help_text="Average cost per offering",
+    )
+
+
+class ResourcesGeographySummarySerializer(serializers.Serializer):
+    """Summary statistics for resource geographic distribution."""
+
+    total_resources = serializers.IntegerField(
+        help_text="Total number of active resources"
+    )
+    countries_count = serializers.IntegerField(
+        help_text="Number of countries with active resources"
+    )
+    org_groups_count = serializers.IntegerField(
+        help_text="Number of organization groups with active resources"
+    )
+    offerings_count = serializers.IntegerField(
+        help_text="Number of offerings with active resources"
+    )
+
+
+class CustomerMemberSummarySerializer(serializers.Serializer):
+    """Summary statistics for customer members."""
+
+    total_organizations = serializers.IntegerField(
+        help_text="Total number of organizations"
+    )
+    total_members = serializers.IntegerField(
+        help_text="Total number of members across all organizations"
+    )
+    organizations_with_resources = serializers.IntegerField(
+        help_text="Number of organizations with active resources"
+    )
+    average_members_per_org = serializers.IntegerField(
+        help_text="Average number of members per organization"
+    )
+
+
+class ProjectClassificationSummarySerializer(serializers.Serializer):
+    """Summary statistics for project classification."""
+
+    total_projects = serializers.IntegerField(help_text="Total number of projects")
+    academic_projects = serializers.IntegerField(
+        help_text="Number of academic projects (industry_flag=False)"
+    )
+    industry_projects = serializers.IntegerField(
+        help_text="Number of industry projects (industry_flag=True)"
+    )

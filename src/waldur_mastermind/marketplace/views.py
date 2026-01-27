@@ -9711,6 +9711,193 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
         )
 
     @extend_schema(
+        description="Return summary statistics for offering costs.",
+        responses=serializers.OfferingCostsSummarySerializer,
+    )
+    @action(detail=False, methods=["get"])
+    def offering_costs_summary(self, request, *args, **kwargs):
+        """Return aggregated offering costs summary."""
+        from decimal import Decimal
+
+        # Aggregate cost data directly in the database
+        result = (
+            models.Resource.objects.filter(
+                state__in=(
+                    ResourceStates.OK,
+                    ResourceStates.UPDATING,
+                )
+            )
+            .values("offering__uuid")
+            .annotate(cost=Sum("cost"))
+            .aggregate(
+                total_cost=Coalesce(Sum("cost"), Decimal("0")),
+                offering_count=Count("offering__uuid", distinct=True),
+            )
+        )
+
+        total_cost = result["total_cost"] or Decimal("0")
+        offering_count = result["offering_count"] or 0
+        average_cost = (
+            total_cost / offering_count if offering_count > 0 else Decimal("0")
+        )
+
+        data = {
+            "total_cost": total_cost,
+            "offering_count": offering_count,
+            "average_cost": average_cost,
+        }
+
+        return Response(
+            serializers.OfferingCostsSummarySerializer(data).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        description="Return summary statistics for resource geographic distribution.",
+        responses=serializers.ResourcesGeographySummarySerializer,
+    )
+    @action(detail=False, methods=["get"])
+    def resources_geography_summary(self, request, *args, **kwargs):
+        """Return aggregated resource geography summary."""
+        active_resources = self.get_active_resources()
+
+        total_resources = active_resources.count()
+
+        # Count distinct countries
+        countries_count = (
+            active_resources.exclude(offering__country="")
+            .values("offering__country")
+            .distinct()
+            .count()
+        )
+
+        # Count distinct organization groups
+        org_groups_count = (
+            structure_models.OrganizationGroup.objects.annotate(
+                resource_count=Count(
+                    "customers__offerings__resource",
+                    filter=Q(
+                        customers__offerings__resource__state__in=(
+                            ResourceStates.OK,
+                            ResourceStates.UPDATING,
+                            ResourceStates.TERMINATING,
+                        )
+                    ),
+                )
+            )
+            .filter(resource_count__gt=0)
+            .count()
+        )
+
+        # Count distinct offerings with resources
+        offerings_count = active_resources.values("offering__uuid").distinct().count()
+
+        data = {
+            "total_resources": total_resources,
+            "countries_count": countries_count,
+            "org_groups_count": org_groups_count,
+            "offerings_count": offerings_count,
+        }
+
+        return Response(
+            serializers.ResourcesGeographySummarySerializer(data).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        description="Return summary statistics for customer members.",
+        responses=serializers.CustomerMemberSummarySerializer,
+    )
+    @action(detail=False, methods=["get"])
+    def customer_member_summary(self, request, *args, **kwargs):
+        """Return aggregated customer member summary."""
+        # Pre-compute customer IDs that have active resources
+        customers_with_resources = set(
+            models.Resource.objects.filter(
+                state__in=(ResourceStates.OK, ResourceStates.UPDATING),
+            )
+            .values_list("project__customer_id", flat=True)
+            .distinct()
+        )
+
+        # Pre-aggregate user counts per customer
+        customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+        user_counts = dict(
+            QuotaUsage.objects.filter(
+                content_type=customer_ct,
+                name="nc_user_count",
+            )
+            .values("object_id")
+            .annotate(total=Sum("delta"))
+            .values_list("object_id", "total")
+        )
+
+        # Get all customer IDs
+        customer_ids = structure_models.Customer.objects.values_list("id", flat=True)
+
+        total_organizations = len(customer_ids)
+        total_members = sum(user_counts.get(cid, 0) or 0 for cid in customer_ids)
+        organizations_with_resources = len(customers_with_resources)
+        average_members_per_org = (
+            round(total_members / total_organizations) if total_organizations > 0 else 0
+        )
+
+        data = {
+            "total_organizations": total_organizations,
+            "total_members": total_members,
+            "organizations_with_resources": organizations_with_resources,
+            "average_members_per_org": average_members_per_org,
+        }
+
+        return Response(
+            serializers.CustomerMemberSummarySerializer(data).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        description="Return summary statistics for project classification.",
+        responses=serializers.ProjectClassificationSummarySerializer,
+    )
+    @action(detail=False, methods=["get"])
+    def project_classification_summary(self, request, *args, **kwargs):
+        """Return aggregated project classification summary."""
+        # Count projects grouped by industry flag
+        result = (
+            structure_models.Project.objects.filter(is_removed=False)
+            .filter(
+                resource__state__in=(
+                    ResourceStates.OK,
+                    ResourceStates.UPDATING,
+                    ResourceStates.TERMINATING,
+                )
+            )
+            .values("is_industry")
+            .annotate(count=Count("id", distinct=True))
+        )
+
+        industry_projects = 0
+        academic_projects = 0
+
+        for item in result:
+            if item["is_industry"]:
+                industry_projects = item["count"]
+            else:
+                academic_projects = item["count"]
+
+        total_projects = industry_projects + academic_projects
+
+        data = {
+            "total_projects": total_projects,
+            "academic_projects": academic_projects,
+            "industry_projects": industry_projects,
+        }
+
+        return Response(
+            serializers.ProjectClassificationSummarySerializer(data).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
         description="Return usage-based resources with no usage reported in the specified billing period.",
         parameters=[
             OpenApiParameter(
