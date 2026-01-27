@@ -968,6 +968,51 @@ class OfferingCreateTest(test.APITransactionTestCase):
             ).get()
             self.assertEqual(offering.state, OfferingStates.DRAFT)
 
+    def test_create_offering_with_plugin_options(self):
+        plugin_options = {
+            "auto_approve_in_service_provider_projects": True,
+            "max_instances": 10,
+        }
+        response = self.create_offering(
+            "owner", add_payload={"plugin_options": plugin_options}
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        offering = models.Offering.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(
+            offering.plugin_options["auto_approve_in_service_provider_projects"], True
+        )
+        self.assertEqual(offering.plugin_options["max_instances"], 10)
+
+    def test_create_offering_with_empty_plugin_options(self):
+        response = self.create_offering("owner", add_payload={"plugin_options": {}})
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        offering = models.Offering.objects.get(uuid=response.data["uuid"])
+        default_plugin_options = {
+            "account_name_generation_policy": None,
+            "auto_approve_marketplace_script": True,
+            "backend_id_display_label": "Backend ID",
+            "enable_display_of_order_actions_for_service_provider": True,
+            "highlight_backend_id_display": False,
+            "homedir_prefix": "/home/",
+            "initial_primarygroup_number": 5000,
+            "initial_uidnumber": 5000,
+            "initial_usergroup_number": 6000,
+            "resource_expiration_threshold": 30,
+            "slurm_periodic_policy_enabled": False,
+            "username_anonymized_prefix": "waldur_",
+            "username_generation_policy": "service_provider",
+        }
+        self.assertEqual(offering.plugin_options, default_plugin_options)
+
+    def test_create_offering_without_plugin_options_uses_default(self):
+        response = self.create_offering("owner")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        offering = models.Offering.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(offering.plugin_options, {})
+
 
 class BaseOfferingUpdateTest(test.APITransactionTestCase):
     def setUp(self):

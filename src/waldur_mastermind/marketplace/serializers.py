@@ -3005,6 +3005,7 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
     )
     options = OfferingOptionsSerializer(required=False)
     resource_options = OfferingOptionsSerializer(required=False)
+    plugin_options = MergedPluginOptionsSerializer(required=False)
     description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
     full_description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
     vendor_details = core_serializers.HTMLCleanField(required=False, allow_blank=True)
