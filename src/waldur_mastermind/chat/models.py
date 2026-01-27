@@ -1,0 +1,285 @@
+import logging
+from datetime import timedelta
+from enum import IntEnum
+
+from constance import config
+from django.core.validators import MinValueValidator
+from django.db import connection, models
+from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+from model_utils.models import TimeStampedModel
+
+from waldur_core.core.models import User, UuidMixin
+
+logger = logging.getLogger(__name__)
+
+
+class TokenLimit(IntEnum):
+    UNLIMITED = -1
+
+
+class TokenQuota(UuidMixin, TimeStampedModel):
+    """
+    Manages token quota and usage tracking for AI chat features.
+    Supports daily, weekly, and monthly quotas to balance consumption.
+    """
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="token_quota",
+    )
+
+    # Quota limits (null = use system default from constance)
+    daily_limit = models.IntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-1)],
+        help_text=_(
+            "Daily token limit (non-negative integer). Null uses system default. -1 means unlimited."
+        ),
+    )
+    weekly_limit = models.IntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-1)],
+        help_text=_(
+            "Weekly token limit (non-negative integer). Null uses system default. -1 means unlimited."
+        ),
+    )
+    monthly_limit = models.IntegerField(
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-1)],
+        help_text=_(
+            "Monthly token limit (non-negative integer). Null uses system default. -1 means unlimited."
+        ),
+    )
+
+    # Current period usage (reset when period expires)
+    daily_usage = models.PositiveIntegerField(default=0)
+    weekly_usage = models.PositiveIntegerField(default=0)
+    monthly_usage = models.PositiveIntegerField(default=0)
+
+    daily_reset_last_at = models.DateTimeField(default=timezone.now)
+    weekly_reset_last_at = models.DateTimeField(default=timezone.now)
+    monthly_reset_last_at = models.DateTimeField(default=timezone.now)
+
+    PERIOD_MAP = {
+        "daily": (
+            "daily_usage",
+            "daily_limit",
+            "LLM_TOKEN_LIMIT_DAILY",
+        ),
+        "weekly": (
+            "weekly_usage",
+            "weekly_limit",
+            "LLM_TOKEN_LIMIT_WEEKLY",
+        ),
+        "monthly": (
+            "monthly_usage",
+            "monthly_limit",
+            "LLM_TOKEN_LIMIT_MONTHLY",
+        ),
+    }
+
+    class Meta:
+        verbose_name = _("Token Quota")
+        verbose_name_plural = _("Token Quotas")
+        indexes = [
+            models.Index(fields=["user"]),
+            models.Index(fields=["daily_reset_last_at"]),
+            models.Index(fields=["weekly_reset_last_at"]),
+            models.Index(fields=["monthly_reset_last_at"]),
+        ]
+
+    def __str__(self):
+        return f"TokenQuota({self.user.username})"
+
+    @classmethod
+    def for_user(cls, user: User, lock: bool = False) -> "TokenQuota":
+        """
+        Get or create TokenQuota for a user, optionally with a row-level lock.
+        Handles concurrent creation attempts safely.
+        """
+        if lock and not connection.in_atomic_block:
+            raise RuntimeError(
+                "Locking a quota requires an active transaction.atomic() block."
+            )
+
+        if lock:
+            # Try to get and lock existing record first
+            try:
+                return cls.objects.select_for_update().get(user=user)
+            except cls.DoesNotExist:
+                # Record doesn't exist - create it
+                # get_or_create handles race condition if another thread creates it
+                quota, _ = cls.objects.get_or_create(user=user)
+                # Re-fetch with lock to ensure consistency
+                return cls.objects.select_for_update().get(pk=quota.pk)
+        else:
+            # No lock requested - simple get_or_create
+            quota, _ = cls.objects.get_or_create(user=user)
+            return quota
+
+    @staticmethod
+    def _coerce_limit(value, field_name: str = "limit"):
+        if value is None:
+            return None
+
+        try:
+            limit = int(value)
+        except (TypeError, ValueError) as e:
+            logger.error(
+                f"Invalid token limit configuration: {field_name}={value} (type={type(value).__name__})"
+            )
+            raise ValueError(
+                f"Token limit {field_name} must be an integer, got {type(value).__name__}: {value}"
+            ) from e
+
+        if limit < TokenLimit.UNLIMITED:
+            logger.error(
+                f"Token limit {field_name} is below minimum: {limit} < {TokenLimit.UNLIMITED}"
+            )
+            raise ValueError(
+                f"Token limit {field_name} must be >= {TokenLimit.UNLIMITED} (-1 for unlimited), got {limit}"
+            )
+
+        return limit
+
+    def get_effective_limit(self, period: str) -> int:
+        """
+        Get limit for period, falling back to system defaults.
+
+        System defaults are defined in constance settings. -1 means unlimited.
+        User specific limits override system defaults. None means use system default. -1 means unlimited.
+
+        Returns:
+        - TokenLimit.UNLIMITED: no quota enforcement
+        - Non-negative integer: specific token limit
+        """
+        if period not in self.PERIOD_MAP:
+            raise ValueError(f"Invalid period: {period}")
+
+        _, user_limit_attr, system_default_limit_attr = self.PERIOD_MAP[period]
+
+        # Get user-specific limit first
+        user_limit = self._coerce_limit(getattr(self, user_limit_attr), user_limit_attr)
+        if user_limit is not None:
+            return user_limit  # User-specific limit is set
+
+        system_limit = getattr(config, system_default_limit_attr, TokenLimit.UNLIMITED)
+        coerced = self._coerce_limit(system_limit, system_default_limit_attr)
+
+        if coerced is None:
+            return TokenLimit.UNLIMITED
+
+        return coerced
+
+    def add_usage(self, tokens: int) -> None:
+        """
+        Record token usage across all periods.
+        """
+        if not connection.in_atomic_block:
+            raise RuntimeError(
+                "This operation requires a transaction. Use transaction.atomic()."
+            )
+
+        if tokens < 0:
+            raise ValueError(f"Token count must be non-negative, got {tokens}")
+
+        TokenQuota.objects.filter(pk=self.pk).update(
+            daily_usage=models.F("daily_usage") + tokens,
+            weekly_usage=models.F("weekly_usage") + tokens,
+            monthly_usage=models.F("monthly_usage") + tokens,
+        )
+
+        self.refresh_from_db(fields=["daily_usage", "weekly_usage", "monthly_usage"])
+
+    def ensure_periods_reset(self) -> None:
+        """
+        Lazily reset any stale period usage counters.
+        """
+        if not connection.in_atomic_block:
+            raise RuntimeError(
+                "ensure_periods_reset requires an active transaction.atomic() block."
+            )
+
+        now = timezone.now()
+        update_fields = []
+
+        for period in ("daily", "weekly", "monthly"):
+            reset_field = f"{period}_reset_last_at"
+            usage_field = f"{period}_usage"
+            period_start = self.calculate_reset_period_start(period)
+
+            if getattr(self, reset_field) < period_start:
+                setattr(self, usage_field, 0)
+                setattr(self, reset_field, now)
+                update_fields.extend([usage_field, reset_field])
+
+        if update_fields:
+            self.save(update_fields=update_fields)
+
+    def get_remaining(self, period: str) -> int | None:
+        """
+        Get remaining tokens for a period.
+        Returns None if unlimited.
+        """
+        limit = self.get_effective_limit(period)
+        if limit == TokenLimit.UNLIMITED:  # Unlimited
+            return None
+
+        usage_attr = self.PERIOD_MAP[period][0]
+        current_usage = getattr(self, usage_attr)
+
+        return max(0, limit - current_usage)
+
+    @staticmethod
+    def calculate_next_reset(period: str):
+        from_time = timezone.now()
+
+        if period == "daily":
+            # Next midnight
+            return (from_time + timedelta(days=1)).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+
+        elif period == "weekly":
+            # Next Monday at midnight
+            days_until_monday = (7 - from_time.weekday()) % 7
+            if days_until_monday == 0:
+                days_until_monday = 7
+            next_monday = from_time + timedelta(days=days_until_monday)
+            return next_monday.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        elif period == "monthly":
+            # First day of next month at midnight
+            if from_time.month == 12:
+                next_month = from_time.replace(year=from_time.year + 1, month=1, day=1)
+            else:
+                next_month = from_time.replace(month=from_time.month + 1, day=1)
+            return next_month.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        else:
+            raise ValueError(f"Invalid period: {period}")
+
+    @staticmethod
+    def calculate_reset_period_start(period: str):
+        now = timezone.now()
+        if period == "daily":
+            # Start of current day
+            return now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        elif period == "weekly":
+            # Start of current week (Monday)
+            return (now - timedelta(days=now.weekday())).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            )
+
+        elif period == "monthly":
+            # First of current month
+            return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        else:
+            raise ValueError(f"Invalid period: {period}")

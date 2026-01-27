@@ -63,10 +63,6 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     filterset_class = filters.IssueFilter
     serializer_class = serializers.IssueSerializer
 
-    def is_staff_or_support(request, view, obj=None):
-        if not request.user.is_staff and not request.user.is_support:
-            raise rf_exceptions.PermissionDenied()
-
     def can_create_user(request, view, obj=None):
         if not request.user.email:
             raise rf_exceptions.ValidationError(
@@ -106,7 +102,9 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if not backend.get_active_backend().update_is_available(issue):
             raise ValidationError("Updating is not available.")
 
-    update_permissions = partial_update_permissions = [is_staff_or_support]
+    update_permissions = partial_update_permissions = [
+        structure_permissions.is_staff_or_support
+    ]
     update_validators = partial_update_validators = [_update_is_available_validator]
 
     @transaction.atomic()
@@ -118,7 +116,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if not backend.get_active_backend().destroy_is_available(issue):
             raise ValidationError("Destroying is not available.")
 
-    destroy_permissions = [is_staff_or_support]
+    destroy_permissions = [structure_permissions.is_staff_or_support]
     destroy_validators = [_destroy_is_available_validator]
 
     def _comment_permission(request, view, obj: models.Issue | None = None):
@@ -161,7 +159,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         backend.get_active_backend().sync_issues(issue.id)
         return response.Response(status=status.HTTP_200_OK)
 
-    sync_permissions = [is_staff_or_support]
+    sync_permissions = [structure_permissions.is_staff_or_support]
 
 
 class PriorityViewSet(viewsets.ReadOnlyModelViewSet):
@@ -478,11 +476,9 @@ class FeedbackViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.FeedbackFilter
 
-    def is_staff_or_support(request, view, obj=None):
-        if not request.user.is_staff and not request.user.is_support:
-            raise rf_exceptions.PermissionDenied()
-
-    list_permissions = retrieve_permissions = [is_staff_or_support]
+    list_permissions = retrieve_permissions = [
+        structure_permissions.is_staff_or_support
+    ]
 
 
 class FeedbackReportViewSet(generics.GenericAPIView):

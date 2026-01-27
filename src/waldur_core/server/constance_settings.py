@@ -785,6 +785,18 @@ CONSTANCE_CONFIG = {
         "gemma3:27b",
         "Name of the LLM model to use for inference.",
     ),
+    "LLM_TOKEN_LIMIT_DAILY": (
+        -1,
+        "Default daily token limit (integer). -1 means unlimited.",
+    ),
+    "LLM_TOKEN_LIMIT_WEEKLY": (
+        -1,
+        "Default weekly token limit (integer). -1 means unlimited.",
+    ),
+    "LLM_TOKEN_LIMIT_MONTHLY": (
+        -1,
+        "Default monthly token limit (integer). -1 means unlimited.",
+    ),
     # Software catalog settings
     "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED": (
         True,
@@ -1126,6 +1138,9 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "LLM_INFERENCES_API_URL",
         "LLM_INFERENCES_API_TOKEN",
         "LLM_INFERENCES_MODEL",
+        "LLM_TOKEN_LIMIT_DAILY",
+        "LLM_TOKEN_LIMIT_WEEKLY",
+        "LLM_TOKEN_LIMIT_MONTHLY",
     ),
     "Software catalog settings": (
         "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED",

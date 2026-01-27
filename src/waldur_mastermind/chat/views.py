@@ -3,17 +3,25 @@ import logging
 
 import requests
 from constance import config
+from django.db import transaction
 from django.http import StreamingHttpResponse
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
+from rest_framework import decorators, status, viewsets
 from rest_framework import exceptions as rf_exceptions
-from rest_framework import status, viewsets
-from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from waldur_core.core.exceptions import ExtensionDisabled
+from waldur_core.core import permissions as core_permissions
+from waldur_core.core.models import User
+from waldur_core.core.views import (
+    ActionsViewSet,
+    ConstanceCheckExtensionMixin,
+)
+from waldur_core.structure import permissions
 from waldur_mastermind.chat import serializers
+from waldur_mastermind.chat.models import TokenQuota
 from waldur_mastermind.chat.parsers import StreamParser, parse_tool_call
 from waldur_mastermind.chat.prompts import SYSTEM_PROMPT
 from waldur_mastermind.chat.tool_executor import ToolExecutor
@@ -22,15 +30,19 @@ from waldur_mastermind.chat.tools import TOOL_REGISTRY, get_tools_prompt
 logger = logging.getLogger(__name__)
 
 
-class LLMConfigurationMixin:
+class LLMConfigurationMixin(ConstanceCheckExtensionMixin):
     """
     Validates that LLM chat is enabled and properly configured.
+    Extends ConstanceCheckExtensionMixin to check LLM_CHAT_ENABLED flag.
     """
 
-    def initial(self, request, *args, **kwargs):
-        if not config.LLM_CHAT_ENABLED:
-            raise ExtensionDisabled()
+    extension_name = "LLM_CHAT"
 
+    def initial(self, request, *args, **kwargs):
+        # Call parent to check LLM_CHAT_ENABLED via ConstanceCheckExtensionMixin
+        super().initial(request, *args, **kwargs)
+
+        # Validate additional API settings
         if not config.LLM_INFERENCES_API_URL:
             exc = rf_exceptions.APIException(
                 _("LLM inference API URL is not configured."),
@@ -44,8 +56,6 @@ class LLMConfigurationMixin:
             )
             exc.status_code = status.HTTP_409_CONFLICT
             raise exc
-
-        return super().initial(request, *args, **kwargs)
 
 
 def validate_tool_call(tool_name, user):
@@ -99,6 +109,9 @@ class LLMStreamer:
         self.parser = StreamParser()
         self.accumulated_content = ""  # For tool call detection
         self.user = user
+        self.input_tokens = 0
+        self.output_tokens = 0
+        self.error = None
         self.is_tool_call = False  # Track if response looks like a tool call
         self.might_be_tool_call = False  # Track if we're buffering potential tool call
 
@@ -172,11 +185,10 @@ class LLMStreamer:
                                 yield self._format_ndjson(block)
 
                     if metadata:
-                        # Flush any pending text
-                        for block in self.parser.flush():
-                            yield self._format_ndjson(block)
-
-                        yield self._format_ndjson({"m": metadata})
+                        # Extract token counts from metadata for internal tracking
+                        usage = metadata.get("usage_metadata", {})
+                        self.input_tokens = usage.get("input_tokens", 0)
+                        self.output_tokens = usage.get("output_tokens", 0)
 
                 # Final sweep
                 for block in self.parser.flush():
@@ -208,15 +220,88 @@ class LLMStreamer:
                         # Looked like JSON but wasn't a valid tool call - send as-is
                         yield self._format_ndjson({"c": self.accumulated_content})
 
-        except requests.RequestException:
+        except requests.RequestException as e:
             logger.error("Upstream LLM request failed.", exc_info=True)
+            self.error = str(e)
             yield self._format_ndjson(
                 {"e": "Chat processing was interrupted. Please try again later."}
             )
 
+        finally:
+            # Always record usage, even if stream was interrupted (GeneratorExit)
+            self._record_usage()
+
+    def _record_usage(self):
+        """
+        Atomically update token quota.
+        Uses TokenQuota.for_user() for concurrent-safe updates.
+        """
+        if not self.user:
+            return
+
+        if self.input_tokens == 0 and self.output_tokens == 0:
+            if not self.error:
+                return
+
+        try:
+            with transaction.atomic():
+                quota = TokenQuota.for_user(self.user, True)
+
+                total_tokens = self.input_tokens + self.output_tokens
+                quota.add_usage(total_tokens)
+
+                logger.info(
+                    f"Recorded AI usage for {self.user.username}: "
+                    f"input={self.input_tokens}, output={self.output_tokens}, "
+                    f"daily usage={quota.daily_usage}"
+                )
+
+        except Exception as e:
+            logger.error(
+                f"Failed to record AI usage for {self.user.username}: {e}",
+                exc_info=True,
+            )
+
+
+QUOTA_EXCEEDED_MESSAGES = {
+    "daily": _("Daily token limit exceeded."),
+    "weekly": _("Weekly token limit exceeded."),
+    "monthly": _("Monthly token limit exceeded."),
+}
+
 
 class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
-    serializer_class = serializers.ChatRequestSerializer
+    """
+    ViewSet for streaming AI chat interactions.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def _validate_quota(self, user: User):
+        """
+        Validate token quota before streaming.
+        Blocks only if the user is already at or above a limit.
+        """
+        try:
+            with transaction.atomic():
+                quota = TokenQuota.for_user(user, True)
+                quota.ensure_periods_reset()
+
+                for period in ("daily", "weekly", "monthly"):
+                    remaining = quota.get_remaining(period)
+                    if remaining is not None and remaining <= 0:
+                        exc = rf_exceptions.APIException(
+                            QUOTA_EXCEEDED_MESSAGES[period]
+                        )
+                        exc.status_code = status.HTTP_409_CONFLICT
+                        raise exc
+        except ValueError as e:
+            logger.error(f"Token quota configuration error: {e}")
+            exc = rf_exceptions.APIException(
+                _("AI Token quota system is misconfigured. Please contact support.")
+            )
+            exc.status_code = status.HTTP_409_CONFLICT
+            raise exc
 
     @extend_schema(
         request=serializers.ChatRequestSerializer,
@@ -224,10 +309,13 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             (200, "application/x-ndjson"): serializers.ChatResponseSerializer,
         },
     )
-    @action(detail=False, methods=["post"])
+    @decorators.action(detail=False, methods=["post"])
     def stream(self, request):
         serializer = serializers.ChatRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        self._validate_quota(user)
 
         streamer = LLMStreamer(
             input_text=serializer.validated_data["input"],
@@ -241,21 +329,115 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             content_type="application/x-ndjson",
         )
 
+
+class TokenQuotaViewSet(ActionsViewSet):
+    """
+    Access to user token quota and usage.
+    Provides only custom actions with no standard CRUD operations.
+    """
+
+    queryset = TokenQuota.objects.all().order_by("-created")
+    serializer_class = serializers.TokenQuotaUsageResponseSerializer
+    lookup_field = "uuid"
+    http_method_names = ["get", "post", "options"]  # Exclude HEAD
+    disabled_actions = [
+        "list",
+        "retrieve",
+        "create",
+        "update",
+        "partial_update",
+        "destroy",
+    ]
+    permission_classes = [IsAuthenticated, core_permissions.ActionsPermission]
+
     @extend_schema(
-        request=None,
-        responses={200: OpenApiTypes.STR},
+        parameters=[serializers.TokenQuotaUsageQuerySerializer],
+        responses={200: serializers.TokenQuotaUsageResponseSerializer},
+        description="""
+        Get current token quota and usage for the requesting user.
+
+        Returns token quota for all periods (daily, weekly, monthly):
+        - limit: User's custom limit (null = use system default, -1 = unlimited, or positive integer)
+        - usage: Tokens used in current period
+        - remaining: Tokens remaining (null if unlimited)
+        - reset_at: When the period resets
+        - system_default: System-wide default limit from configuration (for transparency when limit is null)
+        """,
     )
-    @action(detail=False, methods=["post"])
-    def invoke(self, request):
-        return Response("Invoke chat response", status=status.HTTP_200_OK)
+    @decorators.action(detail=False, methods=["get"])
+    def usage(self, request):
+        user = request.user
+
+        # Permission check: users can only view their own usage
+        if "user_uuid" in request.query_params:
+            requested_user_uuid = request.query_params.get("user_uuid")
+            if str(user.uuid) != requested_user_uuid and not (
+                user.is_staff or user.is_support
+            ):
+                raise rf_exceptions.PermissionDenied(
+                    "You can only view your own usage."
+                )
+            # Allow staff/support to view any user
+            try:
+                user = User.objects.get(uuid=requested_user_uuid)
+            except User.DoesNotExist:
+                raise rf_exceptions.NotFound("User not found.")
+
+        quota = TokenQuota.for_user(user)
+        serializer = serializers.TokenQuotaUsageResponseSerializer(quota)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Set token quota for user",
+        description=(
+            "Allows staff/support to set token quota limits for a specific user. "
+            "Configure daily, weekly, and monthly limits:\n"
+            "- Omit field or send `null`: Use system default\n"
+            "- `-1`: Unlimited (no quota enforcement)\n"
+            "- `0` or positive integer: Specific token limit"
+        ),
+        responses={200: None},
+    )
+    @decorators.action(detail=False, methods=["post"])
+    def set_quota(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user_uuid = serializer.validated_data["user_uuid"]
+
+        # Validate user exists
+        try:
+            user = User.objects.get(uuid=user_uuid)
+        except User.DoesNotExist:
+            raise rf_exceptions.NotFound("User not found.")
+
+        # Get or create TokenQuota for the user
+        quota = TokenQuota.for_user(user)
+
+        # Update limits only if provided in request
+        if "daily_limit" in serializer.validated_data:
+            quota.daily_limit = serializer.validated_data["daily_limit"]
+        if "weekly_limit" in serializer.validated_data:
+            quota.weekly_limit = serializer.validated_data["weekly_limit"]
+        if "monthly_limit" in serializer.validated_data:
+            quota.monthly_limit = serializer.validated_data["monthly_limit"]
+
+        quota.save()
+
+        return Response(status=status.HTTP_200_OK)
+
+    set_quota_permissions = [permissions.is_staff_or_support]
+    set_quota_serializer_class = serializers.SetTokenQuotaSerializer
 
 
 class ToolViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
     @extend_schema(
         request=serializers.ToolExecuteSerializer,
         responses={200: OpenApiTypes.OBJECT},
     )
-    @action(detail=False, methods=["post"], url_path="execute")
+    @decorators.action(detail=False, methods=["post"], url_path="execute")
     def execute_tool(self, request):
         """Execute a tool and return the result."""
         serializer = serializers.ToolExecuteSerializer(data=request.data)
