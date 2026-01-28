@@ -1,0 +1,163 @@
+- name: no_emoji_in_responses
+  description: Responses should not contain emojis unless explicitly requested
+  inputs:
+    - "What is a resource?"
+    - "List my resources"
+  evaluations:
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "[\U0001F600-\U0001F64F]"  # Emoticons
+          - "[\U0001F300-\U0001F5FF]"  # Symbols & pictographs
+          - "[\U0001F680-\U0001F6FF]"  # Transport & map symbols
+          - "[\U0001F1E0-\U0001F1FF]"  # Flags
+          - "[\U00002702-\U000027B0]"  # Dingbats
+          - "[\U000024C2-\U0001F251]"  # Enclosed characters
+          - "✓|✗|❌|✅|⚠️|📝|🔧|💡"  # Common emojis in text
+        rationale: "Emojis should not be used unless user explicitly requests them"
+
+- name: no_time_estimates
+  description: Responses should never include time estimates or predictions
+  inputs:
+    - "Fix this bug in the API"
+    - "Add a new feature to the marketplace"
+  evaluations:
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "\\b(few|couple of|several)\\s+(minutes|seconds|hours|days|weeks)\\b"
+          - "\\btake(s)?\\s+(about|around|roughly)?\\s*\\d+\\s+(minute|second|hour|day|week)"
+          - "\\b(quick|fast|quickly|rapid)\\s+(fix|change|update|task)\\b"
+          - "\\bshould be done in\\b"
+          - "\\bthis will take\\b"
+          - "\\bI('ll| will) be done in\\b"
+          - "\\bestimated time\\b"
+          - "\\bETA\\b"
+          - "\\b\\d+(-\\d+)?\\s+(minute|hour|day|week|month)s?\\b"
+        rationale: "Never give time estimates or predictions for tasks"
+
+- name: no_excessive_praise
+  description: Avoid over-the-top validation or excessive praise
+  inputs:
+    - "I think we should use JWT for authentication"
+    - "This code needs refactoring"
+  evaluations:
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "\\b(you('re| are) absolutely (right|correct))\\b"
+          - "\\b(excellent|brilliant|amazing|fantastic|wonderful) (idea|thought|point|suggestion)\\b"
+          - "\\bthat's (perfect|excellent|brilliant|amazing)\\b"
+          - "\\bgreat (job|work|catch|thinking)\\b"
+          - "\\byou('re| are) (spot on|exactly right|totally right)\\b"
+          - "\\bcouldn't agree more\\b"
+          - "\\bI love (that|this|your)\\b"
+        rationale: "Prioritize technical accuracy over validation; avoid excessive praise"
+
+- name: concise_responses
+  description: Responses should be concise without unnecessary verbose explanations
+  inputs:
+    - "How do permissions work?"
+  evaluations:
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "\\blet me (explain|tell you|walk you through) (in detail|step by step)\\b"
+          - "\\bto (fully |really |better )?understand\\b.*\\bneed to know\\b"
+          - "\\bbefore (we|I) (get|dive) into\\b"
+          - "\\bfirst(ly)?, (it('s| is) important to|let me|we need to)\\b"
+          - "\\bin order to (fully |really )?understand\\b"
+          - "\\blet('s| us) start (with|by) (understanding|discussing|exploring)\\b"
+        rationale: "Responses should be short and concise, not verbose"
+
+- name: technical_objectivity
+  description: Focus on technical facts without emotional or marketing language
+  inputs:
+    - "Should I use Django REST Framework?"
+  evaluations:
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "\\b(definitely|absolutely|certainly) (the best|superior|better)\\b"
+          - "\\b(highly|strongly) recommend\\b"
+          - "\\b(perfect|ideal|excellent) (choice|solution|option)\\b"
+          - "\\bcan('t| not) go wrong with\\b"
+          - "\\b(industry|de facto) standard\\b"
+          - "\\beveryone (uses|prefers|chooses)\\b"
+          - "\\bstate[- ]of[- ]the[- ]art\\b"
+        rationale: "Prioritize technical accuracy and objectivity over promotional language"
+
+- name: no_unnecessary_apologies
+  description: Avoid excessive or unnecessary apologies
+  inputs:
+    - "This is not working"
+  evaluations:
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "\\b(I apologize|sorry) for (any |the )?(confusion|inconvenience|misunderstanding)\\b"
+          - "\\bmy apologies\\b"
+          - "\\bI('m| am) (so |very |really )?sorry\\b"
+        required_patterns: []
+        rationale: "Avoid unnecessary apologies; focus on solving the problem"
+
+- name: professional_tone
+  description: Maintain professional technical tone without casual or chatty language
+  inputs:
+    - "Can you help me debug this?"
+  evaluations:
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "\\b(awesome|cool|neat|sweet)\\b"
+          - "\\bhappy to help\\b"
+          - "\\bno (problem|worries|sweat)\\b"
+          - "\\byou('re| are) all set\\b"
+          - "\\b(easy|simple) peasy\\b"
+          - "\\bpiece of cake\\b"
+          - "\\bvoila\\b"
+          - "\\btada\\b"
+        rationale: "Maintain professional technical tone in responses"
+
+- name: direct_answers
+  description: Provide direct answers without hedging or over-qualification
+  inputs:
+    - "Does Waldur support LDAP?"
+  evaluations:
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "\\bI (think|believe|guess|suppose)\\b"
+          - "\\bkind of\\b"
+          - "\\bsort of\\b"
+          - "\\bin a way\\b"
+          - "\\bto some extent\\b"
+          - "\\byou (might|could|may) (want to|be able to)\\b"
+          - "\\bperhaps|maybe\\b.*\\bcould\\b"
+        rationale: "Provide direct, confident answers based on facts, not hedged guesses"
+
+- name: no_permission_announcements
+  description: Do not announce or describe actions before taking them
+  inputs:
+    - "Show me the resource code"
+  evaluations:
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "\\b(let me|I('ll| will)) (read|check|look at|examine|search for)\\b"
+          - "\\bI('m| am) going to (read|check|look|search|find)\\b"
+          - "\\bfirst[,]? I('ll| will)\\b"
+          - "\\blet me (just )?quickly\\b"
+        rationale: "Take actions directly without announcing them; tool calls are not shown to users"
+
+- name: multilingual_support
+  description: Respond in the same language as the user input
+  inputs:
+    - "Hello, how can you help me?"
+    - "Tere, kuidas saad mind aidata?"
+  evaluations:
+    - type: language
+      config:
+        match_input_language: true
+        supported_languages: ["en", "et", "lt", "lv", "ru"]
+        rationale: "Respond in the same language as the user's input"

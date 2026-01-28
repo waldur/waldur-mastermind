@@ -1,0 +1,39 @@
+- name: greeting_no_tool
+  description: Greetings should not trigger tool calls
+  inputs:
+    - "hello"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: null
+        rationale: "Greetings should be answered directly without using tools"
+
+- name: question_no_tool
+  description: Conceptual questions should be answered directly
+  inputs:
+    - "what are resources?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: null
+        rationale: "Conceptual questions should be answered from knowledge, not tools"
+
+- name: help_no_tool
+  description: Help requests should not trigger tools
+  inputs:
+    - "what can you do?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: null
+        rationale: "Help requests should be answered directly"
+
+- name: show_resources_uses_tool
+  description: Explicit data requests should use appropriate tool
+  inputs:
+    - "show my resources"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: "show_user_resources"
+        rationale: "User is explicitly requesting their resource data"
