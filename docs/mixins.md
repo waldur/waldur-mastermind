@@ -12,7 +12,6 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ExtraActionsMixin`](#extraactionsmixin) | `waldur_core.core.admin` | Allows to add extra actions to admin list page |
 | [`ExtraActionsObjectMixin`](#extraactionsobjectmixin) | `waldur_core.core.admin` | Allows to add extra actions to admin object edit page |
 | [`HideAdminOriginalMixin`](#hideadminoriginalmixin) | `waldur_core.core.admin` | Encapsulate all admin options and functionality for a given model |
-| [`NativeNameAdminMixin`](#nativenameadminmixin) | `waldur_core.core.admin` | This mixin allows to toggle display of fields in Django model admin according... |
 | [`ReadOnlyAdminMixin`](#readonlyadminmixin) | `waldur_core.core.admin` | Disables all editing capabilities |
 | [`DeleteExecutorMixin`](#deleteexecutormixin) | `waldur_core.core.executors` | Delete object on success or if force flag is enabled |
 | [`ErrorExecutorMixin`](#errorexecutormixin) | `waldur_core.core.executors` | Set object as erred on fail |
@@ -225,17 +224,6 @@ Allows to add extra actions to admin object edit page.
 Encapsulate all admin options and functionality for a given model.
 
 **Base classes:** `ModelAdmin`
-
-### NativeNameAdminMixin
-
-**Module:** `waldur_core.core.admin`
-
-**Description:**
-
-This mixin allows to toggle display of fields in Django model admin according to custom logic.
-It's expected that inherited class has implemented excluded_fields property.
-
-**Base classes:** `ExcludedFieldsAdminMixin`
 
 ### ReadOnlyAdminMixin
 

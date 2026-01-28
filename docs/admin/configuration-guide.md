@@ -352,7 +352,6 @@ WALDUR_CORE = {'ATTACHMENT_LINK_MAX_AGE': datetime.timedelta(seconds=3600),
  'MASTERMIND_URL': '',
  'MATOMO_SITE_ID': None,
  'MATOMO_URL_BASE': None,
- 'NATIVE_NAME_ENABLED': False,
  'NOTIFICATIONS_PROFILE_CHANGES': {'ENABLE_OPERATOR_OWNER_NOTIFICATIONS': False,
                                    'FIELDS': ('email',
                                               'phone_number',
@@ -611,12 +610,6 @@ Site ID is used by Matomo analytics application.
 **Type:** Optional[str]
 
 URL base is used by Matomo analytics application.
-
-#### NATIVE_NAME_ENABLED
-
-**Type:** bool
-
-Allows to render native name field in customer and user forms.
 
 #### NOTIFICATIONS_PROFILE_CHANGES
 
