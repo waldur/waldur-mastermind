@@ -10481,10 +10481,10 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
                 billing_period__month=now.month,
             )
             .filter(
-                resource__orders__type=OrderTypes.CREATE,
+                resource__order__type=OrderTypes.CREATE,
             )
             .annotate(
-                organization_type=F("resource__orders__created_by__organization_type"),
+                organization_type=F("resource__order__created_by__organization_type"),
             )
             .values("organization_type", "component__type")
             .annotate(
