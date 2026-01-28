@@ -10421,3 +10421,59 @@ class ProjectClassificationSummarySerializer(serializers.Serializer):
     industry_projects = serializers.IntegerField(
         help_text="Number of industry projects (industry_flag=True)"
     )
+
+
+# Extended stats report serializers
+
+
+class ResourceUsageByOrgTypeSerializer(serializers.Serializer):
+    """Resource usage grouped by creator's organization type."""
+
+    organization_type = serializers.CharField(
+        allow_null=True, help_text="SCHAC organization type URN"
+    )
+    component_type = serializers.CharField(help_text="Component type (e.g., cpu, gpu)")
+    usage = serializers.DecimalField(
+        max_digits=20, decimal_places=2, help_text="Total usage for this component"
+    )
+    resource_count = serializers.IntegerField(help_text="Number of resources")
+
+
+class ResourceUsageByCustomerSerializer(serializers.Serializer):
+    """Full resource breakdown per customer."""
+
+    customer_uuid = serializers.UUIDField(help_text="UUID of the customer")
+    customer_name = serializers.CharField(help_text="Name of the customer")
+    customer_abbreviation = serializers.CharField(
+        allow_null=True, help_text="Abbreviation of the customer"
+    )
+    resources_ok = serializers.IntegerField(help_text="Number of OK resources")
+    resources_erred = serializers.IntegerField(help_text="Number of erred resources")
+    resources_total = serializers.IntegerField(
+        help_text="Total number of active resources"
+    )
+    total_cost = serializers.DecimalField(
+        max_digits=20, decimal_places=2, help_text="Total cost of resources"
+    )
+    usages = serializers.DictField(
+        child=serializers.DecimalField(max_digits=20, decimal_places=2),
+        help_text="Component usages keyed by component type",
+    )
+    limits = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Resource limits keyed by limit name",
+    )
+
+
+class ResourceUsageByAffiliationSerializer(serializers.Serializer):
+    """Resource usage grouped by creator's affiliation."""
+
+    affiliation = serializers.CharField(help_text="User affiliation value")
+    component_type = serializers.CharField(help_text="Component type")
+    total_usage = serializers.DecimalField(
+        max_digits=20, decimal_places=2, help_text="Total usage"
+    )
+    total_cost = serializers.DecimalField(
+        max_digits=20, decimal_places=2, help_text="Total cost"
+    )
+    resource_count = serializers.IntegerField(help_text="Number of resources")

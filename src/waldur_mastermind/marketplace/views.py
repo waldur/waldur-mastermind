@@ -10463,6 +10463,210 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
         serializer = serializers.ProviderOfferingStatsSerializer(result)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(
+        description="Return component usages grouped by creator's organization type.",
+        responses=serializers.ResourceUsageByOrgTypeSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def resource_usage_by_organization_type(self, request, *args, **kwargs):
+        """
+        Aggregate component usages by the organization_type of the user
+        who created the resource (via creation order).
+        """
+        now = timezone.now()
+
+        usages = (
+            models.ComponentUsage.objects.filter(
+                billing_period__year=now.year,
+                billing_period__month=now.month,
+            )
+            .filter(
+                resource__orders__type=OrderTypes.CREATE,
+            )
+            .annotate(
+                organization_type=F("resource__orders__created_by__organization_type"),
+            )
+            .values("organization_type", "component__type")
+            .annotate(
+                usage=Sum("usage"),
+                resource_count=Count("resource_id", distinct=True),
+            )
+        )
+
+        result = [
+            {
+                "organization_type": u["organization_type"] or "",
+                "component_type": u["component__type"],
+                "usage": u["usage"],
+                "resource_count": u["resource_count"],
+            }
+            for u in usages
+        ]
+
+        serializer = serializers.ResourceUsageByOrgTypeSerializer(result, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Return resource usage statistics grouped by customer.",
+        responses=serializers.ResourceUsageByCustomerSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def resource_usage_by_customer(self, request, *args, **kwargs):
+        """
+        Aggregate resource data per customer including:
+        - Component usages (current month)
+        - Resource limits (sum)
+        - Total cost
+        - Resource count by state
+        """
+        now = timezone.now()
+
+        # Get customers with their resource stats
+        customers = (
+            structure_models.Customer.objects.annotate(
+                resources_ok=Count(
+                    "projects__resource",
+                    filter=Q(projects__resource__state=ResourceStates.OK),
+                ),
+                resources_erred=Count(
+                    "projects__resource",
+                    filter=Q(projects__resource__state=ResourceStates.ERRED),
+                ),
+                resources_total=Count(
+                    "projects__resource",
+                    filter=~Q(projects__resource__state=ResourceStates.TERMINATED),
+                ),
+                total_cost=Sum(
+                    "projects__resource__cost",
+                    filter=Q(
+                        projects__resource__state__in=[
+                            ResourceStates.OK,
+                            ResourceStates.UPDATING,
+                        ]
+                    ),
+                ),
+            )
+            .filter(resources_total__gt=0)
+            .values(
+                "uuid",
+                "name",
+                "abbreviation",
+                "resources_ok",
+                "resources_erred",
+                "resources_total",
+                "total_cost",
+            )
+        )
+
+        # Pre-fetch usages for all customers
+        customer_usages = {}
+        usages = (
+            models.ComponentUsage.objects.filter(
+                billing_period__year=now.year,
+                billing_period__month=now.month,
+            )
+            .values(
+                "resource__project__customer__uuid",
+                "component__type",
+            )
+            .annotate(usage=Sum("usage"))
+        )
+        for u in usages:
+            customer_uuid = str(u["resource__project__customer__uuid"])
+            if customer_uuid not in customer_usages:
+                customer_usages[customer_uuid] = {}
+            customer_usages[customer_uuid][u["component__type"]] = u["usage"]
+
+        # Pre-fetch limits for all customers
+        customer_limits = {}
+        for resource in (
+            models.Resource.objects.filter(state=ResourceStates.OK)
+            .exclude(limits={})
+            .values("project__customer__uuid", "limits")
+        ):
+            customer_uuid = str(resource["project__customer__uuid"])
+            if customer_uuid not in customer_limits:
+                customer_limits[customer_uuid] = {}
+            for name, value in resource["limits"].items():
+                if value > 0:
+                    if name in customer_limits[customer_uuid]:
+                        customer_limits[customer_uuid][name] += value
+                    else:
+                        customer_limits[customer_uuid][name] = value
+
+        # Build result
+        result = []
+        for customer in customers:
+            customer_uuid = str(customer["uuid"])
+            result.append(
+                {
+                    "customer_uuid": customer["uuid"],
+                    "customer_name": customer["name"],
+                    "customer_abbreviation": customer["abbreviation"],
+                    "resources_ok": customer["resources_ok"],
+                    "resources_erred": customer["resources_erred"],
+                    "resources_total": customer["resources_total"],
+                    "total_cost": customer["total_cost"] or 0,
+                    "usages": customer_usages.get(customer_uuid, {}),
+                    "limits": customer_limits.get(customer_uuid, {}),
+                }
+            )
+
+        serializer = serializers.ResourceUsageByCustomerSerializer(result, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Return resource usage grouped by creator's affiliation.",
+        responses=serializers.ResourceUsageByAffiliationSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def resource_usage_by_creator_affiliation(self, request, *args, **kwargs):
+        """
+        Aggregate usage by user affiliations.
+        Users with multiple affiliations are counted in each.
+        Uses PostgreSQL jsonb_array_elements_text to expand affiliations.
+        """
+        now = timezone.now()
+        billing_period = now.date().replace(day=1)
+
+        # Use raw SQL for jsonb_array_elements_text expansion
+        raw_query = """
+            SELECT
+                affiliation,
+                component_type,
+                SUM(usage) as total_usage,
+                SUM(cost) as total_cost,
+                COUNT(DISTINCT resource_id) as resource_count
+            FROM (
+                SELECT
+                    jsonb_array_elements_text(u.affiliations) as affiliation,
+                    oc.type as component_type,
+                    cu.usage,
+                    r.cost,
+                    r.id as resource_id
+                FROM marketplace_componentusage cu
+                JOIN marketplace_resource r ON cu.resource_id = r.id
+                JOIN marketplace_order o ON o.resource_id = r.id AND o.type = %s
+                JOIN core_user u ON o.created_by_id = u.id
+                JOIN marketplace_offeringcomponent oc ON cu.component_id = oc.id
+                WHERE cu.billing_period = %s
+                  AND u.affiliations IS NOT NULL
+                  AND jsonb_array_length(u.affiliations) > 0
+            ) subq
+            GROUP BY affiliation, component_type
+            ORDER BY affiliation, component_type
+        """
+
+        with connection.cursor() as cursor:
+            cursor.execute(raw_query, [OrderTypes.CREATE, billing_period])
+            columns = [col[0] for col in cursor.description]
+            results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+
+        serializer = serializers.ResourceUsageByAffiliationSerializer(
+            results, many=True
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class ProviderInvoiceItemsViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = invoice_models.InvoiceItem.objects.all().order_by("-invoice__created")
