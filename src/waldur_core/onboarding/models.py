@@ -406,6 +406,11 @@ class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
         # Extract data from checklist
         extracted = self.extract_data_from_checklist()
 
+        # Extract address and postal from verified_company_data if available
+        # These should be pre-normalized by the backend (e.g., Estonian backend)
+        address_from_api = self.verified_company_data.get("address")
+        postal_from_api = self.verified_company_data.get("postal")
+
         # Prioritize API data from verified_company_data, fallback to checklist answers
         customer_data = {
             "name": (
@@ -419,6 +424,12 @@ class OnboardingVerification(UuidMixin, ErrorMessageMixin, TimeStampedModel):
             "country": self.country or extracted["customer_data"].get("country"),
             "registration_code": self.legal_person_identifier,
         }
+
+        # Add address and postal from API if available
+        if address_from_api:
+            customer_data["address"] = address_from_api
+        if postal_from_api:
+            customer_data["postal"] = postal_from_api
 
         # Add any additional fields from checklist answers
         for key, value in extracted["customer_data"].items():
