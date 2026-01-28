@@ -509,6 +509,7 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
     disabled_actions = ["create"]
     queryset = models.InvoiceItem.objects.select_related(
         "invoice",
+        "invoice__customer",
         "resource",
         "resource__offering",
         "plan_component",

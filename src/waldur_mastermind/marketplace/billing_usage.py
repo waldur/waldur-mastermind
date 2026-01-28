@@ -185,19 +185,21 @@ class BillingUsageProcessor:
 
         try:
             plan_component = plan.components.get(component=offering_component)
+            unit_price = plan_component.price
         except ObjectDoesNotExist:
-            # During import operations, missing PlanComponents might be expected if import order is affected
+            # PlanComponent not found - use price 0 to still track usage
+            plan_component = None
+            unit_price = 0
             if get_skip_side_effects():
                 logger.debug(
                     f"PlanComponent for component '{offering_component.type}' not found "
-                    f"in plan '{plan.name}' for resource '{resource.uuid}' during import. Skipping billing."
+                    f"in plan '{plan.name}' for resource '{resource.uuid}' during import. Using price 0."
                 )
             else:
-                logger.error(
+                logger.warning(
                     f"PlanComponent for component '{offering_component.type}' not found "
-                    f"in plan '{plan.name}' for resource '{resource.uuid}'. Cannot bill usage."
+                    f"in plan '{plan.name}' for resource '{resource.uuid}'. Using price 0."
                 )
-            return
 
         converted_usage = convert_quantity(
             usage_to_bill, resource.offering.type, offering_component.type
@@ -211,7 +213,9 @@ class BillingUsageProcessor:
             )
         else:
             # Create a new invoice item
-            details = get_component_details(resource, plan_component)
+            details = get_component_details(
+                resource, plan_component, offering_component=offering_component
+            )
             if is_overage:
                 details["is_overage"] = True  # Add a flag for reporting
 
@@ -237,7 +241,7 @@ class BillingUsageProcessor:
                 start=start,
                 end=end,
                 details=details,
-                unit_price=plan_component.price,
+                unit_price=unit_price,
                 quantity=converted_usage,
                 unit=common_mixins.UnitPriceMixin.Units.QUANTITY,
                 measured_unit=offering_component.measured_unit,
