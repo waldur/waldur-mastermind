@@ -90,6 +90,32 @@ def validate_options(options, attributes, optional=False):
 
         fields[name] = field_class(**params)
 
+    validators = []
+    for name, option in options.items():
+        if "validators" in option:
+            for validator in option["validators"]:
+                validator["source_field"] = name
+                validators.append(validator)
+
+    if validators:
+
+        def validate(self, attrs):
+            for validator in validators:
+                if validator["type"] == "gt":
+                    source = attrs.get(validator["source_field"])
+                    target = attrs.get(validator["target_field"])
+                    if source is not None and target is not None and source <= target:
+                        raise serializers.ValidationError(
+                            {
+                                validator[
+                                    "source_field"
+                                ]: f"{validator['source_field']} must be greater than {validator['target_field']}"
+                            }
+                        )
+            return attrs
+
+        fields["validate"] = validate
+
     serializer_class = type("AttributesSerializer", (serializers.Serializer,), fields)
     serializer = serializer_class(data=attributes)
     serializer.is_valid(raise_exception=True)
