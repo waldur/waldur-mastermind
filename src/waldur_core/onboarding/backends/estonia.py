@@ -123,10 +123,39 @@ class EstonianAriregisterBackend(CompanyRegistryBackend):
             )
             normalized_data = self._normalize_company_data(verified_company_data)
 
+            # If authorized, fetch additional company details (address, postal)
+            address_details = None
+            if is_authorized:
+                address_details = self._fetch_company_address_details(
+                    request.legal_person_identifier
+                )
+
+            company_data_dict = normalized_data.__dict__.copy()
+
+            # If authorized, fetch and extract address details
+            if is_authorized and address_details:
+                keha = address_details.get("keha", {})
+                ettevotjad = keha.get("ettevotjad", {})
+                companies = ettevotjad.get("item", [])
+
+                if companies and len(companies) > 0:
+                    company = companies[0]
+                    evaadressid = company.get("evaadressid", {})
+
+                    address = evaadressid.get(
+                        "aadress_ads__ads_normaliseeritud_taisaadress"
+                    )
+                    postal = evaadressid.get("indeks_ettevotja_aadressis")
+
+                    if address:
+                        company_data_dict["address"] = address
+                    if postal:
+                        company_data_dict["postal"] = postal
+
             return ValidationResult(
                 is_valid=is_authorized,
                 method_used=self.get_validation_method(),
-                company_data=normalized_data.__dict__,
+                company_data=company_data_dict,
                 user_roles=verified_user_roles,
                 raw_response=verified_company_data,
                 error_code=None if is_authorized else ErrorCode.NOT_AUTHORIZED,
@@ -161,6 +190,78 @@ class EstonianAriregisterBackend(CompanyRegistryBackend):
                 error_code=ErrorCode.UNKNOWN_ERROR,
                 error_message=f"An unexpected error occurred: {str(e)}",
             )
+
+    def _fetch_company_address_details(
+        self, legal_person_identifier: str
+    ) -> dict[str, Any] | None:
+        """
+        Fetch detailed company data including address from Estonian Business Register API.
+
+        Args:
+            legal_person_identifier: Company registration code
+
+        Returns:
+            Dict containing company details including address, or None if fetch fails
+        """
+        # Get configuration from Constance
+        base_url = config.ONBOARDING_ARIREGISTER_BASE_URL
+        timeout = config.ONBOARDING_ARIREGISTER_TIMEOUT
+        username = config.ONBOARDING_ARIREGISTER_USERNAME
+        password = config.ONBOARDING_ARIREGISTER_PASSWORD
+
+        if not username or not password:
+            logger.error("Äriregister credentials not configured")
+            return None
+
+        legal_person_identifier = str(legal_person_identifier).strip()
+
+        xml_data = f"""<?xml version="1.0" encoding="UTF-8"?>
+        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:iden="http://x-road.eu/xsd/identifiers" xmlns:prod="http://arireg.x-road.eu/producer/" xmlns:xro="http://x-road.eu/xsd/xroad.xsd">
+         <soapenv:Body>
+         <prod:lihtandmed_v2>
+         <prod:keha>
+         <prod:ariregister_kasutajanimi>{username}</prod:ariregister_kasutajanimi>
+         <prod:ariregister_parool>{password}</prod:ariregister_parool>
+         <prod:ariregister_valjundi_formaat>json</prod:ariregister_valjundi_formaat>
+         <prod:ariregistri_kood>{legal_person_identifier}</prod:ariregistri_kood>
+         <prod:keel>eng</prod:keel>
+         </prod:keha>
+         </prod:lihtandmed_v2>
+         </soapenv:Body>
+        </soapenv:Envelope>
+        """
+
+        headers = {
+            "Content-Type": "text/xml; charset=utf-8",
+            "SOAPAction": '""',
+        }
+
+        try:
+            response = requests.post(
+                base_url,
+                data=xml_data.encode("utf-8"),
+                headers=headers,
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            response_data = response.json()
+
+            if "keha" not in response_data:
+                logger.warning(
+                    f"Invalid API response structure for address details: {legal_person_identifier}"
+                )
+                return None
+
+            return response_data
+
+        except requests.exceptions.JSONDecodeError:
+            logger.error(
+                f"Invalid JSON response from Äriregister address API for code: {legal_person_identifier}"
+            )
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching company address details: {str(e)}")
+            return None
 
     def _fetch_company_from_ariregister(
         self, legal_person_identifier: str

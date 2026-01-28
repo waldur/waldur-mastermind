@@ -256,7 +256,7 @@ class EstonianAriregisterAPITest(APITestCase):
         )
 
         # Verify API was called with correct parameters
-        mock_post.assert_called_once()
+        mock_post.assert_called()
         call_args = mock_post.call_args
         self.assertIn("username", call_args[1]["data"].decode("utf-8"))
         self.assertIn("password", call_args[1]["data"].decode("utf-8"))
@@ -884,7 +884,7 @@ class EstonianAriregisterBackendTest(TestCase):
         self.assertEqual(result.company_data["registry"], "Estonian Business Register")
 
         # Verify API was called with correct parameters
-        mock_post.assert_called_once()
+        mock_post.assert_called()
         call_args = mock_post.call_args
         self.assertIn("username", call_args[1]["data"].decode("utf-8"))
         self.assertIn("password", call_args[1]["data"].decode("utf-8"))
