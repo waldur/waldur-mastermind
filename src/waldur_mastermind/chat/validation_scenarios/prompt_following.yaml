@@ -1,0 +1,71 @@
+- name: no_mention_tools_greeting
+  description: Greetings should never mention tools to the user
+  inputs:
+    - "hello"
+  evaluations:
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "\\btool\\b"
+          - "\\bfunction\\b"
+          - "\\bAPI\\b"
+          - "\\bcall\\b.*\\bresource"
+        rationale: "Tool implementation details should never be mentioned to users"
+
+- name: no_mention_tools_questions
+  description: Conceptual questions should not mention internal tools
+  inputs:
+    - "what can you do?"
+  evaluations:
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "\\btool\\b"
+          - "\\bfunction\\b"
+          - "\\bAPI call\\b"
+        rationale: "Describe capabilities naturally without mentioning tools"
+
+- name: json_only_for_tools
+  description: Tool calls should not have explanatory prefix text
+  inputs:
+    - "show my resources"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: "show_user_resources"
+        rationale: "Must call show_user_resources for explicit data requests"
+    - type: pattern
+      config:
+        forbidden_patterns:
+          - "^Here is"
+          - "^Let me"
+          - "^I'll"
+          - "^I will"
+          - "^Calling"
+        rationale: "Tool calls should not have explanatory text (markdown wrappers are OK)"
+
+- name: uses_code_blocks_with_language
+  description: Code examples must use language identifiers
+  inputs:
+    - "show me a Python example to list resources"
+  evaluations:
+    - type: code_block
+      config:
+        require_language_identifier: true
+        allowed_languages: ["python", "bash", "javascript", "typescript", "json", "yaml"]
+        rationale: "Code blocks should use ```python not bare ```"
+    - type: tool_usage
+      config:
+        expected_tool: null
+        rationale: "Code examples should be provided directly, not via tools"
+
+- name: uses_mermaid_diagrams
+  description: Mermaid diagrams should be properly formatted
+  inputs:
+    - "show me a flowchart of how resource creation works"
+  evaluations:
+    - type: code_block
+      config:
+        require_language_identifier: true
+        allowed_languages: ["mermaid"]
+        rationale: "Mermaid diagrams should use ```mermaid code blocks"

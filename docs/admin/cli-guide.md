@@ -1,5 +1,31 @@
 # CLI guide
 
+## ai_assistant
+
+AI Assistant management commands.
+
+  Available subcommands:
+
+```yaml
+health - Check LLM infrastructure health
+```
+
+  Examples:
+
+```yaml
+waldur ai_assistant health
+```
+
+```bash
+
+usage: waldur ai_assistant {health} ...
+
+positional arguments:
+  {health}              Available subcommands
+    health              Check LLM infrastructure health
+
+```
+
 ## axes_list_attempts
 
 List access attempts

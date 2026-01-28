@@ -25,6 +25,15 @@ class ParseToolCallTest(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["tool"], "show_user_resources")
 
+    def test_parses_markdown_without_language_tag(self):
+        """Some LLMs use bare ``` without language tag."""
+        content = '```\n{"tool": "show_user_resources", "arguments": {}}\n```'
+        result = parse_tool_call(content)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["tool"], "show_user_resources")
+        self.assertEqual(result["arguments"], {})
+
     def test_returns_none_for_malformed_json(self):
         """Security: malformed JSON must not crash, return None."""
         content = '{"tool": "show_user_resources", "arguments": {'
