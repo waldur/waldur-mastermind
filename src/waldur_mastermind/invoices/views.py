@@ -31,7 +31,7 @@ from waldur_mastermind.invoices.models import InvoiceItem
 from . import filters, models, serializers, tasks, utils
 
 
-class InvoiceViewSet(core_views.ReadOnlyActionsViewSet):
+class InvoiceViewSet(core_views.HistoryViewSetMixin, core_views.ReadOnlyActionsViewSet):
     queryset = models.Invoice.objects.order_by("-year", "-month")
     serializer_class = serializers.InvoiceSerializer
     lookup_field = "uuid"

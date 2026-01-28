@@ -1255,6 +1255,52 @@ class DatabaseStatsResponseSerializer(serializers.Serializer):
     )
 
 
+class VersionHistoryUserSerializer(serializers.Serializer):
+    """Serializer for user information in version history."""
+
+    uuid = serializers.UUIDField(help_text="User UUID")
+    username = serializers.CharField(help_text="Username")
+    full_name = serializers.CharField(help_text="Full name of the user")
+
+
+class VersionHistorySerializer(serializers.Serializer):
+    """
+    Generic serializer for django-reversion Version objects.
+
+    Can be used with any model registered with django-reversion to provide
+    a consistent API for version history.
+    """
+
+    id = serializers.IntegerField(help_text="Version ID")
+    revision_date = serializers.DateTimeField(
+        source="revision.date_created", help_text="When this revision was created"
+    )
+    revision_user = serializers.SerializerMethodField(
+        help_text="User who created this revision"
+    )
+    revision_comment = serializers.CharField(
+        source="revision.comment",
+        allow_blank=True,
+        help_text="Comment describing the revision",
+    )
+    serialized_data = serializers.SerializerMethodField(
+        help_text="Serialized model fields at this revision"
+    )
+
+    def get_revision_user(self, obj) -> dict | None:
+        user = obj.revision.user
+        if user:
+            return {
+                "uuid": str(user.uuid),
+                "username": user.username,
+                "full_name": user.full_name,
+            }
+        return None
+
+    def get_serialized_data(self, obj) -> dict:
+        return json.loads(obj.serialized_data)[0]["fields"]
+
+
 class TableGrowthStatsSerializer(serializers.Serializer):
     """Serializer for individual table growth statistics."""
 

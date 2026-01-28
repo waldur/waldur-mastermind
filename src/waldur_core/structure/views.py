@@ -138,6 +138,7 @@ PROJECT_UUID_PARAMETER = OpenApiParameter(
 )
 class CustomerViewSet(
     UserRoleMixin,
+    core_views.HistoryViewSetMixin,
     core_mixins.EagerLoadMixin,
     viewsets.ModelViewSet,
 ):
@@ -1161,7 +1162,7 @@ class ProjectOtherUsersViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
         return core_models.User.objects.filter(id__in=get_project_users(projects))
 
 
-class UserViewSet(core_views.ActionsViewSet):
+class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
     queryset = core_models.User.all_objects.select_related("auth_token")
     serializer_class = serializers.UserSerializer
     lookup_field = "uuid"
@@ -1680,6 +1681,7 @@ class ProjectPermissionReviewViewSet(
     )
 )
 class SshKeyViewSet(
+    core_views.HistoryViewSetMixin,
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
     mixins.DestroyModelMixin,
