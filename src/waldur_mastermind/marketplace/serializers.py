@@ -10517,3 +10517,20 @@ class ResourceUsageByAffiliationSerializer(serializers.Serializer):
         max_digits=20, decimal_places=2, help_text="Total cost"
     )
     resource_count = serializers.IntegerField(help_text="Number of resources")
+
+
+class AggregatedUsageTrendSerializer(serializers.Serializer):
+    """Aggregated usage data per month for trends reporting."""
+
+    period = serializers.CharField(help_text="Period in YYYY-MM format")
+    year = serializers.IntegerField(help_text="Year")
+    month = serializers.IntegerField(help_text="Month (1-12)")
+    total_usage = serializers.DecimalField(
+        max_digits=20, decimal_places=2, help_text="Total usage across all components"
+    )
+    resource_count = serializers.IntegerField(
+        help_text="Number of distinct resources with usage"
+    )
+    component_count = serializers.IntegerField(
+        help_text="Number of component usage records"
+    )

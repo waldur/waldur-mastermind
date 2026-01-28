@@ -9772,20 +9772,15 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
         )
 
         # Count distinct organization groups
+        # Get customer IDs that have active resources via their offerings
+        customer_ids_with_resources = active_resources.values_list(
+            "offering__customer_id", flat=True
+        ).distinct()
         org_groups_count = (
-            structure_models.OrganizationGroup.objects.annotate(
-                resource_count=Count(
-                    "customers__offerings__resource",
-                    filter=Q(
-                        customers__offerings__resource__state__in=(
-                            ResourceStates.OK,
-                            ResourceStates.UPDATING,
-                            ResourceStates.TERMINATING,
-                        )
-                    ),
-                )
+            structure_models.OrganizationGroup.objects.filter(
+                customers__id__in=customer_ids_with_resources
             )
-            .filter(resource_count__gt=0)
+            .distinct()
             .count()
         )
 
@@ -10491,6 +10486,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
                 usage=Sum("usage"),
                 resource_count=Count("resource_id", distinct=True),
             )
+            .order_by("-resource_count")
         )
 
         result = [
@@ -10547,6 +10543,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
                 ),
             )
             .filter(resources_total__gt=0)
+            .order_by("-resources_total")
             .values(
                 "uuid",
                 "name",
@@ -10654,7 +10651,7 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
                   AND jsonb_array_length(u.affiliations) > 0
             ) subq
             GROUP BY affiliation, component_type
-            ORDER BY affiliation, component_type
+            ORDER BY resource_count DESC, affiliation, component_type
         """
 
         with connection.cursor() as cursor:
@@ -10665,6 +10662,44 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
         serializer = serializers.ResourceUsageByAffiliationSerializer(
             results, many=True
         )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Return aggregated usage trends per month.",
+        responses=serializers.AggregatedUsageTrendSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def aggregated_usage_trends(self, request, *args, **kwargs):
+        """
+        Aggregate component usages by year/month for trends reporting.
+        Returns total usage, resource count, and component count per period.
+        """
+        usages = (
+            models.ComponentUsage.objects.values(
+                "billing_period__year",
+                "billing_period__month",
+            )
+            .annotate(
+                total_usage=Sum("usage"),
+                resource_count=Count("resource_id", distinct=True),
+                component_count=Count("id"),
+            )
+            .order_by("billing_period__year", "billing_period__month")
+        )
+
+        result = [
+            {
+                "period": f"{u['billing_period__year']}-{u['billing_period__month']:02d}",
+                "year": u["billing_period__year"],
+                "month": u["billing_period__month"],
+                "total_usage": u["total_usage"],
+                "resource_count": u["resource_count"],
+                "component_count": u["component_count"],
+            }
+            for u in usages
+        ]
+
+        serializer = serializers.AggregatedUsageTrendSerializer(result, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 

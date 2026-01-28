@@ -969,7 +969,7 @@ class ResourceInvoicePullTask(BackgroundPullTask):
                 year=date.year,
                 month=date.month,
             )
-        except (UnexpectedStatus, TimeoutException) as e:
+        except (UnexpectedStatus, TimeoutException, KeyError) as e:
             logger.info(
                 f"Unable to get remote invoice items for resource [id={local_resource.backend_id}]: {e}"
             )

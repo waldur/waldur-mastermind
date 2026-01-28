@@ -5,7 +5,11 @@ from waldur_mastermind.marketplace.enums import (
     OPENSTACK_TENANT_OFFERING,
     SLURM_OFFERING,
 )
-from waldur_mastermind.marketplace.models import PlanComponent, Resource
+from waldur_mastermind.marketplace.models import (
+    OfferingComponent,
+    PlanComponent,
+    Resource,
+)
 from waldur_mastermind.marketplace_openstack import CORES_TYPE, RAM_TYPE, STORAGE_TYPE
 from waldur_openstack.utils import is_valid_volume_type_name
 
@@ -70,7 +74,8 @@ def get_component_name(plan_component: PlanComponent) -> str:
 
 def get_component_details(
     resource: Resource,
-    plan_component: PlanComponent,
+    plan_component: PlanComponent | None,
+    offering_component: OfferingComponent | None = None,
 ):
     """
     Generate detailed metadata for invoice items.
@@ -81,13 +86,28 @@ def get_component_details(
 
     Args:
         resource: Marketplace resource being billed
-        plan_component: Plan component being billed
+        plan_component: Plan component being billed (can be None if not found)
+        offering_component: Offering component (used when plan_component is None)
 
     Returns:
         Dictionary containing detailed metadata for the invoice item
     """
     customer = resource.offering.customer
     service_provider = getattr(customer, "serviceprovider", None)
+
+    # Determine component details from plan_component or offering_component
+    if plan_component:
+        component_id = plan_component.id
+        component_type = plan_component.component.type
+        component_name = plan_component.component.name
+    elif offering_component:
+        component_id = None
+        component_type = offering_component.type
+        component_name = offering_component.name
+    else:
+        component_id = None
+        component_type = ""
+        component_name = ""
 
     return {
         "resource_name": resource.name,
@@ -101,9 +121,9 @@ def get_component_details(
         "service_provider_uuid": ""
         if not service_provider
         else service_provider.uuid.hex,
-        "plan_component_id": plan_component.id,
-        "offering_component_type": plan_component.component.type,
-        "offering_component_name": plan_component.component.name,
+        "plan_component_id": component_id,
+        "offering_component_type": component_type,
+        "offering_component_name": component_name,
     }
 
 
