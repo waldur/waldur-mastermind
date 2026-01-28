@@ -9,6 +9,7 @@ import reversion
 from constance import config
 from django.conf import settings
 from django.contrib import auth
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
@@ -18,16 +19,19 @@ from django.http import FileResponse, HttpResponse, HttpResponseRedirect, JsonRe
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from django.views.generic import TemplateView
-from drf_spectacular.utils import OpenApiExample, extend_schema
+from drf_spectacular.plumbing import OpenApiTypes
+from drf_spectacular.utils import OpenApiExample, OpenApiParameter, extend_schema
 from packaging import version
 from rest_framework import exceptions, generics, mixins, serializers, status, viewsets
 from rest_framework import mixins as rf_mixins
 from rest_framework import permissions as rf_permissions
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.reverse import reverse
 from rest_framework.views import APIView
 from rest_framework.views import exception_handler as rf_exception_handler
+from reversion.models import Version
 
 from waldur_auth_social.models import IdentityProvider
 from waldur_core import __version__
@@ -60,6 +64,7 @@ from waldur_core.core.serializers import (
     ObtainAuthTokenSerializer,
     QuerySerializer,
     TableGrowthStatsResponseSerializer,
+    VersionHistorySerializer,
     VersionSerializer,
 )
 from waldur_core.core.utils import format_homeport_link
@@ -749,6 +754,169 @@ class UpdateReversionMixin:
             super().perform_update(serializer)
             reversion.set_user(self.request.user)
             reversion.set_comment("Updated via REST API")
+
+
+class HistoryViewSetMixin:
+    """
+    Mixin that adds version history endpoints to ViewSets.
+
+    Requirements:
+    - Model must be registered with django-reversion
+    - ViewSet must have get_object() method
+    - ViewSet must support pagination
+
+    Provides:
+    - GET /{resource}/{uuid}/history/ - List version history
+    - GET /{resource}/{uuid}/history/at/?timestamp=... - State at timestamp
+
+    Configuration (optional class attributes):
+    - history_serializer_class: Serializer for version objects (default: VersionHistorySerializer)
+    """
+
+    # Allow subclasses to override the serializer
+    history_serializer_class = VersionHistorySerializer
+
+    def _get_history_serializer_class(self):
+        """Get the serializer class for history endpoints."""
+        return getattr(self, "history_serializer_class", VersionHistorySerializer)
+
+    def _get_content_type_for_model(self):
+        """Get the ContentType for the ViewSet's model."""
+        queryset = self.get_queryset()
+        return ContentType.objects.get_for_model(queryset.model)
+
+    def _get_versions_queryset(self, obj):
+        """Get queryset of versions for the given object."""
+        content_type = self._get_content_type_for_model()
+        return (
+            Version.objects.filter(
+                content_type=content_type,
+                object_id=str(obj.pk),
+            )
+            .select_related("revision", "revision__user")
+            .order_by("-revision__date_created")
+        )
+
+    @extend_schema(
+        summary="Get version history",
+        description="Returns the version history for this object. Only accessible by staff and support users.",
+        parameters=[
+            OpenApiParameter(
+                "created_before",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter versions created before this timestamp (ISO 8601)",
+            ),
+            OpenApiParameter(
+                "created_after",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter versions created after this timestamp (ISO 8601)",
+            ),
+        ],
+        responses=VersionHistorySerializer(many=True),
+    )
+    @action(
+        detail=True,
+        methods=["get"],
+        permission_classes=[rf_permissions.IsAuthenticated, IsStaffOrSupportUser],
+    )
+    def history(self, request, uuid=None):
+        """Return version history for an object."""
+        from dateutil.parser import parse as parse_datetime
+
+        obj = self.get_object()
+        versions = self._get_versions_queryset(obj)
+
+        # Apply date filters
+        created_before = request.query_params.get("created_before")
+        created_after = request.query_params.get("created_after")
+
+        if created_before:
+            try:
+                created_before_dt = parse_datetime(created_before)
+                versions = versions.filter(revision__date_created__lt=created_before_dt)
+            except (ValueError, TypeError):
+                raise ValidationError({"created_before": "Invalid timestamp format."})
+
+        if created_after:
+            try:
+                created_after_dt = parse_datetime(created_after)
+                versions = versions.filter(revision__date_created__gt=created_after_dt)
+            except (ValueError, TypeError):
+                raise ValidationError({"created_after": "Invalid timestamp format."})
+
+        page = self.paginate_queryset(versions)
+        serializer_class = self._get_history_serializer_class()
+        if page is not None:
+            serializer = serializer_class(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = serializer_class(versions, many=True)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Get object state at a specific timestamp",
+        description="Returns the state of the object as it was at the specified timestamp. Only accessible by staff and support users.",
+        parameters=[
+            OpenApiParameter(
+                "timestamp",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="ISO 8601 timestamp to query the object state at",
+                required=True,
+            ),
+        ],
+        responses={
+            200: VersionHistorySerializer,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT,
+        },
+    )
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="history/at",
+        permission_classes=[rf_permissions.IsAuthenticated, IsStaffOrSupportUser],
+    )
+    def history_at(self, request, uuid=None):
+        """Return object state at a specific timestamp."""
+        from dateutil.parser import parse as parse_datetime
+
+        obj = self.get_object()
+        timestamp_str = request.query_params.get("timestamp")
+
+        if not timestamp_str:
+            raise ValidationError({"timestamp": "This parameter is required."})
+
+        try:
+            timestamp = parse_datetime(timestamp_str)
+        except (ValueError, TypeError):
+            raise ValidationError({"timestamp": "Invalid timestamp format."})
+
+        content_type = self._get_content_type_for_model()
+        version = (
+            Version.objects.filter(
+                content_type=content_type,
+                object_id=str(obj.pk),
+                revision__date_created__lte=timestamp,
+            )
+            .select_related("revision", "revision__user")
+            .order_by("-revision__date_created")
+            .first()
+        )
+
+        if not version:
+            return Response(
+                {"detail": "No version found before the specified timestamp."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer_class = self._get_history_serializer_class()
+        serializer = serializer_class(version)
+        data = serializer.data
+        data["queried_at"] = timestamp_str
+        return Response(data)
 
 
 class CeleryStatsViewSet(generics.GenericAPIView):
