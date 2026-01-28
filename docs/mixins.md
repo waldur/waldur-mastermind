@@ -54,6 +54,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`CheckExtensionMixin`](#checkextensionmixin) | `waldur_core.core.views` | Raise exception if extension is disabled |
 | [`ConstanceCheckExtensionMixin`](#constancecheckextensionmixin) | `waldur_core.core.views` | Raise exception if extension is disabled |
 | [`CreateReversionMixin`](#createreversionmixin) | `waldur_core.core.views` | Mixin to automatically create revision tracking for create operations |
+| [`HistoryViewSetMixin`](#historyviewsetmixin) | `waldur_core.core.views` | Mixin that adds version history endpoints to ViewSets |
 | [`UpdateReversionMixin`](#updatereversionmixin) | `waldur_core.core.views` | Mixin to automatically create revision tracking for update operations |
 | [`LoggableMixin`](#loggablemixin) | `waldur_core.logging.mixins` | Mixin to serialize model in logs |
 | [`EventTypesMixin`](#eventtypesmixin) | `waldur_core.logging.models` | Mixin to add a event_types and event_groups fields |
@@ -801,6 +802,29 @@ Raise exception if extension is disabled
 **Description:**
 
 Mixin to automatically create revision tracking for create operations.
+
+### HistoryViewSetMixin
+
+**Module:** `waldur_core.core.views`
+
+**Description:**
+
+Mixin that adds version history endpoints to ViewSets.
+
+Requirements:
+
+- Model must be registered with django-reversion
+- ViewSet must have get_object() method
+- ViewSet must support pagination
+
+Provides:
+
+- GET /{resource}/{uuid}/history/ - List version history
+- GET /{resource}/{uuid}/history/at/?timestamp=... - State at timestamp
+
+Configuration (optional class attributes):
+
+- history_serializer_class: Serializer for version objects (default: VersionHistorySerializer)
 
 ### UpdateReversionMixin
 
