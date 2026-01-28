@@ -7,22 +7,34 @@ AI Assistant management commands.
   Available subcommands:
 
 ```yaml
-health - Check LLM infrastructure health
+health       - Check LLM infrastructure health
+validate_scenarios - Validate scenario YAML files
+test_evaluation   - Test evaluation with real LLM responses
+run_all       - Run all checks (health, validate, test)
 ```
 
   Examples:
 
 ```yaml
 waldur ai_assistant health
+waldur ai_assistant validate_scenarios
+waldur ai_assistant test_evaluation
+waldur ai_assistant test_evaluation --scenario greeting_no_tool
+waldur ai_assistant run_all
 ```
 
 ```bash
 
-usage: waldur ai_assistant {health} ...
+usage: waldur ai_assistant {health,validate_scenarios,test_evaluation,run_all}
+                           ...
 
 positional arguments:
-  {health}              Available subcommands
+  {health,validate_scenarios,test_evaluation,run_all}
+                        Available subcommands
     health              Check LLM infrastructure health
+    validate_scenarios  Validate scenario YAML files
+    test_evaluation     Test evaluation with real LLM responses
+    run_all             Run all checks (health, validate, test)
 
 ```
 
