@@ -101,17 +101,25 @@ def validate_options(options, attributes, optional=False):
 
         def validate(self, attrs):
             for validator in validators:
-                if validator["type"] == "gt":
-                    source = attrs.get(validator["source_field"])
-                    target = attrs.get(validator["target_field"])
-                    if source is not None and target is not None and source <= target:
-                        raise serializers.ValidationError(
-                            {
-                                validator[
-                                    "source_field"
-                                ]: f"{validator['source_field']} must be greater than {validator['target_field']}"
-                            }
-                        )
+                source = attrs.get(validator["source_field"])
+                target = attrs.get(validator["target_field"])
+                if source is None or target is None:
+                    continue
+
+                error_msg = None
+                if validator["type"] == "gt" and source <= target:
+                    error_msg = f"{validator['source_field']} must be greater than {validator['target_field']}"
+                elif validator["type"] == "gte" and source < target:
+                    error_msg = f"{validator['source_field']} must be greater than or equal to {validator['target_field']}"
+                elif validator["type"] == "lt" and source >= target:
+                    error_msg = f"{validator['source_field']} must be less than {validator['target_field']}"
+                elif validator["type"] == "lte" and source > target:
+                    error_msg = f"{validator['source_field']} must be less than or equal to {validator['target_field']}"
+
+                if error_msg:
+                    raise serializers.ValidationError(
+                        {validator["source_field"]: error_msg}
+                    )
             return attrs
 
         fields["validate"] = validate

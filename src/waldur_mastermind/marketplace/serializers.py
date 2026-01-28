@@ -2006,6 +2006,11 @@ class StorageFolderConfigSerializer(serializers.Serializer):
         return attrs
 
 
+class OptionValidatorSerializer(serializers.Serializer):
+    type = serializers.ChoiceField(choices=["gt", "gte", "lt", "lte"])
+    target_field = serializers.CharField()
+
+
 class OptionFieldSerializer(serializers.Serializer):
     type = serializers.ChoiceField(choices=FIELD_TYPES)
     label = serializers.CharField()
@@ -2019,6 +2024,9 @@ class OptionFieldSerializer(serializers.Serializer):
     component_multiplier_config = ComponentMultiplierConfigSerializer(required=False)
     storage_folder_config = StorageFolderConfigSerializer(required=False)
     default_configs = K8sDefaultConfigurationSerializer(required=False)
+    validators = serializers.ListField(
+        child=OptionValidatorSerializer(), required=False
+    )
 
     def validate(self, attrs):
         field_type = attrs.get("type")
@@ -2055,6 +2063,38 @@ class OptionFieldSerializer(serializers.Serializer):
 class OfferingOptionsSerializer(serializers.Serializer):
     order = serializers.ListField(child=serializers.CharField())
     options = serializers.DictField(child=OptionFieldSerializer())
+
+    def validate(self, attrs):
+        options = attrs.get("options", {})
+        for name, option in options.items():
+            validators = option.get("validators")
+            if not validators:
+                continue
+
+            for validator in validators:
+                target_field = validator.get("target_field")
+                if target_field:
+                    if target_field not in options:
+                        raise serializers.ValidationError(
+                            {
+                                "options": _(
+                                    "Target field %(target)s for option %(name)s not found in options."
+                                )
+                                % {"target": target_field, "name": name}
+                            }
+                        )
+
+                    target_type = options[target_field].get("type")
+                    if target_type not in ["integer", "money"]:
+                        raise serializers.ValidationError(
+                            {
+                                "options": _(
+                                    "Target field %(target)s for option %(name)s must be integer or money."
+                                )
+                                % {"target": target_field, "name": name}
+                            }
+                        )
+        return attrs
 
 
 class OfferingComponentSerializer(serializers.ModelSerializer):
