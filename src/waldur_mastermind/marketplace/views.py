@@ -5439,8 +5439,19 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     filter_backends = (DjangoFilterBackend,)
     serializer_class = serializers.OrderDetailsSerializer
     create_serializer_class = serializers.OrderCreateSerializer
+    update_serializer_class = serializers.OrderUpdateSerializer
+    partial_update_serializer_class = serializers.OrderUpdateSerializer
     filterset_class = filters.OrderFilter
-    disabled_actions = ["update", "partial_update"]
+    disabled_actions = []
+
+    def get_serializer_class(self):
+        if self.action in ["create"]:
+            return self.create_serializer_class
+        if self.action in ["update"]:
+            return self.update_serializer_class
+        if self.action in ["partial_update"]:
+            return self.partial_update_serializer_class
+        return super().get_serializer_class()
 
     def get_queryset(self):
         """
@@ -5477,6 +5488,9 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             ["project", "project.customer"],
         )
     ]
+
+    update_permissions = partial_update_permissions = approve_by_consumer_permissions
+    update_validators = partial_update_validators = approve_by_consumer_validators
 
     def list(self, request, *args, **kwargs):
         utils.refresh_integration_agent_status(
