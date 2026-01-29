@@ -10394,47 +10394,46 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
-        description="Return component usages grouped by creator's organization type.",
+        description="Return component usages grouped by project members' organization type.",
         responses=serializers.ResourceUsageByOrgTypeSerializer(many=True),
     )
     @action(detail=False, methods=["get"])
     def resource_usage_by_organization_type(self, request, *args, **kwargs):
         """
-        Aggregate component usages by the organization_type of the user
-        who created the resource (via creation order).
+        Aggregate component usages by organization_type of users
+        who are members of the resource's project.
         """
         now = timezone.now()
+        billing_period = now.date().replace(day=1)
+        project_content_type_id = ContentType.objects.get_for_model(
+            structure_models.Project
+        ).id
 
-        usages = (
-            models.ComponentUsage.objects.filter(
-                billing_period__year=now.year,
-                billing_period__month=now.month,
-            )
-            .filter(
-                resource__order__type=OrderTypes.CREATE,
-            )
-            .annotate(
-                organization_type=F("resource__order__created_by__organization_type"),
-            )
-            .values("organization_type", "component__type")
-            .annotate(
-                usage=Sum("usage"),
-                resource_count=Count("resource_id", distinct=True),
-            )
-            .order_by("-resource_count")
-        )
+        raw_query = """
+            SELECT
+                COALESCE(u.organization_type, '') as organization_type,
+                oc.type as component_type,
+                SUM(cu.usage) as usage,
+                COUNT(DISTINCT r.id) as resource_count
+            FROM marketplace_componentusage cu
+            JOIN marketplace_resource r ON cu.resource_id = r.id
+            JOIN marketplace_offeringcomponent oc ON cu.component_id = oc.id
+            JOIN structure_project p ON r.project_id = p.id
+            JOIN permissions_userrole ur ON ur.object_id = p.id
+                AND ur.content_type_id = %s
+                AND ur.is_active = TRUE
+            JOIN core_user u ON ur.user_id = u.id
+            WHERE cu.billing_period = %s
+            GROUP BY u.organization_type, oc.type
+            ORDER BY resource_count DESC
+        """
 
-        result = [
-            {
-                "organization_type": u["organization_type"] or "",
-                "component_type": u["component__type"],
-                "usage": u["usage"],
-                "resource_count": u["resource_count"],
-            }
-            for u in usages
-        ]
+        with connection.cursor() as cursor:
+            cursor.execute(raw_query, [project_content_type_id, billing_period])
+            columns = [col[0] for col in cursor.description]
+            results = [dict(zip(columns, row)) for row in cursor.fetchall()]
 
-        serializer = serializers.ResourceUsageByOrgTypeSerializer(result, many=True)
+        serializer = serializers.ResourceUsageByOrgTypeSerializer(results, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
