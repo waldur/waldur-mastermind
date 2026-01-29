@@ -28,7 +28,7 @@ from django.db.models import (
 )
 from django.db.models.aggregates import Sum
 from django.db.models.fields import FloatField, IntegerField
-from django.db.models.functions import Coalesce, TruncDate, TruncMonth
+from django.db.models.functions import Coalesce, Lower, Trim, TruncDate, TruncMonth
 from django.db.models.functions.math import Ceil
 from django.http import HttpResponse
 from django.http.response import JsonResponse
@@ -9133,6 +9133,53 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             .order_by("-count")
         )
         return Response(query_set, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Return user count grouped by organization type (SCHAC URN).",
+        responses=serializers.UserOrganizationTypeCountSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def user_organization_type_count(self, request, *args, **kwargs):
+        users = (
+            core_models.User.objects.exclude(organization_type="")
+            .values("organization_type")
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+        data = [
+            {
+                "organization_type": user["organization_type"],
+                "count": user["count"],
+            }
+            for user in users
+        ]
+        return Response(data, status=status.HTTP_200_OK)
+
+    user_organization_type_count_permissions = [core_permissions.IsSupport]
+
+    @extend_schema(
+        description="Return user count grouped by job title.",
+        responses=serializers.UserJobTitleCountSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def user_job_title_count(self, request, *args, **kwargs):
+        users = (
+            core_models.User.objects.exclude(job_title="")
+            .annotate(normalized_job_title=Trim(Lower("job_title")))
+            .values("normalized_job_title")
+            .annotate(count=Count("id"))
+            .order_by("-count")
+        )
+        data = [
+            {
+                "job_title": user["normalized_job_title"],
+                "count": user["count"],
+            }
+            for user in users
+        ]
+        return Response(data, status=status.HTTP_200_OK)
+
+    user_job_title_count_permissions = [core_permissions.IsSupport]
 
     @extend_schema(
         description="Get resource provisioning statistics.",
