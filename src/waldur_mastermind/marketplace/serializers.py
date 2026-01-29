@@ -4570,6 +4570,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "parent_offering_uuid",
             "parent_offering_name",
             "parent_offering_slug",
+            "offering_backend_id",
             "parent_uuid",
             "parent_name",
             "backend_metadata",
@@ -4660,6 +4661,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
     offering_name = serializers.ReadOnlyField(source="offering.name")
     offering_slug = serializers.ReadOnlyField(source="offering.slug")
+    offering_backend_id = serializers.ReadOnlyField(source="offering.backend_id")
     parent_offering_uuid = serializers.UUIDField(
         read_only=True, source="offering.parent.uuid"
     )

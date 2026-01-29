@@ -216,6 +216,16 @@ class ResourceGetTest(test.APITransactionTestCase):
         self.assertIn("creation_order", response.data)
         self.assertIsNotNone(response.data["creation_order"])
 
+    def test_offering_backend_id_is_exposed(self):
+        self.offering.backend_id = "external-offering-123"
+        self.offering.save()
+        response = self.get_resource()
+        self.assertEqual(response.data["offering_backend_id"], "external-offering-123")
+
+    def test_offering_backend_id_is_empty_by_default(self):
+        response = self.get_resource()
+        self.assertEqual(response.data["offering_backend_id"], "")
+
 
 class ResourceSwitchPlanTest(test.APITransactionTestCase):
     def setUp(self):
