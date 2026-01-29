@@ -134,3 +134,97 @@ class UserAuthCountStatsTest(test.APITransactionTestCase):
         self.client.force_authenticate(self.fixture.global_support)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_user_organization_type_count(self):
+        url = "/api/marketplace-stats/user_organization_type_count/"
+        structure_factories.UserFactory(
+            organization_type="urn:schac:organizationType:int:university"
+        )
+        structure_factories.UserFactory(
+            organization_type="urn:schac:organizationType:int:university"
+        )
+        structure_factories.UserFactory(
+            organization_type="urn:schac:organizationType:int:research-institution"
+        )
+        structure_factories.UserFactory(organization_type="")
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+
+        def get_count(org_type):
+            for item in data:
+                if item["organization_type"] == org_type:
+                    return item["count"]
+            return 0
+
+        self.assertEqual(get_count("urn:schac:organizationType:int:university"), 2)
+        self.assertEqual(
+            get_count("urn:schac:organizationType:int:research-institution"), 1
+        )
+        # Empty organization types should be excluded
+        self.assertIsNone(get_count("") or None)
+
+    def test_user_organization_type_count_permissions(self):
+        url = "/api/marketplace-stats/user_organization_type_count/"
+
+        # Regular user cannot access
+        self.client.force_authenticate(self.fixture.user)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Staff can access
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Support can access
+        self.client.force_authenticate(self.fixture.global_support)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_user_job_title_count(self):
+        url = "/api/marketplace-stats/user_job_title_count/"
+        structure_factories.UserFactory(job_title="Software Engineer")
+        structure_factories.UserFactory(job_title="software engineer")  # normalized
+        structure_factories.UserFactory(job_title="  Software Engineer  ")  # trimmed
+        structure_factories.UserFactory(job_title="Data Scientist")
+        structure_factories.UserFactory(job_title="")
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        data = response.data
+
+        def get_count(title):
+            for item in data:
+                if item["job_title"] == title:
+                    return item["count"]
+            return 0
+
+        # All three "Software Engineer" variants should be normalized to same key
+        self.assertEqual(get_count("software engineer"), 3)
+        self.assertEqual(get_count("data scientist"), 1)
+        # Empty job titles should be excluded
+        self.assertIsNone(get_count("") or None)
+
+    def test_user_job_title_count_permissions(self):
+        url = "/api/marketplace-stats/user_job_title_count/"
+
+        # Regular user cannot access
+        self.client.force_authenticate(self.fixture.user)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Staff can access
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Support can access
+        self.client.force_authenticate(self.fixture.global_support)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

@@ -2308,6 +2308,18 @@ class UserAffiliationCountSerializer(serializers.Serializer):
     count = serializers.IntegerField(help_text="Number of users")
 
 
+class UserOrganizationTypeCountSerializer(serializers.Serializer):
+    organization_type = serializers.CharField(
+        help_text="Organization type (SCHAC URN)", allow_null=True
+    )
+    count = serializers.IntegerField(help_text="Number of users")
+
+
+class UserJobTitleCountSerializer(serializers.Serializer):
+    job_title = serializers.CharField(help_text="Job title", allow_null=True)
+    count = serializers.IntegerField(help_text="Number of users")
+
+
 class ExportImportPlanSerializer(serializers.ModelSerializer):
     """Serializer for export and import of plan from/to an exported offering.
     This serializer differs from PlanDetailsSerializer in methods and fields."""
