@@ -174,11 +174,17 @@ class AustriaRegisterBackend(CompanyRegistryBackend):
             )
 
             normalized_data = self._normalize_company_data(verified_company_data)
+            company_data_dict = normalized_data.__dict__.copy()
+
+            if is_authorized:
+                address_data = self._extract_address_details(verified_company_data)
+                if address_data:
+                    company_data_dict.update(address_data)
 
             return ValidationResult(
                 is_valid=is_authorized,
                 method_used=self.get_validation_method(),
-                company_data=normalized_data.__dict__,
+                company_data=company_data_dict,
                 user_roles=verified_user_roles,
                 raw_response=verified_company_data,
                 error_code=None if is_authorized else ErrorCode.NOT_AUTHORIZED,
@@ -271,6 +277,47 @@ class AustriaRegisterBackend(CompanyRegistryBackend):
         )
 
         return bool(verified_user_roles), verified_user_roles
+
+    def _extract_address_details(
+        self, verified_company_data: dict[str, Any]
+    ) -> dict[str, str] | None:
+        """
+        Extract address and postal code from WirtschaftsCompass company profile.
+        Args:
+            verified_company_data: Raw response from WirtschaftsCompass API
+        Returns:
+            Dict containing address and postal fields, or None if extraction fails
+        """
+        try:
+            data = verified_company_data.get("data", {})
+            basic_data = data.get("basicData", {})
+            communication_data = basic_data.get("communicationData", {})
+            address_data = communication_data.get("address", {})
+            current_value = address_data.get("currentValue", {})
+            address = current_value.get("address", {})
+            # Extract address components
+            street_address = address.get("streetAddress", "")
+            house_number = address.get("houseNumber", "")
+            place = address.get("place", "")
+            postal_code = address.get("postalCode", "")
+            # Build full address string
+            address_parts = []
+            if street_address:
+                address_str = street_address
+                if house_number:
+                    address_str = f"{street_address} {house_number}"
+                address_parts.append(address_str)
+            if place:
+                address_parts.append(place)
+            full_address = ", ".join(address_parts) if address_parts else None
+            result = {}
+            if full_address:
+                result["address"] = full_address
+            if postal_code:
+                result["postal"] = postal_code
+            return result if result else None
+        except (KeyError, TypeError, AttributeError):
+            return None
 
     def _normalize_company_data(
         self, raw_data: dict[str, Any]
