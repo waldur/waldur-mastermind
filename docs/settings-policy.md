@@ -23,7 +23,7 @@ The recommended approach for Docker-based deployments is to use environment vari
 | `SENTRY_DSN` | Sentry error tracking DSN |
 | `AUTH_TOKEN_LIFETIME` | Token lifetime in seconds |
 
-See the [Configuration Guide](admin/configuration-guide.md) for a complete list.
+See the [Configuration Guide](../admin-guide/mastermind-configuration/configuration-guide.md) for a complete list.
 
 ### Configuration Files
 
@@ -39,4 +39,4 @@ These files are loaded in order, allowing later files to override earlier settin
 
 ### Frontend Features
 
-Frontend feature flags are configured through the `WALDUR_CORE` settings. See the [Features documentation](admin/features.md) for available options.
+Frontend feature flags are configured through the `WALDUR_CORE` settings. See the [Features documentation](../admin-guide/mastermind-configuration/features.md) for available options.

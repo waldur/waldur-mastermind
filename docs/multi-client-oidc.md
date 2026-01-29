@@ -607,5 +607,5 @@ In such cases, consider performing a test authentication to discover actual clai
 
 ## See Also
 
-- [OIDC Authentication Configuration](admin/configuration-guide.md#waldur_auth_social-plugin)
+- [OIDC Authentication Configuration](../admin-guide/mastermind-configuration/configuration-guide.md#waldur_auth_social-plugin)
 - [User Profile Attributes](user-profile-attributes.md)
