@@ -2106,3 +2106,168 @@ class PlanComponentSerializerTest(test.APITransactionTestCase):
         pc = response.data[0]
         self.assertIn("plan_uuid", pc)
         self.assertIn("plan_name", pc)
+
+
+@ddt
+class ResourceUsageByOrganizationTypeTest(test.APITransactionTestCase):
+    """Tests for /api/marketplace-stats/resource_usage_by_organization_type/ endpoint.
+
+    This endpoint returns component usages grouped by the organization type
+    of users who are members of the resource's project.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = "/api/marketplace-stats/resource_usage_by_organization_type/"
+
+    def _create_usage_for_resource(self, resource, component_type="cpu", usage=100):
+        """Helper to create component usage for a resource."""
+        now = timezone.now()
+        component, _ = models.OfferingComponent.objects.get_or_create(
+            offering=resource.offering, type=component_type
+        )
+        plan_period = models.ResourcePlanPeriod.objects.create(
+            start=now, resource=resource, plan=resource.plan
+        )
+        return models.ComponentUsage.objects.create(
+            resource=resource,
+            component=component,
+            billing_period=now.replace(day=1).date(),
+            plan_period=plan_period,
+            usage=usage,
+            date=now,
+        )
+
+    @data("staff", "global_support")
+    def test_user_can_get_stats(self, user):
+        """Test that staff and support users can access the endpoint."""
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data("owner", "customer_support", "admin", "manager")
+    def test_user_cannot_get_stats(self, user):
+        """Test that regular users cannot access the endpoint."""
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_usage_attributed_to_project_member_org_type(self):
+        """Test that usage is attributed to project member's organization type."""
+        # Set organization type for project admin
+        self.fixture.admin.organization_type = (
+            "urn:schac:homeOrganizationType:int:university"
+        )
+        self.fixture.admin.save()
+
+        # Create usage for the resource
+        self._create_usage_for_resource(self.fixture.resource)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Find entry for university org type
+        university_entries = [
+            r
+            for r in response.data
+            if r["organization_type"] == "urn:schac:homeOrganizationType:int:university"
+        ]
+        self.assertGreaterEqual(len(university_entries), 1)
+
+    def test_multiple_members_different_org_types(self):
+        """Test that usage appears under each org type when project has multiple members."""
+        # Set different organization types for project members
+        self.fixture.admin.organization_type = (
+            "urn:schac:homeOrganizationType:int:university"
+        )
+        self.fixture.admin.save()
+
+        self.fixture.manager.organization_type = (
+            "urn:schac:homeOrganizationType:int:company"
+        )
+        self.fixture.manager.save()
+
+        # Create usage for the resource
+        self._create_usage_for_resource(self.fixture.resource)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        org_types = {r["organization_type"] for r in response.data}
+        self.assertIn("urn:schac:homeOrganizationType:int:university", org_types)
+        self.assertIn("urn:schac:homeOrganizationType:int:company", org_types)
+
+    def test_empty_org_type_shown_when_members_have_no_org_type(self):
+        """Test that empty org type is shown when project members have no organization type."""
+        # Ensure project members have no organization type
+        self.fixture.admin.organization_type = ""
+        self.fixture.admin.save()
+
+        # Create usage for the resource
+        self._create_usage_for_resource(self.fixture.resource)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Find entry for empty org type
+        empty_entries = [r for r in response.data if r["organization_type"] == ""]
+        self.assertGreaterEqual(len(empty_entries), 1)
+
+    def test_response_includes_all_required_fields(self):
+        """Test that response includes all expected fields."""
+        self._create_usage_for_resource(self.fixture.resource)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        if len(response.data) > 0:
+            entry = response.data[0]
+            self.assertIn("organization_type", entry)
+            self.assertIn("component_type", entry)
+            self.assertIn("usage", entry)
+            self.assertIn("resource_count", entry)
+
+    def test_usage_not_attributed_to_order_creator(self):
+        """Test that usage is NOT attributed to the order creator.
+
+        This verifies the fix for the issue where service accounts creating
+        resources would have their (empty) organization type used instead
+        of actual project members.
+        """
+        # Create a service account user who creates the order
+        service_account = structure_factories.UserFactory(
+            username="service-account",
+            organization_type="",  # Service account has no org type
+        )
+
+        # Set organization type for project member
+        self.fixture.admin.organization_type = (
+            "urn:schac:homeOrganizationType:int:university"
+        )
+        self.fixture.admin.save()
+
+        # Create order with service account as creator
+        factories.OrderFactory(
+            resource=self.fixture.resource,
+            project=self.fixture.project,
+            type=OrderTypes.CREATE,
+            state=OrderStates.DONE,
+            created_by=service_account,
+        )
+
+        # Create usage for the resource
+        self._create_usage_for_resource(self.fixture.resource)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Usage should be attributed to project member (university), not service account (empty)
+        org_types = {r["organization_type"] for r in response.data}
+        self.assertIn("urn:schac:homeOrganizationType:int:university", org_types)
