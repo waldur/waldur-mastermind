@@ -93,6 +93,7 @@ from waldur_mastermind.marketplace.utils import (
     parse_date,
     validate_attributes,
     validate_end_date,
+    validate_limits,
 )
 from waldur_mastermind.marketplace_rancher.const import (
     DEPLOYMENT_MODE_MANAGED,
@@ -3694,6 +3695,22 @@ class BaseOrderSerializer(BaseItemSerializer):
         ) and "error_traceback" in fields:
             del fields["error_traceback"]
         return fields
+
+
+class OrderUpdateSerializer(BaseOrderSerializer):
+    class Meta(BaseOrderSerializer.Meta):
+        fields = ("limits", "attributes", "start_date")
+        protected_fields = ()
+
+    def validate_attributes(self, attributes):
+        validate_attributes(attributes, self.instance.offering.category)
+        return attributes
+
+    def validate(self, attrs):
+        limits = attrs.get("limits")
+        if limits:
+            validate_limits(limits, self.instance.offering, self.instance.resource)
+        return attrs
 
 
 class OrderDetailsSerializer(BaseOrderSerializer):
