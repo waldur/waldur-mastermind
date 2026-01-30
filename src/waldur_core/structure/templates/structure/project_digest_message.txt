@@ -1,0 +1,13 @@
+{% load i18n %}{% trans "Project Summary" %} - {{ organization_name }}
+{% trans "Period" %}: {{ period_label }}
+
+{% for project in projects %}
+{{ project.name }}
+{% for section in project.sections %}
+{{ section.title }}
+{{ section.text_content }}
+{% endfor %}
+---
+{% endfor %}
+
+{% blocktrans with org=organization_name %}This is an automated digest from {{ org }}.{% endblocktrans %}

@@ -1,0 +1,5 @@
+{% load i18n %}{% if total_joined %}{% blocktrans count counter=total_joined %}{{ counter }} member joined{% plural %}{{ counter }} members joined{% endblocktrans %}
+{% for role, count in joined_by_role.items %}  {{ role }}: {{ count }}
+{% endfor %}{% endif %}{% if total_left %}{% blocktrans count counter=total_left %}{{ counter }} member left{% plural %}{{ counter }} members left{% endblocktrans %}
+{% for role, count in left_by_role.items %}  {{ role }}: {{ count }}
+{% endfor %}{% endif %}

@@ -59,6 +59,10 @@ from waldur_core.permissions.utils import (
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters, models, permissions, serializers, utils
 from waldur_core.structure.data_access import get_user_data_access_visibility
+from waldur_core.structure.digest_tasks import (
+    render_project_preview,
+    send_digest_for_customer_preview,
+)
 from waldur_core.structure.managers import (
     filter_queryset_by_user_ip,
     filter_queryset_for_user,
@@ -407,6 +411,123 @@ class CustomerViewSet(
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Get project digest configuration",
+        description="Retrieve the project digest email configuration for this organization.",
+        responses=serializers.ProjectDigestConfigSerializer,
+    )
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="project-digest-config",
+    )
+    def project_digest_config(self, request, uuid=None):
+        customer = self.get_object()
+        if not (
+            request.user.is_staff
+            or has_permission(request, PermissionEnum.UPDATE_CUSTOMER, customer)
+        ):
+            raise PermissionDenied()
+
+        try:
+            config = customer.project_digest_config
+        except models.ProjectDigestConfiguration.DoesNotExist:
+            config = models.ProjectDigestConfiguration(customer=customer)
+
+        serializer = serializers.ProjectDigestConfigSerializer(config)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Update project digest configuration",
+        description="Update the project digest email configuration for this organization.",
+        request=serializers.ProjectDigestConfigSerializer,
+        responses=serializers.ProjectDigestConfigSerializer,
+    )
+    @action(
+        detail=True,
+        methods=["put", "patch"],
+        url_path="update-project-digest-config",
+    )
+    def update_project_digest_config(self, request, uuid=None):
+        customer = self.get_object()
+        if not (
+            request.user.is_staff
+            or has_permission(request, PermissionEnum.UPDATE_CUSTOMER, customer)
+        ):
+            raise PermissionDenied()
+
+        try:
+            config = customer.project_digest_config
+        except models.ProjectDigestConfiguration.DoesNotExist:
+            config = models.ProjectDigestConfiguration(
+                customer=customer, created_by=request.user
+            )
+
+        partial = request.method == "PATCH"
+        serializer = serializers.ProjectDigestConfigSerializer(
+            config, data=request.data, partial=partial
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Send a test digest email",
+        description="Send a test digest email to the requesting user.",
+        request=None,
+        responses={200: EmptySerializer},
+    )
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="project-digest-config/send-test",
+    )
+    def project_digest_send_test(self, request, uuid=None):
+        customer = self.get_object()
+        if not (
+            request.user.is_staff
+            or has_permission(request, PermissionEnum.UPDATE_CUSTOMER, customer)
+        ):
+            raise PermissionDenied()
+
+        send_digest_for_customer_preview(customer, request.user)
+        return Response(
+            {"detail": _("Test digest email has been sent.")},
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        summary="Preview digest for a project",
+        description="Returns rendered HTML preview of the digest for a specific project.",
+        request=serializers.ProjectDigestPreviewSerializer,
+        responses=serializers.ProjectDigestPreviewResponseSerializer,
+    )
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="project-digest-config/preview",
+    )
+    def project_digest_preview(self, request, uuid=None):
+        customer = self.get_object()
+        if not (
+            request.user.is_staff
+            or has_permission(request, PermissionEnum.UPDATE_CUSTOMER, customer)
+        ):
+            raise PermissionDenied()
+
+        serializer = serializers.ProjectDigestPreviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        project_uuid = serializer.validated_data["project_uuid"]
+
+        project = get_object_or_404(
+            models.Project.available_objects,
+            uuid=project_uuid,
+            customer=customer,
+        )
+
+        result = render_project_preview(project, customer)
+        return Response(result)
 
 
 @extend_schema(

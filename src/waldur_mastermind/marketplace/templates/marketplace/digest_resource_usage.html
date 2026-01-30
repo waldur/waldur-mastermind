@@ -1,0 +1,16 @@
+{% load i18n %}
+<table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+  <tr style="background-color: #f5f5f5;">
+    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{% trans "Resource" %}</th>
+    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{% trans "Type" %}</th>
+    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{% trans "State" %}</th>
+  </tr>
+  {% for resource in resources %}
+  <tr>
+    <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ resource.name }}</td>
+    <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ resource.offering_name }}</td>
+    <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ resource.state }}</td>
+  </tr>
+  {% endfor %}
+</table>
+<p>{% blocktrans count counter=resource_count %}{{ counter }} active resource{% plural %}{{ counter }} active resources{% endblocktrans %}</p>

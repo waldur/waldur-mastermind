@@ -1,0 +1,31 @@
+{% load i18n %}
+{% if total_joined %}
+<p>{% blocktrans count counter=total_joined %}{{ counter }} member joined{% plural %}{{ counter }} members joined{% endblocktrans %}</p>
+<table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+  <tr style="background-color: #f5f5f5;">
+    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{% trans "Role" %}</th>
+    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{% trans "Count" %}</th>
+  </tr>
+  {% for role, count in joined_by_role.items %}
+  <tr>
+    <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ role }}</td>
+    <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ count }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% if total_left %}
+<p>{% blocktrans count counter=total_left %}{{ counter }} member left{% plural %}{{ counter }} members left{% endblocktrans %}</p>
+<table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+  <tr style="background-color: #f5f5f5;">
+    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{% trans "Role" %}</th>
+    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{% trans "Count" %}</th>
+  </tr>
+  {% for role, count in left_by_role.items %}
+  <tr>
+    <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ role }}</td>
+    <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ count }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}

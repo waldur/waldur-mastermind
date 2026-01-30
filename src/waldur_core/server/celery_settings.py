@@ -124,6 +124,11 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(hours=24),
         "args": (),
     },
+    "send-project-digest-notifications": {
+        "task": "waldur_core.structure.send_project_digest_notifications",
+        "schedule": crontab(hour=8, minute=0),
+        "args": (),
+    },
     "update-custom-quotas": {
         "task": "waldur_core.quotas.update_custom_quotas",
         "schedule": timedelta(hours=1),

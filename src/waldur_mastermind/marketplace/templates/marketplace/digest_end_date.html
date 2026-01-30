@@ -1,0 +1,9 @@
+{% load i18n %}
+{% if is_urgent %}
+  <p style="color: #dc3545; font-weight: bold;">
+    {% blocktrans with days=days_remaining %}{{ days }} days remaining{% endblocktrans %}
+  </p>
+{% else %}
+  <p>{% blocktrans with days=days_remaining %}{{ days }} days remaining{% endblocktrans %}</p>
+{% endif %}
+<p>{% trans "End date" %}: {{ end_date }}</p>

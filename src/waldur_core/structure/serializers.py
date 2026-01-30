@@ -2501,3 +2501,57 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
             return answer_data
 
         return answer_data
+
+
+class ProjectDigestConfigSerializer(serializers.ModelSerializer):
+    available_sections = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.ProjectDigestConfiguration
+        fields = [
+            "uuid",
+            "is_enabled",
+            "frequency",
+            "enabled_sections",
+            "day_of_week",
+            "day_of_month",
+            "last_sent_at",
+            "available_sections",
+        ]
+        read_only_fields = ["uuid", "last_sent_at", "available_sections"]
+
+    @extend_schema_field(
+        serializers.ListSerializer(
+            child=serializers.DictField(child=serializers.CharField())
+        )
+    )
+    def get_available_sections(self, obj):
+        from waldur_core.structure.digest_providers import get_available_providers
+
+        return [
+            {"key": p.section_key, "title": p.section_title}
+            for p in get_available_providers()
+        ]
+
+    def validate_enabled_sections(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError(_("Must be a list of section keys."))
+        from waldur_core.structure.digest_providers import get_all_providers
+
+        valid_keys = set(get_all_providers().keys())
+        invalid = [k for k in value if k not in valid_keys]
+        if invalid:
+            raise serializers.ValidationError(
+                _("Unknown section keys: %(keys)s") % {"keys": ", ".join(invalid)}
+            )
+        return value
+
+
+class ProjectDigestPreviewSerializer(serializers.Serializer):
+    project_uuid = serializers.UUIDField()
+
+
+class ProjectDigestPreviewResponseSerializer(serializers.Serializer):
+    subject = serializers.CharField()
+    html_body = serializers.CharField()
+    text_body = serializers.CharField()
