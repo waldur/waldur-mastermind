@@ -75,6 +75,7 @@ from waldur_core.structure.utils import get_components_usage_data_from_resources
 from waldur_core.users import tasks as user_tasks
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.models import Invitation
+from waldur_core.users.scim import tasks as scim_tasks
 from waldur_mastermind.billing import models as billing_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
@@ -1260,6 +1261,24 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
             msg = _("The change email request has not been found.")
 
         return Response({"detail": msg}, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Trigger SCIM synchronization for all users",
+        request=None,
+        responses=serializers.ScimSyncAllResponseSerializer,
+        description="Staff-only action to queue SCIM synchronization for all users.",
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        permission_classes=[rf_permissions.IsAuthenticated, core_permissions.IsStaff],
+    )
+    def scim_sync_all(self, request):
+        scim_tasks.sync_all_entitlements.delay()
+        return Response(
+            {"detail": _("SCIM synchronization has been scheduled.")},
+            status=status.HTTP_200_OK,
+        )
 
     @extend_schema(
         summary="Confirm email change",

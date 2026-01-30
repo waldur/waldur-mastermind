@@ -58,6 +58,9 @@ CELERY_CREATE_MISSING_QUEUES = False
 # If queues are auto-created, use topic exchanges (consistent with our config)
 CELERY_TASK_CREATE_MISSING_QUEUES_EXCHANGE_TYPE = "topic"
 
+# Default schedule interval for SCIM entitlement reconciliation task (in hours)
+DEFAULT_SCIM_RECONCILIATION_SCHEDULE_HOURS = 1
+
 # Regular tasks
 CELERY_BEAT_SCHEDULE = {
     "pull-service-properties": {
@@ -174,6 +177,12 @@ CELERY_BEAT_SCHEDULE = {
     "resend-stuck-invitations": {
         "task": "waldur_core.users.resend_stuck_invitations",
         "schedule": timedelta(hours=1),
+        "args": (),
+    },
+    "scim-hourly-entitlement-reconciliation": {
+        "task": "waldur_core.users.scim.sync_recent_entitlements",
+        # Lookback window is automatically set to 2x this value in the task in the task itself
+        "schedule": timedelta(hours=DEFAULT_SCIM_RECONCILIATION_SCHEDULE_HOURS),
         "args": (),
     },
     # Cleanup old action executions - weekly on Sunday at 1 AM
