@@ -67,7 +67,7 @@ class TestSlurmPolicyLargeScale(TransactionTestCase):
             apply_to_all=True,
             grace_ratio=0.2,
             carryover_enabled=True,
-            fairshare_decay_half_life=15,
+            carryover_factor=15,
             limit_type="GrpTRESMins",
             tres_billing_enabled=True,
             qos_strategy="progressive",

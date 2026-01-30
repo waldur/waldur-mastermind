@@ -494,7 +494,7 @@ class SlurmPeriodicUsagePolicySerializer(OfferingUsagePolicySerializer):
             "limit_type",
             "tres_billing_enabled",
             "tres_billing_weights",
-            "fairshare_decay_half_life",
+            "carryover_factor",
             "grace_ratio",
             "carryover_enabled",
             "raw_usage_reset",
@@ -523,22 +523,17 @@ class SlurmPolicyPreviewRequestSerializer(serializers.Serializer):
         default=0,
         help_text="Usage from the previous period",
     )
-    fairshare_decay_half_life = serializers.IntegerField(
+    carryover_factor = serializers.IntegerField(
         required=False,
-        default=15,
-        min_value=1,
-        help_text="Decay half-life in days for fairshare calculations",
+        default=50,
+        min_value=0,
+        max_value=100,
+        help_text="Maximum percentage of base allocation that can carry over (0-100)",
     )
     carryover_enabled = serializers.BooleanField(
         required=False,
         default=True,
         help_text="Whether unused allocation carries over to next period",
-    )
-    days_elapsed = serializers.IntegerField(
-        required=False,
-        default=90,
-        min_value=0,
-        help_text="Days elapsed since previous period (90 for quarterly)",
     )
     resource_uuid = serializers.UUIDField(
         required=False,
@@ -572,12 +567,11 @@ class SlurmPolicyCarryoverSerializer(serializers.Serializer):
     """Serializer for carryover calculation details."""
 
     previous_usage = serializers.FloatField()
-    days_elapsed = serializers.IntegerField()
-    half_life = serializers.IntegerField()
-    decay_factor = serializers.FloatField()
-    effective_usage = serializers.FloatField()
+    carryover_factor = serializers.IntegerField()
     base_allocation = serializers.FloatField()
-    unused_carryover = serializers.FloatField()
+    unused = serializers.FloatField()
+    carryover_cap = serializers.FloatField()
+    carryover = serializers.FloatField()
     total_allocation = serializers.FloatField()
 
 
@@ -635,7 +629,7 @@ class SlurmPolicyPreviewResponseSerializer(serializers.Serializer):
     carryover = SlurmPolicyCarryoverSerializer(allow_null=True)
     thresholds = SlurmPolicyThresholdsSerializer()
     grace_ratio = serializers.FloatField()
-    half_life = serializers.IntegerField()
+    carryover_factor = serializers.IntegerField()
     # Resource-specific fields (optional)
     current_usage = serializers.FloatField(required=False)
     daily_usage_rate = serializers.FloatField(required=False)
@@ -671,6 +665,12 @@ class SlurmCommandResultSerializer(serializers.Serializer):
         choices=["production", "emulator"],
         default="production",
         help_text="Execution mode of the command",
+    )
+    commands_executed = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        default=list,
+        help_text="List of shell commands actually executed by the site agent",
     )
 
 

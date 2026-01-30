@@ -82,7 +82,7 @@ class SlurmPeriodicUsagePolicyCreateTest(test.APITransactionTestCase):
             "tres_billing_enabled": True,
             "grace_ratio": 0.2,
             "carryover_enabled": True,
-            "fairshare_decay_half_life": 15,
+            "carryover_factor": 15,
             "raw_usage_reset": True,
             "qos_strategy": "threshold",
         }
@@ -235,7 +235,7 @@ class SlurmPeriodicUsagePolicyPreviewImpactTest(test.APITransactionTestCase):
             "allocation": 1000,
             "grace_ratio": 0.2,
             "previous_usage": 0,
-            "fairshare_decay_half_life": 15,
+            "carryover_factor": 15,
             "carryover_enabled": True,
             "days_elapsed": 90,
             "current_usage": 500,

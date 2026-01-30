@@ -42,7 +42,7 @@ class TestSlurmPeriodicUsagePolicySTOMPSimple(TestCase):
             scope=self.offering,
             grace_ratio=0.2,
             carryover_enabled=True,
-            fairshare_decay_half_life=15,
+            carryover_factor=15,
         )
 
         # Test settings calculation (this is what would be sent via STOMP)
@@ -62,15 +62,15 @@ class TestSlurmPeriodicUsagePolicySTOMPSimple(TestCase):
             carryover = settings["carryover_details"]
             self.assertTrue(carryover.get("carryover_applied"))
             self.assertGreater(
-                carryover["total_allocation"], 1400
-            )  # Should have carryover
+                carryover["total_allocation"], 1000
+            )  # Should have carryover (base 1000 + 15% cap = 1150)
 
             # Validate SLURM-specific values
             fairshare = settings["fairshare"]
             billing_minutes = settings["grp_tres_mins"]["billing"]
 
-            self.assertGreater(fairshare, 400)  # Should be substantial
-            self.assertGreater(billing_minutes, 80000)  # Should reflect carryover
+            self.assertGreater(fairshare, 300)  # Should be substantial
+            self.assertGreater(billing_minutes, 60000)  # Should reflect carryover
 
             print(
                 f"✅ Settings for STOMP: fairshare={fairshare}, billing={billing_minutes:,}"

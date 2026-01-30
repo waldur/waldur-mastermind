@@ -213,7 +213,7 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
             apply_to_all=True,
             grace_ratio=0.2,
             carryover_enabled=True,
-            fairshare_decay_half_life=15,
+            carryover_factor=60,
         )
 
         # Create Q1 usage at 50% (500 node-hours)
@@ -224,23 +224,24 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
             billing_period=datetime.date(2024, 1, 1),
         )
 
-        # In Q2, with carryover, we should have more allocation
-        # After 90 days decay: 500 * 2^(-90/15) ≈ 7.8 effective usage
-        # Carryover: 1000 - 7.8 ≈ 992.2
-        # Q2 allocation: 1000 + 992.2 ≈ 1992.2
+        # In Q2, with 60% carryover factor:
+        # unused = 1000 - 500 = 500
+        # carryover_cap = 0.60 * 1000 = 600
+        # carryover = min(500, 600) = 500
+        # Q2 allocation: 1000 + 500 = 1500
 
-        # Create Q2 usage at 1500 node-hours
+        # Create Q2 usage at 1400 node-hours (under total allocation)
         marketplace_factories.ComponentUsageFactory(
             resource=self.resource,
             component=self.component,
-            usage=1500,
+            usage=1400,
             billing_period=datetime.date(2024, 4, 1),
         )
 
         # Calculate usage percentage with carryover
         usage_percentage = policy.get_resource_usage_percentage(self.resource)
 
-        # 1500 / ~1992 ≈ 75%, so should not trigger at 100% threshold
+        # 1400 / 1500 ≈ 93.3%, below 100% downscaling threshold
         self.assertFalse(policy.is_triggered())
         self.assertLess(usage_percentage, 100)
 

@@ -487,10 +487,10 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         ),
     )
 
-    fairshare_decay_half_life = models.PositiveIntegerField(
-        default=15,
+    carryover_factor = models.PositiveIntegerField(
+        default=50,
         help_text=_(
-            "Fairshare decay half-life in days (matches SLURM PriorityDecayHalfLife)"
+            "Maximum percentage of base allocation that can carry over from unused previous period (0-100)"
         ),
     )
 
@@ -625,7 +625,7 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
             "tres_billing_enabled": self.tres_billing_enabled,
             "tres_billing_weights": self.tres_billing_weights
             or self._get_default_tres_weights(),
-            "fairshare_decay_half_life": self.fairshare_decay_half_life,
+            "carryover_factor": self.carryover_factor,
             "grace_ratio": self.grace_ratio,
             "carryover_enabled": self.carryover_enabled,
             "raw_usage_reset": self.raw_usage_reset,
@@ -708,35 +708,36 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         # Get previous period usage
         previous_usage = self._get_previous_period_usage(resource, previous_period)
 
-        # Calculate decay factor
-        days_elapsed = 90  # Standard quarter transition
-        half_life = config.get("fairshare_decay_half_life", 15)
-        decay_factor = 2 ** (-days_elapsed / half_life)
+        # Carryover factor as a fraction (e.g. 50 -> 0.5)
+        carryover_pct = config.get("carryover_factor", 50)
+        carryover_ratio = carryover_pct / 100.0
 
-        # Apply decay to previous usage
-        effective_previous_usage = previous_usage * decay_factor
+        # Unused allocation from previous period
+        unused_allocation = max(0, base_allocation - previous_usage)
 
-        # Calculate unused allocation (carryover)
-        unused_allocation = max(0, base_allocation - effective_previous_usage)
+        # Cap carryover: cannot exceed carryover_ratio × base allocation
+        carryover_cap = carryover_ratio * base_allocation
+        carryover = min(unused_allocation, carryover_cap)
 
         # New total allocation
-        total_allocation = base_allocation + unused_allocation
+        total_allocation = base_allocation + carryover
 
         carryover_details = {
             "carryover_applied": True,
             "previous_period": previous_period,
             "previous_usage": previous_usage,
-            "days_elapsed": days_elapsed,
-            "decay_factor": decay_factor,
-            "effective_previous_usage": effective_previous_usage,
+            "carryover_factor": carryover_pct,
             "unused_allocation": unused_allocation,
+            "carryover_cap": carryover_cap,
+            "carryover": carryover,
             "base_allocation": base_allocation,
             "total_allocation": total_allocation,
         }
 
         logger.debug(
-            f"Carryover calculation: {previous_usage}Nh -> {effective_previous_usage:.1f}Nh "
-            f"(decay={decay_factor:.4f}) -> +{unused_allocation:.1f}Nh carryover"
+            f"Carryover calculation: base={base_allocation}Nh, prev_usage={previous_usage}Nh, "
+            f"unused={unused_allocation:.1f}Nh, cap={carryover_cap:.1f}Nh "
+            f"(factor={carryover_pct}%) -> +{carryover:.1f}Nh carryover"
         )
 
         return total_allocation, carryover_details
@@ -929,7 +930,7 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
                 current_period,
                 {
                     "carryover_enabled": True,
-                    "fairshare_decay_half_life": self.fairshare_decay_half_life,
+                    "carryover_factor": self.carryover_factor,
                 },
             )
         else:

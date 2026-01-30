@@ -5,69 +5,34 @@ full emulator context. Uses the same formulas as the slurm-emulator package.
 """
 
 
-def calculate_decay_factor(days_elapsed: int, half_life: int = 15) -> float:
-    """Calculate decay factor using half-life formula.
-
-    Args:
-        days_elapsed: Number of days since previous period
-        half_life: Decay half-life in days (default: 15)
-
-    Returns:
-        Decay factor between 0 and 1
-    """
-    return 2 ** (-days_elapsed / half_life)
-
-
-def calculate_decay_impact(
-    previous_usage: float, days_elapsed: int, half_life: int = 15
-) -> dict:
-    """Calculate how previous period usage decays over time.
-
-    Args:
-        previous_usage: Usage from previous period
-        days_elapsed: Days since period ended
-        half_life: Decay half-life in days
-
-    Returns:
-        Dictionary with decay calculations
-    """
-    decay_factor = calculate_decay_factor(days_elapsed, half_life)
-    effective_usage = previous_usage * decay_factor
-
-    return {
-        "previous_usage": previous_usage,
-        "days_elapsed": days_elapsed,
-        "half_life": half_life,
-        "decay_factor": round(decay_factor, 6),
-        "effective_usage": round(effective_usage, 2),
-    }
-
-
 def calculate_carryover(
     base_allocation: float,
     previous_usage: float,
-    days_elapsed: int = 90,
-    half_life: int = 15,
+    carryover_factor: int = 50,
 ) -> dict:
     """Calculate carryover allocation for next period.
 
     Args:
         base_allocation: Base allocation for the period
         previous_usage: Usage from previous period
-        days_elapsed: Days since previous period (default: 90 for quarterly)
-        half_life: Decay half-life in days
+        carryover_factor: Maximum percentage of base that can carry over (0-100)
 
     Returns:
         Dictionary with carryover calculations
     """
-    decay_result = calculate_decay_impact(previous_usage, days_elapsed, half_life)
-    unused = max(0, base_allocation - decay_result["effective_usage"])
-    total = base_allocation + unused
+    carryover_ratio = carryover_factor / 100.0
+    unused = max(0, base_allocation - previous_usage)
+    carryover_cap = carryover_ratio * base_allocation
+    carryover = min(unused, carryover_cap)
+    total = base_allocation + carryover
 
     return {
-        **decay_result,
+        "previous_usage": previous_usage,
+        "carryover_factor": carryover_factor,
         "base_allocation": base_allocation,
-        "unused_carryover": round(unused, 2),
+        "unused": round(unused, 2),
+        "carryover_cap": round(carryover_cap, 2),
+        "carryover": round(carryover, 2),
         "total_allocation": round(total, 2),
     }
 
@@ -103,9 +68,8 @@ def preview_policy_impact(
     allocation: float,
     grace_ratio: float = 0.2,
     previous_usage: float = 0,
-    half_life: int = 15,
+    carryover_factor: int = 50,
     carryover_enabled: bool = True,
-    days_elapsed: int = 90,
 ) -> dict:
     """Preview full policy impact combining thresholds and carryover.
 
@@ -113,17 +77,14 @@ def preview_policy_impact(
         allocation: Base allocation for the period
         grace_ratio: Grace ratio for overconsumption
         previous_usage: Usage from previous period
-        half_life: Decay half-life in days
+        carryover_factor: Maximum percentage of base that can carry over (0-100)
         carryover_enabled: Whether carryover is enabled
-        days_elapsed: Days since previous period
 
     Returns:
         Complete policy impact preview
     """
     if carryover_enabled and previous_usage > 0:
-        carryover = calculate_carryover(
-            allocation, previous_usage, days_elapsed, half_life
-        )
+        carryover = calculate_carryover(allocation, previous_usage, carryover_factor)
         effective_allocation = carryover["total_allocation"]
     else:
         carryover = None
@@ -138,7 +99,7 @@ def preview_policy_impact(
         "carryover": carryover,
         "thresholds": thresholds,
         "grace_ratio": grace_ratio,
-        "half_life": half_life,
+        "carryover_factor": carryover_factor,
     }
 
 
@@ -248,9 +209,8 @@ def preview_policy_impact_with_resource(
     allocation: float,
     grace_ratio: float = 0.2,
     previous_usage: float = 0,
-    half_life: int = 15,
+    carryover_factor: int = 50,
     carryover_enabled: bool = True,
-    days_elapsed: int = 90,
     current_usage: float = 0,
     daily_usage_rate: float = 0,
 ) -> dict:
@@ -263,9 +223,8 @@ def preview_policy_impact_with_resource(
         allocation: Base allocation for the period
         grace_ratio: Grace ratio for overconsumption
         previous_usage: Usage from previous period
-        half_life: Decay half-life in days
+        carryover_factor: Maximum percentage of base that can carry over (0-100)
         carryover_enabled: Whether carryover is enabled
-        days_elapsed: Days since previous period
         current_usage: Current usage in this period (from resource)
         daily_usage_rate: Average daily usage rate (from resource)
 
@@ -277,9 +236,8 @@ def preview_policy_impact_with_resource(
         allocation=allocation,
         grace_ratio=grace_ratio,
         previous_usage=previous_usage,
-        half_life=half_life,
+        carryover_factor=carryover_factor,
         carryover_enabled=carryover_enabled,
-        days_elapsed=days_elapsed,
     )
 
     # Calculate current QoS status
