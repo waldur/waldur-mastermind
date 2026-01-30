@@ -33,6 +33,7 @@ class TestSlurmPeriodicUsagePolicySTOMPSimple(TestCase):
             offering=self.offering,
             plan=self.plan,
             backend_id="test-account",
+            limits={"nodeHours": 1000},
         )
 
     def test_policy_settings_calculation_for_stomp(self):
@@ -47,7 +48,9 @@ class TestSlurmPeriodicUsagePolicySTOMPSimple(TestCase):
 
         # Test settings calculation (this is what would be sent via STOMP)
         with mock.patch.object(
-            policy, "_get_previous_period_usage", return_value=500.0
+            policy,
+            "_get_previous_period_usage",
+            return_value={"nodeHours": 500.0},
         ):
             settings = policy.calculate_slurm_settings(self.resource)
 
@@ -58,22 +61,23 @@ class TestSlurmPeriodicUsagePolicySTOMPSimple(TestCase):
             self.assertIn("grace_limit", settings)
             self.assertIn("carryover_details", settings)
 
-            # Validate carryover calculation
+            # Validate carryover calculation (per-component)
             carryover = settings["carryover_details"]
             self.assertTrue(carryover.get("carryover_applied"))
+            nh = carryover["per_component"]["nodeHours"]
             self.assertGreater(
-                carryover["total_allocation"], 1000
+                nh["total"], 1000
             )  # Should have carryover (base 1000 + 15% cap = 1150)
 
             # Validate SLURM-specific values
             fairshare = settings["fairshare"]
-            billing_minutes = settings["grp_tres_mins"]["billing"]
+            tres_minutes = settings["grp_tres_mins"]["nodeHours"]
 
             self.assertGreater(fairshare, 300)  # Should be substantial
-            self.assertGreater(billing_minutes, 60000)  # Should reflect carryover
+            self.assertGreater(tres_minutes, 60000)  # Should reflect carryover
 
             print(
-                f"✅ Settings for STOMP: fairshare={fairshare}, billing={billing_minutes:,}"
+                f"✅ Settings for STOMP: fairshare={fairshare}, nodeHours={tres_minutes:,}"
             )
 
     def test_message_payload_structure(self):
@@ -118,14 +122,14 @@ class TestSlurmPeriodicUsagePolicySTOMPSimple(TestCase):
                 "limit_type": "GrpTRESMins",
                 "tres_billing_enabled": True,
                 "expected_limit_key": "grp_tres_mins",
-                "expected_tres_type": "billing",
+                "expected_tres_type": "nodeHours",
             },
             {
                 "name": "MaxTRESMins + Raw",
                 "limit_type": "MaxTRESMins",
                 "tres_billing_enabled": False,
                 "expected_limit_key": "max_tres_mins",
-                "expected_tres_type": "node",
+                "expected_tres_type": "nodeHours",
             },
         ]
 
@@ -207,15 +211,16 @@ class TestSlurmPeriodicUsagePolicySTOMPSimple(TestCase):
         self.assertGreater(settings["fairshare"], 0)
 
         self.assertIsInstance(settings["grp_tres_mins"], dict)
-        self.assertIn("billing", settings["grp_tres_mins"])
-        self.assertGreater(settings["grp_tres_mins"]["billing"], 0)
+        # Per-component TRES minutes should include nodeHours
+        self.assertIn("nodeHours", settings["grp_tres_mins"])
+        self.assertGreater(settings["grp_tres_mins"]["nodeHours"], 0)
 
         self.assertEqual(settings["limit_type"], "GrpTRESMins")
 
         print("✅ Settings validated for site agent consumption")
         print(f"   Fairshare: {settings['fairshare']}")
-        print(f"   Billing limit: {settings['grp_tres_mins']['billing']:,} minutes")
-        print(f"   QoS threshold: {settings['qos_threshold']['billing']:,} minutes")
+        print(f"   nodeHours limit: {settings['grp_tres_mins']['nodeHours']:,} minutes")
+        print(f"   QoS threshold: {settings['qos_threshold']}")
 
 
 class TestSlurmPeriodicUsagePolicyIntegrationValidation(TestCase):
@@ -241,6 +246,7 @@ class TestSlurmPeriodicUsagePolicyIntegrationValidation(TestCase):
             offering=offering,
             plan=plan,
             backend_id="compatibility-test",
+            limits={"nodeHours": 1500},
         )
 
         # Create policy
@@ -263,21 +269,21 @@ class TestSlurmPeriodicUsagePolicyIntegrationValidation(TestCase):
         self.assertIn("grp_tres_mins", settings)
         self.assertIsInstance(settings["fairshare"], int)
         self.assertIsInstance(settings["grp_tres_mins"], dict)
-        self.assertIn("billing", settings["grp_tres_mins"])
+        self.assertIn("nodeHours", settings["grp_tres_mins"])
 
         # Test the settings values are reasonable
         fairshare = settings["fairshare"]
-        billing_limit = settings["grp_tres_mins"]["billing"]
+        tres_limit = settings["grp_tres_mins"]["nodeHours"]
 
         self.assertGreater(fairshare, 0)
         self.assertLessEqual(fairshare, 1000)  # Reasonable fairshare range
 
-        self.assertGreater(billing_limit, 60000)  # At least 1000Nh
-        self.assertLessEqual(billing_limit, 180000)  # At most 3000Nh (reasonable)
+        self.assertGreater(tres_limit, 60000)  # At least 1000Nh * 60
+        self.assertLessEqual(tres_limit, 180000)  # At most 3000Nh * 60
 
         print("✅ Policy ↔ Site Agent Compatibility Validated")
         print(
-            f"   Policy calculation: {fairshare} fairshare, {billing_limit:,} billing minutes"
+            f"   Policy calculation: {fairshare} fairshare, {tres_limit:,} TRES minutes"
         )
         print("   ✅ Format matches site agent expectations")
         print("   ✅ Values are within reasonable ranges")

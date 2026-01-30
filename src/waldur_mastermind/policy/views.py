@@ -199,6 +199,7 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
         """Fetch usage data from resource if available.
 
         Returns a dict with allocation, current_usage, daily_usage_rate, and previous_usage.
+        The preview API stays scalar (frontend-facing with simple example values).
         """
         result = defaults.copy()
 
@@ -210,26 +211,28 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
             )
             return result
 
-        # Get resource limit as allocation
+        # Get resource limits as allocation — use sum for the scalar preview API
         if hasattr(resource, "limits") and resource.limits:
-            for key, value in resource.limits.items():
-                if value and value > 0:
-                    result["allocation"] = float(value)
-                    break
+            total_alloc = sum(float(v) for v in resource.limits.values() if v and v > 0)
+            if total_alloc > 0:
+                result["allocation"] = total_alloc
 
         today = timezone.now().date()
         period_start, period_end, current_quarter, quarter_start_month = (
             self._get_quarter_period(today)
         )
 
-        # Get usages for the current quarter
-        usages = marketplace_models.ComponentUsage.objects.filter(
-            resource=resource,
-            billing_period__gte=period_start,
-            billing_period__lte=period_end,
+        # Get per-component usages for the current quarter, summed into scalar
+        usages = (
+            marketplace_models.ComponentUsage.objects.filter(
+                resource=resource,
+                billing_period__gte=period_start,
+                billing_period__lte=period_end,
+            )
+            .values("component__type")
+            .annotate(total=Sum("usage"))
         )
-        usage_sum = usages.aggregate(total=Sum("usage"))["total"]
-        current_usage = float(usage_sum) if usage_sum else 0
+        current_usage = sum(float(u["total"]) for u in usages if u["total"])
 
         # If no usage in current quarter, try to get most recent usage
         if current_usage == 0:

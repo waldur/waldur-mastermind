@@ -21,7 +21,7 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
 
         # Create component
         self.component = marketplace_factories.OfferingComponentFactory(
-            offering=self.offering, type="nodeHours"
+            offering=self.offering, type="cpu"
         )
 
         # Create plan
@@ -30,9 +30,12 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
             plan=self.plan, component=self.component, amount=1000
         )
 
-        # Create resource
+        # Create resource with per-component limits
         self.resource = marketplace_factories.ResourceFactory(
-            project=self.project, offering=self.offering, plan=self.plan
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+            limits={"cpu": 64000, "mem": 512000},
         )
 
     def test_policy_model_creation(self):
@@ -75,8 +78,11 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
 
             # Verify reasonable values
             self.assertGreater(settings["fairshare"], 0)
-            self.assertIn("billing", settings["grp_tres_mins"])
-            self.assertGreater(settings["grp_tres_mins"]["billing"], 0)
+            # Per-component TRES minutes: cpu and mem should be present
+            self.assertIn("cpu", settings["grp_tres_mins"])
+            self.assertIn("mem", settings["grp_tres_mins"])
+            self.assertGreater(settings["grp_tres_mins"]["cpu"], 0)
+            self.assertGreater(settings["grp_tres_mins"]["mem"], 0)
 
         print("✅ Basic settings calculation working")
 
@@ -111,29 +117,46 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
             f"✅ Decay calculation: {previous_usage}Nh → {effective_usage:.1f}Nh → {total_allocation:.1f}Nh"
         )
 
-    def test_tres_billing_calculation(self):
-        """Test TRES billing calculation method."""
+    def test_tres_minutes_calculation(self):
+        """Test per-component TRES minutes calculation."""
         policy = SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering, apply_to_all=True, tres_billing_enabled=True
         )
 
-        # Test billing minutes calculation
-        node_hours = 1200.0
-        billing_minutes = policy._calculate_billing_minutes(
-            node_hours, {"tres_billing_enabled": True}
+        allocation = {"cpu": 64000.0, "mem": 512000.0}
+        config = {"tres_billing_enabled": True, "tres_billing_weights": {}}
+        tres_minutes = policy._calculate_tres_minutes(allocation, config)
+
+        # Each component: hours * 60
+        self.assertEqual(tres_minutes["cpu"], 64000 * 60)
+        self.assertEqual(tres_minutes["mem"], 512000 * 60)
+
+        print(f"✅ TRES minutes: {tres_minutes}")
+
+    def test_tres_minutes_with_billing_weights(self):
+        """Test TRES minutes calculation with billing weights."""
+        policy = SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.offering, apply_to_all=True, tres_billing_enabled=True
         )
 
-        expected = 72000  # 1200 * 60
-        self.assertEqual(billing_minutes, expected)
+        allocation = {"cpu": 100.0, "mem": 200.0}
+        weights = {"cpu": 0.5, "mem": 0.25}
+        config = {"tres_billing_enabled": True, "tres_billing_weights": weights}
+        tres_minutes = policy._calculate_tres_minutes(allocation, config)
 
-        print(f"✅ TRES billing: {node_hours}Nh → {billing_minutes:,} billing minutes")
+        self.assertEqual(tres_minutes["cpu"], 6000)  # 100 * 60
+        self.assertEqual(tres_minutes["mem"], 12000)  # 200 * 60
+        # billing = (100*0.5 + 200*0.25) * 60 = (50 + 50) * 60 = 6000
+        self.assertEqual(tres_minutes["billing"], 6000)
 
-    def test_qos_threshold_calculation(self):
-        """Test QoS threshold calculation."""
+        print(f"✅ TRES minutes with billing weights: {tres_minutes}")
+
+    def test_qos_threshold_calculation_scalar(self):
+        """Test QoS threshold calculation with scalar (backward compat)."""
         policy = SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
             apply_to_all=True,
-            grace_ratio=0.25,  # 25% grace
+            grace_ratio=0.25,
             tres_billing_enabled=True,
         )
 
@@ -144,14 +167,41 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
             total_allocation, config
         )
 
-        # QoS threshold at 100% allocation = 1500 * 60 = 90000 billing minutes
-        # Grace limit at 125% allocation = 1875 * 60 = 112500 billing minutes
-
         self.assertEqual(qos_threshold["billing"], 90000)
         self.assertEqual(grace_limit["billing"], 112500)
 
         print(
-            f"✅ QoS thresholds: {qos_threshold['billing']:,} / {grace_limit['billing']:,} billing minutes"
+            f"✅ QoS thresholds (scalar): {qos_threshold['billing']:,} / {grace_limit['billing']:,}"
+        )
+
+    def test_qos_threshold_calculation_dict(self):
+        """Test QoS threshold calculation with per-component dict."""
+        policy = SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.offering,
+            apply_to_all=True,
+            grace_ratio=0.25,
+            tres_billing_enabled=True,
+        )
+
+        total_allocation = {"cpu": 100.0, "mem": 200.0}
+        weights = {"cpu": 0.5, "mem": 0.25}
+        config = {
+            "grace_ratio": 0.25,
+            "tres_billing_enabled": True,
+            "tres_billing_weights": weights,
+        }
+
+        qos_threshold, grace_limit = policy._calculate_qos_thresholds(
+            total_allocation, config
+        )
+
+        # scalar = 100*0.5 + 200*0.25 = 100
+        # threshold = 100 * 60 = 6000, grace = 100 * 1.25 * 60 = 7500
+        self.assertEqual(qos_threshold["billing"], 6000)
+        self.assertEqual(grace_limit["billing"], 7500)
+
+        print(
+            f"✅ QoS thresholds (dict): {qos_threshold['billing']:,} / {grace_limit['billing']:,}"
         )
 
     def test_configuration_resolution(self):
@@ -210,20 +260,22 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
         print(f"✅ Current period calculation working: {current}")
 
     def test_fairshare_calculation(self):
-        """Test fairshare calculation method."""
+        """Test fairshare calculation method with dict and scalar."""
         policy = SlurmPeriodicUsagePolicy()
 
-        # Test with different allocations
+        # Test with scalar (backward compat)
         fairshare_1000 = policy._calculate_fairshare(1000, {})
-        fairshare_1500 = policy._calculate_fairshare(1500, {})
-        fairshare_tiny = policy._calculate_fairshare(2, {})
-
         self.assertEqual(fairshare_1000, 333)  # 1000 // 3
-        self.assertEqual(fairshare_1500, 500)  # 1500 // 3
+
+        # Test with dict — uses sum of values
+        fairshare_dict = policy._calculate_fairshare({"cpu": 600, "mem": 900}, {})
+        self.assertEqual(fairshare_dict, 500)  # (600 + 900) // 3
+
+        fairshare_tiny = policy._calculate_fairshare({"cpu": 1, "mem": 1}, {})
         self.assertEqual(fairshare_tiny, 1)  # minimum value
 
         print(
-            f"✅ Fairshare calculations: 1000→{fairshare_1000}, 1500→{fairshare_1500}, 2→{fairshare_tiny}"
+            f"✅ Fairshare calculations: scalar=1000→{fairshare_1000}, dict→{fairshare_dict}"
         )
 
 

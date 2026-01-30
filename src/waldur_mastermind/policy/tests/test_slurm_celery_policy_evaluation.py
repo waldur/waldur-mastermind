@@ -53,12 +53,13 @@ class TestSlurmCeleryPolicyEvaluation(TestCase):
             offering=self.offering, type="node-hours", name="Node hours"
         )
 
-        # Create test resources
+        # Create test resources with per-component limits
         self.resource_low_usage = factories.ResourceFactory(
             offering=self.offering,
             project=self.project,
             name="low-usage-resource",
             backend_id="slurm-account-low",
+            limits={"node-hours": 1000},
         )
 
         self.resource_high_usage = factories.ResourceFactory(
@@ -66,6 +67,7 @@ class TestSlurmCeleryPolicyEvaluation(TestCase):
             project=self.project,
             name="high-usage-resource",
             backend_id="slurm-account-high",
+            limits={"node-hours": 1000},
         )
 
         # Create SLURM periodic usage policy
@@ -427,7 +429,9 @@ class TestSlurmPolicySignalHandlers(TestCase):
         self.customer = factories.CustomerFactory()
         self.project = factories.ProjectFactory(customer=self.customer)
         self.resource = factories.ResourceFactory(
-            offering=self.offering, project=self.project
+            offering=self.offering,
+            project=self.project,
+            limits={"node-hours": 1000},
         )
         self.component = factories.OfferingComponentFactory(
             offering=self.offering, type="node-hours"
@@ -539,6 +543,7 @@ class TestSlurmPolicyRecovery(TestCase):
             project=self.project,
             downscaled=True,  # Start with restrictions
             paused=True,
+            limits={"node-hours": 1000},
         )
         self.component = factories.OfferingComponentFactory(
             offering=self.offering, type="node-hours"
@@ -645,7 +650,10 @@ class TestSlurmPolicyPerformance(TestCase):
         # Create multiple resources for performance testing
         self.resources = [
             factories.ResourceFactory(
-                offering=self.offering, project=self.project, name=f"resource-{i}"
+                offering=self.offering,
+                project=self.project,
+                name=f"resource-{i}",
+                limits={"node-hours": 1000},
             )
             for i in range(10)
         ]
@@ -785,6 +793,7 @@ class TestSlurmPolicyIntegration(TestCase):
             offering=self.offering,
             project=self.project,
             backend_id="slurm-test-account",
+            limits={"node-hours": 1000},
         )
         self.component = factories.OfferingComponentFactory(
             offering=self.offering, type="node-hours"
