@@ -551,6 +551,13 @@ CONSTANCE_CONFIG = {
         True,
         "Optionally disable creation of user groups in FreeIPA matching Waldur structure",
     ),
+    "SCIM_MEMBERSHIP_SYNC_ENABLED": (
+        False,
+        "Enable SCIM entitlement synchronization to external identity provider.",
+    ),
+    "SCIM_API_URL": ("", "Base URL of the SCIM API service."),
+    "SCIM_API_KEY": ("", "SCIM API key for X-API-Key header.", "secret_field"),
+    "SCIM_URN_NAMESPACE": ("", "URN namespace for SCIM entitlements."),
     "KEYCLOAK_ICON": (
         "",
         "A custom PNG icon for Keycloak login button",
@@ -1112,6 +1119,12 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "FREEIPA_GROUPNAME_PREFIX",
         "FREEIPA_BLACKLISTED_USERNAMES",
         "FREEIPA_GROUP_SYNCHRONIZATION_ENABLED",
+    ),
+    "SCIM settings": (
+        "SCIM_MEMBERSHIP_SYNC_ENABLED",
+        "SCIM_API_URL",
+        "SCIM_API_KEY",
+        "SCIM_URN_NAMESPACE",
     ),
     "API token authentication": (
         "OIDC_AUTH_URL",

@@ -1395,6 +1395,10 @@ class UserEmailChangeSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
 
+class ScimSyncAllResponseSerializer(serializers.Serializer):
+    detail = serializers.CharField()
+
+
 class ProfileCompletenessSerializer(serializers.Serializer):
     """Serializer for profile completeness check response."""
 

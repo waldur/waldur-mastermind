@@ -7,11 +7,22 @@ class UserConfig(AppConfig):
     verbose_name = "Users"
 
     def ready(self):
+        from waldur_core.permissions import signals as permission_signals
         from waldur_core.users import handlers
         from waldur_core.users.models import PermissionRequest
+        from waldur_core.users.scim import handlers as scim_handlers
 
         signals.post_save.connect(
             handlers.create_notification_about_permission_request_has_been_submitted,
             sender=PermissionRequest,
             dispatch_uid="waldur_core.users.handlers.create_notification_about_permission_request_has_been_submited",
+        )
+
+        permission_signals.role_granted.connect(
+            scim_handlers.schedule_user_sync,
+            dispatch_uid="waldur_core.users.scim.handlers.schedule_user_sync_on_role_granted",
+        )
+        permission_signals.role_revoked.connect(
+            scim_handlers.schedule_user_sync,
+            dispatch_uid="waldur_core.users.scim.handlers.schedule_user_sync_on_role_revoked",
         )
