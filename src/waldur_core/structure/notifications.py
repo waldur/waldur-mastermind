@@ -148,7 +148,7 @@ class StructureSection(NotificationSection):
     )
 
     project_digest = Notification(
-        key="structure.project_digest",
+        key="project_digest",
         description="Periodic project summary digest sent to project members.",
         context_model=EmptyContext,
     )
