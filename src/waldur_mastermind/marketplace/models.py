@@ -1788,12 +1788,13 @@ class Order(
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     created_by = models.ForeignKey(
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         to=core_models.User,
         related_name="+",
+        null=True,
     )
     consumer_reviewed_by = models.ForeignKey(
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         to=core_models.User,
         blank=True,
         null=True,
@@ -1801,7 +1802,7 @@ class Order(
     )
     consumer_reviewed_at = models.DateTimeField(editable=False, null=True, blank=True)
     provider_reviewed_by = models.ForeignKey(
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         to=core_models.User,
         blank=True,
         null=True,
