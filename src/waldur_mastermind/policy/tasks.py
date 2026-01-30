@@ -94,6 +94,12 @@ def evaluate_resource_against_policy(resource_uuid: str, policy_uuid: str):
 
         logger.info(f"Resource {resource.uuid} usage: {usage_percentage:.1f}%")
 
+        # Capture state before evaluation for logging
+        previous_state = {
+            "paused": bool(resource.paused),
+            "downscaled": bool(resource.downscaled),
+        }
+
         # Determine required actions based on usage percentage
         actions_needed = []
 
@@ -154,6 +160,38 @@ def evaluate_resource_against_policy(resource_uuid: str, policy_uuid: str):
                 notify_about_resource_usage.delay(
                     str(resource.uuid), str(policy.uuid), usage_percentage
                 )
+
+        # Capture state after evaluation
+        resource.refresh_from_db()
+        new_state = {
+            "paused": bool(resource.paused),
+            "downscaled": bool(resource.downscaled),
+        }
+
+        # Create persistent evaluation log
+        stomp_sent = False
+        if actions_needed and any(a in ("pause", "downscale") for a in actions_needed):
+            stomp_sent = True
+
+        models.SlurmPolicyEvaluationLog.objects.create(
+            policy=policy,
+            resource=resource,
+            billing_period=current_period,
+            usage_percentage=usage_percentage,
+            grace_limit_percentage=grace_limit_percentage,
+            actions_taken=actions_needed,
+            previous_state=previous_state,
+            new_state=new_state,
+            stomp_message_sent=stomp_sent,
+        )
+
+        # Emit structured event
+        event_logger.emit(
+            "SLURM policy evaluation completed for resource %s: "
+            "usage=%.1f%%, actions=%s"
+            % (resource.uuid, usage_percentage, actions_needed),
+            event_type=EventType.SLURM_POLICY_EVALUATION,
+        )
 
         # Update policy state if any resource actions were applied
         if actions_needed and not policy.has_fired:
@@ -332,3 +370,26 @@ def notify_external_user(serialized_policy):
     policy = core_utils.deserialize_instance(serialized_policy)
     emails = policy.options.get("notify_external_user", "").split(",")
     send_emails(emails, policy)
+
+
+@shared_task(name="waldur_mastermind.policy.cleanup_slurm_evaluation_logs")
+def cleanup_slurm_evaluation_logs():
+    """Delete SLURM policy evaluation log entries older than the configured retention period."""
+    from datetime import timedelta
+
+    from constance import config
+
+    retention_days = config.SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS
+    cutoff_date = timezone.now() - timedelta(days=retention_days)
+
+    deleted_count, _ = models.SlurmPolicyEvaluationLog.objects.filter(
+        evaluated_at__lt=cutoff_date,
+    ).delete()
+
+    logger.info(
+        "Cleaned up %d SLURM evaluation log entries older than %d days",
+        deleted_count,
+        retention_days,
+    )
+
+    return {"deleted_count": deleted_count, "retention_days": retention_days}

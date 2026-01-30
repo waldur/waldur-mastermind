@@ -898,6 +898,11 @@ CONSTANCE_CONFIG = {
         False,
         "Log when users access their own profile data. Disabled by default to reduce log volume.",
     ),
+    # SLURM Policy settings
+    "SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS": (
+        90,
+        "Number of days to retain SLURM policy evaluation log entries before automatic cleanup.",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -1169,6 +1174,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "USER_ACTIONS_EXECUTION_RETENTION_DAYS",
         "USER_ACTIONS_DEFAULT_EXPIRATION_REMINDERS",
     ),
+    "SLURM Policy": ("SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS",),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (

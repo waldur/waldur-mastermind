@@ -154,6 +154,11 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
     # preview_impact is a non-detail action (no specific object), so we use is_staff
     # instead of is_owner which requires an object to check ownership against
     preview_impact_permissions = [structure_permissions.is_staff]
+    report_command_result_permissions = [structure_permissions.is_staff]
+    evaluation_logs_permissions = [structure_permissions.is_owner]
+    command_history_list_permissions = [structure_permissions.is_owner]
+    dry_run_permissions = [structure_permissions.is_staff]
+    evaluate_permissions = [structure_permissions.is_staff]
 
     @extend_schema(parameters=[])
     @action(detail=False, methods=["get"])
@@ -401,3 +406,235 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
 
         response_serializer = serializers.SlurmPolicyPreviewResponseSerializer(result)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        request=serializers.SlurmCommandResultSerializer,
+        responses={200: None},
+        description="Report command execution result from site agent.",
+    )
+    @action(detail=True, methods=["post"], url_path="report-command-result")
+    def report_command_result(self, request, uuid=None):
+        """Accept a command execution result from the site agent."""
+        policy = self.get_object()
+        serializer = serializers.SlurmCommandResultSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        resource_uuid = str(data["resource_uuid"])
+        success = data["success"]
+        error_message = data.get("error_message", "")
+        mode = data.get("mode", "production")
+
+        try:
+            resource = marketplace_models.Resource.objects.get(uuid=resource_uuid)
+        except marketplace_models.Resource.DoesNotExist:
+            raise ValidationError({"resource_uuid": "Resource not found."})
+
+        # Update the most recent SlurmCommandHistory records for this resource
+        recent_commands = models.SlurmCommandHistory.objects.filter(
+            policy=policy,
+            resource=resource,
+        ).order_by("-executed_at")[:20]
+
+        for cmd in recent_commands:
+            if cmd.success and not success:
+                cmd.success = False
+                cmd.error_message = error_message
+                cmd.execution_mode = mode
+                cmd.save()
+
+        # Update the most recent evaluation log for this resource
+        evaluation_log = (
+            models.SlurmPolicyEvaluationLog.objects.filter(
+                policy=policy,
+                resource=resource,
+            )
+            .order_by("-evaluated_at")
+            .first()
+        )
+        if evaluation_log:
+            evaluation_log.site_agent_confirmed = success
+            evaluation_log.site_agent_response = {
+                "success": success,
+                "error_message": error_message,
+                "mode": mode,
+            }
+            evaluation_log.save()
+
+        return Response(
+            {"detail": "Command result recorded."},
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        responses={200: serializers.SlurmPolicyEvaluationLogSerializer(many=True)},
+        description="List evaluation logs for this policy.",
+    )
+    @action(detail=True, methods=["get"], url_path="evaluation-logs")
+    def evaluation_logs(self, request, uuid=None):
+        """Return evaluation history for this policy."""
+        policy = self.get_object()
+        queryset = models.SlurmPolicyEvaluationLog.objects.filter(
+            policy=policy,
+        ).select_related("resource")
+
+        resource_uuid = request.query_params.get("resource_uuid")
+        if resource_uuid:
+            queryset = queryset.filter(resource__uuid=resource_uuid)
+
+        billing_period = request.query_params.get("billing_period")
+        if billing_period:
+            queryset = queryset.filter(billing_period=billing_period)
+
+        queryset = queryset.order_by("-evaluated_at")[:100]
+        serializer = serializers.SlurmPolicyEvaluationLogSerializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        responses={200: serializers.SlurmCommandHistorySerializer(many=True)},
+        description="List command history for this policy.",
+    )
+    @action(detail=True, methods=["get"], url_path="command-history")
+    def command_history_list(self, request, uuid=None):
+        """Return command execution history for this policy."""
+        policy = self.get_object()
+        queryset = models.SlurmCommandHistory.objects.filter(
+            policy=policy,
+        ).select_related("resource")
+
+        resource_uuid = request.query_params.get("resource_uuid")
+        if resource_uuid:
+            queryset = queryset.filter(resource__uuid=resource_uuid)
+
+        queryset = queryset.order_by("-executed_at")[:100]
+        serializer = serializers.SlurmCommandHistorySerializer(queryset, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def _get_policy_resources(self, policy, resource_uuid=None):
+        """Get resources for a policy, optionally filtered to a single resource."""
+        resources_qs = marketplace_models.Resource.objects.filter(
+            offering=policy.scope,
+        ).exclude(
+            state__in=(
+                marketplace_models.ResourceStates.TERMINATED,
+                marketplace_models.ResourceStates.TERMINATING,
+            )
+        )
+        if resource_uuid:
+            resources_qs = resources_qs.filter(uuid=resource_uuid)
+        return list(resources_qs)
+
+    @extend_schema(
+        request=serializers.SlurmPolicyEvaluateRequestSerializer,
+        responses={200: serializers.SlurmPolicyDryRunResponseSerializer},
+        description="Staff-only. Dry-run evaluation: calculates usage percentages and "
+        "shows what actions would be triggered, without applying any changes.",
+    )
+    @action(detail=True, methods=["post"], url_path="dry-run")
+    def dry_run(self, request, uuid=None):
+        """Dry-run policy evaluation — read-only, no state changes."""
+        policy = self.get_object()
+        serializer = serializers.SlurmPolicyEvaluateRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        resource_uuid = serializer.validated_data.get("resource_uuid")
+
+        resources = self._get_policy_resources(policy, resource_uuid)
+        current_period = policy._get_current_period()
+        grace_limit_percentage = (1 + policy.grace_ratio) * 100
+
+        results = []
+        for resource in resources:
+            usage_pct = policy.get_resource_usage_percentage(resource, current_period)
+            would_trigger = []
+            if (
+                usage_pct >= grace_limit_percentage
+                and "request_slurm_resource_pausing" in policy.actions
+            ):
+                would_trigger.append("pause")
+            if (
+                usage_pct >= 100
+                and "request_slurm_resource_downscaling" in policy.actions
+            ):
+                would_trigger.append("downscale")
+            if usage_pct >= 80 and "notify_organization_owners" in policy.actions:
+                would_trigger.append("notify")
+
+            results.append(
+                {
+                    "resource_uuid": resource.uuid,
+                    "resource_name": resource.name,
+                    "usage_percentage": round(usage_pct, 2),
+                    "paused": bool(resource.paused),
+                    "downscaled": bool(resource.downscaled),
+                    "would_trigger": would_trigger,
+                }
+            )
+
+        response_data = {
+            "policy_uuid": policy.uuid,
+            "billing_period": current_period,
+            "grace_limit_percentage": grace_limit_percentage,
+            "resources": results,
+        }
+        return Response(
+            serializers.SlurmPolicyDryRunResponseSerializer(response_data).data,
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        request=serializers.SlurmPolicyEvaluateRequestSerializer,
+        responses={200: serializers.SlurmPolicyEvaluateResponseSerializer},
+        description="Staff-only. Run synchronous policy evaluation: calculates usage, "
+        "applies actions (pause/downscale/notify), and creates evaluation logs.",
+    )
+    @action(detail=True, methods=["post"], url_path="evaluate")
+    def evaluate(self, request, uuid=None):
+        """Run synchronous policy evaluation — applies actions and creates logs."""
+        from . import tasks as policy_tasks
+
+        policy = self.get_object()
+        serializer = serializers.SlurmPolicyEvaluateRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        resource_uuid = serializer.validated_data.get("resource_uuid")
+
+        resources = self._get_policy_resources(policy, resource_uuid)
+        current_period = policy._get_current_period()
+
+        results = []
+        for resource in resources:
+            # Run the evaluation task synchronously (call directly, not .delay())
+            policy_tasks.evaluate_resource_against_policy(
+                str(resource.uuid), str(policy.uuid)
+            )
+
+            # Fetch the log that was just created
+            log = (
+                models.SlurmPolicyEvaluationLog.objects.filter(
+                    policy=policy,
+                    resource=resource,
+                )
+                .order_by("-evaluated_at")
+                .first()
+            )
+
+            if log:
+                results.append(
+                    {
+                        "resource_uuid": resource.uuid,
+                        "resource_name": resource.name,
+                        "usage_percentage": log.usage_percentage,
+                        "actions_taken": log.actions_taken,
+                        "previous_state": log.previous_state,
+                        "new_state": log.new_state,
+                    }
+                )
+
+        response_data = {
+            "policy_uuid": policy.uuid,
+            "billing_period": current_period,
+            "resources": results,
+        }
+        return Response(
+            serializers.SlurmPolicyEvaluateResponseSerializer(response_data).data,
+            status=status.HTTP_200_OK,
+        )

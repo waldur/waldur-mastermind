@@ -242,9 +242,151 @@ curl https://waldur.example.com/api/marketplace-slurm-periodic-usage-policies/PO
   -H "Authorization: Token YOUR_TOKEN"
 ```
 
-## Monitoring and Troubleshooting
+## Evaluation and Testing
 
-### Check Resource Usage Percentage
+### Staff-Only API Actions
+
+Two staff-only API actions allow testing policy evaluation directly from the frontend or API without waiting for automatic triggers.
+
+#### Dry Run
+
+Calculate usage percentages and show what actions would be triggered without applying any changes.
+
+```bash
+curl -X POST https://waldur.example.com/api/marketplace-slurm-periodic-usage-policies/POLICY_UUID/dry-run/ \
+  -H "Authorization: Token STAFF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+Optionally scope to a single resource:
+
+```bash
+curl -X POST .../POLICY_UUID/dry-run/ \
+  -H "Authorization: Token STAFF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"resource_uuid": "RESOURCE_UUID"}'
+```
+
+Response includes per-resource: `usage_percentage`, current `paused`/`downscaled` state, and `would_trigger` actions.
+
+#### Evaluate (Synchronous)
+
+Run the full evaluation: calculate usage, apply actions (pause/downscale/notify), and create evaluation log entries.
+
+```bash
+curl -X POST https://waldur.example.com/api/marketplace-slurm-periodic-usage-policies/POLICY_UUID/evaluate/ \
+  -H "Authorization: Token STAFF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+Response includes per-resource: `usage_percentage`, `actions_taken`, `previous_state`, and `new_state`.
+
+#### Frontend
+
+Staff users see an **Evaluate** button on the SLURM policy configuration panel. This opens a dialog with:
+
+- **Dry run** — read-only preview of what would happen
+- **Evaluate now** — runs the full evaluation synchronously and shows results
+
+### Management Commands
+
+Three management commands are available for CLI-based testing and monitoring:
+
+#### evaluate_slurm_policy
+
+```bash
+# Dry run: show what would happen without applying changes
+waldur evaluate_slurm_policy --policy <UUID> --dry-run
+
+# Dry run for a single resource
+waldur evaluate_slurm_policy --policy <UUID> --resource <UUID> --dry-run
+
+# Run synchronously (blocking, results printed immediately)
+waldur evaluate_slurm_policy --policy <UUID> --sync
+
+# Queue async Celery tasks (check worker logs for results)
+waldur evaluate_slurm_policy --policy <UUID>
+```
+
+#### slurm_policy_status
+
+```bash
+# Show all policies with resource states, evaluation logs, command history
+waldur slurm_policy_status
+
+# Single policy with more history
+waldur slurm_policy_status --policy <UUID> --logs 50 --commands 20
+
+# Filter to a specific resource
+waldur slurm_policy_status --policy <UUID> --resource <UUID>
+```
+
+#### cleanup_slurm_logs
+
+```bash
+# Manually trigger evaluation log cleanup (uses constance retention setting)
+waldur cleanup_slurm_logs
+```
+
+## Monitoring and Observability
+
+### Evaluation Log
+
+Every policy evaluation creates a `SlurmPolicyEvaluationLog` record with:
+
+- `usage_percentage` — resource usage at the time of evaluation
+- `grace_limit_percentage` — the grace threshold that was applied
+- `actions_taken` — list of actions triggered (e.g. `["downscale", "notify"]`)
+- `previous_state` / `new_state` — `paused` and `downscaled` flags before and after
+- `stomp_message_sent` — whether a STOMP message was published to the site agent
+- `site_agent_confirmed` — whether the site agent reported success (null = pending)
+- `site_agent_response` — full response from the site agent
+
+### Command History
+
+When STOMP messages are sent to the site agent, each generated SLURM command is recorded in `SlurmCommandHistory`:
+
+- `command_type` — e.g. `fairshare`, `limits`, `qos`, `reset_usage`
+- `shell_command` — the actual `sacctmgr` command
+- `execution_mode` — `production` or `emulator`
+- `success` / `error_message` — filled in by site agent report-back
+
+### API Endpoints
+
+```bash
+# List evaluation logs for a policy (filterable by resource_uuid, billing_period)
+GET /api/marketplace-slurm-periodic-usage-policies/POLICY_UUID/evaluation-logs/
+
+# List command history for a policy (filterable by resource_uuid)
+GET /api/marketplace-slurm-periodic-usage-policies/POLICY_UUID/command-history/
+
+# Site agent reports command execution result
+POST /api/marketplace-slurm-periodic-usage-policies/POLICY_UUID/report-command-result/
+```
+
+### Frontend Execution Log
+
+The SLURM policy panel includes:
+
+- **Status summary** — inline card showing last evaluation timestamp, count of paused/downscaled resources, and site agent confirmation status
+- **Execution log** dialog with two tabs:
+  - **Evaluation History** — table with timestamps, resource names, usage percentages (colour-coded), action badges, and state transitions
+  - **Command History** — table with command types, shell commands, execution mode, and success/failure status
+
+### Structured Events
+
+Policy evaluations emit a `SLURM_POLICY_EVALUATION` event type, visible in the Waldur events system.
+
+### Log Retention
+
+Evaluation logs are automatically cleaned up by a daily Celery beat task (`cleanup-slurm-evaluation-logs`, runs at 03:00). The retention period is configurable via:
+
+- **Constance setting**: `SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS` (default: 90 days)
+- **HomePort admin**: Administration > Marketplace > SLURM policy
+
+### Check Resource Usage (Django Shell)
 
 ```python
 policy = SlurmPeriodicUsagePolicy.objects.get(offering=offering)
@@ -252,15 +394,6 @@ resource = Resource.objects.get(uuid="RESOURCE_UUID")
 
 usage_percentage = policy.get_resource_usage_percentage(resource)
 print(f"Current usage: {usage_percentage:.1f}%")
-```
-
-### Verify Policy Triggers
-
-```python
-# Check if policy should trigger
-if policy.is_triggered():
-    print("Policy is triggered - actions will be executed")
-    print(f"Actions: {policy.actions}")
 ```
 
 ### Debug Carryover Calculations
@@ -271,13 +404,26 @@ print(f"Carryover details: {settings['carryover_details']}")
 print(f"Total allocation: {settings['carryover_details']['total_allocation']} node-hours")
 ```
 
+## Site Agent Feedback Loop
+
+After the site agent applies SLURM commands, it reports results back to Waldur:
+
+1. Site agent receives STOMP message with `action: apply_periodic_settings`
+2. Site agent executes `sacctmgr` commands via the backend
+3. Site agent POSTs the result to `/api/marketplace-slurm-periodic-usage-policies/{policy_uuid}/report-command-result/`
+4. Waldur updates `SlurmCommandHistory.success` and `SlurmPolicyEvaluationLog.site_agent_confirmed`
+
+The STOMP message payload includes `policy_uuid` so the site agent knows which policy endpoint to report to.
+
 ## Best Practices
 
 1. **Start with Notifications**: Begin with notification-only policies to understand usage patterns
-2. **Test in Staging**: Validate policies in a test environment first
-3. **Monitor Grace Periods**: Ensure grace ratios align with user needs
-4. **Regular Review**: Review carryover and decay settings quarterly
-5. **Clear Communication**: Inform users about thresholds and consequences
+2. **Use Dry Run First**: Run `waldur evaluate_slurm_policy --dry-run` or the frontend Dry Run button before enabling enforcement
+3. **Test in Staging**: Validate policies in a test environment first
+4. **Monitor Grace Periods**: Ensure grace ratios align with user needs
+5. **Review Evaluation Logs**: Check the execution log regularly for unexpected actions
+6. **Regular Review**: Review carryover and decay settings quarterly
+7. **Clear Communication**: Inform users about thresholds and consequences
 
 ## Troubleshooting Common Issues
 
@@ -286,12 +432,14 @@ print(f"Total allocation: {settings['carryover_details']['total_allocation']} no
 - Check that `apply_to_all=True` or resource's customer is in `organization_groups`
 - Verify component usage data exists for the current period
 - Ensure resource is not in TERMINATED state
+- Run `waldur evaluate_slurm_policy --policy <UUID> --dry-run` to see current usage percentages
 
 ### QoS Not Changing
 
 - Verify site agent configuration has correct QoS names
 - Check site agent logs for SLURM command execution
 - Ensure resource backend_id matches SLURM account name
+- Check the command history endpoint or `waldur slurm_policy_status` for sent commands and site agent responses
 
 ### Incorrect Usage Calculations
 
@@ -299,14 +447,25 @@ print(f"Total allocation: {settings['carryover_details']['total_allocation']} no
 - Check billing period alignment (quarterly boundaries)
 - Verify component type matches between policy and usage data
 
+### No Evaluation Logs Appearing
+
+- Confirm the evaluation was triggered (check Celery worker logs)
+- Verify the policy has resources in the offering
+- Use the staff Evaluate button or `waldur evaluate_slurm_policy --sync` to run synchronously and see immediate results
+
+### Site Agent Not Reporting Back
+
+- Check that `policy_uuid` is present in the STOMP message payload
+- Verify the site agent has network access to the Waldur API
+- Check site agent logs for HTTP errors when POSTing to `report-command-result`
+
 ## Migration from Manual Management
 
-For organizations transitioning from manual SLURM management:
+For organisations transitioning from manual SLURM management:
 
 1. **Audit Current Allocations**: Document existing quotas and QoS settings
 2. **Create Initial Policies**: Start with generous grace periods
-3. **Enable Notifications First**: Monitor before enforcing
-4. **Gradual Enforcement**: Phase in QoS changes over 2-3 quarters
-5. **User Training**: Educate users about automatic management
-
-This configuration guide provides a complete framework for implementing automatic SLURM resource management through periodic usage policies.
+3. **Enable Notifications First**: Monitor before enforcing — use the execution log to verify calculations
+4. **Dry Run Testing**: Use the staff dry-run feature to validate policy behaviour before enabling enforcement actions
+5. **Gradual Enforcement**: Phase in QoS changes over 2-3 quarters
+6. **User Training**: Educate users about automatic management

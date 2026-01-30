@@ -145,6 +145,12 @@ def generate_preview_commands(
     threshold = settings.get("threshold", 0)
     grace_limit = settings.get("grace_limit", float("inf"))
 
+    # Ensure threshold and grace_limit are numeric (settings may contain dicts)
+    if not isinstance(threshold, int | float):
+        threshold = 0
+    if not isinstance(grace_limit, int | float):
+        grace_limit = float("inf")
+
     if threshold > 0 or grace_limit < float("inf"):
         if current_usage >= grace_limit:
             new_qos = qos_levels.get("blocked", "blocked")

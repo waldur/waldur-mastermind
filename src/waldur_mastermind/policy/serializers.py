@@ -650,3 +650,99 @@ class SlurmPolicyPreviewResponseSerializer(serializers.Serializer):
     command_history = SlurmCommandHistorySerializer(many=True, required=False)
     billing_period_start = serializers.DateField(required=False)
     billing_period_end = serializers.DateField(required=False)
+
+
+class SlurmCommandResultSerializer(serializers.Serializer):
+    """Serializer for site agent command result report-back."""
+
+    resource_uuid = serializers.UUIDField(
+        help_text="UUID of the resource the command was applied to",
+    )
+    success = serializers.BooleanField(
+        help_text="Whether the command was applied successfully",
+    )
+    error_message = serializers.CharField(
+        required=False,
+        default="",
+        allow_blank=True,
+        help_text="Error message if the command failed",
+    )
+    mode = serializers.ChoiceField(
+        choices=["production", "emulator"],
+        default="production",
+        help_text="Execution mode of the command",
+    )
+
+
+class SlurmPolicyEvaluationLogSerializer(serializers.ModelSerializer):
+    """Serializer for SLURM policy evaluation log entries."""
+
+    resource_name = serializers.CharField(source="resource.name", read_only=True)
+    resource_uuid = serializers.UUIDField(source="resource.uuid", read_only=True)
+
+    class Meta:
+        model = models.SlurmPolicyEvaluationLog
+        fields = [
+            "uuid",
+            "resource_uuid",
+            "resource_name",
+            "billing_period",
+            "usage_percentage",
+            "grace_limit_percentage",
+            "actions_taken",
+            "previous_state",
+            "new_state",
+            "stomp_message_sent",
+            "site_agent_confirmed",
+            "site_agent_response",
+            "evaluated_at",
+        ]
+
+
+class SlurmPolicyEvaluateRequestSerializer(serializers.Serializer):
+    """Request serializer for dry-run and evaluate actions."""
+
+    resource_uuid = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        help_text="Evaluate a specific resource. If omitted, evaluates all offering resources.",
+    )
+
+
+class SlurmPolicyDryRunResourceSerializer(serializers.Serializer):
+    """Serializer for a single resource result in a dry-run."""
+
+    resource_uuid = serializers.UUIDField()
+    resource_name = serializers.CharField()
+    usage_percentage = serializers.FloatField()
+    paused = serializers.BooleanField()
+    downscaled = serializers.BooleanField()
+    would_trigger = serializers.ListField(child=serializers.CharField())
+
+
+class SlurmPolicyDryRunResponseSerializer(serializers.Serializer):
+    """Response serializer for dry-run action."""
+
+    policy_uuid = serializers.UUIDField()
+    billing_period = serializers.CharField()
+    grace_limit_percentage = serializers.FloatField()
+    resources = SlurmPolicyDryRunResourceSerializer(many=True)
+
+
+class SlurmPolicyEvaluateResourceSerializer(serializers.Serializer):
+    """Serializer for a single resource result in an evaluation."""
+
+    resource_uuid = serializers.UUIDField()
+    resource_name = serializers.CharField()
+    usage_percentage = serializers.FloatField()
+    actions_taken = serializers.ListField(child=serializers.CharField())
+    previous_state = serializers.DictField()
+    new_state = serializers.DictField()
+
+
+class SlurmPolicyEvaluateResponseSerializer(serializers.Serializer):
+    """Response serializer for evaluate action."""
+
+    policy_uuid = serializers.UUIDField()
+    billing_period = serializers.CharField()
+    resources = SlurmPolicyEvaluateResourceSerializer(many=True)

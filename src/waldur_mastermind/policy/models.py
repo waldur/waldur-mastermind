@@ -1011,6 +1011,8 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         from waldur_core.logging.enums import ObservableObjectType
         from waldur_mastermind.marketplace import utils as marketplace_utils
 
+        from . import slurm_commands
+
         try:
             # Prepare STOMP message payload for periodic limits update
             message_payload = {
@@ -1019,6 +1021,7 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
                 "offering_uuid": str(
                     resource.offering.uuid
                 ),  # Required by prepare_messages
+                "policy_uuid": str(self.uuid),
                 "action": "apply_periodic_settings",
                 "settings": settings,
                 "timestamp": datetime.datetime.now().isoformat(),  # Use ISO timestamp
@@ -1037,6 +1040,35 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
                 logger.info(
                     f"Published periodic limits STOMP message for resource {resource.backend_id}"
                 )
+
+                # Write SlurmCommandHistory records for the commands sent
+                try:
+                    account = resource.backend_id or resource.name
+                    current_period = self._get_current_period()
+                    preview_commands = slurm_commands.generate_preview_commands(
+                        account=account,
+                        settings=settings,
+                        current_usage=0,
+                        current_qos="normal",
+                    )
+                    for cmd in preview_commands:
+                        SlurmCommandHistory.objects.create(
+                            policy=self,
+                            resource=resource,
+                            billing_period=current_period,
+                            command_type=cmd.get("type", "unknown"),
+                            description=cmd.get("description", ""),
+                            shell_command=cmd.get("command", ""),
+                            parameters=cmd.get("parameters", {}),
+                            execution_mode="production",
+                        )
+                except Exception as e:
+                    logger.warning(
+                        "Failed to create command history for resource %s: %s",
+                        resource.uuid,
+                        e,
+                    )
+
                 return True
             else:
                 logger.warning(
@@ -1070,8 +1102,9 @@ class SlurmCommandHistory(core_models.UuidMixin, TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="slurm_command_history",
     )
-    billing_period = models.DateField(
-        help_text=_("First day of the billing period when command was executed")
+    billing_period = models.CharField(
+        max_length=20,
+        help_text=_("Billing period identifier, e.g. '2026-Q1'"),
     )
 
     # Command details
@@ -1118,3 +1151,94 @@ class SlurmCommandHistory(core_models.UuidMixin, TimeStampedModel):
 
     def __str__(self):
         return f"{self.command_type} for {self.resource} at {self.executed_at}"
+
+
+class SlurmPolicyEvaluationLog(core_models.UuidMixin, TimeStampedModel):
+    """Persistent log of SLURM periodic usage policy evaluations.
+
+    Each record captures a single evaluation of a resource against a policy,
+    including usage data, actions taken, state transitions, and site agent feedback.
+    """
+
+    policy = models.ForeignKey(
+        "SlurmPeriodicUsagePolicy",
+        on_delete=models.CASCADE,
+        related_name="evaluation_logs",
+    )
+    resource = models.ForeignKey(
+        "marketplace.Resource",
+        on_delete=models.CASCADE,
+        related_name="slurm_evaluation_logs",
+    )
+    billing_period = models.CharField(
+        max_length=20,
+        help_text=_("Billing period identifier, e.g. '2026-Q1'"),
+    )
+
+    # Usage data at evaluation time
+    usage_percentage = models.FloatField(
+        help_text=_("Resource usage percentage at the time of evaluation"),
+    )
+    grace_limit_percentage = models.FloatField(
+        help_text=_("Grace limit percentage threshold (e.g. 120 for 20% grace)"),
+    )
+
+    # Actions and state transitions
+    actions_taken = models.JSONField(
+        default=list,
+        help_text=_(
+            "List of actions taken during this evaluation (e.g. ['pause', 'notify'])"
+        ),
+    )
+    previous_state = models.JSONField(
+        default=dict,
+        help_text=_(
+            "Resource state before evaluation: {paused: bool, downscaled: bool}"
+        ),
+    )
+    new_state = models.JSONField(
+        default=dict,
+        help_text=_(
+            "Resource state after evaluation: {paused: bool, downscaled: bool}"
+        ),
+    )
+
+    # STOMP / site agent tracking
+    stomp_message_sent = models.BooleanField(
+        default=False,
+        help_text=_("Whether a STOMP message was sent to the site agent"),
+    )
+    site_agent_confirmed = models.BooleanField(
+        null=True,
+        default=None,
+        help_text=_(
+            "Whether the site agent confirmed command execution (null = no response yet)"
+        ),
+    )
+    site_agent_response = models.JSONField(
+        null=True,
+        default=None,
+        help_text=_("Response payload from the site agent"),
+    )
+
+    # Timestamp
+    evaluated_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text=_("When this evaluation was performed"),
+    )
+
+    class Meta:
+        ordering = ["-evaluated_at"]
+        verbose_name = _("SLURM Policy Evaluation Log")
+        verbose_name_plural = _("SLURM Policy Evaluation Logs")
+        indexes = [
+            models.Index(fields=["resource", "billing_period"]),
+            models.Index(fields=["policy", "billing_period"]),
+            models.Index(fields=["policy", "evaluated_at"]),
+        ]
+
+    def __str__(self):
+        return (
+            f"Evaluation of {self.resource} against policy {self.policy} "
+            f"at {self.evaluated_at}: {self.usage_percentage:.1f}% usage"
+        )
