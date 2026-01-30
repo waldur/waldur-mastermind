@@ -51,7 +51,7 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITransactionTestCase):
             scope=self.offering,
             grace_ratio=0.2,
             carryover_enabled=True,
-            fairshare_decay_half_life=15,
+            carryover_factor=15,
             tres_billing_enabled=True,
             limit_type="GrpTRESMins",
         )
@@ -158,16 +158,16 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITransactionTestCase):
             carryover_details = settings.get("carryover_details", {})
             self.assertTrue(carryover_details.get("carryover_applied"))
 
-            # With 600Nh previous usage and 15-day half-life:
-            # decay_factor = 2^(-90/15) ≈ 0.015625
-            # effective_usage = 600 * 0.015625 ≈ 9.4Nh
-            # carryover = 1000 - 9.4 ≈ 990.6Nh
-            # total = 1000 + 990.6 ≈ 1990.6Nh
+            # With 600Nh previous usage and carryover_factor=15 (15%):
+            # unused = 1000 - 600 = 400
+            # carryover_cap = 0.15 * 1000 = 150
+            # carryover = min(400, 150) = 150
+            # total = 1000 + 150 = 1150
 
             total_allocation = carryover_details.get("total_allocation")
             self.assertIsNotNone(total_allocation)
-            self.assertGreater(total_allocation, 1900)
-            self.assertLess(total_allocation, 2100)
+            self.assertGreater(total_allocation, 1100)
+            self.assertLess(total_allocation, 1200)
 
             # Validate fairshare calculation
             fairshare = settings["fairshare"]
@@ -404,19 +404,21 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITransactionTestCase):
 
             print("Realistic Carryover Scenario:")
             print(f"  Previous usage: {carryover['previous_usage']}Nh")
-            print(f"  Decay factor: {carryover['decay_factor']:.6f}")
-            print(f"  Effective usage: {carryover['effective_previous_usage']:.1f}Nh")
-            print(f"  Carryover: {carryover['unused_allocation']:.1f}Nh")
-            print(f"  Q2 allocation: {carryover['total_allocation']:.1f}Nh")
+            print(f"  Unused allocation: {carryover['unused_allocation']:.1f}Nh")
+            print(f"  Carryover cap: {carryover['carryover_cap']:.1f}Nh")
+            print(f"  Carryover: {carryover['carryover']:.1f}Nh")
+            print(f"  Total allocation: {carryover['total_allocation']:.1f}Nh")
 
-            # Expected values for 750Nh previous usage:
-            # effective = 750 * 0.015625 ≈ 11.7Nh
-            # carryover = 1000 - 11.7 ≈ 988.3Nh
-            # total = 1000 + 988.3 ≈ 1988.3Nh
+            # Expected values for 750Nh previous usage with carryover_factor=15 (15%):
+            # unused = 1000 - 750 = 250
+            # carryover_cap = 0.15 * 1000 = 150
+            # carryover = min(250, 150) = 150
+            # total = 1000 + 150 = 1150
 
-            self.assertAlmostEqual(carryover["decay_factor"], 0.015625, places=6)
-            self.assertGreater(carryover["total_allocation"], 1900)
-            self.assertLess(carryover["total_allocation"], 2100)
+            self.assertEqual(carryover["unused_allocation"], 250.0)
+            self.assertEqual(carryover["carryover_cap"], 150.0)
+            self.assertEqual(carryover["carryover"], 150.0)
+            self.assertEqual(carryover["total_allocation"], 1150.0)
 
             # Validate SLURM settings
             fairshare = settings["fairshare"]
@@ -677,7 +679,7 @@ class SlurmPeriodicUsagePolicyIntegrationTest(test.APITransactionTestCase):
             scope=self.offering,
             grace_ratio=0.25,  # 25% grace period
             carryover_enabled=True,
-            fairshare_decay_half_life=21,  # 21-day half-life
+            carryover_factor=21,
             tres_billing_enabled=True,
             limit_type="GrpTRESMins",
             tres_billing_weights={
@@ -723,28 +725,26 @@ class SlurmPeriodicUsagePolicyIntegrationTest(test.APITransactionTestCase):
             # Validate advanced configuration is reflected
             carryover = settings["carryover_details"]
 
-            # With 21-day half-life: decay_factor = 2^(-90/21) ≈ 0.058
-            # effective_usage = 1200 * 0.058 ≈ 70Nh
-            # carryover = 2000 - 70 ≈ 1930Nh
-            # total = 2000 + 1930 ≈ 3930Nh
+            # With carryover_factor=21 (21%) and previous_usage=1200:
+            # unused = 2000 - 1200 = 800
+            # carryover_cap = 0.21 * 2000 = 420
+            # carryover = min(800, 420) = 420
+            # total = 2000 + 420 = 2420
 
-            expected_decay_21day = 2 ** (-90 / 21)
-            actual_decay = carryover["decay_factor"]
-
-            self.assertAlmostEqual(actual_decay, expected_decay_21day, places=4)
+            self.assertEqual(carryover["carryover_factor"], 21)
+            self.assertEqual(carryover["unused_allocation"], 800.0)
+            self.assertAlmostEqual(carryover["carryover_cap"], 420.0, places=1)
+            self.assertAlmostEqual(carryover["carryover"], 420.0, places=1)
 
             total_allocation = carryover["total_allocation"]
-            self.assertGreater(
-                total_allocation, 3800
-            )  # Should be substantial carryover
-            self.assertLess(total_allocation, 4100)
+            self.assertAlmostEqual(total_allocation, 2420.0, places=1)
 
             # Validate custom TRES billing weights would be used
             # (This tests that the policy configuration is properly included)
             self.assertEqual(settings["limit_type"], "GrpTRESMins")
 
             print("Advanced configuration results:")
-            print(f"  21-day decay factor: {actual_decay:.6f}")
+            print(f"  Carryover factor: {carryover['carryover_factor']}%")
             print(f"  Total allocation: {total_allocation:.0f}Nh")
             print(f"  Fairshare: {settings['fairshare']}")
 

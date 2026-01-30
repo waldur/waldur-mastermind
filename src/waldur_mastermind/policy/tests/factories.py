@@ -186,7 +186,7 @@ class SlurmPeriodicUsagePolicyFactory(
     tres_billing_enabled = True
     grace_ratio = 0.2
     carryover_enabled = True
-    fairshare_decay_half_life = 15
+    carryover_factor = 50
     raw_usage_reset = True
     qos_strategy = "threshold"
 

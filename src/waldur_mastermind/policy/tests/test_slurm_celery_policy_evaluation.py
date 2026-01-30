@@ -75,7 +75,7 @@ class TestSlurmCeleryPolicyEvaluation(TestCase):
             apply_to_all=True,
             grace_ratio=0.2,
             carryover_enabled=False,  # Disable for simpler test calculations
-            fairshare_decay_half_life=15,
+            carryover_factor=15,
             limit_type="GrpTRESMins",
             tres_billing_enabled=True,
             period=3,

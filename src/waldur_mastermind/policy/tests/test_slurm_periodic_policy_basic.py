@@ -42,13 +42,13 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
             apply_to_all=True,  # Required field now
             grace_ratio=0.2,
             carryover_enabled=True,
-            fairshare_decay_half_life=15,
+            carryover_factor=15,
         )
 
         # Check field values
         self.assertEqual(policy.grace_ratio, 0.2)
         self.assertTrue(policy.carryover_enabled)
-        self.assertEqual(policy.fairshare_decay_half_life, 15)
+        self.assertEqual(policy.carryover_factor, 15)
         self.assertEqual(policy.limit_type, "GrpTRESMins")  # Default
         self.assertTrue(policy.tres_billing_enabled)  # Default
 
@@ -83,7 +83,7 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
     def test_decay_calculation_method(self):
         """Test decay calculation method directly."""
         SlurmPeriodicUsagePolicy.objects.create(
-            scope=self.offering, apply_to_all=True, fairshare_decay_half_life=15
+            scope=self.offering, apply_to_all=True, carryover_factor=15
         )
 
         # Test the calculation logic that's used in carryover
@@ -260,7 +260,7 @@ class TestSlurmPeriodicUsagePolicyCore(TestCase):
         # Test all defaults
         self.assertEqual(policy.limit_type, "GrpTRESMins")
         self.assertTrue(policy.tres_billing_enabled)
-        self.assertEqual(policy.fairshare_decay_half_life, 15)
+        self.assertEqual(policy.carryover_factor, 50)
         self.assertEqual(policy.grace_ratio, 0.2)
         self.assertTrue(policy.carryover_enabled)
         self.assertTrue(policy.raw_usage_reset)
@@ -381,14 +381,14 @@ class TestSlurmPeriodicUsagePolicyConstraints(TestCase):
         # Update the policy - should work
         policy.grace_ratio = 0.4
         policy.carryover_enabled = False
-        policy.fairshare_decay_half_life = 30
+        policy.carryover_factor = 30
         policy.save()
 
         # Reload and verify
         policy.refresh_from_db()
         self.assertEqual(policy.grace_ratio, 0.4)
         self.assertFalse(policy.carryover_enabled)
-        self.assertEqual(policy.fairshare_decay_half_life, 30)
+        self.assertEqual(policy.carryover_factor, 30)
 
         print("✅ Policy updates work correctly")
 

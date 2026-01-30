@@ -368,9 +368,8 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
             allocation=allocation,
             grace_ratio=grace_ratio,
             previous_usage=defaults["previous_usage"],
-            half_life=data.get("fairshare_decay_half_life", 15),
+            carryover_factor=data.get("carryover_factor", 50),
             carryover_enabled=data.get("carryover_enabled", True),
-            days_elapsed=data.get("days_elapsed", 90),
             current_usage=defaults["current_usage"],
             daily_usage_rate=defaults["daily_usage_rate"],
         )
@@ -424,6 +423,7 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
         success = data["success"]
         error_message = data.get("error_message", "")
         mode = data.get("mode", "production")
+        commands_executed = data.get("commands_executed", [])
 
         try:
             resource = marketplace_models.Resource.objects.get(uuid=resource_uuid)
@@ -437,11 +437,11 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
         ).order_by("-executed_at")[:20]
 
         for cmd in recent_commands:
-            if cmd.success and not success:
+            cmd.execution_mode = mode
+            if not success:
                 cmd.success = False
                 cmd.error_message = error_message
-                cmd.execution_mode = mode
-                cmd.save()
+            cmd.save()
 
         # Update the most recent evaluation log for this resource
         evaluation_log = (
@@ -458,6 +458,7 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
                 "success": success,
                 "error_message": error_message,
                 "mode": mode,
+                "commands_executed": commands_executed,
             }
             evaluation_log.save()
 
