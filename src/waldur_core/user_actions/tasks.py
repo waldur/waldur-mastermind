@@ -7,6 +7,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
+from waldur_core.core import utils as core_utils
+
 from . import models, providers
 
 User = get_user_model()
@@ -346,10 +348,20 @@ def send_action_digest_notifications():
         )
 
         if should_notify:
-            # Here you would send the actual notification
-            # using Waldur's notification system
+            # Send notification using broadcast_mail
+            context = {
+                "user": user,
+                "action_count": user.action_count,
+                "high_urgency_count": high_urgency_count,
+                "site_name": config.SITE_NAME,
+                "actions_url": core_utils.format_homeport_link("profile/"),
+            }
+
+            core_utils.broadcast_mail(
+                "user_actions", "notification_digest", context, [user.email]
+            )
             logger.info(
-                f"Would send action digest to {user.username}: "
+                f"Sent action digest to {user.username}: "
                 f"{user.action_count} total, {high_urgency_count} high urgency"
             )
             digest_count += 1

@@ -1,0 +1,9 @@
+<p>Hello {{ user.full_name }},</p>
+
+<p>You have <strong>{{ action_count }}</strong> pending actions that require your attention.</p>
+{% if high_urgency_count > 0 %}
+<p style="color: red; font-weight: bold;">Warning: {{ high_urgency_count }} of these actions are marked as HIGH URGENCY.</p>
+{% endif %}
+
+<p>Please acknowledge or resolve these actions here:<br/>
+<a href="{{ actions_url }}">{{ actions_url }}</a></p>

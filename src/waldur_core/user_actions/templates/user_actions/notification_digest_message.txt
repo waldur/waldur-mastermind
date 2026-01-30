@@ -1,0 +1,12 @@
+Hello {{ user.full_name }},
+
+You have {{ action_count }} pending actions that require your attention.
+{% if high_urgency_count > 0 %}
+Warning: {{ high_urgency_count }} of these actions are marked as HIGH URGENCY.
+{% endif %}
+
+Please acknowledge or resolve these actions here:
+{{ actions_url }}
+
+Sincerely,
+The {{ site_name }} Team
