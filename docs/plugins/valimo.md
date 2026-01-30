@@ -46,4 +46,4 @@ After successful login (`state: OK`), the `/api/auth-valimo/result/` response wi
 
 ## Configuration
 
-The Valimo authentication method must be enabled in Waldur settings. See the [Configuration Guide](../../admin-guide/mastermind-configuration/configuration-guide.md) for details on enabling authentication methods.
+The Valimo authentication method must be enabled in Waldur settings. See the [Configuration Guide](../admin/configuration-guide.md) for details on enabling authentication methods.
