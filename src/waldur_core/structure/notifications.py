@@ -147,6 +147,12 @@ class StructureSection(NotificationSection):
         context_model=StructureRoleGrantedContext,
     )
 
+    project_digest = Notification(
+        key="structure.project_digest",
+        description="Periodic project summary digest sent to project members.",
+        context_model=EmptyContext,
+    )
+
 
 class BaseInvitationContext(BaseModel):
     name: str = Field(

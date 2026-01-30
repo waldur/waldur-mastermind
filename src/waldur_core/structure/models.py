@@ -1465,3 +1465,56 @@ class ExternalLink(
         ordering = ("name",)
 
     link = models.URLField(max_length=500)
+
+
+class ProjectDigestConfiguration(
+    core_models.UuidMixin,
+    TimeStampedModel,
+):
+    """Organization-level configuration for periodic project member digest emails."""
+
+    class Frequency(models.TextChoices):
+        WEEKLY = "weekly", _("Weekly")
+        BIWEEKLY = "biweekly", _("Bi-weekly")
+        MONTHLY = "monthly", _("Monthly")
+
+    customer = models.OneToOneField(
+        "structure.Customer",
+        on_delete=models.CASCADE,
+        related_name="project_digest_config",
+    )
+    is_enabled = models.BooleanField(default=False)
+    frequency = models.CharField(
+        max_length=20,
+        choices=Frequency.choices,
+        default=Frequency.MONTHLY,
+    )
+    enabled_sections = JSONField(
+        default=list,
+        blank=True,
+        help_text=_("List of section keys to include. Empty means all."),
+    )
+    last_sent_at = models.DateTimeField(null=True, blank=True)
+    day_of_week = models.PositiveSmallIntegerField(
+        default=1,
+        validators=[MaxValueValidator(6)],
+        help_text=_("For weekly/biweekly: 0=Sunday..6=Saturday"),
+    )
+    day_of_month = models.PositiveSmallIntegerField(
+        default=1,
+        validators=[MinValueValidator(1), MaxValueValidator(28)],
+        help_text=_("For monthly: day of month (1-28)"),
+    )
+    created_by = models.ForeignKey(
+        "core.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+
+    class Meta:
+        verbose_name = _("Project digest configuration")
+        verbose_name_plural = _("Project digest configurations")
+
+    def __str__(self):
+        return f"Digest config for {self.customer} ({self.frequency})"

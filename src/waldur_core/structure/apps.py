@@ -1,6 +1,11 @@
+import importlib
+import logging
+
 from django.apps import AppConfig
 from django.db.models import signals
 from django_fsm import signals as fsm_signals
+
+logger = logging.getLogger(__name__)
 
 
 class StructureConfig(AppConfig):
@@ -9,6 +14,8 @@ class StructureConfig(AppConfig):
 
     def ready(self):
         from django.core import checks
+
+        self._register_digest_providers()
 
         from waldur_core.core.models import ChangeEmailRequest
         from waldur_core.permissions import signals as permission_signals
@@ -158,3 +165,20 @@ class StructureConfig(AppConfig):
             sender=Customer,
             dispatch_uid="waldur_core.structure.delete_project_metadata_completions",
         )
+
+    def _register_digest_providers(self):
+        """Auto-discover and register project digest providers from all apps."""
+        from django.apps import apps
+
+        for app_config in apps.get_app_configs():
+            try:
+                module_name = f"{app_config.name}.project_digest"
+                importlib.import_module(module_name)
+            except ImportError:
+                continue
+            except Exception as e:
+                logger.warning(
+                    "Error loading project digest providers from %s: %s",
+                    app_config.name,
+                    e,
+                )

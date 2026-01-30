@@ -1,0 +1,21 @@
+{% load i18n %}
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+  <h1 style="color: #333;">{% trans "Project Summary" %} - {{ organization_name }}</h1>
+  <p style="color: #666;">{% trans "Period" %}: {{ period_label }}</p>
+
+  {% for project in projects %}
+    <h2 style="color: #444; border-bottom: 1px solid #ddd; padding-bottom: 8px;">{{ project.name }}</h2>
+    {% for section in project.sections %}
+      <h3 style="color: #555;">{{ section.title }}</h3>
+      {{ section.html_content|safe }}
+    {% endfor %}
+    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+  {% endfor %}
+
+  <p style="color: #999; font-size: 12px;">
+    {% blocktrans with org=organization_name %}This is an automated digest from {{ org }}.{% endblocktrans %}
+  </p>
+</body>
+</html>

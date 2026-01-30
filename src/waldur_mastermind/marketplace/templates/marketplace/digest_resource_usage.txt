@@ -1,0 +1,4 @@
+{% load i18n %}{% blocktrans count counter=resource_count %}{{ counter }} active resource{% plural %}{{ counter }} active resources{% endblocktrans %}
+{% for resource in resources %}
+- {{ resource.name }} ({{ resource.offering_name }}) - {{ resource.state }}
+{% endfor %}

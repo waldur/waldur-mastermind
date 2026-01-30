@@ -1,0 +1,2 @@
+{% load i18n %}{% blocktrans with days=days_remaining %}{{ days }} days remaining{% endblocktrans %}
+{% trans "End date" %}: {{ end_date }}
