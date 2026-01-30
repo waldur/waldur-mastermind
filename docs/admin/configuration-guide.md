@@ -2661,3 +2661,13 @@ Number of days to keep action execution history.
 **Default value:** [30, 14, 7, 1]
 
 Default reminder schedule (days before expiration) for expiring resources. Can be overridden per offering via plugin_options.resource_expiration_reminders.
+
+### SLURM Policy
+
+#### SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS
+
+**Type:** int
+
+**Default value:** 90
+
+Number of days to retain SLURM policy evaluation log entries before automatic cleanup.

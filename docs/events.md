@@ -266,6 +266,7 @@
 - resource_update_security_groups_scheduled
 - resource_update_security_groups_succeeded
 - resource_update_succeeded
+- slurm_policy_evaluation
 
 ## Review
 

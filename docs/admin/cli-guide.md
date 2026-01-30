@@ -131,6 +131,10 @@ options:
 
 Clean API configuration settings cache.
 
+## cleanup_slurm_logs
+
+Manually trigger cleanup of old SLURM policy evaluation logs. Uses the SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS constance setting.
+
 ## cleanup_stale_event_types
 
 Cleanup stale event types in all hooks.
@@ -330,6 +334,28 @@ options:
   -o OUTPUT, --output OUTPUT
                         Specifies file to which the output is written. The
                         output will be printed to stdout by default.
+
+```
+
+## evaluate_slurm_policy
+
+Manually trigger SLURM periodic usage policy evaluation. Can evaluate a specific resource against a specific policy, or all resources for a policy.
+
+```bash
+
+usage: waldur evaluate_slurm_policy -p POLICY_UUID [-r RESOURCE_UUID] [--sync]
+                                    [--dry-run]
+
+options:
+  -p POLICY_UUID, --policy POLICY_UUID
+                        UUID of the SlurmPeriodicUsagePolicy to evaluate.
+  -r RESOURCE_UUID, --resource RESOURCE_UUID
+                        UUID of a specific resource to evaluate. If omitted,
+                        evaluates all resources in the policy's offering.
+  --sync                Run evaluation synchronously (blocking) instead of
+                        queuing Celery tasks.
+  --dry-run             Only calculate and display usage percentages without
+                        applying actions.
 
 ```
 
@@ -1068,6 +1094,28 @@ options:
                         ISO 639-1 language code (e.g., 'de', 'et', 'fr')
   -f FILE, --file FILE  Path to the logo image file
   -r, --remove          Remove the language-specific logo
+
+```
+
+## slurm_policy_status
+
+Display status of SLURM periodic usage policies: current resource states, recent evaluation logs, and command history.
+
+```bash
+
+usage: waldur slurm_policy_status [-p POLICY_UUID] [-r RESOURCE_UUID]
+                                  [--logs LOGS] [--commands COMMANDS]
+
+options:
+  -p POLICY_UUID, --policy POLICY_UUID
+                        UUID of a specific policy. If omitted, shows all SLURM
+                        policies.
+  -r RESOURCE_UUID, --resource RESOURCE_UUID
+                        Filter output to a specific resource UUID.
+  --logs LOGS           Number of recent evaluation logs to display (default:
+                        10).
+  --commands COMMANDS   Number of recent command history entries to display
+                        (default: 5).
 
 ```
 
