@@ -23,7 +23,8 @@ class Command(BaseCommand):
             for feature in sorted(section["items"], key=lambda section: section["key"]):
                 print("      {")
                 print(f"        key: '{feature['key']}',")
-                print(f"        description: translate('{feature['description']}'),")
+                description = feature["description"].replace("'", "\\'")
+                print(f"        description: translate('{description}'),")
                 print("      },")
             print("    ],")
             print("  },")
