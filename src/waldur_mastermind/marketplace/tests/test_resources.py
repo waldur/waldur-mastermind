@@ -544,7 +544,7 @@ class ResourceRenewTest(test.APITransactionTestCase):
     def test_user_can_renew_with_request_comment(self):
         # Arrange
         payload = {
-            "extension_months": 6,
+            "extension_months": 60,
             "request_comment": "Need extension for project completion",
         }
 
@@ -564,7 +564,7 @@ class ResourceRenewTest(test.APITransactionTestCase):
             "renewal_request.pdf", pdf_content, content_type="application/pdf"
         )
 
-        payload = {"extension_months": 6, "attachment": attachment}
+        payload = {"extension_months": 60, "attachment": attachment}
 
         # Act
         response = self.renew_resource(self.fixture.owner, self.resource, payload)
@@ -603,7 +603,7 @@ class ResourceRenewTest(test.APITransactionTestCase):
     def test_renewal_validates_comment_length(self):
         # Arrange - comment longer than 255 characters
         long_comment = "x" * 256
-        payload = {"extension_months": 6, "request_comment": long_comment}
+        payload = {"extension_months": 60, "request_comment": long_comment}
 
         # Act
         response = self.renew_resource(self.fixture.owner, self.resource, payload)
@@ -613,7 +613,7 @@ class ResourceRenewTest(test.APITransactionTestCase):
 
     def test_renewal_allows_empty_comment(self):
         # Arrange
-        payload = {"extension_months": 6, "request_comment": ""}
+        payload = {"extension_months": 60, "request_comment": ""}
 
         # Act
         response = self.renew_resource(self.fixture.owner, self.resource, payload)

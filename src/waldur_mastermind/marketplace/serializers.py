@@ -5096,7 +5096,7 @@ class ResourceRenewSerializer(serializers.Serializer):
     """
 
     extension_months = serializers.IntegerField(
-        min_value=1,
+        min_value=12,
         max_value=60,  # Sensible upper limit
         help_text=_("Number of months to extend the subscription by."),
     )
