@@ -139,6 +139,10 @@ class MarketplaceSection(FeatureSection):
 
     catalogue_only = Feature("Allow marketplace to function as a catalogue only.")
 
+    conceal_offering_pricing_tab_in_public_view = Feature(
+        "Conceal offering pricing tab in the offering's public view."
+    )
+
     call_only = Feature("Allow marketplace to serve only as aggregator of call info.")
 
     show_resource_end_date = Feature(

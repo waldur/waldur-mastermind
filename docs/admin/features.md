@@ -56,6 +56,10 @@ Allow marketplace to serve only as aggregator of call info.
 
 Allow marketplace to function as a catalogue only.
 
+## marketplace.conceal_offering_pricing_tab_in_public_view
+
+Conceal offering pricing tab in the offering's public view.
+
 ## marketplace.conceal_prices
 
 Do not render prices in order details.
