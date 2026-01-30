@@ -1,0 +1,1 @@
+[{{ site_name }}] User Action Digest: {{ action_count }} pending actions

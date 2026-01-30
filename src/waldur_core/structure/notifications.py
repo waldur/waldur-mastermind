@@ -993,3 +993,28 @@ class OnboardingSection(NotificationSection):
         description="Notifies users when their onboarding justification has been reviewed.",
         context_model=JustificationReviewNotificationContext,
     )
+
+
+class NotificationDigestContext(BaseModel):
+    user: Any = Field(description="The User model instance receiving the digest.")
+    action_count: int = Field(
+        description="Total number of active actions for the user."
+    )
+    high_urgency_count: int = Field(
+        description="Number of high urgency actions for the user."
+    )
+    site_name: str = Field(description="Name of the site from settings.")
+    actions_url: str = Field(
+        description="URL to the user actions page in the dashboard."
+    )
+
+
+class UserActionsSection(NotificationSection):
+    class Meta:
+        key = "user_actions"
+
+    notification_digest = Notification(
+        key="notification_digest",
+        description="A daily digest notification sent to users with pending actions.",
+        context_model=NotificationDigestContext,
+    )
