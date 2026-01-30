@@ -26,4 +26,9 @@ class PolicyExtension(WaldurExtension):
                 "schedule": crontab(day_of_month=1),
                 "args": (),
             },
+            "cleanup-slurm-evaluation-logs": {
+                "task": "waldur_mastermind.policy.cleanup_slurm_evaluation_logs",
+                "schedule": crontab(hour=3, minute=0),
+                "args": (),
+            },
         }

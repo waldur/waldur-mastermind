@@ -285,6 +285,7 @@ class EventType(str, Enum):
     SERVICE_ACCOUNT_DELETED = "service_account_deleted"
     SERVICE_ACCOUNT_UPDATED = "service_account_updated"
     SET_TO_ZERO_OVERDUE_CREDIT = "set_to_zero_overdue_credit"
+    SLURM_POLICY_EVALUATION = "slurm_policy_evaluation"
     SSH_KEY_CREATION_SUCCEEDED = "ssh_key_creation_succeeded"
     SSH_KEY_DELETION_SUCCEEDED = "ssh_key_deletion_succeeded"
     TERMINATE_RESOURCES = "terminate_resources"
@@ -471,6 +472,7 @@ EVENT_GROUP_MAPPING = {
         EventType.MARKETPLACE_RESOURCE_DOWNSCALED,
         EventType.MARKETPLACE_RESOURCE_ERRED_ON_BACKEND,
         EventType.MARKETPLACE_RESOURCE_PAUSED,
+        EventType.SLURM_POLICY_EVALUATION,
         EventType.MARKETPLACE_RESOURCE_TERMINATE_CANCELED,
         EventType.MARKETPLACE_RESOURCE_TERMINATE_FAILED,
         EventType.MARKETPLACE_RESOURCE_TERMINATE_REQUESTED,
