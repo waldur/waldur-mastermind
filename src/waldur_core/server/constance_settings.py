@@ -905,6 +905,27 @@ CONSTANCE_CONFIG = {
         False,
         "Log when users access their own profile data. Disabled by default to reduce log volume.",
     ),
+    # Arrow Integration Settings
+    "ARROW_AUTO_RECONCILIATION": (
+        False,
+        "Auto-apply compensations when Arrow validates billing",
+    ),
+    "ARROW_SYNC_INTERVAL_HOURS": (
+        6,
+        "Billing sync interval in hours",
+    ),
+    "ARROW_CONSUMPTION_SYNC_ENABLED": (
+        False,
+        "Enable real-time consumption sync from Arrow API",
+    ),
+    "ARROW_CONSUMPTION_SYNC_INTERVAL_HOURS": (
+        1,
+        "Consumption sync interval in hours (default: hourly)",
+    ),
+    "ARROW_BILLING_CHECK_INTERVAL_HOURS": (
+        6,
+        "Billing export check interval in hours for reconciliation",
+    ),
     # SLURM Policy settings
     "SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS": (
         90,
@@ -1186,6 +1207,13 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "USER_ACTIONS_NOTIFICATION_THRESHOLD",
         "USER_ACTIONS_EXECUTION_RETENTION_DAYS",
         "USER_ACTIONS_DEFAULT_EXPIRATION_REMINDERS",
+    ),
+    "Arrow Integration": (
+        "ARROW_AUTO_RECONCILIATION",
+        "ARROW_SYNC_INTERVAL_HOURS",
+        "ARROW_CONSUMPTION_SYNC_ENABLED",
+        "ARROW_CONSUMPTION_SYNC_INTERVAL_HOURS",
+        "ARROW_BILLING_CHECK_INTERVAL_HOURS",
     ),
     "SLURM Policy": ("SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS",),
 }

@@ -1,0 +1,27 @@
+Hello!
+
+This is an automated alert from {{ site_name }} indicating abnormal database table growth.
+
+Date: {{ date }}
+
+The following table(s) have exceeded their growth thresholds:
+{% for alert in alerts %}
+Table: {{ alert.table_name }}
+  Period: {{ alert.period }}
+  Growth: {{ alert.growth_percent }}% (threshold: {{ alert.threshold }}%)
+  Size: {{ alert.old_size|filesizeformat }} -> {{ alert.current_size|filesizeformat }}
+  Rows: {{ alert.old_rows|default:"N/A" }} -> {{ alert.current_rows|default:"N/A" }}
+{% endfor %}
+
+This may indicate a bug causing unbounded data growth. Please investigate the affected tables.
+
+Common causes:
+- Using a non-unique field in get_or_create() lookup
+- Missing cascade deletes leaving orphaned records
+- Excessive logging or audit records
+
+Recommended actions:
+1. Check recent code changes affecting these tables
+2. Review the model's get_or_create() and update_or_create() calls
+3. Verify foreign key cascade behavior
+4. Consider adding cleanup tasks for temporary data

@@ -129,6 +129,7 @@ class InvoiceItemDetailSerializer(serializers.HyperlinkedModelSerializer):
     offering_uuid = serializers.UUIDField(
         read_only=True, source="resource.offering.uuid"
     )
+    offering_name = serializers.SerializerMethodField()
     offering_component_type = serializers.SerializerMethodField()
     project_uuid = serializers.UUIDField(
         read_only=True, allow_null=True, source="get_project_uuid"
@@ -140,6 +141,16 @@ class InvoiceItemDetailSerializer(serializers.HyperlinkedModelSerializer):
     customer_name = serializers.CharField(
         read_only=True, source="invoice.customer.name"
     )
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_offering_name(self, obj: models.InvoiceItem) -> str | None:
+        if obj.resource and obj.resource.offering:
+            return obj.resource.offering.name
+
+        if obj.details and "offering_name" in obj.details:
+            return obj.details["offering_name"]
+
+        return None
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_offering_component_type(self, obj: models.InvoiceItem) -> str | None:
@@ -170,6 +181,7 @@ class InvoiceItemDetailSerializer(serializers.HyperlinkedModelSerializer):
             "price",
             "details",
             "offering_uuid",
+            "offering_name",
             "offering_component_type",
             "project_uuid",
             "project_name",
