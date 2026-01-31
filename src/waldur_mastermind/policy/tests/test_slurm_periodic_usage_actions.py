@@ -26,10 +26,11 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
         self.offering.type = "SLURM"
         self.offering.save()
 
-        # Create a resource
+        # Create a resource with per-component limits
         self.resource = marketplace_factories.ResourceFactory(
             offering=self.offering,
             project=self.fixture.project,
+            limits={"node_hours": 1000},
         )
 
         # Create node_hours component

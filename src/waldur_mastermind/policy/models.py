@@ -546,12 +546,12 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         super().save(*args, **kwargs)
 
     def calculate_slurm_settings(self, resource, config_override=None):
-        """Calculate SLURM settings with configurable behavior and decay logic."""
+        """Calculate SLURM settings with configurable behavior and decay logic.
 
-        # Get configuration from multiple sources (priority: override > policy > defaults)
+        Produces per-component TRES limits (e.g. {"cpu": X, "mem": Y, "billing": B}).
+        """
         final_config = self._resolve_configuration(config_override)
 
-        # Get current period and allocation information
         current_period = self._get_current_period()
         base_allocation = self._get_base_allocation(resource)
 
@@ -561,40 +561,34 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         logger.debug(f"Base allocation: {base_allocation}, Config: {final_config}")
 
         # Calculate total allocation with carryover if enabled
-        if final_config.get("carryover_enabled", True):
+        if final_config.get("carryover_enabled", True) and base_allocation:
             total_allocation, carryover_details = (
                 self._calculate_allocation_with_carryover(
                     resource, base_allocation, current_period, final_config
                 )
             )
         else:
-            total_allocation = base_allocation
+            total_allocation = dict(base_allocation)
             carryover_details = {"carryover_applied": False}
 
         # Calculate SLURM-specific values
         fairshare = self._calculate_fairshare(total_allocation, final_config)
 
-        if final_config.get("tres_billing_enabled", True):
-            billing_minutes = self._calculate_billing_minutes(
-                total_allocation, final_config
-            )
-            limit_key = (
-                "grp_tres_mins"
-                if "Grp" in final_config.get("limit_type", "GrpTRESMins")
-                else "max_tres_mins"
-            )
-            limits = {limit_key: {"billing": billing_minutes}}
-        else:
-            # Raw TRES mode - convert to node-minutes
-            node_minutes = int(total_allocation * 60)
-            limit_key = (
-                "grp_tres_mins"
-                if "Grp" in final_config.get("limit_type", "GrpTRESMins")
-                else "max_tres_mins"
-            )
-            limits = {limit_key: {"node": node_minutes}}
+        # Convert per-component allocation to TRES minutes
+        tres_minutes = self._calculate_tres_minutes(total_allocation, final_config)
 
-        # Calculate QoS thresholds
+        # Determine limit key from limit_type config
+        limit_type = final_config.get("limit_type", "GrpTRESMins")
+        if "GrpTRESMins" in limit_type:
+            limit_key = "grp_tres_mins"
+        elif "MaxTRESMins" in limit_type:
+            limit_key = "max_tres_mins"
+        else:
+            limit_key = "grp_tres"
+
+        limits = {limit_key: tres_minutes}
+
+        # Calculate QoS thresholds (uses billing metric)
         qos_threshold, grace_limit = self._calculate_qos_thresholds(
             total_allocation, final_config
         )
@@ -603,7 +597,7 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
             "fairshare": fairshare,
             "qos_threshold": qos_threshold,
             "grace_limit": grace_limit,
-            "limit_type": final_config.get("limit_type", "GrpTRESMins"),
+            "limit_type": limit_type,
             "reset_raw_usage": final_config.get("raw_usage_reset", True),
             "carryover_details": carryover_details,
             **limits,
@@ -611,7 +605,7 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
 
         logger.info(
             f"Calculated SLURM settings: fairshare={fairshare}, "
-            f"allocation={total_allocation:.1f}Nh, "
+            f"allocation={total_allocation}, "
             f"threshold={list(qos_threshold.values())[0] if qos_threshold else 'N/A'}"
         )
 
@@ -653,91 +647,78 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         return f"{now.year}-Q{quarter}"
 
     def _get_base_allocation(self, resource):
-        """Get base allocation for resource from offering components."""
-        # Get primary component allocation (typically 'nodeHours')
-        try:
-            # Look for nodeHours component or first component with usage accounting
-            for component in resource.offering.components.all():
-                if component.type in ["nodeHours", "node_hours", "node-hours"]:
-                    # Get current plan allocation for this component
-                    plan_component = resource.plan.components.filter(
-                        component=component
-                    ).first()
-                    if plan_component:
-                        return float(plan_component.amount)
+        """Get base allocation for resource from resource.limits.
 
-            # Fallback: get first component with usage accounting
-            for component in resource.offering.components.all():
-                if component.billing_type == marketplace_models.BillingTypes.USAGE:
-                    plan_component = resource.plan.components.filter(
-                        component=component
-                    ).first()
-                    if plan_component:
-                        return float(plan_component.amount)
+        Returns:
+            dict[str, float]: Per-component allocation, e.g. {"cpu": 64000, "mem": 512000}
+        """
+        if hasattr(resource, "limits") and resource.limits:
+            return {k: float(v) for k, v in resource.limits.items() if v}
 
-            logger.warning(
-                f"No suitable allocation component found for resource {resource.uuid}"
-            )
-            return 1000.0  # Default fallback
-
-        except Exception as e:
-            logger.error(
-                f"Error getting base allocation for resource {resource.uuid}: {e}"
-            )
-            return 1000.0  # Safe fallback
+        logger.warning(
+            f"No limits found for resource {resource.uuid}, returning empty allocation"
+        )
+        return {}
 
     def _calculate_allocation_with_carryover(
         self, resource, base_allocation, current_period, config
     ):
-        """Calculate allocation with carryover logic and decay."""
+        """Calculate per-component allocation with carryover logic.
 
-        # Check if carryover is enabled in config
+        Args:
+            resource: Resource object
+            base_allocation: dict[str, float] - per-component base allocation
+            current_period: Period string e.g. '2024-Q2'
+            config: Policy configuration dict
+
+        Returns:
+            tuple[dict[str, float], dict]: (total_allocation, carryover_details)
+        """
         if not config.get("carryover_enabled", True):
-            return base_allocation, {
+            return dict(base_allocation), {
                 "carryover_applied": False,
                 "reason": "carryover_disabled",
             }
 
         previous_period = self._get_previous_period(current_period)
         if not previous_period:
-            return base_allocation, {
+            return dict(base_allocation), {
                 "carryover_applied": False,
                 "reason": "no_previous_period",
             }
 
-        # Get previous period usage
         previous_usage = self._get_previous_period_usage(resource, previous_period)
 
-        # Carryover factor as a fraction (e.g. 50 -> 0.5)
         carryover_pct = config.get("carryover_factor", 50)
         carryover_ratio = carryover_pct / 100.0
 
-        # Unused allocation from previous period
-        unused_allocation = max(0, base_allocation - previous_usage)
+        total_allocation = {}
+        per_component = {}
 
-        # Cap carryover: cannot exceed carryover_ratio × base allocation
-        carryover_cap = carryover_ratio * base_allocation
-        carryover = min(unused_allocation, carryover_cap)
-
-        # New total allocation
-        total_allocation = base_allocation + carryover
+        for comp, base in base_allocation.items():
+            prev_use = previous_usage.get(comp, 0.0)
+            unused = max(0, base - prev_use)
+            cap = carryover_ratio * base
+            carry = min(unused, cap)
+            total_allocation[comp] = base + carry
+            per_component[comp] = {
+                "base": base,
+                "previous_usage": prev_use,
+                "unused": unused,
+                "carryover_cap": cap,
+                "carryover": carry,
+                "total": base + carry,
+            }
 
         carryover_details = {
             "carryover_applied": True,
             "previous_period": previous_period,
-            "previous_usage": previous_usage,
             "carryover_factor": carryover_pct,
-            "unused_allocation": unused_allocation,
-            "carryover_cap": carryover_cap,
-            "carryover": carryover,
-            "base_allocation": base_allocation,
-            "total_allocation": total_allocation,
+            "per_component": per_component,
         }
 
         logger.debug(
-            f"Carryover calculation: base={base_allocation}Nh, prev_usage={previous_usage}Nh, "
-            f"unused={unused_allocation:.1f}Nh, cap={carryover_cap:.1f}Nh "
-            f"(factor={carryover_pct}%) -> +{carryover:.1f}Nh carryover"
+            f"Per-component carryover for resource {resource.uuid}: {per_component}"
         )
 
         return total_allocation, carryover_details
@@ -764,82 +745,156 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
             logger.error(f"Failed to parse period: {current_period}")
             return None
 
-    def _get_previous_period_usage(self, resource, previous_period):
-        """Get total usage for resource in previous period."""
-        try:
-            # Parse period to get date range
-            year, quarter = previous_period.split("-Q")
-            year = int(year)
-            quarter = int(quarter)
+    def _get_period_date_range(self, period):
+        """Parse a period string (e.g. '2024-Q2') into (start_date, end_date).
 
-            # Calculate quarter date range
+        Returns:
+            tuple[datetime.date, datetime.date] or None on parse error
+        """
+        try:
+            year_str, q_str = period.split("-Q")
+            year = int(year_str)
+            quarter = int(q_str)
+
             start_month = (quarter - 1) * 3 + 1
-            start_date = core_utils.datetime.date(year, start_month, 1)
+            start_date = datetime.date(year, start_month, 1)
 
             if quarter == 4:
-                end_date = core_utils.datetime.date(year, 12, 31)
+                end_date = datetime.date(year, 12, 31)
             else:
-                next_quarter_start = core_utils.datetime.date(year, start_month + 3, 1)
+                next_quarter_start = datetime.date(year, start_month + 3, 1)
                 end_date = next_quarter_start - relativedelta(days=1)
 
-            # Get component usage for the period
-            usage_total = 0.0
-            usages = marketplace_models.ComponentUsage.objects.filter(
-                resource=resource,
-                billing_period__gte=start_date,
-                billing_period__lte=end_date,
-            )
+            return start_date, end_date
+        except (ValueError, AttributeError):
+            logger.error(f"Failed to parse period: {period}")
+            return None
 
-            for usage in usages:
-                usage_total += float(usage.usage)
+    def _get_period_usage(self, resource, period):
+        """Get per-component usage for resource in the given period.
 
-            logger.debug(
-                f"Previous period {previous_period} usage for resource {resource.uuid}: {usage_total}"
-            )
-            return usage_total
+        Returns:
+            dict[str, float]: Usage per component type, e.g. {"cpu": 3200.0, "mem": 128000.0}
+        """
+        date_range = self._get_period_date_range(period)
+        if not date_range:
+            return {}
 
-        except Exception as e:
-            logger.error(f"Error getting previous period usage: {e}")
-            return 0.0
+        start_date, end_date = date_range
+
+        usages = marketplace_models.ComponentUsage.objects.filter(
+            resource=resource,
+            billing_period__gte=start_date,
+            billing_period__lte=end_date,
+        ).select_related("component")
+
+        result = {}
+        for usage in usages:
+            comp_type = usage.component.type
+            result[comp_type] = result.get(comp_type, 0.0) + float(usage.usage)
+
+        return result
+
+    def _get_previous_period_usage(self, resource, previous_period):
+        """Get per-component usage for resource in previous period.
+
+        Returns:
+            dict[str, float]: Usage per component type
+        """
+        return self._get_period_usage(resource, previous_period)
 
     def _calculate_fairshare(self, allocation, config):
-        """Calculate fairshare value based on allocation."""
-        # Simple fairshare calculation: allocation divided by assumed number of sibling accounts
-        # In practice, this might be more sophisticated based on the organization structure
+        """Calculate fairshare value based on allocation.
+
+        Args:
+            allocation: dict[str, float] per-component allocation, or float for backward compat
+            config: Policy configuration dict
+        """
+        # Fairshare is account-level (single value in SLURM) — use sum of all components
+        if isinstance(allocation, dict):
+            total = sum(allocation.values()) if allocation else 0
+        else:
+            total = allocation
         num_accounts = 3  # Conservative estimate for fairshare calculation
-        return max(1, int(allocation // num_accounts))
+        return max(1, int(total // num_accounts))
 
-    def _calculate_billing_minutes(self, node_hours, config):
-        """Convert node-hours to billing minutes using TRES weights."""
-        if not config.get("tres_billing_enabled", True):
-            return int(node_hours * 60)  # Simple node-hour conversion
+    def _calculate_tres_minutes(self, allocation, config):
+        """Convert per-component allocation (hours) to TRES minutes.
 
-        # For billing units, we assume 1 node-hour = 1 billing unit by default
-        # This can be configured based on the actual node specification
-        billing_units = node_hours  # 1:1 mapping as default
+        Args:
+            allocation: dict[str, float] - per-component allocation in hours
+            config: Policy configuration dict
 
-        # Convert to billing minutes
-        return int(billing_units * 60)
+        Returns:
+            dict[str, int]: Per-component minutes, plus optional 'billing' key
+                            if tres_billing_enabled.
+        """
+        # Convert each component: hours → minutes
+        tres_minutes = {comp: int(hours * 60) for comp, hours in allocation.items()}
+
+        if config.get("tres_billing_enabled", True):
+            weights = config.get("tres_billing_weights", {})
+            if weights:
+                # Compute weighted billing sum
+                billing_total = 0.0
+                for comp, hours in allocation.items():
+                    # Try to match component type to weight keys (case-insensitive)
+                    weight = weights.get(comp, 0)
+                    if not weight:
+                        # Try uppercase match (weights use "CPU", limits use "cpu")
+                        for wk, wv in weights.items():
+                            if wk.lower() == comp.lower():
+                                weight = wv
+                                break
+                    billing_total += hours * weight
+                tres_minutes["billing"] = int(billing_total * 60)
+
+        return tres_minutes
 
     def _calculate_qos_thresholds(self, total_allocation, config):
-        """Calculate QoS thresholds for slowdown and blocking."""
+        """Calculate QoS thresholds for slowdown and blocking.
+
+        QoS decisions use the unified billing metric (weighted sum of components).
+        If TRES billing is disabled, falls back to sum of all component hours.
+
+        Args:
+            total_allocation: dict[str, float] per-component allocation in hours,
+                              or float for backward compat
+            config: Policy configuration dict
+
+        Returns:
+            tuple[dict, dict]: (qos_threshold, grace_limit) each with billing/node key
+        """
         grace_ratio = config.get("grace_ratio", 0.2)
         tres_billing_enabled = config.get("tres_billing_enabled", True)
 
-        # QoS threshold at 100% of allocation (slowdown trigger)
-        qos_threshold_value = total_allocation
-
-        # Grace limit at allocation + grace ratio (blocking trigger)
-        grace_limit_value = total_allocation * (1 + grace_ratio)
-
-        if tres_billing_enabled:
-            # Convert to billing minutes
-            qos_threshold = {"billing": int(qos_threshold_value * 60)}
-            grace_limit = {"billing": int(grace_limit_value * 60)}
+        # Compute scalar allocation value for threshold calculation
+        if isinstance(total_allocation, dict):
+            if tres_billing_enabled:
+                weights = config.get("tres_billing_weights", {})
+                if weights:
+                    scalar = 0.0
+                    for comp, hours in total_allocation.items():
+                        weight = weights.get(comp, 0)
+                        if not weight:
+                            for wk, wv in weights.items():
+                                if wk.lower() == comp.lower():
+                                    weight = wv
+                                    break
+                        scalar += hours * weight
+                else:
+                    scalar = sum(total_allocation.values())
+            else:
+                scalar = sum(total_allocation.values())
         else:
-            # Use raw node minutes
-            qos_threshold = {"node": int(qos_threshold_value * 60)}
-            grace_limit = {"node": int(grace_limit_value * 60)}
+            scalar = total_allocation
+
+        qos_threshold_value = scalar
+        grace_limit_value = scalar * (1 + grace_ratio)
+
+        metric_key = "billing" if tres_billing_enabled else "node"
+        qos_threshold = {metric_key: int(qos_threshold_value * 60)}
+        grace_limit = {metric_key: int(grace_limit_value * 60)}
 
         return qos_threshold, grace_limit
 
@@ -911,7 +966,10 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         return False
 
     def get_resource_usage_percentage(self, resource, current_period=None):
-        """Calculate usage percentage for a resource in the current period.
+        """Calculate billing-weighted usage percentage for a resource.
+
+        Uses TRES billing weights to produce a single percentage from
+        per-component allocation and usage dicts.
 
         Returns:
             float: Usage percentage (0-inf), where 100 = full allocation used
@@ -919,11 +977,9 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         if not current_period:
             current_period = self._get_current_period()
 
-        # Get base allocation for this resource
         base_allocation = self._get_base_allocation(resource)
 
-        # Apply carryover if enabled
-        if self.carryover_enabled:
+        if self.carryover_enabled and base_allocation:
             total_allocation, _ = self._calculate_allocation_with_carryover(
                 resource,
                 base_allocation,
@@ -934,50 +990,46 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
                 },
             )
         else:
-            total_allocation = base_allocation
+            total_allocation = dict(base_allocation)
 
-        # Get current usage for this period
         current_usage = self._get_current_period_usage(resource, current_period)
 
-        # Calculate percentage
-        if total_allocation > 0:
-            return (current_usage / total_allocation) * 100
+        if not total_allocation:
+            return 0
+
+        # Compute billing-weighted scalar values for allocation and usage
+        weights = self.tres_billing_weights or self._get_default_tres_weights()
+
+        def _weighted_sum(data):
+            total = 0.0
+            for comp, value in data.items():
+                weight = weights.get(comp, 0)
+                if not weight:
+                    for wk, wv in weights.items():
+                        if wk.lower() == comp.lower():
+                            weight = wv
+                            break
+                if weight:
+                    total += value * weight
+                else:
+                    # No weight mapping — include raw value as fallback
+                    total += value
+            return total
+
+        alloc_scalar = _weighted_sum(total_allocation)
+        usage_scalar = _weighted_sum(current_usage)
+
+        if alloc_scalar > 0:
+            return (usage_scalar / alloc_scalar) * 100
         return 0
 
     def _get_current_period_usage(self, resource, current_period):
-        """Get total usage for resource in current period."""
-        try:
-            # Parse period to get date range
-            year, quarter = current_period.split("-Q")
-            year = int(year)
-            quarter = int(quarter)
+        """Get per-component usage for resource in current period.
 
-            # Calculate quarter date range
-            start_month = (quarter - 1) * 3 + 1
-            start_date = datetime.date(year, start_month, 1)
-
-            if quarter == 4:
-                end_date = datetime.date(year, 12, 31)
-            else:
-                next_quarter_start = datetime.date(year, start_month + 3, 1)
-                end_date = next_quarter_start - relativedelta(days=1)
-
-            # Get component usage for the period
-            usage_total = 0.0
-            usages = marketplace_models.ComponentUsage.objects.filter(
-                resource=resource,
-                billing_period__gte=start_date,
-                billing_period__lte=end_date,
-            )
-
-            for usage in usages:
-                usage_total += float(usage.usage)
-
-            return usage_total
-
-        except Exception as e:
-            logger.error(f"Error getting current period usage: {e}")
-            return 0.0
+        Returns:
+            dict[str, float]: Usage per component type
+        """
+        return self._get_period_usage(resource, current_period)
 
     def apply_policy_actions(self, resource):
         """Apply policy actions - calculate and send settings to site agent."""

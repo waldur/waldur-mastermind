@@ -38,12 +38,13 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITransactionTestCase):
             amount=1000,  # 1000 node-hours allocation
         )
 
-        # Create resource
+        # Create resource with per-component limits
         self.resource = marketplace_factories.ResourceFactory(
             project=self.fixture.project,
             offering=self.offering,
             plan=self.plan,
             backend_id="test-slurm-account",
+            limits={"nodeHours": 1000},
         )
 
         # Create SLURM periodic usage policy
@@ -140,9 +141,11 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITransactionTestCase):
     ):
         """Test that STOMP message contains correctly calculated settings."""
 
-        # Mock previous usage for carryover calculation
+        # Mock previous usage for carryover calculation (per-component dict)
         with mock.patch.object(
-            self.policy, "_get_previous_period_usage", return_value=600.0
+            self.policy,
+            "_get_previous_period_usage",
+            return_value={"nodeHours": 600.0},
         ):
             success = self.policy.apply_policy_actions(self.resource)
             self.assertTrue(success)
@@ -159,26 +162,26 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITransactionTestCase):
             self.assertTrue(carryover_details.get("carryover_applied"))
 
             # With 600Nh previous usage and carryover_factor=15 (15%):
+            # For nodeHours component:
             # unused = 1000 - 600 = 400
             # carryover_cap = 0.15 * 1000 = 150
             # carryover = min(400, 150) = 150
             # total = 1000 + 150 = 1150
+            per_component = carryover_details.get("per_component", {})
+            self.assertIn("nodeHours", per_component)
+            nh = per_component["nodeHours"]
+            self.assertAlmostEqual(nh["total"], 1150.0, places=1)
 
-            total_allocation = carryover_details.get("total_allocation")
-            self.assertIsNotNone(total_allocation)
-            self.assertGreater(total_allocation, 1100)
-            self.assertLess(total_allocation, 1200)
-
-            # Validate fairshare calculation
+            # Validate fairshare calculation (sum of all components / 3)
             fairshare = settings["fairshare"]
-            expected_fairshare = int(total_allocation // 3)
+            expected_fairshare = int(1150.0 // 3)
             self.assertEqual(fairshare, expected_fairshare)
 
-            # Validate billing minutes
+            # Validate TRES minutes: nodeHours component should be present
             grp_tres_mins = settings["grp_tres_mins"]
-            self.assertIn("billing", grp_tres_mins)
-            expected_billing_minutes = int(total_allocation * 60)
-            self.assertEqual(grp_tres_mins["billing"], expected_billing_minutes)
+            self.assertIn("nodeHours", grp_tres_mins)
+            expected_minutes = int(1150.0 * 60)
+            self.assertEqual(grp_tres_mins["nodeHours"], expected_minutes)
 
             print("✅ Settings calculation in STOMP message validated")
 
@@ -205,7 +208,8 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITransactionTestCase):
 
         self.assertEqual(settings1["limit_type"], "GrpTRESMins")
         self.assertIn("grp_tres_mins", settings1)
-        self.assertIn("billing", settings1["grp_tres_mins"])
+        # Per-component TRES minutes should include nodeHours
+        self.assertIn("nodeHours", settings1["grp_tres_mins"])
 
         # Reset mock for second test
         mock_publish_messages.reset_mock()
@@ -227,7 +231,8 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITransactionTestCase):
 
         self.assertEqual(settings2["limit_type"], "MaxTRESMins")
         self.assertIn("max_tres_mins", settings2)
-        self.assertIn("node", settings2["max_tres_mins"])
+        # Per-component TRES minutes should include nodeHours
+        self.assertIn("nodeHours", settings2["max_tres_mins"])
 
         print("✅ Different configurations emit different STOMP messages")
 
@@ -270,9 +275,9 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITransactionTestCase):
         self.policy.carryover_enabled = False
         self.policy.save()
 
-        # Mock no previous usage
+        # Mock no previous usage (per-component dict)
         with mock.patch.object(
-            self.policy, "_get_previous_period_usage", return_value=0.0
+            self.policy, "_get_previous_period_usage", return_value={}
         ):
             self.policy.apply_policy_actions(self.resource)
 
@@ -383,8 +388,8 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITransactionTestCase):
     ):
         """Test STOMP message with realistic carryover scenario."""
 
-        # Mock previous period usage for realistic carryover test
-        previous_usage = 750.0  # 75% of 1000Nh allocation used in previous quarter
+        # Mock previous period usage (per-component dict)
+        previous_usage = {"nodeHours": 750.0}
 
         with mock.patch.object(
             self.policy, "_get_previous_period_usage", return_value=previous_usage
@@ -399,15 +404,17 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITransactionTestCase):
             payload = json.loads(message["payload"])
             settings = payload["settings"]
 
-            # Validate realistic carryover calculation
+            # Validate realistic carryover calculation (per-component)
             carryover = settings["carryover_details"]
+            per_component = carryover["per_component"]
+            nh = per_component["nodeHours"]
 
             print("Realistic Carryover Scenario:")
-            print(f"  Previous usage: {carryover['previous_usage']}Nh")
-            print(f"  Unused allocation: {carryover['unused_allocation']:.1f}Nh")
-            print(f"  Carryover cap: {carryover['carryover_cap']:.1f}Nh")
-            print(f"  Carryover: {carryover['carryover']:.1f}Nh")
-            print(f"  Total allocation: {carryover['total_allocation']:.1f}Nh")
+            print(f"  Previous usage: {nh['previous_usage']}Nh")
+            print(f"  Unused allocation: {nh['unused']:.1f}Nh")
+            print(f"  Carryover cap: {nh['carryover_cap']:.1f}Nh")
+            print(f"  Carryover: {nh['carryover']:.1f}Nh")
+            print(f"  Total allocation: {nh['total']:.1f}Nh")
 
             # Expected values for 750Nh previous usage with carryover_factor=15 (15%):
             # unused = 1000 - 750 = 250
@@ -415,22 +422,22 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITransactionTestCase):
             # carryover = min(250, 150) = 150
             # total = 1000 + 150 = 1150
 
-            self.assertEqual(carryover["unused_allocation"], 250.0)
-            self.assertEqual(carryover["carryover_cap"], 150.0)
-            self.assertEqual(carryover["carryover"], 150.0)
-            self.assertEqual(carryover["total_allocation"], 1150.0)
+            self.assertEqual(nh["unused"], 250.0)
+            self.assertEqual(nh["carryover_cap"], 150.0)
+            self.assertEqual(nh["carryover"], 150.0)
+            self.assertEqual(nh["total"], 1150.0)
 
             # Validate SLURM settings
             fairshare = settings["fairshare"]
-            expected_fairshare = int(carryover["total_allocation"] // 3)
+            expected_fairshare = int(1150.0 // 3)
             self.assertEqual(fairshare, expected_fairshare)
 
-            grp_tres_mins = settings["grp_tres_mins"]["billing"]
-            expected_billing = int(carryover["total_allocation"] * 60)
-            self.assertEqual(grp_tres_mins, expected_billing)
+            grp_tres_mins = settings["grp_tres_mins"]["nodeHours"]
+            expected_minutes = int(1150.0 * 60)
+            self.assertEqual(grp_tres_mins, expected_minutes)
 
             print(f"  Applied fairshare: {fairshare}")
-            print(f"  Applied billing limit: {grp_tres_mins:,} minutes")
+            print(f"  Applied TRES limit: {grp_tres_mins:,} minutes")
 
             print("✅ Realistic carryover scenario STOMP message validated")
 
@@ -463,6 +470,7 @@ class SlurmPeriodicUsagePolicyEventTest(test.APITransactionTestCase):
             offering=self.offering,
             plan=self.plan,
             backend_id="event-test-account",
+            limits={"nodeHours": 1500},
         )
 
         # Create policy
@@ -499,9 +507,11 @@ class SlurmPeriodicUsagePolicyEventTest(test.APITransactionTestCase):
             resource=self.resource, component=self.component, usage=400.0
         )
 
-        # Mock previous period usage
+        # Mock previous period usage (per-component dict)
         with mock.patch.object(
-            self.policy, "_get_previous_period_usage", return_value=200.0
+            self.policy,
+            "_get_previous_period_usage",
+            return_value={"nodeHours": 200.0},
         ):
             # Update usage (simulating monthly usage reporting)
             usage.usage = 800.0  # Increase usage
@@ -672,6 +682,7 @@ class SlurmPeriodicUsagePolicyIntegrationTest(test.APITransactionTestCase):
             offering=self.offering,
             plan=self.plan,
             backend_id="integration-test-account",
+            limits={"nodeHours": 2000, "gpuHours": 500},
         )
 
         # Create advanced policy configuration
@@ -709,9 +720,11 @@ class SlurmPeriodicUsagePolicyIntegrationTest(test.APITransactionTestCase):
     def test_advanced_policy_configuration_stomp_message(self, mock_publish_messages):
         """Test STOMP message with advanced policy configuration."""
 
-        # Mock complex previous usage scenario
+        # Mock complex previous usage scenario (per-component dict)
         with mock.patch.object(
-            self.policy, "_get_previous_period_usage", return_value=1200.0
+            self.policy,
+            "_get_previous_period_usage",
+            return_value={"nodeHours": 1200.0, "gpuHours": 0.0},
         ):
             success = self.policy.apply_policy_actions(self.resource)
             self.assertTrue(success)
@@ -722,30 +735,32 @@ class SlurmPeriodicUsagePolicyIntegrationTest(test.APITransactionTestCase):
             payload = json.loads(message["payload"])
             settings = payload["settings"]
 
-            # Validate advanced configuration is reflected
+            # Validate advanced configuration is reflected (per-component)
             carryover = settings["carryover_details"]
-
-            # With carryover_factor=21 (21%) and previous_usage=1200:
-            # unused = 2000 - 1200 = 800
-            # carryover_cap = 0.21 * 2000 = 420
-            # carryover = min(800, 420) = 420
-            # total = 2000 + 420 = 2420
+            per_component = carryover["per_component"]
 
             self.assertEqual(carryover["carryover_factor"], 21)
-            self.assertEqual(carryover["unused_allocation"], 800.0)
-            self.assertAlmostEqual(carryover["carryover_cap"], 420.0, places=1)
-            self.assertAlmostEqual(carryover["carryover"], 420.0, places=1)
 
-            total_allocation = carryover["total_allocation"]
-            self.assertAlmostEqual(total_allocation, 2420.0, places=1)
+            # nodeHours: unused=2000-1200=800, cap=0.21*2000=420, carry=420, total=2420
+            nh = per_component["nodeHours"]
+            self.assertEqual(nh["unused"], 800.0)
+            self.assertAlmostEqual(nh["carryover_cap"], 420.0, places=1)
+            self.assertAlmostEqual(nh["carryover"], 420.0, places=1)
+            self.assertAlmostEqual(nh["total"], 2420.0, places=1)
 
-            # Validate custom TRES billing weights would be used
-            # (This tests that the policy configuration is properly included)
+            # gpuHours: unused=500-0=500, cap=0.21*500=105, carry=105, total=605
+            gh = per_component["gpuHours"]
+            self.assertEqual(gh["unused"], 500.0)
+            self.assertAlmostEqual(gh["carryover_cap"], 105.0, places=1)
+            self.assertAlmostEqual(gh["carryover"], 105.0, places=1)
+            self.assertAlmostEqual(gh["total"], 605.0, places=1)
+
             self.assertEqual(settings["limit_type"], "GrpTRESMins")
 
             print("Advanced configuration results:")
             print(f"  Carryover factor: {carryover['carryover_factor']}%")
-            print(f"  Total allocation: {total_allocation:.0f}Nh")
+            print(f"  nodeHours total: {nh['total']:.0f}Nh")
+            print(f"  gpuHours total: {gh['total']:.0f}Nh")
             print(f"  Fairshare: {settings['fairshare']}")
 
             print("✅ Advanced policy configuration STOMP message validated")
