@@ -2,13 +2,14 @@ from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 from constance.test import override_config
+from django.db import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITransactionTestCase
 
 from waldur_core.core.models import DailyTableSizeHistory
-from waldur_core.core.tasks import check_table_growth_alerts, sample_table_sizes
+from waldur_core.core.tasks import sample_table_sizes
 from waldur_core.structure.tests import fixtures
 
 
@@ -42,7 +43,7 @@ class DailyTableSizeHistoryModelTest(TestCase):
             row_estimate=100,
         )
         # Creating another entry with the same table_name and date should raise an error
-        with self.assertRaises(Exception):
+        with self.assertRaises(IntegrityError):
             DailyTableSizeHistory.objects.create(
                 table_name="test_table",
                 date=today,
@@ -232,6 +233,61 @@ class TableGrowthStatsAPITest(APITransactionTestCase):
         for table in response.data["tables"]:
             self.assertIn("growing", table["table_name"].lower())
 
+    @override_config(
+        TABLE_GROWTH_WEEKLY_THRESHOLD_PERCENT=50,
+        TABLE_GROWTH_MONTHLY_THRESHOLD_PERCENT=200,
+    )
+    def test_response_includes_alerts_when_threshold_exceeded(self):
+        """Test that alerts are returned when growth exceeds thresholds."""
+        self._create_test_data()
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIn("alerts", response.data)
+        alerts = response.data["alerts"]
+        # growing_table has 100% weekly growth (>50%) and 300% monthly growth (>200%)
+        alert_entries = {(a["table_name"], a["period"]): a for a in alerts}
+        self.assertIn(("growing_table", "weekly"), alert_entries)
+        self.assertEqual(
+            alert_entries[("growing_table", "weekly")]["growth_percent"], 100.0
+        )
+        self.assertEqual(alert_entries[("growing_table", "weekly")]["threshold"], 50)
+        self.assertIn(("growing_table", "monthly"), alert_entries)
+        self.assertEqual(
+            alert_entries[("growing_table", "monthly")]["growth_percent"], 300.0
+        )
+        self.assertEqual(alert_entries[("growing_table", "monthly")]["threshold"], 200)
+
+    @override_config(
+        TABLE_GROWTH_WEEKLY_THRESHOLD_PERCENT=50,
+        TABLE_GROWTH_MONTHLY_THRESHOLD_PERCENT=200,
+    )
+    def test_no_alerts_when_growth_below_threshold(self):
+        """Test that no alerts are returned when growth is below thresholds."""
+        # Create data with 20% weekly growth (below 50% threshold)
+        DailyTableSizeHistory.objects.create(
+            table_name="normal_table",
+            date=self.today,
+            total_size=1200000,
+            data_size=900000,
+            row_estimate=1200,
+        )
+        DailyTableSizeHistory.objects.create(
+            table_name="normal_table",
+            date=self.week_ago,
+            total_size=1000000,
+            data_size=750000,
+            row_estimate=1000,
+        )
+
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIn("alerts", response.data)
+        self.assertEqual(len(response.data["alerts"]), 0)
+
 
 class SampleTableSizesTaskTest(TestCase):
     """Tests for the sample_table_sizes Celery task."""
@@ -293,151 +349,6 @@ class SampleTableSizesTaskTest(TestCase):
 
         # Old entry should be deleted
         self.assertEqual(DailyTableSizeHistory.objects.count(), 0)
-
-
-class CheckTableGrowthAlertsTaskTest(TestCase):
-    """Tests for the check_table_growth_alerts Celery task."""
-
-    def setUp(self):
-        self.today = timezone.now().date()
-        self.week_ago = self.today - timedelta(days=7)
-        self.month_ago = self.today - timedelta(days=30)
-
-    @override_config(TABLE_GROWTH_MONITORING_ENABLED=False)
-    def test_task_disabled_when_monitoring_disabled(self):
-        """Test that task exits early when monitoring is disabled."""
-        check_table_growth_alerts()
-        # Should complete without error
-
-    @override_config(
-        TABLE_GROWTH_MONITORING_ENABLED=True,
-        TABLE_GROWTH_WEEKLY_THRESHOLD_PERCENT=50,
-        TABLE_GROWTH_MONTHLY_THRESHOLD_PERCENT=200,
-    )
-    @patch("waldur_core.core.utils.broadcast_mail")
-    def test_no_alert_when_no_data(self, mock_broadcast_mail):
-        """Test that no alert is sent when there's no historical data."""
-        check_table_growth_alerts()
-        mock_broadcast_mail.assert_not_called()
-
-    @override_config(
-        TABLE_GROWTH_MONITORING_ENABLED=True,
-        TABLE_GROWTH_WEEKLY_THRESHOLD_PERCENT=50,
-        TABLE_GROWTH_MONTHLY_THRESHOLD_PERCENT=200,
-    )
-    @patch("waldur_core.core.utils.broadcast_mail")
-    def test_no_alert_when_growth_below_threshold(self, mock_broadcast_mail):
-        """Test that no alert is sent when growth is below threshold."""
-        # Create data with 20% weekly growth (below 50% threshold)
-        DailyTableSizeHistory.objects.create(
-            table_name="normal_table",
-            date=self.today,
-            total_size=1200000,
-            data_size=900000,
-            row_estimate=1200,
-        )
-        DailyTableSizeHistory.objects.create(
-            table_name="normal_table",
-            date=self.week_ago,
-            total_size=1000000,
-            data_size=750000,
-            row_estimate=1000,
-        )
-
-        check_table_growth_alerts()
-        mock_broadcast_mail.assert_not_called()
-
-    @override_config(
-        TABLE_GROWTH_MONITORING_ENABLED=True,
-        TABLE_GROWTH_WEEKLY_THRESHOLD_PERCENT=50,
-        TABLE_GROWTH_MONTHLY_THRESHOLD_PERCENT=200,
-    )
-    @patch("waldur_core.core.utils.broadcast_mail")
-    def test_alert_sent_when_weekly_threshold_exceeded(self, mock_broadcast_mail):
-        """Test that alert is sent when weekly growth exceeds threshold."""
-        # Create data with 100% weekly growth (above 50% threshold)
-        DailyTableSizeHistory.objects.create(
-            table_name="fast_growing_table",
-            date=self.today,
-            total_size=2000000,
-            data_size=1500000,
-            row_estimate=2000,
-        )
-        DailyTableSizeHistory.objects.create(
-            table_name="fast_growing_table",
-            date=self.week_ago,
-            total_size=1000000,
-            data_size=750000,
-            row_estimate=1000,
-        )
-
-        # Create a staff user with email
-        from waldur_core.core.models import User
-
-        User.objects.create(
-            username="staff_test",
-            email="staff@test.com",
-            is_staff=True,
-            is_active=True,
-            notifications_enabled=True,
-        )
-
-        check_table_growth_alerts()
-
-        mock_broadcast_mail.assert_called_once()
-        call_args = mock_broadcast_mail.call_args
-        self.assertEqual(call_args[0][0], "core")
-        self.assertEqual(call_args[0][1], "table_growth_alert")
-        context = call_args[0][2]
-        self.assertEqual(len(context["alerts"]), 1)
-        self.assertEqual(context["alerts"][0]["table_name"], "fast_growing_table")
-        self.assertEqual(context["alerts"][0]["period"], "weekly")
-        self.assertEqual(context["alerts"][0]["growth_percent"], 100.0)
-
-    @override_config(
-        TABLE_GROWTH_MONITORING_ENABLED=True,
-        TABLE_GROWTH_WEEKLY_THRESHOLD_PERCENT=50,
-        TABLE_GROWTH_MONTHLY_THRESHOLD_PERCENT=200,
-    )
-    @patch("waldur_core.core.utils.broadcast_mail")
-    def test_alert_sent_when_monthly_threshold_exceeded(self, mock_broadcast_mail):
-        """Test that alert is sent when monthly growth exceeds threshold."""
-        # Create data with 250% monthly growth (above 200% threshold)
-        DailyTableSizeHistory.objects.create(
-            table_name="monthly_growing_table",
-            date=self.today,
-            total_size=3500000,
-            data_size=2500000,
-            row_estimate=3500,
-        )
-        DailyTableSizeHistory.objects.create(
-            table_name="monthly_growing_table",
-            date=self.month_ago,
-            total_size=1000000,
-            data_size=750000,
-            row_estimate=1000,
-        )
-
-        # Create a support user with email
-        from waldur_core.core.models import User
-
-        User.objects.create(
-            username="support_test",
-            email="support@test.com",
-            is_support=True,
-            is_active=True,
-            notifications_enabled=True,
-        )
-
-        check_table_growth_alerts()
-
-        mock_broadcast_mail.assert_called_once()
-        call_args = mock_broadcast_mail.call_args
-        context = call_args[0][2]
-        self.assertEqual(len(context["alerts"]), 1)
-        self.assertEqual(context["alerts"][0]["table_name"], "monthly_growing_table")
-        self.assertEqual(context["alerts"][0]["period"], "monthly")
-        self.assertEqual(context["alerts"][0]["growth_percent"], 250.0)
 
 
 class LegacyEndpointTest(APITransactionTestCase):

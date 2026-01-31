@@ -1340,6 +1340,24 @@ class TableGrowthStatsSerializer(serializers.Serializer):
     )
 
 
+class TableGrowthAlertSerializer(serializers.Serializer):
+    """Serializer for individual table growth alert."""
+
+    table_name = serializers.CharField(
+        help_text="Name of the table triggering the alert"
+    )
+    period = serializers.ChoiceField(
+        choices=["weekly", "monthly"],
+        help_text="Growth period that exceeded the threshold",
+    )
+    growth_percent = serializers.FloatField(
+        help_text="Actual growth percentage observed"
+    )
+    threshold = serializers.IntegerField(
+        help_text="Configured threshold that was exceeded"
+    )
+
+
 class TableGrowthStatsResponseSerializer(serializers.Serializer):
     """Response serializer for table growth statistics endpoint."""
 
@@ -1352,4 +1370,8 @@ class TableGrowthStatsResponseSerializer(serializers.Serializer):
     )
     tables = TableGrowthStatsSerializer(
         many=True, help_text="Table growth statistics sorted by growth rate"
+    )
+    alerts = TableGrowthAlertSerializer(
+        many=True,
+        help_text="List of tables that exceeded configured growth thresholds",
     )

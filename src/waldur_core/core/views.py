@@ -54,6 +54,7 @@ from waldur_core.core.metadata_schemas import (
     SettingsMetadataResponseSerializer,
 )
 from waldur_core.core.mixins import ensure_atomic_transaction
+from waldur_core.core.models import DailyTableSizeHistory
 from waldur_core.core.serializers import (
     CeleryStatsResponseSerializer,
     ConstanceSettingsSerializer,
@@ -1280,13 +1281,19 @@ Requires support user permissions.""",
             # Maintenance stats
             cursor.execute(SQL_MAINTENANCE_STATS)
             maint_data = dictfetchone(cursor)
-            # Convert Decimal to int for maintenance stats
-            maint_data["total_dead_tuples"] = int(
-                maint_data.get("total_dead_tuples") or 0
-            )
-            maint_data["total_live_tuples"] = int(
-                maint_data.get("total_live_tuples") or 0
-            )
+            # Convert Decimal to int for JSON serialization and ratio calculation
+            try:
+                maint_data["total_dead_tuples"] = int(
+                    maint_data.get("total_dead_tuples") or 0
+                )
+            except (TypeError, ValueError):
+                maint_data["total_dead_tuples"] = 0
+            try:
+                maint_data["total_live_tuples"] = int(
+                    maint_data.get("total_live_tuples") or 0
+                )
+            except (TypeError, ValueError):
+                maint_data["total_live_tuples"] = 0
             total_tuples = (
                 maint_data["total_live_tuples"] + maint_data["total_dead_tuples"]
             )
@@ -1453,17 +1460,12 @@ Requires support user permissions.""",
         responses={status.HTTP_200_OK: TableGrowthStatsResponseSerializer},
     )
     def get(self, request, *args, **kwargs):
-        from django.utils import timezone
-
-        from waldur_core.core.models import DailyTableSizeHistory
-
         today = timezone.now().date()
         week_ago = today - timezone.timedelta(days=7)
         month_ago = today - timezone.timedelta(days=30)
 
         # Get query parameters
         table_name_filter = request.query_params.get("table_name")
-        int(request.query_params.get("days", 30))
 
         # Build queryset for current data
         current_qs = DailyTableSizeHistory.objects.filter(date=today)
@@ -1555,11 +1557,39 @@ Requires support user permissions.""",
 
         tables.sort(key=growth_sort_key)
 
+        weekly_threshold = config.TABLE_GROWTH_WEEKLY_THRESHOLD_PERCENT
+        monthly_threshold = config.TABLE_GROWTH_MONTHLY_THRESHOLD_PERCENT
+
+        # Build alerts for tables exceeding thresholds
+        alerts = []
+        for table in tables:
+            weekly_growth = table.get("weekly_growth_percent")
+            if weekly_growth is not None and weekly_growth > weekly_threshold:
+                alerts.append(
+                    {
+                        "table_name": table["table_name"],
+                        "period": "weekly",
+                        "growth_percent": weekly_growth,
+                        "threshold": weekly_threshold,
+                    }
+                )
+            monthly_growth = table.get("monthly_growth_percent")
+            if monthly_growth is not None and monthly_growth > monthly_threshold:
+                alerts.append(
+                    {
+                        "table_name": table["table_name"],
+                        "period": "monthly",
+                        "growth_percent": monthly_growth,
+                        "threshold": monthly_threshold,
+                    }
+                )
+
         response_data = {
             "date": today,
-            "weekly_threshold_percent": config.TABLE_GROWTH_WEEKLY_THRESHOLD_PERCENT,
-            "monthly_threshold_percent": config.TABLE_GROWTH_MONTHLY_THRESHOLD_PERCENT,
+            "weekly_threshold_percent": weekly_threshold,
+            "monthly_threshold_percent": monthly_threshold,
             "tables": tables,
+            "alerts": alerts,
         }
 
         return Response(response_data, status=status.HTTP_200_OK)
