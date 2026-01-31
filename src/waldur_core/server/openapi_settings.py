@@ -91,6 +91,13 @@ SPECTACULAR_SETTINGS = {
         "IssueStatusType": ISSUE_STATUS_TYPE_CHOICES,
         "ObservableObjectTypeEnum": ObservableObjectType.choices(),
         "GenderEnum": GENDER_CHOICES,
+        "GrowthPeriodEnum": ["weekly", "monthly"],
+        "PolicyPeriodEnum": (
+            (1, "Total"),
+            (2, "1 month"),
+            (3, "3 month"),
+            (4, "12 month"),
+        ),
     },
     "VERSION": None,
 }

@@ -767,7 +767,7 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
                 "limit_type": policy.limit_type,
                 "tres_billing_enabled": policy.tres_billing_enabled,
                 "tres_billing_weights": policy.tres_billing_weights or {},
-                "fairshare_decay_half_life": policy.fairshare_decay_half_life,
+                "carryover_factor": policy.carryover_factor,
                 "grace_ratio": float(policy.grace_ratio),
                 "carryover_enabled": policy.carryover_enabled,
                 "raw_usage_reset": policy.raw_usage_reset,

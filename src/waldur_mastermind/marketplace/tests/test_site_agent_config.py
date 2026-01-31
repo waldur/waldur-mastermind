@@ -426,7 +426,7 @@ class SiteAgentConfigWithPolicyTest(test.APITransactionTestCase):
             limit_type="GrpTRESMins",
             tres_billing_enabled=True,
             tres_billing_weights={"CPU": 0.015625, "Mem": 0.001953125},
-            fairshare_decay_half_life=15,
+            carryover_factor=15,
             grace_ratio=0.2,
             carryover_enabled=True,
             raw_usage_reset=True,
@@ -451,7 +451,7 @@ class SiteAgentConfigWithPolicyTest(test.APITransactionTestCase):
         self.assertIsNotNone(policy_settings)
         self.assertEqual(policy_settings["limit_type"], "GrpTRESMins")
         self.assertEqual(policy_settings["tres_billing_enabled"], True)
-        self.assertEqual(policy_settings["fairshare_decay_half_life"], 15)
+        self.assertEqual(policy_settings["carryover_factor"], 15)
         self.assertEqual(policy_settings["grace_ratio"], 0.2)
         self.assertEqual(policy_settings["carryover_enabled"], True)
         self.assertEqual(policy_settings["raw_usage_reset"], True)

@@ -2209,9 +2209,7 @@ class Command(BaseCommand):
                         "tres_billing_enabled", True
                     ),
                     "tres_billing_weights": policy_data.get("tres_billing_weights", {}),
-                    "fairshare_decay_half_life": policy_data.get(
-                        "fairshare_decay_half_life", 15
-                    ),
+                    "carryover_factor": policy_data.get("carryover_factor", 50),
                     "grace_ratio": policy_data.get("grace_ratio", 0.2),
                     "carryover_enabled": policy_data.get("carryover_enabled", True),
                     "raw_usage_reset": policy_data.get("raw_usage_reset", True),

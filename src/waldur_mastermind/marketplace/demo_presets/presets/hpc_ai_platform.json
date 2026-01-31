@@ -3061,7 +3061,7 @@
         "Mem": 0.001953125,
         "GRES/gpu": 0.25
       },
-      "fairshare_decay_half_life": 15,
+      "carryover_factor": 15,
       "grace_ratio": 0.2,
       "carryover_enabled": true,
       "raw_usage_reset": true,
