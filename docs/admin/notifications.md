@@ -80,6 +80,68 @@ A notification sent to Waldur operators when a user's profile is updated.
 
 ```
 
+### structure.project_digest
+
+Periodic project summary digest sent to project members.
+
+#### Templates
+
+=== "structure/project_digest_subject.txt"
+
+```txt
+
+    {% load i18n %}{% blocktrans with org=organization_name %}Project Summary - {{ org }}{% endblocktrans %}
+
+```
+
+=== "structure/project_digest_message.txt"
+
+```txt
+
+    {% load i18n %}{% trans "Project Summary" %} - {{ organization_name }}
+    {% trans "Period" %}: {{ period_label }}
+
+    {% for project in projects %}
+    {{ project.name }}
+    {% for section in project.sections %}
+    {{ section.title }}
+    {{ section.text_content }}
+    {% endfor %}
+    ---
+    {% endfor %}
+
+    {% blocktrans with org=organization_name %}This is an automated digest from {{ org }}.{% endblocktrans %}
+
+```
+
+=== "structure/project_digest_message.html"
+
+```txt
+
+    {% load i18n %}
+    <!DOCTYPE html>
+    <html>
+    <body style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+      <h1 style="color: #333;">{% trans "Project Summary" %} - {{ organization_name }}</h1>
+      <p style="color: #666;">{% trans "Period" %}: {{ period_label }}</p>
+
+      {% for project in projects %}
+        <h2 style="color: #444; border-bottom: 1px solid #ddd; padding-bottom: 8px;">{{ project.name }}</h2>
+        {% for section in project.sections %}
+          <h3 style="color: #555;">{{ section.title }}</h3>
+          {{ section.html_content|safe }}
+        {% endfor %}
+        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+      {% endfor %}
+
+      <p style="color: #999; font-size: 12px;">
+        {% blocktrans with org=organization_name %}This is an automated digest from {{ org }}.{% endblocktrans %}
+      </p>
+    </body>
+    </html>
+
+```
+
 ### structure.structure_role_granted
 
 A notification sent out when a role is granted. The recipient is the user who received the role.
@@ -3254,5 +3316,56 @@ Notifies users when their onboarding justification has been reviewed.
 
     </body>
     </html>
+
+```
+
+## WALDUR_CORE.USER_ACTIONS
+
+### user_actions.notification_digest
+
+A daily digest notification sent to users with pending actions.
+
+#### Templates
+
+=== "user_actions/notification_digest_subject.txt"
+
+```txt
+
+    [{{ site_name }}] User Action Digest: {{ action_count }} pending actions
+
+```
+
+=== "user_actions/notification_digest_message.txt"
+
+```txt
+
+    Hello {{ user.full_name }},
+
+    You have {{ action_count }} pending actions that require your attention.
+    {% if high_urgency_count > 0 %}
+    Warning: {{ high_urgency_count }} of these actions are marked as HIGH URGENCY.
+    {% endif %}
+
+    Please acknowledge or resolve these actions here:
+    {{ actions_url }}
+
+    Sincerely,
+    The {{ site_name }} Team
+
+```
+
+=== "user_actions/notification_digest_message.html"
+
+```txt
+
+    <p>Hello {{ user.full_name }},</p>
+
+    <p>You have <strong>{{ action_count }}</strong> pending actions that require your attention.</p>
+    {% if high_urgency_count > 0 %}
+    <p style="color: red; font-weight: bold;">Warning: {{ high_urgency_count }} of these actions are marked as HIGH URGENCY.</p>
+    {% endif %}
+
+    <p>Please acknowledge or resolve these actions here:<br/>
+    <a href="{{ actions_url }}">{{ actions_url }}</a></p>
 
 ```

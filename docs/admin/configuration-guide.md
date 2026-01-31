@@ -2290,6 +2290,32 @@ List of username that users are not allowed to select
 
 Optionally disable creation of user groups in FreeIPA matching Waldur structure
 
+### SCIM settings
+
+#### SCIM_MEMBERSHIP_SYNC_ENABLED
+
+**Type:** bool
+
+Enable SCIM entitlement synchronization to external identity provider.
+
+#### SCIM_API_URL
+
+**Type:** str
+
+Base URL of the SCIM API service.
+
+#### SCIM_API_KEY
+
+**Type:** secret_field
+
+SCIM API key for X-API-Key header.
+
+#### SCIM_URN_NAMESPACE
+
+**Type:** str
+
+URN namespace for SCIM entitlements.
+
 ### API token authentication
 
 #### OIDC_AUTH_URL

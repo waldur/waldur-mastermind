@@ -156,6 +156,64 @@ Verify new email address.
 
 ```
 
+### project_digest_message.txt (waldur_core.structure)
+
+```txt
+
+{% load i18n %}{% trans "Project Summary" %} - {{ organization_name }}
+{% trans "Period" %}: {{ period_label }}
+
+{% for project in projects %}
+{{ project.name }}
+{% for section in project.sections %}
+{{ section.title }}
+{{ section.text_content }}
+{% endfor %}
+---
+{% endfor %}
+
+{% blocktrans with org=organization_name %}This is an automated digest from {{ org }}.{% endblocktrans %}
+
+```
+
+### digest_team_summary.html (waldur_core.structure)
+
+```html
+
+{% load i18n %}
+{% if total_joined %}
+<p>{% blocktrans count counter=total_joined %}{{ counter }} member joined{% plural %}{{ counter }} members joined{% endblocktrans %}</p>
+<table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+  <tr style="background-color: #f5f5f5;">
+    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{% trans "Role" %}</th>
+    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{% trans "Count" %}</th>
+  </tr>
+  {% for role, count in joined_by_role.items %}
+  <tr>
+    <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ role }}</td>
+    <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ count }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+{% if total_left %}
+<p>{% blocktrans count counter=total_left %}{{ counter }} member left{% plural %}{{ counter }} members left{% endblocktrans %}</p>
+<table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+  <tr style="background-color: #f5f5f5;">
+    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{% trans "Role" %}</th>
+    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{% trans "Count" %}</th>
+  </tr>
+  {% for role, count in left_by_role.items %}
+  <tr>
+    <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ role }}</td>
+    <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ count }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endif %}
+
+```
+
 ### notifications_profile_changes_operator_message.html (waldur_core.structure)
 
 ```html
@@ -197,6 +255,14 @@ Role granted.
 
 ```
 
+### project_digest_subject.txt (waldur_core.structure)
+
+```txt
+
+{% load i18n %}{% blocktrans with org=organization_name %}Project Summary - {{ org }}{% endblocktrans %}
+
+```
+
 ### change_email_request_message.txt (waldur_core.structure)
 
 ```txt
@@ -219,6 +285,46 @@ Owner of
 {% for f in fields %}
     {{ f.name }} from {{ f.old_value }} to {{ f.new_value }}{% if not forloop.last %}, {% else %}.{% endif %}
 {% endfor %}
+
+```
+
+### digest_team_summary.txt (waldur_core.structure)
+
+```txt
+
+{% load i18n %}{% if total_joined %}{% blocktrans count counter=total_joined %}{{ counter }} member joined{% plural %}{{ counter }} members joined{% endblocktrans %}
+{% for role, count in joined_by_role.items %}  {{ role }}: {{ count }}
+{% endfor %}{% endif %}{% if total_left %}{% blocktrans count counter=total_left %}{{ counter }} member left{% plural %}{{ counter }} members left{% endblocktrans %}
+{% for role, count in left_by_role.items %}  {{ role }}: {{ count }}
+{% endfor %}{% endif %}
+
+```
+
+### project_digest_message.html (waldur_core.structure)
+
+```html
+
+{% load i18n %}
+<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px;">
+  <h1 style="color: #333;">{% trans "Project Summary" %} - {{ organization_name }}</h1>
+  <p style="color: #666;">{% trans "Period" %}: {{ period_label }}</p>
+
+  {% for project in projects %}
+    <h2 style="color: #444; border-bottom: 1px solid #ddd; padding-bottom: 8px;">{{ project.name }}</h2>
+    {% for section in project.sections %}
+      <h3 style="color: #555;">{{ section.title }}</h3>
+      {{ section.html_content|safe }}
+    {% endfor %}
+    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+  {% endfor %}
+
+  <p style="color: #999; font-size: 12px;">
+    {% blocktrans with org=organization_name %}This is an automated digest from {{ org }}.{% endblocktrans %}
+  </p>
+</body>
+</html>
 
 ```
 
@@ -688,6 +794,51 @@ Invitation request
 </ul>
 </body>
 </html>
+
+```
+
+## waldur_core.user_actions
+
+### notification_digest_subject.txt (waldur_core.user_actions)
+
+```txt
+
+[{{ site_name }}] User Action Digest: {{ action_count }} pending actions
+
+```
+
+### notification_digest_message.txt (waldur_core.user_actions)
+
+```txt
+
+Hello {{ user.full_name }},
+
+You have {{ action_count }} pending actions that require your attention.
+{% if high_urgency_count > 0 %}
+Warning: {{ high_urgency_count }} of these actions are marked as HIGH URGENCY.
+{% endif %}
+
+Please acknowledge or resolve these actions here:
+{{ actions_url }}
+
+Sincerely,
+The {{ site_name }} Team
+
+```
+
+### notification_digest_message.html (waldur_core.user_actions)
+
+```html
+
+<p>Hello {{ user.full_name }},</p>
+
+<p>You have <strong>{{ action_count }}</strong> pending actions that require your attention.</p>
+{% if high_urgency_count > 0 %}
+<p style="color: red; font-weight: bold;">Warning: {{ high_urgency_count }} of these actions are marked as HIGH URGENCY.</p>
+{% endif %}
+
+<p>Please acknowledge or resolve these actions here:<br/>
+<a href="{{ actions_url }}">{{ actions_url }}</a></p>
 
 ```
 
@@ -1450,6 +1601,17 @@ A new order by {{ order.created_by.get_full_name }} is waiting for approval.
 
 ```
 
+### digest_resource_usage.txt (waldur_mastermind.marketplace)
+
+```txt
+
+{% load i18n %}{% blocktrans count counter=resource_count %}{{ counter }} active resource{% plural %}{{ counter }} active resources{% endblocktrans %}
+{% for resource in resources %}
+- {{ resource.name }} ({{ resource.offering_name }}) - {{ resource.state }}
+{% endfor %}
+
+```
+
 ### tos_consent_required_message.html (waldur_mastermind.marketplace)
 
 ```html
@@ -1545,6 +1707,15 @@ Thank you!
 
 ```
 
+### digest_end_date.txt (waldur_mastermind.marketplace)
+
+```txt
+
+{% load i18n %}{% blocktrans with days=days_remaining %}{{ days }} days remaining{% endblocktrans %}
+{% trans "End date" %}: {{ end_date }}
+
+```
+
 ### marketplace_resource_create_failed_subject.txt (waldur_mastermind.marketplace)
 
 ```txt
@@ -1579,6 +1750,29 @@ Resource {{ resource_name }} limits update has failed.
 </p>
 </body>
 </html>
+
+```
+
+### digest_resource_usage.html (waldur_mastermind.marketplace)
+
+```html
+
+{% load i18n %}
+<table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+  <tr style="background-color: #f5f5f5;">
+    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{% trans "Resource" %}</th>
+    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{% trans "Type" %}</th>
+    <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">{% trans "State" %}</th>
+  </tr>
+  {% for resource in resources %}
+  <tr>
+    <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ resource.name }}</td>
+    <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ resource.offering_name }}</td>
+    <td style="padding: 8px; border-bottom: 1px solid #eee;">{{ resource.state }}</td>
+  </tr>
+  {% endfor %}
+</table>
+<p>{% blocktrans count counter=resource_count %}{{ counter }} active resource{% plural %}{{ counter }} active resources{% endblocktrans %}</p>
 
 ```
 
@@ -1772,6 +1966,22 @@ Resource {{ resource.name }} will be deleted.
 ```txt
 
 Resource {{ resource_name }} has been updated.
+
+```
+
+### digest_end_date.html (waldur_mastermind.marketplace)
+
+```html
+
+{% load i18n %}
+{% if is_urgent %}
+  <p style="color: #dc3545; font-weight: bold;">
+    {% blocktrans with days=days_remaining %}{{ days }} days remaining{% endblocktrans %}
+  </p>
+{% else %}
+  <p>{% blocktrans with days=days_remaining %}{{ days }} days remaining{% endblocktrans %}</p>
+{% endif %}
+<p>{% trans "End date" %}: {{ end_date }}</p>
 
 ```
 
