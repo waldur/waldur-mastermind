@@ -17,6 +17,76 @@ The plugin enables:
 - **Automated Resource Discovery**: Import existing OpenStack resources into Waldur
 - **Console Access**: Provide direct console access to virtual machines
 
+## Architecture
+
+### Module Structure
+
+The OpenStack integration consists of two active Django applications:
+
+| Module | Django Label | Purpose |
+|--------|-------------|---------|
+| `waldur_openstack` | `openstack` | Core OpenStack resource models, backend client, executors, serializers, and ViewSets |
+| `waldur_mastermind.marketplace_openstack` | `marketplace_openstack` | Marketplace bridge that maps marketplace orders to OpenStack operations and synchronizes resource state |
+
+A third module, `waldur_openstack_replication`, handles tenant migration between OpenStack deployments and is documented separately in [OpenStack Replication](openstack-replication.md).
+
+### Layered Architecture
+
+Each OpenStack operation flows through a well-defined layer stack:
+
+```text
+Marketplace Order
+    -> Processor (marketplace_openstack)
+        -> ViewSet / Serializer (waldur_openstack)
+            -> Executor (Celery task chain)
+                -> Backend (OpenStack API calls)
+                    -> Handlers (update state on completion)
+```
+
+| Layer | Role |
+|-------|------|
+| **Models** | Django ORM models representing OpenStack resources (Tenant, Instance, Volume, Network, etc.) |
+| **Serializers** | Validate API input and format output; enforce field-level permissions |
+| **ViewSets** | REST endpoints for CRUD and custom actions; enforce object-level permissions |
+| **Executors** | Celery task chains that orchestrate multi-step backend operations with error handling |
+| **Backend** (`OpenStackBackend`) | Translates Waldur operations into OpenStack API calls using service-specific clients |
+| **Handlers** | Signal receivers that react to state changes (e.g., update marketplace resource when backend state changes) |
+
+### Resource Lifecycle Flow
+
+A typical end-to-end provisioning flow:
+
+1. **Administrator creates an Offering** of type `OpenStack.Tenant`, scoped to a set of OpenStack admin credentials (stored in `secret_options`).
+2. **User places a marketplace order** for a tenant. The `TenantCreateProcessor` validates limits and delegates to the `TenantCreateExecutor`.
+3. **Executor runs a Celery task chain**: create project in Keystone, create admin and tenant users, push quotas, create default security groups, set up internal network/subnet/router, connect to external network, pull images/flavors/volume types, then mark the tenant as OK.
+4. **On tenant OK** (when `AUTOMATICALLY_CREATE_PRIVATE_OFFERING` is enabled), signal handlers automatically create private `OpenStack.Instance` and `OpenStack.Volume` offerings scoped to that tenant.
+5. **Users order instances and volumes** through those offerings. The respective processors (`InstanceCreateProcessor`, `VolumeCreateProcessor`) handle creation via their own executor chains.
+6. **Background tasks** periodically pull resource state, quotas, and properties from OpenStack to keep Waldur in sync.
+
+### Backend Connection Flow
+
+```text
+ServiceSettings credentials
+    -> keystoneauth1 v3.Password authentication
+        -> Keystone v3 session (cached 10 hours)
+            -> Service catalog endpoint discovery
+                -> Per-service clients
+```
+
+**Session caching**: Authenticated Keystone sessions are cached in Django's cache backend with a 10-hour TTL. The cache key is derived from a SHA-256 hash of the credentials. If a cached token will expire within 10 minutes, the session is recreated.
+
+**OpenStack client versions**:
+
+| Service | Client Library | API Version |
+|---------|---------------|-------------|
+| Keystone | `keystoneclient` | v3 |
+| Nova | `novaclient` | v2.19 (microversion) |
+| Cinder | `cinderclient` | v3 |
+| Glance | `glanceclient` | v2 |
+| Neutron | `neutronclient` | v2.0 |
+
+Only the Keystone endpoint needs to be configured explicitly; all other service endpoints are discovered automatically from the Keystone service catalog.
+
 ## Supported Operations by OpenStack Service
 
 ### Keystone (Identity Service)
@@ -270,7 +340,7 @@ Common error scenarios:
 3. **Streaming Upload**: Large files handled via streaming to prevent memory issues
 4. **SSL Verification**: Configurable SSL verification for OpenStack API calls
 
-### Troubleshooting
+### Image Upload Troubleshooting
 
 1. **Upload Timeouts**: Large images may require extended timeout settings
 2. **SSL Issues**: Verify `verify_ssl` setting in service configuration
@@ -285,39 +355,36 @@ The following table outlines the network ports and protocols required for Waldur
 
 | Service | Port | Protocol | Direction | Description | Required |
 |---------|------|----------|-----------|-------------|----------|
-| **Keystone (Identity)** | 5000 | HTTPS/HTTP | Outbound | Public API endpoint for authentication | ✅ Yes |
-| **Keystone (Admin)** | 35357 | HTTPS/HTTP | Outbound | Admin API endpoint (deprecated in newer versions) | ⚠️ Version dependent |
-| **Nova (Compute)** | 8774 | HTTPS/HTTP | Outbound | Compute API for instance management | ✅ Yes |
-| **Cinder (Block Storage)** | 8776 | HTTPS/HTTP | Outbound | Volume API for storage management | ✅ Yes |
-| **Neutron (Networking)** | 9696 | HTTPS/HTTP | Outbound | Network API for networking operations | ✅ Yes |
-| **Glance (Images)** | 9292 | HTTPS/HTTP | Outbound | Image API for image management | ✅ Yes |
-| **Nova VNC Console** | 6080 | HTTPS/HTTP | Outbound | VNC console proxy for instance access | ⚠️ Optional* |
-| **Horizon Dashboard** | 80/443 | HTTPS/HTTP | Outbound | Generate links to OpenStack web UI for users | ⚠️ Optional** |
-
-\* *Required only if console access feature is enabled*
-\** *Only used to generate dashboard URLs for user convenience; not required for API operations*
+| **Keystone (Identity)** | 5000 | HTTPS/HTTP | Outbound | Public API endpoint for authentication | Yes |
+| **Keystone (Admin)** | 35357 | HTTPS/HTTP | Outbound | Admin API endpoint (deprecated in newer versions) | Version dependent |
+| **Nova (Compute)** | 8774 | HTTPS/HTTP | Outbound | Compute API for instance management | Yes |
+| **Cinder (Block Storage)** | 8776 | HTTPS/HTTP | Outbound | Volume API for storage management | Yes |
+| **Neutron (Networking)** | 9696 | HTTPS/HTTP | Outbound | Network API for networking operations | Yes |
+| **Glance (Images)** | 9292 | HTTPS/HTTP | Outbound | Image API for image management | Yes |
+| **Nova VNC Console** | 6080 | HTTPS/HTTP | Outbound | VNC console proxy for instance access | Optional |
+| **Horizon Dashboard** | 80/443 | HTTPS/HTTP | Outbound | Generate links to OpenStack web UI for users | Optional |
 
 ### Network Configuration Notes
 
 1. **SSL/TLS Requirements**:
-  - HTTPS is strongly recommended for all API communications
-  - Self-signed certificates are supported but require configuration
-  - Certificate validation can be disabled for testing (not recommended for production)
+    - HTTPS is strongly recommended for all API communications
+    - Self-signed certificates are supported but require configuration
+    - Certificate validation can be disabled for testing (not recommended for production)
 
 2. **Firewall Considerations**:
-  - All connections are initiated from Waldur to OpenStack (outbound only)
-  - No inbound connections to Waldur are required from OpenStack
-  - Stateful firewall rules should allow return traffic
+    - All connections are initiated from Waldur to OpenStack (outbound only)
+    - No inbound connections to Waldur are required from OpenStack
+    - Stateful firewall rules should allow return traffic
 
 3. **API Endpoint Discovery**:
-  - Waldur uses Keystone service catalog for endpoint discovery
-  - Only the Keystone endpoint needs to be explicitly configured
-  - Other service endpoints are automatically discovered from the service catalog
+    - Waldur uses Keystone service catalog for endpoint discovery
+    - Only the Keystone endpoint needs to be explicitly configured
+    - Other service endpoints are automatically discovered from the service catalog
 
 4. **Network Latency**:
-  - API timeout: 60 seconds (configurable)
-  - Recommended latency: < 100ms
-  - Long-running operations use asynchronous task queues
+    - API timeout: 60 seconds (configurable)
+    - Recommended latency: < 100ms
+    - Long-running operations use asynchronous task queues
 
 ## Configuration
 
@@ -371,7 +438,9 @@ The plugin supports two storage quota modes:
 | `fixed` | Single storage quota shared by all volume types | Simple environments with uniform storage |
 | `dynamic` | Separate quotas per volume type (SSD, HDD, etc.) | Environments with tiered storage offerings |
 
-When using dynamic storage mode, volume types are automatically synchronized from OpenStack and created as offering components.
+In **fixed** mode, a single aggregate `storage` component tracks total block storage. All volume types share this one quota.
+
+In **dynamic** mode, each OpenStack volume type becomes its own offering component with an independent quota. The generic `storage` component is excluded from the offering. Volume types are automatically synchronized from OpenStack when tenants are pulled.
 
 ### Resource Components
 
@@ -386,7 +455,7 @@ OpenStack tenant offerings include the following billable components:
 
 ### Automated Private Offerings
 
-When `AUTOMATICALLY_CREATE_PRIVATE_OFFERING` is enabled in settings, the plugin automatically creates private offerings for instances and volumes when a tenant is provisioned. This allows tenant users to order resources through the Marketplace interface.
+When `AUTOMATICALLY_CREATE_PRIVATE_OFFERING` is enabled in settings (default: `True`), the plugin automatically creates private offerings for instances and volumes when a tenant transitions to the OK state. This allows tenant users to order compute and storage resources through the Marketplace interface without administrator intervention.
 
 ### Quota Mapping
 
@@ -407,71 +476,265 @@ OpenStack quotas are automatically synchronized with Waldur quotas:
 | subnet | subnet_count | 10 |
 | port | port_count | Unlimited |
 
+## Marketplace Integration
+
+The OpenStack plugin integrates with Waldur Marketplace through the `marketplace_openstack` module.
+
+### Offering Types and Processors
+
+Each offering type has dedicated processor classes that translate marketplace orders into OpenStack operations:
+
+| Offering Type | Create Processor | Delete Processor | Resource Model |
+|---------------|-----------------|-----------------|----------------|
+| `OpenStack.Tenant` | `TenantCreateProcessor` | `TenantDeleteProcessor` | `Tenant` |
+| `OpenStack.Instance` | `InstanceCreateProcessor` | `InstanceDeleteProcessor` | `Instance` |
+| `OpenStack.Volume` | `VolumeCreateProcessor` | `VolumeDeleteProcessor` | `Volume` |
+
+Tenant offerings also have a `TenantUpdateProcessor` that handles quota/limit changes by pushing updated quotas to the OpenStack backend.
+
+### Order Processing Flow
+
+```text
+User places order
+    -> Marketplace validates order attributes and limits
+        -> Processor maps order to OpenStack ViewSet request
+            -> Executor builds Celery task chain
+                -> Backend calls OpenStack APIs
+                    -> Signal handlers update marketplace resource state
+```
+
+For **instance creation**, the processor resolves the parent tenant from the offering scope, then passes attributes (name, flavor, image, security groups, networks, SSH key, user_data) to the Instance ViewSet.
+
+For **instance deletion**, the processor validates that the instance is in a deletable state (SHUTOFF + OK, or ERRED) before proceeding. Both `destroy` (delete instance, keep volumes) and `force_destroy` (delete instance and all attached volumes) modes are supported.
+
+### Automatic Offering Creation
+
+When `AUTOMATICALLY_CREATE_PRIVATE_OFFERING` is `True` (the default), transitioning a tenant to the OK state triggers automatic creation of:
+
+- An `OpenStack.Instance` offering in the `vm` category, scoped to the new tenant
+- An `OpenStack.Volume` offering in the `volume` category, scoped to the new tenant
+
+These offerings are marked as private and are only visible to users with access to the parent tenant's project.
+
+### Storage Mode Impact on Components
+
+The `storage_mode` setting on the tenant offering controls how storage components appear on the automatically created volume offerings:
+
+- **`fixed`**: A single `storage` component represents all block storage.
+- **`dynamic`**: The `storage` component is removed and replaced by per-volume-type components (e.g., `volume_type_ssd`, `volume_type_hdd`). These are auto-created when volume types are pulled from OpenStack.
+
+### Lost Resource Recovery
+
+A scheduled task (`create_resources_for_lost_instances_and_volumes`) runs every 6 hours to detect OpenStack instances and volumes that exist in the backend but have no corresponding marketplace resource. For each orphaned resource found, a marketplace resource is automatically created. This handles cases where resources were created outside of Waldur or where marketplace records were lost.
+
 ## Scheduled Tasks
 
 The plugin runs the following automated tasks:
 
+### Core OpenStack Tasks
+
 | Task | Schedule | Purpose |
 |------|----------|---------|
 | Pull Quotas | Every 12 hours | Synchronize quotas with OpenStack |
-| Pull Resources | Every 1 hour | Update resource states |
+| Pull Resources | Every 1 hour | Update resource states (instances, volumes) |
 | Pull Sub-resources | Every 2 hours | Sync networks, subnets, ports |
 | Pull Properties | Every 24 hours | Update flavors, images, volume types |
-| Cleanup Stuck Resources | Every 1 hour | Mark stuck resources as erred |
+| Mark Stuck Deleting Tenants as Erred | Every 24 hours | Clean up tenants stuck in deleting state |
+| Mark Stuck Updating Tenants as Erred | Every 1 hour | Clean up tenants stuck in updating state |
 | Delete Expired Backups | Every 10 minutes | Remove backups past retention |
 | Delete Expired Snapshots | Every 10 minutes | Remove snapshots past retention |
 
+### Marketplace OpenStack Tasks
+
+| Task | Schedule | Purpose |
+|------|----------|---------|
+| Create Resources for Lost Instances and Volumes | Every 6 hours | Recover orphaned OpenStack resources into marketplace |
+| Refresh Instance Backend Metadata | Every 24 hours | Sync instance metadata from OpenStack to marketplace resources |
+
+## Administrator Operations
+
+### Initial Setup Checklist
+
+1. **Create a Marketplace Offering** of type `OpenStack.Tenant` with your OpenStack admin credentials in `secret_options` (see [Configuring an OpenStack Provider](#configuring-an-openstack-provider)).
+2. **Set the external network ID** in `secret_options.external_network_id` to enable floating IP allocation.
+3. **Choose a storage mode** (`fixed` or `dynamic`) in `plugin_options.storage_mode` based on whether you need per-volume-type quotas.
+4. **Validate connectivity** by running:
+
+    ```bash
+    waldur validate_openstack_services --offering-uuid <UUID> --verbose
+    ```
+
+5. **Optionally enable write tests** to verify full CRUD capabilities:
+
+    ```bash
+    waldur validate_openstack_services --offering-uuid <UUID> --test-writes
+    ```
+
+6. **Activate the offering** in the marketplace to make it available to users.
+
+### CLI Commands
+
+| Command | Purpose | Example |
+|---------|---------|---------|
+| `validate_openstack_services` | Test connectivity and access to all OpenStack services | `waldur validate_openstack_services --offering-uuid <UUID> --verbose` |
+| `drop_leftover_openstack_projects` | Remove OpenStack projects that are terminated in Waldur but still exist in OpenStack | `waldur drop_leftover_openstack_projects --offering <name> --dry-run` |
+| `pull_openstack_volume_metadata` | Sync volume metadata from OpenStack to marketplace resources | `waldur pull_openstack_volume_metadata --dry-run` |
+| `push_tenant_quotas` | Push marketplace quota limits to OpenStack backend | `waldur push_tenant_quotas --dry-run` |
+| `import_tenant_quotas` | Import current OpenStack quota usage into marketplace | `waldur import_tenant_quotas` |
+
+All commands except `validate_openstack_services` support the `--dry-run` flag to preview changes without applying them.
+
+### Connectivity Validation
+
+The `validate_openstack_services` command tests each OpenStack service endpoint:
+
+```bash
+# Basic validation (read-only)
+waldur validate_openstack_services --offering-uuid <UUID> --verbose
+
+# Full validation including write operations
+waldur validate_openstack_services --offering-uuid <UUID> --test-writes
+
+# Validate a specific service settings object
+waldur validate_openstack_services --service-uuid <UUID>
+
+# Validate a specific tenant
+waldur validate_openstack_services --tenant-uuid <UUID>
+```
+
+The `--test-writes` flag performs actual create/delete operations for security groups, networks, volumes, server groups, floating IPs, and instances. Use this to verify full operational capability.
+
+### Feature Flags
+
+The following UI feature flags can be toggled in the Waldur admin panel under Features:
+
+| Flag | Description |
+|------|-------------|
+| `openstack.hide_volume_type_selector` | Hide the volume type dropdown when provisioning instances or volumes |
+| `openstack.show_migrations` | Show OpenStack tenant migration action and tab in the UI |
+
 ## Security and Troubleshooting
 
+### Security
+
 1. **Credential Management**:
-  - Service account credentials are stored in database `secret_options` field
-  - Per-tenant credentials are auto-generated using random passwords
-  - Tenant credentials visibility can be controlled via `TENANT_CREDENTIALS_VISIBLE` setting
-  - SSH keys are automatically distributed to tenants based on user permissions
+    - Service account credentials are stored in the database `secret_options` field
+    - Per-tenant credentials are auto-generated using random passwords
+    - Tenant credentials visibility can be controlled via `TENANT_CREDENTIALS_VISIBLE` setting
+    - SSH keys are automatically distributed to tenants based on user permissions
 
 2. **Network Security**:
-  - Security groups provide instance-level firewalling
-  - Default deny-all policy for new security groups
-  - RBAC policies control cross-tenant network resource sharing
-  - External IP mapping supports NAT scenarios
+    - Security groups provide instance-level firewalling
+    - Default deny-all policy for new security groups
+    - RBAC policies control cross-tenant network resource sharing
+    - External IP mapping supports NAT scenarios
 
 3. **Audit Logging**:
-  - All operations are logged with user attribution
-  - Resource state changes tracked in event log
-  - Failed operations logged with error details
-  - Quota changes trigger audit events
+    - All operations are logged with user attribution
+    - Resource state changes tracked in event log
+    - Failed operations logged with error details
+    - Quota changes trigger audit events
 
 ### Common Issues
 
 1. **Connection Timeouts**:
-  - Verify network connectivity to Keystone endpoint
-  - Check firewall rules for required ports
-  - Validate SSL certificates if using HTTPS
+    - Verify network connectivity to Keystone endpoint
+    - Check firewall rules for required ports
+    - Validate SSL certificates if using HTTPS
 
 2. **Authentication Failures**:
-  - Verify service account credentials
-  - Check domain configuration for Keystone v3
-  - Ensure service account has admin privileges
+    - Verify service account credentials
+    - Check domain configuration for Keystone v3
+    - Ensure service account has admin privileges
 
 3. **Quota Synchronization Issues**:
-  - Check OpenStack policy files for quota permissions
-  - Verify nova, cinder, and neutron quota drivers
-  - Review background task logs
+    - Check OpenStack policy files for quota permissions
+    - Verify nova, cinder, and neutron quota drivers
+    - Review background task logs
+    - Run `waldur push_tenant_quotas --dry-run` to check for mismatches
+    - Note that `storage_mode` affects which quotas are tracked; switching modes may require re-syncing
 
 4. **Resource State Mismatches**:
-  - Trigger manual pull operation
-  - Check OpenStack service status
-  - Review executor task logs
+    - Trigger manual pull operation
+    - Check OpenStack service status
+    - Review executor task logs
 
-## Marketplace Integration
+### Troubleshooting Specific Scenarios
 
-The OpenStack plugin integrates with Waldur Marketplace through the `marketplace_openstack` module, providing:
+#### Resource Stuck in Creating or Deleting State
 
-- Simplified instance and volume ordering
-- Component-based pricing (CPU, RAM, Storage)
-- Automated provisioning workflows
-- Resource metadata management
-- Usage tracking for billing
+Resources that remain in a transitional state (Creating, Deleting, Updating) are automatically cleaned up by scheduled tasks:
+
+- Tenants stuck in **Deleting** are marked as Erred after 24 hours.
+- Tenants stuck in **Updating** are marked as Erred after 1 hour.
+- Instances and volumes stuck in **Creating** are marked as Erred by the hourly resource pull task.
+
+For manual intervention, use the Waldur admin panel or API to force the resource state to Erred, then retry or delete the resource.
+
+#### Missing Marketplace Resource
+
+If an OpenStack instance or volume exists in the backend but has no marketplace resource:
+
+- The `create_resources_for_lost_instances_and_volumes` task (runs every 6 hours) will automatically create the missing marketplace resource.
+- To trigger recovery immediately, run the task manually from the Celery admin or restart the beat scheduler.
+- Common causes: resource created directly in OpenStack, marketplace database inconsistency, or failed order that partially completed.
+
+#### Instance Deletion Failures
+
+Instance deletion requires specific state conditions:
+
+- The instance must be in **SHUTOFF + OK** or **ERRED** state for normal deletion.
+- Running instances must be stopped first.
+- Use `force_destroy` to delete the instance along with all attached volumes.
+- If deletion fails, check that the OpenStack project still has the instance and that the service account has sufficient permissions.
+
+#### Quota Mismatch Between Waldur and OpenStack
+
+- **Pull quotas from OpenStack**: `waldur import_tenant_quotas` imports current usage and limits.
+- **Push quotas to OpenStack**: `waldur push_tenant_quotas` applies Waldur limits to OpenStack.
+- When using **dynamic storage mode**, ensure all volume types are synchronized (the hourly properties pull task handles this automatically).
+- Quota mismatches often occur after changing `storage_mode`; re-import quotas after switching modes.
+
+#### SSL and Certificate Issues
+
+- Set `verify_ssl` to `false` in the offering's `options` to disable certificate verification (testing only).
+- For self-signed certificates, add the CA certificate to the system trust store on the Waldur server.
+- Certificate errors appear in Celery worker logs as `SSLError` or `SSLCertVerificationError`.
+
+## Configuration Reference
+
+### WALDUR_OPENSTACK Settings
+
+These settings are configured in `waldur_core.server.settings` or `local_settings.py` under the `WALDUR_OPENSTACK` dictionary:
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS` | bool | `True` | Allow customer users to access the OpenStack VNC console |
+| `ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION` | bool | `False` | Allow connecting instances directly to external networks (bypassing internal network + router) |
+| `DEFAULT_SECURITY_GROUPS` | list[dict] | SSH (22), ping (ICMP), RDP (3389), web (80, 443) | Default security groups and rules created in each provisioned tenant |
+| `DEFAULT_BLACKLISTED_USERNAMES` | list[str] | `["admin", "service"]` | Usernames that cannot be created by Waldur in OpenStack |
+| `MAX_CONCURRENT_PROVISION` | dict | `{"OpenStack.Instance": 4, "OpenStack.Volume": 4, "OpenStack.Snapshot": 4}` | Maximum parallel provisioning operations per resource type |
+| `REQUIRE_AVAILABILITY_ZONE` | bool | `False` | Make availability zone selection mandatory during provisioning |
+| `SUBNET` | dict | Pool from `.10` to `.200` | Default IP allocation pool range for auto-created internal subnets |
+| `TENANT_CREDENTIALS_VISIBLE` | bool | `False` | Expose auto-generated tenant credentials to project users |
+
+Settings marked as public (`ALLOW_CUSTOMER_USERS_OPENSTACK_CONSOLE_ACCESS`, `REQUIRE_AVAILABILITY_ZONE`, `ALLOW_DIRECT_EXTERNAL_NETWORK_CONNECTION`, `TENANT_CREDENTIALS_VISIBLE`) are sent to the frontend and affect UI behavior.
+
+### WALDUR_MARKETPLACE_OPENSTACK Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `AUTOMATICALLY_CREATE_PRIVATE_OFFERING` | bool | `True` | Auto-create private instance and volume offerings when a tenant is provisioned |
+
+### Per-Offering Configuration
+
+In addition to the global settings above, each OpenStack offering has three configuration sections:
+
+| Section | Visibility | Purpose | Examples |
+|---------|-----------|---------|----------|
+| `secret_options` | Admin only | Sensitive credentials and connection details | `backend_url`, `username`, `password`, `tenant_name`, `domain`, `external_network_id` |
+| `plugin_options` | Admin only | Plugin-specific behavior settings | `storage_mode`, `default_internal_network_mtu` |
+| `options` | Visible to users | Non-sensitive offering metadata | `access_url`, `verify_ssl`, `availability_zone` |
 
 ## API Reference
 
