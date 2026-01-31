@@ -164,6 +164,10 @@ Render Rancher apps as a separate tab in resource details page.
 
 Allow to select mount point for data volume when Rancher cluster is provisioned.
 
+## reseller.arrow
+
+Enable Arrow integration menu in administration.
+
 ## slurm.jobs
 
 Render list of SLURM jobs as a separate tab in allocation details page.

@@ -2688,6 +2688,44 @@ Number of days to keep action execution history.
 
 Default reminder schedule (days before expiration) for expiring resources. Can be overridden per offering via plugin_options.resource_expiration_reminders.
 
+### Arrow Integration
+
+#### ARROW_AUTO_RECONCILIATION
+
+**Type:** bool
+
+Auto-apply compensations when Arrow validates billing
+
+#### ARROW_SYNC_INTERVAL_HOURS
+
+**Type:** int
+
+**Default value:** 6
+
+Billing sync interval in hours
+
+#### ARROW_CONSUMPTION_SYNC_ENABLED
+
+**Type:** bool
+
+Enable real-time consumption sync from Arrow API
+
+#### ARROW_CONSUMPTION_SYNC_INTERVAL_HOURS
+
+**Type:** int
+
+**Default value:** 1
+
+Consumption sync interval in hours (default: hourly)
+
+#### ARROW_BILLING_CHECK_INTERVAL_HOURS
+
+**Type:** int
+
+**Default value:** 6
+
+Billing export check interval in hours for reconciliation
+
 ### SLURM Policy
 
 #### SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS

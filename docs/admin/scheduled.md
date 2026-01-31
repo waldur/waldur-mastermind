@@ -28,6 +28,8 @@ td:nth-child(4) {
 | Job Name | Task | Schedule | Description |
 |----------|------|----------|-------------|
 | `cancel-expired-invitations` | `waldur_core.users.cancel_expired_invitations` | 6 hours | Invitation lifetime must be specified in Waldur Core settings with parameter<br> "INVITATION_LIFETIME". If invitation creation time is less than expiration time, the invitation will set as expired. |
+| `check-arrow-billing-export` | `waldur_mastermind.waldur_arrow.check_billing_export_scheduled` | 6 hours | Scheduled task to check for finalized billing export and reconcile.<br><br> Runs every ARROW_BILLING_CHECK_INTERVAL_HOURS (default: 6 hours).<br> Checks previous month and current month for billing data. |
+| `check-arrow-validated-billing` | `waldur_mastermind.waldur_arrow.check_validated_billing` | 12 hours | Scheduled task to check for newly validated billing in Arrow.<br><br> Checks synced but not yet validated billing syncs and updates their state.<br> If auto-reconciliation is enabled, triggers reconciliation. |
 | `check-expired-permissions` | `waldur_core.permissions.check_expired_permissions` | 1 day | Task not found in registry |
 | `check-polices` | `waldur_mastermind.policy.check_polices` | Cron: `* * 1 * * (m/h/dM/MY/d)` | Evaluate all policies across all policy types in the system. |
 | `check-table-growth-alerts` | `waldur_core.check_table_growth_alerts` | Cron: `0 2 * * * (m/h/dM/MY/d)` | Check for tables that have grown abnormally fast and send alerts.<br> Compares current sizes against 7-day and 30-day historical data. |
@@ -92,6 +94,8 @@ td:nth-child(4) {
 | `send-scheduled-broadcast-notifications` | `waldur_mastermind.notifications.send_scheduled_broadcast_messages` | 12 hours | Send broadcast messages that have been scheduled for delivery. |
 | `send_telemetry` | `waldur_mastermind.marketplace.send_metrics` | 1 day | Send anonymous usage metrics and telemetry data to the Waldur team. |
 | `structure-set-erred-stuck-resources` | `waldur_core.structure.SetErredStuckResources` | 1 hour | This task marks all resources which have been provisioning for more than 3 hours as erred. |
+| `sync-arrow-billing` | `waldur_mastermind.waldur_arrow.sync_arrow_billing_scheduled` | 6 hours | Scheduled task to sync Arrow billing for the current month.<br><br> Runs every ARROW_SYNC_INTERVAL_HOURS hours. |
+| `sync-arrow-consumption` | `waldur_mastermind.waldur_arrow.sync_arrow_consumption_scheduled` | 1 hour | Scheduled task to sync real-time consumption data from Arrow.<br><br> Runs every ARROW_CONSUMPTION_SYNC_INTERVAL_HOURS (default: hourly).<br> Updates ArrowConsumptionRecord and ComponentUsage for each resource with<br> an arrow_license_reference attribute. |
 | `sync-resources` | `waldur_mastermind.marketplace_site_agent.sync_resources` | 10 minutes | Sync resources that haven't been updated in the last hour.<br> Processes only resources that users have subscribed to receive updates for. |
 | `sync-user-deactivation-status` | `waldur_core.permissions.sync_user_deactivation_status` | 3 hours | Task not found in registry |
 | `sync_request_types` | `waldur_mastermind.support.sync_request_types` | 1 day | Synchronize request types from the active support backend. |

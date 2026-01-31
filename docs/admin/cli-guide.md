@@ -1127,6 +1127,36 @@ Check status of Waldur MasterMind configured services
 
 Backend data update if a server was switched.
 
+## sync_arrow_resources
+
+Sync Arrow IAAS subscriptions to Waldur Resources
+
+```bash
+
+usage: waldur sync_arrow_resources [--period-from PERIOD_FROM]
+                                   [--period-to PERIOD_TO]
+                                   [--customer-uuid CUSTOMER_UUID]
+                                   [--project-uuid PROJECT_UUID] [--dry-run]
+                                   [--create-offering] [--force-import]
+
+options:
+  --period-from PERIOD_FROM
+                        Start period in YYYY-MM format (default: 6 months ago,
+                        Arrow max)
+  --period-to PERIOD_TO
+                        End period in YYYY-MM format (default: current month)
+  --customer-uuid CUSTOMER_UUID
+                        Waldur Customer UUID to create resources under
+  --project-uuid PROJECT_UUID
+                        Waldur Project UUID to create resources under
+  --dry-run             Show what would be done without making changes
+  --create-offering     Create Arrow Azure offering if it doesn't exist
+  --force-import        Auto-create Waldur Customers and Projects from Arrow
+                        data. Each Arrow customer becomes a Waldur Customer
+                        with an 'Arrow Azure Subscriptions' project.
+
+```
+
 ## sync_saml2_providers
 
 Synchronize SAML2 identity providers.
