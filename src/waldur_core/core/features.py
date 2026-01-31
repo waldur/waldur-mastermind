@@ -234,3 +234,11 @@ class WaldurDeploymentSection(FeatureSection):
 
     send_metrics = Feature("Send telemetry metrics.")
     enable_cookie_notice = Feature("Enable cookie notice in marketplace.")
+
+
+class ResellerSection(FeatureSection):
+    class Meta:
+        key = "reseller"
+        description = "Reseller integrations"
+
+    arrow = Feature("Enable Arrow integration menu in administration.")

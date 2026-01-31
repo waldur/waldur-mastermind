@@ -586,6 +586,54 @@ class InvoiceItemDetailSerializerTest(test.APITransactionTestCase):
         # Should use direct relationship, not details
         self.assertEqual(response.data["offering_component_type"], "storage")
 
+    def test_serializer_includes_offering_name_from_resource(self):
+        """Test that offering_name is correctly serialized from resource.offering.name"""
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.InvoiceItemFactory.get_url(self.fixture.invoice_item)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIn("offering_name", response.data)
+        self.assertEqual(
+            response.data["offering_name"],
+            self.fixture.resource.offering.name,
+        )
+
+    def test_serializer_fallback_to_details_field_for_offering_name(self):
+        """Test fallback to details field when resource is missing"""
+        invoice_item = factories.InvoiceItemFactory(
+            resource=None,
+            invoice=self.fixture.invoice,
+            details={"offering_name": "Test Offering"},
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.InvoiceItemFactory.get_url(invoice_item)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIn("offering_name", response.data)
+        self.assertEqual(response.data["offering_name"], "Test Offering")
+
+    def test_serializer_returns_none_when_no_offering_name_available(self):
+        """Test that None is returned when no offering name is available"""
+        invoice_item = factories.InvoiceItemFactory(
+            resource=None,
+            invoice=self.fixture.invoice,
+            details={},
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.InvoiceItemFactory.get_url(invoice_item)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertIn("offering_name", response.data)
+        self.assertIsNone(response.data["offering_name"])
+
 
 class InvoiceItemModelTest(test.APITransactionTestCase):
     def setUp(self):

@@ -143,6 +143,7 @@ waldur_firecrest = "waldur_firecrest.extension:FirecrestExtension"
 waldur_lexis = "waldur_lexis.extension:LexisExtension"
 waldur_marketplace_reppu = "waldur_mastermind.marketplace_reppu.extension:MarketplaceReppuExtension"
 waldur_kubernetes = "waldur_kubernetes.extension:KubernetesExtension"
+waldur_arrow = "waldur_mastermind.waldur_arrow.extension:ArrowExtension"
 
 
 [build-system]

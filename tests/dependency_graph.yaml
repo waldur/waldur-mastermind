@@ -32,6 +32,7 @@ waldur_core.logging:
 - waldur_core.core
 - waldur_core.permissions
 - waldur_core.structure
+- waldur_mastermind.marketplace
 waldur_core.media:
 - waldur_core.checklist
 - waldur_core.core
@@ -113,6 +114,8 @@ waldur_mastermind.booking:
 - waldur_mastermind.marketplace
 waldur_mastermind.chat:
 - waldur_core.core
+- waldur_core.structure
+- waldur_mastermind.marketplace
 waldur_mastermind.google:
 - waldur_core.core
 - waldur_core.structure
@@ -141,6 +144,7 @@ waldur_mastermind.marketplace:
 - waldur_mastermind.marketplace_openstack
 - waldur_mastermind.marketplace_rancher
 - waldur_mastermind.notifications
+- waldur_mastermind.policy
 - waldur_mastermind.promotions
 - waldur_mastermind.proposal
 - waldur_mastermind.support
@@ -243,6 +247,11 @@ waldur_mastermind.support:
 - waldur_core.structure
 - waldur_mastermind.marketplace
 - waldur_mastermind.notifications
+waldur_mastermind.waldur_arrow:
+- waldur_core.core
+- waldur_core.structure
+- waldur_mastermind.invoices
+- waldur_mastermind.marketplace
 waldur_openportal:
 - waldur_core.core
 - waldur_core.permissions
