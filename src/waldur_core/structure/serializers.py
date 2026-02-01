@@ -2505,6 +2505,9 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
 
 class ProjectDigestConfigSerializer(serializers.ModelSerializer):
     available_sections = serializers.SerializerMethodField()
+    enabled_sections = serializers.ListField(
+        child=serializers.CharField(), required=False, default=list
+    )
 
     class Meta:
         model = models.ProjectDigestConfiguration
