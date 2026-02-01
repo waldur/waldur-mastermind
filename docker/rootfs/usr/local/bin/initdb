@@ -9,7 +9,7 @@ waldur migrate --noinput
 
 echo "INFO: Waiting for RabbitMQ readiness..."
 # Get RabbitMQ host and port from environment variables (matching Helm chart pattern)
-RABBITMQ_HOST=${RABBITMQ_HOSTNAME:-localhost}
+RABBITMQ_HOST=${RABBITMQ_HOST:-${RABBITMQ_HOSTNAME:-localhost}}
 RABBITMQ_MANAGEMENT_PORT=${RABBITMQ_MANAGEMENT_PORT:-15672}
 
 for i in {1..30}; do
