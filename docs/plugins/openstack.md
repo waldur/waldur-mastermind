@@ -184,6 +184,86 @@ Only the Keystone endpoint needs to be configured explicitly; all other service 
 | **RBAC Policies** | | |
 | Create RBAC Policy | Share network between tenants | `POST /api/openstack-network-rbac-policies/` |
 | List RBAC Policies | View sharing policies | `GET /api/openstack-network-rbac-policies/` |
+| **External Networks** | | |
+| List External Networks | Get provider-level external networks with subnets | `GET /api/openstack-external-networks/` |
+| Get External Network | Retrieve external network details | `GET /api/openstack-external-networks/{uuid}/` |
+
+### External Networks
+
+External networks are provider-level OpenStack networks (with `router:external=True`) that provide floating IP connectivity for tenants. Waldur discovers and stores these as `ExternalNetwork` and `ExternalSubnet` model instances, following the same ServiceProperty pattern used for flavors, images, and volume types.
+
+#### API Endpoints
+
+| Operation | Description | API Endpoint |
+|-----------|-------------|--------------|
+| List External Networks | Get discovered external networks with subnets | `GET /api/openstack-external-networks/` |
+| Get External Network | Retrieve details including nested subnets | `GET /api/openstack-external-networks/{uuid}/` |
+
+The endpoint is read-only. External networks are synced automatically from OpenStack during the periodic properties pull (every 24 hours) via `pull_external_networks()`.
+
+#### Response Format
+
+```json
+{
+    "uuid": "abc123...",
+    "name": "public",
+    "backend_id": "d32a49e1-...",
+    "settings": "https://waldur.example.com/api/service-settings/...",
+    "is_shared": true,
+    "is_default": true,
+    "status": "ACTIVE",
+    "description": "Public external network",
+    "subnets": [
+        {
+            "uuid": "def456...",
+            "name": "public-subnet-v4",
+            "backend_id": "e43b5af2-...",
+            "cidr": "203.0.113.0/24",
+            "gateway_ip": "203.0.113.1",
+            "ip_version": 4,
+            "enable_dhcp": false,
+            "allocation_pools": [{"start": "203.0.113.2", "end": "203.0.113.254"}],
+            "dns_nameservers": ["8.8.8.8"],
+            "public_ip_range": "",
+            "description": ""
+        }
+    ]
+}
+```
+
+#### Filtering
+
+| Parameter | Description |
+|-----------|-------------|
+| `settings_uuid` | Filter by service settings UUID |
+| `settings` | Filter by service settings URL |
+
+#### External Network Resolution
+
+When Waldur needs to determine which external network a tenant should use (for floating IP allocation, router creation, etc.), it follows this priority order:
+
+1. **Tenant FK** (`tenant.external_network_ref`) - direct model reference on the tenant
+2. **CustomerOpenStack FK** (`customer_openstack.external_network_ref`) - per-customer override
+3. **Service settings option** (`options.external_network_id`) - provider-wide default, resolved to an `ExternalNetwork` by `backend_id`
+4. **Legacy string fallback** - direct `external_network_id` CharField values (deprecated, will be removed)
+
+The `get_external_network()` utility in `waldur_openstack.utils` implements this resolution chain and returns an `ExternalNetwork` model instance (or `None`). The older `get_external_network_id()` function wraps this and returns the `backend_id` string for backward compatibility.
+
+#### Carrier-Grade NAT (IP Mapping)
+
+For environments using carrier-grade NAT, each `ExternalSubnet` has an optional `public_ip_range` field that maps the subnet's floating IP CIDR to a publicly routable CIDR. This replaces the free-form `ipv4_external_ip_mapping` JSON previously stored in `Offering.secret_options`.
+
+The `get_external_ip()` function in `marketplace_openstack/utils.py` resolves public IPs by:
+
+1. Looking up `ExternalSubnet` records where `public_ip_range` is set and the floating IP falls within the subnet's `cidr`
+2. Falling back to `secret_options["ipv4_external_ip_mapping"]` if no matching subnet is found
+
+#### Migration Notes
+
+This feature was introduced as Phase 1 of a two-phase migration:
+
+- **Phase 1 (current)**: `ExternalNetwork` and `ExternalSubnet` models exist alongside the legacy `external_network_id` CharField on `Tenant` and `CustomerOpenStack`. Both the FK (`external_network_ref`) and the string field are maintained in parallel. Internal code reads from the FK first and falls back to the string.
+- **Phase 2 (follow-up)**: The legacy `external_network_id` CharFields and `ipv4_external_ip_mapping` in `secret_options` will be removed. All consumers will use the FK exclusively.
 
 ### Glance (Image Service)
 
@@ -538,7 +618,7 @@ The plugin runs the following automated tasks:
 | Pull Quotas | Every 12 hours | Synchronize quotas with OpenStack |
 | Pull Resources | Every 1 hour | Update resource states (instances, volumes) |
 | Pull Sub-resources | Every 2 hours | Sync networks, subnets, ports |
-| Pull Properties | Every 24 hours | Update flavors, images, volume types |
+| Pull Properties | Every 24 hours | Update flavors, images, volume types, external networks |
 | Mark Stuck Deleting Tenants as Erred | Every 24 hours | Clean up tenants stuck in deleting state |
 | Mark Stuck Updating Tenants as Erred | Every 1 hour | Clean up tenants stuck in updating state |
 | Delete Expired Backups | Every 10 minutes | Remove backups past retention |
