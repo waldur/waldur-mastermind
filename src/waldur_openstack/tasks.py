@@ -27,6 +27,8 @@ class TenantCreateErrorTask(core_tasks.ErrorStateTransitionTask):
         # Delete network and subnet if they were not created on backend,
         # mark as erred if they were created
         network = tenant.networks.first()
+        if network is None:
+            return
         subnet = network.subnets.first()
         if subnet.state == CoreStates.CREATION_SCHEDULED:
             subnet.delete()
