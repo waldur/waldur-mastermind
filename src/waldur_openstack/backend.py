@@ -2709,8 +2709,8 @@ class OpenStackBackend(ServiceBackend):
         elif subnet.gateway_ip:
             data["gateway_ip"] = subnet.gateway_ip
         try:
-            response = neutron.create_subnet({"subnets": [data]})
-            backend_subnet = response["subnets"][0]
+            response = neutron.create_subnet({"subnet": data})
+            backend_subnet = response["subnet"]
             subnet.backend_id = backend_subnet["id"]
             if backend_subnet.get("gateway_ip"):
                 subnet.gateway_ip = backend_subnet["gateway_ip"]
