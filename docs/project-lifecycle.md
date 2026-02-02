@@ -145,6 +145,15 @@ stateDiagram-v2
     TERMINATED --> [*]
 ```
 
+### Manual State Recovery
+
+Staff users can manually transition resources between states using the `set_erred` and `set_ok` API actions. This is useful when a resource is stuck in a transitional state (CREATING, UPDATING, DELETING) and automatic recovery has not resolved it.
+
+- **`set_erred`**: Transitions the resource to ERRED from any state. Accepts optional `error_message` and `error_traceback` fields.
+- **`set_ok`**: Transitions the resource to OK from any state and clears error fields.
+
+After marking a resource as ERRED, the `pull` action becomes available to re-synchronize the resource state from the backend.
+
 ### Resource End Date Behavior
 
 When a resource reaches its `end_date`:

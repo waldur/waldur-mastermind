@@ -12,9 +12,11 @@ from drf_spectacular.utils import (
     OpenApiTypes,
     extend_schema,
     extend_schema_view,
+    inline_serializer,
 )
 from keystoneauth1.exceptions.connection import ConnectFailure
 from rest_framework import decorators, exceptions, generics, response, status
+from rest_framework import serializers as rf_serializers
 
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import mixins as core_mixins
@@ -29,6 +31,8 @@ from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import permissions as structure_permissions
+from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import signals as structure_signals
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.managers import filter_queryset_for_user
@@ -1073,6 +1077,69 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         serializers.OpenStackRouterInterfaceSerializer
     )
     remove_router_interface_validators = [core_validators.StateValidator(CoreStates.OK)]
+
+    set_erred_serializer_class = structure_serializers.SetErredSerializer
+
+    @extend_schema(
+        summary="Mark router as ERRED",
+        description=(
+            "Manually transition the router to ERRED state. "
+            "This is useful for routers stuck in transitional states "
+            "(CREATING, UPDATING, DELETING) that cannot be synced via pull. "
+            "Staff-only operation."
+        ),
+        responses={
+            200: inline_serializer(
+                "RouterSetErredResponse",
+                fields={"detail": rf_serializers.CharField()},
+            )
+        },
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def set_erred(self, request, uuid=None):
+        resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        resource.error_message = serializer.validated_data.get("error_message", "")
+        resource.error_traceback = serializer.validated_data.get("error_traceback", "")
+        resource.set_erred()
+        resource.save(update_fields=["state", "error_message", "error_traceback"])
+        return response.Response(
+            {"detail": _("Resource has been marked as ERRED.")},
+            status=status.HTTP_200_OK,
+        )
+
+    set_erred_permissions = [structure_permissions.is_staff]
+
+    set_ok_serializer_class = EmptySerializer
+
+    @extend_schema(
+        summary="Mark router as OK",
+        description=(
+            "Manually transition the router to OK state and clear error fields. "
+            "Staff-only operation."
+        ),
+        request=None,
+        responses={
+            200: inline_serializer(
+                "RouterSetOkResponse",
+                fields={"detail": rf_serializers.CharField()},
+            )
+        },
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def set_ok(self, request, uuid=None):
+        resource = self.get_object()
+        resource.error_message = ""
+        resource.error_traceback = ""
+        resource.set_ok()
+        resource.save(update_fields=["state", "error_message", "error_traceback"])
+        return response.Response(
+            {"detail": _("Resource has been marked as OK.")},
+            status=status.HTTP_200_OK,
+        )
+
+    set_ok_permissions = [structure_permissions.is_staff]
 
 
 @extend_schema_view(

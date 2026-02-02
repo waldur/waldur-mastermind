@@ -167,6 +167,11 @@ Only the Keystone endpoint needs to be configured explicitly; all other service 
 | Add Interface | Connect subnet to router | `POST /api/openstack-routers/{uuid}/add_interface/` |
 | Remove Interface | Disconnect subnet from router | `POST /api/openstack-routers/{uuid}/remove_interface/` |
 | Set Gateway | Configure external gateway | `POST /api/openstack-routers/{uuid}/set_gateway/` |
+| **Common Resource Actions** | | |
+| Set Erred | Force resource to ERRED state (staff-only) | `POST /api/openstack-{resource}/{uuid}/set_erred/` |
+| Set OK | Force resource to OK state (staff-only) | `POST /api/openstack-{resource}/{uuid}/set_ok/` |
+| Pull | Sync resource state from backend | `POST /api/openstack-{resource}/{uuid}/pull/` |
+| Unlink | Remove resource record without backend deletion (staff-only) | `POST /api/openstack-{resource}/{uuid}/unlink/` |
 | **Ports** | | |
 | Create Port | Create network interface | `POST /api/openstack-ports/` |
 | Delete Port | Remove network interface | `DELETE /api/openstack-ports/{uuid}/` |
@@ -749,7 +754,21 @@ Resources that remain in a transitional state (Creating, Deleting, Updating) are
 - Tenants stuck in **Updating** are marked as Erred after 1 hour.
 - Instances and volumes stuck in **Creating** are marked as Erred by the hourly resource pull task.
 
-For manual intervention, use the Waldur admin panel or API to force the resource state to Erred, then retry or delete the resource.
+For manual intervention, staff users can use the `set_erred` API action to force a resource into the Erred state, then use `pull` to re-sync from the backend or `unlink` to remove the database record:
+
+```bash
+# 1. Mark the stuck resource as ERRED (staff-only)
+POST /api/openstack-networks/{uuid}/set_erred/
+# Optional request body: {"error_message": "Stuck in creating", "error_traceback": "..."}
+
+# 2. Sync resource state from backend
+POST /api/openstack-networks/{uuid}/pull/
+
+# 3. Or mark as OK if the resource is actually healthy
+POST /api/openstack-networks/{uuid}/set_ok/
+```
+
+The `set_erred` and `set_ok` actions are available on all OpenStack resource endpoints (networks, subnets, instances, volumes, ports, floating IPs, security groups, routers, snapshots, backups). Both actions are restricted to staff users.
 
 #### Missing Marketplace Resource
 

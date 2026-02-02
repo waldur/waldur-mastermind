@@ -2558,3 +2558,10 @@ class ProjectDigestPreviewResponseSerializer(serializers.Serializer):
     subject = serializers.CharField()
     html_body = serializers.CharField()
     text_body = serializers.CharField()
+
+
+class SetErredSerializer(serializers.Serializer):
+    error_message = serializers.CharField(required=False, allow_blank=True, default="")
+    error_traceback = serializers.CharField(
+        required=False, allow_blank=True, default=""
+    )

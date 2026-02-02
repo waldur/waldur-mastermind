@@ -16,6 +16,19 @@ class InstanceViewSet(structure_views.BaseResourceViewSet):
         pass
 ```
 
+## Built-in actions on ResourceViewSet
+
+The base `ResourceViewSet` provides several actions inherited by all resource ViewSets:
+
+| Action | Method | Permission | Description |
+|--------|--------|------------|-------------|
+| `pull` | POST | Staff | Sync resource state from backend |
+| `unlink` | POST | Staff | Delete resource from DB without backend operations |
+| `set_erred` | POST | Staff | Force resource to ERRED state (useful for stuck transitional states) |
+| `set_ok` | POST | Staff | Force resource to OK state and clear error fields |
+
+The `set_erred` action accepts an optional request body with `error_message` and `error_traceback` fields.
+
 ## Complex actions and serializers
 
 If your action uses serializer to parse complex data, you should declare
