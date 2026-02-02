@@ -21,6 +21,7 @@ from drf_spectacular.utils import (
     OpenApiParameter,
     extend_schema,
     extend_schema_view,
+    inline_serializer,
 )
 from rest_framework import filters as rf_filters
 from rest_framework import mixins, status, viewsets
@@ -1922,7 +1923,16 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
             "pull operation is not implemented for this resource type."
         ),
         request=None,
-        responses={202: None, 409: None},
+        responses={
+            202: inline_serializer(
+                "PullResponse",
+                fields={"detail": rf_serializers.CharField()},
+            ),
+            409: inline_serializer(
+                "PullConflictResponse",
+                fields={"detail": rf_serializers.CharField()},
+            ),
+        },
     )
     @action(detail=True, methods=["post"])
     def pull(self, request, uuid=None):
@@ -1960,6 +1970,69 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     unlink_permissions = [permissions.is_staff]
+
+    set_erred_serializer_class = serializers.SetErredSerializer
+
+    @extend_schema(
+        summary="Mark resource as ERRED",
+        description=(
+            "Manually transition the resource to ERRED state. "
+            "This is useful for resources stuck in transitional states "
+            "(CREATING, UPDATING, DELETING) that cannot be synced via pull. "
+            "Staff-only operation."
+        ),
+        responses={
+            200: inline_serializer(
+                "SetErredResponse",
+                fields={"detail": rf_serializers.CharField()},
+            )
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def set_erred(self, request, uuid=None):
+        resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        resource.error_message = serializer.validated_data.get("error_message", "")
+        resource.error_traceback = serializer.validated_data.get("error_traceback", "")
+        resource.set_erred()
+        resource.save(update_fields=["state", "error_message", "error_traceback"])
+        return Response(
+            {"detail": _("Resource has been marked as ERRED.")},
+            status=status.HTTP_200_OK,
+        )
+
+    set_erred_permissions = [permissions.is_staff]
+
+    set_ok_serializer_class = EmptySerializer
+
+    @extend_schema(
+        summary="Mark resource as OK",
+        description=(
+            "Manually transition the resource to OK state and clear error fields. "
+            "Staff-only operation."
+        ),
+        request=None,
+        responses={
+            200: inline_serializer(
+                "SetOkResponse",
+                fields={"detail": rf_serializers.CharField()},
+            )
+        },
+    )
+    @action(detail=True, methods=["post"])
+    def set_ok(self, request, uuid=None):
+        resource = self.get_object()
+        resource.error_message = ""
+        resource.error_traceback = ""
+        resource.set_ok()
+        resource.save(update_fields=["state", "error_message", "error_traceback"])
+        return Response(
+            {"detail": _("Resource has been marked as OK.")},
+            status=status.HTTP_200_OK,
+        )
+
+    set_ok_permissions = [permissions.is_staff]
 
 
 class OrganizationGroupViewSet(core_views.ActionsViewSet):
