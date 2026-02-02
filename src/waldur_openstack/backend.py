@@ -2567,11 +2567,11 @@ class OpenStackBackend(ServiceBackend):
             data["mtu"] = network.mtu
 
         try:
-            response = neutron.create_network({"networks": [data]})
+            response = neutron.create_network({"network": data})
         except neutron_exceptions.NeutronException as e:
             raise OpenStackBackendError(e)
         else:
-            backend_network = response["networks"][0]
+            backend_network = response["network"]
             network.backend_id = backend_network["id"]
             network.runtime_state = backend_network["status"]
             if backend_network.get("provider:network_type"):
