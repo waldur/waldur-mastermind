@@ -8,6 +8,10 @@ import waldur_core.media.validators
 class Migration(migrations.Migration):
     dependencies = [
         ("marketplace", "0181_alter_offeringtermsofservice_is_active_and_more"),
+        (
+            "invoices",
+            "0019_projectcredit_mark_unused_credit_as_spent_on_project_termination",
+        ),
     ]
 
     operations = [
