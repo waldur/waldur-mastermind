@@ -9,11 +9,6 @@ import waldur_core.core.fields
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ("policy", "0014_add_slurm_command_history"),
-        ("policy", "0015_alter_slurmcommandhistory_billing_period_and_more"),
-    ]
-
     dependencies = [
         ("marketplace", "0202_offeringuserattributeconfig"),
         ("policy", "0013_add_apply_to_all_field"),
