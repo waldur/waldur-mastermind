@@ -382,3 +382,37 @@ class OfferingUserFreeipaStateBugTest(TestCase):
         offering_user_deleted.refresh_from_db()
         self.assertEqual(offering_user_deleted.username, "")
         self.assertEqual(offering_user_deleted.state, OfferingUserStates.DELETED)
+
+    def test_save_does_not_call_set_ok_on_deleted_offering_user(self):
+        """
+        Regression test for PUHURI-PORTALS-EK7:
+        TransitionNotAllowed: Can't switch from state '8' using method 'set_ok'
+
+        When an OfferingUser in DELETED state is saved with a username change,
+        the save() method should NOT attempt to call set_ok(), because DELETED
+        is not a valid source state for that transition.
+        """
+        # Create an OfferingUser and move it to DELETED state
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            offering=self.offering,
+            user=self.user,
+            username="original_username",
+        )
+        self.assertEqual(offering_user.state, OfferingUserStates.OK)
+
+        # Transition through the deletion flow
+        offering_user.request_deletion()
+        offering_user.save()
+        offering_user.set_deleting()
+        offering_user.save()
+        offering_user.set_deleted()
+        offering_user.save()
+        self.assertEqual(offering_user.state, OfferingUserStates.DELETED)
+
+        # Changing username on a DELETED OfferingUser should not raise TransitionNotAllowed
+        offering_user.username = "new_username"
+        offering_user.save()
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.state, OfferingUserStates.DELETED)
+        self.assertEqual(offering_user.username, "new_username")

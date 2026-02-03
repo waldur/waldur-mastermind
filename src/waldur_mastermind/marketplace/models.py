@@ -2336,7 +2336,14 @@ class OfferingUser(
         # 3. Signal handlers that call save() without update_fields (e.g., FreeIPA profile creation)
         if (
             self.username
-            and self.state != OfferingUserStates.OK
+            and self.state
+            in (
+                OfferingUserStates.CREATION_REQUESTED,
+                OfferingUserStates.CREATING,
+                OfferingUserStates.PENDING_ACCOUNT_LINKING,
+                OfferingUserStates.PENDING_ADDITIONAL_VALIDATION,
+                OfferingUserStates.ERROR_CREATING,
+            )
             and (self.tracker.has_changed("username") or not self.pk)
         ):
             self.set_ok()
