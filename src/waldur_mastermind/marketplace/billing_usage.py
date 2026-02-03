@@ -177,6 +177,18 @@ class BillingUsageProcessor:
         customer = resource.project.customer
         invoice, _ = MarketplaceBillingService.get_or_create_invoice(customer, date)
 
+        if invoice.state != invoice_models.Invoice.States.PENDING:
+            logger.warning(
+                "Skipping usage update for resource '%s' and component '%s' "
+                "because invoice %s-%02d is already in '%s' state.",
+                resource.uuid,
+                offering_component.type,
+                invoice.year,
+                invoice.month,
+                invoice.state,
+            )
+            return
+
         # Try to find an existing invoice item for this component in the current period
         item = invoice.items.filter(
             resource=resource,
