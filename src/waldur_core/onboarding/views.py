@@ -407,7 +407,7 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
 
                 # Get questions for this checklist
                 questions = checklist.questions.all().order_by("order")
-                questions_data = checklist_serializers.QuestionAdminSerializer(
+                questions_data = checklist_serializers.QuestionWithAnswerSerializer(
                     questions, many=True, context={"request": request}
                 ).data
 
