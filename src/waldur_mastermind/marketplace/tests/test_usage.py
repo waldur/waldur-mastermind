@@ -1157,6 +1157,53 @@ class UsageBackfillInvoiceTest(test.APITransactionTestCase):
         # Note: The exact behavior might depend on how user usage aggregation is implemented
         # This test documents the expected invoice behavior
 
+    def test_usage_update_rejected_for_finalized_invoice(self):
+        """Usage reported for a month whose invoice is already finalized should not update the invoice item."""
+        self.client.force_authenticate(self.fixture.staff)
+
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+
+        # First usage report creates the invoice and item
+        payload = {
+            "plan_period": self.plan_period.uuid.hex,
+            "date": backfill_date.isoformat(),
+            "usages": [
+                {
+                    "type": "cpu",
+                    "amount": 5,
+                }
+            ],
+        }
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Finalize the invoice (transition from PENDING to CREATED)
+        december_invoice = invoice_models.Invoice.objects.get(
+            customer=self.fixture.customer, year=2023, month=12
+        )
+        december_invoice.set_created()
+        self.assertEqual(december_invoice.state, invoice_models.Invoice.States.CREATED)
+
+        # Verify initial quantity
+        item = december_invoice.items.get(
+            resource=self.resource,
+            details__offering_component_type="cpu",
+        )
+        self.assertEqual(item.quantity, 5)
+
+        # Report higher usage for the same month -- should be rejected
+        payload["usages"][0]["amount"] = 10
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Invoice item quantity should remain unchanged
+        item.refresh_from_db()
+        self.assertEqual(item.quantity, 5)
+
 
 @freeze_time("2024-01-15")
 class ServiceProviderUsageDateBackfillTest(test.APITransactionTestCase):
