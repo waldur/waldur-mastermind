@@ -16,6 +16,7 @@ from waldur_core.server.celery_settings import (
 from waldur_core.structure import models as structure_models
 from waldur_core.users.scim.client import ScimClient, ScimError
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import OfferingUserStates
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +42,6 @@ def check_user_needs_entitlement(user: User) -> bool:
     project_ct = get_project_content_type()
     roles = UserRole.objects.filter(user=user, is_active=True, content_type=project_ct)
     return roles.exists()
-
-
-def get_scim_username(user: User) -> str | None:
-    return user.username if user.username else None
 
 
 def is_scim_configured() -> bool:
@@ -77,6 +74,9 @@ def extract_hostname_from_ssh_url(url: str) -> str | None:
 
 
 def get_user_ssh_login_nodes(user: User):
+    """
+    Get SSH login nodes mapped to offering-specific usernames for a user.
+    """
     project_ct = get_project_content_type()
     user_roles = UserRole.objects.filter(
         user=user, is_active=True, content_type=project_ct
@@ -84,7 +84,7 @@ def get_user_ssh_login_nodes(user: User):
     project_ids = user_roles.values_list("object_id", flat=True).distinct()
 
     if not project_ids:
-        return set()
+        return {}
 
     resources = marketplace_models.Resource.objects.filter(
         project_id__in=project_ids, state=marketplace_models.Resource.States.OK
@@ -93,28 +93,51 @@ def get_user_ssh_login_nodes(user: User):
     offering_ids = resources.values_list("offering_id", flat=True).distinct()
 
     if not offering_ids:
-        return set()
+        return {}
 
-    ssh_endpoints = marketplace_models.OfferingAccessEndpoint.objects.filter(
-        offering_id__in=offering_ids, url__startswith="ssh://"
+    # Get offering users that are in OK state and have a username
+    offering_users = (
+        marketplace_models.OfferingUser.objects.filter(
+            user=user,
+            offering_id__in=offering_ids,
+            state=OfferingUserStates.OK,
+        )
+        .exclude(username__isnull=True)
+        .exclude(username="")
+        .select_related("offering")
     )
 
-    login_nodes = set()
+    if not offering_users:
+        logger.warning(
+            "SCIM user %s has no offering users in OK state, skipping.", user.uuid
+        )
+        return {}
+
+    offering_user_username_map = {
+        off_user.offering: off_user.username for off_user in offering_users
+    }
+
+    ssh_endpoints = marketplace_models.OfferingAccessEndpoint.objects.filter(
+        offering__in=offering_user_username_map.keys(), url__startswith="ssh://"
+    ).select_related("offering")
+
+    login_node_username_map = {}
     for endpoint in ssh_endpoints:
         hostname = extract_hostname_from_ssh_url(endpoint.url)
         if hostname:
-            login_nodes.add(hostname)
+            offering_user_username = offering_user_username_map.get(endpoint.offering)
+            if offering_user_username:
+                login_node_username_map[hostname] = offering_user_username
 
-    return login_nodes
+    return login_node_username_map
 
 
 def sync_user(user: User, client: ScimClient, urn_namespace: str) -> None:
-    ssh_username = get_scim_username(user)
-    if not ssh_username:
+    if not user.username:
         logger.warning("SCIM user %s has no username, skipping.", user.uuid)
         return
-    # Get SSH login nodes from offering endpoints
-    ssh_login_nodes = get_user_ssh_login_nodes(user)
+
+    login_node_username_map = get_user_ssh_login_nodes(user)
     should_have_entitlements = check_user_needs_entitlement(user) and user.is_active
 
     # Always check remote entitlements to ensure cleanup
@@ -126,24 +149,26 @@ def sync_user(user: User, client: ScimClient, urn_namespace: str) -> None:
 
     remote_entitlements = get_user_entitlements(scim_user)
 
-    # If user has no login nodes, they shouldn't have entitlements
-    if not ssh_login_nodes:
+    # If user has no login nodes with offering users, they shouldn't have entitlements
+    if not login_node_username_map:
         if remote_entitlements:
             logger.info(
-                "SCIM clear all entitlements for user %s (no login nodes)",
+                "SCIM clear all entitlements for user %s (no login nodes with offering users)",
                 user.username,
             )
             client.clear_all_entitlements(user.username)
         return
 
-    # Skip if user shouldt have anything nor has any remote entitlements
+    # Skip if user shouldn't have anything nor has any remote entitlements
     if not should_have_entitlements and not remote_entitlements:
         return
 
+    # Build expected entitlements using offering-specific usernames
     expected_entitlements = {
-        client.build_entitlement(urn_namespace, node, ssh_username)
-        for node in ssh_login_nodes
+        client.build_entitlement(urn_namespace, login_node, offering_username)
+        for login_node, offering_username in login_node_username_map.items()
     }
+
     try:
         if should_have_entitlements:
             entitlements_to_add = [
