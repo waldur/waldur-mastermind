@@ -24,10 +24,13 @@ from waldur_mastermind.marketplace.models import (
     ComponentUsage,
     Offering,
     OfferingComponent,
+    OfferingPartition,
+    OfferingSoftwareCatalog,
     Order,
     Plan,
     PlanComponent,
     Resource,
+    SoftwareCatalog,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
@@ -2536,3 +2539,248 @@ class ImportStructureCommandTest(TestCase):
         self.assertEqual(imported_credit.offerings.count(), 2)
         self.assertIn(offering1, imported_credit.offerings.all())
         self.assertIn(offering2, imported_credit.offerings.all())
+
+    def test_import_software_catalogs(self):
+        """Test that importing software catalogs creates catalog objects."""
+        catalogs_data = [
+            {
+                "uuid": "11111111-1111-1111-1111-111111111111",
+                "name": "EESSI",
+                "version": "2023.06",
+                "catalog_type": "binary_runtime",
+                "source_url": "https://eessi.io",
+                "description": "EESSI software catalog",
+                "metadata": {"arch_mapping": {"x86_64": "generic"}},
+                "auto_update_enabled": True,
+                "update_errors": "",
+            }
+        ]
+
+        data = {"software_catalogs": catalogs_data}
+        self._create_test_json(data)
+
+        output = self._call_import_command("-i", self.test_file_path)
+
+        self.assertEqual(SoftwareCatalog.objects.count(), 1)
+
+        catalog = SoftwareCatalog.objects.get(
+            uuid="11111111-1111-1111-1111-111111111111"
+        )
+        self.assertEqual(catalog.name, "EESSI")
+        self.assertEqual(catalog.version, "2023.06")
+        self.assertEqual(catalog.catalog_type, "binary_runtime")
+        self.assertEqual(catalog.source_url, "https://eessi.io")
+        self.assertEqual(catalog.description, "EESSI software catalog")
+        self.assertEqual(catalog.metadata, {"arch_mapping": {"x86_64": "generic"}})
+        self.assertTrue(catalog.auto_update_enabled)
+
+        self.assertIn("Created: 1", output)
+
+    def test_import_offering_partitions(self):
+        """Test that importing offering partitions creates partition objects."""
+        offering = marketplace_factories.OfferingFactory()
+
+        partitions_data = [
+            {
+                "uuid": "22222222-2222-2222-2222-222222222222",
+                "offering_uuid": offering.uuid.hex,
+                "partition_name": "gpu",
+                "cpu_bind": 1,
+                "def_cpu_per_gpu": 4,
+                "max_cpus_per_node": 64,
+            }
+        ]
+
+        data = {"offering_partitions": partitions_data}
+        self._create_test_json(data)
+
+        output = self._call_import_command("-i", self.test_file_path)
+
+        self.assertEqual(OfferingPartition.objects.count(), 1)
+
+        partition = OfferingPartition.objects.get(
+            uuid="22222222-2222-2222-2222-222222222222"
+        )
+        self.assertEqual(partition.offering, offering)
+        self.assertEqual(partition.partition_name, "gpu")
+        self.assertEqual(partition.cpu_bind, 1)
+        self.assertEqual(partition.def_cpu_per_gpu, 4)
+        self.assertEqual(partition.max_cpus_per_node, 64)
+
+        self.assertIn("Created: 1", output)
+
+    def test_import_offering_software_catalogs(self):
+        """Test that importing offering-software-catalog links creates link objects."""
+        offering = marketplace_factories.OfferingFactory()
+        catalog = marketplace_factories.SoftwareCatalogFactory()
+        partition = marketplace_factories.OfferingPartitionFactory(offering=offering)
+
+        links_data = [
+            {
+                "uuid": "33333333-3333-3333-3333-333333333333",
+                "offering_uuid": offering.uuid.hex,
+                "catalog_uuid": catalog.uuid.hex,
+                "partition_uuid": partition.uuid.hex,
+                "enabled_cpu_family": ["x86_64", "aarch64"],
+                "enabled_cpu_microarchitectures": ["generic", "zen3"],
+            }
+        ]
+
+        data = {"offering_software_catalogs": links_data}
+        self._create_test_json(data)
+
+        output = self._call_import_command("-i", self.test_file_path)
+
+        self.assertEqual(OfferingSoftwareCatalog.objects.count(), 1)
+
+        link = OfferingSoftwareCatalog.objects.get(
+            uuid="33333333-3333-3333-3333-333333333333"
+        )
+        self.assertEqual(link.offering, offering)
+        self.assertEqual(link.catalog, catalog)
+        self.assertEqual(link.partition, partition)
+        self.assertEqual(link.enabled_cpu_family, ["x86_64", "aarch64"])
+        self.assertEqual(link.enabled_cpu_microarchitectures, ["generic", "zen3"])
+
+        self.assertIn("Created: 1", output)
+
+    def test_import_offering_software_catalogs_without_partition(self):
+        """Test that importing links without partition works correctly."""
+        offering = marketplace_factories.OfferingFactory()
+        catalog = marketplace_factories.SoftwareCatalogFactory()
+
+        links_data = [
+            {
+                "uuid": "44444444-4444-4444-4444-444444444444",
+                "offering_uuid": offering.uuid.hex,
+                "catalog_uuid": catalog.uuid.hex,
+                "enabled_cpu_family": ["x86_64"],
+                "enabled_cpu_microarchitectures": [],
+            }
+        ]
+
+        data = {"offering_software_catalogs": links_data}
+        self._create_test_json(data)
+
+        self._call_import_command("-i", self.test_file_path)
+
+        link = OfferingSoftwareCatalog.objects.get(
+            uuid="44444444-4444-4444-4444-444444444444"
+        )
+        self.assertEqual(link.offering, offering)
+        self.assertEqual(link.catalog, catalog)
+        self.assertIsNone(link.partition)
+
+    def test_import_software_catalogs_skip_existing(self):
+        """Test that import skips existing software catalogs."""
+        marketplace_factories.SoftwareCatalogFactory(
+            uuid="55555555-5555-5555-5555-555555555555",
+            name="Existing",
+            version="1.0",
+        )
+
+        catalogs_data = [
+            {
+                "uuid": "55555555-5555-5555-5555-555555555555",
+                "name": "Updated Name",
+                "version": "2.0",
+                "catalog_type": "binary_runtime",
+            }
+        ]
+
+        data = {"software_catalogs": catalogs_data}
+        self._create_test_json(data)
+
+        output = self._call_import_command("-i", self.test_file_path)
+
+        catalog = SoftwareCatalog.objects.get(
+            uuid="55555555-5555-5555-5555-555555555555"
+        )
+        self.assertEqual(catalog.name, "Existing")
+        self.assertEqual(catalog.version, "1.0")
+
+        self.assertIn("Skipped: 1", output)
+
+    def test_import_software_catalogs_update_existing(self):
+        """Test that import updates existing catalogs with --update flag."""
+        marketplace_factories.SoftwareCatalogFactory(
+            uuid="66666666-6666-6666-6666-666666666666",
+            name="Existing",
+            version="1.0",
+        )
+
+        catalogs_data = [
+            {
+                "uuid": "66666666-6666-6666-6666-666666666666",
+                "name": "Updated Name",
+                "version": "2.0",
+                "catalog_type": "source_package",
+            }
+        ]
+
+        data = {"software_catalogs": catalogs_data}
+        self._create_test_json(data)
+
+        output = self._call_import_command("-i", self.test_file_path, "--update")
+
+        catalog = SoftwareCatalog.objects.get(
+            uuid="66666666-6666-6666-6666-666666666666"
+        )
+        self.assertEqual(catalog.name, "Updated Name")
+        self.assertEqual(catalog.version, "2.0")
+        self.assertEqual(catalog.catalog_type, "source_package")
+
+        self.assertIn("Updated: 1", output)
+
+    def test_import_software_catalogs_roundtrip(self):
+        """Test full export-import roundtrip for software catalogs."""
+        offering = marketplace_factories.OfferingFactory(name="SLURM Offering")
+        catalog = marketplace_factories.SoftwareCatalogFactory(
+            name="EESSI",
+            version="2023.06",
+            catalog_type="binary_runtime",
+        )
+        partition = marketplace_factories.OfferingPartitionFactory(
+            offering=offering,
+            partition_name="gpu",
+        )
+        link = marketplace_factories.OfferingSoftwareCatalogFactory(
+            offering=offering,
+            catalog=catalog,
+            partition=partition,
+            enabled_cpu_family=["x86_64"],
+            enabled_cpu_microarchitectures=["zen3"],
+        )
+
+        catalog_uuid = catalog.uuid
+        partition_uuid = partition.uuid
+        link_uuid = link.uuid
+
+        export_output = StringIO()
+        call_command(
+            "export_structure", "-o", self.test_file_path, stdout=export_output
+        )
+
+        OfferingSoftwareCatalog.objects.all().delete()
+        OfferingPartition.objects.all().delete()
+        SoftwareCatalog.objects.all().delete()
+
+        import_output = StringIO()
+        call_command(
+            "import_structure", "-i", self.test_file_path, stdout=import_output
+        )
+
+        restored_catalog = SoftwareCatalog.objects.get(uuid=catalog_uuid)
+        self.assertEqual(restored_catalog.name, "EESSI")
+        self.assertEqual(restored_catalog.version, "2023.06")
+
+        restored_partition = OfferingPartition.objects.get(uuid=partition_uuid)
+        self.assertEqual(restored_partition.partition_name, "gpu")
+        self.assertEqual(restored_partition.offering, offering)
+
+        restored_link = OfferingSoftwareCatalog.objects.get(uuid=link_uuid)
+        self.assertEqual(restored_link.offering, offering)
+        self.assertEqual(restored_link.catalog, restored_catalog)
+        self.assertEqual(restored_link.partition, restored_partition)
+        self.assertEqual(restored_link.enabled_cpu_family, ["x86_64"])
+        self.assertEqual(restored_link.enabled_cpu_microarchitectures, ["zen3"])

@@ -44,6 +44,8 @@ from waldur_mastermind.marketplace.models import (
     Offering,
     OfferingAccessEndpoint,
     OfferingComponent,
+    OfferingPartition,
+    OfferingSoftwareCatalog,
     OfferingUser,
     Order,
     Plan,
@@ -52,6 +54,7 @@ from waldur_mastermind.marketplace.models import (
     Resource,
     ResourcePlanPeriod,
     ServiceProvider,
+    SoftwareCatalog,
 )
 from waldur_mastermind.policy.models import (
     OfferingComponentLimit,
@@ -355,6 +358,24 @@ class Command(BaseCommand):
                 "skipped": 0,
                 "errors": 0,
             },
+            "software_catalogs": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "offering_partitions": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "offering_software_catalogs": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
         }
         self.dry_run = False
         self.update_existing = False
@@ -554,6 +575,28 @@ class Command(BaseCommand):
             "maintenance_announcement_offerings",
             lambda: self.import_maintenance_announcement_offerings(
                 data.get("maintenance_announcement_offerings", [])
+            ),
+        )
+
+        # Import software catalogs
+        self._safe_import(
+            "software_catalogs",
+            lambda: self.import_software_catalogs(data.get("software_catalogs", [])),
+        )
+
+        # Import offering partitions
+        self._safe_import(
+            "offering_partitions",
+            lambda: self.import_offering_partitions(
+                data.get("offering_partitions", [])
+            ),
+        )
+
+        # Import offering-software-catalog links
+        self._safe_import(
+            "offering_software_catalogs",
+            lambda: self.import_offering_software_catalogs(
+                data.get("offering_software_catalogs", [])
             ),
         )
 
@@ -1745,6 +1788,228 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["maintenance_announcement_offerings"]["errors"] += 1
+
+    def import_software_catalogs(self, catalogs_data):
+        """Import software catalog definitions (not package content)."""
+        self.stdout.write("Importing software catalogs...")
+
+        for catalog_data in catalogs_data:
+            try:
+                uuid = catalog_data.get("uuid")
+                name = catalog_data.get("name")
+                catalog_type = catalog_data.get("catalog_type")
+
+                if not uuid or not name:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping software catalog without UUID or name"
+                        )
+                    )
+                    self.stats["software_catalogs"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "name": name,
+                    "version": catalog_data.get("version", ""),
+                    "catalog_type": catalog_type or "binary_runtime",
+                    "source_url": catalog_data.get("source_url", ""),
+                    "description": catalog_data.get("description", ""),
+                    "metadata": catalog_data.get("metadata", {}),
+                    "auto_update_enabled": catalog_data.get(
+                        "auto_update_enabled", True
+                    ),
+                    "update_errors": catalog_data.get("update_errors", ""),
+                }
+
+                if not self.dry_run:
+                    existing = SoftwareCatalog.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            SoftwareCatalog.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["software_catalogs"]["updated"] += 1
+                        else:
+                            self.stats["software_catalogs"]["skipped"] += 1
+                    else:
+                        SoftwareCatalog.objects.create(uuid=uuid, **defaults)
+                        self.stats["software_catalogs"]["created"] += 1
+                else:
+                    existing = SoftwareCatalog.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["software_catalogs"]["updated"] += 1
+                        else:
+                            self.stats["software_catalogs"]["skipped"] += 1
+                    else:
+                        self.stats["software_catalogs"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import software catalog {catalog_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["software_catalogs"]["errors"] += 1
+
+    def import_offering_partitions(self, partitions_data):
+        """Import offering partition data (SLURM partitions)."""
+        self.stdout.write("Importing offering partitions...")
+
+        for partition_data in partitions_data:
+            try:
+                uuid = partition_data.get("uuid")
+                offering_uuid = partition_data.get("offering_uuid")
+                partition_name = partition_data.get("partition_name")
+
+                if not uuid or not offering_uuid or not partition_name:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping offering partition without UUID, offering_uuid, or partition_name"
+                        )
+                    )
+                    self.stats["offering_partitions"]["errors"] += 1
+                    continue
+
+                # Find offering
+                offering = Offering.objects.filter(uuid=offering_uuid).first()
+                if not offering:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping partition {uuid}: Offering {offering_uuid} not found"
+                        )
+                    )
+                    self.stats["offering_partitions"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "offering": offering,
+                    "partition_name": partition_name,
+                    "cpu_bind": partition_data.get("cpu_bind"),
+                    "def_cpu_per_gpu": partition_data.get("def_cpu_per_gpu"),
+                    "max_cpus_per_node": partition_data.get("max_cpus_per_node"),
+                }
+
+                if not self.dry_run:
+                    existing = OfferingPartition.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            OfferingPartition.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["offering_partitions"]["updated"] += 1
+                        else:
+                            self.stats["offering_partitions"]["skipped"] += 1
+                    else:
+                        OfferingPartition.objects.create(uuid=uuid, **defaults)
+                        self.stats["offering_partitions"]["created"] += 1
+                else:
+                    existing = OfferingPartition.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["offering_partitions"]["updated"] += 1
+                        else:
+                            self.stats["offering_partitions"]["skipped"] += 1
+                    else:
+                        self.stats["offering_partitions"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import offering partition {partition_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["offering_partitions"]["errors"] += 1
+
+    def import_offering_software_catalogs(self, links_data):
+        """Import offering-to-software-catalog links."""
+        self.stdout.write("Importing offering software catalog links...")
+
+        for link_data in links_data:
+            try:
+                uuid = link_data.get("uuid")
+                offering_uuid = link_data.get("offering_uuid")
+                catalog_uuid = link_data.get("catalog_uuid")
+
+                if not uuid or not offering_uuid or not catalog_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping offering software catalog link without UUID, offering_uuid, or catalog_uuid"
+                        )
+                    )
+                    self.stats["offering_software_catalogs"]["errors"] += 1
+                    continue
+
+                # Find offering
+                offering = Offering.objects.filter(uuid=offering_uuid).first()
+                if not offering:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping link {uuid}: Offering {offering_uuid} not found"
+                        )
+                    )
+                    self.stats["offering_software_catalogs"]["errors"] += 1
+                    continue
+
+                # Find catalog
+                catalog = SoftwareCatalog.objects.filter(uuid=catalog_uuid).first()
+                if not catalog:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping link {uuid}: SoftwareCatalog {catalog_uuid} not found"
+                        )
+                    )
+                    self.stats["offering_software_catalogs"]["errors"] += 1
+                    continue
+
+                # Find partition if specified
+                partition = None
+                partition_uuid = link_data.get("partition_uuid")
+                if partition_uuid:
+                    partition = OfferingPartition.objects.filter(
+                        uuid=partition_uuid
+                    ).first()
+
+                defaults = {
+                    "offering": offering,
+                    "catalog": catalog,
+                    "enabled_cpu_family": link_data.get("enabled_cpu_family", []),
+                    "enabled_cpu_microarchitectures": link_data.get(
+                        "enabled_cpu_microarchitectures", []
+                    ),
+                    "partition": partition,
+                }
+
+                if not self.dry_run:
+                    existing = OfferingSoftwareCatalog.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            OfferingSoftwareCatalog.objects.filter(uuid=uuid).update(
+                                **defaults
+                            )
+                            self.stats["offering_software_catalogs"]["updated"] += 1
+                        else:
+                            self.stats["offering_software_catalogs"]["skipped"] += 1
+                    else:
+                        OfferingSoftwareCatalog.objects.create(uuid=uuid, **defaults)
+                        self.stats["offering_software_catalogs"]["created"] += 1
+                else:
+                    existing = OfferingSoftwareCatalog.objects.filter(
+                        uuid=uuid
+                    ).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["offering_software_catalogs"]["updated"] += 1
+                        else:
+                            self.stats["offering_software_catalogs"]["skipped"] += 1
+                    else:
+                        self.stats["offering_software_catalogs"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import offering software catalog link {link_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["offering_software_catalogs"]["errors"] += 1
 
     def import_projects(self, projects_data):
         """Import project data."""

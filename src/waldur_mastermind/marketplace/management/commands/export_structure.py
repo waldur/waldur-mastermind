@@ -34,6 +34,8 @@ from waldur_mastermind.marketplace.models import (
     MaintenanceAnnouncementOffering,
     Offering,
     OfferingComponent,
+    OfferingPartition,
+    OfferingSoftwareCatalog,
     OfferingUser,
     Order,
     Plan,
@@ -42,6 +44,7 @@ from waldur_mastermind.marketplace.models import (
     Resource,
     ResourcePlanPeriod,
     ServiceProvider,
+    SoftwareCatalog,
 )
 from waldur_mastermind.proposal.models import (
     AssignmentBatch,
@@ -257,6 +260,16 @@ class Command(BaseCommand):
             "maintenance_announcement_offerings": self.log_export_step(
                 "maintenance_announcement_offerings",
                 self.export_maintenance_announcement_offerings,
+            ),
+            # Software catalog exports
+            "software_catalogs": self.log_export_step(
+                "software_catalogs", self.export_software_catalogs
+            ),
+            "offering_partitions": self.log_export_step(
+                "offering_partitions", self.export_offering_partitions
+            ),
+            "offering_software_catalogs": self.log_export_step(
+                "offering_software_catalogs", self.export_offering_software_catalogs
             ),
         }
 
@@ -1899,3 +1912,79 @@ class Command(BaseCommand):
                 }
             )
         return offerings
+
+    def export_software_catalogs(self):
+        """Export software catalog definitions (not package content)."""
+        catalogs = []
+        for catalog in SoftwareCatalog.objects.all().order_by("name", "catalog_type"):
+            catalogs.append(
+                {
+                    "uuid": catalog.uuid.hex,
+                    "name": catalog.name,
+                    "version": catalog.version,
+                    "catalog_type": catalog.catalog_type,
+                    "source_url": catalog.source_url,
+                    "description": catalog.description,
+                    "metadata": catalog.metadata,
+                    "auto_update_enabled": catalog.auto_update_enabled,
+                    "last_update_attempt": catalog.last_update_attempt.isoformat()
+                    if catalog.last_update_attempt
+                    else None,
+                    "last_successful_update": catalog.last_successful_update.isoformat()
+                    if catalog.last_successful_update
+                    else None,
+                    "update_errors": catalog.update_errors,
+                    "created": catalog.created.isoformat() if catalog.created else None,
+                    "modified": catalog.modified.isoformat()
+                    if catalog.modified
+                    else None,
+                }
+            )
+        return catalogs
+
+    def export_offering_partitions(self):
+        """Export offering partition data (SLURM partitions)."""
+        partitions = []
+        for partition in OfferingPartition.objects.select_related("offering").order_by(
+            "offering__name", "partition_name"
+        ):
+            partitions.append(
+                {
+                    "uuid": partition.uuid.hex,
+                    "offering_uuid": partition.offering.uuid.hex,
+                    "offering_name": partition.offering.name,
+                    "partition_name": partition.partition_name,
+                    "cpu_bind": partition.cpu_bind,
+                    "def_cpu_per_gpu": partition.def_cpu_per_gpu,
+                    "max_cpus_per_node": partition.max_cpus_per_node,
+                    "created": partition.created.isoformat()
+                    if partition.created
+                    else None,
+                    "modified": partition.modified.isoformat()
+                    if partition.modified
+                    else None,
+                }
+            )
+        return partitions
+
+    def export_offering_software_catalogs(self):
+        """Export offering-to-software-catalog links."""
+        links = []
+        for link in OfferingSoftwareCatalog.objects.select_related(
+            "offering", "catalog", "partition"
+        ).order_by("offering__name", "catalog__name"):
+            link_data = {
+                "uuid": link.uuid.hex,
+                "offering_uuid": link.offering.uuid.hex,
+                "offering_name": link.offering.name,
+                "catalog_uuid": link.catalog.uuid.hex,
+                "catalog_name": link.catalog.name,
+                "enabled_cpu_family": link.enabled_cpu_family,
+                "enabled_cpu_microarchitectures": link.enabled_cpu_microarchitectures,
+                "created": link.created.isoformat() if link.created else None,
+                "modified": link.modified.isoformat() if link.modified else None,
+            }
+            if link.partition:
+                link_data["partition_uuid"] = link.partition.uuid.hex
+            links.append(link_data)
+        return links
