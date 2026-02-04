@@ -31,6 +31,8 @@ from waldur_mastermind.marketplace.models import (
     MaintenanceAnnouncementOffering,
     Offering,
     OfferingComponent,
+    OfferingPartition,
+    OfferingSoftwareCatalog,
     OfferingUser,
     Order,
     Plan,
@@ -38,6 +40,10 @@ from waldur_mastermind.marketplace.models import (
     ProjectServiceAccount,
     Resource,
     ServiceProvider,
+    SoftwareCatalog,
+    SoftwarePackage,
+    SoftwareTarget,
+    SoftwareVersion,
 )
 from waldur_mastermind.proposal.models import (
     Call,
@@ -126,6 +132,13 @@ class Command(BaseCommand):
             # Maintenance announcement stats
             "maintenance_announcement_offerings": {"deleted": 0, "errors": 0},
             "maintenance_announcements": {"deleted": 0, "errors": 0},
+            # Software catalog stats
+            "offering_software_catalogs": {"deleted": 0, "errors": 0},
+            "offering_partitions": {"deleted": 0, "errors": 0},
+            "software_targets": {"deleted": 0, "errors": 0},
+            "software_versions": {"deleted": 0, "errors": 0},
+            "software_packages": {"deleted": 0, "errors": 0},
+            "software_catalogs": {"deleted": 0, "errors": 0},
         }
         self.dry_run = False
 
@@ -280,6 +293,14 @@ class Command(BaseCommand):
             self.cleanup_maintenance_announcement_offerings()
             self.cleanup_maintenance_announcements()
 
+            # Delete software catalog links and content (reverse dependency order)
+            self.cleanup_offering_software_catalogs()
+            self.cleanup_offering_partitions()
+            self.cleanup_software_targets()
+            self.cleanup_software_versions()
+            self.cleanup_software_packages()
+            self.cleanup_software_catalogs()
+
             # Delete offerings, service providers, projects, customers, categories
             self.cleanup_offerings()
             self.cleanup_service_providers()
@@ -357,6 +378,13 @@ class Command(BaseCommand):
                 "marketplace_maintenanceannouncementoffering",
             ),
             ("maintenance_announcements", "marketplace_maintenanceannouncement"),
+            # Software catalogs
+            ("offering_software_catalogs", "marketplace_offeringsoftwarecatalog"),
+            ("offering_partitions", "marketplace_offeringpartition"),
+            ("software_targets", "marketplace_softwaretarget"),
+            ("software_versions", "marketplace_softwareversion"),
+            ("software_packages", "marketplace_softwarepackage"),
+            ("software_catalogs", "marketplace_softwarecatalog"),
             # Offerings, service providers, projects, customers, categories
             ("offerings", "marketplace_offering"),
             ("service_providers", "marketplace_serviceprovider"),
@@ -1122,6 +1150,116 @@ class Command(BaseCommand):
                 )
             )
             self.stats["maintenance_announcement_offerings"]["errors"] += 1
+
+    def cleanup_offering_software_catalogs(self):
+        """Delete all offering-to-software-catalog links."""
+        self.stdout.write("Deleting offering software catalog links...")
+        try:
+            if not self.dry_run:
+                count = OfferingSoftwareCatalog.objects.count()
+                OfferingSoftwareCatalog.objects.all().delete()
+                self.stats["offering_software_catalogs"]["deleted"] = count
+            else:
+                self.stats["offering_software_catalogs"]["deleted"] = (
+                    OfferingSoftwareCatalog.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Failed to delete offering software catalog links: {e}"
+                )
+            )
+            self.stats["offering_software_catalogs"]["errors"] += 1
+
+    def cleanup_offering_partitions(self):
+        """Delete all offering partition data."""
+        self.stdout.write("Deleting offering partitions...")
+        try:
+            if not self.dry_run:
+                count = OfferingPartition.objects.count()
+                OfferingPartition.objects.all().delete()
+                self.stats["offering_partitions"]["deleted"] = count
+            else:
+                self.stats["offering_partitions"]["deleted"] = (
+                    OfferingPartition.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete offering partitions: {e}")
+            )
+            self.stats["offering_partitions"]["errors"] += 1
+
+    def cleanup_software_targets(self):
+        """Delete all software target data."""
+        self.stdout.write("Deleting software targets...")
+        try:
+            if not self.dry_run:
+                count = SoftwareTarget.objects.count()
+                SoftwareTarget.objects.all().delete()
+                self.stats["software_targets"]["deleted"] = count
+            else:
+                self.stats["software_targets"]["deleted"] = (
+                    SoftwareTarget.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete software targets: {e}")
+            )
+            self.stats["software_targets"]["errors"] += 1
+
+    def cleanup_software_versions(self):
+        """Delete all software version data."""
+        self.stdout.write("Deleting software versions...")
+        try:
+            if not self.dry_run:
+                count = SoftwareVersion.objects.count()
+                SoftwareVersion.objects.all().delete()
+                self.stats["software_versions"]["deleted"] = count
+            else:
+                self.stats["software_versions"]["deleted"] = (
+                    SoftwareVersion.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete software versions: {e}")
+            )
+            self.stats["software_versions"]["errors"] += 1
+
+    def cleanup_software_packages(self):
+        """Delete all software package data."""
+        self.stdout.write("Deleting software packages...")
+        try:
+            if not self.dry_run:
+                count = SoftwarePackage.objects.count()
+                SoftwarePackage.objects.all().delete()
+                self.stats["software_packages"]["deleted"] = count
+            else:
+                self.stats["software_packages"]["deleted"] = (
+                    SoftwarePackage.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete software packages: {e}")
+            )
+            self.stats["software_packages"]["errors"] += 1
+
+    def cleanup_software_catalogs(self):
+        """Delete all software catalog data."""
+        self.stdout.write("Deleting software catalogs...")
+        try:
+            if not self.dry_run:
+                count = SoftwareCatalog.objects.count()
+                SoftwareCatalog.objects.all().delete()
+                self.stats["software_catalogs"]["deleted"] = count
+            else:
+                self.stats["software_catalogs"]["deleted"] = (
+                    SoftwareCatalog.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete software catalogs: {e}")
+            )
+            self.stats["software_catalogs"]["errors"] += 1
 
     def print_summary(self):
         """Print cleanup summary statistics."""

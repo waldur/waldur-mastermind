@@ -1410,3 +1410,128 @@ class ExportStructureCommandTest(TestCase):
         # Verify that credit counts appear in the summary
         self.assertIn("Customer Credits: 1", output)
         self.assertIn("Project Credits: 1", output)
+
+    def test_export_software_catalogs(self):
+        """Test that export captures software catalog definitions."""
+        catalog = marketplace_factories.SoftwareCatalogFactory(
+            name="EESSI",
+            version="2023.06",
+            catalog_type="binary_runtime",
+            source_url="https://eessi.io",
+            description="EESSI software catalog",
+            metadata={"arch_mapping": {"x86_64": "generic"}},
+            auto_update_enabled=True,
+        )
+
+        self._call_export_command()
+        data = self._load_exported_json()
+
+        self.assertIn("software_catalogs", data)
+        self.assertEqual(len(data["software_catalogs"]), 1)
+
+        exported_catalog = data["software_catalogs"][0]
+        self.assertEqual(exported_catalog["uuid"], catalog.uuid.hex)
+        self.assertEqual(exported_catalog["name"], "EESSI")
+        self.assertEqual(exported_catalog["version"], "2023.06")
+        self.assertEqual(exported_catalog["catalog_type"], "binary_runtime")
+        self.assertEqual(exported_catalog["source_url"], "https://eessi.io")
+        self.assertEqual(exported_catalog["description"], "EESSI software catalog")
+        self.assertEqual(
+            exported_catalog["metadata"], {"arch_mapping": {"x86_64": "generic"}}
+        )
+        self.assertTrue(exported_catalog["auto_update_enabled"])
+        self.assertIsNotNone(exported_catalog["created"])
+
+    def test_export_offering_partitions(self):
+        """Test that export captures offering partition data."""
+        offering = marketplace_factories.OfferingFactory(name="SLURM Offering")
+        partition = marketplace_factories.OfferingPartitionFactory(
+            offering=offering,
+            partition_name="gpu",
+            cpu_bind=1,
+            def_cpu_per_gpu=4,
+            max_cpus_per_node=64,
+        )
+
+        self._call_export_command()
+        data = self._load_exported_json()
+
+        self.assertIn("offering_partitions", data)
+        self.assertEqual(len(data["offering_partitions"]), 1)
+
+        exported_partition = data["offering_partitions"][0]
+        self.assertEqual(exported_partition["uuid"], partition.uuid.hex)
+        self.assertEqual(exported_partition["offering_uuid"], offering.uuid.hex)
+        self.assertEqual(exported_partition["offering_name"], "SLURM Offering")
+        self.assertEqual(exported_partition["partition_name"], "gpu")
+        self.assertEqual(exported_partition["cpu_bind"], 1)
+        self.assertEqual(exported_partition["def_cpu_per_gpu"], 4)
+        self.assertEqual(exported_partition["max_cpus_per_node"], 64)
+        self.assertIsNotNone(exported_partition["created"])
+
+    def test_export_offering_software_catalogs(self):
+        """Test that export captures offering-to-software-catalog links."""
+        offering = marketplace_factories.OfferingFactory(name="Test Offering")
+        catalog = marketplace_factories.SoftwareCatalogFactory(
+            name="EESSI", version="2023.06"
+        )
+        partition = marketplace_factories.OfferingPartitionFactory(
+            offering=offering, partition_name="gpu"
+        )
+        link = marketplace_factories.OfferingSoftwareCatalogFactory(
+            offering=offering,
+            catalog=catalog,
+            partition=partition,
+            enabled_cpu_family=["x86_64", "aarch64"],
+            enabled_cpu_microarchitectures=["generic", "zen3"],
+        )
+
+        self._call_export_command()
+        data = self._load_exported_json()
+
+        self.assertIn("offering_software_catalogs", data)
+        self.assertEqual(len(data["offering_software_catalogs"]), 1)
+
+        exported_link = data["offering_software_catalogs"][0]
+        self.assertEqual(exported_link["uuid"], link.uuid.hex)
+        self.assertEqual(exported_link["offering_uuid"], offering.uuid.hex)
+        self.assertEqual(exported_link["offering_name"], "Test Offering")
+        self.assertEqual(exported_link["catalog_uuid"], catalog.uuid.hex)
+        self.assertEqual(exported_link["catalog_name"], "EESSI")
+        self.assertEqual(exported_link["partition_uuid"], partition.uuid.hex)
+        self.assertEqual(exported_link["enabled_cpu_family"], ["x86_64", "aarch64"])
+        self.assertEqual(
+            exported_link["enabled_cpu_microarchitectures"], ["generic", "zen3"]
+        )
+        self.assertIsNotNone(exported_link["created"])
+
+    def test_export_offering_software_catalogs_without_partition(self):
+        """Test that export handles links without partition correctly."""
+        offering = marketplace_factories.OfferingFactory()
+        catalog = marketplace_factories.SoftwareCatalogFactory()
+        link = marketplace_factories.OfferingSoftwareCatalogFactory(
+            offering=offering,
+            catalog=catalog,
+            partition=None,
+            enabled_cpu_family=["x86_64"],
+        )
+
+        self._call_export_command()
+        data = self._load_exported_json()
+
+        self.assertIn("offering_software_catalogs", data)
+        exported_link = data["offering_software_catalogs"][0]
+        self.assertEqual(exported_link["uuid"], link.uuid.hex)
+        self.assertNotIn("partition_uuid", exported_link)
+
+    def test_export_software_catalogs_empty(self):
+        """Test that empty software catalog collections are handled correctly."""
+        self._call_export_command()
+        data = self._load_exported_json()
+
+        self.assertIn("software_catalogs", data)
+        self.assertIn("offering_partitions", data)
+        self.assertIn("offering_software_catalogs", data)
+        self.assertEqual(len(data["software_catalogs"]), 0)
+        self.assertEqual(len(data["offering_partitions"]), 0)
+        self.assertEqual(len(data["offering_software_catalogs"]), 0)
