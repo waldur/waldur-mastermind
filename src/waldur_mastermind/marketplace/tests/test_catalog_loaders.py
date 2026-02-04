@@ -673,10 +673,11 @@ class CatalogLoaderErrorHandlingTest(TestCase):
 
             loader = EESSICatalogLoader(catalog_version="2023.06")
 
-            # Simulate database error during loading
+            # Simulate database error during loading (management command path
+            # uses filter().first() + create(); patch create to fail)
             with patch.object(
                 SoftwareCatalog.objects,
-                "get_or_create",
+                "create",
                 side_effect=Exception("DB Error"),
             ):
                 with self.assertRaises(CatalogLoadError):

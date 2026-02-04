@@ -122,6 +122,10 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
 from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
+from waldur_mastermind.marketplace.catalog_loaders import (
+    detect_eessi_version,
+    detect_spack_version,
+)
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     SITE_AGENT_OFFERING,
@@ -12805,6 +12809,137 @@ class SoftwareCatalogViewSet(
     filterset_class = filters.SoftwareCatalogFilter
 
     unsafe_methods_permissions = [structure_permissions.is_staff]
+
+    @extend_schema(
+        summary="Discover available software catalog versions",
+        description=(
+            "Queries upstream sources (EESSI, Spack) for available catalog versions "
+            "without creating anything. Returns detected versions and whether "
+            "an update is available compared to existing database records."
+        ),
+        responses={200: serializers.SoftwareCatalogDiscoverSerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"])
+    def discover(self, request):
+        catalog_sources = [
+            {
+                "name": "EESSI",
+                "catalog_type": "binary_runtime",
+                "detect": detect_eessi_version,
+                "detect_args": [config.SOFTWARE_CATALOG_EESSI_API_URL],
+            },
+            {
+                "name": "Spack",
+                "catalog_type": "source_package",
+                "detect": detect_spack_version,
+                "detect_args": [config.SOFTWARE_CATALOG_SPACK_DATA_URL],
+            },
+        ]
+
+        results = []
+        for source in catalog_sources:
+            entry = {
+                "name": source["name"],
+                "catalog_type": source["catalog_type"],
+                "latest_version": None,
+                "existing": False,
+                "existing_version": None,
+                "update_available": False,
+            }
+
+            try:
+                entry["latest_version"] = source["detect"](*source["detect_args"])
+            except Exception as e:
+                logger.warning(f"Could not detect version for {source['name']}: {e}")
+                entry["latest_version"] = None
+
+            existing = (
+                models.SoftwareCatalog.objects.filter(
+                    name=source["name"],
+                    catalog_type=source["catalog_type"],
+                )
+                .order_by("-modified")
+                .first()
+            )
+            if existing:
+                entry["existing"] = True
+                entry["existing_version"] = existing.version
+                entry["update_available"] = (
+                    entry["latest_version"] is not None
+                    and entry["latest_version"] != existing.version
+                )
+
+            results.append(entry)
+
+        response_serializer = serializers.SoftwareCatalogDiscoverSerializer(
+            results, many=True
+        )
+        return Response(response_serializer.data)
+
+    discover_permissions = [structure_permissions.is_staff]
+
+    @extend_schema(
+        summary="Import a new software catalog",
+        description=(
+            "Creates a new catalog record and triggers async data loading via Celery. "
+            "Returns 202 Accepted immediately. Staff only."
+        ),
+        request=serializers.SoftwareCatalogImportSerializer,
+        responses={202: None},
+    )
+    @action(detail=False, methods=["post"])
+    def import_catalog(self, request):
+        serializer = serializers.SoftwareCatalogImportSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        name = serializer.validated_data["name"]
+        catalog_type = tasks.NAME_TO_CATALOG_TYPE[name]
+
+        if models.SoftwareCatalog.objects.filter(
+            name=name, catalog_type=catalog_type
+        ).exists():
+            raise rf_exceptions.ValidationError(
+                f"A catalog with name={name} and type={catalog_type} already exists."
+            )
+
+        tasks.import_software_catalog.delay(name, catalog_type)
+        return Response(
+            {"status": "importing", "name": name},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    import_catalog_permissions = [structure_permissions.is_staff]
+    import_catalog_serializer_class = serializers.SoftwareCatalogImportSerializer
+
+    @extend_schema(
+        summary="Trigger async update for an existing catalog",
+        description=(
+            "Triggers a Celery task to update the given catalog from its upstream source. "
+            "Returns 202 Accepted immediately. Staff only."
+        ),
+        responses={202: None},
+    )
+    @action(detail=True, methods=["post"])
+    def update_catalog(self, request, uuid=None):
+        catalog = self.get_object()
+
+        catalog_configs = tasks._get_catalog_configs()
+        matched = any(
+            c["name"] == catalog.name and c["catalog_type"] == catalog.catalog_type
+            for c in catalog_configs
+        )
+        if not matched:
+            raise rf_exceptions.ValidationError(
+                f"No loader configuration found for {catalog.name} ({catalog.catalog_type})."
+            )
+
+        tasks.update_single_software_catalog.delay(catalog.uuid.hex)
+        return Response(
+            {"status": "updating", "catalog_uuid": str(catalog.uuid)},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    update_catalog_permissions = [structure_permissions.is_staff]
 
 
 @extend_schema_view(

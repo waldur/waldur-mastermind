@@ -2,6 +2,7 @@ import collections
 import datetime
 import hashlib
 import logging
+import uuid as uuid_mod
 from datetime import timedelta
 from typing import cast
 
@@ -1637,6 +1638,13 @@ def update_software_catalogs():
                     f"Failed to update {catalog_name} catalog: {update_error}"
                 ) from update_error
 
+            if catalog is None:
+                results[catalog_name.lower()] = {
+                    "status": "skipped",
+                    "reason": "no_existing_catalog",
+                }
+                continue
+
             # Record success
             results[catalog_name.lower()] = {
                 "status": "success",
@@ -1700,35 +1708,41 @@ def _update_catalog_with_error_handling(loader, catalog_name: str, catalog_type:
     """
     Helper to update catalog with proper error handling and logging.
 
+    Only updates existing catalogs — does not create new ones.
+    If no catalog exists for the given name+type, returns None so the
+    daily task skips it instead of producing orphaned catalog records.
+
     Args:
         loader: Catalog loader instance
         catalog_name: Name of the catalog
         catalog_type: Type of the catalog
 
     Returns:
-        Updated SoftwareCatalog instance
-
-    Raises:
-        Exception: If catalog update fails
+        Updated SoftwareCatalog instance, or None if no existing catalog found
     """
-    catalog = None
-    catalog_created = False
-
-    try:
-        # Find or create catalog record for tracking
-        # Lookup by name + catalog_type only - version is updated, not used as lookup key
-        catalog, catalog_created = models.SoftwareCatalog.objects.get_or_create(
+    # Lookup by name + catalog_type only - version is updated, not used as lookup key.
+    # Use filter().first() instead of get_or_create because the unique constraint
+    # includes version, so multiple catalogs with the same name+type but different
+    # versions may exist (PUHURI-PORTALS-EF7).
+    catalog = (
+        models.SoftwareCatalog.objects.filter(
             name=catalog_name,
             catalog_type=catalog_type,
-            defaults={
-                "version": loader.catalog_version,
-                "description": f"{catalog_name} software catalog",
-                "auto_update_enabled": True,
-            },
         )
+        .order_by("-modified")
+        .first()
+    )
 
+    if catalog is None:
+        logger.warning(
+            f"No existing {catalog_name} catalog found (type={catalog_type}). "
+            "Skipping update — create the catalog via the API or management command first."
+        )
+        return None
+
+    try:
         # Update version if it changed
-        if not catalog_created and catalog.version != loader.catalog_version:
+        if catalog.version != loader.catalog_version:
             catalog.version = loader.catalog_version
             catalog.save(update_fields=["version"])
 
@@ -1738,7 +1752,9 @@ def _update_catalog_with_error_handling(loader, catalog_name: str, catalog_type:
 
         # Perform the actual update
         update_existing = config.SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES
-        stats = loader.load_catalog(update_existing=update_existing, dry_run=False)
+        stats = loader.load_catalog(
+            update_existing=update_existing, dry_run=False, catalog=catalog
+        )
 
         # Update success timestamp and clear errors
         catalog.last_successful_update = timezone.now()
@@ -1749,18 +1765,9 @@ def _update_catalog_with_error_handling(loader, catalog_name: str, catalog_type:
         return catalog
 
     except Exception as e:
-        # Handle catalog cleanup on failure
         error_msg = f"Catalog update failed: {e}"
-        if catalog:
-            if catalog_created:
-                # If we created the catalog object and update failed, remove it
-                catalog.delete()
-                logger.debug(f"Removed failed catalog object for {catalog_name}")
-            else:
-                # If catalog existed before, just log the error
-                catalog.update_errors = error_msg
-                catalog.save(update_fields=["update_errors"])
-
+        catalog.update_errors = error_msg
+        catalog.save(update_fields=["update_errors"])
         raise e
 
 
@@ -1792,6 +1799,131 @@ def _validate_catalog_config(catalog_config):
         errors.append("Catalog name is required")
 
     return errors
+
+
+def _get_catalog_configs():
+    """Return the list of known catalog configurations."""
+    return [
+        {
+            "name": "EESSI",
+            "enabled_setting": "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED",
+            "loader_class": EESSICatalogLoader,
+            "loader_kwargs": {
+                "catalog_name": "EESSI",
+                "catalog_version": config.SOFTWARE_CATALOG_EESSI_VERSION or "auto",
+                "api_base_url": config.SOFTWARE_CATALOG_EESSI_API_URL,
+                "include_extensions": config.SOFTWARE_CATALOG_EESSI_INCLUDE_EXTENSIONS,
+            },
+            "catalog_type": "binary_runtime",
+        },
+        {
+            "name": "Spack",
+            "enabled_setting": "SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED",
+            "loader_class": SpackCatalogLoader,
+            "loader_kwargs": {
+                "catalog_name": "Spack",
+                "catalog_version": config.SOFTWARE_CATALOG_SPACK_VERSION or "auto",
+                "data_url": config.SOFTWARE_CATALOG_SPACK_DATA_URL,
+            },
+            "catalog_type": "source_package",
+        },
+    ]
+
+
+NAME_TO_CATALOG_TYPE = {
+    "EESSI": "binary_runtime",
+    "Spack": "source_package",
+}
+
+
+@shared_task(name="marketplace.import_software_catalog")
+def import_software_catalog(name, catalog_type):
+    """Import a new software catalog by creating the record and loading data.
+
+    Args:
+        name: Catalog name (e.g. "EESSI", "Spack")
+        catalog_type: Catalog type (e.g. "binary_runtime", "source_package")
+    """
+    logger.info(f"Importing software catalog: {name} ({catalog_type})")
+
+    catalog_configs = _get_catalog_configs()
+    catalog_config = next(
+        (
+            c
+            for c in catalog_configs
+            if c["name"] == name and c["catalog_type"] == catalog_type
+        ),
+        None,
+    )
+    if catalog_config is None:
+        raise ValueError(f"No loader configuration found for {name} ({catalog_type})")
+
+    loader_class = catalog_config["loader_class"]
+    loader_kwargs = catalog_config["loader_kwargs"]
+    loader = loader_class(**loader_kwargs)
+
+    catalog = models.SoftwareCatalog.objects.create(
+        name=name,
+        catalog_type=catalog_type,
+        version=loader.catalog_version,
+    )
+    catalog.last_update_attempt = timezone.now()
+    catalog.save(update_fields=["last_update_attempt"])
+
+    try:
+        update_existing = config.SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES
+        loader.load_catalog(
+            update_existing=update_existing, dry_run=False, catalog=catalog
+        )
+
+        catalog.last_successful_update = timezone.now()
+        catalog.update_errors = ""
+        catalog.save(update_fields=["last_successful_update", "update_errors"])
+        logger.info(f"Successfully imported {name} catalog (uuid={catalog.uuid})")
+    except Exception as e:
+        error_msg = f"Catalog import failed: {e}"
+        catalog.update_errors = error_msg
+        catalog.save(update_fields=["update_errors"])
+        logger.error(error_msg, exc_info=True)
+        raise
+
+
+@shared_task(name="marketplace.update_single_software_catalog")
+def update_single_software_catalog(catalog_uuid_hex):
+    """Trigger an async update for a single existing software catalog.
+
+    Args:
+        catalog_uuid_hex: Hex string of the catalog UUID
+    """
+    catalog = models.SoftwareCatalog.objects.get(uuid=uuid_mod.UUID(catalog_uuid_hex))
+    logger.info(
+        f"Updating single software catalog: {catalog.name} ({catalog.catalog_type})"
+    )
+
+    catalog_configs = _get_catalog_configs()
+    catalog_config = next(
+        (
+            c
+            for c in catalog_configs
+            if c["name"] == catalog.name and c["catalog_type"] == catalog.catalog_type
+        ),
+        None,
+    )
+    if catalog_config is None:
+        raise ValueError(
+            f"No loader configuration found for {catalog.name} ({catalog.catalog_type})"
+        )
+
+    loader_class = catalog_config["loader_class"]
+    loader_kwargs = catalog_config["loader_kwargs"]
+    loader = loader_class(**loader_kwargs)
+
+    _update_catalog_with_error_handling(
+        loader=loader,
+        catalog_name=catalog.name,
+        catalog_type=catalog.catalog_type,
+    )
+    logger.info(f"Successfully updated catalog {catalog.name} (uuid={catalog.uuid})")
 
 
 @shared_task(name="marketplace.cleanup_old_software_catalogs")

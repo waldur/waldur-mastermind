@@ -100,12 +100,14 @@ DJANGO_SETTINGS_MODULE=waldur_core.server.settings uv run waldur load_spack_cata
 
 ### What Gets Created
 
-Both loaders create:
+Both management commands create:
 
 - **SoftwareCatalog** entry with detected version and metadata
 - **SoftwarePackage** entries for each software package
 - **SoftwareVersion** entries for each package version
 - **SoftwareTarget** entries for architecture/platform combinations or build variants
+
+> **Management commands vs daily task:** Management commands (`load_eessi_catalog`, `load_spack_catalog`) will create new catalog records if none exist. The daily automated task (`update_software_catalogs`) only updates existing catalog records — it never creates new ones. This prevents orphaned catalogs from being auto-created when no offering references them.
 
 ## Automated Catalog Updates
 
@@ -117,14 +119,14 @@ Configure automated updates through constance settings:
 
 #### EESSI Settings
 
-- `SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED`: Enable automated EESSI updates (default: true)
+- `SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED`: Enable automated EESSI updates (default: **false**)
 - `SOFTWARE_CATALOG_EESSI_VERSION`: EESSI version to load (auto-detect if empty)
 - `SOFTWARE_CATALOG_EESSI_API_URL`: Base URL for EESSI API data
 - `SOFTWARE_CATALOG_EESSI_INCLUDE_EXTENSIONS`: Include Python/R extensions (default: true)
 
 #### Spack Settings
 
-- `SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED`: Enable automated Spack updates (default: true)
+- `SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED`: Enable automated Spack updates (default: **false**)
 - `SOFTWARE_CATALOG_SPACK_VERSION`: Spack version to load (auto-detect if empty)
 - `SOFTWARE_CATALOG_SPACK_DATA_URL`: URL for Spack repology.json data
 
@@ -138,10 +140,13 @@ Configure automated updates through constance settings:
 
 The `update_software_catalogs` task runs daily at 3 AM and:
 
-1. **Independent Processing**: Each catalog is updated independently - failures don't affect other catalogs
-2. **Configuration Validation**: Validates settings before attempting updates
-3. **Error Isolation**: Individual catalog failures are logged but don't prevent other updates
-4. **Comprehensive Logging**: Detailed logging for monitoring and troubleshooting
+1. **Updates only existing catalogs**: The task never creates new catalog records. If no catalog exists in the database for a given name/type, the task skips it with a warning. Create catalogs first via the API, management commands, or the `discover` endpoint to see what's available.
+2. **Independent Processing**: Each catalog is updated independently - failures don't affect other catalogs
+3. **Configuration Validation**: Validates settings before attempting updates
+4. **Error Isolation**: Individual catalog failures are logged but don't prevent other updates
+5. **Comprehensive Logging**: Detailed logging for monitoring and troubleshooting
+
+> **Note:** Both `SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED` and `SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED` default to `false`. Enable them explicitly after creating the initial catalog records.
 
 ### Manual Trigger
 
@@ -235,6 +240,49 @@ The software catalog system provides the following API endpoints:
 - **marketplace-software-packages**: Browse software packages within catalogs
 - **marketplace-software-versions**: View software versions for packages
 - **marketplace-software-targets**: View architecture-specific installations
+
+### Discover Available Catalog Versions
+
+Staff users can check what catalog versions are available upstream without creating anything:
+
+```bash
+curl "https://your-waldur.example.com/api/marketplace-software-catalogs/discover/" \
+  -H "Authorization: Token your-token"
+```
+
+Example response:
+
+```json
+[
+  {
+    "name": "EESSI",
+    "catalog_type": "binary_runtime",
+    "latest_version": "2025.06",
+    "existing": true,
+    "existing_version": "2024.01",
+    "update_available": true
+  },
+  {
+    "name": "Spack",
+    "catalog_type": "source_package",
+    "latest_version": "2026.01.15",
+    "existing": false,
+    "existing_version": null,
+    "update_available": false
+  }
+]
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Catalog name (EESSI or Spack) |
+| `catalog_type` | string | Catalog type identifier |
+| `latest_version` | string or null | Detected upstream version, null if detection failed |
+| `existing` | boolean | Whether a catalog record exists in the database |
+| `existing_version` | string or null | Version of the existing catalog record |
+| `update_available` | boolean | True when upstream version differs from existing |
+
+This endpoint makes lightweight HTTP calls to the upstream sources (EESSI API, Spack repology) to detect the latest version. It does not download package data or modify the database. Requires staff permissions.
 
 ### Software Catalog Management Actions
 
@@ -519,6 +567,7 @@ Both loaders handle:
 - **SoftwarePackage**: Only staff can manage package information
 - **SoftwareVersion**: Only staff can manage version data
 - **SoftwareTarget**: Only staff can manage target information
+- **Discover endpoint**: Only staff can query upstream sources for available versions
 
 ### Offering Integration (Offering Managers)
 

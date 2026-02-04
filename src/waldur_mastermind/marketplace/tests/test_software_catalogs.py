@@ -1,8 +1,10 @@
+from unittest.mock import patch
+
 from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import models, tasks
 
 from . import factories
 
@@ -881,3 +883,191 @@ class SoftwarePackageExtensionFilterTest(test.APITransactionTestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 0)
+
+
+@ddt
+class SoftwareCatalogDiscoverTest(test.APITransactionTestCase):
+    """Tests for the discover endpoint on SoftwareCatalogViewSet."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.url = factories.SoftwareCatalogFactory.get_list_url() + "discover/"
+
+    @patch(
+        "waldur_mastermind.marketplace.views.detect_eessi_version",
+        return_value="2025.06",
+    )
+    @patch(
+        "waldur_mastermind.marketplace.views.detect_spack_version",
+        return_value="2026.01.15",
+    )
+    def test_staff_can_discover_versions(self, mock_spack, mock_eessi):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        eessi = next(e for e in response.data if e["name"] == "EESSI")
+        spack = next(e for e in response.data if e["name"] == "Spack")
+
+        self.assertEqual(eessi["latest_version"], "2025.06")
+        self.assertFalse(eessi["existing"])
+        self.assertIsNone(eessi["existing_version"])
+        self.assertFalse(eessi["update_available"])
+
+        self.assertEqual(spack["latest_version"], "2026.01.15")
+        self.assertFalse(spack["existing"])
+
+    @patch(
+        "waldur_mastermind.marketplace.views.detect_eessi_version",
+        return_value="2025.06",
+    )
+    @patch(
+        "waldur_mastermind.marketplace.views.detect_spack_version",
+        return_value="2026.01.15",
+    )
+    def test_discover_shows_existing_catalog_info(self, mock_spack, mock_eessi):
+        # Create an existing EESSI catalog with an older version
+        factories.SoftwareCatalogFactory(
+            name="EESSI", version="2024.01", catalog_type="binary_runtime"
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        eessi = next(e for e in response.data if e["name"] == "EESSI")
+        self.assertTrue(eessi["existing"])
+        self.assertEqual(eessi["existing_version"], "2024.01")
+        self.assertTrue(eessi["update_available"])
+
+    @data("owner", "user", "customer_support", "admin", "manager")
+    def test_non_staff_cannot_discover(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_anonymous_cannot_discover(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @patch(
+        "waldur_mastermind.marketplace.views.detect_eessi_version",
+        side_effect=Exception("Network error"),
+    )
+    @patch(
+        "waldur_mastermind.marketplace.views.detect_spack_version",
+        return_value="2026.01.15",
+    )
+    def test_discover_handles_detection_failure_gracefully(
+        self, mock_spack, mock_eessi
+    ):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 2)
+
+        eessi = next(e for e in response.data if e["name"] == "EESSI")
+        self.assertIsNone(eessi["latest_version"])
+        self.assertFalse(eessi["update_available"])
+
+        spack = next(e for e in response.data if e["name"] == "Spack")
+        self.assertEqual(spack["latest_version"], "2026.01.15")
+
+
+@ddt
+class SoftwareCatalogImportTest(test.APITransactionTestCase):
+    """Tests for the import_catalog action on SoftwareCatalogViewSet."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.url = factories.SoftwareCatalogFactory.get_list_url() + "import_catalog/"
+
+    @patch.object(tasks.import_software_catalog, "delay")
+    def test_staff_can_import_catalog(self, mock_delay):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, {"name": "EESSI"})
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(response.data["status"], "importing")
+        self.assertEqual(response.data["name"], "EESSI")
+        mock_delay.assert_called_once_with("EESSI", "binary_runtime")
+
+    @patch.object(tasks.import_software_catalog, "delay")
+    def test_import_duplicate_catalog_fails(self, mock_delay):
+        factories.SoftwareCatalogFactory(name="EESSI", catalog_type="binary_runtime")
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, {"name": "EESSI"})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        mock_delay.assert_not_called()
+
+    def test_import_unknown_catalog_fails(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, {"name": "Unknown"})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data("owner", "user", "customer_support", "admin", "manager")
+    def test_non_staff_cannot_import(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.url, {"name": "EESSI"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_anonymous_cannot_import(self):
+        response = self.client.post(self.url, {"name": "EESSI"})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@ddt
+class SoftwareCatalogUpdateTest(test.APITransactionTestCase):
+    """Tests for the update_catalog action on SoftwareCatalogViewSet."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog = factories.SoftwareCatalogFactory(
+            name="EESSI", version="2023.06", catalog_type="binary_runtime"
+        )
+        self.url = (
+            factories.SoftwareCatalogFactory.get_url(self.catalog) + "update_catalog/"
+        )
+
+    @patch.object(tasks.update_single_software_catalog, "delay")
+    def test_staff_can_update_catalog(self, mock_delay):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(response.data["status"], "updating")
+        self.assertEqual(response.data["catalog_uuid"], str(self.catalog.uuid))
+        mock_delay.assert_called_once_with(self.catalog.uuid.hex)
+
+    @patch.object(tasks.update_single_software_catalog, "delay")
+    def test_update_unknown_loader_fails(self, mock_delay):
+        catalog = factories.SoftwareCatalogFactory(
+            name="CustomCatalog", version="1.0", catalog_type="binary_runtime"
+        )
+        url = factories.SoftwareCatalogFactory.get_url(catalog) + "update_catalog/"
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        mock_delay.assert_not_called()
+
+    @data("owner", "user", "customer_support", "admin", "manager")
+    def test_non_staff_cannot_update(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_anonymous_cannot_update(self):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)

@@ -162,7 +162,10 @@ class BaseCatalogLoader(ABC):
         pass
 
     def load_catalog(
-        self, update_existing: bool = True, dry_run: bool = False
+        self,
+        update_existing: bool = True,
+        dry_run: bool = False,
+        catalog: "SoftwareCatalog | None" = None,
     ) -> dict[str, int]:
         """
         Load catalog data into database.
@@ -170,6 +173,9 @@ class BaseCatalogLoader(ABC):
         Args:
             update_existing: Whether to update existing packages
             dry_run: If True, don't save changes to database
+            catalog: Optional pre-fetched SoftwareCatalog instance.
+                     When provided (task path), used directly — no DB lookup.
+                     When None (management command path), looked up or created.
 
         Returns:
             Dict with statistics (packages_created, versions_created, etc.)
@@ -183,7 +189,9 @@ class BaseCatalogLoader(ABC):
             self._log_memory_usage("after data fetch")
 
             # Load into database
-            stats = self._load_to_database(catalog_data, update_existing, dry_run)
+            stats = self._load_to_database(
+                catalog_data, update_existing, dry_run, catalog=catalog
+            )
             self._log_memory_usage("after database load")
 
             if not dry_run:
@@ -198,9 +206,22 @@ class BaseCatalogLoader(ABC):
             raise CatalogLoadError(f"Catalog loading failed: {e}") from e
 
     def _load_to_database(
-        self, catalog_data: CatalogData, update_existing: bool, dry_run: bool
+        self,
+        catalog_data: CatalogData,
+        update_existing: bool,
+        dry_run: bool,
+        catalog: "SoftwareCatalog | None" = None,
     ) -> dict[str, int]:
-        """Load catalog data to database models."""
+        """Load catalog data to database models.
+
+        Args:
+            catalog_data: Parsed catalog data structure.
+            update_existing: Whether to update existing packages.
+            dry_run: If True, don't save changes to database.
+            catalog: Optional pre-fetched SoftwareCatalog instance.
+                     When provided (task path), used directly.
+                     When None (management command path), looked up or created.
+        """
         stats = {
             "packages_created": 0,
             "packages_updated": 0,
@@ -225,22 +246,8 @@ class BaseCatalogLoader(ABC):
             return stats
 
         with transaction.atomic():
-            # Create or update catalog - lookup by name + catalog_type only
-            # Version is updated, not used as lookup key
-            catalog, created = SoftwareCatalog.objects.get_or_create(
-                name=catalog_data.name,
-                catalog_type=catalog_data.catalog_type,
-                defaults={
-                    "version": catalog_data.version,
-                    "source_url": catalog_data.source_url,
-                    "description": catalog_data.description,
-                    "metadata": catalog_data.metadata,
-                    "last_successful_update": timezone.now(),
-                },
-            )
-
-            if not created:
-                # Always update version and timestamps
+            if catalog is not None:
+                # Task path: catalog already resolved, update metadata fields
                 catalog.version = catalog_data.version
                 catalog.last_successful_update = timezone.now()
                 if update_existing:
@@ -248,6 +255,38 @@ class BaseCatalogLoader(ABC):
                     catalog.description = catalog_data.description
                     catalog.metadata = catalog_data.metadata
                 catalog.save()
+            else:
+                # Management command path: look up or create.
+                # Use filter().first() + create() instead of get_or_create to
+                # avoid MultipleObjectsReturned when multiple versions exist
+                # for the same name+catalog_type (PUHURI-PORTALS-EF7).
+                catalog = (
+                    SoftwareCatalog.objects.filter(
+                        name=catalog_data.name,
+                        catalog_type=catalog_data.catalog_type,
+                    )
+                    .order_by("-modified")
+                    .first()
+                )
+
+                if catalog is None:
+                    catalog = SoftwareCatalog.objects.create(
+                        name=catalog_data.name,
+                        catalog_type=catalog_data.catalog_type,
+                        version=catalog_data.version,
+                        source_url=catalog_data.source_url,
+                        description=catalog_data.description,
+                        metadata=catalog_data.metadata,
+                        last_successful_update=timezone.now(),
+                    )
+                else:
+                    catalog.version = catalog_data.version
+                    catalog.last_successful_update = timezone.now()
+                    if update_existing:
+                        catalog.source_url = catalog_data.source_url
+                        catalog.description = catalog_data.description
+                        catalog.metadata = catalog_data.metadata
+                    catalog.save()
 
             # Process packages
             stats.update(
