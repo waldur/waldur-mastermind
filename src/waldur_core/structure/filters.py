@@ -24,6 +24,7 @@ from waldur_core.core.utils import get_ordering, is_uuid_like, order_with_nulls
 from waldur_core.permissions.enums import (
     SYSTEM_CUSTOMER_ROLES,
     SYSTEM_PROJECT_ROLES,
+    PermissionEnum,
     RoleEnum,
 )
 from waldur_core.permissions.models import UserRole
@@ -200,6 +201,11 @@ class CustomerFilter(NameFilterSet):
         method="filter_owned_by_current_user",
         label="Return a list of customers where current user is owner.",
     )
+    current_user_has_project_create_permission = django_filters.BooleanFilter(
+        widget=BooleanWidget,
+        method="filter_current_user_has_project_create_permission",
+        label="Return a list of customers where current user has project create permission.",
+    )
 
     class Meta:
         model = models.Customer
@@ -231,6 +237,31 @@ class CustomerFilter(NameFilterSet):
         if value:
             ids = get_connected_customers(self.request.user, RoleEnum.CUSTOMER_OWNER)
             return queryset.filter(id__in=ids)
+        return queryset
+
+    def filter_current_user_has_project_create_permission(self, queryset, name, value):
+        user = self.request.user
+
+        if user.is_staff:
+            return queryset
+
+        customer_ids_with_permission = (
+            UserRole.objects.filter(
+                user=user,
+                is_active=True,
+            )
+            .filter(
+                role__permissions__permission=PermissionEnum.CREATE_PROJECT,
+                content_type=ContentType.objects.get_for_model(models.Customer),
+                object_id__in=queryset.values_list("id", flat=True),
+            )
+            .values_list("object_id", flat=True)
+            .distinct()
+        )
+
+        if value:
+            return queryset.filter(id__in=customer_ids_with_permission)
+
         return queryset
 
 

@@ -134,6 +134,47 @@ class CustomerListTest(CustomerBaseTest):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["projects_count"], 0)
 
+    def test_filter_customers_by_current_user_has_project_create_permission(self):
+        """Test that filter returns only customers where user has CREATE_PROJECT permission."""
+        # Setup: Create customers and grant permission
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT)
+
+        customer_with_permission = factories.CustomerFactory()
+        factories.CustomerFactory()
+        factories.CustomerFactory()
+
+        user = factories.UserFactory()
+        customer_with_permission.add_user(user, CustomerRole.OWNER)
+
+        # Authenticate as user and filter
+        self.client.force_authenticate(user)
+        url = factories.CustomerFactory.get_list_url()
+
+        response = self.client.get(
+            url, {"current_user_has_project_create_permission": "true"}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], customer_with_permission.uuid.hex)
+
+    def test_filter_customers_staff_sees_all_regardless_of_permission(self):
+        """Test that staff users see all customers regardless of filter value."""
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT)
+
+        factories.CustomerFactory()
+        factories.CustomerFactory()
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.CustomerFactory.get_list_url()
+
+        # With filter=true, staff should see all
+        response = self.client.get(
+            url, {"current_user_has_project_create_permission": "true"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(len(response.data), 2)
+
     # Helper methods
     def _check_user_list_access_customers(self, customer, test_function):
         response = self.client.get(reverse("customer-list"))
