@@ -917,6 +917,7 @@ class OfferingUserAttributeConfig(TimeStampedModel, core_models.UuidMixin):
     expose_username = models.BooleanField(default=True)
     expose_full_name = models.BooleanField(default=True)
     expose_email = models.BooleanField(default=True)
+    expose_registration_method = models.BooleanField(default=True)
 
     # Extended profile attributes
     expose_phone_number = models.BooleanField(default=False)
