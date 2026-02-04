@@ -32,6 +32,15 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.process_billing_on_resource_save",
         )
 
+        from waldur_core.core.handlers import create_initial_revision
+
+        for model in (models.Resource, models.Offering, models.Plan):
+            signals.post_save.connect(
+                create_initial_revision,
+                sender=model,
+                dispatch_uid=f"waldur_mastermind.marketplace.create_initial_revision_{model.__name__}",
+            )
+
         signals.post_save.connect(
             BillingUsageProcessor.update_invoice_when_usage_is_reported,
             sender=models.ComponentUsage,

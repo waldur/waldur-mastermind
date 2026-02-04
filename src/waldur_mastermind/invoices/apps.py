@@ -89,3 +89,11 @@ class InvoiceConfig(AppConfig):
             sender=structure_models.Project,
             dispatch_uid="waldur_mastermind.invoices.refund_project_credit_on_project_removal",
         )
+
+        from waldur_core.core.handlers import create_initial_revision
+
+        signals.post_save.connect(
+            create_initial_revision,
+            sender=models.Invoice,
+            dispatch_uid="waldur_mastermind.invoices.create_initial_revision_Invoice",
+        )

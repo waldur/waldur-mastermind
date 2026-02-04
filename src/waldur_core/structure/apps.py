@@ -57,6 +57,14 @@ class StructureConfig(AppConfig):
             dispatch_uid="waldur_core.structure.handlers.log_customer_delete",
         )
 
+        from waldur_core.core.handlers import create_initial_revision
+
+        signals.post_save.connect(
+            create_initial_revision,
+            sender=Customer,
+            dispatch_uid="waldur_core.structure.create_initial_revision_Customer",
+        )
+
         signals.post_save.connect(
             handlers.log_project_save,
             sender=Project,
