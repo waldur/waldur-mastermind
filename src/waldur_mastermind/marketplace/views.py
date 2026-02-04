@@ -5435,7 +5435,19 @@ class OfferingTypeValidator:
     ),
 )
 class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
-    queryset = models.Order.objects.all()
+    queryset = models.Order.objects.select_related(
+        "resource",
+        "project",
+        "project__customer",
+        "offering",
+        "offering__customer",
+        "offering__category",
+        "plan",
+        "old_plan",
+        "created_by",
+        "consumer_reviewed_by",
+        "provider_reviewed_by",
+    ).all()
     filter_backends = (DjangoFilterBackend,)
     serializer_class = serializers.OrderDetailsSerializer
     create_serializer_class = serializers.OrderCreateSerializer
