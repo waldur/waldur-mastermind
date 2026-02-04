@@ -487,6 +487,13 @@ class CustomerComponentUsagePolicySerializer(PolicySerializer):
 
 
 class SlurmPeriodicUsagePolicySerializer(OfferingUsagePolicySerializer):
+    warnings = serializers.ListField(
+        child=serializers.CharField(),
+        read_only=True,
+        required=False,
+        help_text="Warnings about misconfiguration, e.g. missing site agent queue registration.",
+    )
+
     class Meta(OfferingUsagePolicySerializer.Meta):
         model = models.SlurmPeriodicUsagePolicy
         view_name = "marketplace-slurm-periodic-usage-policy-detail"
@@ -499,8 +506,24 @@ class SlurmPeriodicUsagePolicySerializer(OfferingUsagePolicySerializer):
             "carryover_enabled",
             "raw_usage_reset",
             "qos_strategy",
+            "warnings",
         )
         extra_kwargs = OfferingUsagePolicySerializer.Meta.extra_kwargs
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        from waldur_core.logging.models import EventSubscriptionQueue
+
+        queue_exists = EventSubscriptionQueue.objects.filter(
+            offering_uuid=instance.scope.uuid,
+            object_type="resource_periodic_limits",
+        ).exists()
+        if not queue_exists:
+            data["warnings"] = [
+                "No site agent has registered a queue for periodic limits updates on this offering. "
+                "Ensure the site agent has periodic_limits.enabled set to true and is running."
+            ]
+        return data
 
 
 class SlurmPolicyPreviewRequestSerializer(serializers.Serializer):

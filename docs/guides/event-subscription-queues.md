@@ -239,6 +239,8 @@ POST /api/event-subscriptions/{uuid}/create_queue/
 - `service_account`
 - `course_account`
 - `importable_resources`
+- `resource_periodic_limits`
+- `offering_user`
 
 ## Monitoring
 
@@ -315,6 +317,18 @@ rmq.list_all_subscription_queues()
    cleanup_orphan_subscription_queues()
    ```
 2. Or delete via RabbitMQ Management API
+
+### Periodic Limits Messages Not Delivered
+
+**Symptom:** SlurmPeriodicUsagePolicy fires but site agent QoS doesn't change
+
+**Check:**
+
+1. Site agent config has `periodic_limits.enabled: true` for the offering
+2. `EventSubscriptionQueue` record exists with `object_type=resource_periodic_limits`
+3. Waldur logs for "No STOMP messages prepared for resource"
+
+**Fix:** Enable `periodic_limits` in site agent config and restart the agent.
 
 ### precondition_failed Errors
 

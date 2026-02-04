@@ -1077,7 +1077,7 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
                 "policy_uuid": str(self.uuid),
                 "action": "apply_periodic_settings",
                 "settings": settings,
-                "timestamp": datetime.datetime.now().isoformat(),  # Use ISO timestamp
+                "timestamp": datetime.datetime.now().isoformat(),
             }
 
             # Prepare messages using marketplace utils
@@ -1125,7 +1125,11 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
                 return True
             else:
                 logger.warning(
-                    f"No messages prepared for resource {resource.backend_id}"
+                    "No STOMP messages prepared for resource %s (offering %s). "
+                    "Ensure the site agent has periodic_limits.enabled=true "
+                    "and has registered a queue for object_type=resource_periodic_limits.",
+                    resource.backend_id,
+                    resource.offering.uuid,
                 )
                 return False
 
