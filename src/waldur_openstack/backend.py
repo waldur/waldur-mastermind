@@ -4715,6 +4715,7 @@ class OpenStackBackend(ServiceBackend):
         backend_image_id=None,
         backend_image_name=None,
     ):
+        launch_time = None
         # parse launch time
         try:
             d = dateparse.parse_datetime(
