@@ -75,6 +75,7 @@ from waldur_mastermind.marketplace.enums import (
     OrderStates,
     OrderStatesType,
     OrderTypes,
+    ResourceAction,
     ResourceStates,
     ResourceStatesType,
     RobotAccountStates,
@@ -398,6 +399,21 @@ class OfferingResourceDisplayOptionsSerializer(serializers.Serializer):
         allow_blank=True,
         help_text="Label used by UI for showing value of the backend_id",
     )
+    disabled_resource_actions = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text="List of disabled marketplace resource actions for this offering.",
+    )
+
+    def validate_disabled_resource_actions(self, value):
+        valid_actions = [choice[0] for choice in ResourceAction.CHOICES]
+        for action in value:
+            if action not in valid_actions:
+                raise rf_exceptions.ValidationError(
+                    _("Invalid action: %s. Valid actions are: %s")
+                    % (action, ", ".join(valid_actions))
+                )
+        return value
 
 
 class ScriptPluginOptionsSerializer(serializers.Serializer):
@@ -3095,9 +3111,7 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         attributes = attrs.get("attributes")
         if attributes is not None and not isinstance(attributes, dict):
             raise rf_exceptions.ValidationError(
-                {
-                    "attributes": _("Dictionary is expected."),
-                }
+                {"attributes": _("Dictionary is expected.")}
             )
 
         if attributes is None and self.instance:

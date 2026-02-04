@@ -334,3 +334,29 @@ REMOTE_OFFERING = "Waldur.RemoteOffering"
 SCRIPT_OFFERING = "Marketplace.Script"
 SLURM_OFFERING = "SlurmInvoices.SlurmPackage"
 SITE_AGENT_OFFERING = "Marketplace.Slurm"
+
+
+class ResourceAction:
+    TERMINATE = "terminate"
+    SWITCH_PLAN = "switch_plan"
+    UPDATE_LIMITS = "update_limits"
+    EDIT_TERMINATION_DATE = "edit_termination_date"
+    UPDATE_BACKEND_ID = "update_backend_id"
+    UNLINK = "unlink"
+    MOVE_RESOURCE = "move_resource"
+    SET_SLUG = "set_slug"
+    SHOW_USAGE = "show_usage"
+    SET_AS_ERRED = "set_as_erred"
+
+    CHOICES = (
+        (TERMINATE, _("Terminate")),
+        (SWITCH_PLAN, _("Switch plan")),
+        (UPDATE_LIMITS, _("Update limits")),
+        (EDIT_TERMINATION_DATE, _("Edit termination date")),
+        (UPDATE_BACKEND_ID, _("Update backend ID")),
+        (UNLINK, _("Unlink")),
+        (MOVE_RESOURCE, _("Move resource")),
+        (SET_SLUG, _("Set slug")),
+        (SHOW_USAGE, _("Show usage")),
+        (SET_AS_ERRED, _("Set as erred")),
+    )

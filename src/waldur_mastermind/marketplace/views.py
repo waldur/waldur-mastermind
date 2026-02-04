@@ -7006,8 +7006,12 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
         ),
     ]
 
-    switch_plan_validators = update_limits_validators = [
-        core_validators.StateValidator(ResourceStates.OK),
+    switch_plan_validators = [
+        core_validators.StateValidator(models.Resource.States.OK),
+    ]
+
+    update_limits_validators = [
+        core_validators.StateValidator(models.Resource.States.OK),
     ]
 
     @extend_schema(
