@@ -168,10 +168,12 @@ def evaluate_resource_against_policy(resource_uuid: str, policy_uuid: str):
             "downscaled": bool(resource.downscaled),
         }
 
-        # Create persistent evaluation log
+        # Send STOMP message to site agent when resource state changed
+        # so that SLURM QoS is updated (e.g. normal -> slowdown -> blocked)
         stomp_sent = False
-        if actions_needed and any(a in ("pause", "downscale") for a in actions_needed):
-            stomp_sent = True
+        state_changed = previous_state != new_state
+        if state_changed:
+            stomp_sent = policy.apply_policy_actions(resource)
 
         models.SlurmPolicyEvaluationLog.objects.create(
             policy=policy,

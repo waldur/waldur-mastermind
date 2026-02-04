@@ -7,8 +7,10 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.utils import timezone
 
+from waldur_core.logging.tests.factories import EventSubscriptionQueueFactory
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.policy import models, tasks
+from waldur_mastermind.policy.serializers import SlurmPeriodicUsagePolicySerializer
 from waldur_mastermind.policy.tests import factories
 
 
@@ -888,3 +890,437 @@ class TestSlurmPolicyIntegration(TestCase):
         self.resource.refresh_from_db()
         self.assertFalse(self.resource.downscaled)  # Recovered
         self.assertFalse(self.resource.paused)  # Recovered
+
+
+class TestSlurmPolicyEvaluationSendsSTOMP(TestCase):
+    """Test that policy evaluation sends STOMP messages to site agent for QoS changes.
+
+    This verifies that when evaluate_resource_against_policy sets resource.downscaled
+    or resource.paused, it also sends a STOMP message to the site agent so that the
+    actual SLURM QoS is changed (e.g. from 'normal' to 'slowdown' or 'blocked').
+
+    Without the STOMP message, the resource flags are set in the Waldur DB but
+    no sacctmgr command is ever executed on SLURM, leaving QoS as 'normal'.
+    """
+
+    def _create_plan_period(self, resource):
+        return marketplace_models.ResourcePlanPeriod.objects.create(
+            resource=resource,
+            plan=resource.plan,
+            start=timezone.now().replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            ),
+        )
+
+    def _create_component_usage(
+        self, resource, component, usage_amount, plan_period=None
+    ):
+        if plan_period is None:
+            plan_period = self._create_plan_period(resource)
+        return marketplace_models.ComponentUsage.objects.create(
+            resource=resource,
+            component=component,
+            usage=Decimal(str(usage_amount)),
+            date=timezone.now(),
+            billing_period=timezone.now().replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            ),
+            plan_period=plan_period,
+        )
+
+    def setUp(self):
+        self.offering = factories.OfferingFactory(
+            type="Marketplace.Slurm",
+            plugin_options={"supports_downscaling": True, "supports_pausing": True},
+        )
+        self.customer = factories.CustomerFactory()
+        self.project = factories.ProjectFactory(customer=self.customer)
+        self.component = factories.OfferingComponentFactory(
+            offering=self.offering, type="node-hours", name="Node hours"
+        )
+        self.resource = factories.ResourceFactory(
+            offering=self.offering,
+            project=self.project,
+            name="test-resource",
+            backend_id="slurm-test-account",
+            limits={"node-hours": 1000},
+        )
+        self.policy = models.SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.offering,
+            actions="request_slurm_resource_downscaling,request_slurm_resource_pausing",
+            apply_to_all=True,
+            grace_ratio=0.2,
+            carryover_enabled=False,
+            period=3,
+        )
+        models.OfferingComponentLimit.objects.create(
+            policy=self.policy,
+            component=self.component,
+            limit=1000,
+        )
+        marketplace_models.PlanComponent.objects.create(
+            plan=self.resource.plan,
+            component=self.component,
+            amount=1000,
+            price=1,
+        )
+
+    @patch(
+        "waldur_mastermind.policy.models.SlurmPeriodicUsagePolicy.apply_policy_actions"
+    )
+    def test_downscaling_triggers_stomp_message_to_site_agent(
+        self, mock_apply_policy_actions
+    ):
+        """When usage >= 100% triggers downscaling, a STOMP message must be sent
+        to the site agent so that SLURM QoS is changed from 'normal' to 'slowdown'.
+
+        Without this, resource.downscaled is set in the DB but sacctmgr is never
+        called and QoS remains 'normal' on the SLURM cluster.
+        """
+        mock_apply_policy_actions.return_value = True
+
+        # Create usage at 110% - above downscaling threshold, below grace limit
+        self._create_component_usage(self.resource, self.component, 1100)
+
+        tasks.evaluate_resource_against_policy(
+            str(self.resource.uuid), str(self.policy.uuid)
+        )
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.downscaled)
+        self.assertFalse(self.resource.paused)  # 110% < 120% grace limit
+
+        # The critical assertion: apply_policy_actions must be called to send
+        # the STOMP message with QoS settings to the site agent
+        mock_apply_policy_actions.assert_called_once_with(self.resource)
+
+    @patch(
+        "waldur_mastermind.policy.models.SlurmPeriodicUsagePolicy.apply_policy_actions"
+    )
+    def test_pausing_triggers_stomp_message_to_site_agent(
+        self, mock_apply_policy_actions
+    ):
+        """When usage >= grace limit triggers pausing, a STOMP message must be sent
+        to the site agent so that SLURM QoS is changed to 'blocked'.
+        """
+        mock_apply_policy_actions.return_value = True
+
+        # Create usage at 150% - above grace limit (120%)
+        self._create_component_usage(self.resource, self.component, 1500)
+
+        tasks.evaluate_resource_against_policy(
+            str(self.resource.uuid), str(self.policy.uuid)
+        )
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.downscaled)
+        self.assertTrue(self.resource.paused)
+
+        # STOMP message must be sent for the QoS change
+        mock_apply_policy_actions.assert_called_once_with(self.resource)
+
+    @patch(
+        "waldur_mastermind.policy.models.SlurmPeriodicUsagePolicy.apply_policy_actions"
+    )
+    def test_recovery_triggers_stomp_message_to_reset_qos(
+        self, mock_apply_policy_actions
+    ):
+        """When usage drops below thresholds, a STOMP message must be sent to
+        reset SLURM QoS back to 'normal'.
+        """
+        mock_apply_policy_actions.return_value = True
+
+        # Start with restricted resource
+        self.resource.downscaled = True
+        self.resource.paused = True
+        self.resource.save()
+        self.policy.has_fired = True
+        self.policy.save()
+
+        # Usage drops to 50% - below all thresholds
+        self._create_component_usage(self.resource, self.component, 500)
+
+        tasks.evaluate_resource_against_policy(
+            str(self.resource.uuid), str(self.policy.uuid)
+        )
+
+        self.resource.refresh_from_db()
+        self.assertFalse(self.resource.downscaled)
+        self.assertFalse(self.resource.paused)
+
+        # STOMP message must be sent to reset QoS to 'normal' on SLURM
+        mock_apply_policy_actions.assert_called_once_with(self.resource)
+
+    @patch(
+        "waldur_mastermind.policy.models.SlurmPeriodicUsagePolicy.apply_policy_actions"
+    )
+    def test_no_stomp_when_no_state_change(self, mock_apply_policy_actions):
+        """When usage is below thresholds and resource is not restricted,
+        no STOMP message should be sent (no state change).
+        """
+        mock_apply_policy_actions.return_value = True
+
+        # Usage at 50% - no restrictions, no state change
+        self._create_component_usage(self.resource, self.component, 500)
+
+        tasks.evaluate_resource_against_policy(
+            str(self.resource.uuid), str(self.policy.uuid)
+        )
+
+        self.resource.refresh_from_db()
+        self.assertFalse(self.resource.downscaled)
+        self.assertFalse(self.resource.paused)
+
+        # No state change -> no STOMP message needed
+        mock_apply_policy_actions.assert_not_called()
+
+    @patch(
+        "waldur_mastermind.policy.models.SlurmPeriodicUsagePolicy.apply_policy_actions"
+    )
+    def test_no_stomp_when_already_downscaled_and_still_above_threshold(
+        self, mock_apply_policy_actions
+    ):
+        """When resource is already downscaled and usage stays above threshold,
+        no STOMP message should be sent (state unchanged).
+        """
+        mock_apply_policy_actions.return_value = True
+
+        # Resource is already downscaled
+        self.resource.downscaled = True
+        self.resource.save()
+
+        # Usage at 110% - still above threshold, state doesn't change
+        self._create_component_usage(self.resource, self.component, 1100)
+
+        tasks.evaluate_resource_against_policy(
+            str(self.resource.uuid), str(self.policy.uuid)
+        )
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.downscaled)
+        self.assertFalse(self.resource.paused)
+
+        # State unchanged (was downscaled, still downscaled) -> no STOMP
+        mock_apply_policy_actions.assert_not_called()
+
+    @patch(
+        "waldur_mastermind.policy.models.SlurmPeriodicUsagePolicy.apply_policy_actions"
+    )
+    def test_escalation_from_downscaled_to_paused_triggers_stomp(
+        self, mock_apply_policy_actions
+    ):
+        """When usage increases from slowdown range to blocked range,
+        STOMP must be sent to escalate QoS from 'slowdown' to 'blocked'.
+        """
+        mock_apply_policy_actions.return_value = True
+
+        # Resource is already downscaled (QoS = slowdown)
+        self.resource.downscaled = True
+        self.resource.save()
+
+        # Usage increases to 150% - above grace limit (120%)
+        self._create_component_usage(self.resource, self.component, 1500)
+
+        tasks.evaluate_resource_against_policy(
+            str(self.resource.uuid), str(self.policy.uuid)
+        )
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.downscaled)
+        self.assertTrue(self.resource.paused)  # Escalated to paused
+
+        # State changed (paused added) -> STOMP must be sent
+        mock_apply_policy_actions.assert_called_once_with(self.resource)
+
+    @patch(
+        "waldur_mastermind.policy.models.SlurmPeriodicUsagePolicy.apply_policy_actions"
+    )
+    def test_partial_recovery_from_paused_to_downscaled_triggers_stomp(
+        self, mock_apply_policy_actions
+    ):
+        """When usage drops below grace limit but stays above 100%,
+        STOMP must be sent to de-escalate QoS from 'blocked' to 'slowdown'.
+        """
+        mock_apply_policy_actions.return_value = True
+
+        # Resource is both downscaled and paused (QoS = blocked)
+        self.resource.downscaled = True
+        self.resource.paused = True
+        self.resource.save()
+        self.policy.has_fired = True
+        self.policy.save()
+
+        # Usage drops to 110% - below grace limit, above downscaling threshold
+        self._create_component_usage(self.resource, self.component, 1100)
+
+        tasks.evaluate_resource_against_policy(
+            str(self.resource.uuid), str(self.policy.uuid)
+        )
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.downscaled)  # Still above 100%
+        self.assertFalse(self.resource.paused)  # Recovered from pausing
+
+        # State changed (paused removed) -> STOMP must be sent
+        mock_apply_policy_actions.assert_called_once_with(self.resource)
+
+
+class TestSlurmPolicySTOMPPayloadContent(TestCase):
+    """Test that STOMP message payload contains required fields for the site agent."""
+
+    def _create_plan_period(self, resource):
+        return marketplace_models.ResourcePlanPeriod.objects.create(
+            resource=resource,
+            plan=resource.plan,
+            start=timezone.now().replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            ),
+        )
+
+    def _create_component_usage(
+        self, resource, component, usage_amount, plan_period=None
+    ):
+        if plan_period is None:
+            plan_period = self._create_plan_period(resource)
+        return marketplace_models.ComponentUsage.objects.create(
+            resource=resource,
+            component=component,
+            usage=Decimal(str(usage_amount)),
+            date=timezone.now(),
+            billing_period=timezone.now().replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            ),
+            plan_period=plan_period,
+        )
+
+    def setUp(self):
+        self.offering = factories.OfferingFactory(
+            type="Marketplace.Slurm",
+            plugin_options={"supports_downscaling": True, "supports_pausing": True},
+        )
+        self.customer = factories.CustomerFactory()
+        self.project = factories.ProjectFactory(customer=self.customer)
+        self.component = factories.OfferingComponentFactory(
+            offering=self.offering, type="node-hours", name="Node hours"
+        )
+        self.resource = factories.ResourceFactory(
+            offering=self.offering,
+            project=self.project,
+            name="test-resource",
+            backend_id="slurm-test-account",
+            limits={"node-hours": 1000},
+        )
+        self.policy = models.SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.offering,
+            actions="request_slurm_resource_downscaling,request_slurm_resource_pausing",
+            apply_to_all=True,
+            grace_ratio=0.2,
+            carryover_enabled=False,
+            period=3,
+        )
+        models.OfferingComponentLimit.objects.create(
+            policy=self.policy,
+            component=self.component,
+            limit=1000,
+        )
+        marketplace_models.PlanComponent.objects.create(
+            plan=self.resource.plan,
+            component=self.component,
+            amount=1000,
+            price=1,
+        )
+
+    def test_stomp_payload_contains_required_fields(self):
+        """STOMP payload must include resource, offering, policy UUIDs, settings and action."""
+        settings = self.policy.calculate_slurm_settings(self.resource)
+
+        with (
+            patch(
+                "waldur_mastermind.marketplace.utils.prepare_messages", return_value=[]
+            ) as mock_prepare,
+            patch("waldur_core.logging.tasks.publish_messages.delay"),
+        ):
+            self.policy._send_settings_to_site_agent(self.resource, settings)
+
+            mock_prepare.assert_called_once()
+            payload = mock_prepare.call_args[1]["message_payload"]
+
+            self.assertEqual(payload["resource_uuid"], str(self.resource.uuid))
+            self.assertEqual(payload["backend_id"], self.resource.backend_id)
+            self.assertEqual(payload["offering_uuid"], str(self.resource.offering.uuid))
+            self.assertEqual(payload["policy_uuid"], str(self.policy.uuid))
+            self.assertEqual(payload["action"], "apply_periodic_settings")
+            self.assertIn("settings", payload)
+            self.assertIn("timestamp", payload)
+
+    def test_stomp_payload_does_not_contain_qos_fields(self):
+        """STOMP payload must not include desired_qos, downscaled, or paused fields.
+
+        The site agent determines QoS independently from SLURM usage data.
+        """
+        settings = self.policy.calculate_slurm_settings(self.resource)
+
+        with (
+            patch(
+                "waldur_mastermind.marketplace.utils.prepare_messages", return_value=[]
+            ) as mock_prepare,
+            patch("waldur_core.logging.tasks.publish_messages.delay"),
+        ):
+            self.policy._send_settings_to_site_agent(self.resource, settings)
+
+            mock_prepare.assert_called_once()
+            payload = mock_prepare.call_args[1]["message_payload"]
+
+            self.assertNotIn("desired_qos", payload)
+            self.assertNotIn("downscaled", payload)
+            self.assertNotIn("paused", payload)
+
+
+class TestSlurmPolicySerializerWarnings(TestCase):
+    """Test that serializer warns when no site agent queue is registered."""
+
+    def setUp(self):
+        self.offering = factories.OfferingFactory(type="Marketplace.Slurm")
+        self.component = factories.OfferingComponentFactory(
+            offering=self.offering, type="node-hours", name="Node hours"
+        )
+        self.policy = models.SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.offering,
+            actions="request_slurm_resource_downscaling",
+            apply_to_all=True,
+            grace_ratio=0.2,
+            period=3,
+        )
+        models.OfferingComponentLimit.objects.create(
+            policy=self.policy,
+            component=self.component,
+            limit=1000,
+        )
+
+    def test_warning_when_no_queue_registered(self):
+        """Serializer output includes warnings when no EventSubscriptionQueue exists
+        for the offering with object_type=resource_periodic_limits.
+        """
+        serializer = SlurmPeriodicUsagePolicySerializer(
+            self.policy,
+            context={"request": None, "view": type("View", (), {"kwargs": {}})()},
+        )
+        data = serializer.data
+        self.assertIn("warnings", data)
+        self.assertEqual(len(data["warnings"]), 1)
+        self.assertIn("No site agent has registered a queue", data["warnings"][0])
+
+    def test_no_warning_when_queue_registered(self):
+        """Serializer output has no warnings when an EventSubscriptionQueue exists
+        for the offering with object_type=resource_periodic_limits.
+        """
+        EventSubscriptionQueueFactory(
+            offering_uuid=self.offering.uuid,
+            object_type="resource_periodic_limits",
+        )
+        serializer = SlurmPeriodicUsagePolicySerializer(
+            self.policy,
+            context={"request": None, "view": type("View", (), {"kwargs": {}})()},
+        )
+        data = serializer.data
+        self.assertNotIn("warnings", data)
