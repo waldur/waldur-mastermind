@@ -770,6 +770,7 @@ class ProjectMoveTest(test.APITransactionTestCase):
         self.project = self.fixture.project
         self.url = factories.ProjectFactory.get_url(self.project, action="move_project")
         self.customer = factories.CustomerFactory()
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT)
 
     def get_response(self, role, customer):
         self.client.force_authenticate(role)
@@ -802,6 +803,64 @@ class ProjectMoveTest(test.APITransactionTestCase):
         self.project.refresh_from_db()
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(self.project.customer, old_customer)
+
+    def test_user_can_move_project_if_has_create_project_permission_in_both_customers(
+        self,
+    ):
+        """Test that a user with CREATE_PROJECT permission in both source and target organizations can move a project."""
+
+        user_with_permission = factories.UserFactory()
+        self.project.customer.add_user(user_with_permission, CustomerRole.OWNER)
+        self.customer.add_user(user_with_permission, CustomerRole.OWNER)
+
+        response = self.get_response(user_with_permission, self.customer)
+
+        self.project.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.project.customer, self.customer)
+
+    def test_user_cannot_move_project_without_create_permission_in_source_customer(
+        self,
+    ):
+        """Test that a user without CREATE_PROJECT permission in the source organization cannot move a project."""
+
+        # User has permission only in target organization
+        user = factories.UserFactory()
+        self.customer.add_user(user, CustomerRole.OWNER)
+
+        response = self.get_response(user, self.customer)
+
+        self.project.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Project should remain in original customer
+        self.assertNotEqual(self.project.customer, self.customer)
+
+    def test_user_cannot_move_project_without_create_permission_in_target_customer(
+        self,
+    ):
+        """Test that a user without CREATE_PROJECT permission in the target organization cannot move a project."""
+
+        # User has permission only in source organization
+        user = factories.UserFactory()
+        self.project.customer.add_user(user, CustomerRole.OWNER)
+
+        response = self.get_response(user, self.customer)
+
+        self.project.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Project should remain in original customer
+        self.assertNotEqual(self.project.customer, self.customer)
+
+    def test_user_without_create_project_permission_cannot_move_project(self):
+        """Test that a user without CREATE_PROJECT permission in either organization cannot move a project."""
+        user_without_permission = factories.UserFactory()
+
+        response = self.get_response(user_without_permission, self.customer)
+
+        self.project.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # Project should remain in original customer
+        self.assertNotEqual(self.project.customer, self.customer)
 
 
 class ProjectListFilterTest(test.APITransactionTestCase):
