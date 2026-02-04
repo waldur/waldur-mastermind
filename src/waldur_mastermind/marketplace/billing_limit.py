@@ -301,6 +301,32 @@ class LimitPeriodProcessor:
                 )
                 return
             else:
+                # For quarterly/annual components, the invoice item may live on
+                # the billing period's first month's invoice (e.g., January for Q1),
+                # not the current month's invoice. Check for it there.
+                if offering_component.limit_period in (
+                    LimitPeriods.QUARTERLY,
+                    LimitPeriods.ANNUAL,
+                ):
+                    period_invoice = invoice_models.Invoice.objects.filter(
+                        customer=resource.project.customer,
+                        year=start.year,
+                        month=start.month,
+                    ).first()
+                    if (
+                        period_invoice
+                        and period_invoice != invoice
+                        and invoice_models.InvoiceItem.objects.filter(
+                            resource=resource,
+                            details__offering_component_type=component_type,
+                            invoice=period_invoice,
+                        ).exists()
+                    ):
+                        cls._update_invoice_item(
+                            resource, component_type, period_invoice, quantity
+                        )
+                        return
+
                 cls._create_invoice_item(resource, plan_component, invoice, start, end)
 
     @classmethod

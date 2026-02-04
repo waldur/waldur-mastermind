@@ -759,6 +759,142 @@ class QuarterlyBillingIntegrationTest(test.APITransactionTestCase):
         self.assertEqual(item.end.day, 30)  # June 30th
 
 
+@freeze_time("2020-01-01")
+class QuarterlyLimitChangeInNonQuarterlyMonthTest(test.APITransactionTestCase):
+    """Test that changing limits in a non-quarterly month updates the original
+    quarterly invoice item rather than creating a duplicate on the new month's invoice."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+        self.quarterly_component = self.fixture.offering.components.first()
+        self.quarterly_component.billing_type = BillingTypes.LIMIT
+        self.quarterly_component.limit_period = LimitPeriods.QUARTERLY
+        self.quarterly_component.save()
+
+        self.plan_component = self.fixture.plan.components.first()
+        self.plan_component.component = self.quarterly_component
+        self.plan_component.save()
+
+        self.resource = self.fixture.resource
+        self.resource.limits = {"cpu": 4}
+        self.resource.save()
+        self.resource.set_state_ok()
+        self.resource.save()
+
+        # Verify initial state: January invoice has 1 quarterly item
+        self.january_invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2020, month=1
+        )
+        self.assertEqual(
+            self.january_invoice.items.filter(resource_id=self.resource.id).count(),
+            1,
+            "January should have exactly 1 quarterly billing item",
+        )
+
+    def test_limit_change_in_non_quarterly_month_should_not_create_new_invoice_item(
+        self,
+    ):
+        """When limits change in February (non-quarterly month), a new invoice item
+        should NOT be created on the February invoice because the quarterly item
+        already exists on the January invoice."""
+        with freeze_time("2020-02-15"):
+            create_monthly_invoices()
+
+            self.resource.limits = {"cpu": 5}
+            self.resource.save()
+
+        february_invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2020, month=2
+        )
+        february_items = february_invoice.items.filter(resource_id=self.resource.id)
+        self.assertEqual(
+            february_items.count(),
+            0,
+            "February should NOT have a quarterly billing item; "
+            "the limit change should update the January item instead",
+        )
+
+    def test_limit_change_in_non_quarterly_month_updates_original_invoice_item(self):
+        """When limits change in February, the original January invoice item
+        should be updated with new resource_limit_periods."""
+        with freeze_time("2020-02-15"):
+            create_monthly_invoices()
+
+            self.resource.limits = {"cpu": 5}
+            self.resource.save()
+
+        self.january_invoice.refresh_from_db()
+        january_items = self.january_invoice.items.filter(resource_id=self.resource.id)
+        self.assertEqual(january_items.count(), 1)
+
+        item = january_items.first()
+        limit_periods = item.details.get("resource_limit_periods", [])
+        self.assertGreaterEqual(
+            len(limit_periods),
+            2,
+            "January invoice item should have multiple periods after limit change",
+        )
+
+    def test_limit_change_in_non_quarterly_month_does_not_double_bill(self):
+        """Changing limits mid-quarter should not result in double billing
+        across two invoices for the same quarterly period."""
+        with freeze_time("2020-02-15"):
+            create_monthly_invoices()
+
+            self.resource.limits = {"cpu": 5}
+            self.resource.save()
+
+        # Count all invoice items across all invoices for this resource
+        all_items = invoices_models.InvoiceItem.objects.filter(
+            resource_id=self.resource.id,
+            details__offering_component_type="cpu",
+        )
+        self.assertEqual(
+            all_items.count(),
+            1,
+            "There should be exactly 1 invoice item for Q1, not duplicates across months",
+        )
+
+    def test_multiple_limit_changes_across_non_quarterly_months(self):
+        """Multiple limit changes across February and March should all update
+        the original January invoice item."""
+        with freeze_time("2020-02-15"):
+            create_monthly_invoices()
+            self.resource.limits = {"cpu": 5}
+            self.resource.save()
+
+        with freeze_time("2020-03-10"):
+            create_monthly_invoices()
+            self.resource.limits = {"cpu": 6}
+            self.resource.save()
+
+        # January item should be updated with all changes
+        self.january_invoice.refresh_from_db()
+        january_items = self.january_invoice.items.filter(resource_id=self.resource.id)
+        self.assertEqual(january_items.count(), 1)
+
+        item = january_items.first()
+        limit_periods = item.details.get("resource_limit_periods", [])
+        self.assertGreaterEqual(
+            len(limit_periods),
+            3,
+            "Should have at least 3 periods: original + Feb change + Mar change",
+        )
+
+        # No items should exist on February or March invoices
+        for month in [2, 3]:
+            invoice = invoices_models.Invoice.objects.get(
+                customer=self.resource.project.customer, year=2020, month=month
+            )
+            items = invoice.items.filter(resource_id=self.resource.id)
+            self.assertEqual(
+                items.count(),
+                0,
+                f"Month {month} should NOT have quarterly billing items",
+            )
+
+
 @ddt
 class AnnualBillingMonthDetectionTest(test.APITransactionTestCase):
     """Test anniversary-based annual billing month detection logic."""
