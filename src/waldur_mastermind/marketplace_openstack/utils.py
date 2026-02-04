@@ -494,23 +494,42 @@ def create_marketplace_resource_for_imported_resources(
         create_offerings_for_volume_and_instance(instance)
 
 
+def _map_ip_via_cidr(floating_ip_address, floating_cidr, public_cidr):
+    """Map a floating IP to a public IP using CIDR-based translation."""
+    return (
+        ".".join(public_cidr.split(".")[:-1]) + "." + floating_ip_address.split(".")[-1]
+    )
+
+
 def get_external_ip(offering, floating_ip_address):
+    ip_addr = ipaddress.ip_address(floating_ip_address)
+
+    # Try ExternalSubnet.public_ip_range first
+    if offering.scope:
+        external_subnets = openstack_models.ExternalSubnet.objects.filter(
+            network__settings=offering.scope,
+        ).exclude(public_ip_range="")
+        for subnet in external_subnets:
+            if subnet.cidr and ip_addr in ipaddress.ip_network(subnet.cidr):
+                return _map_ip_via_cidr(
+                    floating_ip_address, subnet.cidr, subnet.public_ip_range
+                )
+
+    # Fall back to secret_options-based mapping
     ipv4_external_ip_mapping = offering.secret_options.get(
         "ipv4_external_ip_mapping", []
     )
     if not ipv4_external_ip_mapping:
         return
 
-    ip_address = ipaddress.ip_address(floating_ip_address)
-
     for offering_external_ip in ipv4_external_ip_mapping:
         ip_network = ipaddress.ip_network(offering_external_ip["floating_ip"])
 
-        if ip_address in ip_network:
-            return (
-                ".".join(offering_external_ip["external_ip"].split(".")[:-1])
-                + "."
-                + floating_ip_address.split(".")[-1]
+        if ip_addr in ip_network:
+            return _map_ip_via_cidr(
+                floating_ip_address,
+                offering_external_ip["floating_ip"],
+                offering_external_ip["external_ip"],
             )
 
 

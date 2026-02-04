@@ -133,6 +133,11 @@ class VolumeTypeFilter(
         model = models.VolumeType
 
 
+class ExternalNetworkFilter(structure_filters.ServicePropertySettingsFilter):
+    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
+        model = models.ExternalNetwork
+
+
 class RouterFilter(TenantFilterSet, structure_filters.NameFilterSet):
     state = core_filters.MappedMultipleChoiceFilter(CoreStates.choices, label="State")
 

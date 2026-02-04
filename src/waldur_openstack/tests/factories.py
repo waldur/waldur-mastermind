@@ -294,6 +294,48 @@ class VolumeTypeFactory(
         return "http://testserver" + reverse("openstack-volume-type-list")
 
 
+class ExternalNetworkFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ExternalNetwork],
+):
+    class Meta:
+        model = models.ExternalNetwork
+
+    name = factory.Sequence(lambda n: "ext_net_%s" % n)
+    backend_id = factory.Sequence(lambda n: "ext_net_backend_id_%s" % n)
+    settings = factory.SubFactory(SettingsFactory)
+    is_shared = True
+
+    @classmethod
+    def get_url(cls, external_network=None):
+        if external_network is None:
+            external_network = ExternalNetworkFactory()
+        return "http://testserver" + reverse(
+            "openstack-external-network-detail",
+            kwargs={"uuid": external_network.uuid.hex},
+        )
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("openstack-external-network-list")
+
+
+class ExternalSubnetFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ExternalSubnet],
+):
+    class Meta:
+        model = models.ExternalSubnet
+
+    name = factory.Sequence(lambda n: "ext_subnet_%s" % n)
+    backend_id = factory.Sequence(lambda n: "ext_subnet_backend_id_%s" % n)
+    network = factory.SubFactory(ExternalNetworkFactory)
+    cidr = "10.0.0.0/24"
+    gateway_ip = "10.0.0.1"
+    ip_version = 4
+    enable_dhcp = True
+
+
 class PortFactory(
     factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Port]
 ):

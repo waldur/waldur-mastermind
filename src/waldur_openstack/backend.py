@@ -285,6 +285,7 @@ class OpenStackBackend(ServiceBackend):
         self.pull_service_settings_quotas()
         self.pull_global_volume_types()
         self.pull_global_flavors()
+        self.pull_external_networks()
 
     def pull_resources(self):
         self.pull_tenants()
@@ -592,6 +593,67 @@ class OpenStackBackend(ServiceBackend):
                     "disabled": volume_type.name in volume_type_blacklist,
                 },
             )
+
+    def pull_external_networks(self):
+        neutron = get_neutron_client(self.admin_session)
+        try:
+            remote_networks = neutron.list_networks(**{"router:external": True})[
+                "networks"
+            ]
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+        remote_network_ids = [n["id"] for n in remote_networks]
+
+        # Delete stale external networks
+        models.ExternalNetwork.objects.filter(settings=self.settings).exclude(
+            backend_id__in=remote_network_ids
+        ).delete()
+
+        for net in remote_networks:
+            ext_net, _ = models.ExternalNetwork.objects.update_or_create(
+                settings=self.settings,
+                backend_id=net["id"],
+                defaults={
+                    "name": net.get("name", ""),
+                    "is_shared": net.get("shared", False),
+                    "is_default": net.get("is_default", False),
+                    "status": net.get("status", ""),
+                    "description": net.get("description", ""),
+                },
+            )
+
+            # Sync subnets for this external network
+            try:
+                remote_subnets = neutron.list_subnets(network_id=net["id"])["subnets"]
+            except neutron_exceptions.NeutronClientException as e:
+                logger.warning(
+                    "Failed to list subnets for external network %s: %s",
+                    net["id"],
+                    e,
+                )
+                continue
+
+            remote_subnet_ids = [s["id"] for s in remote_subnets]
+            models.ExternalSubnet.objects.filter(network=ext_net).exclude(
+                backend_id__in=remote_subnet_ids
+            ).delete()
+
+            for subnet in remote_subnets:
+                models.ExternalSubnet.objects.update_or_create(
+                    network=ext_net,
+                    backend_id=subnet["id"],
+                    defaults={
+                        "name": subnet.get("name", ""),
+                        "cidr": subnet.get("cidr", ""),
+                        "gateway_ip": subnet.get("gateway_ip"),
+                        "ip_version": subnet.get("ip_version", 4),
+                        "enable_dhcp": subnet.get("enable_dhcp", True),
+                        "allocation_pools": subnet.get("allocation_pools", []),
+                        "dns_nameservers": subnet.get("dns_nameservers", []),
+                        "description": subnet.get("description", ""),
+                    },
+                )
 
     def pull_tenant_volume_types(self, tenant: models.Tenant):
         session = get_tenant_session(tenant)
@@ -2510,6 +2572,13 @@ class OpenStackBackend(ServiceBackend):
             ext_gw = selected_router.get("external_gateway_info", {})
             if ext_gw and "network_id" in ext_gw:
                 tenant.external_network_id = ext_gw["network_id"]
+                # Also set the FK if an ExternalNetwork record exists
+                ext_net = models.ExternalNetwork.objects.filter(
+                    settings=tenant.service_settings,
+                    backend_id=ext_gw["network_id"],
+                ).first()
+                if ext_net:
+                    tenant.external_network_ref = ext_net
                 tenant.save()
                 logger.info(
                     "Found and set external network with id %s for tenant %s (PK: %s) "
@@ -3072,6 +3141,13 @@ class OpenStackBackend(ServiceBackend):
         )
 
         tenant.external_network_id = external_network_id
+        # Also set the FK if an ExternalNetwork record exists
+        ext_net = models.ExternalNetwork.objects.filter(
+            settings=tenant.service_settings,
+            backend_id=external_network_id,
+        ).first()
+        if ext_net:
+            tenant.external_network_ref = ext_net
         tenant.save()
 
         logger.info(
