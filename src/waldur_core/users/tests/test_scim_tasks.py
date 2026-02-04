@@ -13,23 +13,12 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users.scim import tasks
 from waldur_core.users.scim.client import ScimClient, ScimError
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import OfferingUserStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
-@override_config(
-    SCIM_MEMBERSHIP_SYNC_ENABLED=True,
-    SCIM_API_URL="https://scim.example.org",
-    SCIM_API_KEY="secret",
-    SCIM_URN_NAMESPACE="urn:ietf:dev",
-)
-class ScimTasksTest(TestCase):
-    def setUp(self):
-        self.project = structure_factories.ProjectFactory()
-        self.user = structure_factories.UserFactory(
-            username="11111111-1111-1111-1111-111111111111@myaccessid.org"
-        )
-        self.urn_namespace = "urn:ietf:dev"
-        self.ssh_username = self.user.username
+class BaseScimTestCase(TestCase):
+    """Base class for SCIM tests with shared helper methods."""
 
     def _create_offering_with_ssh_endpoint(self, login_node="login.example.org"):
         """Create an offering with SSH endpoint."""
@@ -40,6 +29,37 @@ class ScimTasksTest(TestCase):
             url=f"ssh://{login_node}",
         )
         return offering
+
+    def _create_offering_user(
+        self, user=None, offering=None, username=None, state=OfferingUserStates.OK
+    ):
+        """Create an offering user with a specific username."""
+        if user is None:
+            user = self.user
+        if username is None:
+            username = f"{user.username}-on-offering"
+        return marketplace_models.OfferingUser.objects.create(
+            user=user,
+            offering=offering,
+            username=username,
+            state=state,
+        )
+
+
+@override_config(
+    SCIM_MEMBERSHIP_SYNC_ENABLED=True,
+    SCIM_API_URL="https://scim.example.org",
+    SCIM_API_KEY="secret",
+    SCIM_URN_NAMESPACE="urn:ietf:dev",
+)
+class ScimTasksTest(BaseScimTestCase):
+    def setUp(self):
+        self.project = structure_factories.ProjectFactory()
+        self.user = structure_factories.UserFactory(
+            username="11111111-1111-1111-1111-111111111111@myaccessid.org"
+        )
+        self.urn_namespace = "urn:ietf:dev"
+        self.ssh_username = self.user.username
 
     def _create_resource_with_ssh_endpoint(
         self, project, login_node="login.example.org"
@@ -80,11 +100,16 @@ class ScimTasksTest(TestCase):
         resource, offering = self._create_resource_with_ssh_endpoint(
             self.project, "login.example.org"
         )
+        offering_username = "user-on-offering"
+        self._create_offering_user(
+            user=self.user, offering=offering, username=offering_username
+        )
+
         client = self._mock_client()
         client.get_user.return_value = {"entitlements": []}
 
         expected_entitlement = client.build_entitlement(
-            self.urn_namespace, "login.example.org", self.ssh_username
+            self.urn_namespace, "login.example.org", offering_username
         )
 
         with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):
@@ -105,15 +130,26 @@ class ScimTasksTest(TestCase):
         resource2, offering2 = self._create_resource_with_ssh_endpoint(
             self.project, "login2.example.org"
         )
+
+        # Create offering users with different usernames for each offering
+        offering1_username = "user-on-offering1"
+        offering2_username = "user-on-offering2"
+        self._create_offering_user(
+            user=self.user, offering=offering1, username=offering1_username
+        )
+        self._create_offering_user(
+            user=self.user, offering=offering2, username=offering2_username
+        )
+
         client = self._mock_client()
         client.get_user.return_value = {"entitlements": []}
 
         expected_entitlements = [
             client.build_entitlement(
-                self.urn_namespace, "login1.example.org", self.ssh_username
+                self.urn_namespace, "login1.example.org", offering1_username
             ),
             client.build_entitlement(
-                self.urn_namespace, "login2.example.org", self.ssh_username
+                self.urn_namespace, "login2.example.org", offering2_username
             ),
         ]
 
@@ -130,9 +166,14 @@ class ScimTasksTest(TestCase):
         resource, offering = self._create_resource_with_ssh_endpoint(
             self.project, "login.example.org"
         )
+        offering_username = "user-on-offering"
+        self._create_offering_user(
+            user=self.user, offering=offering, username=offering_username
+        )
+
         client = self._mock_client()
         entitlement = client.build_entitlement(
-            self.urn_namespace, "login.example.org", self.ssh_username
+            self.urn_namespace, "login.example.org", offering_username
         )
         client.get_user.return_value = {"entitlements": [{"value": entitlement}]}
 
@@ -150,12 +191,17 @@ class ScimTasksTest(TestCase):
         resource, offering = self._create_resource_with_ssh_endpoint(
             self.project, "login2.example.org"
         )
+        offering_username = "user-on-offering"
+        self._create_offering_user(
+            user=self.user, offering=offering, username=offering_username
+        )
+
         client = self._mock_client()
         old_entitlement = client.build_entitlement(
-            self.urn_namespace, "login1.example.org", self.ssh_username
+            self.urn_namespace, "login1.example.org", offering_username
         )
         new_entitlement = client.build_entitlement(
-            self.urn_namespace, "login2.example.org", self.ssh_username
+            self.urn_namespace, "login2.example.org", offering_username
         )
         client.get_user.return_value = {"entitlements": [{"value": old_entitlement}]}
 
@@ -175,12 +221,16 @@ class ScimTasksTest(TestCase):
         resource, offering = self._create_resource_with_ssh_endpoint(
             self.project, "login.example.org"
         )
+        offering_username = "user-on-offering"
+        self._create_offering_user(
+            user=self.user, offering=offering, username=offering_username
+        )
         self.user.is_active = False
         self.user.save(update_fields=["is_active"])
 
         client = self._mock_client()
         entitlement = client.build_entitlement(
-            self.urn_namespace, "login.example.org", self.ssh_username
+            self.urn_namespace, "login.example.org", offering_username
         )
         client.get_user.return_value = {"entitlements": [{"value": entitlement}]}
 
@@ -217,6 +267,8 @@ class ScimTasksTest(TestCase):
             offering=offering,
             state=marketplace_models.Resource.States.OK,
         )
+        # Create offering user but no SSH endpoints
+        self._create_offering_user(user=self.user, offering=offering)
 
         client = self._mock_client()
         client.get_user.return_value = {"entitlements": []}
@@ -267,6 +319,8 @@ class ScimTasksTest(TestCase):
         resource, offering = self._create_resource_with_ssh_endpoint(
             self.project, "login.example.org"
         )
+        self._create_offering_user(user=self.user, offering=offering)
+
         client = self._mock_client()
         client.get_user.side_effect = ScimError("User not found")
 
@@ -282,6 +336,8 @@ class ScimTasksTest(TestCase):
         resource, offering = self._create_resource_with_ssh_endpoint(
             self.project, "login.example.org"
         )
+        self._create_offering_user(user=self.user, offering=offering)
+
         client = self._mock_client()
         client.get_user.return_value = {"entitlements": []}
         client.add_entitlements.side_effect = ScimError("Update failed")
@@ -297,6 +353,8 @@ class ScimTasksTest(TestCase):
         resource, offering = self._create_resource_with_ssh_endpoint(
             self.project, "login.example.org"
         )
+        self._create_offering_user(user=self.user, offering=offering)
+
         client = self._mock_client()
         client.get_user.return_value = {"entitlements": []}
 
@@ -314,6 +372,8 @@ class ScimTasksTest(TestCase):
         resource, offering = self._create_resource_with_ssh_endpoint(
             self.project, "login.example.org"
         )
+        self._create_offering_user(user=self.user, offering=offering)
+
         client = self._mock_client()
 
         with override_config(SCIM_URN_NAMESPACE=""):
@@ -331,6 +391,8 @@ class ScimTasksTest(TestCase):
         resource, offering = self._create_resource_with_ssh_endpoint(
             self.project, "login.example.org"
         )
+        self._create_offering_user(user=self.user, offering=offering)
+
         client = self._mock_client()
 
         with override_config(SCIM_MEMBERSHIP_SYNC_ENABLED=False):
@@ -363,20 +425,87 @@ class ScimTasksTest(TestCase):
         resource2, offering2 = self._create_resource_with_ssh_endpoint(
             self.project, "login2.example.org"
         )
+        offering1_username = "user-on-offering1"
+        offering2_username = "user-on-offering2"
+        self._create_offering_user(
+            user=self.user, offering=offering1, username=offering1_username
+        )
+        self._create_offering_user(
+            user=self.user, offering=offering2, username=offering2_username
+        )
 
         login_nodes = tasks.get_user_ssh_login_nodes(self.user)
-        self.assertEqual(login_nodes, {"login1.example.org", "login2.example.org"})
+        self.assertEqual(
+            login_nodes,
+            {
+                "login1.example.org": offering1_username,
+                "login2.example.org": offering2_username,
+            },
+        )
 
     def test_get_user_ssh_login_nodes_empty_when_no_resources(self):
-        """Test getting empty set when user has no resources."""
+        """Test getting empty dict when user has no resources."""
         self._grant_project_role()
         login_nodes = tasks.get_user_ssh_login_nodes(self.user)
-        self.assertEqual(login_nodes, set())
+        self.assertEqual(login_nodes, {})
 
     def test_get_user_ssh_login_nodes_empty_when_no_roles(self):
-        """Test getting empty set when user has no project roles."""
+        """Test getting empty dict when user has no project roles."""
         login_nodes = tasks.get_user_ssh_login_nodes(self.user)
-        self.assertEqual(login_nodes, set())
+        self.assertEqual(login_nodes, {})
+
+    def test_skip_offering_user_not_in_ok_state(self):
+        """Test that offering users not in OK state are excluded from entitlements."""
+        self._grant_project_role()
+        resource, offering = self._create_resource_with_ssh_endpoint(
+            self.project, "login.example.org"
+        )
+
+        marketplace_models.OfferingUser.objects.filter(
+            user=self.user, offering=offering
+        ).delete()
+
+        self._create_offering_user(
+            user=self.user,
+            offering=offering,
+            username="",
+            state=OfferingUserStates.CREATING,
+        )
+
+        client = self._mock_client()
+        client.get_user.return_value = {"entitlements": []}
+
+        with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):
+            tasks.sync_user_entitlements(self.user.uuid.hex)
+
+        # Should not add entitlements since offering user is not in OK state
+        client.get_user.assert_called_once_with(self.user.username)
+        client.add_entitlements.assert_not_called()
+        client.clear_all_entitlements.assert_not_called()
+
+    def test_skip_offering_user_without_username(self):
+        """Test that offering users without username are excluded from entitlements."""
+        self._grant_project_role()
+        resource, offering = self._create_resource_with_ssh_endpoint(
+            self.project, "login.example.org"
+        )
+        self._create_offering_user(
+            user=self.user,
+            offering=offering,
+            username="",
+            state=OfferingUserStates.OK,
+        )
+
+        client = self._mock_client()
+        client.get_user.return_value = {"entitlements": []}
+
+        with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):
+            tasks.sync_user_entitlements(self.user.uuid.hex)
+
+        # Should not add entitlements since offering user has no username
+        client.get_user.assert_called_once_with(self.user.username)
+        client.add_entitlements.assert_not_called()
+        client.clear_all_entitlements.assert_not_called()
 
 
 @override_config(
@@ -385,7 +514,7 @@ class ScimTasksTest(TestCase):
     SCIM_API_KEY="secret",
     SCIM_URN_NAMESPACE="urn:ietf:dev",
 )
-class ScimReconcileTasksTest(TestCase):
+class ScimReconcileTasksTest(BaseScimTestCase):
     def setUp(self):
         self.project = structure_factories.ProjectFactory()
         self.user = structure_factories.UserFactory(
@@ -396,17 +525,13 @@ class ScimReconcileTasksTest(TestCase):
         self, project, login_node="login.example.org"
     ):
         """Create a resource in project with SSH endpoint."""
-        offering = marketplace_factories.OfferingFactory()
-        marketplace_models.OfferingAccessEndpoint.objects.create(
-            offering=offering,
-            name="SSH Access",
-            url=f"ssh://{login_node}",
-        )
-        return marketplace_factories.ResourceFactory(
+        offering = self._create_offering_with_ssh_endpoint(login_node)
+        resource = marketplace_factories.ResourceFactory(
             project=project,
             offering=offering,
             state=marketplace_models.Resource.States.OK,
         )
+        return resource
 
     def _grant_project_role(self, user=None, project=None, modified=None):
         """Grant project role to user with optional modified timestamp."""
@@ -441,7 +566,10 @@ class ScimReconcileTasksTest(TestCase):
         self, mock_batch_delay
     ):
         """Test that sync_recent_entitlements includes users with recently modified roles."""
-        self._create_resource_with_ssh_endpoint(self.project, "login.example.org")
+        resource = self._create_resource_with_ssh_endpoint(
+            self.project, "login.example.org"
+        )
+        self._create_offering_user(user=self.user, offering=resource.offering)
         self._grant_project_role(modified=timezone.now() - timedelta(hours=1))
 
         client = mock.Mock(spec=ScimClient)
@@ -475,7 +603,10 @@ class ScimReconcileTasksTest(TestCase):
         self, mock_batch_delay
     ):
         """Test that sync_all_entitlements includes all users with active roles."""
-        self._create_resource_with_ssh_endpoint(self.project, "login.example.org")
+        resource = self._create_resource_with_ssh_endpoint(
+            self.project, "login.example.org"
+        )
+        self._create_offering_user(user=self.user, offering=resource.offering)
         self._grant_project_role(modified=timezone.now() - timedelta(hours=3))
 
         client = mock.Mock(spec=ScimClient)
@@ -495,13 +626,16 @@ class ScimReconcileTasksTest(TestCase):
     def test_sync_recent_entitlements_batches_users_correctly(self, mock_batch_delay):
         """Test that sync_recent_entitlements splits users into batches of correct size."""
         # Create 22 users with roles (batch size is 20, so should create 2 batches: 20 + 2)
-        self._create_resource_with_ssh_endpoint(self.project, "login.example.org")
+        resource = self._create_resource_with_ssh_endpoint(
+            self.project, "login.example.org"
+        )
         users = []
         recent_time = timezone.now() - timedelta(hours=1)
 
         for i in range(22):
             user = structure_factories.UserFactory(username=f"user-{i}@example.org")
             users.append(user)
+            self._create_offering_user(user=user, offering=resource.offering)
             self._grant_project_role(user=user, modified=recent_time)
 
         batch_calls, capture_batch_call = self._create_batch_capture()
@@ -531,12 +665,15 @@ class ScimReconcileTasksTest(TestCase):
     def test_sync_all_entitlements_batches_users_correctly(self, mock_batch_delay):
         """Test that sync_all_entitlements splits users into batches of correct size."""
         # Create 22 users with roles (batch size is 20, so should create 2 batches: 20 + 2)
-        self._create_resource_with_ssh_endpoint(self.project, "login.example.org")
+        resource = self._create_resource_with_ssh_endpoint(
+            self.project, "login.example.org"
+        )
         users = []
 
         for i in range(22):
             user = structure_factories.UserFactory(username=f"user-all-{i}@example.org")
             users.append(user)
+            self._create_offering_user(user=user, offering=resource.offering)
             self._grant_project_role(user=user)
 
         batch_calls, capture_batch_call = self._create_batch_capture()
