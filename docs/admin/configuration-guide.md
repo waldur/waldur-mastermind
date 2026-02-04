@@ -2524,7 +2524,7 @@ Default monthly token limit (integer). -1 means unlimited.
 
 **Type:** bool
 
-**Default value:** True
+**Default value:** False
 
 Enable automated daily updates for EESSI software catalog
 
@@ -2554,7 +2554,7 @@ Include extension packages (Python, R packages, etc.) from EESSI
 
 **Type:** bool
 
-**Default value:** True
+**Default value:** False
 
 Enable automated daily updates for Spack software catalog
 

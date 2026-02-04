@@ -806,7 +806,7 @@ CONSTANCE_CONFIG = {
     ),
     # Software catalog settings
     "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED": (
-        True,
+        False,
         "Enable automated daily updates for EESSI software catalog",
     ),
     "SOFTWARE_CATALOG_EESSI_VERSION": (
@@ -822,7 +822,7 @@ CONSTANCE_CONFIG = {
         "Include extension packages (Python, R packages, etc.) from EESSI",
     ),
     "SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED": (
-        True,
+        False,
         "Enable automated daily updates for Spack software catalog",
     ),
     "SOFTWARE_CATALOG_SPACK_VERSION": (

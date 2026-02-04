@@ -9346,6 +9346,8 @@ class SoftwareCatalogSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for unified SoftwareCatalog model."""
 
     package_count = serializers.SerializerMethodField()
+    version_count = serializers.SerializerMethodField()
+    target_count = serializers.SerializerMethodField()
     catalog_type_display = serializers.CharField(
         source="get_catalog_type_display", read_only=True
     )
@@ -9369,6 +9371,8 @@ class SoftwareCatalogSerializer(serializers.HyperlinkedModelSerializer):
             "last_successful_update",
             "update_errors",
             "package_count",
+            "version_count",
+            "target_count",
         )
         read_only_fields = (
             "url",
@@ -9379,6 +9383,8 @@ class SoftwareCatalogSerializer(serializers.HyperlinkedModelSerializer):
             "last_update_attempt",
             "last_successful_update",
             "package_count",
+            "version_count",
+            "target_count",
         )
         extra_kwargs = {
             "url": {
@@ -9391,6 +9397,35 @@ class SoftwareCatalogSerializer(serializers.HyperlinkedModelSerializer):
     def get_package_count(self, obj):
         """Get total number of packages in this catalog."""
         return obj.packages.count()
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_version_count(self, obj):
+        """Get total number of versions across all packages in this catalog."""
+        return models.SoftwareVersion.objects.filter(package__catalog=obj).count()
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_target_count(self, obj):
+        """Get total number of targets across all versions in this catalog."""
+        return models.SoftwareTarget.objects.filter(
+            version__package__catalog=obj
+        ).count()
+
+
+class SoftwareCatalogImportSerializer(serializers.Serializer):
+    """Input serializer for the import_catalog action."""
+
+    name = serializers.ChoiceField(choices=["EESSI", "Spack"])
+
+
+class SoftwareCatalogDiscoverSerializer(serializers.Serializer):
+    """Read-only serializer for the discover action response schema."""
+
+    name = serializers.CharField()
+    catalog_type = serializers.CharField()
+    latest_version = serializers.CharField()
+    existing = serializers.BooleanField()
+    existing_version = serializers.CharField(allow_null=True)
+    update_available = serializers.BooleanField()
 
 
 class NestedSoftwareTargetSerializer(serializers.ModelSerializer):
