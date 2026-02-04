@@ -1,3 +1,4 @@
+import unittest
 from datetime import timedelta
 
 import reversion
@@ -5,6 +6,7 @@ from django.utils import timezone
 from rest_framework import status, test
 from reversion.models import Version
 
+from waldur_core.core.views import CreateReversionMixin
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
@@ -64,12 +66,13 @@ class ResourceHistoryEndpointTest(test.APITransactionTestCase):
     def _get_history_at_url(self):
         return factories.ResourceFactory.get_url(self.resource, "history/at")
 
-    def test_history_returns_empty_for_new_resource(self):
-        """New resource without any revisions should return empty list."""
+    def test_history_returns_initial_revision_for_new_resource(self):
+        """New resource should have an initial revision from creation."""
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self._get_history_url())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, [])
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["revision_comment"], "Initial version")
 
     def test_history_recorded_on_resource_update(self):
         """Updating a resource should create a history entry."""
@@ -81,7 +84,7 @@ class ResourceHistoryEndpointTest(test.APITransactionTestCase):
 
         response = self.client.get(self._get_history_url())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data), 2)  # initial + update
         self.assertIn("revision_date", response.data[0])
         self.assertIn("revision_user", response.data[0])
         self.assertIn("serialized_data", response.data[0])
@@ -214,8 +217,8 @@ class ResourceHistoryFilteringTest(test.APITransactionTestCase):
             url, {"created_before": self.time_after_second.isoformat()}
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Should return first two versions (created before time_after_second)
-        self.assertEqual(len(response.data), 2)
+        # Should return initial + first two versions (created before time_after_second)
+        self.assertEqual(len(response.data), 3)
 
     def test_filter_by_created_after(self):
         """Filter versions created after a timestamp."""
@@ -353,3 +356,104 @@ class ResourceActionReversionTest(test.APITransactionTestCase):
 
         latest_version = Version.objects.get_for_object(self.resource).first()
         self.assertEqual(latest_version.revision.user, self.fixture.staff)
+
+
+class CreateReversionMixinBugTest(unittest.TestCase):
+    """Test that CreateReversionMixin correctly delegates to perform_create.
+
+    Bug: CreateReversionMixin.perform_create() calls super().perform_update()
+    instead of super().perform_create(), so create operations do not produce
+    an initial revision.
+    """
+
+    def test_create_reversion_mixin_calls_perform_create_not_perform_update(self):
+        """CreateReversionMixin.perform_create should delegate to super().perform_create."""
+        import inspect
+
+        source = inspect.getsource(CreateReversionMixin.perform_create)
+        self.assertIn(
+            "super().perform_create(serializer)",
+            source,
+            "CreateReversionMixin.perform_create() must call super().perform_create(), "
+            "not super().perform_update(). This is a bug that prevents initial revision "
+            "creation on object creation.",
+        )
+
+
+class OfferingCreationRevisionTest(test.APITransactionTestCase):
+    """Test that creating an offering via the API records an initial revision.
+
+    Currently fails because:
+    1. CreateReversionMixin has a bug (calls perform_update instead of perform_create)
+    2. Even if fixed, the offering creation flow may not go through perform_create
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+    def test_offering_has_initial_revision_after_creation(self):
+        """Creating an offering should record an initial version for history tracking."""
+        offering = self.fixture.offering
+        versions = Version.objects.get_for_object(offering)
+        self.assertGreaterEqual(
+            versions.count(),
+            1,
+            "Offering should have at least one version after creation, "
+            "so that the initial state is available in the history API. "
+            "Currently no initial revision is recorded.",
+        )
+
+
+class ResourceCreationRevisionTest(test.APITransactionTestCase):
+    """Test that resources have an initial revision after creation.
+
+    The history API returns empty for newly created resources because
+    no initial revision is recorded. This means the creation state is lost.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+
+    def test_resource_has_initial_revision_after_creation(self):
+        """A newly created resource should have at least one version in history."""
+        versions = Version.objects.get_for_object(self.resource)
+        self.assertGreaterEqual(
+            versions.count(),
+            1,
+            "Resource should have at least one version after creation, "
+            "so that the initial state is available in the history API. "
+            "Currently no initial revision is recorded.",
+        )
+
+    def test_resource_history_endpoint_returns_initial_state(self):
+        """History endpoint should return the initial state of a new resource."""
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ResourceFactory.get_url(self.resource, "history")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(
+            len(response.data),
+            1,
+            "History endpoint should return at least one entry for a new resource, "
+            "representing its initial state at creation time.",
+        )
+
+
+class PlanCreationRevisionTest(test.APITransactionTestCase):
+    """Test that plans have an initial revision after creation."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+    def test_plan_has_initial_revision_after_creation(self):
+        """A newly created plan should have at least one version in history."""
+        plan = self.fixture.plan
+        versions = Version.objects.get_for_object(plan)
+        self.assertGreaterEqual(
+            versions.count(),
+            1,
+            "Plan should have at least one version after creation, "
+            "so that the initial state is available in the history API. "
+            "Currently no initial revision is recorded.",
+        )

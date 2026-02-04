@@ -742,7 +742,7 @@ class CreateReversionMixin:
 
     def perform_create(self, serializer):
         with reversion.create_revision():
-            super().perform_update(serializer)
+            super().perform_create(serializer)
             reversion.set_user(self.request.user)
             reversion.set_comment("Created via REST API")
 

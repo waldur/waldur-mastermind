@@ -27,7 +27,7 @@ The following models have version history endpoints:
 | User | `/api/users/{uuid}/history/` | User accounts |
 | SSH Key | `/api/keys/{uuid}/history/` | SSH public keys |
 | Offering | `/api/marketplace-provider-offerings/{uuid}/history/` | Service offerings |
-| Plan | `/api/marketplace-provider-plans/{uuid}/history/` | Pricing plans |
+| Plan | `/api/marketplace-plans/{uuid}/history/` | Pricing plans |
 | Resource | `/api/marketplace-resources/{uuid}/history/` | Marketplace resources |
 | Invoice | `/api/invoices/{uuid}/history/` | Billing invoices |
 

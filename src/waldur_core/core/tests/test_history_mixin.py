@@ -57,12 +57,13 @@ class HistoryEndpointAccessTest(HistoryViewSetMixinTest):
 class HistoryEndpointTest(HistoryViewSetMixinTest):
     """Test the history endpoint functionality."""
 
-    def test_history_returns_empty_for_new_object(self):
-        """New object without any revisions should return empty list."""
+    def test_history_returns_initial_revision_for_new_object(self):
+        """New object should have an initial revision from creation."""
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.get(self._get_history_url())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, [])
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["revision_comment"], "Initial version")
 
     def test_history_recorded_on_object_update(self):
         """Updating an object should create a history entry."""
@@ -77,7 +78,7 @@ class HistoryEndpointTest(HistoryViewSetMixinTest):
 
         response = self.client.get(self._get_history_url())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
+        self.assertEqual(len(response.data), 2)  # initial + update
         self.assertIn("revision_date", response.data[0])
         self.assertIn("revision_user", response.data[0])
         self.assertIn("serialized_data", response.data[0])
@@ -113,11 +114,14 @@ class HistoryEndpointTest(HistoryViewSetMixinTest):
 
         response = self.client.get(self._get_history_url())
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 3)
+        self.assertEqual(len(response.data), 4)  # initial + 3 updates
 
         # Verify reverse chronological order (newest first)
         comments = [v["revision_comment"] for v in response.data]
-        self.assertEqual(comments, ["Version 3", "Version 2", "Version 1"])
+        self.assertEqual(
+            comments,
+            ["Version 3", "Version 2", "Version 1", "Initial version"],
+        )
 
 
 class HistoryFilteringTest(HistoryViewSetMixinTest):
@@ -161,8 +165,8 @@ class HistoryFilteringTest(HistoryViewSetMixinTest):
             {"created_before": self.time_after_second.isoformat()},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Should return first two versions (created before time_after_second)
-        self.assertEqual(len(response.data), 2)
+        # Should return initial + first two versions (created before time_after_second)
+        self.assertEqual(len(response.data), 3)
 
     def test_filter_by_created_after(self):
         """Filter versions created after a timestamp."""
@@ -358,4 +362,4 @@ class HistoryPaginationTest(HistoryViewSetMixinTest):
         # First page should have 10 items (default page size)
         self.assertEqual(len(response.data), 10)
         # Total count should be in the header
-        self.assertEqual(response["X-Result-Count"], "15")
+        self.assertEqual(response["X-Result-Count"], "16")  # initial + 15 updates

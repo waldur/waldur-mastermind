@@ -1,3 +1,4 @@
+import reversion
 from django.conf import settings
 from django.contrib.auth.hashers import is_password_usable
 from django.core.cache import cache
@@ -12,6 +13,21 @@ from waldur_core.logging.enums import EventType
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure.managers import get_connected_customers
 from waldur_core.structure.models import Customer
+
+
+def create_initial_revision(sender, instance, created=False, **kwargs):
+    """Create an initial reversion snapshot when an object is first created.
+
+    This ensures that the history API returns the initial state of the object,
+    rather than only recording changes from the first update onward.
+    """
+    if not created:
+        return
+    if not reversion.is_registered(sender):
+        return
+    with reversion.create_revision():
+        reversion.add_to_revision(instance)
+        reversion.set_comment("Initial version")
 
 
 def create_auth_token(sender, instance: User, created=False, **kwargs):
