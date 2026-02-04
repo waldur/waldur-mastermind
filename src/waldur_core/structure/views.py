@@ -876,7 +876,7 @@ class ProjectViewSet(
 
     @extend_schema(
         summary="Move project to another customer",
-        description="Moves a project and its associated resources to a different customer. This is a staff-only action. You can choose whether to preserve existing project permissions for users. Terminated projects can also be moved.",
+        description="Moves a project and its associated resources to a different customer. You can choose whether to preserve existing project permissions for users. Terminated projects can also be moved.",
         request=serializers.MoveProjectSerializer,
         responses={
             200: serializers.ProjectSerializer,
@@ -884,7 +884,11 @@ class ProjectViewSet(
     )
     @action(detail=True, methods=["post"])
     def move_project(self, request, uuid=None):
-        project = self.get_object()
+        # Using get_object() would fail for org owners without direct project roles
+        try:
+            project = models.Project.objects.get(uuid=uuid)
+        except models.Project.DoesNotExist:
+            raise Http404("No Project matches the given query.")
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -900,7 +904,7 @@ class ProjectViewSet(
         return Response(serialized_project.data, status=status.HTTP_200_OK)
 
     move_project_serializer_class = serializers.MoveProjectSerializer
-    move_project_permissions = [permissions.is_staff]
+    move_project_permissions = [permissions.can_move_project]
 
     @extend_schema(
         summary="Get project resource usage statistics",
