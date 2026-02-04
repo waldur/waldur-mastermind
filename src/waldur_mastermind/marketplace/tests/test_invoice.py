@@ -759,6 +759,257 @@ class QuarterlyBillingIntegrationTest(test.APITransactionTestCase):
         self.assertEqual(item.end.day, 30)  # June 30th
 
 
+@ddt
+class AnnualBillingMonthDetectionTest(test.APITransactionTestCase):
+    """Test anniversary-based annual billing month detection logic."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        # Resource created in March
+        self.resource.created = timezone.datetime(2020, 3, 15, tzinfo=timezone.utc)
+        self.resource.save()
+
+    @data(
+        (1, False),
+        (2, False),
+        (3, True),  # March - resource creation month
+        (4, False),
+        (5, False),
+        (6, False),
+        (7, False),
+        (8, False),
+        (9, False),
+        (10, False),
+        (11, False),
+        (12, False),
+    )
+    def test_annual_billing_triggers_on_creation_month(self, month_and_expected):
+        """Test that annual billing triggers on the resource's creation month."""
+        month, expected = month_and_expected
+
+        test_date = timezone.datetime(2020, month, 15)
+
+        result = LimitPeriodProcessor._should_process_billing(
+            LimitPeriods.ANNUAL, test_date, self.resource
+        )
+        self.assertEqual(
+            result, expected, f"Month {month} annual billing detection failed"
+        )
+
+    def test_annual_billing_without_resource_returns_false(self):
+        """Test that annual billing returns False when no resource is provided."""
+        test_date = timezone.datetime(2020, 3, 15)
+        result = LimitPeriodProcessor._should_process_billing(
+            LimitPeriods.ANNUAL, test_date
+        )
+        self.assertFalse(result)
+
+    def test_annual_billing_period_from_creation_date(self):
+        """Test annual billing period is based on resource creation anniversary."""
+        test_date = timezone.datetime(2020, 3, 20, tzinfo=timezone.utc)
+        start, end = LimitPeriodProcessor._get_billing_period(
+            LimitPeriods.ANNUAL, test_date, self.resource
+        )
+        self.assertEqual(start.month, 3)
+        self.assertEqual(start.day, 15)
+        self.assertEqual(start.year, 2020)
+        self.assertEqual(end.month, 3)
+        self.assertEqual(end.day, 14)
+        self.assertEqual(end.year, 2021)
+
+    def test_annual_billing_period_before_anniversary(self):
+        """Test annual billing period when date is before this year's anniversary."""
+        test_date = timezone.datetime(2021, 2, 10, tzinfo=timezone.utc)
+        start, end = LimitPeriodProcessor._get_billing_period(
+            LimitPeriods.ANNUAL, test_date, self.resource
+        )
+        # Should use previous year's anniversary as start
+        self.assertEqual(start.month, 3)
+        self.assertEqual(start.day, 15)
+        self.assertEqual(start.year, 2020)
+        self.assertEqual(end.month, 3)
+        self.assertEqual(end.day, 14)
+        self.assertEqual(end.year, 2021)
+
+
+@freeze_time("2020-03-01")
+class AnnualBillingIntegrationTest(test.APITransactionTestCase):
+    """Integration test for anniversary-based annual billing with create_monthly_invoices task."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+        self.annual_component = self.fixture.offering.components.first()
+        self.annual_component.billing_type = BillingTypes.LIMIT
+        self.annual_component.limit_period = LimitPeriods.ANNUAL
+        self.annual_component.save()
+
+        self.plan_component = self.fixture.plan.components.first()
+        self.plan_component.component = self.annual_component
+        self.plan_component.save()
+
+        self.resource = self.fixture.resource
+        self.resource.limits = {"cpu": 2}
+        self.resource.save()
+        self.resource.set_state_ok()
+        self.resource.save()
+        # Resource created in March (via freeze_time)
+
+    def test_annual_billing_on_creation_anniversary_month(self):
+        """Test that annual billing creates items on the resource's creation month."""
+        # Initial invoice should exist for March (resource creation month)
+        march_invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2020, month=3
+        )
+        march_items = march_invoice.items.filter(resource_id=self.resource.id)
+        self.assertEqual(march_items.count(), 1, "March should have annual billing")
+
+        # Verify the billing period spans 12 months from creation
+        item = march_items.first()
+        self.assertEqual(item.start.month, 3)
+        self.assertEqual(item.start.day, 1)
+        self.assertEqual(item.start.year, 2020)
+        self.assertEqual(item.end.month, 2)
+        self.assertEqual(item.end.year, 2021)
+
+        # Run monthly task for April through February - none should create annual items
+        for month in range(4, 13):
+            with freeze_time(f"2020-{month:02d}-01"):
+                create_monthly_invoices()
+
+            invoice = invoices_models.Invoice.objects.get(
+                customer=self.resource.project.customer, year=2020, month=month
+            )
+            items = invoice.items.filter(resource_id=self.resource.id)
+            self.assertEqual(
+                items.count(),
+                0,
+                f"Month {month}/2020 should not have annual billing",
+            )
+
+        # January and February of next year should also not have annual items
+        for month in [1, 2]:
+            with freeze_time(f"2021-{month:02d}-01"):
+                create_monthly_invoices()
+
+            invoice = invoices_models.Invoice.objects.get(
+                customer=self.resource.project.customer, year=2021, month=month
+            )
+            items = invoice.items.filter(resource_id=self.resource.id)
+            self.assertEqual(
+                items.count(),
+                0,
+                f"Month {month}/2021 should not have annual billing",
+            )
+
+        # Next March (anniversary month) should create annual items again
+        with freeze_time("2021-03-01"):
+            create_monthly_invoices()
+
+        next_march_invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2021, month=3
+        )
+        next_march_items = next_march_invoice.items.filter(resource_id=self.resource.id)
+        self.assertEqual(
+            next_march_items.count(),
+            1,
+            "Next March should have annual billing",
+        )
+
+
+@freeze_time("2020-06-01")
+class AnnualAndMonthlyMixedBillingTest(test.APITransactionTestCase):
+    """Test that annual and monthly components are billed correctly together
+    using anniversary-based annual billing."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+
+        # Create annual limit component
+        self.annual_component = self.fixture.offering.components.first()
+        self.annual_component.type = "annual_cpu"
+        self.annual_component.billing_type = BillingTypes.LIMIT
+        self.annual_component.limit_period = LimitPeriods.ANNUAL
+        self.annual_component.save()
+
+        # Create monthly limit component
+        self.monthly_component = marketplace_models.OfferingComponent.objects.create(
+            offering=self.fixture.offering,
+            type="monthly_cpu",
+            name="Monthly CPU",
+            billing_type=BillingTypes.LIMIT,
+            limit_period=LimitPeriods.MONTH,
+        )
+
+        # Set up plan components
+        annual_plan_component = self.fixture.plan.components.first()
+        annual_plan_component.component = self.annual_component
+        annual_plan_component.save()
+
+        marketplace_models.PlanComponent.objects.create(
+            plan=self.fixture.plan,
+            component=self.monthly_component,
+            price=5,
+        )
+
+        self.resource.limits = {"annual_cpu": 10, "monthly_cpu": 5}
+        self.resource.save()
+        self.resource.set_state_ok()
+        self.resource.save()
+        # Resource created in June (via freeze_time)
+
+    def test_mixed_billing_on_creation_month(self):
+        """Test that both annual and monthly components are billed on creation month."""
+        invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2020, month=6
+        )
+
+        annual_items = invoice.items.filter(
+            details__offering_component_type="annual_cpu"
+        )
+        monthly_items = invoice.items.filter(
+            details__offering_component_type="monthly_cpu"
+        )
+
+        self.assertEqual(
+            annual_items.count(),
+            1,
+            "Annual component should be billed in June (creation month)",
+        )
+        self.assertEqual(
+            monthly_items.count(), 1, "Monthly component should be billed in June"
+        )
+
+    @freeze_time("2020-07-15")
+    def test_only_monthly_billing_in_non_anniversary_month(self):
+        """Test that only monthly components are billed in non-anniversary months."""
+        create_monthly_invoices()
+
+        invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2020, month=7
+        )
+
+        annual_items = invoice.items.filter(
+            details__offering_component_type="annual_cpu"
+        )
+        monthly_items = invoice.items.filter(
+            details__offering_component_type="monthly_cpu"
+        )
+
+        self.assertEqual(
+            annual_items.count(),
+            0,
+            "Annual component should NOT be billed in July",
+        )
+        self.assertEqual(
+            monthly_items.count(),
+            1,
+            "Monthly component should be billed in July",
+        )
+
+
 @freeze_time("2024-10-03")
 class LimitBillingDuplicateInvoiceTest(test.APITransactionTestCase):
     """Test that reproduces the issue where LIMIT components get incorrectly billed during monthly invoice creation."""
