@@ -60,18 +60,17 @@ class LimitPeriodProcessor:
                 cls._create_invoice_item(resource, plan_component, invoice, start, end)
             return
 
-        if not cls._should_process_billing(limit_period, start):
+        if not cls._should_process_billing(limit_period, start, resource):
             # Skip billing for this period (e.g., non-quarterly month for a quarterly component)
             return
 
         # Use the appropriate billing period instead of the default monthly one
-        if limit_period == LimitPeriods.QUARTERLY:
-            billing_start, billing_end = (
-                core_utils.get_quarter_start(start),
-                core_utils.get_quarter_end(start),
+        if limit_period in (LimitPeriods.QUARTERLY, LimitPeriods.ANNUAL):
+            billing_start, billing_end = cls._get_billing_period(
+                limit_period, start, resource
             )
         else:
-            # For MONTH, ANNUAL, etc., use the period provided by the caller.
+            # For MONTH, use the period provided by the caller.
             billing_start, billing_end = start, end
 
         cls._create_invoice_item(
@@ -112,28 +111,53 @@ class LimitPeriodProcessor:
 
     @classmethod
     def _get_billing_period(
-        cls, limit_period: str, date: datetime.date
+        cls,
+        limit_period: str,
+        date: datetime.date,
+        resource: marketplace_models.Resource = None,
     ) -> tuple[datetime.datetime, datetime.datetime]:
         """
         Get the full billing period (start, end) for a given limit period
         containing the given date.
+
+        For ANNUAL billing, the period is based on the resource's creation
+        anniversary (12-month cycle from delivery date), not the calendar year.
         """
         if limit_period == LimitPeriods.QUARTERLY:
             return core_utils.get_quarter_start(date), core_utils.get_quarter_end(date)
-        # Default to monthly boundaries for other recurring limit types (MONTH, ANNUAL)
-        # when creating a new item mid-cycle.
+        if limit_period == LimitPeriods.ANNUAL and resource:
+            # Anniversary-based annual billing: 12-month cycle from resource creation
+            anniversary_this_year = resource.created.replace(year=date.year)
+            if anniversary_this_year > date:
+                start = resource.created.replace(year=date.year - 1)
+            else:
+                start = anniversary_this_year
+            end = start.replace(year=start.year + 1) - datetime.timedelta(seconds=1)
+            return start, end
+        # Default to monthly boundaries for MONTH and other recurring limit types.
         return core_utils.month_start(date), core_utils.month_end(date)
 
     @classmethod
-    def _should_process_billing(cls, limit_period: str, date: datetime.date) -> bool:
+    def _should_process_billing(
+        cls,
+        limit_period: str,
+        date: datetime.date,
+        resource: marketplace_models.Resource = None,
+    ) -> bool:
         """
         Check if billing should be processed for the given date based on the limit period.
+
+        For ANNUAL billing, billing triggers on the resource's creation anniversary month,
+        not on a fixed calendar month.
         """
         if limit_period == LimitPeriods.QUARTERLY:
             # Quarterly billing should only happen in the first month of each quarter:
             # January (Q1), April (Q2), July (Q3), October (Q4)
             return date.month in [1, 4, 7, 10]
-        # MONTH, ANNUAL, TOTAL are processed every month.
+        if limit_period == LimitPeriods.ANNUAL:
+            # Annual billing triggers on the resource's creation anniversary month.
+            return resource is not None and date.month == resource.created.month
+        # MONTH, TOTAL are processed every month.
         return True
 
     @classmethod
@@ -198,7 +222,9 @@ class LimitPeriodProcessor:
         details = get_component_details(resource, plan_component)
 
         start = timezone.now()
-        _, end = cls._get_billing_period(offering_component.limit_period, start)
+        _, end = cls._get_billing_period(
+            offering_component.limit_period, start, resource
+        )
 
         # Create main invoice item for the difference
         final_unit_price = plan_component.price if diff > 0 else -plan_component.price
@@ -264,7 +290,7 @@ class LimitPeriodProcessor:
                 offering_component = plan_component.component
 
                 start, end = cls._get_billing_period(
-                    offering_component.limit_period, now
+                    offering_component.limit_period, now, resource
                 )
 
             except ObjectDoesNotExist:
@@ -331,7 +357,7 @@ class LimitPeriodProcessor:
         # Get the offering component to determine appropriate period end
         offering_component = resource.offering.components.get(type=component_type)
         _, period_end = cls._get_billing_period(
-            offering_component.limit_period, timezone.now()
+            offering_component.limit_period, timezone.now(), resource
         )
 
         new_period = utils.serialize_resource_limit_period(
