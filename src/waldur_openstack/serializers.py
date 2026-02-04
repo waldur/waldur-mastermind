@@ -299,6 +299,50 @@ class OpenStackVolumeTypeSerializer(structure_serializers.BasePropertySerializer
         }
 
 
+class ExternalSubnetSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.ExternalSubnet
+        fields = (
+            "uuid",
+            "name",
+            "backend_id",
+            "cidr",
+            "gateway_ip",
+            "ip_version",
+            "enable_dhcp",
+            "allocation_pools",
+            "dns_nameservers",
+            "public_ip_range",
+            "description",
+        )
+
+
+class ExternalNetworkSerializer(
+    core_serializers.RestrictedSerializerMixin,
+    structure_serializers.BasePropertySerializer,
+):
+    subnets = ExternalSubnetSerializer(many=True, read_only=True)
+
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
+        model = models.ExternalNetwork
+        fields = (
+            "url",
+            "uuid",
+            "name",
+            "settings",
+            "backend_id",
+            "is_shared",
+            "is_default",
+            "status",
+            "description",
+            "subnets",
+        )
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid"},
+            "settings": {"lookup_field": "uuid"},
+        }
+
+
 class OpenStackTenantQuotaSerializer(serializers.Serializer):
     instances = serializers.IntegerField(min_value=1, required=False)
     volumes = serializers.IntegerField(min_value=1, required=False)
@@ -1026,12 +1070,23 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
         default=False,
     )
 
+    external_network_ref_uuid = serializers.ReadOnlyField(
+        source="external_network_ref.uuid",
+        default=None,
+    )
+    external_network_ref_name = serializers.ReadOnlyField(
+        source="external_network_ref.name",
+        default="",
+    )
+
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Tenant
         fields = structure_serializers.BaseResourceSerializer.Meta.fields + (
             "availability_zone",
             "internal_network_id",
             "external_network_id",
+            "external_network_ref_uuid",
+            "external_network_ref_name",
             "user_username",
             "user_password",
             "quotas",
@@ -1046,6 +1101,8 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
             + (
                 "internal_network_id",
                 "external_network_id",
+                "external_network_ref_uuid",
+                "external_network_ref_name",
             )
         )
         protected_fields = (

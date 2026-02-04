@@ -243,6 +243,24 @@ class VolumeTypeViewSet(structure_views.BaseServicePropertyViewSet):
 
 @extend_schema_view(
     list=extend_schema(
+        summary="List external networks",
+        description="Get a list of provider-level external networks discovered from OpenStack.",
+    ),
+    retrieve=extend_schema(
+        summary="Get external network details",
+        description="Retrieve details of a specific external network, including its subnets.",
+    ),
+)
+class ExternalNetworkViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.ExternalNetwork.objects.all().order_by("settings", "name")
+    serializer_class = serializers.ExternalNetworkSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.ExternalNetworkFilter
+
+
+@extend_schema_view(
+    list=extend_schema(
         summary="List security groups",
         description="Get a list of security groups.",
     ),

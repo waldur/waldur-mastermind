@@ -1,4 +1,15 @@
-from . import views
+from django.urls import include, re_path
+from rest_framework.routers import SimpleRouter
+
+from . import discovery_views, views
+
+# Dedicated router for OpenStack settings discovery
+settings_discovery_router = SimpleRouter()
+settings_discovery_router.register(
+    r"discovery",
+    discovery_views.OpenStackDiscoveryViewSet,
+    basename="openstack-discovery",
+)
 
 
 def register_in(router):
@@ -10,6 +21,11 @@ def register_in(router):
         r"openstack-volume-types",
         views.VolumeTypeViewSet,
         basename="openstack-volume-type",
+    )
+    router.register(
+        r"openstack-external-networks",
+        views.ExternalNetworkViewSet,
+        basename="openstack-external-network",
     )
     router.register(
         r"openstack-tenants", views.TenantViewSet, basename="openstack-tenant"
@@ -75,4 +91,9 @@ def register_in(router):
     )
 
 
-urlpatterns = []
+urlpatterns = [
+    re_path(
+        r"^api/openstack/",
+        include(settings_discovery_router.urls),
+    ),
+]

@@ -96,6 +96,14 @@ class Tenant(
         blank=True,
         help_text=_("ID of external network connected to OpenStack tenant"),
     )
+    external_network_ref = models.ForeignKey(
+        "ExternalNetwork",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="tenants",
+        help_text=_("External network connected to OpenStack tenant"),
+    )
 
     availability_zone = models.CharField(
         max_length=100,
@@ -276,6 +284,83 @@ class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty)
     @classmethod
     def get_url_name(cls):
         return "openstack-volume-type"
+
+
+class ExternalNetwork(core_models.DescribableMixin, structure_models.ServiceProperty):
+    """Provider-level external network discovered from OpenStack."""
+
+    is_shared = models.BooleanField(default=False)
+    is_default = models.BooleanField(default=False)
+    status = models.CharField(max_length=30, blank=True)
+
+    class Meta:
+        unique_together = ("settings", "backend_id")
+
+    @classmethod
+    def get_url_name(cls):
+        return "openstack-external-network"
+
+    @classmethod
+    def get_backend_fields(cls):
+        return super().get_backend_fields() + (
+            "is_shared",
+            "is_default",
+            "status",
+            "description",
+        )
+
+    def get_backend(self):
+        return self.settings.get_backend()
+
+
+class ExternalSubnet(
+    core_models.DescribableMixin,
+    core_models.UuidMixin,
+    core_models.BackendModelMixin,
+    core_models.NameMixin,
+    models.Model,
+):
+    """Subnet within a provider-level external network."""
+
+    network = models.ForeignKey(
+        ExternalNetwork,
+        on_delete=models.CASCADE,
+        related_name="subnets",
+    )
+    backend_id = models.CharField(max_length=255, db_index=True)
+    cidr = models.CharField(max_length=32, blank=True)
+    gateway_ip = models.GenericIPAddressField(null=True, blank=True)
+    ip_version = models.SmallIntegerField(default=4)
+    enable_dhcp = models.BooleanField(default=True)
+    allocation_pools = models.JSONField(default=list, blank=True)
+    dns_nameservers = models.JSONField(default=list, blank=True)
+    public_ip_range = models.CharField(
+        max_length=32,
+        blank=True,
+        help_text=_(
+            "Public CIDR mapped to this subnet (for carrier-grade NAT overlay)"
+        ),
+    )
+
+    class Meta:
+        unique_together = ("network", "backend_id")
+
+    def __str__(self):
+        return f"{self.name} ({self.cidr})"
+
+    @classmethod
+    def get_backend_fields(cls):
+        return super().get_backend_fields() + (
+            "backend_id",
+            "name",
+            "cidr",
+            "gateway_ip",
+            "ip_version",
+            "enable_dhcp",
+            "allocation_pools",
+            "dns_nameservers",
+            "description",
+        )
 
 
 class ServerGroup(structure_models.BaseResource):
@@ -874,6 +959,14 @@ class CustomerOpenStack(TimeStampedModel):
     customer = models.ForeignKey(on_delete=models.CASCADE, to=structure_models.Customer)
     external_network_id = models.CharField(
         _("OpenStack external network ID"), max_length=255
+    )
+    external_network_ref = models.ForeignKey(
+        ExternalNetwork,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="customer_openstack_settings",
+        help_text=_("External network for this customer"),
     )
 
     class Meta:
