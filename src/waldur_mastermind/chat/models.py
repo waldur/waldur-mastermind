@@ -283,3 +283,71 @@ class TokenQuota(UuidMixin, TimeStampedModel):
 
         else:
             raise ValueError(f"Invalid period: {period}")
+
+
+class ChatSession(UuidMixin, TimeStampedModel):
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="chat_session"
+    )
+
+    class Meta:
+        verbose_name = _("Chat session")
+
+    def __str__(self):
+        return f"ChatSession({self.user.username})"
+
+
+class ThreadSession(UuidMixin, TimeStampedModel):
+    chat_session = models.ForeignKey(
+        ChatSession, on_delete=models.CASCADE, related_name="threads"
+    )
+    name = models.CharField(_("name"), max_length=150, default="New chat")
+    flags = models.JSONField(default=dict, blank=True)
+    is_archived = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = _("Thread session")
+        indexes = [
+            models.Index(fields=["chat_session"]),
+        ]
+
+    def __str__(self):
+        return f"ThreadSession({self.name})"
+
+
+class Message(UuidMixin, TimeStampedModel):
+    class Role(models.TextChoices):
+        USER = "user", _("User")
+        ASSISTANT = "assistant", _("Assistant")
+
+    thread = models.ForeignKey(
+        ThreadSession, on_delete=models.CASCADE, related_name="messages"
+    )
+    role = models.CharField(max_length=10, choices=Role.choices)
+    content = models.TextField()  # Stored as plaintext
+    sequence_index = models.PositiveIntegerField()
+    replaces = models.ForeignKey(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="replaced_by",
+    )
+
+    class Meta:
+        ordering = ["sequence_index"]
+        verbose_name = _("Message")
+        indexes = [
+            models.Index(fields=["thread"]),
+            models.Index(fields=["replaces"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["thread", "sequence_index"],
+                condition=models.Q(replaces__isnull=True),
+                name="unique_active_message_sequence",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Message({self.role}, seq={self.sequence_index})"

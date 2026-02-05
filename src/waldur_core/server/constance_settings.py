@@ -804,6 +804,14 @@ CONSTANCE_CONFIG = {
         -1,
         "Default monthly token limit (integer). -1 means unlimited.",
     ),
+    "LLM_CHAT_SESSION_RETENTION_DAYS": (
+        90,
+        "Number of days to retain chat sessions before automatic deletion. Set to -1 to disable automatic cleanup.",
+    ),
+    "LLM_CHAT_STORAGE_ENABLED": (
+        False,
+        "Enable persistent storage of chat messages. When disabled, messages are streamed but not saved.",
+    ),
     # Software catalog settings
     "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED": (
         False,
@@ -1180,6 +1188,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "LLM_TOKEN_LIMIT_DAILY",
         "LLM_TOKEN_LIMIT_WEEKLY",
         "LLM_TOKEN_LIMIT_MONTHLY",
+        "LLM_CHAT_SESSION_RETENTION_DAYS",
+        "LLM_CHAT_STORAGE_ENABLED",
     ),
     "Software catalog settings": (
         "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED",

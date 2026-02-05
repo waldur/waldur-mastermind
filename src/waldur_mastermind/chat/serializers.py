@@ -3,12 +3,23 @@ from datetime import datetime
 from constance import config
 from rest_framework import serializers
 
-from waldur_mastermind.chat.models import TokenQuota
+from waldur_core.core import serializers as core_serializers
+from waldur_mastermind.chat import models
 
 
 class ChatRequestSerializer(serializers.Serializer):
     input = serializers.CharField(
         required=True, help_text="User input text for the chat model."
+    )
+    thread_uuid = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        help_text="Existing thread UUID. If omitted, a new thread is created when storage is enabled.",
+    )
+    update_thread_name = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        help_text="Thread UUID whose name should be set to the assistant's response. Skips message persistence for this call.",
     )
 
 
@@ -93,7 +104,7 @@ class TokenQuotaUsageResponseSerializer(serializers.ModelSerializer):
     monthly_reset_at = serializers.SerializerMethodField()
 
     class Meta:
-        model = TokenQuota
+        model = models.TokenQuota
         fields = [
             "daily_limit",
             "daily_usage",
@@ -138,15 +149,15 @@ class TokenQuotaUsageResponseSerializer(serializers.ModelSerializer):
 
     def get_daily_reset_at(self, obj) -> datetime:
         """Calculate next midnight (00:00:00)."""
-        return TokenQuota.calculate_next_reset("daily")
+        return models.TokenQuota.calculate_next_reset("daily")
 
     def get_weekly_reset_at(self, obj) -> datetime:
         """Calculate next Monday at midnight."""
-        return TokenQuota.calculate_next_reset("weekly")
+        return models.TokenQuota.calculate_next_reset("weekly")
 
     def get_monthly_reset_at(self, obj) -> datetime:
         """Calculate first day of next month at midnight."""
-        return TokenQuota.calculate_next_reset("monthly")
+        return models.TokenQuota.calculate_next_reset("monthly")
 
 
 class SetTokenQuotaSerializer(serializers.Serializer):
@@ -181,3 +192,69 @@ class SetTokenQuotaSerializer(serializers.Serializer):
         min_value=-1,
         help_text="Monthly token limit. Omit or null = system default, -1 = unlimited.",
     )
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    thread = serializers.SlugRelatedField(
+        slug_field="uuid", queryset=models.ThreadSession.objects.all()
+    )
+    replaces = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.Message.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = models.Message
+        fields = (
+            "uuid",
+            "thread",
+            "role",
+            "content",
+            "sequence_index",
+            "replaces",
+            "created",
+        )
+        read_only_fields = ("uuid", "created", "sequence_index")
+
+
+class ThreadSessionSerializer(
+    core_serializers.RestrictedSerializerMixin, serializers.ModelSerializer
+):
+    chat_session = serializers.SlugRelatedField(slug_field="uuid", read_only=True)
+
+    message_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = models.ThreadSession
+        fields = (
+            "uuid",
+            "name",
+            "chat_session",
+            "flags",
+            "is_archived",
+            "message_count",
+            "created",
+        )
+        read_only_fields = ("uuid", "created", "chat_session", "flags")
+
+
+class ChatSessionSerializer(
+    core_serializers.RestrictedSerializerMixin, serializers.ModelSerializer
+):
+    user = serializers.SlugRelatedField(slug_field="uuid", read_only=True)
+    user_username = serializers.CharField(source="user.username", read_only=True)
+    user_full_name = serializers.CharField(source="user.full_name", read_only=True)
+
+    class Meta:
+        model = models.ChatSession
+        fields = (
+            "uuid",
+            "user",
+            "user_username",
+            "user_full_name",
+            "created",
+            "modified",
+        )
+        read_only_fields = ("uuid", "user", "created", "modified")
