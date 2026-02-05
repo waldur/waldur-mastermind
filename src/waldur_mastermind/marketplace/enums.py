@@ -350,6 +350,9 @@ class ResourceAction:
     CREATE_ROBOT_ACCOUNT = "create_robot_account"
     SUBMIT_REPORT = "submit_report"
     REPORT_USAGE = "report_usage"
+    VIEW_DETAILS = "view_details"
+    SYNCHRONIZE = "synchronize"
+    VERSION_HISTORY = "version_history"
 
     CHOICES = (
         (TERMINATE, _("Terminate")),
@@ -365,4 +368,7 @@ class ResourceAction:
         (CREATE_ROBOT_ACCOUNT, _("Create robot account")),
         (SUBMIT_REPORT, _("Submit report")),
         (REPORT_USAGE, _("Report usage")),
+        (VIEW_DETAILS, _("View details")),
+        (SYNCHRONIZE, _("Synchronize")),
+        (VERSION_HISTORY, _("Version history")),
     )
