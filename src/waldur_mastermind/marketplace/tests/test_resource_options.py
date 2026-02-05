@@ -105,3 +105,15 @@ class ResourceUpdateOptionsTest(test.APITransactionTestCase):
         self.resource.save()
         response = self.make_request(self.fixture.owner)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_update_options_fails_if_pending_order_exists(self):
+        factories.OrderFactory(
+            resource=self.resource,
+            state=OrderStates.PENDING_CONSUMER,
+            attributes={"new_options": {"email": "pending@example.com"}},
+        )
+        response = self.make_request(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(
+            response.data[0], "There's a pending order for changing resource options."
+        )

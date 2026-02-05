@@ -5300,6 +5300,26 @@ class ResourceOptionsSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Metadata for resource options is not defined."
             )
+
+        if (
+            models.Order.objects.filter(
+                resource=resource,
+                state__in=(
+                    OrderStates.PENDING_CONSUMER,
+                    OrderStates.PENDING_PROVIDER,
+                    OrderStates.EXECUTING,
+                ),
+            )
+            .filter(
+                Q(attributes__new_options__isnull=False)
+                | Q(attributes__old_options__isnull=False)
+            )
+            .exists()
+        ):
+            raise rf_exceptions.ValidationError(
+                _("There's a pending order for changing resource options.")
+            )
+
         validate_options(resource_options["options"], attrs, optional=True)
         if self.instance.options:
             return {**self.instance.options, **attrs}
