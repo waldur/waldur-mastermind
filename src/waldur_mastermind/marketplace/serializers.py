@@ -138,9 +138,9 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="If set to True, resource termination date is required",
     )
-    latest_date_for_resource_termination = serializers.DateField(
+    latest_date_for_resource_termination = serializers.CharField(
         required=False,
-        help_text="If set, it will be used as a latest date for resource termination",
+        help_text="If set, it will be used as a latest date for resource termination. Format: YYYY-MM-DD",
     )
     auto_approve_in_service_provider_projects = serializers.BooleanField(
         required=False,
@@ -196,6 +196,15 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="If set to True, resource can be restored.",
     )
+
+    def validate_latest_date_for_resource_termination(self, value):
+        try:
+            datetime.datetime.strptime(value, "%Y-%m-%d")
+        except (TypeError, ValueError):
+            raise rf_exceptions.ValidationError(
+                _("Invalid date format. Use YYYY-MM-DD.")
+            )
+        return value
 
 
 class SupportPluginOptionsSerializer(serializers.Serializer):
@@ -3430,6 +3439,8 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
     def _update_plugin_options(self, instance, validated_data):
         plugin_options = validated_data.pop("plugin_options", {})
         for key, value in plugin_options.items():
+            if isinstance(value, datetime.date | datetime.datetime):
+                value = value.isoformat()
             instance.plugin_options[key] = value
         instance.save()
 
