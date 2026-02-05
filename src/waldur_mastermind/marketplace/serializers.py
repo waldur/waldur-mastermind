@@ -2564,9 +2564,25 @@ class NestedRoleSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class CatalogSummarySerializer(serializers.ModelSerializer):
+    """Summary serializer for SoftwareCatalog used in nested context."""
+
+    class Meta:
+        model = models.SoftwareCatalog
+        fields = ("uuid", "name", "version", "description")
+
+
+class PartitionSummarySerializer(serializers.ModelSerializer):
+    """Summary serializer for OfferingPartition used in nested context."""
+
+    class Meta:
+        model = models.OfferingPartition
+        fields = ("uuid", "partition_name", "priority_tier", "qos")
+
+
 class NestedSoftwareCatalogSerializer(serializers.ModelSerializer):
-    catalog = serializers.SerializerMethodField()
-    partition = serializers.SerializerMethodField()
+    catalog = CatalogSummarySerializer(read_only=True)
+    partition = PartitionSummarySerializer(read_only=True, allow_null=True)
     package_count = serializers.SerializerMethodField()
 
     class Meta:
@@ -2584,46 +2600,6 @@ class NestedSoftwareCatalogSerializer(serializers.ModelSerializer):
     def get_package_count(self, obj):
         """Get total number of packages in this catalog."""
         return obj.catalog.packages.count()
-
-    @extend_schema_field(
-        {
-            "type": "object",
-            "properties": {
-                "uuid": {"type": "string"},
-                "name": {"type": "string"},
-                "version": {"type": "string"},
-                "description": {"type": "string"},
-            },
-        }
-    )
-    def get_catalog(self, obj):
-        return {
-            "uuid": obj.catalog.uuid.hex,
-            "name": obj.catalog.name,
-            "version": obj.catalog.version,
-            "description": obj.catalog.description,
-        }
-
-    @extend_schema_field(
-        {
-            "type": "object",
-            "properties": {
-                "uuid": {"type": "string"},
-                "partition_name": {"type": "string"},
-                "priority_tier": {"type": "integer"},
-                "qos": {"type": "string"},
-            },
-        }
-    )
-    def get_partition(self, obj):
-        if not obj.partition:
-            return None
-        return {
-            "uuid": obj.partition.uuid.hex,
-            "partition_name": obj.partition.partition_name,
-            "priority_tier": obj.partition.priority_tier,
-            "qos": obj.partition.qos,
-        }
 
 
 class NestedPartitionSerializer(serializers.ModelSerializer):
