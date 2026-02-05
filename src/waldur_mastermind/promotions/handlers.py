@@ -46,7 +46,7 @@ def apply_campaign_to_pending_invoices(
     # otherwise we only create an object of the DiscountedResource model,
     # and the discount will be created when the invoice is created.
     for invoice_item in invoices_models.InvoiceItem.objects.filter(
-        invoice__state=invoices_models.Invoice.States.PENDING,
+        invoice__state__in=invoices_models.Invoice.States.MUTABLE_STATES,
         invoice__year=campaign.start_date.year,
         invoice__month=campaign.start_date.month,
     ):

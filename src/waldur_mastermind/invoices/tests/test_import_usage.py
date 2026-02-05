@@ -319,7 +319,7 @@ class ImportUsageErrorTest(test.APITransactionTestCase):
         self.assertEqual(response.data["created"], 0)
         self.assertEqual(len(response.data["errors"]), 1)
         self.assertIn("created", response.data["errors"][0]["reason"])
-        self.assertIn("pending", response.data["errors"][0]["reason"])
+        self.assertIn("mutable", response.data["errors"][0]["reason"])
 
     def test_paid_invoice_rejected(self):
         factories.InvoiceFactory(

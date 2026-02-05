@@ -440,12 +440,12 @@ class InvoiceViewSet(core_views.HistoryViewSetMixin, core_views.ReadOnlyActionsV
                 month=month,
             )
 
-            # Validate invoice state - only allow adding items to pending invoices
-            if invoice.state != models.Invoice.States.PENDING:
+            # Validate invoice state - only allow adding items to mutable invoices
+            if invoice.state not in models.Invoice.States.MUTABLE_STATES:
                 errors.append(
                     {
                         "customer_name": customer.name,
-                        "reason": f"Invoice is in '{invoice.state}' state, items can only be added to pending invoices",
+                        "reason": f"Invoice is in '{invoice.state}' state, items can only be added to mutable invoices",
                     }
                 )
                 continue

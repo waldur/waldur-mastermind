@@ -55,6 +55,11 @@ class InvoicesExtension(WaldurExtension):
                 },
             },
             "SEND_CUSTOMER_INVOICES": False,
+            # Grace period in hours before finalizing previous month invoices.
+            # 0 means finalize immediately (backward compatible behavior).
+            # When > 0, invoices transition PENDING -> PENDING_FINALIZATION on the 1st,
+            # then PENDING_FINALIZATION -> CREATED after this many hours.
+            "INVOICE_FINALIZATION_GRACE_PERIOD_HOURS": 0,
         }
 
     @staticmethod
@@ -81,17 +86,23 @@ class InvoicesExtension(WaldurExtension):
     def celery_tasks():
         from celery.schedules import crontab
 
-        return {
+        tasks = {
             "waldur-create-invoices": {
                 "task": "invoices.create_monthly_invoices",
                 "schedule": crontab(minute=0, hour=0, day_of_month="1"),
                 "args": (),
             },
-            "send-monthly-invoicing-reports-about-customers": {
-                "task": "invoices.send_monthly_invoicing_reports_about_customers",
-                "schedule": crontab(minute=0, hour=0, day_of_month="2"),
+            # Runs hourly on the 1st-3rd of each month to finalize invoices
+            # after the grace period. No-op when no PENDING_FINALIZATION invoices exist.
+            "waldur-finalize-invoices": {
+                "task": "invoices.finalize_previous_invoices",
+                "schedule": crontab(minute=0, day_of_month="1-3"),
                 "args": (),
             },
+            # NOTE: send_monthly_invoicing_reports_about_customers is triggered
+            # programmatically by create_monthly_invoices (grace_hours=0)
+            # or finalize_previous_invoices (grace_hours>0) after all invoices
+            # are finalized, so it does not need a cron schedule.
             "update-invoices-total-cost": {
                 "task": "invoices.update_invoices_total_cost",
                 "schedule": timedelta(hours=24),
@@ -103,3 +114,5 @@ class InvoicesExtension(WaldurExtension):
                 "args": (),
             },
         }
+
+        return tasks

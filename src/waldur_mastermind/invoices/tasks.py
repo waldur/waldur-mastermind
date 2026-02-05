@@ -28,10 +28,14 @@ logger = logging.getLogger(__name__)
 def create_monthly_invoices():
     """
     - For every customer change state of the invoices for previous months from "pending" to "billed"
-      and freeze their items.
+      and freeze their items (or transition to "pending_finalization" if grace period is configured).
     - Create new invoice for every customer in current month if not created yet.
     """
     copy_future_price_to_current_price()
+
+    grace_hours = settings.WALDUR_INVOICES.get(
+        "INVOICE_FINALIZATION_GRACE_PERIOD_HOURS", 0
+    )
 
     local_date = timezone.localtime(timezone.now())
     old_invoices = models.Invoice.objects.filter(
@@ -42,15 +46,28 @@ def create_monthly_invoices():
             month__lt=local_date.month,
         )
     )
-    set_to_zero_overdue_credits()
-    for invoice in old_invoices:
-        try:
-            with transaction.atomic():
-                process_invoice_credits(invoice)
-                invoice.set_created()
-        except Exception:
-            logger.exception("Unable to process invoice %s", invoice)
-            continue
+
+    if grace_hours == 0:
+        # Backward compatible: finalize immediately
+        set_to_zero_overdue_credits(local_date.date())
+        for invoice in old_invoices:
+            try:
+                with transaction.atomic():
+                    process_invoice_credits(invoice)
+                    invoice.set_created()
+            except Exception:
+                logger.exception("Unable to process invoice %s", invoice)
+                continue
+    else:
+        # Grace period: transition to PENDING_FINALIZATION
+        for invoice in old_invoices:
+            try:
+                invoice.set_pending_finalization()
+            except Exception:
+                logger.exception(
+                    "Unable to set pending_finalization for invoice %s", invoice
+                )
+                continue
 
     customers = structure_models.Customer.objects.exclude(archived=True)
     if settings.WALDUR_CORE["ENABLE_ACCOUNTING_START_DATE"]:
@@ -67,11 +84,78 @@ def create_monthly_invoices():
                 "Unable to create monthly invoice for customer %s", customer
             )
 
-    if settings.WALDUR_INVOICES["INVOICE_REPORTING"]["ENABLE"]:
-        send_invoice_report.delay()
+    # Reports/notifications only if finalized immediately (grace_period=0)
+    if grace_hours == 0:
+        if settings.WALDUR_INVOICES["INVOICE_REPORTING"]["ENABLE"]:
+            send_invoice_report.delay()
+            send_monthly_invoicing_reports_about_customers.delay()
 
-    if settings.WALDUR_INVOICES["SEND_CUSTOMER_INVOICES"]:
-        send_new_invoices_notification.delay()
+        if settings.WALDUR_INVOICES["SEND_CUSTOMER_INVOICES"]:
+            send_new_invoices_notification.delay()
+
+
+@shared_task(name="invoices.finalize_previous_invoices")
+def finalize_previous_invoices():
+    """
+    Finalize invoices that are in PENDING_FINALIZATION state.
+
+    Runs hourly on the 1st-3rd of each month. Checks whether the configured
+    grace period has elapsed since midnight on the 1st before finalizing.
+    No-op when there are no PENDING_FINALIZATION invoices or when the
+    grace period has not yet elapsed.
+    """
+    pending_invoices = models.Invoice.objects.filter(
+        state=models.Invoice.States.PENDING_FINALIZATION,
+    )
+    if not pending_invoices.exists():
+        return
+
+    grace_hours = settings.WALDUR_INVOICES.get(
+        "INVOICE_FINALIZATION_GRACE_PERIOD_HOURS", 0
+    )
+    local_now = timezone.localtime(timezone.now())
+    if grace_hours > 0:
+        # Grace period is measured from midnight on the 1st of the current month
+        month_start = local_now.replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+        hours_since_month_start = (local_now - month_start).total_seconds() / 3600
+        if hours_since_month_start < grace_hours:
+            logger.info(
+                "Grace period not yet elapsed (%.1f / %d hours). "
+                "Skipping invoice finalization.",
+                hours_since_month_start,
+                grace_hours,
+            )
+            return
+
+    # Use the 1st of current month as effective date, not today.
+    # When grace period delays finalization (e.g. to Feb 2), credits with
+    # end_date on the 1st must not be zeroed before compensations are applied.
+    effective_date = local_now.replace(day=1).date()
+    set_to_zero_overdue_credits(effective_date)
+    for invoice in pending_invoices:
+        try:
+            with transaction.atomic():
+                process_invoice_credits(invoice)
+                invoice.set_created()
+        except Exception:
+            logger.exception("Unable to finalize invoice %s", invoice)
+            continue
+
+    # Only send reports/notifications when all invoices have been finalized.
+    # If some failed above, the next hourly run will finalize them and send them.
+    remaining = models.Invoice.objects.filter(
+        state=models.Invoice.States.PENDING_FINALIZATION,
+    ).exists()
+
+    if not remaining:
+        if settings.WALDUR_INVOICES["INVOICE_REPORTING"]["ENABLE"]:
+            send_invoice_report.delay()
+            send_monthly_invoicing_reports_about_customers.delay()
+
+        if settings.WALDUR_INVOICES["SEND_CUSTOMER_INVOICES"]:
+            send_new_invoices_notification.delay()
 
 
 @shared_task(name="invoices.send_invoice_notification")
@@ -283,9 +367,11 @@ def send_monthly_invoicing_reports_about_customers():
         )
 
 
-def set_to_zero_overdue_credits():
+def set_to_zero_overdue_credits(effective_date=None):
+    if effective_date is None:
+        effective_date = timezone.localtime(timezone.now()).date()
     for credit in models.CustomerCredit.objects.filter(
-        end_date__lt=datetime.date.today()
+        end_date__lt=effective_date
     ).exclude(value=0):
         credit.value = 0
         credit.save()
@@ -302,6 +388,8 @@ def set_to_zero_overdue_credits():
 def process_invoice_credits(invoice: models.Invoice):
     """Process credits for a given invoice"""
     with transaction.atomic():
-        monthly_compensation = compensations.MonthlyCompensation(invoice.customer)
+        monthly_compensation = compensations.MonthlyCompensation(
+            invoice.customer, invoice=invoice
+        )
         monthly_compensation.apply_compensations()
         monthly_compensation.update_linear_expected_consumption()
