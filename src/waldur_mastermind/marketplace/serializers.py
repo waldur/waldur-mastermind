@@ -3383,6 +3383,26 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
             "backend_id",
         )
 
+    def validate(self, attrs):
+        user = self.context["request"].user
+        if not user.is_staff:
+            plugin_options = attrs.get("plugin_options", {})
+            if "disabled_resource_actions" in plugin_options:
+                # Check if it's actually changing
+                old_value = self.instance.plugin_options.get(
+                    "disabled_resource_actions", []
+                )
+                new_value = plugin_options["disabled_resource_actions"]
+                if old_value != new_value:
+                    raise rf_exceptions.ValidationError(
+                        {
+                            "plugin_options": _(
+                                "Only staff can change list of disabled actions."
+                            )
+                        }
+                    )
+        return attrs
+
     def get_fields(self):
         fields = super().get_fields()
         for field in fields.values():
