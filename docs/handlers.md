@@ -40,6 +40,13 @@ td:nth-child(4) {
 | `constance_updated` | `Custom Signal (config_updated)` | `—` | Clear the API configuration cache when a Constance setting is updated. |
 | `create_auth_token` | `Django Signal (post_save)` | `core.User` | Create a token for a new user. |
 | `create_existing_projects_completions` | `Django Signal (post_save)` | `structure.Customer` | Create ChecklistCompletion for existing projects when customer checklist is updated. |
+| `create_initial_revision` | `Django Signal (post_save)` | `core.User` | Create an initial reversion snapshot when an object is first created. |
+| `create_initial_revision` | `Django Signal (post_save)` | `core.SshPublicKey` | Create an initial reversion snapshot when an object is first created. |
+| `create_initial_revision` | `Django Signal (post_save)` | `structure.Customer` | Create an initial reversion snapshot when an object is first created. |
+| `create_initial_revision` | `Django Signal (post_save)` | `invoices.Invoice` | Create an initial reversion snapshot when an object is first created. |
+| `create_initial_revision` | `Django Signal (post_save)` | `marketplace.Resource` | Create an initial reversion snapshot when an object is first created. |
+| `create_initial_revision` | `Django Signal (post_save)` | `marketplace.Offering` | Create an initial reversion snapshot when an object is first created. |
+| `create_initial_revision` | `Django Signal (post_save)` | `marketplace.Plan` | Create an initial reversion snapshot when an object is first created. |
 | `create_notification_about_permission_request_has_been_submitted` | `Django Signal (post_save)` | `users.PermissionRequest` | Send a notification when a permission request has been submitted. |
 | `create_project_metadata_completion` | `Django Signal (post_save)` | `structure.Project` | Create ChecklistCompletion for project metadata when a project is created. |
 | `deactivate_user_if_no_roles` | `Custom Signal (role_revoked)` | `—` | Deactivate a user if they no longer have any active roles. |
@@ -787,11 +794,11 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 708
+Total unique handlers found: 715
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 357 handlers
+- **waldur_core**: 364 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
 - **waldur_mastermind**: 293 handlers
