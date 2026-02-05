@@ -941,6 +941,25 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.assertEqual(offering.plugin_options["max_volumes"], 20)
         self.assertEqual(offering.plugin_options["max_security_groups"], 15)
 
+    def test_update_offering_plugin_options_with_date_field(self):
+        """Test that plugin_options with date values can be saved without JSON serialization errors"""
+        offering = factories.OfferingFactory(customer=self.customer)
+        self.client.force_authenticate(self.fixture.staff)
+
+        url = factories.OfferingFactory.get_url(offering, "update_integration")
+        plugin_options = {
+            "latest_date_for_resource_termination": "2026-02-28",
+        }
+
+        response = self.client.post(url, {"plugin_options": plugin_options})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        offering.refresh_from_db()
+        self.assertEqual(
+            offering.plugin_options["latest_date_for_resource_termination"],
+            "2026-02-28",
+        )
+
     def test_create_offering_with_minimal_information_in_draft_state(self):
         user = self.fixture.staff
         self.client.force_authenticate(user)
@@ -983,6 +1002,30 @@ class OfferingCreateTest(test.APITransactionTestCase):
             offering.plugin_options["auto_approve_in_service_provider_projects"], True
         )
         self.assertEqual(offering.plugin_options["max_instances"], 10)
+
+    def test_create_offering_with_date_in_plugin_options(self):
+        plugin_options = {
+            "latest_date_for_resource_termination": "2026-02-28",
+        }
+        response = self.create_offering(
+            "owner", add_payload={"plugin_options": plugin_options}
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        offering = models.Offering.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(
+            offering.plugin_options["latest_date_for_resource_termination"],
+            "2026-02-28",
+        )
+
+    def test_create_offering_with_invalid_date_in_plugin_options(self):
+        plugin_options = {
+            "latest_date_for_resource_termination": "not-a-date",
+        }
+        response = self.create_offering(
+            "owner", add_payload={"plugin_options": plugin_options}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_offering_with_empty_plugin_options(self):
         response = self.create_offering("owner", add_payload={"plugin_options": {}})
@@ -1975,6 +2018,19 @@ class OfferingExportImportTest(test.APITransactionTestCase):
         self.assertEqual(offering.plans.first().components.count(), 1)
         self.assertEqual(offering.components.count(), 1)
         self.assertEqual(offering.components.first().type, "node")
+
+    def test_import_offering_with_date_in_plugin_options(self):
+        export_data = self._get_data()
+        export_data["plugin_options"] = {
+            "latest_date_for_resource_termination": "2026-12-31",
+        }
+        offering = create_offering(export_data, self.fixture.customer)
+
+        offering.refresh_from_db()
+        self.assertEqual(
+            offering.plugin_options["latest_date_for_resource_termination"],
+            "2026-12-31",
+        )
 
     def test_update_offering(self):
         export_data = self._get_data()
