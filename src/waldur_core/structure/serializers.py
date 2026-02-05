@@ -604,6 +604,20 @@ class OrganizationGroupSerializer(serializers.HyperlinkedModelSerializer):
             return 0
 
 
+class CustomerContactUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Customer
+        fields = (
+            "contact_details",
+            "email",
+            "phone_number",
+            "address",
+            "postal",
+            "country",
+            "notification_emails",
+        )
+
+
 class CustomerSerializer(
     core_serializers.SlugSerializerMixin,
     CountrySerializerMixin,
