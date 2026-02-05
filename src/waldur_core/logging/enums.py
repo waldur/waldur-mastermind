@@ -308,6 +308,8 @@ class EventType(str, Enum):
     USER_INVITATION_DELETED = "user_invitation_deleted"
     TERMS_OF_SERVICE_CONSENT_GRANTED = "terms_of_service_consent_granted"
     TERMS_OF_SERVICE_CONSENT_REVOKED = "terms_of_service_consent_revoked"
+    CHAT_SESSION_ACCESSED = "chat_session_accessed"
+    CHAT_THREAD_ACCESSED = "chat_thread_accessed"
     ONBOARDING_VERIFICATION_DELETED = "onboarding_verification_deleted"
     ONBOARDING_VERIFICATION_DELETED_BY_TASK = "onboarding_verification_deleted_by_task"
 
@@ -316,6 +318,7 @@ class EventGroup(str, Enum):
     ACCESS_SUBNETS = "access_subnets"
     AUTH = "auth"
     CALL = "call"
+    CHAT = "chat"
     CREDITS = "credits"
     CUSTOMERS = "customers"
     INVOICES = "invoices"
@@ -637,6 +640,10 @@ EVENT_GROUP_MAPPING = {
     EventGroup.ONBOARDING: [
         EventType.ONBOARDING_VERIFICATION_DELETED,
         EventType.ONBOARDING_VERIFICATION_DELETED_BY_TASK,
+    ],
+    EventGroup.CHAT: [
+        EventType.CHAT_SESSION_ACCESSED,
+        EventType.CHAT_THREAD_ACCESSED,
     ],
 }
 

@@ -17,3 +17,18 @@ def register_in(router):
         views.ToolViewSet,
         basename="chat-tools",
     )
+    router.register(
+        r"chat-sessions",
+        views.ChatSessionViewSet,
+        basename="chat-session",
+    )
+    router.register(
+        r"chat-threads",
+        views.ThreadSessionViewSet,
+        basename="chat-thread",
+    )
+    router.register(
+        r"chat-messages",
+        views.MessageViewSet,
+        basename="chat-message",
+    )

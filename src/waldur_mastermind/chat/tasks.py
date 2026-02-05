@@ -1,9 +1,11 @@
 import logging
+from datetime import timedelta
 
 from celery import shared_task
+from constance import config
 from django.utils import timezone
 
-from .models import TokenQuota
+from .models import ChatSession, TokenQuota
 
 logger = logging.getLogger(__name__)
 
@@ -38,3 +40,60 @@ def reset_weekly_token_usage():
 def reset_monthly_token_usage():
     """Reset quotas where last reset was in a previous calendar month."""
     return _reset_period("monthly")
+
+
+@shared_task(name="waldur_mastermind.chat.cleanup_old_chat_sessions")
+def cleanup_old_chat_sessions():
+    """
+    Delete chat sessions older than the configured retention period.
+
+    Deletes ChatSession objects where the modified timestamp is older than
+    LLM_CHAT_SESSION_RETENTION_DAYS. Cascading delete will automatically remove
+    related ThreadSession and Message objects.
+
+    Returns a dict with status and deleted_count.
+    """
+    retention_days = config.LLM_CHAT_SESSION_RETENTION_DAYS
+
+    if retention_days <= 0:
+        logger.info(
+            "Chat session cleanup skipped: retention period is %d days",
+            retention_days,
+        )
+        return {"status": "disabled", "deleted_count": 0}
+
+    cutoff_date = timezone.now() - timedelta(days=retention_days)
+
+    logger.info(
+        "Starting chat session cleanup (retention: %d days, cutoff: %s)",
+        retention_days,
+        cutoff_date.date(),
+    )
+
+    # Filter sessions older than retention period
+    old_sessions = ChatSession.objects.filter(modified__lt=cutoff_date)
+
+    # Count before deletion for logging
+    count = old_sessions.count()
+
+    if count == 0:
+        logger.info("No chat sessions older than %d days found", retention_days)
+        return {"status": "success", "deleted_count": 0}
+
+    # Delete old sessions (cascade will delete threads and messages)
+    _, deletion_info = old_sessions.delete()
+
+    logger.info(
+        "Successfully deleted %d chat sessions older than %d days. "
+        "Also deleted: %d threads, %d messages",
+        count,
+        retention_days,
+        deletion_info.get("chat.ThreadSession", 0),
+        deletion_info.get("chat.Message", 0),
+    )
+
+    return {
+        "status": "success",
+        "deleted_count": count,
+        "related_objects": deletion_info,
+    }

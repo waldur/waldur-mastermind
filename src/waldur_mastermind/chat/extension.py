@@ -36,4 +36,9 @@ class MarketplaceChatExtension(WaldurExtension):
                 "schedule": crontab(minute=0, hour=0, day_of_month=1),
                 "args": (),
             },
+            "waldur-chat-cleanup-old-sessions": {
+                "task": "waldur_mastermind.chat.cleanup_old_chat_sessions",
+                "schedule": crontab(minute=0, hour=2),  # 2 AM daily
+                "args": (),
+            },
         }

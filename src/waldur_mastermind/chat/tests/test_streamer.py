@@ -2,6 +2,11 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
+import requests
+from rest_framework import test as drf_test
+
+from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.chat.models import TokenQuota
 from waldur_mastermind.chat.ui_registry import ui_registry  # noqa: F401
 from waldur_mastermind.chat.views import LLMStreamer
 
@@ -457,3 +462,169 @@ class LLMStreamerTest(unittest.TestCase):
                         )
 
                 mock_execute.assert_called_once()
+
+
+class LLMStreamerUsageRecordingTest(drf_test.APITransactionTestCase):
+    """Test that LLMStreamer persists token usage to TokenQuota after streaming."""
+
+    def _fake_response(self, lines):
+        resp = Mock()
+        resp.iter_lines.return_value = lines
+        resp.raise_for_status = Mock()
+        return resp
+
+    def _consume(self, streamer):
+        return list(streamer)
+
+    def test_records_usage_after_successful_stream(self):
+        """Token counts from upstream usage_metadata are persisted to TokenQuota."""
+        user = structure_factories.UserFactory()
+        resp = self._fake_response(
+            [
+                "data: " + json.dumps({"content": "Hello"}),
+                "data: "
+                + json.dumps(
+                    {
+                        "additional_kwargs": {
+                            "usage_metadata": {
+                                "input_tokens": 200,
+                                "output_tokens": 100,
+                            }
+                        }
+                    }
+                ),
+            ]
+        )
+
+        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
+            mock_post.return_value.__enter__.return_value = resp
+            self._consume(LLMStreamer("hi", "https://llm/stream", "tok", user))
+
+        quota = TokenQuota.objects.get(user=user)
+        self.assertEqual(quota.daily_usage, 300)
+        self.assertEqual(quota.weekly_usage, 300)
+        self.assertEqual(quota.monthly_usage, 300)
+
+    def test_skips_recording_when_zero_tokens_and_no_error(self):
+        """No TokenQuota created when upstream reports 0 tokens and no error."""
+        user = structure_factories.UserFactory()
+        resp = self._fake_response(
+            [
+                "data: " + json.dumps({"content": "Hi"}),
+                "data: "
+                + json.dumps(
+                    {
+                        "additional_kwargs": {
+                            "usage_metadata": {"input_tokens": 0, "output_tokens": 0}
+                        }
+                    }
+                ),
+            ]
+        )
+
+        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
+            mock_post.return_value.__enter__.return_value = resp
+            self._consume(LLMStreamer("hi", "https://llm/stream", "tok", user))
+
+        self.assertFalse(TokenQuota.objects.filter(user=user).exists())
+
+    def test_no_user_skips_recording_entirely(self):
+        """Streamer with user=None does not create or touch any TokenQuota."""
+        resp = self._fake_response(
+            [
+                "data: " + json.dumps({"content": "Hello"}),
+                "data: "
+                + json.dumps(
+                    {
+                        "additional_kwargs": {
+                            "usage_metadata": {
+                                "input_tokens": 500,
+                                "output_tokens": 200,
+                            }
+                        }
+                    }
+                ),
+            ]
+        )
+
+        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
+            mock_post.return_value.__enter__.return_value = resp
+            self._consume(LLMStreamer("hi", "https://llm/stream", "tok", user=None))
+
+        self.assertEqual(TokenQuota.objects.count(), 0)
+
+    def test_accumulates_usage_across_sequential_streams(self):
+        """Multiple streams for the same user accumulate correctly."""
+        user = structure_factories.UserFactory()
+        token_pairs = [(100, 50), (200, 100), (50, 25)]  # total = 525
+
+        for inp, out in token_pairs:
+            resp = self._fake_response(
+                [
+                    "data: " + json.dumps({"content": "Hi"}),
+                    "data: "
+                    + json.dumps(
+                        {
+                            "additional_kwargs": {
+                                "usage_metadata": {
+                                    "input_tokens": inp,
+                                    "output_tokens": out,
+                                }
+                            }
+                        }
+                    ),
+                ]
+            )
+            with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
+                mock_post.return_value.__enter__.return_value = resp
+                self._consume(LLMStreamer("hi", "https://llm/stream", "tok", user))
+
+        quota = TokenQuota.objects.get(user=user)
+        self.assertEqual(quota.daily_usage, 525)
+        self.assertEqual(quota.weekly_usage, 525)
+        self.assertEqual(quota.monthly_usage, 525)
+
+    def test_records_partial_tokens_before_stream_error(self):
+        """Tokens received before a connection error are still persisted."""
+        user = structure_factories.UserFactory()
+
+        def failing_lines():
+            yield "data: " + json.dumps(
+                {
+                    "content": "partial",
+                    "additional_kwargs": {
+                        "usage_metadata": {"input_tokens": 150, "output_tokens": 75}
+                    },
+                }
+            )
+            raise requests.ConnectionError("Connection dropped")
+
+        resp = Mock()
+        resp.iter_lines.return_value = failing_lines()
+        resp.raise_for_status = Mock()
+
+        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
+            mock_post.return_value.__enter__.return_value = resp
+            self._consume(LLMStreamer("hi", "https://llm/stream", "tok", user))
+
+        quota = TokenQuota.objects.get(user=user)
+        self.assertEqual(quota.daily_usage, 225)
+        self.assertEqual(quota.weekly_usage, 225)
+        self.assertEqual(quota.monthly_usage, 225)
+
+    def test_records_zero_usage_on_error_with_no_tokens(self):
+        """On upstream error with 0 tokens, quota is still created (error path taken)."""
+        user = structure_factories.UserFactory()
+
+        resp = Mock()
+        resp.raise_for_status.side_effect = requests.HTTPError("500 Server Error")
+        resp.iter_lines.return_value = []
+
+        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
+            mock_post.return_value.__enter__.return_value = resp
+            self._consume(LLMStreamer("hi", "https://llm/stream", "tok", user))
+
+        quota = TokenQuota.objects.get(user=user)
+        self.assertEqual(quota.daily_usage, 0)
+        self.assertEqual(quota.weekly_usage, 0)
+        self.assertEqual(quota.monthly_usage, 0)
