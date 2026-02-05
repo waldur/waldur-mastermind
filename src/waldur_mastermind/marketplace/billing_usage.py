@@ -177,7 +177,7 @@ class BillingUsageProcessor:
         customer = resource.project.customer
         invoice, _ = MarketplaceBillingService.get_or_create_invoice(customer, date)
 
-        if invoice.state != invoice_models.Invoice.States.PENDING:
+        if invoice.state not in invoice_models.Invoice.States.MUTABLE_STATES:
             logger.warning(
                 "Skipping usage update for resource '%s' and component '%s' "
                 "because invoice %s-%02d is already in '%s' state.",

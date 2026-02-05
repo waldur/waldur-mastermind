@@ -33,11 +33,11 @@ set -e
 # This prevents the overhead of splitting a tiny number of tests across many runners.
 # For example, it's faster for one runner to execute 40 tests than for 10 runners
 # to start up, coordinate, and each run 4 tests.
-TEST_SPLITTING_THRESHOLD=300
+TEST_SPLITTING_THRESHOLD=250
 
 # The absolute maximum number of parallel jobs to create. This acts as a ceiling
 # to prevent creating an excessive number of jobs even for a very large test suite.
-MAX_PARALLEL_JOBS=10
+MAX_PARALLEL_JOBS=15
 
 # The filename for the generated child pipeline configuration. This artifact is
 # used by the `trigger` keyword in the main CI configuration.

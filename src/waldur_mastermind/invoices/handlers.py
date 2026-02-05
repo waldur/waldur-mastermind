@@ -30,9 +30,13 @@ def log_invoice_state_transition(
         return
 
     state = instance.state
-    if state == models.Invoice.States.PENDING or state == instance.tracker.previous(
-        "state"
-    ):
+    if state == instance.tracker.previous("state"):
+        return
+
+    if state == models.Invoice.States.PENDING:
+        return
+
+    if state == models.Invoice.States.PENDING_FINALIZATION:
         return
 
     if state == models.Invoice.States.CREATED:
@@ -97,7 +101,7 @@ def update_invoice_item_on_project_name_update(sender, instance: Project, **kwar
     if not project.tracker.has_changed("name"):
         return
 
-    query = Q(project=project, invoice__state=models.Invoice.States.PENDING)
+    query = Q(project=project, invoice__state__in=models.Invoice.States.MUTABLE_STATES)
     for item in models.InvoiceItem.objects.filter(query).only("pk"):
         item.project_name = project.name
         item.save(update_fields=["project_name"])
@@ -154,7 +158,7 @@ def projects_customer_has_been_changed(
 
         invoice = models.Invoice.objects.get(
             customer=old_customer,
-            state=models.Invoice.States.PENDING,
+            state__in=models.Invoice.States.MUTABLE_STATES,
             month=date.month,
             year=date.year,
         )

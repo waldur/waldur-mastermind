@@ -1,3 +1,4 @@
+import decimal
 import logging
 
 from django.db import transaction
@@ -22,15 +23,18 @@ class MonthlyCompensation:
     consumption requirements are met.
     """
 
-    def __init__(self, customer):
+    def __init__(self, customer, invoice=None):
         self.customer = customer
-        self.invoice = (
-            models.Invoice.objects.filter(
-                state=models.Invoice.States.PENDING, customer=customer
+        if invoice is not None:
+            self.invoice = invoice
+        else:
+            self.invoice = (
+                models.Invoice.objects.filter(
+                    state__in=models.Invoice.States.MUTABLE_STATES, customer=customer
+                )
+                .order_by("-year", "-month")
+                .first()
             )
-            .order_by("-year", "-month")
-            .first()
-        )
         self._calculated = False
         self._compensations = []
         self._projects_credits = []
@@ -104,7 +108,7 @@ class MonthlyCompensation:
             else:
                 if cost >= self.credit.value:
                     credit_compensation = self.credit.value / (
-                        1 + self.invoice.tax_percent / 100
+                        1 + decimal.Decimal(self.invoice.tax_percent) / 100
                     )
                     self.credit.value = 0
                 else:
@@ -361,7 +365,7 @@ class MonthlyCompensation:
         if self._calculated:
             # If compensations have been calculated then we have dirty values of credits,
             # and we needed initiate the object again.
-            self.__init__(self.customer)
+            self.__init__(self.customer, invoice=self.invoice)
 
         if not self.credit:
             return

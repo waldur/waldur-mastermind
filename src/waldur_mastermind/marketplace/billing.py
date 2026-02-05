@@ -149,7 +149,7 @@ class MarketplaceBillingService:
             items = invoice_models.InvoiceItem.objects.filter(
                 resource=resource,
                 invoice__customer=resource.project.customer,
-                invoice__state=invoice_models.Invoice.States.PENDING,
+                invoice__state__in=invoice_models.Invoice.States.MUTABLE_STATES,
                 invoice__year=now.year,
                 invoice__month=now.month,
                 end=core_utils.month_end(now),

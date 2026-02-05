@@ -738,7 +738,7 @@ def move_resource(resource: models.Resource, project):
 
     for invoice_item in invoice_models.InvoiceItem.objects.filter(
         resource=resource,
-        invoice__state=invoice_models.Invoice.States.PENDING,
+        invoice__state__in=invoice_models.Invoice.States.MUTABLE_STATES,
         project=old_project,
     ):
         start_invoice = invoice_item.invoice
@@ -750,7 +750,7 @@ def move_resource(resource: models.Resource, project):
             ),
         )
 
-        if target_invoice.state != invoice_models.Invoice.States.PENDING:
+        if target_invoice.state not in invoice_models.Invoice.States.MUTABLE_STATES:
             raise MoveResourceException(
                 "Resource moving is not possible, "
                 "because invoice items moving is not possible."

@@ -73,13 +73,84 @@ sequenceDiagram
 
 ## Invoice Lifecycle
 
-The `create_monthly_invoices` task (`src/waldur_mastermind/invoices/tasks.py`) runs on the 1st of each month:
+### Invoice States
 
-1. Previous month PENDING invoices transition to BILLED and items are frozen
+| State | Description |
+|-------|-------------|
+| PENDING | Active invoice for current billing period. Items can be added/modified. |
+| PENDING_FINALIZATION | Transitional state used when a grace period is configured. Items can still be added/modified. |
+| CREATED | Finalized invoice. Items are frozen. |
+| PAID | Invoice has been paid. |
+| CANCELED | Invoice has been canceled. |
+
+Both PENDING and PENDING_FINALIZATION are considered **mutable states** — invoice items can be added or updated while the invoice is in either state.
+
+### Monthly Invoice Creation
+
+The `create_monthly_invoices` task (`src/waldur_mastermind/invoices/tasks.py`) runs at midnight on the 1st of each month:
+
+1. Previous month PENDING invoices are finalized (see Finalization below)
 2. For each customer, `MarketplaceBillingService.get_or_create_invoice` is called
 3. If the invoice is newly created, all active billable resources are processed via `_process_resource`
 
 When a resource is activated mid-month, `_register` calls `get_or_create_invoice`. If the invoice already exists, it adds items for just that resource with prorated start/end dates.
+
+### Invoice Finalization
+
+Finalization transitions invoices from mutable to immutable (CREATED) state. The behavior depends on the `INVOICE_FINALIZATION_GRACE_PERIOD_HOURS` setting:
+
+**Without grace period** (default, `grace_hours = 0`):
+
+1. On the 1st at midnight, `create_monthly_invoices` finalizes previous month invoices immediately
+2. Overdue credits are zeroed, compensations are applied, invoices transition PENDING → CREATED
+3. Reports and notifications are sent
+
+**With grace period** (e.g., `grace_hours = 24`):
+
+1. On the 1st at midnight, `create_monthly_invoices` transitions previous month invoices to PENDING_FINALIZATION
+2. The `finalize_previous_invoices` task runs hourly on the 1st–3rd of each month
+3. Once the configured grace period has elapsed (measured from midnight on the 1st), it finalizes: PENDING_FINALIZATION → CREATED
+4. Reports and notifications are sent only after all invoices are finalized
+
+The grace period allows late usage data (e.g., from external billing systems) to be captured before invoices are frozen.
+
+```mermaid
+graph TD
+    A[1st of month, midnight] --> B{Grace period configured?}
+    B -->|No| C[PENDING → CREATED immediately]
+    C --> D[Send reports & notifications]
+    B -->|Yes| E[PENDING → PENDING_FINALIZATION]
+    E --> F[Hourly check: grace period elapsed?]
+    F -->|No| G[Skip, retry next hour]
+    F -->|Yes| H[PENDING_FINALIZATION → CREATED]
+    H --> I{All invoices finalized?}
+    I -->|No| J[Wait for next hourly run]
+    I -->|Yes| D
+```
+
+### Credits and Compensations
+
+Customer credits can be configured with an optional `end_date` (must be the 1st of a month). During invoice finalization:
+
+1. **Overdue credits are zeroed**: Credits with `end_date` before the effective date are set to zero
+2. **Compensations are applied**: `MonthlyCompensation` calculates and applies credit-based discounts to invoice items
+3. **Expected consumption is updated**: Linear consumption projections are recalculated
+
+When a grace period is used, the effective date for zeroing credits is always the 1st of the current month (not the actual finalization date). This ensures credits with `end_date` on the 1st are still applied to the previous month's invoice before being zeroed.
+
+### Configuration
+
+The grace period is configured in `WALDUR_INVOICES` settings:
+
+```python
+WALDUR_INVOICES = {
+    # Grace period in hours before finalizing previous month invoices.
+    # 0 means finalize immediately (default, backward compatible).
+    # When > 0, invoices transition PENDING -> PENDING_FINALIZATION on the 1st,
+    # then PENDING_FINALIZATION -> CREATED after this many hours.
+    "INVOICE_FINALIZATION_GRACE_PERIOD_HOURS": 0,
+}
+```
 
 ## Handling Limit Changes
 
@@ -137,4 +208,6 @@ For TOTAL period components, the system:
 | `src/waldur_mastermind/marketplace/billing_usage.py` | `BillingUsageProcessor` | USAGE billing type logic |
 | `src/waldur_mastermind/marketplace/handlers.py` | `process_billing_on_resource_save` | Signal handler for resource changes |
 | `src/waldur_mastermind/invoices/tasks.py` | `create_monthly_invoices` | Monthly invoice creation task |
+| `src/waldur_mastermind/invoices/tasks.py` | `finalize_previous_invoices` | Deferred invoice finalization (grace period) |
+| `src/waldur_mastermind/invoices/compensations.py` | `MonthlyCompensation` | Credit-based compensation logic |
 | `src/waldur_mastermind/marketplace/enums.py` | `BillingTypes`, `LimitPeriods` | Billing type and period enums |

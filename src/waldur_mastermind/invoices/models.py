@@ -63,16 +63,21 @@ class Invoice(
 
     class States:
         PENDING = "pending"
+        PENDING_FINALIZATION = "pending_finalization"
         CREATED = "created"
         PAID = "paid"
         CANCELED = "canceled"
 
         CHOICES = (
             (PENDING, _("Pending")),
+            (PENDING_FINALIZATION, _("Pending finalization")),
             (CREATED, _("Created")),
             (PAID, _("Paid")),
             (CANCELED, _("Canceled")),
         )
+
+        # Invoice states that still accept modifications (usage, items, etc.)
+        MUTABLE_STATES = (PENDING, PENDING_FINALIZATION)
 
     month = models.PositiveSmallIntegerField(
         default=utils.get_current_month,
@@ -206,12 +211,25 @@ class Invoice(
     def number(self) -> int:
         return 100000 + self.id
 
-    def set_created(self):
+    def set_pending_finalization(self):
         """
-        Change state from pending to created or paid
+        Change state from pending to pending_finalization.
+        Used during grace period: invoice still accepts usage updates
+        but is no longer the active month's invoice.
         """
         if self.state != self.States.PENDING:
             raise IncorrectStateException(_("Invoice must be in pending state."))
+        self.state = self.States.PENDING_FINALIZATION
+        self.save(update_fields=["state"])
+
+    def set_created(self):
+        """
+        Change state from pending or pending_finalization to created or paid.
+        """
+        if self.state not in self.States.MUTABLE_STATES:
+            raise IncorrectStateException(
+                _("Invoice must be in pending or pending finalization state.")
+            )
 
         if self.customer.paymentprofile_set.filter(
             is_active=True, payment_type=PaymentType.FIXED_PRICE
