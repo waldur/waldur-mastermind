@@ -6710,6 +6710,7 @@ class BaseResourceViewSet(
         responses={
             status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer,
             status.HTTP_201_CREATED: serializers.OrderUUIDSerializer,
+            status.HTTP_409_CONFLICT: None,
         },
     )
     @action(detail=True, methods=["post"])

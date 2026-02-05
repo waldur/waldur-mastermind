@@ -115,5 +115,6 @@ class ResourceUpdateOptionsTest(test.APITransactionTestCase):
         response = self.make_request(self.fixture.owner)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(
-            response.data[0], "There's a pending order for changing resource options."
+            response.data["detail"],
+            "There's a pending order for changing resource options.",
         )

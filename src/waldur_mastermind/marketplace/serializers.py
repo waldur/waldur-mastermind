@@ -29,6 +29,7 @@ from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.mixins import GetValueMixin
 from waldur_core.core.models import NAME_LENGTH, User, get_ssh_key_fingerprints
@@ -5336,7 +5337,7 @@ class ResourceOptionsSerializer(serializers.ModelSerializer):
             )
             .exists()
         ):
-            raise rf_exceptions.ValidationError(
+            raise IncorrectStateException(
                 _("There's a pending order for changing resource options.")
             )
 
