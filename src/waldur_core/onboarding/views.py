@@ -592,6 +592,15 @@ class OnboardingVerificationViewSet(UserChecklistMixin, core_views.ActionsViewSe
 
     create_customer_serializer_class = structure_serializers.CustomerSerializer
 
+    def perform_destroy(self, instance):
+        """
+        Mark the verification with deletion metadata before destroying.
+        This allows the pre_delete signal handler to log who deleted it.
+        """
+        instance._deleted_by = self.request.user
+        instance._deleted_by_task = False
+        return super().perform_destroy(instance)
+
 
 class OnboardingJustificationViewSet(core_views.ActionsViewSet):
     """

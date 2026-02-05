@@ -308,6 +308,8 @@ class EventType(str, Enum):
     USER_INVITATION_DELETED = "user_invitation_deleted"
     TERMS_OF_SERVICE_CONSENT_GRANTED = "terms_of_service_consent_granted"
     TERMS_OF_SERVICE_CONSENT_REVOKED = "terms_of_service_consent_revoked"
+    ONBOARDING_VERIFICATION_DELETED = "onboarding_verification_deleted"
+    ONBOARDING_VERIFICATION_DELETED_BY_TASK = "onboarding_verification_deleted_by_task"
 
 
 class EventGroup(str, Enum):
@@ -318,6 +320,7 @@ class EventGroup(str, Enum):
     CUSTOMERS = "customers"
     INVOICES = "invoices"
     OFFERING_ACCOUNTING = "offering_accounting"
+    ONBOARDING = "onboarding"
     PERMISSIONS = "permissions"
     PROJECTS = "projects"
     PROPOSAL = "proposal"
@@ -630,6 +633,10 @@ EVENT_GROUP_MAPPING = {
     EventGroup.TERMS_OF_SERVICE: [
         EventType.TERMS_OF_SERVICE_CONSENT_GRANTED,
         EventType.TERMS_OF_SERVICE_CONSENT_REVOKED,
+    ],
+    EventGroup.ONBOARDING: [
+        EventType.ONBOARDING_VERIFICATION_DELETED,
+        EventType.ONBOARDING_VERIFICATION_DELETED_BY_TASK,
     ],
 }
 
