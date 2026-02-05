@@ -67,10 +67,14 @@ def delete_old_verifications():
     count = old_verifications.count()
 
     if count == 0:
-        logger.info("No old verifications found to delete.")
         return
 
-    old_verifications.delete()
+    # Mark each verification as deleted by task before deletion
+    # This allows the pre_delete signal to log it as a task deletion
+    for verification in old_verifications:
+        verification._deleted_by_task = True
+        verification._deleted_by = None
+        verification.delete()
 
     logger.info(f"Successfully deleted {count} old verification(s).")
 
