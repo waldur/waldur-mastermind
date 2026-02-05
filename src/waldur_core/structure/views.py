@@ -359,6 +359,35 @@ class CustomerViewSet(
         )
 
     @extend_schema(
+        summary="Update customer contact details",
+        description=(
+            "Update organization contact information. Requires "
+            "CUSTOMER_CONTACT_UPDATE or CUSTOMER.UPDATE permission."
+        ),
+        request=serializers.CustomerContactUpdateSerializer,
+        responses=serializers.CustomerContactUpdateSerializer,
+    )
+    @action(detail=True, methods=["post"], url_path="contact")
+    def contact(self, request, uuid=None):
+        customer: models.Customer = self.get_object()
+        if not (
+            request.user.is_staff
+            or has_permission(request, PermissionEnum.UPDATE_CUSTOMER, customer)
+            or has_permission(request, PermissionEnum.CUSTOMER_CONTACT_UPDATE, customer)
+        ):
+            raise PermissionDenied()
+
+        utils.check_customer_blocked_or_archived(customer)
+
+        serializer = serializers.CustomerContactUpdateSerializer(
+            customer, data=request.data, partial=True, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
         summary="Get customer resource usage statistics",
         description="Provides statistics about the resource usage (e.g., CPU, RAM, storage) for all projects within a customer. Can be filtered to show usage for the current month only.",
         responses=serializers.ComponentsUsageStatsSerializer,

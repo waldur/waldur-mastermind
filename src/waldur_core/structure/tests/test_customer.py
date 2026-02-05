@@ -48,6 +48,11 @@ class CustomerBaseTest(test.APITransactionTestCase):
             url += f"?{query_string}"
         return url
 
+    def _get_customer_contact_url(self, customer):
+        return "http://testserver" + reverse(
+            "customer-contact", kwargs={"uuid": customer.uuid.hex}
+        )
+
     def _get_project_url(self, project):
         return "http://testserver" + reverse(
             "project-detail", kwargs={"uuid": project.uuid.hex}
@@ -552,6 +557,56 @@ class CustomerUpdateTest(BaseCustomerMutationTest):
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("project_metadata_checklist", response.data)
+
+
+class CustomerContactUpdateTest(CustomerBaseTest):
+    def setUp(self):
+        super().setUp()
+        self.fixture = fixtures.ProjectFixture()
+        self.url = self._get_customer_contact_url(self.fixture.customer)
+        self.payload = {
+            "contact_details": "Updated contact details",
+            "email": "contact@example.com",
+            "phone_number": "+372000000",
+            "address": "Luhamaa 28, 10128 Tallinn",
+            "postal": "10128",
+            "country": "EE",
+            "notification_emails": "contact@example.com,alt@example.com",
+        }
+
+    def test_owner_can_update_contact_details_with_contact_permission(self):
+        CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_CUSTOMER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.CUSTOMER_CONTACT_UPDATE)
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        response = self.client.post(self.url, self.payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.fixture.customer.refresh_from_db()
+        self.assertEqual(self.fixture.customer.email, self.payload["email"])
+        self.assertEqual(
+            self.fixture.customer.contact_details, self.payload["contact_details"]
+        )
+
+    def test_owner_can_update_contact_details_with_update_permission(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_CUSTOMER)
+        CustomerRole.OWNER.delete_permission(PermissionEnum.CUSTOMER_CONTACT_UPDATE)
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        response = self.client.post(self.url, self.payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.fixture.customer.refresh_from_db()
+        self.assertEqual(self.fixture.customer.email, self.payload["email"])
+
+    def test_owner_cannot_update_contact_details_without_permissions(self):
+        CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_CUSTOMER)
+        CustomerRole.OWNER.delete_permission(PermissionEnum.CUSTOMER_CONTACT_UPDATE)
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        response = self.client.post(self.url, self.payload)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
 class CustomerQuotasTest(test.APITransactionTestCase):
