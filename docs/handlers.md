@@ -303,6 +303,7 @@ td:nth-child(4) {
 | `log_token_create` | `Django Signal (post_save)` | `authtoken.Token` | Log token creation events. |
 | `log_user_delete` | `Django Signal (post_delete)` | `core.User` | Log user deletion events. |
 | `log_user_save` | `Django Signal (post_save)` | `core.User` | Log user creation, update, and activation/deactivation events. |
+| `log_verification_deleted` | `Django Signal (pre_delete)` | `onboarding.OnboardingVerification` | Log when an onboarding verification is deleted. |
 | `permissions_request_approved` | `Custom Signal (permissions_request_approved)` | `users.PermissionRequest` | Send a notification when a permission request has been approved. |
 | `preserve_fields_before_update` | `Django Signal (pre_save)` | `core.User` | Preserve fields of a user instance before it is updated. |
 | `process_hook` | `Django Signal (post_save)` | `logging.Event` | Process a hook for a given event. |
@@ -794,11 +795,11 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 715
+Total unique handlers found: 716
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 364 handlers
+- **waldur_core**: 365 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
 - **waldur_mastermind**: 293 handlers

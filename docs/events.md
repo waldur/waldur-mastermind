@@ -19,6 +19,11 @@
 - call_document_added
 - call_document_removed
 
+## Chat
+
+- chat_session_accessed
+- chat_thread_accessed
+
 ## Credits
 
 - allowed_offerings_have_been_updated
@@ -94,6 +99,11 @@
 - marketplace_plan_created
 - marketplace_plan_deleted
 - marketplace_plan_updated
+
+## Onboarding
+
+- onboarding_verification_deleted
+- onboarding_verification_deleted_by_task
 
 ## Permissions
 
