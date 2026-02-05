@@ -347,6 +347,9 @@ class ResourceAction:
     SET_SLUG = "set_slug"
     SHOW_USAGE = "show_usage"
     SET_AS_ERRED = "set_as_erred"
+    CREATE_ROBOT_ACCOUNT = "create_robot_account"
+    SUBMIT_REPORT = "submit_report"
+    REPORT_USAGE = "report_usage"
 
     CHOICES = (
         (TERMINATE, _("Terminate")),
@@ -359,4 +362,7 @@ class ResourceAction:
         (SET_SLUG, _("Set slug")),
         (SHOW_USAGE, _("Show usage")),
         (SET_AS_ERRED, _("Set as erred")),
+        (CREATE_ROBOT_ACCOUNT, _("Create robot account")),
+        (SUBMIT_REPORT, _("Submit report")),
+        (REPORT_USAGE, _("Report usage")),
     )
