@@ -16,8 +16,11 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(name="waldur_core.user_actions.update_user_actions")
-def update_user_actions(provider_action_type=None):
-    """Update actions for all providers or specific provider"""
+def update_user_actions(provider_action_type=None, user_uuid=None):
+    """Update actions for all providers or specific provider.
+
+    If user_uuid is provided, only update actions for that specific user.
+    """
     # Check if user actions system is enabled
     if not config.USER_ACTIONS_ENABLED:
         logger.info("User actions system is disabled, skipping action updates")
@@ -30,11 +33,26 @@ def update_user_actions(provider_action_type=None):
 
     logger.info(f"Updating user actions for providers: {provider_classes}")
 
-    for action_type in provider_classes:
+    if user_uuid:
         try:
-            update_actions_for_provider.delay(action_type)
-        except Exception as e:
-            logger.error(f"Failed to queue action update for {action_type}: {e}")
+            user = User.objects.get(uuid=user_uuid)
+        except User.DoesNotExist:
+            logger.error(f"User {user_uuid} not found")
+            return
+        for action_type in provider_classes:
+            try:
+                update_user_actions_for_provider.delay(user.id, action_type)
+            except Exception as e:
+                logger.error(
+                    f"Failed to queue action update for user {user_uuid}, "
+                    f"provider {action_type}: {e}"
+                )
+    else:
+        for action_type in provider_classes:
+            try:
+                update_actions_for_provider.delay(action_type)
+            except Exception as e:
+                logger.error(f"Failed to queue action update for {action_type}: {e}")
 
 
 @shared_task(name="waldur_core.user_actions.update_actions_for_provider")
@@ -309,6 +327,50 @@ def cleanup_dangling_user_actions():
         logger.info(f"Cleaned up {deleted_count} dangling user actions")
 
     return deleted_count
+
+
+@shared_task(name="waldur_core.user_actions.send_user_action_notification")
+def send_user_action_notification(user_uuid):
+    """Send action digest notification to a specific user (staff-triggered)."""
+    from django.db.models import Count
+
+    try:
+        user = (
+            User.objects.filter(uuid=user_uuid)
+            .filter(actions__is_silenced=False)
+            .exclude(actions__silenced_until__gt=timezone.now())
+            .annotate(action_count=Count("actions"))
+            .get()
+        )
+    except User.DoesNotExist:
+        logger.error(f"User {user_uuid} not found")
+        return
+
+    if not user.email:
+        logger.warning(f"User {user.username} has no email address")
+        return
+
+    high_urgency_count = (
+        user.actions.filter(urgency="high", is_silenced=False)
+        .exclude(silenced_until__gt=timezone.now())
+        .count()
+    )
+
+    context = {
+        "user": user,
+        "action_count": user.action_count,
+        "high_urgency_count": high_urgency_count,
+        "site_name": config.SITE_NAME,
+        "actions_url": core_utils.format_homeport_link("profile/"),
+    }
+
+    core_utils.broadcast_mail(
+        "user_actions", "notification_digest", context, [user.email]
+    )
+    logger.info(
+        f"Sent action notification to {user.username}: "
+        f"{user.action_count} total, {high_urgency_count} high urgency"
+    )
 
 
 @shared_task(name="waldur_core.user_actions.send_action_digest_notifications")

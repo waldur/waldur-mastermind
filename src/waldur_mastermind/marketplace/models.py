@@ -1725,6 +1725,116 @@ class Resource(
 
         return total_cost
 
+    def get_renewal_estimate(
+        self, extension_months: int, new_limits: dict | None = None
+    ) -> dict:
+        """
+        Returns a detailed cost breakdown for renewal including prepaid
+        subscription components and limit-based component changes.
+        """
+        components = []
+        subscription_total = Decimal("0.0")
+        limit_change_total = Decimal("0.0")
+        final_limits = new_limits or self.limits
+
+        # Calculate new end date
+        current_end_date = self.end_date or timezone.now().date()
+        if current_end_date < timezone.now().date():
+            current_end_date = timezone.now().date()
+        new_end_date = current_end_date + relativedelta(months=extension_months)
+        remaining_days = (new_end_date - timezone.now().date()).days
+
+        if self.plan:
+            # 1. Subscription items (prepaid components)
+            for plan_component in self.plan.components.filter(
+                component__is_prepaid=True
+            ):
+                component = plan_component.component
+                if not component:
+                    continue
+                limit_amount = final_limits.get(component.type, 0)
+                total = plan_component.price * limit_amount * extension_months
+                components.append(
+                    {
+                        "component_type": component.type,
+                        "component_name": component.name,
+                        "billing_type": "prepaid",
+                        "billing_period": None,
+                        "current_limit": self.limits.get(component.type, 0),
+                        "new_limit": limit_amount,
+                        "unit_price": plan_component.price,
+                        "measured_unit": component.measured_unit or "",
+                        "period_description": f"{extension_months} months",
+                        "total": total,
+                    }
+                )
+                subscription_total += total
+
+            # 2. Limit change items (billing_type='limit', where new_limit > current_limit)
+            for plan_component in self.plan.components.filter(
+                component__billing_type=BillingTypes.LIMIT,
+                component__is_prepaid=False,
+            ):
+                component = plan_component.component
+                if not component:
+                    continue
+
+                current_limit = self.limits.get(component.type, 0)
+                new_limit = final_limits.get(component.type, 0)
+                delta = new_limit - current_limit
+
+                if delta <= 0:
+                    continue
+
+                # Skip components with no periodic billing
+                limit_period = component.limit_period
+                if not limit_period or limit_period == LimitPeriods.TOTAL:
+                    continue
+
+                billing_period_days = {
+                    LimitPeriods.MONTH: 30,
+                    LimitPeriods.QUARTERLY: 91,
+                    LimitPeriods.ANNUAL: 365,
+                }.get(limit_period)
+
+                if not billing_period_days:
+                    continue
+
+                total = (
+                    plan_component.price * delta * remaining_days / billing_period_days
+                )
+
+                period_label = {
+                    LimitPeriods.MONTH: "mo",
+                    LimitPeriods.QUARTERLY: "qtr",
+                    LimitPeriods.ANNUAL: "yr",
+                }.get(limit_period, limit_period)
+
+                components.append(
+                    {
+                        "component_type": component.type,
+                        "component_name": component.name,
+                        "billing_type": "limit",
+                        "billing_period": limit_period,
+                        "current_limit": current_limit,
+                        "new_limit": new_limit,
+                        "unit_price": plan_component.price,
+                        "measured_unit": component.measured_unit or "",
+                        "period_description": f"{remaining_days}d / {billing_period_days}d ({period_label})",
+                        "total": total,
+                    }
+                )
+                limit_change_total += total
+
+        return {
+            "components": components,
+            "subscription_total": subscription_total,
+            "limit_change_total": limit_change_total,
+            "total": subscription_total + limit_change_total,
+            "remaining_days": remaining_days,
+            "new_end_date": new_end_date,
+        }
+
 
 class ResourcePlanPeriod(TimeStampedModel, TimeFramedModel, core_models.UuidMixin):
     """

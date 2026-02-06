@@ -248,3 +248,10 @@ class BulkSilenceResponseSerializer(serializers.Serializer):
     status = serializers.CharField()
     count = serializers.IntegerField()
     duration_days = serializers.IntegerField(required=False, allow_null=True)
+
+
+class SendNotificationResponseSerializer(serializers.Serializer):
+    """Serializer for send notification response"""
+
+    status = serializers.CharField()
+    message = serializers.CharField()
