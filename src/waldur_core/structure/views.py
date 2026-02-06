@@ -77,6 +77,8 @@ from waldur_core.structure.serializers_data_access import (
     UserDataAccessSerializer,
 )
 from waldur_core.structure.utils import get_components_usage_data_from_resources
+from waldur_core.user_actions import serializers as user_action_serializers
+from waldur_core.user_actions import tasks as user_action_tasks
 from waldur_core.users import tasks as user_tasks
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.models import Invitation
@@ -1621,6 +1623,64 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
             )
         pull_remote_eduteams_user(user.username)
         return Response(status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Recalculate user actions for a specific user",
+        request=user_action_serializers.UpdateActionsSerializer,
+        responses={202: user_action_serializers.UpdateActionsResponseSerializer},
+        description="Staff-only action to trigger recalculation of user actions for a specific user.",
+    )
+    @action(detail=True, methods=["post"])
+    def update_actions(self, request, uuid=None):
+        user = self.get_object()
+        serializer = user_action_serializers.UpdateActionsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        provider_action_type = serializer.validated_data.get("provider_action_type")
+
+        user_action_tasks.update_user_actions.delay(
+            user_uuid=user.uuid.hex,
+            provider_action_type=provider_action_type,
+        )
+
+        response_data = {
+            "status": "scheduled",
+            "message": f"User actions update for {user.username} has been scheduled",
+            "provider_action_type": provider_action_type,
+        }
+        response_serializer = user_action_serializers.UpdateActionsResponseSerializer(
+            response_data
+        )
+        return Response(response_serializer.data, status=status.HTTP_202_ACCEPTED)
+
+    update_actions_permissions = [permissions.is_staff]
+    update_actions_serializer_class = user_action_serializers.UpdateActionsSerializer
+
+    @extend_schema(
+        summary="Send action notification to a specific user",
+        request=None,
+        responses={202: user_action_serializers.SendNotificationResponseSerializer},
+        description="Staff-only action to send a pending actions digest notification to a specific user.",
+    )
+    @action(detail=True, methods=["post"])
+    def send_notification(self, request, uuid=None):
+        user = self.get_object()
+        if not user.email:
+            raise ValidationError(_("User does not have an email address."))
+
+        user_action_tasks.send_user_action_notification.delay(
+            user_uuid=user.uuid.hex,
+        )
+
+        response_data = {
+            "status": "scheduled",
+            "message": f"Notification for {user.username} has been scheduled",
+        }
+        response_serializer = (
+            user_action_serializers.SendNotificationResponseSerializer(response_data)
+        )
+        return Response(response_serializer.data, status=status.HTTP_202_ACCEPTED)
+
+    send_notification_permissions = [permissions.is_staff]
 
     @extend_schema(
         summary="Change user password",

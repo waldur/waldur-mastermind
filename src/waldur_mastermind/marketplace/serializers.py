@@ -5168,6 +5168,35 @@ class ResourceRenewSerializer(serializers.Serializer):
         return attrs
 
 
+class RenewalEstimateRequestSerializer(serializers.Serializer):
+    extension_months = serializers.IntegerField(min_value=1, max_value=60)
+    limits = serializers.DictField(
+        child=serializers.IntegerField(min_value=0), required=False
+    )
+
+
+class RenewalEstimateComponentSerializer(serializers.Serializer):
+    component_type = serializers.CharField()
+    component_name = serializers.CharField()
+    billing_type = serializers.CharField()
+    billing_period = serializers.CharField(allow_null=True)
+    current_limit = serializers.IntegerField()
+    new_limit = serializers.IntegerField()
+    unit_price = serializers.DecimalField(max_digits=22, decimal_places=10)
+    measured_unit = serializers.CharField(allow_blank=True)
+    period_description = serializers.CharField()
+    total = serializers.DecimalField(max_digits=22, decimal_places=10)
+
+
+class RenewalEstimateResponseSerializer(serializers.Serializer):
+    components = RenewalEstimateComponentSerializer(many=True)
+    subscription_total = serializers.DecimalField(max_digits=22, decimal_places=10)
+    limit_change_total = serializers.DecimalField(max_digits=22, decimal_places=10)
+    total = serializers.DecimalField(max_digits=22, decimal_places=10)
+    remaining_days = serializers.IntegerField()
+    new_end_date = serializers.DateField()
+
+
 class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Resource

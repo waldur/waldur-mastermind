@@ -7073,6 +7073,7 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
         # The order processor will be responsible for updating the resource's
         # end_date and limits upon successful payment/approval.
         order_attributes = {
+            "name": resource.name,
             "action": "renew",
             "old_limits": resource.limits,
             "old_end_date": resource.end_date.isoformat()
@@ -7122,6 +7123,36 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
     renew_validators = [
         core_validators.StateValidator(ResourceStates.OK, ResourceStates.ERRED),
         check_prepaid_resource,
+    ]
+
+    @extend_schema(
+        summary="Estimate renewal cost breakdown",
+        request=serializers.RenewalEstimateRequestSerializer,
+        responses={200: serializers.RenewalEstimateResponseSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def estimate_renewal(self, request, uuid=None):
+        resource = self.get_object()
+        serializer = serializers.RenewalEstimateRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        estimate = resource.get_renewal_estimate(
+            serializer.validated_data["extension_months"],
+            serializer.validated_data.get("limits"),
+        )
+        response_serializer = serializers.RenewalEstimateResponseSerializer(estimate)
+        return Response(response_serializer.data)
+
+    estimate_renewal_serializer_class = serializers.RenewalEstimateRequestSerializer
+
+    estimate_renewal_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_RESOURCE_LIMITS,
+            ["project", "project.customer"],
+        ),
+    ]
+
+    estimate_renewal_validators = [
+        core_validators.StateValidator(ResourceStates.OK, ResourceStates.ERRED),
     ]
 
 

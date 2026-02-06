@@ -21,6 +21,10 @@ class UserActionFilter(django_filters.FilterSet):
     created_before = django_filters.DateTimeFilter(
         field_name="created", lookup_expr="lte"
     )
+    user_uuid = django_filters.UUIDFilter(
+        field_name="user__uuid",
+        help_text="Filter by user UUID (staff only).",
+    )
 
     class Meta:
         model = models.UserAction
@@ -33,6 +37,7 @@ class UserActionFilter(django_filters.FilterSet):
             "due_within_days",
             "created_after",
             "created_before",
+            "user_uuid",
         ]
 
     def filter_include_silenced(self, queryset, name, value):

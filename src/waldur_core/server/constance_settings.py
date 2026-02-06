@@ -876,7 +876,7 @@ CONSTANCE_CONFIG = {
     ),
     # User Actions Configuration
     "USER_ACTIONS_ENABLED": (
-        True,
+        False,
         "Enable user actions notification system.",
     ),
     "USER_ACTIONS_PENDING_ORDER_HOURS": (
