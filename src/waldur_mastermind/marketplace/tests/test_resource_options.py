@@ -15,12 +15,27 @@ class ResourceUpdateOptionsTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         options = {
-            "email": {
-                "type": "string",
-                "label": "email",
-                "default": "user@example.com",
+            "storage": {
+                "type": "integer",
+                "label": "storage",
+                "required": True,
+            },
+            "soft_limit": {
+                "type": "integer",
+                "label": "soft_limit",
                 "required": False,
-            }
+            },
+            "hard_limit": {
+                "type": "integer",
+                "label": "hard_limit",
+                "required": False,
+                "validators": [
+                    {
+                        "type": "gte",
+                        "target_field": "soft_limit",
+                    }
+                ],
+            },
         }
         self.fixture.offering.resource_options = {"options": options}
         self.fixture.offering.save()
@@ -29,11 +44,14 @@ class ResourceUpdateOptionsTest(test.APITransactionTestCase):
         self.resource.save()
         self.url = factories.ResourceFactory.get_url(self.resource, "update_options")
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_OPTIONS)
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
 
     def make_request(self, user, payload=None, custom_url=None):
         url = custom_url or self.url
         self.client.force_authenticate(user)
-        payload = payload or {"options": {"email": "order@example.com"}}
+        payload = payload or {
+            "options": {"storage": 1024, "soft_limit": 100, "hard_limit": 200}
+        }
         return self.client.post(url, payload)
 
     @data(
@@ -44,7 +62,9 @@ class ResourceUpdateOptionsTest(test.APITransactionTestCase):
         response = self.make_request(getattr(self.fixture, user))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.options["email"], "order@example.com")
+        self.assertEqual(self.resource.options["storage"], 1024)
+        self.assertEqual(self.resource.options["soft_limit"], 100)
+        self.assertEqual(self.resource.options["hard_limit"], 200)
 
     def test_create_order_when_offering_requires_order_for_option_change(self):
         self.fixture.offering.plugin_options = {
@@ -60,14 +80,15 @@ class ResourceUpdateOptionsTest(test.APITransactionTestCase):
         )
         order = models.Order.objects.filter(uuid=response.data["order_uuid"]).get()
         self.assertEqual(
-            order.attributes.get("new_options"), {"email": "order@example.com"}
+            order.attributes.get("new_options"),
+            {"storage": 1024, "soft_limit": 100, "hard_limit": 200},
         )
 
         order.set_state_executing()
         order.save()
         marketplace_utils.process_order(order, self.fixture.owner)
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.options, {"email": "order@example.com"})
+        self.assertEqual(self.resource.options["storage"], 1024)
         order.refresh_from_db()
         self.assertEqual(order.state, OrderStates.DONE)
         self.assertEqual(self.resource.state, models.Resource.States.OK)
@@ -86,7 +107,7 @@ class ResourceUpdateOptionsTest(test.APITransactionTestCase):
         response = self.make_request(getattr(self.fixture, user), custom_url=url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.options["email"], "order@example.com")
+        self.assertEqual(self.resource.options["storage"], 1024)
 
     def test_update_options_fails_for_erred_resource(self):
         self.resource.state = ResourceStates.ERRED
@@ -110,7 +131,7 @@ class ResourceUpdateOptionsTest(test.APITransactionTestCase):
         factories.OrderFactory(
             resource=self.resource,
             state=OrderStates.PENDING_CONSUMER,
-            attributes={"new_options": {"email": "pending@example.com"}},
+            attributes={"new_options": {"storage": 512}},
         )
         response = self.make_request(self.fixture.owner)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
@@ -118,3 +139,81 @@ class ResourceUpdateOptionsTest(test.APITransactionTestCase):
             response.data["detail"],
             "There's a pending order for changing resource options.",
         )
+
+    def test_service_provider_can_update_resource_options_during_approval(self):
+        # 1. Offering requires order for option change
+        self.fixture.offering.plugin_options = {
+            "create_orders_on_resource_option_change": True
+        }
+        self.fixture.offering.save()
+
+        # 2. Consumer creates an order
+        response = self.make_request(
+            self.fixture.owner,
+            payload={
+                "options": {"storage": 1024, "soft_limit": 100, "hard_limit": 200}
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+        self.assertEqual(order.attributes["new_options"]["hard_limit"], 200)
+
+        # 3. Provider approves and updates options
+        url = factories.OrderFactory.get_url(order, "approve_by_provider")
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.post(
+            url,
+            {
+                "attributes": {
+                    "new_options": {
+                        "storage": 1024,
+                        "soft_limit": 100,
+                        "hard_limit": 300,
+                    }
+                }
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        order.refresh_from_db()
+        self.assertEqual(order.attributes["new_options"]["hard_limit"], 300)
+
+        # 4. Process order and verify resource options
+        marketplace_utils.process_order(order, self.fixture.offering_owner)
+
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.options["hard_limit"], 300)
+
+    def test_service_provider_can_not_update_resource_options_with_invalid_data(self):
+        # 1. Offering requires order for option change
+        self.fixture.offering.plugin_options = {
+            "create_orders_on_resource_option_change": True
+        }
+        self.fixture.offering.save()
+
+        # 2. Consumer creates an order
+        response = self.make_request(
+            self.fixture.owner,
+            payload={
+                "options": {"storage": 1024, "soft_limit": 100, "hard_limit": 200}
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        order = models.Order.objects.get(uuid=response.data["order_uuid"])
+
+        # 3. Provider approves with invalid options (hard_limit < soft_limit)
+        url = factories.OrderFactory.get_url(order, "approve_by_provider")
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.post(
+            url,
+            {
+                "attributes": {
+                    "new_options": {
+                        "storage": 1024,
+                        "soft_limit": 500,
+                        "hard_limit": 300,
+                    }
+                }
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

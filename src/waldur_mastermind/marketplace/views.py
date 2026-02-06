@@ -5467,6 +5467,8 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             return self.update_serializer_class
         if self.action in ["partial_update"]:
             return self.partial_update_serializer_class
+        if self.action == "approve_by_provider":
+            return self.approve_by_provider_serializer_class
         return super().get_serializer_class()
 
     def get_queryset(self):
@@ -5620,6 +5622,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             ["offering.customer"],
         )
     ]
+    approve_by_provider_serializer_class = serializers.OrderApproveByProviderSerializer
 
     @extend_schema(
         summary="Approve an order (provider)",
@@ -5635,6 +5638,12 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     @action(detail=True, methods=["post"])
     def approve_by_provider(self, request, uuid=None):
         order: models.Order = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        attributes = serializer.validated_data.get("attributes")
+        if attributes:
+            order.attributes.update(attributes)
+            order.save(update_fields=["attributes"])
         order.review_by_provider(request.user)
 
         # After provider approval, check for the order's own start_date
