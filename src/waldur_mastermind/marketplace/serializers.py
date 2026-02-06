@@ -3735,6 +3735,24 @@ class OrderUpdateSerializer(BaseOrderSerializer):
         return attrs
 
 
+class OrderApproveByProviderSerializer(serializers.Serializer):
+    attributes = serializers.JSONField(required=False)
+
+    def validate_attributes(self, attributes):
+        if not attributes:
+            return attributes
+        order = self.context["view"].get_object()
+        new_options = attributes.get("new_options")
+        if new_options:
+            resource_options = order.offering.resource_options
+            if not resource_options or not resource_options.get("options"):
+                raise serializers.ValidationError(
+                    _("Metadata for resource options is not defined.")
+                )
+            validate_options(resource_options["options"], new_options, optional=True)
+        return attributes
+
+
 class OrderDetailsSerializer(BaseOrderSerializer):
     class Meta(BaseOrderSerializer.Meta):
         fields = BaseOrderSerializer.Meta.fields + (
