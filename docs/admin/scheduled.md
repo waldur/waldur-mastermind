@@ -105,7 +105,7 @@ td:nth-child(4) {
 | `update-invoices-total-cost` | `invoices.update_invoices_total_cost` | 1 day | Update cached total cost for current month invoices. |
 | `update-software-catalogs` | `marketplace.update_software_catalogs` | Cron: `0 3 * * * (m/h/dM/MY/d)` | Daily task to update all enabled software catalogs.<br><br> Updates EESSI, Spack, and other configured catalogs independently.<br> Each catalog is processed in isolation - if one fails, others continue. |
 | `update-standard-quotas` | `waldur_core.quotas.update_standard_quotas` | 1 day | Task not found in registry |
-| `update-user-actions` | `waldur_core.user_actions.update_user_actions` | Cron: `0 */6 * * * (m/h/dM/MY/d)` | Update actions for all providers or specific provider |
+| `update-user-actions` | `waldur_core.user_actions.update_user_actions` | Cron: `0 */6 * * * (m/h/dM/MY/d)` | Update actions for all providers or specific provider.<br><br> If user_uuid is provided, only update actions for that specific user. |
 | `update_daily_consent_history` | `waldur_mastermind.marketplace.update_daily_consent_history` | 1 day | Daily task to update consent history statistics for dashboard reporting.<br> Uses quota system + DailyQuotaHistory for historical tracking. |
 | `valimo-auth-cleanup-auth-results` | `waldur_auth_valimo.cleanup_auth_results` | 1 hour | Clean up Valimo authentication results older than 7 days. |
 | `waldur-chat-cleanup-old-sessions` | `waldur_mastermind.chat.cleanup_old_chat_sessions` | Cron: `0 2 * * * (m/h/dM/MY/d)` | Task not found in registry |

@@ -2654,8 +2654,6 @@ Minimum table size in bytes (default 1MB) to monitor. Smaller tables are ignored
 
 **Type:** bool
 
-**Default value:** True
-
 Enable user actions notification system.
 
 #### USER_ACTIONS_PENDING_ORDER_HOURS
