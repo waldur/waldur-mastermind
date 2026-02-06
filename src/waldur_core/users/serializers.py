@@ -1,6 +1,7 @@
 import re
 
 from constance import config
+from django.utils.translation import gettext as _
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
@@ -11,6 +12,7 @@ from waldur_core.permissions.utils import get_valid_models
 from waldur_core.structure.permissions import _get_customer
 from waldur_core.users import models
 from waldur_core.users.enums import InvitationState
+from waldur_core.users.utils import get_invitation_duplicates
 
 
 class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
@@ -327,6 +329,23 @@ class InvitationSerializer(BaseInvitationSerializer):
             },
         }
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        scope = attrs["scope"]
+        duplicates = get_invitation_duplicates(
+            scope,
+            [{"email": attrs["email"], "role": attrs["role"]}],
+        )
+        if duplicates:
+            raise serializers.ValidationError(
+                {
+                    "email": _(
+                        "Pending invitation already exists for this email and role."
+                    )
+                }
+            )
+        return attrs
+
     def get_fields(self):
         """Filter invitation fields based on INVITATION_ALLOWED_FIELDS setting.
 
@@ -387,6 +406,33 @@ class InvitationUpdateSerializer(serializers.ModelSerializer):
         ]:
             raise serializers.ValidationError("Only pending invitations can be edited.")
         return attrs
+
+
+class InvitationDuplicateCheckItemSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    role = serializers.SlugRelatedField(
+        queryset=Role.objects.filter(is_active=True),
+        slug_field="uuid",
+        help_text="UUID of the role to grant to the invited user",
+    )
+
+
+class InvitationDuplicateCheckSerializer(serializers.Serializer):
+    scope = GenericRelatedField(
+        get_valid_models,
+        help_text="URL of the scope (Customer or Project) for this invitation list",
+    )
+    invitations = InvitationDuplicateCheckItemSerializer(many=True, allow_empty=True)
+
+
+class InvitationDuplicateSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    role = serializers.UUIDField(format="hex")
+    existing_invitation_uuid = serializers.UUIDField(allow_null=True, required=False)
+
+
+class InvitationDuplicateCheckResponseSerializer(serializers.Serializer):
+    duplicates = InvitationDuplicateSerializer(many=True)
 
 
 class VisibleInvitationDetailsSerializer(BaseInvitationDetailsSerializer):

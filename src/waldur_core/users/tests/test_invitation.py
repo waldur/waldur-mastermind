@@ -1,6 +1,7 @@
 import datetime
 from datetime import timedelta
 from unittest import mock
+from uuid import uuid4
 
 from constance.test.unittest import override_config
 from ddt import data, ddt
@@ -152,6 +153,98 @@ class BaseInvitationTest(test.APITransactionTestCase):
         self.project_invitation = factories.ProjectInvitationFactory(
             scope=self.project,
             role=ProjectRole.ADMIN,
+        )
+
+
+class InvitationDuplicateCheckTest(BaseInvitationTest):
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.staff)
+        self.check_duplicates_url = factories.InvitationBaseFactory.get_list_url(
+            action="check-duplicates"
+        )
+
+    def test_returns_duplicates_for_pending_invitations(self):
+        invitation = factories.CustomerInvitationFactory(
+            scope=self.customer,
+            role=CustomerRole.OWNER,
+            email="dup@example.com",
+            state=InvitationState.PENDING,
+        )
+        payload = {
+            "scope": structure_factories.CustomerFactory.get_url(self.customer),
+            "invitations": [
+                {"email": "Dup@example.com", "role": CustomerRole.OWNER.uuid.hex},
+                {"email": "unique@example.com", "role": CustomerRole.OWNER.uuid.hex},
+                {"email": "dup@example.com", "role": CustomerRole.OWNER.uuid.hex},
+            ],
+        }
+
+        response = self.client.post(self.check_duplicates_url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data,
+            {
+                "duplicates": [
+                    {
+                        "email": "Dup@example.com",
+                        "role": CustomerRole.OWNER.uuid.hex,
+                        "existing_invitation_uuid": str(invitation.uuid),
+                    }
+                ]
+            },
+        )
+
+    def test_does_not_return_duplicates_for_other_scope_or_role(self):
+        factories.CustomerInvitationFactory(
+            scope=self.second_customer,
+            role=CustomerRole.OWNER,
+            email="dup@example.com",
+            state=InvitationState.PENDING,
+        )
+        factories.CustomerInvitationFactory(
+            scope=self.customer,
+            role=CustomerRole.OWNER,
+            email="roledup@example.com",
+            state=InvitationState.PENDING,
+        )
+        payload = {
+            "scope": structure_factories.CustomerFactory.get_url(self.customer),
+            "invitations": [
+                {"email": "dup@example.com", "role": CustomerRole.OWNER.uuid.hex},
+                {"email": "roledup@example.com", "role": CustomerRole.SUPPORT.uuid.hex},
+            ],
+        }
+
+        response = self.client.post(self.check_duplicates_url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {"duplicates": []})
+
+    def test_returns_duplicates_within_request(self):
+        payload = {
+            "scope": structure_factories.CustomerFactory.get_url(self.customer),
+            "invitations": [
+                {"email": "dup@example.com", "role": CustomerRole.OWNER.uuid.hex},
+                {"email": "dup@example.com", "role": CustomerRole.OWNER.uuid.hex},
+            ],
+        }
+
+        response = self.client.post(self.check_duplicates_url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data,
+            {
+                "duplicates": [
+                    {
+                        "email": "dup@example.com",
+                        "role": CustomerRole.OWNER.uuid.hex,
+                        "existing_invitation_uuid": None,
+                    }
+                ]
+            },
         )
 
 
@@ -599,6 +692,28 @@ class InvitationCreateTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data, {"role": ["This field is required."]})
 
+    def test_user_cannot_create_duplicate_invitation(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        self.client.force_authenticate(user=self.customer_owner)
+        existing = factories.CustomerInvitationFactory(
+            scope=self.customer,
+            role=CustomerRole.OWNER,
+            email="dup@example.com",
+            state=InvitationState.PENDING,
+        )
+        payload = {
+            "email": existing.email,
+            "scope": structure_factories.CustomerFactory.get_url(self.customer),
+            "role": CustomerRole.OWNER.uuid.hex,
+        }
+
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
+
     def test_user_cannot_create_customer_invitation_without_role(self):
         self.client.force_authenticate(user=self.staff)
         payload = self._get_valid_customer_invitation_payload(self.customer_invitation)
@@ -697,9 +812,10 @@ class InvitationCreateTest(BaseInvitationTest):
         self, invitation: models.Invitation | None = None, role: Role | None = None
     ):
         invitation = invitation or factories.ProjectInvitationFactory.build()
+        email = f"invite-{uuid4().hex}@example.com"
         role = role or ProjectRole.ADMIN
         return {
-            "email": invitation.email,
+            "email": email,
             "scope": structure_factories.ProjectFactory.get_url(invitation.scope),
             "role": role.uuid.hex,
         }
@@ -708,9 +824,10 @@ class InvitationCreateTest(BaseInvitationTest):
         self, invitation: models.Invitation | None = None, role: Role | None = None
     ):
         invitation = invitation or factories.CustomerInvitationFactory.build()
+        email = f"invite-{uuid4().hex}@example.com"
         role = role or CustomerRole.OWNER
         return {
-            "email": invitation.email,
+            "email": email,
             "scope": structure_factories.CustomerFactory.get_url(invitation.scope),
             "role": role.uuid.hex,
         }

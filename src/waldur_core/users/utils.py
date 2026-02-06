@@ -3,8 +3,10 @@ import logging
 import requests
 from constance import config
 from django.conf import settings
+from django.contrib.contenttypes.models import ContentType
 from django.core.signing import BadSignature, TimestampSigner
 from django.db import transaction
+from django.db.models import Q
 from python_freeipa import exceptions as freeipa_exceptions
 from rest_framework import serializers
 
@@ -197,6 +199,60 @@ def can_manage_invitation_with(request, scope):
             return True
 
     return False
+
+
+def get_invitation_duplicates(scope, invitations):
+    if not invitations:
+        return []
+
+    pair_conditions = Q()
+    for item in invitations:
+        pair_conditions |= Q(email__iexact=item["email"], role=item["role"])
+
+    pending_states = [
+        InvitationState.PENDING,
+        InvitationState.PENDING_PROJECT,
+        InvitationState.REQUESTED,
+    ]
+    existing_invitations = (
+        models.Invitation.objects.filter(
+            content_type=ContentType.objects.get_for_model(scope),
+            object_id=scope.id,
+            state__in=pending_states,
+        )
+        .filter(pair_conditions)
+        .order_by("created")
+    )
+
+    existing_by_pair = {}
+    for invitation in existing_invitations:
+        key = (invitation.email.lower(), invitation.role.uuid)
+        if key not in existing_by_pair:
+            existing_by_pair[key] = invitation
+
+    duplicates = []
+    added = set()
+    seen = set()
+    for item in invitations:
+        key = (item["email"].lower(), item["role"].uuid)
+        is_request_duplicate = key in seen
+        seen.add(key)
+        if key in added:
+            continue
+        if key in existing_by_pair or is_request_duplicate:
+            existing = existing_by_pair.get(key)
+            duplicates.append(
+                {
+                    "email": item["email"],
+                    "role": item["role"].uuid,
+                    "existing_invitation_uuid": (
+                        existing.uuid if existing is not None else None
+                    ),
+                }
+            )
+            added.add(key)
+
+    return duplicates
 
 
 def get_users_for_notification_about_request_has_been_submitted(

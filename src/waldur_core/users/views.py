@@ -29,7 +29,11 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.models import Customer, Project
 from waldur_core.users import filters, models, serializers, tasks
 from waldur_core.users.enums import InvitationState
-from waldur_core.users.utils import can_manage_invitation_with, parse_invitation_token
+from waldur_core.users.utils import (
+    can_manage_invitation_with,
+    get_invitation_duplicates,
+    parse_invitation_token,
+)
 
 
 @extend_schema_view(
@@ -174,6 +178,38 @@ class InvitationViewSet(viewsets.ModelViewSet):
             transaction.on_commit(
                 lambda: tasks.process_invitation.delay(invitation.uuid.hex, sender)
             )
+
+    @extend_schema(
+        summary="Check for duplicate invitations",
+        description=(
+            "Returns pending invitations that already exist for the same email and role "
+            "within the given scope."
+        ),
+        request=serializers.InvitationDuplicateCheckSerializer,
+        responses=serializers.InvitationDuplicateCheckResponseSerializer,
+    )
+    @action(detail=False, methods=["post"], url_path="check-duplicates")
+    def check_duplicates(self, request):
+        serializer = serializers.InvitationDuplicateCheckSerializer(
+            data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+
+        scope = serializer.validated_data["scope"]
+        if not can_manage_invitation_with(request, scope):
+            # Raise NotFound instead of PermissionDenied to hide invitation existence
+            raise NotFound()
+
+        invitations = serializer.validated_data["invitations"]
+        if not invitations:
+            return Response({"duplicates": []})
+
+        duplicates = get_invitation_duplicates(scope, invitations)
+
+        response_serializer = serializers.InvitationDuplicateCheckResponseSerializer(
+            {"duplicates": duplicates}
+        )
+        return Response(response_serializer.data)
 
     @extend_schema(
         summary="Approve a requested invitation",
