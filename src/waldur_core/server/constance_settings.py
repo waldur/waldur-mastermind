@@ -655,6 +655,13 @@ CONSTANCE_CONFIG = {
         "If the claim contains 'staff', user gets is_staff=True. If it contains 'support', user gets is_support=True. "
         "Leave empty to disable role synchronization from identity provider.",
     ),
+    "REMOTE_EDUTEAMS_REFRESH_TOKEN": (
+        "",
+        "Rotating OAuth2 refresh token for remote eduTEAMS API access. "
+        "Automatically updated by the periodic token rotation task. "
+        "If empty, falls back to REMOTE_EDUTEAMS_REFRESH_TOKEN from Django settings.",
+        "secret_field",
+    ),
     "DEFAULT_OFFERING_USER_ATTRIBUTES": (
         ["username", "full_name", "email"],
         "Default user attributes exposed to service providers (OfferingUser API) when no explicit config exists. "
@@ -1121,6 +1128,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "DEACTIVATE_USER_IF_NO_ROLES",
         "OIDC_BLOCK_CREATION_OF_UNINVITED_USERS",
         "OIDC_ACCESS_TOKEN_ENABLED",
+        "REMOTE_EDUTEAMS_REFRESH_TOKEN",
     ),
     "Invitation settings": (
         "ENABLE_STRICT_CHECK_ACCEPTING_INVITATION",

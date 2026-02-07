@@ -133,6 +133,7 @@ td:nth-child(4) {
 | `waldur-pid-update-all-referrables` | `waldur_pid.update_all_referrables` | 1 day | Update DataCite DOI information for all referrable objects with existing DOIs. |
 | `waldur-pull-remote-eduteams-ssh-keys` | `waldur_auth_social.pull_remote_eduteams_ssh_keys` | 3 minutes | Task not found in registry |
 | `waldur-pull-remote-eduteams-users` | `waldur_auth_social.pull_remote_eduteams_users` | 5 minutes | Task not found in registry |
+| `waldur-rotate-remote-eduteams-token` | `waldur_auth_social.rotate_remote_eduteams_token` | 11 hours | Proactively rotate the eduTEAMS OAuth2 refresh token. Requests a new access and refresh token pair using the `offline_access` scope, stores the rotated refresh token in Constance (`REMOTE_EDUTEAMS_REFRESH_TOKEN`), and caches the access token. Falls back to the static Django setting on first run. |
 | `waldur-rancher-delete-leftover-keycloak-groups` | `waldur_rancher.delete_leftover_keycloak_groups` | 1 hour | Delete remote Keycloak groups with no linked groups in Waldur |
 | `waldur-rancher-delete-leftover-keycloak-memberships` | `waldur_rancher.delete_leftover_keycloak_memberships` | 1 hour | Delete remote Keycloak user memberships in groups with no linked instances in Waldur |
 | `waldur-rancher-sync-keycloak-users` | `waldur_rancher.sync_keycloak_users` | 15 minutes | Synchronize Keycloak users with pending group memberships in Rancher. |
