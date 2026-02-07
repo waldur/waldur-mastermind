@@ -48,3 +48,17 @@ def pull_remote_eduteams_ssh_keys():
 
         keys = ssh_keys_map["ssh_keys"]
         sync_user_ssh_keys(user, keys, cuid)
+
+
+@shared_task(name="waldur_auth_social.rotate_remote_eduteams_token")
+def rotate_remote_eduteams_token():
+    if not settings.WALDUR_AUTH_SOCIAL["REMOTE_EDUTEAMS_ENABLED"]:
+        return
+    try:
+        utils.refresh_remote_eduteams_token(force=True)
+        logger.info("Proactive eduTEAMS token rotation completed successfully.")
+    except Exception:
+        logger.exception(
+            "Failed to rotate eduTEAMS refresh token. "
+            "The token may expire if this persists."
+        )

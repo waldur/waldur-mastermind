@@ -1,6 +1,7 @@
 from unittest import mock
 
 import responses
+from django.core.cache import cache
 from django.test import override_settings
 from rest_framework import status, test
 from rest_framework.reverse import reverse
@@ -33,8 +34,9 @@ class RemoteEduteamsTest(test.APITransactionTestCase):
         responses.add(
             method="POST",
             url="https://proxy.acc.researcher-access.org/OIDC/token",
-            json={"access_token": "random_token"},
+            json={"access_token": "random_token", "refresh_token": "new_refresh_token"},
         )
+        cache.delete("REMOTE_EDUTEAMS_ACCESS_TOKEN")
 
     def setup_user_info(self):
         responses.add(

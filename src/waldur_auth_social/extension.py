@@ -33,4 +33,9 @@ class AuthSocialExtension(WaldurExtension):
                 "schedule": timedelta(minutes=3),
                 "args": (),
             },
+            "waldur-rotate-remote-eduteams-token": {
+                "task": "waldur_auth_social.rotate_remote_eduteams_token",
+                "schedule": timedelta(hours=11),
+                "args": (),
+            },
         }

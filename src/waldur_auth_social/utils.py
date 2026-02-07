@@ -350,10 +350,27 @@ def get_remote_eduteams_ssh_keys():
         raise ParseError("Unable to parse SSH keys")
 
 
-def refresh_remote_eduteams_token():
-    access_token = cache.get("REMOTE_EDUTEAMS_ACCESS_TOKEN")
-    if access_token:
-        return access_token
+def _get_current_refresh_token():
+    """Return the current refresh token, preferring Constance over static settings."""
+    token = config.REMOTE_EDUTEAMS_REFRESH_TOKEN
+    if token:
+        return token
+    return settings.WALDUR_AUTH_SOCIAL.get("REMOTE_EDUTEAMS_REFRESH_TOKEN", "")
+
+
+def refresh_remote_eduteams_token(force=False):
+    if not force:
+        access_token = cache.get("REMOTE_EDUTEAMS_ACCESS_TOKEN")
+        if access_token:
+            return access_token
+
+    refresh_token = _get_current_refresh_token()
+    if not refresh_token:
+        logger.error(
+            "No eduTEAMS refresh token available in Constance or Django settings."
+        )
+        raise RuntimeError("No refresh token available for eduTEAMS.")
+
     try:
         token_response = requests.post(
             settings.WALDUR_AUTH_SOCIAL["REMOTE_EDUTEAMS_TOKEN_URL"],
@@ -363,10 +380,8 @@ def refresh_remote_eduteams_token():
             ),
             data={
                 "grant_type": "refresh_token",
-                "refresh_token": settings.WALDUR_AUTH_SOCIAL[
-                    "REMOTE_EDUTEAMS_REFRESH_TOKEN"
-                ],
-                "scope": "openid",
+                "refresh_token": refresh_token,
+                "scope": "openid offline_access",
             },
         )
     except requests.exceptions.RequestException as e:
@@ -379,9 +394,15 @@ def refresh_remote_eduteams_token():
         )
 
     try:
-        access_token = token_response.json()["access_token"]
+        response_data = token_response.json()
+        access_token = response_data["access_token"]
     except (requests.JSONDecodeError, TypeError, KeyError):
         raise ParseError("Unable to parse JSON in access token response.")
+
+    new_refresh_token = response_data.get("refresh_token")
+    if new_refresh_token:
+        config.REMOTE_EDUTEAMS_REFRESH_TOKEN = new_refresh_token
+        logger.info("eduTEAMS refresh token rotated successfully.")
 
     cache.set("REMOTE_EDUTEAMS_ACCESS_TOKEN", access_token, 30 * 60)
     return access_token
