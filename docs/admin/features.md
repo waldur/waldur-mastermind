@@ -208,6 +208,10 @@ Render preferred language column in users list.
 
 Enable Data Access tab showing who can access user profile data.
 
+## user.show_identity_bridge
+
+Show identity bridge information in user profiles and admin views.
+
 ## user.show_slug
 
 Enable display of slug field in user summary.

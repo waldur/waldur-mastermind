@@ -2749,3 +2749,27 @@ Billing export check interval in hours for reconciliation
 **Default value:** 90
 
 Number of days to retain SLURM policy evaluation log entries before automatic cleanup.
+
+### Identity Bridge
+
+#### FEDERATED_IDENTITY_SYNC_ENABLED
+
+**Type:** bool
+
+Enable the Identity Bridge API for push-based ISD user attribute synchronization.
+
+#### FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES
+
+**Type:** list_field
+
+**Default value:** ['first_name', 'last_name', 'email', 'organization', 'affiliations']
+
+User attributes settable via Identity Bridge. Must be a subset of WRITABLE_USER_FIELDS.
+
+#### FEDERATED_IDENTITY_DEACTIVATION_POLICY
+
+**Type:** str
+
+**Default value:** any_isd_removed
+
+When to deactivate a federated user: 'all_isds_removed' (only when removed from all ISDs) or 'any_isd_removed' (on first ISD removal, backward compatible).
