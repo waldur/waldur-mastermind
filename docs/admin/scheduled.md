@@ -133,7 +133,6 @@ td:nth-child(4) {
 | `waldur-pid-update-all-referrables` | `waldur_pid.update_all_referrables` | 1 day | Update DataCite DOI information for all referrable objects with existing DOIs. |
 | `waldur-pull-remote-eduteams-ssh-keys` | `waldur_auth_social.pull_remote_eduteams_ssh_keys` | 3 minutes | Task not found in registry |
 | `waldur-pull-remote-eduteams-users` | `waldur_auth_social.pull_remote_eduteams_users` | 5 minutes | Task not found in registry |
-| `waldur-rotate-remote-eduteams-token` | `waldur_auth_social.rotate_remote_eduteams_token` | 11 hours | Proactively rotate the eduTEAMS OAuth2 refresh token. Requests a new access and refresh token pair using the `offline_access` scope, stores the rotated refresh token in Constance (`REMOTE_EDUTEAMS_REFRESH_TOKEN`), and caches the access token. Falls back to the static Django setting on first run. |
 | `waldur-rancher-delete-leftover-keycloak-groups` | `waldur_rancher.delete_leftover_keycloak_groups` | 1 hour | Delete remote Keycloak groups with no linked groups in Waldur |
 | `waldur-rancher-delete-leftover-keycloak-memberships` | `waldur_rancher.delete_leftover_keycloak_memberships` | 1 hour | Delete remote Keycloak user memberships in groups with no linked instances in Waldur |
 | `waldur-rancher-sync-keycloak-users` | `waldur_rancher.sync_keycloak_users` | 15 minutes | Synchronize Keycloak users with pending group memberships in Rancher. |
@@ -154,6 +153,7 @@ td:nth-child(4) {
 | `waldur-remote-push-project-data` | `waldur_mastermind.marketplace_remote.push_remote_project_data` | 1 day | Push project data to remote Waldur instances.<br><br> This task pushes local project data (name, description, end date, etc.)<br> to remote Waldur instances for projects that have marketplace resources.<br> Runs daily via celery beat. |
 | `waldur-remote-reconcile-resource-end-dates` | `waldur_mastermind.marketplace_remote.reconcile_resource_end_dates` | 1 day | No description available |
 | `waldur-remote-sync-remote-project-permissions` | `waldur_mastermind.marketplace_remote.sync_remote_project_permissions` | 6 hours | Synchronize project permissions with remote Waldur instances.<br><br> This task ensures that project permissions are synchronized between<br> local and remote Waldur instances when eduTEAMS sync is enabled.<br> It creates remote projects if needed and manages user role assignments.<br> Runs every 6 hours via celery beat.<br><br> Optimization: Caches remote user UUIDs per API endpoint to avoid<br> redundant lookups when the same user appears across multiple projects/offerings. |
+| `waldur-rotate-remote-eduteams-token` | `waldur_auth_social.rotate_remote_eduteams_token` | 11 hours | Task not found in registry |
 | `waldur-sync-daily-quotas` | `analytics.sync_daily_quotas` | 1 day | Task not found in registry |
 | `waldur-update-all-pid` | `waldur_pid.update_all_pid` | 1 day | Update all PID (Persistent Identifier) information for referrable objects with DataCite DOIs. |
 | `waldur_mastermind.marketplace_rancher.report_rancher_usage` | `waldur_mastermind.marketplace_rancher.report_rancher_usage` | 1 hour | No description available |

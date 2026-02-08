@@ -272,7 +272,7 @@ Enable remote eduTEAMS extension.
 
 **Type:** str
 
-Initial OAuth2 refresh token for remote eduTEAMS API access. Used as a fallback when the dynamic Constance setting `REMOTE_EDUTEAMS_REFRESH_TOKEN` is empty. Once the periodic token rotation task runs successfully, the rotated token is stored in Constance and this static value is no longer used.
+Token is used to authenticate against user info endpoint.
 
 #### REMOTE_EDUTEAMS_SECRET
 
@@ -2148,7 +2148,7 @@ If true, OIDC complete view returns access token instead of Waldur token
 
 **Type:** secret_field
 
-Rotating OAuth2 refresh token for remote eduTEAMS API access. Automatically updated by the periodic `waldur-rotate-remote-eduteams-token` task. If empty, falls back to `REMOTE_EDUTEAMS_REFRESH_TOKEN` from Django settings (`WALDUR_AUTH_SOCIAL`).
+Rotating OAuth2 refresh token for remote eduTEAMS API access. Automatically updated by the periodic token rotation task. If empty, falls back to REMOTE_EDUTEAMS_REFRESH_TOKEN from Django settings.
 
 ### Invitation settings
 
