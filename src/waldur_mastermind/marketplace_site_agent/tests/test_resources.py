@@ -10,7 +10,7 @@ from waldur_mastermind.marketplace_site_agent.tests import (
 )
 
 
-class UnlinkTest(test.APITransactionTestCase):
+class UnlinkTest(test.APITestCase):
     def setUp(self):
         self.fixture = site_agent_fixtures.MarketplaceSiteAgentFixture()
         self.url = factories.ResourceFactory.get_url(
@@ -31,7 +31,7 @@ class UnlinkTest(test.APITransactionTestCase):
         self.assertEqual(status.HTTP_204_NO_CONTENT, response.status_code)
 
 
-class ResourcePullTest(test.APITransactionTestCase):
+class ResourcePullTest(test.APITestCase):
     def setUp(self):
         self.fixture = site_agent_fixtures.MarketplaceSiteAgentFixture()
         resource = self.fixture.resource

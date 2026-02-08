@@ -14,7 +14,7 @@ from .. import enums
 
 
 @ddt
-class ProjectMetadataFileAccessTest(test.APITransactionTestCase):
+class ProjectMetadataFileAccessTest(test.APITestCase):
     """Test file access for project metadata checklists with proper permission delegation."""
 
     def setUp(self):

@@ -11,7 +11,7 @@ from .. import enums
 
 
 @ddt
-class FileQuestionValidationTest(test.APITransactionTestCase):
+class FileQuestionValidationTest(test.APITestCase):
     """Test file validation for FILE and MULTIPLE_FILES question types with base64 content."""
 
     def setUp(self):
@@ -182,7 +182,7 @@ class FileQuestionValidationTest(test.APITransactionTestCase):
 
 
 @ddt
-class FileQuestionAnswerProcessingTest(test.APITransactionTestCase):
+class FileQuestionAnswerProcessingTest(test.APITestCase):
     """Test file answer processing and storage."""
 
     def setUp(self):
@@ -288,7 +288,7 @@ class FileQuestionAnswerProcessingTest(test.APITransactionTestCase):
 
 
 @ddt
-class FileQuestionAdminAPITest(test.APITransactionTestCase):
+class FileQuestionAdminAPITest(test.APITestCase):
     """Test admin API for creating and managing file questions."""
 
     def setUp(self):
@@ -393,7 +393,7 @@ class FileQuestionAdminAPITest(test.APITransactionTestCase):
         self.assertIn("MIME types must be in format", str(response.data))
 
 
-class FileQuestionIntegrationTest(test.APITransactionTestCase):
+class FileQuestionIntegrationTest(test.APITestCase):
     """Test end-to-end file upload through answer submission API."""
 
     def setUp(self):
@@ -456,7 +456,7 @@ class FileQuestionIntegrationTest(test.APITransactionTestCase):
         self.assertEqual(processed_data["name"], "compliance_document.pdf")
 
 
-class FileQuestionUtilsTest(test.APITransactionTestCase):
+class FileQuestionUtilsTest(test.APITestCase):
     """Test utility functions for file question types."""
 
     def test_file_type_is_valid_answer_format(self):

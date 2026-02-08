@@ -2,7 +2,7 @@ from datetime import timedelta
 from unittest import mock
 
 from django.utils import timezone
-from rest_framework.test import APIRequestFactory, APITransactionTestCase
+from rest_framework.test import APIRequestFactory, APITestCase
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
@@ -15,7 +15,7 @@ from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 from waldur_mastermind.marketplace.user_actions import ExpiringResourceProvider
 
 
-class ConfigurableExpiringResourceTest(APITransactionTestCase):
+class ConfigurableExpiringResourceTest(APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.provider = ExpiringResourceProvider()

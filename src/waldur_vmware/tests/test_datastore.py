@@ -8,7 +8,7 @@ from waldur_vmware import backend, models
 from . import factories
 
 
-class DatastoreGetTest(test.APITransactionTestCase):
+class DatastoreGetTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = ProjectFixture()
@@ -51,7 +51,7 @@ class DatastoreGetTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 2)
 
 
-class DatastorePullTest(test.APITransactionTestCase):
+class DatastorePullTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.settings = factories.VMwareServiceSettingsFactory()

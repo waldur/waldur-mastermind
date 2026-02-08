@@ -13,7 +13,7 @@ def get_import_usage_url():
 
 
 @ddt
-class ImportUsagePermissionTest(test.APITransactionTestCase):
+class ImportUsagePermissionTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.url = get_import_usage_url()
@@ -45,7 +45,7 @@ class ImportUsagePermissionTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
-class ImportUsageSuccessTest(test.APITransactionTestCase):
+class ImportUsageSuccessTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.url = get_import_usage_url()
@@ -151,7 +151,7 @@ class ImportUsageSuccessTest(test.APITransactionTestCase):
         self.assertEqual(response.data["created"], 2)
 
 
-class ImportUsageSkippingTest(test.APITransactionTestCase):
+class ImportUsageSkippingTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.url = get_import_usage_url()
@@ -241,7 +241,7 @@ class ImportUsageSkippingTest(test.APITransactionTestCase):
         self.assertEqual(invoice.items.count(), 2)
 
 
-class ImportUsageErrorTest(test.APITransactionTestCase):
+class ImportUsageErrorTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.url = get_import_usage_url()
@@ -374,7 +374,7 @@ class ImportUsageErrorTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data["errors"]), 1)
 
 
-class ImportUsageValidationTest(test.APITransactionTestCase):
+class ImportUsageValidationTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.url = get_import_usage_url()

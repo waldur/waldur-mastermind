@@ -29,7 +29,7 @@ from . import fixtures
     WALDUR_SUPPORT_ENABLED=True, WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE="basic"
 )
 @freeze_time("2018-01-01")
-class InvoicesBaseTest(test.APITransactionTestCase):
+class InvoicesBaseTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.SupportFixture()

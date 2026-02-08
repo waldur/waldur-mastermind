@@ -26,7 +26,7 @@ from waldur_mastermind.marketplace.tests import factories
 
 
 @freeze_time("2019-06-19")
-class PlanPeriodsTest(test.APITransactionTestCase):
+class PlanPeriodsTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory()
@@ -69,7 +69,7 @@ class PlanPeriodsTest(test.APITransactionTestCase):
 
 @ddt
 @freeze_time("2017-01-10")
-class SubmitUsageTest(test.APITransactionTestCase):
+class SubmitUsageTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.service_provider = factories.ServiceProviderFactory()
@@ -662,7 +662,7 @@ class SubmitUsageTest(test.APITransactionTestCase):
 
 
 @freeze_time("2024-01-15")
-class UsageDateBackfillTest(test.APITransactionTestCase):
+class UsageDateBackfillTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory(customer=self.fixture.customer)
@@ -856,7 +856,7 @@ class UsageDateBackfillTest(test.APITransactionTestCase):
 
 
 @freeze_time("2024-02-15")  # Current time: February 2024
-class UsageBackfillInvoiceTest(test.APITransactionTestCase):
+class UsageBackfillInvoiceTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory(customer=self.fixture.customer)
@@ -1206,7 +1206,7 @@ class UsageBackfillInvoiceTest(test.APITransactionTestCase):
 
 
 @freeze_time("2024-01-15")
-class ServiceProviderUsageDateBackfillTest(test.APITransactionTestCase):
+class ServiceProviderUsageDateBackfillTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         # Create service provider customer

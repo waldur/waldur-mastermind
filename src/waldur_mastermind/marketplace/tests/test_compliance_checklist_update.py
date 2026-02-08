@@ -12,7 +12,7 @@ from waldur_mastermind.marketplace.tests import factories
 
 
 @ddt
-class OfferingComplianceChecklistUpdateTest(test.APITransactionTestCase):
+class OfferingComplianceChecklistUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer

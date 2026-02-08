@@ -73,6 +73,14 @@ Run linters:
     - pip install pre-commit
     - pre-commit run --all
 
+Check TransactionTestCase usage:
+  image: registry.hpc.ut.ee/mirror/library/python:3.11-bullseye
+  stage: test
+  interruptible: true
+  <<: *unit_test_rules
+  script:
+    - python scripts/analyze_transaction_test_cases.py --ci --baseline 60
+
 Validate documentation:
   image: registry.hpc.ut.ee/mirror/library/python:3.11-bullseye
   stage: test
@@ -418,7 +426,7 @@ Test Multi-arch docker image build:
     DOCKER_REGISTRY: registry.hpc.ut.ee/mirror/
   cache: []
   before_script:
-    - dnf update
+    - dnf update -y
     - dnf install -y gcc python3-devel musl-devel kernel-headers openldap-devel openssl libffi-devel libjpeg-turbo-devel libxml2-devel libxslt-devel
     - echo "$CI_REGISTRY_PASSWORD" | buildah login $CI_REGISTRY --username "$CI_REGISTRY_USER" --password-stdin
   script:

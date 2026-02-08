@@ -29,7 +29,7 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
-class StatsBaseTest(test.APITransactionTestCase):
+class StatsBaseTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -392,7 +392,7 @@ class ComponentStatsTest(StatsBaseTest):
 
 
 @ddt
-class CustomerStatsTest(test.APITransactionTestCase):
+class CustomerStatsTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
 
@@ -546,7 +546,7 @@ class CustomerStatsTest(test.APITransactionTestCase):
 
 
 @ddt
-class LimitsStatsTest(test.APITransactionTestCase):
+class LimitsStatsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.resource_1 = factories.ResourceFactory(
@@ -642,7 +642,7 @@ class LimitsStatsTest(test.APITransactionTestCase):
 
 @ddt
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
-class CountUsersOfServiceProviderTest(test.APITransactionTestCase):
+class CountUsersOfServiceProviderTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.url = "/api/marketplace-stats/count_users_of_service_providers/"
@@ -757,7 +757,7 @@ class CountUsersOfServiceProviderTest(test.APITransactionTestCase):
 
 
 @ddt
-class CountProjectsGroupedByOecdOfServiceProviderTest(test.APITransactionTestCase):
+class CountProjectsGroupedByOecdOfServiceProviderTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.url = "/api/marketplace-stats/count_projects_of_service_providers_grouped_by_oecd/"
@@ -797,7 +797,7 @@ class CountProjectsGroupedByOecdOfServiceProviderTest(test.APITransactionTestCas
 
 @ddt
 class CountUniqueUsersConnectedWithActiveResourcesOfServiceProviderTest(
-    test.APITransactionTestCase
+    test.APITestCase
 ):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
@@ -865,7 +865,7 @@ class CountUniqueUsersConnectedWithActiveResourcesOfServiceProviderTest(
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class CountCustomersTest(test.APITransactionTestCase):
+class CountCustomersTest(test.APITestCase):
     @freeze_time("2020-01-01")
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
@@ -993,7 +993,7 @@ class CountCustomersTest(test.APITransactionTestCase):
             )
 
 
-class OfferingStatsTest(test.APITransactionTestCase):
+class OfferingStatsTest(test.APITestCase):
     @freeze_time("2020-01-01")
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
@@ -1023,7 +1023,7 @@ class OfferingStatsTest(test.APITransactionTestCase):
         self.assertEqual(response.data["customers_count"], 1)
 
 
-class OfferingStatsCounterTest(test.APITransactionTestCase):
+class OfferingStatsCounterTest(test.APITestCase):
     def setUp(self):
         self.provider1 = factories.structure_factories.CustomerFactory()
         self.category1 = factories.CategoryFactory()
@@ -1286,7 +1286,7 @@ class CountResourceProvisioningStatsTest(StatsBaseTest):
 
 
 @ddt
-class CountUserIdentitySourceStatsTest(test.APITransactionTestCase):
+class CountUserIdentitySourceStatsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.url = "/api/marketplace-stats/user_identity_source_count/"
@@ -1324,7 +1324,7 @@ class CountUserIdentitySourceStatsTest(test.APITransactionTestCase):
 
 
 @ddt
-class ComponentUsagesStatsTest(test.APITransactionTestCase):
+class ComponentUsagesStatsTest(test.APITestCase):
     """Tests for /api/marketplace-stats/component_usages/ endpoint.
 
     This endpoint returns component usages for the current month,
@@ -1470,7 +1470,7 @@ class ComponentUsagesStatsTest(test.APITransactionTestCase):
 
 
 @ddt
-class ResourcesMissingUsageTest(test.APITransactionTestCase):
+class ResourcesMissingUsageTest(test.APITestCase):
     """Tests for /api/marketplace-stats/resources_missing_usage/ endpoint.
 
     This endpoint returns resources with usage-based billing components
@@ -1646,7 +1646,7 @@ class ResourcesMissingUsageTest(test.APITransactionTestCase):
 
 
 @ddt
-class OrderStatsTest(test.APITransactionTestCase):
+class OrderStatsTest(test.APITestCase):
     """Tests for /api/marketplace-stats/order_stats/ endpoint.
 
     This endpoint returns comprehensive order statistics including
@@ -1809,7 +1809,7 @@ class OrderStatsTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProviderResourcesStatsTest(test.APITransactionTestCase):
+class ProviderResourcesStatsTest(test.APITestCase):
     """Tests for /api/marketplace-stats/provider_resources/ endpoint.
 
     This endpoint returns resource statistics for a service provider.
@@ -1906,7 +1906,7 @@ class ProviderResourcesStatsTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProviderCustomersStatsTest(test.APITransactionTestCase):
+class ProviderCustomersStatsTest(test.APITestCase):
     """Tests for /api/marketplace-stats/provider_customers/ endpoint.
 
     This endpoint returns customer statistics for a service provider.
@@ -1981,7 +1981,7 @@ class ProviderCustomersStatsTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProviderOfferingsStatsTest(test.APITransactionTestCase):
+class ProviderOfferingsStatsTest(test.APITestCase):
     """Tests for /api/marketplace-stats/provider_offerings/ endpoint.
 
     This endpoint returns offering performance statistics for a service provider.
@@ -2072,7 +2072,7 @@ class ProviderOfferingsStatsTest(test.APITransactionTestCase):
             self.assertIn(field, offering)
 
 
-class PlanComponentSerializerTest(test.APITransactionTestCase):
+class PlanComponentSerializerTest(test.APITestCase):
     """Tests for PlanComponentSerializer fields."""
 
     def setUp(self):
@@ -2109,7 +2109,7 @@ class PlanComponentSerializerTest(test.APITransactionTestCase):
 
 
 @ddt
-class ResourceUsageByOrganizationTypeTest(test.APITransactionTestCase):
+class ResourceUsageByOrganizationTypeTest(test.APITestCase):
     """Tests for /api/marketplace-stats/resource_usage_by_organization_type/ endpoint.
 
     This endpoint returns component usages grouped by the organization type

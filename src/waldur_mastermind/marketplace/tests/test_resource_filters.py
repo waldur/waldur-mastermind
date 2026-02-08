@@ -4,7 +4,7 @@ from waldur_mastermind.marketplace.enums import OrderStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
-class ResourceOrderFilterTest(test.APITransactionTestCase):
+class ResourceOrderFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource

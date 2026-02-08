@@ -15,7 +15,7 @@ from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
-class InvoiceItemDeleteTest(test.APITransactionTestCase):
+class InvoiceItemDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
 
@@ -41,7 +41,7 @@ class InvoiceItemDeleteTest(test.APITransactionTestCase):
         )
 
 
-class InvoiceItemUpdateTest(test.APITransactionTestCase):
+class InvoiceItemUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
 
@@ -144,7 +144,7 @@ class InvoiceItemUpdateTest(test.APITransactionTestCase):
         self.assertEqual(item.quantity, 6)
 
 
-class InvoiceItemCompensationTest(test.APITransactionTestCase):
+class InvoiceItemCompensationTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.item = self.fixture.invoice_item
@@ -191,7 +191,7 @@ class InvoiceItemCompensationTest(test.APITransactionTestCase):
 
 @ddt.ddt
 @freeze_time("2019-01-01")
-class InvoiceTerminateTest(test.APITransactionTestCase):
+class InvoiceTerminateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.item = self.fixture.invoice_item
@@ -246,7 +246,7 @@ class InvoiceTerminateTest(test.APITransactionTestCase):
 
 
 @freeze_time("2019-01-01")
-class InvoiceItemMigrateToTest(test.APITransactionTestCase):
+class InvoiceItemMigrateToTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.item = self.fixture.invoice_item
@@ -280,7 +280,7 @@ class InvoiceItemMigrateToTest(test.APITransactionTestCase):
 
 
 @freeze_time("2019-01-01")
-class InvoiceItemCostsForPeriodTest(test.APITransactionTestCase):
+class InvoiceItemCostsForPeriodTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.invoice1 = factories.InvoiceFactory(
@@ -386,7 +386,7 @@ class InvoiceItemCostsForPeriodTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-class InvoiceItemCostsTest(test.APITransactionTestCase):
+class InvoiceItemCostsTest(test.APITestCase):
     def setUp(self):
         self.url = factories.InvoiceItemFactory.get_list_url("costs")
         self.project = structure_factories.ProjectFactory()
@@ -477,7 +477,7 @@ class InvoiceItemCostsTest(test.APITransactionTestCase):
         self.assertEqual(response.data[0]["price"], "100.00")
 
 
-class InvoiceItemDetailSerializerTest(test.APITransactionTestCase):
+class InvoiceItemDetailSerializerTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
 
@@ -635,7 +635,7 @@ class InvoiceItemDetailSerializerTest(test.APITransactionTestCase):
         self.assertIsNone(response.data["offering_name"])
 
 
-class InvoiceItemModelTest(test.APITransactionTestCase):
+class InvoiceItemModelTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
 

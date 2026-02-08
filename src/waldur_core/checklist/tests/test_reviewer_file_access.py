@@ -14,7 +14,7 @@ from .. import enums
 
 
 @ddt
-class ReviewerFileAccessTest(test.APITransactionTestCase):
+class ReviewerFileAccessTest(test.APITestCase):
     """Test file access permissions for reviewers in checklist system."""
 
     def setUp(self):
@@ -181,7 +181,7 @@ class ReviewerFileAccessTest(test.APITransactionTestCase):
 
 
 @ddt
-class ReviewerMultipleFilesAccessTest(test.APITransactionTestCase):
+class ReviewerMultipleFilesAccessTest(test.APITestCase):
     """Test reviewer access to multiple file uploads."""
 
     def setUp(self):
@@ -285,7 +285,7 @@ class ReviewerMultipleFilesAccessTest(test.APITransactionTestCase):
             self.assertNotIn("content", file_data)
 
 
-class FileAccessSecurityTest(test.APITransactionTestCase):
+class FileAccessSecurityTest(test.APITestCase):
     """Test security aspects of file access in checklist system."""
 
     def setUp(self):
@@ -431,7 +431,7 @@ class FileAccessSecurityTest(test.APITransactionTestCase):
         self.assertIn("integrity_test.pdf", response["Content-Disposition"])
 
 
-class ProposalComplianceFileAccessTest(test.APITransactionTestCase):
+class ProposalComplianceFileAccessTest(test.APITestCase):
     """Test file access for proposal compliance checklists specifically."""
 
     def setUp(self):
@@ -556,7 +556,7 @@ class ProposalComplianceFileAccessTest(test.APITransactionTestCase):
             self.assertIn(file_data["name"], response["Content-Disposition"])
 
 
-class ProjectMetadataFileAccessTest(test.APITransactionTestCase):
+class ProjectMetadataFileAccessTest(test.APITestCase):
     """Test file access for project metadata checklists specifically."""
 
     def setUp(self):
@@ -737,7 +737,7 @@ class ProjectMetadataFileAccessTest(test.APITransactionTestCase):
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
 
 
-class PermissionDelegationScenariosTest(test.APITransactionTestCase):
+class PermissionDelegationScenariosTest(test.APITestCase):
     """Test various permission delegation scenarios for different scope types."""
 
     def setUp(self):
@@ -927,7 +927,7 @@ class PermissionDelegationScenariosTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-class EdgeCasesAndErrorConditionsTest(test.APITransactionTestCase):
+class EdgeCasesAndErrorConditionsTest(test.APITestCase):
     """Test edge cases and error conditions in file permission system."""
 
     def setUp(self):

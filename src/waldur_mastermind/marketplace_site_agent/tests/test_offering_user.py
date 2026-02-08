@@ -31,7 +31,7 @@ def add_user_to_project(user, project, role=None):
     tasks.create_or_restore_offering_users_for_user(user.uuid.hex, project.uuid.hex)
 
 
-class OfferingUserCreationTest(test.APITransactionTestCase):
+class OfferingUserCreationTest(test.APITestCase):
     def setUp(self) -> None:
         fixture = marketplace_fixtures.MarketplaceFixture()
         self.resource = fixture.resource
@@ -193,7 +193,7 @@ class OfferingUserCreationTest(test.APITransactionTestCase):
         self.assertEqual(offering_user2.backend_metadata["loginShell"], "/bin/bash")
 
 
-class OfferingUserUpdateTest(test.APITransactionTestCase):
+class OfferingUserUpdateTest(test.APITestCase):
     def setUp(self) -> None:
         fixture = marketplace_fixtures.MarketplaceFixture()
 
@@ -253,7 +253,7 @@ class OfferingUserUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
+class OfferingUserGlauthConfigTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = GlauthUserFixture()
         self.maxDiff = None
@@ -373,7 +373,7 @@ class OfferingUserGlauthConfigTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingUserGlauthConfigQueryCountTest(test.APITransactionTestCase):
+class OfferingUserGlauthConfigQueryCountTest(test.APITestCase):
     """Test that glauth_users_config endpoint has constant query count regardless of user count."""
 
     def setUp(self) -> None:
@@ -446,7 +446,7 @@ class OfferingUserGlauthConfigQueryCountTest(test.APITransactionTestCase):
 
 
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
-class UserOfferingsMappingTest(test.APITransactionTestCase):
+class UserOfferingsMappingTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource

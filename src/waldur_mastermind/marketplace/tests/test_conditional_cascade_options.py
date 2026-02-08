@@ -6,7 +6,7 @@ from waldur_mastermind.marketplace import serializers
 from waldur_mastermind.marketplace.tests import factories
 
 
-class ConditionalCascadeOptionsSerializerTest(test.APITransactionTestCase):
+class ConditionalCascadeOptionsSerializerTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 
@@ -208,7 +208,7 @@ class ConditionalCascadeOptionsSerializerTest(test.APITransactionTestCase):
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
 
-class ConditionalCascadeOptionsIntegrationTest(test.APITransactionTestCase):
+class ConditionalCascadeOptionsIntegrationTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer

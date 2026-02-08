@@ -16,7 +16,7 @@ IMPERSONATOR_HEADER = settings.WALDUR_CORE.get("RESPONSE_HEADER_IMPERSONATOR_UUI
 
 
 @ddt
-class ImpersonationTest(test.APITransactionTestCase):
+class ImpersonationTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.impersonated_user = factories.UserFactory()

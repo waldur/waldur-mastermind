@@ -15,7 +15,7 @@ from . import factories
 
 
 @ddt
-class PublicRoundTest(test.APITransactionTestCase):
+class PublicRoundTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
 
@@ -43,7 +43,7 @@ class PublicRoundTest(test.APITransactionTestCase):
 
 
 @ddt
-class RoundGetTest(test.APITransactionTestCase):
+class RoundGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.url = factories.RoundFactory.get_list_url(self.fixture.call)
@@ -73,7 +73,7 @@ class RoundGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class RoundCreateTest(test.APITransactionTestCase):
+class RoundCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.round = self.fixture.round
@@ -172,7 +172,7 @@ class RoundCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class RoundUpdateTest(test.APITransactionTestCase):
+class RoundUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.round = self.fixture.round
@@ -211,7 +211,7 @@ class RoundUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class RoundDeleteTest(test.APITransactionTestCase):
+class RoundDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.round = self.fixture.new_round
@@ -241,7 +241,7 @@ class RoundDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class RoundCloseTest(test.APITransactionTestCase):
+class RoundCloseTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.round = self.fixture.new_round
@@ -292,7 +292,7 @@ class RoundCloseTest(test.APITransactionTestCase):
         return self.client.post(self.url)
 
 
-class RoundNotificationsTest(test.APITransactionTestCase):
+class RoundNotificationsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.round = self.fixture.round
@@ -352,7 +352,7 @@ class RoundNotificationsTest(test.APITransactionTestCase):
         self.assertIn(self.round.get_review_strategy_display(), body)
 
 
-class RoundSlugGenerationTest(test.APITransactionTestCase):
+class RoundSlugGenerationTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
 
@@ -462,7 +462,7 @@ class RoundSlugGenerationTest(test.APITransactionTestCase):
         self.assertNotEqual(round_obj.slug, round_obj.slug.lower())
 
 
-class ProposalSlugGenerationTest(test.APITransactionTestCase):
+class ProposalSlugGenerationTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
 
@@ -641,7 +641,7 @@ class ProposalSlugGenerationTest(test.APITransactionTestCase):
         proposal.delete()
 
 
-class ProposalSlugTemplateTest(test.APITransactionTestCase):
+class ProposalSlugTemplateTest(test.APITestCase):
     """Tests for configurable proposal slug templates."""
 
     def setUp(self):
@@ -830,7 +830,7 @@ class ProposalSlugTemplateTest(test.APITransactionTestCase):
         fresh_round.delete()
 
 
-class SlugUtilityTest(test.APITransactionTestCase):
+class SlugUtilityTest(test.APITestCase):
     def test_clean_slug_hyphens_function(self):
         """Test the clean_slug_hyphens utility function."""
         from waldur_core.core.models import clean_slug_hyphens

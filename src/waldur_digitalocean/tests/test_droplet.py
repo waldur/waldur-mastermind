@@ -8,7 +8,7 @@ from waldur_digitalocean import models
 from waldur_digitalocean.tests import factories, fixtures
 
 
-class DropletResizeTest(test.APITransactionTestCase):
+class DropletResizeTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.DigitalOceanFixture()
 
@@ -117,7 +117,7 @@ class DropletResizeTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
 
-class DropletCreateTest(test.APITransactionTestCase):
+class DropletCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.DigitalOceanFixture()
         self.url = factories.DropletFactory.get_list_url()
@@ -141,7 +141,7 @@ class DropletCreateTest(test.APITransactionTestCase):
         }
 
 
-class DropletDeleteTest(test.APITransactionTestCase):
+class DropletDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.DigitalOceanFixture()
 

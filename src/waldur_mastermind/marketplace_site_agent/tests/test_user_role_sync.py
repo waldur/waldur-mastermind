@@ -11,7 +11,7 @@ from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING, ResourceSta
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
-class UserRoleSyncAPITest(test.APITransactionTestCase):
+class UserRoleSyncAPITest(test.APITestCase):
     def setUp(self):
         self.customer = structure_factories.CustomerFactory()
         self.project = structure_factories.ProjectFactory(customer=self.customer)

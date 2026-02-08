@@ -29,6 +29,7 @@ from waldur_openstack.tests.factories import (
 )
 from waldur_openstack.tests.fixtures import (
     OpenStackFixture,
+    mock_session,
 )
 from waldur_openstack.tests.test_tenant import BaseTenantActionsTest
 from waldur_openstack.tests.unittests.test_backend import BaseBackendTestCase
@@ -175,11 +176,33 @@ class InstanceImportableResourcesTest(BaseInstanceImportTest):
         self.mocked_nova.flavors.get.assert_called()
 
 
-class InstanceImportTest(BaseInstanceImportTest):
+class InstanceImportTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
+        self.mocked_keystone = mock.patch("keystoneclient.v3.client.Client").start()()
+        self.mocked_nova = mock.patch("novaclient.v2.client.Client").start()()
+        self.mocked_neutron = mock.patch("neutronclient.v2_0.client.Client").start()()
+        self.mocked_cinder = mock.patch("cinderclient.v3.client.Client").start()()
+        self.mocked_glance = mock.patch("glanceclient.v2.client.Client").start()()
+        mock_session()
+        self.fixture = OpenStackFixture()
+        self.offering = marketplace_factories.OfferingFactory(
+            scope=self.fixture.tenant,
+            type=OPENSTACK_INSTANCE_OFFERING,
+            shared=False,
+            customer=self.fixture.customer,
+        )
+        self.mocked_nova.servers.list.return_value = [MOCK_INSTANCE]
+        self.mocked_nova.servers.get.return_value = MOCK_INSTANCE
+        self.mocked_nova.flavors.get.return_value = MOCK_FLAVOR
+        self.mocked_nova.volumes.get_server_volumes.return_value = []
+        self.mocked_glance.images.get.return_value = MOCK_IMAGE
         self.url = OfferingFactory.get_url(self.offering, "import_resource")
         self.client.force_authenticate(self.fixture.staff)
+
+    def tearDown(self):
+        super().tearDown()
+        mock.patch.stopall()
 
     def _get_payload(self, backend_id="backend_id"):
         return {
@@ -218,7 +241,7 @@ class InstanceImportTest(BaseInstanceImportTest):
         )
 
 
-class BaseVolumeImportTest(BaseBackendTestCase, test.APITransactionTestCase):
+class BaseVolumeImportTest(BaseBackendTestCase, test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = OpenStackFixture()
@@ -339,9 +362,15 @@ class TenantImportableResourcesTest(BaseBackendTestCase, BaseTenantActionsTest):
 
 
 @ddt
-class TenantImportTest(BaseBackendTestCase):
+class TenantImportTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
+        self.mocked_keystone = mock.patch("keystoneclient.v3.client.Client").start()()
+        self.mocked_nova = mock.patch("novaclient.v2.client.Client").start()()
+        self.mocked_neutron = mock.patch("neutronclient.v2_0.client.Client").start()()
+        self.mocked_cinder = mock.patch("cinderclient.v3.client.Client").start()()
+        self.mocked_glance = mock.patch("glanceclient.v2.client.Client").start()()
+        mock_session()
         self.fixture = OpenStackFixture()
         self.backend_tenant = TenantFactory.build(
             service_settings=self.fixture.settings,
@@ -353,6 +382,10 @@ class TenantImportTest(BaseBackendTestCase):
             project=self.fixture.project,
             customer=self.fixture.customer,
         )
+
+    def tearDown(self):
+        super().tearDown()
+        mock.patch.stopall()
 
     def test_tenant_is_imported(self):
         response = self.import_tenant()

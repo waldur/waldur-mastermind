@@ -12,7 +12,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from . import factories
 
 
-class BaseHookApiTest(test.APITransactionTestCase):
+class BaseHookApiTest(test.APITestCase):
     def setUp(self):
         self.staff = structure_factories.UserFactory(is_staff=True)
         self.author = structure_factories.UserFactory()
@@ -153,7 +153,7 @@ class HookFilterViewTest(BaseHookApiTest):
         self.assertEqual(str(self.author.uuid), str(response.data[0]["author_uuid"]))
 
 
-class SystemNotificationTest(test.APITransactionTestCase):
+class SystemNotificationTest(test.APITestCase):
     def setUp(self):
         self.system_notification = factories.SystemNotificationFactory()
         self.event_types = self.system_notification.event_types

@@ -1087,7 +1087,7 @@ class OrderStartDateCreateTest(BaseOrderCreateTest):
 
 
 @ddt
-class OrderDeleteTest(test.APITransactionTestCase):
+class OrderDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -1133,7 +1133,7 @@ class OrderDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class OrderFilterTest(test.APITransactionTestCase):
+class OrderFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -1197,7 +1197,7 @@ class OrderFilterTest(test.APITransactionTestCase):
 
 
 @ddt
-class OrderSetBackendIdTest(test.APITransactionTestCase):
+class OrderSetBackendIdTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory(

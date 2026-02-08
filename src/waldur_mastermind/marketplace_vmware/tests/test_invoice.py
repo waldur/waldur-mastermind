@@ -13,7 +13,7 @@ from waldur_vmware.tests.fixtures import VMwareFixture
 
 @freeze_time("2019-07-01")
 @unittest.skip("Disabled till invoicing is updated to component-based model")
-class InvoiceTest(test.APITransactionTestCase):
+class InvoiceTest(test.APITestCase):
     def setUp(self):
         self.offering = marketplace_factories.OfferingFactory(type=VMWARE_VM_OFFERING)
         self.plan = marketplace_factories.PlanFactory(

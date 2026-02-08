@@ -24,7 +24,7 @@ class Request:
         self.user = request_user
 
 
-class ClusterTenantLimitsTest(test.APITransactionTestCase):
+class ClusterTenantLimitsTest(test.APITestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
         service_settings = rancher_factories.RancherServiceSettingsFactory()

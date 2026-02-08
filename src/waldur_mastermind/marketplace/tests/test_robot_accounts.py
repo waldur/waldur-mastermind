@@ -22,7 +22,7 @@ from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
 @ddt
-class RobotAccountTest(test.APITransactionTestCase):
+class RobotAccountTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_RESOURCE_ROBOT_ACCOUNT)
@@ -267,7 +267,7 @@ class RobotAccountTest(test.APITransactionTestCase):
         )
 
 
-class RobotAccountStateTransitionTest(test.APITransactionTestCase):
+class RobotAccountStateTransitionTest(test.APITestCase):
     def setUp(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_ROBOT_ACCOUNT)
         ServiceProviderRole.MANAGER.add_permission(
@@ -465,7 +465,7 @@ class RobotAccountStateTransitionTest(test.APITransactionTestCase):
         )
 
 
-class RobotAccountAccessTest(test.APITransactionTestCase):
+class RobotAccountAccessTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.robot_account = factories.RobotAccountFactory(

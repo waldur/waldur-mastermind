@@ -5,7 +5,7 @@ from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 
 
 @ddt
-class RelatedCustomersTest(test.APITransactionTestCase):
+class RelatedCustomersTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource

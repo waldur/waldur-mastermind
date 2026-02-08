@@ -12,7 +12,7 @@ from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
 @ddt
-class MaintenanceAnnouncementFilterTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.announcement = self.fixture.maintenance_announcement

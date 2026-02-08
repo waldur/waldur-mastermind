@@ -4,7 +4,7 @@ from waldur_core.core import models
 from waldur_core.structure.tests.factories import UserFactory
 
 
-class FeaturesTest(test.APITransactionTestCase):
+class FeaturesTest(test.APITestCase):
     def test_staff_can_update_feature(self):
         user = UserFactory(is_staff=True)
         self.client.force_login(user)

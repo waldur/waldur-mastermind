@@ -16,7 +16,7 @@ class TestUserSerializer(serializers.HyperlinkedModelSerializer):
         fields = ("username", "full_name")
 
 
-class ExecutorMixinTest(test.APITransactionTestCase):
+class ExecutorMixinTest(test.APITestCase):
     def setUp(self):
         self.executor = mixins.CreateExecutorMixin()
         self.executor.create_executor = mock.Mock()

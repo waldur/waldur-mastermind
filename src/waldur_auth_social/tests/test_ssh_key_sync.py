@@ -7,7 +7,7 @@ from waldur_core.core import models as core_models
 from waldur_core.structure.tests import factories
 
 
-class SSHKeySyncTest(test.APITransactionTestCase):
+class SSHKeySyncTest(test.APITestCase):
     def setUp(self) -> None:
         self.user = factories.UserFactory()
         self.key1 = factories.SshPublicKeyFactory(user=self.user, name="eduteams_key_1")

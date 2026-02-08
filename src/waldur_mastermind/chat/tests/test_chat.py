@@ -9,7 +9,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.models import TokenQuota
 
 
-class ChatBaseTest(test.APITransactionTestCase):
+class ChatBaseTest(test.APITestCase):
     def setUp(self):
         self.user = structure_factories.UserFactory()
         self.client.force_authenticate(user=self.user)

@@ -5,7 +5,7 @@ from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories
 
 
-class OrderSubtypeTest(test.APITransactionTestCase):
+class OrderSubtypeTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project

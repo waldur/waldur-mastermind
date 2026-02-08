@@ -10,7 +10,7 @@ from .. import enums
 
 
 @ddt
-class QuestionAdminGetTest(test.APITransactionTestCase):
+class QuestionAdminGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CheckListFixture()
         self.url = factories.QuestionFactory.get_admin_list_url()
@@ -32,7 +32,7 @@ class QuestionAdminGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class QuestionAdminCreateTest(test.APITransactionTestCase):
+class QuestionAdminCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.url = factories.QuestionFactory.get_admin_list_url()
@@ -99,7 +99,7 @@ class QuestionAdminCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class QuestionAdminUpdateTest(test.APITransactionTestCase):
+class QuestionAdminUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CheckListFixture()
         self.question = factories.QuestionFactory()
@@ -132,7 +132,7 @@ class QuestionAdminUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class QuestionAdminDeleteTest(test.APITransactionTestCase):
+class QuestionAdminDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CheckListFixture()
         self.question = factories.QuestionFactory()
@@ -155,7 +155,7 @@ class QuestionAdminDeleteTest(test.APITransactionTestCase):
         self.assertTrue(models.Question.objects.filter(pk=self.question.pk).exists())
 
 
-class QuestionAdminSerializerFieldTest(test.APITransactionTestCase):
+class QuestionAdminSerializerFieldTest(test.APITestCase):
     """Test that QuestionAdminSerializer can access all required fields."""
 
     def setUp(self):
@@ -268,7 +268,7 @@ class QuestionAdminSerializerFieldTest(test.APITransactionTestCase):
 
 
 @ddt
-class ChecklistQuestionsEndpointTest(test.APITransactionTestCase):
+class ChecklistQuestionsEndpointTest(test.APITestCase):
     """Test the checklist questions endpoint that was failing with the original error."""
 
     def setUp(self):

@@ -15,7 +15,7 @@ from . import factories
 
 
 @ddt
-class ReviewGetTest(test.APITransactionTestCase):
+class ReviewGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.url = factories.ReviewFactory.get_list_url()
@@ -61,7 +61,7 @@ class ReviewGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class ReviewCreateTest(test.APITransactionTestCase):
+class ReviewCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.url = factories.ReviewFactory.get_list_url()
@@ -136,7 +136,7 @@ class ReviewCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ReviewUpdateTest(test.APITransactionTestCase):
+class ReviewUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.review = self.fixture.review
@@ -165,7 +165,7 @@ class ReviewUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ReviewDeleteTest(test.APITransactionTestCase):
+class ReviewDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.review = self.fixture.review
@@ -193,7 +193,7 @@ class ReviewDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class ActionTest(test.APITransactionTestCase):
+class ActionTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.review = self.fixture.review
@@ -359,7 +359,7 @@ class ActionTest(test.APITransactionTestCase):
 
 
 @ddt
-class ReviewerGetTest(test.APITransactionTestCase):
+class ReviewerGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.round_2 = fixtures.ProposalFixture().round

@@ -8,7 +8,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 
 
-class UserAuthCountStatsTest(test.APITransactionTestCase):
+class UserAuthCountStatsTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = structure_fixtures.ProjectFixture()

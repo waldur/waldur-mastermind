@@ -7,7 +7,7 @@ from waldur_mastermind.invoices.tests import factories
 
 
 @ddt
-class PaymentRetrieveTest(test.APITransactionTestCase):
+class PaymentRetrieveTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.profile = factories.PaymentProfileFactory(
@@ -33,7 +33,7 @@ class PaymentRetrieveTest(test.APITransactionTestCase):
 
 
 @ddt
-class PaymentCreateTest(test.APITransactionTestCase):
+class PaymentCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.profile = factories.PaymentProfileFactory(
@@ -66,7 +66,7 @@ class PaymentCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class PaymentUpdateTest(test.APITransactionTestCase):
+class PaymentUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.profile = factories.PaymentProfileFactory(
@@ -91,7 +91,7 @@ class PaymentUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class PaymentDeleteTest(test.APITransactionTestCase):
+class PaymentDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.profile = factories.PaymentProfileFactory(
@@ -115,7 +115,7 @@ class PaymentDeleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class PaymentActionsTest(test.APITransactionTestCase):
+class PaymentActionsTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.profile = factories.PaymentProfileFactory(

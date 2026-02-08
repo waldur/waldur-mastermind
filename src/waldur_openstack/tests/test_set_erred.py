@@ -5,7 +5,7 @@ from waldur_core.core.enums import CoreStates
 from . import factories, fixtures
 
 
-class BaseSetErredTest(test.APITransactionTestCase):
+class BaseSetErredTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
 

@@ -5,7 +5,7 @@ from waldur_vmware import signals
 from waldur_vmware.tests.fixtures import VMwareFixture
 
 
-class HandlersTest(test.APITransactionTestCase):
+class HandlersTest(test.APITestCase):
     def setUp(self):
         self.fixture = VMwareFixture()
         self.vm = self.fixture.virtual_machine

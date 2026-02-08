@@ -7,7 +7,7 @@ from rest_framework import status, test
 from waldur_core.structure.tests import factories, fixtures
 
 
-class HistoryViewSetMixinTest(test.APITransactionTestCase):
+class HistoryViewSetMixinTest(test.APITestCase):
     """Test the HistoryViewSetMixin using CustomerViewSet."""
 
     def setUp(self):

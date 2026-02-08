@@ -6,7 +6,7 @@ from waldur_core.structure.tests import factories, fixtures
 
 
 @ddt
-class TokenListTest(test.APITransactionTestCase):
+class TokenListTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.url = factories.AuthTokenFactory.get_list_url()
@@ -27,7 +27,7 @@ class TokenListTest(test.APITransactionTestCase):
 
 
 @ddt
-class TokenDeleteTest(test.APITransactionTestCase):
+class TokenDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.url = factories.AuthTokenFactory.get_list_url()

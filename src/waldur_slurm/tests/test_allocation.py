@@ -8,7 +8,7 @@ from waldur_slurm.tests.factories import SlurmServiceSettingsFactory
 from . import factories, fixtures
 
 
-class AllocationGetTest(test.APITransactionTestCase):
+class AllocationGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()
         self.url = factories.AllocationFactory.get_url(self.fixture.allocation)
@@ -45,7 +45,7 @@ class AllocationGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class AllocationCreateTest(test.APITransactionTestCase):
+class AllocationCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()
         self.url = factories.AllocationFactory.get_list_url()
@@ -77,7 +77,7 @@ class AllocationCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class AllocationDeleteTest(test.APITransactionTestCase):
+class AllocationDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()
         self.url = factories.AllocationFactory.get_url(self.fixture.allocation)
@@ -98,7 +98,7 @@ class AllocationDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class AllocationUpdateTest(test.APITransactionTestCase):
+class AllocationUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()
         self.url = factories.AllocationFactory.get_url(self.fixture.allocation)
@@ -119,7 +119,7 @@ class AllocationUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class AllocationCancelTest(test.APITransactionTestCase):
+class AllocationCancelTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()
         self.url = factories.AllocationFactory.get_url(
@@ -128,7 +128,7 @@ class AllocationCancelTest(test.APITransactionTestCase):
 
 
 @ddt
-class AllocationSetLimitsTest(test.APITransactionTestCase):
+class AllocationSetLimitsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.SlurmFixture()
         self.allocation = self.fixture.allocation

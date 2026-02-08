@@ -650,7 +650,7 @@ class NotificationTest(BaseTest):
         self.issue.save()
 
 
-class ProcessingTest(test.APITransactionTestCase):
+class ProcessingTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.url = marketplace_factories.OrderFactory.get_list_url()

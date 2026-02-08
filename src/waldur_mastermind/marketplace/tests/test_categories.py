@@ -11,7 +11,7 @@ from . import factories
 
 
 @ddt
-class CategoryGetTest(test.APITransactionTestCase):
+class CategoryGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.category = factories.CategoryFactory()
@@ -41,7 +41,7 @@ class CategoryGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class CategoryOfferingCountTest(test.APITransactionTestCase):
+class CategoryOfferingCountTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.category = factories.CategoryFactory()
@@ -154,7 +154,7 @@ class CategoryOfferingCountTest(test.APITransactionTestCase):
 
 
 @ddt
-class CategoryCreateTest(test.APITransactionTestCase):
+class CategoryCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 
@@ -184,7 +184,7 @@ class CategoryCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class CategoryUpdateTest(test.APITransactionTestCase):
+class CategoryUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 
@@ -215,7 +215,7 @@ class CategoryUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class CategoryDeleteTest(test.APITransactionTestCase):
+class CategoryDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.category = factories.CategoryFactory(title="category")
@@ -245,7 +245,7 @@ class CategoryDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class CategoryColumnCreateTest(test.APITransactionTestCase):
+class CategoryColumnCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.category = factories.CategoryFactory()
@@ -281,7 +281,7 @@ class CategoryColumnCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class CategoryColumnUpdateTest(test.APITransactionTestCase):
+class CategoryColumnUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.category = factories.CategoryFactory()
@@ -317,7 +317,7 @@ class CategoryColumnUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class CategoryColumnDeleteTest(test.APITransactionTestCase):
+class CategoryColumnDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.category = factories.CategoryFactory()

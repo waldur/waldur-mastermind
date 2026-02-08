@@ -12,7 +12,7 @@ from waldur_mastermind.marketplace.tests import (
 
 
 @ddt
-class MaintenanceAnnouncementGetTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.announcement = self.fixture.maintenance_announcement
@@ -51,7 +51,7 @@ class MaintenanceAnnouncementGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class MaintenanceAnnouncementCreateTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.fixture.maintenance_announcement.delete()
@@ -140,7 +140,7 @@ class MaintenanceAnnouncementCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class MaintenanceAnnouncementDeleteTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.announcement = self.fixture.maintenance_announcement
@@ -171,7 +171,7 @@ class MaintenanceAnnouncementDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class MaintenanceAnnouncementUpdateTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.announcement = self.fixture.maintenance_announcement
@@ -202,7 +202,7 @@ class MaintenanceAnnouncementUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class MaintenanceAnnouncementScheduleTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementScheduleTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.announcement = self.fixture.maintenance_announcement
@@ -261,7 +261,7 @@ class MaintenanceAnnouncementScheduleTest(test.APITransactionTestCase):
 
 
 @ddt
-class MaintenanceAnnouncementUnscheduleTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementUnscheduleTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.announcement = self.fixture.maintenance_announcement
@@ -350,7 +350,7 @@ class MaintenanceAnnouncementUnscheduleTest(test.APITransactionTestCase):
 
 
 @ddt
-class MaintenanceAnnouncementStartTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementStartTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.announcement = self.fixture.maintenance_announcement
@@ -409,7 +409,7 @@ class MaintenanceAnnouncementStartTest(test.APITransactionTestCase):
 
 
 @ddt
-class MaintenanceAnnouncementCompleteTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementCompleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.announcement = self.fixture.maintenance_announcement
@@ -468,7 +468,7 @@ class MaintenanceAnnouncementCompleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class MaintenanceAnnouncementCancelTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementCancelTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.announcement = self.fixture.maintenance_announcement
@@ -553,7 +553,7 @@ class MaintenanceAnnouncementCancelTest(test.APITransactionTestCase):
 
 
 @ddt
-class PublicMaintenanceAnnouncementViewSetTest(test.APITransactionTestCase):
+class PublicMaintenanceAnnouncementViewSetTest(test.APITestCase):
     """Test the public maintenance announcement viewset that allows anonymous access."""
 
     def setUp(self):
@@ -674,7 +674,7 @@ class PublicMaintenanceAnnouncementViewSetTest(test.APITransactionTestCase):
 
 
 @ddt
-class MaintenanceAnnouncementInternalNotesTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementInternalNotesTest(test.APITestCase):
     """Test internal_notes field visibility based on user permissions."""
 
     def setUp(self):

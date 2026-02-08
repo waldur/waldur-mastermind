@@ -10,7 +10,7 @@ from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 
 
-class OfferingUserChecklistCompletionsViewSetTest(test.APITransactionTestCase):
+class OfferingUserChecklistCompletionsViewSetTest(test.APITestCase):
     """Test listing checklist completions for user's offering users."""
 
     def setUp(self):

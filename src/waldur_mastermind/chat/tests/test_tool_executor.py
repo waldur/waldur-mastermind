@@ -10,7 +10,7 @@ from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
-class ToolExecutorBaseTest(test.APITransactionTestCase):
+class ToolExecutorBaseTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.user = self.fixture.admin

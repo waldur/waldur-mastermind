@@ -9,7 +9,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 
 
 @ddt
-class ConditionalUserGuidanceModelTest(test.APITransactionTestCase):
+class ConditionalUserGuidanceModelTest(test.APITestCase):
     """Test the model-level conditional user guidance functionality."""
 
     def setUp(self):
@@ -120,7 +120,7 @@ class ConditionalUserGuidanceModelTest(test.APITransactionTestCase):
 
 
 @ddt
-class UserGuidanceAPITest(test.APITransactionTestCase):
+class UserGuidanceAPITest(test.APITestCase):
     """Test conditional user guidance via REST API."""
 
     def setUp(self):
@@ -326,7 +326,7 @@ class UserGuidanceAPITest(test.APITransactionTestCase):
 
 
 @ddt
-class UserGuidanceComplexScenariosTest(test.APITransactionTestCase):
+class UserGuidanceComplexScenariosTest(test.APITestCase):
     """Test complex user guidance scenarios from documentation."""
 
     def setUp(self):

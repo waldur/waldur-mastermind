@@ -5,7 +5,7 @@ from waldur_mastermind.proposal.tests import factories, fixtures
 
 
 @ddt
-class ProposalFilterTest(test.APITransactionTestCase):
+class ProposalFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.url = factories.ProposalFactory.get_list_url()
@@ -24,7 +24,7 @@ class ProposalFilterTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProposalReviewSerializerTest(test.APITransactionTestCase):
+class ProposalReviewSerializerTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.url = factories.ReviewFactory.get_list_url()

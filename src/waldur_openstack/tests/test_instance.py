@@ -24,11 +24,10 @@ from waldur_openstack.tests import factories, fixtures, helpers
 from waldur_openstack.tests.helpers import (
     override_openstack_settings,
 )
-from waldur_openstack.tests.unittests import test_backend
 from waldur_openstack.utils import volume_type_name_to_quota_name
 
 
-class InstanceFilterTest(test.APITransactionTestCase):
+class InstanceFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.client.force_authenticate(user=self.fixture.owner)
@@ -68,7 +67,7 @@ class InstanceFilterTest(test.APITransactionTestCase):
 
 
 @ddt
-class InstanceCreateTest(test.APITransactionTestCase):
+class InstanceCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant
@@ -567,7 +566,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class InstanceUpdateTest(test.APITransactionTestCase):
+class InstanceUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.instance = self.fixture.instance
@@ -586,9 +585,15 @@ class InstanceUpdateTest(test.APITransactionTestCase):
 
 
 @override_settings(task_always_eager=True)
-class InstanceDeleteTest(test_backend.BaseBackendTestCase):
+class InstanceDeleteTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
+        self.mocked_keystone = mock.patch("keystoneclient.v3.client.Client").start()()
+        self.mocked_nova = mock.patch("novaclient.v2.client.Client").start()()
+        self.mocked_neutron = mock.patch("neutronclient.v2_0.client.Client").start()()
+        self.mocked_cinder = mock.patch("cinderclient.v3.client.Client").start()()
+        self.mocked_glance = mock.patch("glanceclient.v2.client.Client").start()()
+        fixtures.mock_session()
         self.instance = factories.InstanceFactory(
             state=CoreStates.OK,
             runtime_state=models.Instance.RuntimeStates.SHUTOFF,
@@ -597,6 +602,10 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         self.instance.increase_backend_quotas_usage()
         self.mocked_nova.servers.get.side_effect = nova_exceptions.NotFound(code=404)
         self.tenant = self.instance.tenant
+
+    def tearDown(self):
+        super().tearDown()
+        mock.patch.stopall()
 
     def mock_volumes(self, delete_data_volume=True):
         self.data_volume = self.instance.volumes.get(bootable=False)
@@ -755,7 +764,7 @@ class InstanceDeleteTest(test_backend.BaseBackendTestCase):
         self.assertIsInstance(signature, Signature)
 
 
-class InstanceDisabledActionsTest(test.APITransactionTestCase):
+class InstanceDisabledActionsTest(test.APITestCase):
     """Tests to verify that create and destroy actions are disabled for the instance endpoint."""
 
     def setUp(self):
@@ -778,7 +787,7 @@ class InstanceDisabledActionsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
-class InstanceUpdatePortsTest(test.APITransactionTestCase):
+class InstanceUpdatePortsTest(test.APITestCase):
     action_name = "update_ports"
 
     def setUp(self):
@@ -845,7 +854,7 @@ class InstanceUpdatePortsTest(test.APITransactionTestCase):
         )
 
 
-class InstanceUpdateFloatingIPsTest(test.APITransactionTestCase):
+class InstanceUpdateFloatingIPsTest(test.APITestCase):
     action_name = "update_floating_ips"
 
     def setUp(self):
@@ -977,7 +986,7 @@ class InstanceUpdateFloatingIPsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class InstanceBackupTest(test.APITransactionTestCase):
+class InstanceBackupTest(test.APITestCase):
     action_name = "backup"
 
     def setUp(self):
@@ -1037,7 +1046,7 @@ class InstanceBackupTest(test.APITransactionTestCase):
 
 
 @ddt
-class InstanceActionsTest(test.APITransactionTestCase):
+class InstanceActionsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.fixture.tenant.service_settings.options = {
@@ -1132,7 +1141,7 @@ class InstanceConsoleLogTest(InstanceActionsTest):
 
 
 @ddt
-class InstanceRetrieveTest(test.APITransactionTestCase):
+class InstanceRetrieveTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.instance = self.fixture.instance
@@ -1153,7 +1162,7 @@ class InstanceRetrieveTest(test.APITransactionTestCase):
         self.assertFalse("hypervisor_hostname" in response.json())
 
 
-class MaxConcurrentProvisionTest(test.APITransactionTestCase):
+class MaxConcurrentProvisionTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
 
@@ -1172,7 +1181,7 @@ class MaxConcurrentProvisionTest(test.APITransactionTestCase):
         )
 
 
-class InstanceUpdateBlockedIfOfferingIsUnavailableTest(test.APITransactionTestCase):
+class InstanceUpdateBlockedIfOfferingIsUnavailableTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.instance = self.fixture.instance

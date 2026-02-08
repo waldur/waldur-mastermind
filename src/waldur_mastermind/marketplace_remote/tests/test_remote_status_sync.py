@@ -17,7 +17,7 @@ from waldur_mastermind.marketplace_remote.tests import fixtures
 from waldur_mastermind.marketplace_remote.utils import get_resource_sync_status
 
 
-class GetResourceSyncStatusTest(test.APITransactionTestCase):
+class GetResourceSyncStatusTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.MarketplaceRemoteFixture()
@@ -103,7 +103,7 @@ class GetResourceSyncStatusTest(test.APITransactionTestCase):
             get_resource_sync_status(self.resource)
 
 
-class RemoteResourceStatusEndpointTest(test.APITransactionTestCase):
+class RemoteResourceStatusEndpointTest(test.APITestCase):
     """Test the new remote resource status endpoint"""
 
     def setUp(self):
@@ -248,7 +248,7 @@ class RemoteResourceStatusEndpointTest(test.APITransactionTestCase):
         self.assertIn("error_traceback", response.data)
 
 
-class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
+class RemoteResourceTeamEndpointTest(test.APITestCase):
     """Test the new remote resource team endpoint"""
 
     def setUp(self):
@@ -532,7 +532,7 @@ class RemoteResourceTeamEndpointTest(test.APITransactionTestCase):
         self.assertEqual(response.data[2]["local_role"], "unknown")
 
 
-class GetResourceOrderSyncStatusTest(test.APITransactionTestCase):
+class GetResourceOrderSyncStatusTest(test.APITestCase):
     """Test the get_resource_order_sync_status utility function"""
 
     def setUp(self):

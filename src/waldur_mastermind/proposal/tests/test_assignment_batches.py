@@ -16,7 +16,7 @@ from waldur_mastermind.proposal.enums import (
 from . import factories
 
 
-class ExtendDeadlineTest(test.APITransactionTestCase):
+class ExtendDeadlineTest(test.APITestCase):
     def setUp(self):
         # Set up required permissions on CallRole.MANAGER
         CallRole.MANAGER.add_permission(PermissionEnum.MANAGE_PROPOSAL_REVIEW)
@@ -193,7 +193,7 @@ class ExtendDeadlineTest(test.APITransactionTestCase):
         self.assertFalse(batch.manager_notified)
 
 
-class CreateManualAssignmentTest(test.APITransactionTestCase):
+class CreateManualAssignmentTest(test.APITestCase):
     def setUp(self):
         self.call = factories.CallFactory()
         self.call_managing_org = self.call.manager

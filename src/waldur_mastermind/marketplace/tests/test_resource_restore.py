@@ -5,7 +5,7 @@ from waldur_mastermind.marketplace import enums, models
 from waldur_mastermind.marketplace.tests import factories
 
 
-class ResourceRestoreTest(test.APITransactionTestCase):
+class ResourceRestoreTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project

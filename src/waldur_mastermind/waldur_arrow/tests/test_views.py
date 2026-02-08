@@ -9,7 +9,7 @@ from waldur_mastermind.waldur_arrow import models
 from waldur_mastermind.waldur_arrow.tests.fixtures import ArrowFixture
 
 
-class ArrowSettingsViewSetTest(test.APITransactionTestCase):
+class ArrowSettingsViewSetTest(test.APITestCase):
     """Tests for ArrowSettingsViewSet."""
 
     def setUp(self):
@@ -131,7 +131,7 @@ class ArrowSettingsViewSetTest(test.APITransactionTestCase):
         self.assertTrue(settings.is_active)
 
 
-class ArrowCustomerMappingViewSetTest(test.APITransactionTestCase):
+class ArrowCustomerMappingViewSetTest(test.APITestCase):
     """Tests for ArrowCustomerMappingViewSet."""
 
     def setUp(self):
@@ -187,7 +187,7 @@ class ArrowCustomerMappingViewSetTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
 
 
-class ArrowBillingSyncViewSetTest(test.APITransactionTestCase):
+class ArrowBillingSyncViewSetTest(test.APITestCase):
     """Tests for ArrowBillingSyncViewSet."""
 
     def setUp(self):

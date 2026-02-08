@@ -14,7 +14,7 @@ from waldur_rancher.enums import AGENT_ROLE
 from waldur_rancher.tests import factories, fixtures, test_cluster, utils
 
 
-class NodeGetTest(test.APITransactionTestCase):
+class NodeGetTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()
@@ -240,7 +240,7 @@ class NodeCreateTest(test_cluster.BaseClusterCreateTest):
         self.assertTrue(expected_config, result)
 
 
-class NodePullTest(test.APITransactionTestCase):
+class NodePullTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()
@@ -264,7 +264,7 @@ class NodePullTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
 
-class NodeDeleteTest(test.APITransactionTestCase):
+class NodeDeleteTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()
@@ -299,7 +299,7 @@ class NodeDeleteTest(test.APITransactionTestCase):
         self.assertTrue(models.Node.objects.filter(id=self.fixture.node.id).exists())
 
 
-class NodePullBackendTest(test.APITransactionTestCase):
+class NodePullBackendTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()
@@ -441,7 +441,7 @@ class NodeUnlinkTest(test_cluster.BaseClusterCreateTest):
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
-class NodeActionsTest(test.APITransactionTestCase):
+class NodeActionsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.RancherFixture()
         self.node = self.fixture.node

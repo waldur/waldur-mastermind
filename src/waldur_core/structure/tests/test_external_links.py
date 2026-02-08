@@ -4,7 +4,7 @@ from rest_framework import test
 from waldur_core.structure.tests import factories, fixtures
 
 
-class ExternalLinksCreateTest(test.APITransactionTestCase):
+class ExternalLinksCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         self.url = factories.ExternalLinkFactory.get_list_url()
@@ -28,7 +28,7 @@ class ExternalLinksCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ExternalLinksGetTest(test.APITransactionTestCase):
+class ExternalLinksGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         self.external_link = factories.ExternalLinkFactory()

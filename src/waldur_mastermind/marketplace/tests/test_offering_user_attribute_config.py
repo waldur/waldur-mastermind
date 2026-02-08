@@ -12,7 +12,7 @@ from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories
 
 
-class OfferingUserAttributeConfigModelTest(test.APITransactionTestCase):
+class OfferingUserAttributeConfigModelTest(test.APITestCase):
     """Test OfferingUserAttributeConfig model."""
 
     def setUp(self):
@@ -92,7 +92,7 @@ class OfferingUserAttributeConfigModelTest(test.APITransactionTestCase):
         self.assertEqual(exposed, ["username", "full_name", "email"])
 
 
-class OfferingUserAttributeConfigAPITest(test.APITransactionTestCase):
+class OfferingUserAttributeConfigAPITest(test.APITestCase):
     """Test OfferingUserAttributeConfig API endpoints under ProviderOfferingViewSet."""
 
     def setUp(self):
@@ -258,7 +258,7 @@ class OfferingUserAttributeConfigAPITest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
 
-class OfferingTermsOfServiceCollectedAttributesTest(test.APITransactionTestCase):
+class OfferingTermsOfServiceCollectedAttributesTest(test.APITestCase):
     """Test collected_attributes property on OfferingTermsOfService."""
 
     def setUp(self):
@@ -303,7 +303,7 @@ class OfferingTermsOfServiceCollectedAttributesTest(test.APITransactionTestCase)
         self.assertEqual(collected, ["username", "email"])
 
 
-class UserOfferingConsentCollectedAttributesTest(test.APITransactionTestCase):
+class UserOfferingConsentCollectedAttributesTest(test.APITestCase):
     """Test collected_attributes in UserOfferingConsent API."""
 
     def setUp(self):
@@ -335,7 +335,7 @@ class UserOfferingConsentCollectedAttributesTest(test.APITransactionTestCase):
         self.assertIn("gender", response.data["collected_attributes"])
 
 
-class OfferingUserSerializerAttributeFilteringTest(test.APITransactionTestCase):
+class OfferingUserSerializerAttributeFilteringTest(test.APITestCase):
     """Test that OfferingUserSerializer filters user attributes based on config.
 
     All user_* fields are defined in the schema for SDK generation.
@@ -486,7 +486,7 @@ class OfferingUserSerializerAttributeFilteringTest(test.APITransactionTestCase):
         self.assertIn("user_identity_source", response.data)
 
 
-class OfferingUserListViewAttributeFilteringTest(test.APITransactionTestCase):
+class OfferingUserListViewAttributeFilteringTest(test.APITestCase):
     """Test that OfferingUserSerializer filters attributes consistently in list views.
 
     This is critical for PII protection - list views must apply the same filtering

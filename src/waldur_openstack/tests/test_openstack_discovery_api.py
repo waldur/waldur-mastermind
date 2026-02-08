@@ -10,7 +10,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 BASE_URL = "/api/openstack/discovery"
 
 
-class TestOpenStackDiscoveryPermissions(test.APITransactionTestCase):
+class TestOpenStackDiscoveryPermissions(test.APITestCase):
     """Test permission checks for the OpenStack discovery endpoints."""
 
     def setUp(self):
@@ -79,7 +79,7 @@ class TestOpenStackDiscoveryPermissions(test.APITransactionTestCase):
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
-class TestOpenStackDiscoveryValidation(test.APITransactionTestCase):
+class TestOpenStackDiscoveryValidation(test.APITestCase):
     """Test input validation for the OpenStack discovery endpoints."""
 
     def setUp(self):
@@ -120,7 +120,7 @@ class TestOpenStackDiscoveryValidation(test.APITransactionTestCase):
         assert "password" in response.data
 
 
-class TestOpenStackDiscoveryExternalNetworks(test.APITransactionTestCase):
+class TestOpenStackDiscoveryExternalNetworks(test.APITestCase):
     """Test the external networks discovery endpoint."""
 
     def setUp(self):
@@ -179,7 +179,7 @@ class TestOpenStackDiscoveryExternalNetworks(test.APITransactionTestCase):
         assert "error" in response.data
 
 
-class TestOpenStackDiscoveryAvailabilityZones(test.APITransactionTestCase):
+class TestOpenStackDiscoveryAvailabilityZones(test.APITestCase):
     """Test the availability zone discovery endpoints."""
 
     def setUp(self):
@@ -223,7 +223,7 @@ class TestOpenStackDiscoveryAvailabilityZones(test.APITransactionTestCase):
         assert len(response.data) == 1
 
 
-class TestOpenStackDiscoveryVolumeTypes(test.APITransactionTestCase):
+class TestOpenStackDiscoveryVolumeTypes(test.APITestCase):
     """Test the volume type discovery endpoint."""
 
     def setUp(self):
@@ -252,7 +252,7 @@ class TestOpenStackDiscoveryVolumeTypes(test.APITransactionTestCase):
         assert response.data[0]["name"] == "ssd"
 
 
-class TestOpenStackDiscoveryFlavors(test.APITransactionTestCase):
+class TestOpenStackDiscoveryFlavors(test.APITestCase):
     """Test the flavor discovery endpoint."""
 
     def setUp(self):
@@ -288,7 +288,7 @@ class TestOpenStackDiscoveryFlavors(test.APITransactionTestCase):
         assert response.data[0]["vcpus"] == 1
 
 
-class TestOpenStackDiscoveryPreview(test.APITransactionTestCase):
+class TestOpenStackDiscoveryPreview(test.APITestCase):
     """Test the preview_service_attributes endpoint."""
 
     def setUp(self):

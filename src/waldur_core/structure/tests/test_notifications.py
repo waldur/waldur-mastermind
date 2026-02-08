@@ -6,7 +6,7 @@ from waldur_core.structure.tests import factories, fixtures
 
 
 @ddt
-class NotificationList(test.APITransactionTestCase):
+class NotificationList(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.notification_1 = factories.NotificationFactory(key="app_name.event_name")
@@ -36,7 +36,7 @@ class NotificationList(test.APITransactionTestCase):
 
 
 @ddt
-class NotificationChangeTest(test.APITransactionTestCase):
+class NotificationChangeTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.notification_1 = factories.NotificationFactory(
@@ -106,7 +106,7 @@ class NotificationChangeTest(test.APITransactionTestCase):
 
 
 @ddt
-class NotificationTemplateListTest(test.APITransactionTestCase):
+class NotificationTemplateListTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.template = factories.NotificationTemplateFactory(
@@ -217,7 +217,7 @@ class NotificationTemplateListTest(test.APITransactionTestCase):
 
 
 @ddt
-class NotificationTemplateFilterTest(test.APITransactionTestCase):
+class NotificationTemplateFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.notification_template_1 = factories.NotificationTemplateFactory(

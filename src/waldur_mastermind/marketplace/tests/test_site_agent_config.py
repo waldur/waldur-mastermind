@@ -14,7 +14,7 @@ from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
 @ddt
-class SiteAgentConfigGenerationTest(test.APITransactionTestCase):
+class SiteAgentConfigGenerationTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.service_provider = self.fixture.service_provider
@@ -390,7 +390,7 @@ class SiteAgentConfigGenerationTest(test.APITransactionTestCase):
         )
 
 
-class SiteAgentConfigWithPolicyTest(test.APITransactionTestCase):
+class SiteAgentConfigWithPolicyTest(test.APITestCase):
     """Tests for site agent config generation with SLURM policy."""
 
     def setUp(self):

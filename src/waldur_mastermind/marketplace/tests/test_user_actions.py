@@ -2,7 +2,7 @@ from datetime import timedelta
 from unittest import mock
 
 from django.utils import timezone
-from rest_framework.test import APITransactionTestCase
+from rest_framework.test import APITestCase
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
@@ -19,7 +19,7 @@ from waldur_mastermind.marketplace.user_actions import (
 )
 
 
-class PendingOrderProviderTest(APITransactionTestCase):
+class PendingOrderProviderTest(APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.provider = PendingOrderProvider()
@@ -168,7 +168,7 @@ class PendingOrderProviderTest(APITransactionTestCase):
         self.assertEqual(len(actions), 0)
 
 
-class ExpiringResourceProviderTest(APITransactionTestCase):
+class ExpiringResourceProviderTest(APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.provider = ExpiringResourceProvider()
@@ -400,7 +400,7 @@ class ExpiringResourceProviderTest(APITransactionTestCase):
         self.assertEqual(reminders, [60, 30, 7])
 
 
-class MarketplaceUserActionsIntegrationTest(APITransactionTestCase):
+class MarketplaceUserActionsIntegrationTest(APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
 

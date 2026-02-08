@@ -24,7 +24,7 @@ from waldur_core.users.enums import InvitationState
 from waldur_core.users.tests import factories as user_factories
 
 
-class OAuthViewInitTest(test.APITransactionTestCase):
+class OAuthViewInitTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.provider = models.IdentityProvider.objects.create(
@@ -1112,7 +1112,7 @@ class MultiHomeportRedirectTest(test.APITransactionTestCase):
         )
 
 
-class IdentityProviderValidationTest(test.APITransactionTestCase):
+class IdentityProviderValidationTest(test.APITestCase):
     """Tests for IdentityProvider serializer validation rules"""
 
     def setUp(self):
@@ -1248,7 +1248,7 @@ class IdentityProviderValidationTest(test.APITransactionTestCase):
         self.assertEqual(result[1], "https://test.example.com:8443")
 
 
-class SchacPersonalUniqueIDParsingTest(test.APITransactionTestCase):
+class SchacPersonalUniqueIDParsingTest(test.APITestCase):
     """Test parsing of schacPersonalUniqueID to civil_number format."""
 
     def test_parse_estonian_schac_id(self):

@@ -6,14 +6,14 @@ from waldur_core.media.validators import validate_notification_emails
 from waldur_core.structure.models import Customer
 
 
-class NameValidationTest(test.APITransactionTestCase):
+class NameValidationTest(test.APITestCase):
     def test_name_should_have_at_least_one_non_whitespace_character(self):
         with self.assertRaises(ValidationError):
             customer = Customer(name="      ")
             customer.full_clean()
 
 
-class CIDRListValidatorTest(test.APITransactionTestCase):
+class CIDRListValidatorTest(test.APITestCase):
     def test_validator_accepts_valid_cidr_list(self):
         validators.validate_cidr_list("fc00::/7, 127.0.0.1/32")
 
@@ -29,7 +29,7 @@ class CIDRListValidatorTest(test.APITransactionTestCase):
             validators.validate_cidr_list("fc00::/7  127.0.0.1/32")
 
 
-class NotificationEmailsValidatorTest(test.APITransactionTestCase):
+class NotificationEmailsValidatorTest(test.APITestCase):
     def test_validator_accepts_valid_emails(self):
         validate_notification_emails("user@localhost")
 

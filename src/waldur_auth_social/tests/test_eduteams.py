@@ -21,7 +21,7 @@ from waldur_core.structure.tests import factories as structure_factories
         "REMOTE_EDUTEAMS_ENABLED": True,
     }
 )
-class RemoteEduteamsTest(test.APITransactionTestCase):
+class RemoteEduteamsTest(test.APITestCase):
     def setUp(self) -> None:
         super().setUp()
         self.url = reverse("auth_remote_eduteams")

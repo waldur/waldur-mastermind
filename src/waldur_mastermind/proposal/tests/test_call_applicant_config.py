@@ -11,7 +11,7 @@ from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.tests import factories, fixtures
 
 
-class CallApplicantAttributeConfigModelTest(test.APITransactionTestCase):
+class CallApplicantAttributeConfigModelTest(test.APITestCase):
     """Test CallApplicantAttributeConfig model."""
 
     def setUp(self):
@@ -56,7 +56,7 @@ class CallApplicantAttributeConfigModelTest(test.APITransactionTestCase):
         self.assertEqual(exposed, ["full_name", "email", "organization"])
 
 
-class CallApplicantAttributeConfigAPITest(test.APITransactionTestCase):
+class CallApplicantAttributeConfigAPITest(test.APITestCase):
     """Test CallApplicantAttributeConfig API endpoints."""
 
     def setUp(self):
@@ -198,7 +198,7 @@ class CallApplicantAttributeConfigAPITest(test.APITransactionTestCase):
         )
 
 
-class CallApplicantAttributeConfigReviewerVisibilityTest(test.APITransactionTestCase):
+class CallApplicantAttributeConfigReviewerVisibilityTest(test.APITestCase):
     """Test reviewer visibility settings."""
 
     def setUp(self):

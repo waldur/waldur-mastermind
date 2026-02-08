@@ -14,7 +14,7 @@ from waldur_digitalocean.tests import factories
 from waldur_digitalocean.views import DropletViewSet
 
 
-class DigitalOceanBackendTest(test.APITransactionTestCase):
+class DigitalOceanBackendTest(test.APITestCase):
     def setUp(self):
         super().setUp()
 

@@ -13,7 +13,7 @@ from waldur_mastermind.marketplace_remote import models, tasks
 from waldur_mastermind.marketplace_remote.tests import factories, fixtures
 
 
-class RemoteOfferingsSyncTest(test.APITransactionTestCase):
+class RemoteOfferingsSyncTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceRemoteFixture()
         self.api_url = self.fixture.remote_synchronisation.api_url

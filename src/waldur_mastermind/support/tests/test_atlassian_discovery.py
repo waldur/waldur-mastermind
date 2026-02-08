@@ -221,7 +221,7 @@ class TestAtlassianDiscoveryService:
     WALDUR_SUPPORT_ENABLED=True,
     WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE=SupportBackendType.ATLASSIAN,
 )
-class TestAtlassianSettingsDiscoveryViewSet(test.APITransactionTestCase):
+class TestAtlassianSettingsDiscoveryViewSet(test.APITestCase):
     """API tests for AtlassianSettingsDiscoveryViewSet."""
 
     def setUp(self):
@@ -479,7 +479,7 @@ class TestAtlassianSettingsDiscoveryViewSet(test.APITransactionTestCase):
 
 
 @pytest.mark.django_db
-class TestRequestTypeViewSet(test.APITransactionTestCase):
+class TestRequestTypeViewSet(test.APITestCase):
     """Tests for RequestTypeViewSet API endpoint."""
 
     def setUp(self):

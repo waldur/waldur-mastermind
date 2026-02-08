@@ -4,7 +4,7 @@ from waldur_azure.tests import fixtures
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
-class NetworkMetadataTest(test.APITransactionTestCase):
+class NetworkMetadataTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.AzureFixture()

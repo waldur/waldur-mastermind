@@ -35,7 +35,7 @@ from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
-class CustomerBaseTest(test.APITransactionTestCase):
+class CustomerBaseTest(test.APITestCase):
     def setUp(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_PROJECTS)
 
@@ -609,7 +609,7 @@ class CustomerContactUpdateTest(CustomerBaseTest):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class CustomerQuotasTest(test.APITransactionTestCase):
+class CustomerQuotasTest(test.APITestCase):
     def setUp(self):
         self.customer = factories.CustomerFactory()
         self.staff = factories.UserFactory(is_staff=True)
@@ -691,7 +691,7 @@ class CustomerQuotasTest(test.APITransactionTestCase):
         self.assertEqual(value, self.customer.get_quota_usage(name))
 
 
-class UpdateCustomerUsersCountTest(test.APITransactionTestCase):
+class UpdateCustomerUsersCountTest(test.APITestCase):
     """Test the bulk update_customer_users_count handler used by recalculate_quotas."""
 
     def test_updates_user_count_for_direct_customer_users(self):
@@ -764,7 +764,7 @@ class UpdateCustomerUsersCountTest(test.APITransactionTestCase):
 
 
 @ddt
-class CustomerUsersListTest(test.APITransactionTestCase):
+class CustomerUsersListTest(test.APITestCase):
     all_users = (
         "staff",
         "owner",
@@ -999,7 +999,7 @@ class CustomerUsersListTest(test.APITransactionTestCase):
 
 
 @ddt
-class AccountingIsRunningFilterTest(test.APITransactionTestCase):
+class AccountingIsRunningFilterTest(test.APITestCase):
     def setUp(self):
         self.enabled_customers = factories.CustomerFactory.create_batch(2)
         future_date = timezone.now() + timezone.timedelta(days=1)
@@ -1164,7 +1164,7 @@ class CustomerBlockedTest(CustomerBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class CustomerOrganizationGroupFilterTest(test.APITransactionTestCase):
+class CustomerOrganizationGroupFilterTest(test.APITestCase):
     def setUp(self):
         self.organization_group = factories.OrganizationGroupFactory()
         self.customer1 = factories.CustomerFactory()
@@ -1203,7 +1203,7 @@ class CustomerOrganizationGroupFilterTest(test.APITransactionTestCase):
                 self.assertEqual(len(response.data), 0)
 
 
-class CustomerInetFilterTest(test.APITransactionTestCase):
+class CustomerInetFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -1254,7 +1254,7 @@ class CustomerInetFilterTest(test.APITransactionTestCase):
 
 
 @freeze_time("2025-06-01")
-class CustomerResourceQuotasTest(test.APITransactionTestCase):
+class CustomerResourceQuotasTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         # Use fixed dates within the same year to ensure ANNUAL limit period tests work correctly
@@ -1445,7 +1445,7 @@ class CustomerResourceQuotasTest(test.APITransactionTestCase):
         self.assertEqual(disk_component["measured_unit"], "GB")
 
 
-class CustomerListHeadOptimizationTest(test.APITransactionTestCase):
+class CustomerListHeadOptimizationTest(test.APITestCase):
     def test_head_query_count_does_not_depend_on_queryset_size(self):
         self.client.force_authenticate(user=factories.UserFactory(is_staff=True))
 
@@ -1470,7 +1470,7 @@ class CustomerListHeadOptimizationTest(test.APITransactionTestCase):
         self.assertEqual(second_pass_queryset_size, 6)
 
 
-class CustomerDefaultTaxPercentValidationTest(test.APITransactionTestCase):
+class CustomerDefaultTaxPercentValidationTest(test.APITestCase):
     def setUp(self):
         self.customer = factories.CustomerFactory()
         self.staff = factories.UserFactory(is_staff=True)

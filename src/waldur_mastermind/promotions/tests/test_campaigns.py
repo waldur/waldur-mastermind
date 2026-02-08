@@ -13,7 +13,7 @@ from waldur_mastermind.promotions.tests import factories, fixtures
 
 
 @ddt
-class CreateCampaignTest(test.APITransactionTestCase):
+class CreateCampaignTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -85,7 +85,7 @@ class CreateCampaignTest(test.APITransactionTestCase):
 
 
 @ddt
-class GetCampaignTest(test.APITransactionTestCase):
+class GetCampaignTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.PromotionsFixture()
         self.url = factories.CampaignFactory.get_list_url()
@@ -130,7 +130,7 @@ class GetCampaignTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingPublicEndpointTest(test.APITransactionTestCase):
+class OfferingPublicEndpointTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.PromotionsFixture()
         self.campaign = self.fixture.campaign
@@ -184,7 +184,7 @@ class OfferingPublicEndpointTest(test.APITransactionTestCase):
 
 
 @ddt
-class UpdateCampaignTest(test.APITransactionTestCase):
+class UpdateCampaignTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.PromotionsFixture()
         self.campaign = self.fixture.campaign
@@ -244,7 +244,7 @@ class UpdateCampaignTest(test.APITransactionTestCase):
 
 
 @ddt
-class DeleteCampaignTest(test.APITransactionTestCase):
+class DeleteCampaignTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.PromotionsFixture()
         self.url = factories.CampaignFactory.get_url(self.fixture.campaign)

@@ -6,7 +6,7 @@ from waldur_core.structure.tests import factories
 from waldur_core.structure.tests.utils import client_add_user
 
 
-class CustomerUserRestrictionsTest(test.APITransactionTestCase):
+class CustomerUserRestrictionsTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.staff = factories.UserFactory(is_staff=True)
@@ -126,7 +126,7 @@ class CustomerUserRestrictionsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
 
-class ProjectUserRestrictionsTest(test.APITransactionTestCase):
+class ProjectUserRestrictionsTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.staff = factories.UserFactory(is_staff=True)
@@ -200,7 +200,7 @@ class ProjectUserRestrictionsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
 
-class CustomerRestrictionPermissionTest(test.APITransactionTestCase):
+class CustomerRestrictionPermissionTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.staff = factories.UserFactory(is_staff=True)
@@ -233,7 +233,7 @@ class CustomerRestrictionPermissionTest(test.APITransactionTestCase):
         self.assertEqual(self.customer.user_email_patterns, [])
 
 
-class ProjectRestrictionPermissionTest(test.APITransactionTestCase):
+class ProjectRestrictionPermissionTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.staff = factories.UserFactory(is_staff=True)

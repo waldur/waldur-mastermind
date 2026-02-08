@@ -7,7 +7,7 @@ from waldur_core.core.enums import CoreStates
 from . import factories, fixtures
 
 
-class FloatingIPListRetrieveTestCase(test.APITransactionTestCase):
+class FloatingIPListRetrieveTestCase(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.active_ip = factories.FloatingIPFactory(
@@ -94,7 +94,7 @@ class FloatingIPListRetrieveTestCase(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-class BaseFloatingIPTest(test.APITransactionTestCase):
+class BaseFloatingIPTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.OpenStackFixture()
         self.ip = self.fixture.floating_ip
@@ -215,7 +215,7 @@ class FloatingIPUpdateTest(BaseFloatingIPTest):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
 
-class OpenStackFloatingIPGetTest(test.APITransactionTestCase):
+class OpenStackFloatingIPGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.client.force_authenticate(self.fixture.staff)

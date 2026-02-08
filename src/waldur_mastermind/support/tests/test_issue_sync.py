@@ -15,7 +15,7 @@ from waldur_mastermind.support.tests import factories
 
 
 @ddt
-class IssueSyncAPITest(test.APITransactionTestCase):
+class IssueSyncAPITest(test.APITestCase):
     """Tests for the issue sync API endpoint."""
 
     def setUp(self):
@@ -71,7 +71,7 @@ class IssueSyncAPITest(test.APITransactionTestCase):
         self.assertEqual(str(ctx.exception), "Sync failed")
 
 
-class SyncSingleIssueTest(test.APITransactionTestCase):
+class SyncSingleIssueTest(test.APITestCase):
     """Tests for the sync_single_issue method."""
 
     def setUp(self):
@@ -96,7 +96,7 @@ class SyncSingleIssueTest(test.APITransactionTestCase):
         mock_sync_comments.assert_called_once_with(self.issue)
 
 
-class SyncIssuesTest(test.APITransactionTestCase):
+class SyncIssuesTest(test.APITestCase):
     """Tests for the sync_issues method."""
 
     def setUp(self):
@@ -161,7 +161,7 @@ class SyncIssuesTest(test.APITransactionTestCase):
         self.assertEqual(str(ctx.exception), "Sync error")
 
 
-class CommentSynchronizerTest(test.APITransactionTestCase):
+class CommentSynchronizerTest(test.APITestCase):
     """Tests for the CommentSynchronizer class."""
 
     def setUp(self):
@@ -252,7 +252,7 @@ class CommentSynchronizerTest(test.APITransactionTestCase):
         self.assertEqual(existing_comment.description, "Updated description")
 
 
-class GetOrCreateSupportUserTest(test.APITransactionTestCase):
+class GetOrCreateSupportUserTest(test.APITestCase):
     """Tests for get_or_create_support_user handling duplicates."""
 
     def test_handles_duplicate_support_users(self):

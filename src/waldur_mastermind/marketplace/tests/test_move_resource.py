@@ -8,7 +8,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_mastermind.marketplace.utils import MoveResourceException, move_resource
 
 
-class MoveResourceCommandTest(test.APITransactionTestCase):
+class MoveResourceCommandTest(test.APITestCase):
     def setUp(self):
         self.fixture = ServiceFixture()
         self.project = self.fixture.project

@@ -10,7 +10,7 @@ from waldur_mastermind.marketplace.tests import factories
 
 
 @ddt
-class ServiceProviderChecklistsSummaryTest(test.APITransactionTestCase):
+class ServiceProviderChecklistsSummaryTest(test.APITestCase):
     """Test service provider checklists summary endpoint."""
 
     def setUp(self):

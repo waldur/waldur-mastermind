@@ -41,7 +41,7 @@ class TestOpenStackBackendError(TestCase):
                         self.fail("Reraised exception is not serializable: %s" % str(e))
 
 
-class BaseBackendTestCase(test.APITransactionTestCase):
+class BaseBackendTestCase(test.APITestCase):
     def setUp(self):
         self.mocked_keystone = mock.patch("keystoneclient.v3.client.Client").start()()
         self.mocked_nova = mock.patch("novaclient.v2.client.Client").start()()

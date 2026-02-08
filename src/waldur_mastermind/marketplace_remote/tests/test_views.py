@@ -21,7 +21,7 @@ from waldur_mastermind.marketplace_remote.tests.dns_utils import (
 )
 
 
-class SyncResourceViewTest(test.APITransactionTestCase):
+class SyncResourceViewTest(test.APITestCase):
     """Test cases for SyncResourceView endpoint"""
 
     def setUp(self):
@@ -127,7 +127,7 @@ class SyncResourceViewTest(test.APITransactionTestCase):
         self.assertEqual(call_args.kwargs["kwargs"], {})
 
 
-class PullResourceRobotAccountsViewTest(test.APITransactionTestCase):
+class PullResourceRobotAccountsViewTest(test.APITestCase):
     """Test cases for PullResourceRobotAccountsView endpoint"""
 
     def setUp(self):
@@ -250,7 +250,7 @@ class PullResourceRobotAccountsViewTest(test.APITransactionTestCase):
         self.assertEqual(call_args.kwargs["kwargs"], {})
 
 
-class PullOrderViewTest(test.APITransactionTestCase):
+class PullOrderViewTest(test.APITestCase):
     """Test cases for PullOrderView endpoint"""
 
     def setUp(self):

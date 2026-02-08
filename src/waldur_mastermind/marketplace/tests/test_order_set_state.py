@@ -16,7 +16,7 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
-class BaseOrderSetStateTest(test.APITransactionTestCase):
+class BaseOrderSetStateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.project = self.fixture.project
@@ -85,7 +85,7 @@ class OrderSetStateDoneTest(BaseOrderSetStateTest):
         return self.client.post(url)
 
 
-class OrderSetStateDoneOptionsUpdateTest(test.APITransactionTestCase):
+class OrderSetStateDoneOptionsUpdateTest(test.APITestCase):
     """
     Test that options are correctly updated when set_state_done is called
     for an UPDATE order with new_options attribute.
@@ -241,7 +241,7 @@ class OrderSetStateErredTest(BaseOrderSetStateTest):
 
 
 @ddt
-class OrderCancelTest(test.APITransactionTestCase):
+class OrderCancelTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.project = self.fixture.project

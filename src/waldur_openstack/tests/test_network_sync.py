@@ -7,7 +7,7 @@ from waldur_openstack.models import Network
 from waldur_openstack.tests import fixtures
 
 
-class NetworkSyncTest(test.APITransactionTestCase):
+class NetworkSyncTest(test.APITestCase):
     def setUp(self):
         # Fixture for the network owner
         self.owner_fixture = fixtures.OpenStackFixture()

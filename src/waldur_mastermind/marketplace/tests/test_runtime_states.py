@@ -1,13 +1,13 @@
 from ddt import data, ddt
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APITransactionTestCase
+from rest_framework.test import APITestCase
 
 from waldur_mastermind.marketplace.tests import fixtures
 
 
 @ddt
-class RuntimeStatesViewSetTestCase(APITransactionTestCase):
+class RuntimeStatesViewSetTestCase(APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.project = self.fixture.project

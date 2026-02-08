@@ -671,7 +671,7 @@ class IssueDeleteTest(base.BaseTest):
         self.assertEqual(response.status_code, status.HTTP_424_FAILED_DEPENDENCY)
 
 
-class IssueOrderingTest(test.APITransactionTestCase):
+class IssueOrderingTest(test.APITestCase):
     @override_config(WALDUR_SUPPORT_ENABLED=True)
     def test_issue_ordering(self):
         factories.IssueFactory(key="TST")

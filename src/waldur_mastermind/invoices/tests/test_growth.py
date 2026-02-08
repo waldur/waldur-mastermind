@@ -15,7 +15,7 @@ from waldur_mastermind.invoices.utils import (
 
 @ddt
 @freeze_time("2024-03-06")
-class GrowthTest(test.APITransactionTestCase):
+class GrowthTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.UserFixture()
         self.url = reverse("invoice-list") + "growth/"

@@ -5,7 +5,7 @@ from waldur_openstack.tests import fixtures as openstack_fixtures
 from waldur_rancher import serializers as rancher_serializers
 
 
-class ServiceSettingsValidationTest(test.APITransactionTestCase):
+class ServiceSettingsValidationTest(test.APITestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
 

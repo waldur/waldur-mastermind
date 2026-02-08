@@ -9,7 +9,7 @@ from waldur_vmware.tests.utils import override_plugin_settings
 from . import factories, fixtures
 
 
-class VirtualMachineCreateBaseTest(test.APITransactionTestCase):
+class VirtualMachineCreateBaseTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.VMwareFixture()
         self.url = factories.VirtualMachineFactory.get_list_url()
@@ -410,7 +410,7 @@ class VirtualMachineLimitsValidationTest(VirtualMachineCreateBaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class VirtualMachineDeleteTest(test.APITransactionTestCase):
+class VirtualMachineDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.VMwareFixture()
         self.vm = self.fixture.virtual_machine
@@ -431,7 +431,7 @@ class VirtualMachineDeleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
 
-class VirtualMachineBackendTest(test.APITransactionTestCase):
+class VirtualMachineBackendTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.VMwareFixture()
         self.client = mock.MagicMock()
@@ -547,7 +547,7 @@ class VirtualMachineBackendTest(test.APITransactionTestCase):
         )
 
 
-class NetworkPortCreateTest(test.APITransactionTestCase):
+class NetworkPortCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.VMwareFixture()
         self.url = factories.VirtualMachineFactory.get_url(
@@ -602,7 +602,7 @@ class NetworkPortCreateTest(test.APITransactionTestCase):
 
 
 @ddt.ddt
-class GuestPowerTest(test.APITransactionTestCase):
+class GuestPowerTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.VMwareFixture()
         self.vm = self.fixture.virtual_machine

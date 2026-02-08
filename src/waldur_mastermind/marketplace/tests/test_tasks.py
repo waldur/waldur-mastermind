@@ -30,7 +30,7 @@ from waldur_openstack.tests.fixtures import OpenStackFixture
 from . import factories, fixtures
 
 
-class CalculateUsageForCurrentMonthTest(test.APITransactionTestCase):
+class CalculateUsageForCurrentMonthTest(test.APITestCase):
     def setUp(self):
         offering = factories.OfferingFactory()
         plan = factories.PlanFactory(offering=offering)
@@ -65,7 +65,7 @@ class CalculateUsageForCurrentMonthTest(test.APITransactionTestCase):
         self.assertEqual(models.CategoryComponentUsage.objects.count(), 0)
 
 
-class NotificationTest(test.APITransactionTestCase):
+class NotificationTest(test.APITestCase):
     @patch("waldur_mastermind.marketplace.tasks.core_utils.broadcast_mail")
     def test_notify_user_that_order_been_rejected(self, mock_broadcast_mail):
         """
@@ -110,7 +110,7 @@ class NotificationTest(test.APITransactionTestCase):
         self.assertIn("order_type", context, "Context is missing the order type")
 
 
-class ResourceEndDateNotificationTest(test.APITransactionTestCase):
+class ResourceEndDateNotificationTest(test.APITestCase):
     def test_notify_about_resource_scheduled_termination(self):
         fixture = fixtures.MarketplaceFixture()
         admin = fixture.admin
@@ -159,7 +159,7 @@ class ResourceEndDateNotificationTest(test.APITransactionTestCase):
         )
 
 
-class TerminateResource(test.APITransactionTestCase):
+class TerminateResource(test.APITestCase):
     def setUp(self):
         fixture = structure_fixtures.UserFixture()
         self.user = fixture.staff
@@ -184,7 +184,7 @@ class TerminateResource(test.APITransactionTestCase):
         )
 
 
-class ProjectEndDateTest(test.APITransactionTestCase):
+class ProjectEndDateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.fixture.project.end_date = datetime.datetime(
@@ -283,7 +283,7 @@ class ProjectEndDateTest(test.APITransactionTestCase):
 
 
 @override_config(ENABLE_STALE_RESOURCE_NOTIFICATIONS=True)
-class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
+class NotificationAboutStaleResourceTest(test.APITestCase):
     def setUp(self):
         project_fixture = structure_fixtures.ProjectFixture()
         self.owner = project_fixture.owner
@@ -341,7 +341,7 @@ class NotificationAboutStaleResourceTest(test.APITransactionTestCase):
         self.assertEqual(len(mail.outbox), 0)
 
 
-class ResourceEndDateTest(test.APITransactionTestCase):
+class ResourceEndDateTest(test.APITestCase):
     def setUp(self):
         # We need create a system robot account because
         # account created in a migration does not exist when test is running
@@ -415,7 +415,7 @@ class ResourceEndDateTest(test.APITransactionTestCase):
             self.assertTrue(self.resource.uuid.hex in mail.outbox[0].body)
 
 
-class MarkResourcesAsErredAfterTimeoutTest(test.APITransactionTestCase):
+class MarkResourcesAsErredAfterTimeoutTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = OpenStackFixture()
@@ -475,7 +475,7 @@ class MarkResourcesAsErredAfterTimeoutTest(test.APITransactionTestCase):
         self.assertNotEqual(self.fixture.instance.state, CoreStates.ERRED)
 
 
-class RemoveDeletedRobotAccountsTest(test.APITransactionTestCase):
+class RemoveDeletedRobotAccountsTest(test.APITestCase):
     """
     Test daily task that removes deleted robot accounts from the database.
     """
@@ -531,7 +531,7 @@ class RemoveDeletedRobotAccountsTest(test.APITransactionTestCase):
         )
 
 
-class UpdateResourceScopeAvailabilityTest(test.APITransactionTestCase):
+class UpdateResourceScopeAvailabilityTest(test.APITestCase):
     def setUp(self):
         self.fixture = OpenStackFixture()
         self.instance = self.fixture.instance
@@ -561,7 +561,7 @@ class UpdateResourceScopeAvailabilityTest(test.APITransactionTestCase):
         self.assertTrue(self.instance.can_be_managed)
 
 
-class ResetStuckUpdatingResourcesTest(test.APITransactionTestCase):
+class ResetStuckUpdatingResourcesTest(test.APITestCase):
     """
     Test task that resets marketplace resources stuck in UPDATING state.
 

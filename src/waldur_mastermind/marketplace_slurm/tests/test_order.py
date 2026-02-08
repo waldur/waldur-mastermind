@@ -13,7 +13,7 @@ from waldur_slurm import models as slurm_models
 from waldur_slurm.tests import fixtures as slurm_fixtures
 
 
-class AllocationCreateTest(test.APITransactionTestCase):
+class AllocationCreateTest(test.APITestCase):
     def setUp(self):
         fixture = slurm_fixtures.SlurmFixture()
         offering = marketplace_factories.OfferingFactory(

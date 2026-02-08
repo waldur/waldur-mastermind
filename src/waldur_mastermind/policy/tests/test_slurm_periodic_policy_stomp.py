@@ -13,7 +13,7 @@ from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.policy.models import SlurmPeriodicUsagePolicy
 
 
-class SlurmPeriodicUsagePolicySTOMPTest(test.APITransactionTestCase):
+class SlurmPeriodicUsagePolicySTOMPTest(test.APITestCase):
     """Test STOMP message emission for SLURM periodic usage policy."""
 
     def setUp(self):
@@ -442,7 +442,7 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITransactionTestCase):
             print("✅ Realistic carryover scenario STOMP message validated")
 
 
-class SlurmPeriodicUsagePolicyEventTest(test.APITransactionTestCase):
+class SlurmPeriodicUsagePolicyEventTest(test.APITestCase):
     """Test policy event triggering and STOMP messaging patterns."""
 
     def setUp(self):
@@ -642,7 +642,7 @@ class SlurmPeriodicUsagePolicyEventTest(test.APITransactionTestCase):
         print("✅ STOMP message format matches site agent expectations")
 
 
-class SlurmPeriodicUsagePolicyIntegrationTest(test.APITransactionTestCase):
+class SlurmPeriodicUsagePolicyIntegrationTest(test.APITestCase):
     """Integration tests between policy and STOMP messaging."""
 
     def setUp(self):

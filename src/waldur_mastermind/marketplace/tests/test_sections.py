@@ -8,7 +8,7 @@ from . import factories
 
 
 @ddt
-class SectionGetTest(test.APITransactionTestCase):
+class SectionGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.section = factories.SectionFactory()
@@ -34,7 +34,7 @@ class SectionGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class SectionCreateTest(test.APITransactionTestCase):
+class SectionCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.url = factories.SectionFactory.get_list_url()
@@ -66,7 +66,7 @@ class SectionCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class SectionUpdateTest(test.APITransactionTestCase):
+class SectionUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.section = factories.SectionFactory()
@@ -96,7 +96,7 @@ class SectionUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class SectionDeleteTest(test.APITransactionTestCase):
+class SectionDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.section = factories.SectionFactory()

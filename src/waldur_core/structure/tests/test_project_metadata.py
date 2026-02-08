@@ -79,9 +79,7 @@ class ProjectMetadataTestMixin:
 
 
 @ddt
-class CustomerProjectMetadataTest(
-    ProjectMetadataTestMixin, test.APITransactionTestCase
-):
+class CustomerProjectMetadataTest(ProjectMetadataTestMixin, test.APITestCase):
     """Test customer project metadata configuration."""
 
     def test_customer_metadata_config_creation(self):
@@ -220,9 +218,7 @@ class CustomerProjectMetadataTest(
 
 
 @ddt
-class ProjectMetadataCompletionTest(
-    ProjectMetadataTestMixin, test.APITransactionTestCase
-):
+class ProjectMetadataCompletionTest(ProjectMetadataTestMixin, test.APITestCase):
     """Test project metadata completion functionality using project ViewSet."""
 
     def setUp(self):

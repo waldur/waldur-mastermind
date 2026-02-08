@@ -7,7 +7,7 @@ from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 
 
 @ddt
-class MaintenanceAnnouncementTemplateGetTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementTemplateGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.template = self.fixture.maintenance_announcement_template
@@ -48,7 +48,7 @@ class MaintenanceAnnouncementTemplateGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class MaintenanceAnnouncementOfferingTemplateGetTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementOfferingTemplateGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering_template = self.fixture.maintenance_announcement_offering_template
@@ -87,7 +87,7 @@ class MaintenanceAnnouncementOfferingTemplateGetTest(test.APITransactionTestCase
 
 
 @ddt
-class MaintenanceAnnouncementTemplateCreateTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementTemplateCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.fixture.maintenance_announcement_template.delete()
@@ -176,7 +176,7 @@ class MaintenanceAnnouncementTemplateCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class MaintenanceAnnouncementTemplateDeleteTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementTemplateDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.template = self.fixture.maintenance_announcement_template
@@ -207,7 +207,7 @@ class MaintenanceAnnouncementTemplateDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class MaintenanceAnnouncementTemplateUpdateTest(test.APITransactionTestCase):
+class MaintenanceAnnouncementTemplateUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.template = self.fixture.maintenance_announcement_template

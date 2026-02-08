@@ -11,7 +11,7 @@ from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
 @ddt
-class PlanDiscountUpdateTest(test.APITransactionTestCase):
+class PlanDiscountUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.plan = self.fixture.plan

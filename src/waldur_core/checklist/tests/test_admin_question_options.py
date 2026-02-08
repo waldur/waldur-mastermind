@@ -6,7 +6,7 @@ from waldur_core.checklist.tests import factories, fixtures
 
 
 @ddt
-class QuestionOptionAdminGetTest(test.APITransactionTestCase):
+class QuestionOptionAdminGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CheckListFixture()
         self.url = factories.QuestionOptionFactory.get_admin_list_url()
@@ -27,7 +27,7 @@ class QuestionOptionAdminGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class QuestionOptionAdminCreateTest(test.APITransactionTestCase):
+class QuestionOptionAdminCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CheckListFixture()
         self.question = self.fixture.question
@@ -59,7 +59,7 @@ class QuestionOptionAdminCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class QuestionOptionAdminUpdateTest(test.APITransactionTestCase):
+class QuestionOptionAdminUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CheckListFixture()
         self.question_option = self.fixture.question_option
@@ -92,7 +92,7 @@ class QuestionOptionAdminUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class QuestionOptionAdminDeleteTest(test.APITransactionTestCase):
+class QuestionOptionAdminDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CheckListFixture()
         self.question_option = self.fixture.question_option

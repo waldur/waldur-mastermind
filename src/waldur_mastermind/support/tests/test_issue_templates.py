@@ -6,7 +6,7 @@ from waldur_mastermind.support.models import Template, TemplateAttachment
 from waldur_mastermind.support.tests import factories, fixtures
 
 
-class IssueTemplateGetTest(test.APITransactionTestCase):
+class IssueTemplateGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.SupportFixture()
         self.url = factories.TemplateFactory.get_list_url()
@@ -20,7 +20,7 @@ class IssueTemplateGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class IssueTemplateCreateTest(test.APITransactionTestCase):
+class IssueTemplateCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.SupportFixture()
         self.url = factories.TemplateFactory.get_list_url()
@@ -45,7 +45,7 @@ class IssueTemplateCreateTest(test.APITransactionTestCase):
         }
 
 
-class IssueTemplateAttachmentTest(test.APITransactionTestCase):
+class IssueTemplateAttachmentTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.SupportFixture()
         self.template = factories.TemplateFactory()

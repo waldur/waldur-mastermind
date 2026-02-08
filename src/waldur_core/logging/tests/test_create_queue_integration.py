@@ -10,7 +10,7 @@ from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
-class CreateQueueIntegrationTest(test.APITransactionTestCase):
+class CreateQueueIntegrationTest(test.APITestCase):
     """
     Integration tests for POST /api/event-subscriptions/{uuid}/create_queue/
 

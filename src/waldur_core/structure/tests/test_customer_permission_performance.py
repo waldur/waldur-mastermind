@@ -23,7 +23,7 @@ from waldur_core.structure.tests import factories
 logging.getLogger("django.db.backends").setLevel(logging.WARNING)
 
 
-class CustomerPermissionPerformanceTest(test.APITransactionTestCase):
+class CustomerPermissionPerformanceTest(test.APITestCase):
     """
     Test SQL query performance for different permission scenarios in CustomerViewSet.
 

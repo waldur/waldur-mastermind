@@ -6,7 +6,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_mastermind.marketplace_openstack import apps
 
 
-class VolumeMetadataCreationTest(test.APITransactionTestCase):
+class VolumeMetadataCreationTest(test.APITestCase):
     def test_volume_metadata_is_populated_on_resource_creation(self):
         offering = marketplace_factories.OfferingFactory(
             type=apps.OPENSTACK_VOLUME_OFFERING

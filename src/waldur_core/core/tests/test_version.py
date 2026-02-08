@@ -3,7 +3,7 @@ from rest_framework import status, test
 from waldur_core.structure.tests.factories import UserFactory
 
 
-class VersionApiPermissionTest(test.APITransactionTestCase):
+class VersionApiPermissionTest(test.APITestCase):
     def setUp(self):
         self.staff = UserFactory(is_staff=True)
         self.support = UserFactory(is_support=True)

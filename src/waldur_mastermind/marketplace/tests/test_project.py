@@ -14,7 +14,7 @@ from waldur_mastermind.marketplace.enums import OrderStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
-class RemovalOfExpiredProjectWithoutActiveResourcesTest(test.APITransactionTestCase):
+class RemovalOfExpiredProjectWithoutActiveResourcesTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.project = self.fixture.project
@@ -49,7 +49,7 @@ class RemovalOfExpiredProjectWithoutActiveResourcesTest(test.APITransactionTestC
             )
 
 
-class MarketplaceResourceCountTest(test.APITransactionTestCase):
+class MarketplaceResourceCountTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.project = self.fixture.project
@@ -70,7 +70,7 @@ class MarketplaceResourceCountTest(test.APITransactionTestCase):
         )
 
 
-class ProjectMoveTest(test.APITransactionTestCase):
+class ProjectMoveTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering

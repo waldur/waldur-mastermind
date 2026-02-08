@@ -464,7 +464,7 @@ class LLMStreamerTest(unittest.TestCase):
                 mock_execute.assert_called_once()
 
 
-class LLMStreamerUsageRecordingTest(drf_test.APITransactionTestCase):
+class LLMStreamerUsageRecordingTest(drf_test.APITestCase):
     """Test that LLMStreamer persists token usage to TokenQuota after streaming."""
 
     def _fake_response(self, lines):

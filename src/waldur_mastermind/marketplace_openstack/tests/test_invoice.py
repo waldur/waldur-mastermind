@@ -30,7 +30,7 @@ from waldur_openstack.tests.fixtures import (
 
 
 @freeze_time("2019-09-10")
-class BaseTenantInvoiceTest(test.APITransactionTestCase):
+class BaseTenantInvoiceTest(test.APITestCase):
     def setUp(self):
         self.offering = marketplace_factories.OfferingFactory(
             type=OPENSTACK_TENANT_OFFERING

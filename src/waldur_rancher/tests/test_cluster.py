@@ -31,7 +31,7 @@ from waldur_rancher import exceptions, models, tasks
 from waldur_rancher.tests import factories, fixtures, utils
 
 
-class ClusterGetTest(test.APITransactionTestCase):
+class ClusterGetTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()
@@ -635,7 +635,7 @@ class ClusterGroupCreateTest(BaseClusterCreateTest):
         return [{"cidr": "192.168.77.0/24"}]
 
 
-class ClusterPullTest(test.APITransactionTestCase):
+class ClusterPullTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()
@@ -659,7 +659,7 @@ class ClusterPullTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
 
-class ClusterUpdateTest(test.APITransactionTestCase):
+class ClusterUpdateTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()
@@ -696,7 +696,7 @@ class ClusterUpdateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
-class ClusterDeleteTest(test.APITransactionTestCase):
+class ClusterDeleteTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()
@@ -814,7 +814,7 @@ class ClusterDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class ClusterSecurityGroupRulesTest(test.APITransactionTestCase):
+class ClusterSecurityGroupRulesTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()

@@ -11,7 +11,7 @@ from waldur_mastermind.invoices import models, utils
 from waldur_mastermind.marketplace_support.tests import fixtures as fixtures
 
 
-class InvoicePriceWorkflowTest(test.APITransactionTestCase):
+class InvoicePriceWorkflowTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceSupportApprovedFixture()
 

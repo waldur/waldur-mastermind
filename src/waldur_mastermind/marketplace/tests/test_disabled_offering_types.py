@@ -6,7 +6,7 @@ from waldur_mastermind.marketplace import plugins
 from waldur_mastermind.marketplace.serializers import OfferingCreateSerializer
 
 
-class DisabledOfferingTypesTest(test.APITransactionTestCase):
+class DisabledOfferingTypesTest(test.APITestCase):
     def setUp(self):
         self._original_backends = dict(plugins.manager.backends)
         plugins.manager.register("Test.Dummy")

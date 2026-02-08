@@ -8,7 +8,7 @@ from waldur_vmware.tests.utils import override_plugin_settings
 from . import factories
 
 
-class TemplatePullTest(test.APITransactionTestCase):
+class TemplatePullTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.settings = factories.VMwareServiceSettingsFactory()

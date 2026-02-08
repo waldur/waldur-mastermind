@@ -8,7 +8,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from .factories import EmailLogFactory
 
 
-class EmailLogCreateTest(test.APITransactionTestCase):
+class EmailLogCreateTest(test.APITestCase):
     def test_create_log(self):
         send_mail(
             subject="notify user",
@@ -61,7 +61,7 @@ class EmailLogCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class EmailLogViewTest(test.APITransactionTestCase):
+class EmailLogViewTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.email_log = EmailLogFactory()

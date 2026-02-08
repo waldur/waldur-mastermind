@@ -7,7 +7,7 @@ from . import factories, fixtures
 
 
 @ddt
-class TenantTest(test.APITransactionTestCase):
+class TenantTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.fixture.tenant.project = self.fixture.project

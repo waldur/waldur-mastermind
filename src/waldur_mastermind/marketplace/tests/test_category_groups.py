@@ -9,7 +9,7 @@ from . import factories
 
 
 @ddt
-class CategoryGroupGetTest(test.APITransactionTestCase):
+class CategoryGroupGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.group = factories.CategoryGroupFactory()
@@ -36,7 +36,7 @@ class CategoryGroupGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class CategoryGroupCreateTest(test.APITransactionTestCase):
+class CategoryGroupCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 
@@ -66,7 +66,7 @@ class CategoryGroupCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class CategoryGroupUpdateTest(test.APITransactionTestCase):
+class CategoryGroupUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 
@@ -97,7 +97,7 @@ class CategoryGroupUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class CategoryGroupDeleteTest(test.APITransactionTestCase):
+class CategoryGroupDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.group = factories.CategoryGroupFactory(title="group")

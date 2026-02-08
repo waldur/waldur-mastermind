@@ -18,7 +18,7 @@ from waldur_slurm.parser import SlurmReportLine
 from waldur_slurm.tests import factories as slurm_factories
 
 
-class ComponentUsageTest(test.APITransactionTestCase):
+class ComponentUsageTest(test.APITestCase):
     def setUp(self):
         fixture = structure_fixtures.ProjectFixture()
         service_settings = structure_factories.ServiceSettingsFactory(type="SLURM")
@@ -158,7 +158,7 @@ class ComponentUsageTest(test.APITransactionTestCase):
         self.assertEqual(item.quantity, 1)
 
 
-class ComponentUserUsageTest(test.APITransactionTestCase):
+class ComponentUserUsageTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource

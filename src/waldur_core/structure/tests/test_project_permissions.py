@@ -15,7 +15,7 @@ from waldur_core.structure.tests.utils import (
 )
 
 
-class ProjectPermissionBaseTest(test.APITransactionTestCase):
+class ProjectPermissionBaseTest(test.APITestCase):
     def setUp(self) -> None:
         super().setUp()
 

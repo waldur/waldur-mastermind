@@ -20,7 +20,7 @@ from waldur_mastermind.proposal.enums import CallStates, RequestedOfferingStates
 from waldur_mastermind.proposal.tests import factories as proposal_factories
 
 
-class CustomerResourcesFilterTest(test.APITransactionTestCase):
+class CustomerResourcesFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture1 = structure_fixtures.ServiceFixture()
         self.customer1 = self.fixture1.customer
@@ -47,7 +47,7 @@ class CustomerResourcesFilterTest(test.APITransactionTestCase):
         self.assertEqual(2, len(self.list_customers(False)))
 
 
-class ServiceProviderFilterTest(test.APITransactionTestCase):
+class ServiceProviderFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture1 = structure_fixtures.ServiceFixture()
         self.service_provider1 = self.fixture1.customer
@@ -95,7 +95,7 @@ class ServiceProviderFilterTest(test.APITransactionTestCase):
         self.assertEqual(response.data[0]["uuid"], provider_1.uuid.hex)
 
 
-class ResourceFilterTest(test.APITransactionTestCase):
+class ResourceFilterTest(test.APITestCase):
     def setUp(self):
         with freeze_time("2020-01-01"):
             self.fixture = fixtures.MarketplaceFixture()
@@ -222,7 +222,7 @@ class ResourceFilterTest(test.APITransactionTestCase):
         self.assertNotIn(attached_resource.uuid.hex, uuids)
 
 
-class FilterByScopeUUIDTest(test.APITransactionTestCase):
+class FilterByScopeUUIDTest(test.APITestCase):
     def setUp(self):
         plugins.manager.register(
             offering_type="TEST_TYPE",
@@ -246,7 +246,7 @@ class FilterByScopeUUIDTest(test.APITransactionTestCase):
         self.assertEqual(response.data[0]["uuid"], self.fixture.resource.uuid.hex)
 
 
-class OrderFilterTest(test.APITransactionTestCase):
+class OrderFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.url = factories.OrderFactory.get_list_url()
@@ -268,7 +268,7 @@ class OrderFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.json()), 0)
 
 
-class CategoryFilterTest(test.APITransactionTestCase):
+class CategoryFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -362,7 +362,7 @@ class CategoryFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
 
 
-class PlanComponentFilterTest(test.APITransactionTestCase):
+class PlanComponentFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture_1 = fixtures.MarketplaceFixture()
         self.fixture_2 = fixtures.MarketplaceFixture()
@@ -385,7 +385,7 @@ class PlanComponentFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.json()), 1)
 
 
-class AccessibleViaCallsFilterTest(test.APITransactionTestCase):
+class AccessibleViaCallsFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -416,7 +416,7 @@ class AccessibleViaCallsFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.json()), 0)
 
 
-class ResourceBillingTypeFilterTest(test.APITransactionTestCase):
+class ResourceBillingTypeFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.url = factories.ResourceFactory.get_list_url()
@@ -552,7 +552,7 @@ class ResourceBillingTypeFilterTest(test.APITransactionTestCase):
         self.assertIn(self.fixed_resource.uuid.hex, resource_uuids)
 
 
-class ComponentCountFilterTest(test.APITransactionTestCase):
+class ComponentCountFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.url = factories.ResourceFactory.get_list_url()
@@ -720,7 +720,7 @@ class ComponentCountFilterTest(test.APITransactionTestCase):
         self.assertGreaterEqual(len(response.data), 5)
 
 
-class OnlyUsageBasedFilterRealWorldTest(test.APITransactionTestCase):
+class OnlyUsageBasedFilterRealWorldTest(test.APITestCase):
     """Test the only_usage_based filter with real-world scenario to ensure the fix works"""
 
     def setUp(self):
@@ -770,7 +770,7 @@ class OnlyUsageBasedFilterRealWorldTest(test.APITransactionTestCase):
         self.assertIn(self.limit_only_resource.uuid.hex, resource_uuids)
 
 
-class ComponentUsageFilterTest(test.APITransactionTestCase):
+class ComponentUsageFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.url = factories.ComponentUsageFactory.get_list_url()
@@ -834,7 +834,7 @@ class ComponentUsageFilterTest(test.APITransactionTestCase):
         self.assertGreaterEqual(len(response.data), 3)
 
 
-class OfferingQueryFilterTest(test.APITransactionTestCase):
+class OfferingQueryFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering1 = factories.OfferingFactory(
@@ -888,7 +888,7 @@ class OfferingQueryFilterTest(test.APITransactionTestCase):
         self.assertEqual(response.data[0]["uuid"], self.offering1.uuid.hex)
 
 
-class OrderQueryFilterTest(test.APITransactionTestCase):
+class OrderQueryFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.order1 = factories.OrderFactory(project=self.fixture.project)
@@ -936,7 +936,7 @@ class OrderQueryFilterTest(test.APITransactionTestCase):
         self.assertEqual(response.data[0]["uuid"], self.order1.uuid.hex)
 
 
-class ResourceQueryFilterSlugTest(test.APITransactionTestCase):
+class ResourceQueryFilterSlugTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.resource1 = factories.ResourceFactory(

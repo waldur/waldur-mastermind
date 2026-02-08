@@ -7,7 +7,7 @@ from waldur_core.checklist.tests import factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 
 
-class PhoneNumberQuestionTest(test.APITransactionTestCase):
+class PhoneNumberQuestionTest(test.APITestCase):
     """Test PHONE_NUMBER question type validation."""
 
     def setUp(self):
@@ -50,7 +50,7 @@ class PhoneNumberQuestionTest(test.APITransactionTestCase):
         self.assertFalse(question.is_valid_answer(None))
 
 
-class YearQuestionTest(test.APITransactionTestCase):
+class YearQuestionTest(test.APITestCase):
     """Test YEAR question type validation with min/max support."""
 
     def setUp(self):
@@ -104,7 +104,7 @@ class YearQuestionTest(test.APITransactionTestCase):
         self.assertFalse(question.is_valid_answer([2024]))
 
 
-class EmailQuestionTest(test.APITransactionTestCase):
+class EmailQuestionTest(test.APITestCase):
     """Test EMAIL question type validation."""
 
     def setUp(self):
@@ -135,7 +135,7 @@ class EmailQuestionTest(test.APITransactionTestCase):
         self.assertFalse(question.is_valid_answer(["user@example.com"]))
 
 
-class UrlQuestionTest(test.APITransactionTestCase):
+class UrlQuestionTest(test.APITestCase):
     """Test URL question type validation."""
 
     def setUp(self):
@@ -166,7 +166,7 @@ class UrlQuestionTest(test.APITransactionTestCase):
         self.assertFalse(question.is_valid_answer(["https://example.com"]))
 
 
-class CountryQuestionTest(test.APITransactionTestCase):
+class CountryQuestionTest(test.APITestCase):
     """Test COUNTRY question type validation."""
 
     def setUp(self):
@@ -210,7 +210,7 @@ class CountryQuestionTest(test.APITransactionTestCase):
         self.assertFalse(utils.apply_operator(["DE"], eu_countries, "not_in"))
 
 
-class RatingQuestionTest(test.APITransactionTestCase):
+class RatingQuestionTest(test.APITestCase):
     """Test RATING question type validation with min/max support."""
 
     def setUp(self):
@@ -273,7 +273,7 @@ class RatingQuestionTest(test.APITransactionTestCase):
         self.assertFalse(question.is_valid_answer("6"))
 
 
-class DatetimeQuestionTest(test.APITransactionTestCase):
+class DatetimeQuestionTest(test.APITestCase):
     """Test DATETIME question type validation."""
 
     def setUp(self):
@@ -321,7 +321,7 @@ class DatetimeQuestionTest(test.APITransactionTestCase):
         self.assertTrue(question.is_valid_answer("2024-01-15"))
 
 
-class NewQuestionTypesApiTest(test.APITransactionTestCase):
+class NewQuestionTypesApiTest(test.APITestCase):
     """Test API creation of new question types."""
 
     def setUp(self):
@@ -430,7 +430,7 @@ class NewQuestionTypesApiTest(test.APITransactionTestCase):
         self.assertEqual(question.question_type, enums.QuestionTypes.DATETIME)
 
 
-class NewQuestionTypesOperatorTest(test.APITransactionTestCase):
+class NewQuestionTypesOperatorTest(test.APITestCase):
     """Test operator support for new question types."""
 
     def test_phone_number_supports_equals_contains(self):

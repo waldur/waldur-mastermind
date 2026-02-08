@@ -7,7 +7,7 @@ from waldur_openstack import executors, models, serializers
 from waldur_openstack.tests import factories, fixtures
 
 
-class TenantSerializerTest(test.APITransactionTestCase):
+class TenantSerializerTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.settings = self.fixture.settings
@@ -60,7 +60,7 @@ class TenantSerializerTest(test.APITransactionTestCase):
         self.assertEqual(models.SubNet.objects.filter(tenant=tenant).count(), 1)
 
 
-class TenantRouterSkipTest(test.APITransactionTestCase):
+class TenantRouterSkipTest(test.APITestCase):
     """Tests for skip_creation_of_default_router functionality."""
 
     def setUp(self):

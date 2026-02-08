@@ -15,7 +15,7 @@ from waldur_mastermind.marketplace_site_agent.tests import factories
 
 
 @ddt
-class AgentIdentityCreateTest(test.APITransactionTestCase):
+class AgentIdentityCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -82,7 +82,7 @@ class AgentIdentityCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class AgentIdentityListTest(test.APITransactionTestCase):
+class AgentIdentityListTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.fixture.offering_admin
@@ -134,7 +134,7 @@ class AgentIdentityListTest(test.APITransactionTestCase):
 @mock.patch(
     "waldur_core.logging.backend.RabbitMQManagementBackend.assign_rabbitmq_vhost_permissions"
 )
-class AgentIdentityEventSubscriptionTest(test.APITransactionTestCase):
+class AgentIdentityEventSubscriptionTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -455,7 +455,7 @@ class AgentIdentityEventSubscriptionTest(test.APITransactionTestCase):
 
 
 @ddt
-class AgentIdentityRegisterServiceTest(test.APITransactionTestCase):
+class AgentIdentityRegisterServiceTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering

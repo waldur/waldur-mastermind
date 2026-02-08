@@ -3,7 +3,7 @@ from rest_framework import status, test
 from waldur_rancher.tests import factories, fixtures
 
 
-class RancherUserGetTest(test.APITransactionTestCase):
+class RancherUserGetTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()

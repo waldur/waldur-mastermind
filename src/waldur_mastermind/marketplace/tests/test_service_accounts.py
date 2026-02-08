@@ -23,7 +23,7 @@ TOKEN_CLIENT_ID = "test-client-id"
 TOKEN_SECRET = "test-client-secret"
 
 
-class BaseServiceAccountTest(test.APITransactionTestCase):
+class BaseServiceAccountTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
 
@@ -826,7 +826,7 @@ class ScopedServiceAccountAPITest(BaseServiceAccountTest):
         self.assertEqual(account.state, ServiceAccountState.OK)
 
 
-class ServiceAccountOfferingTest(test.APITransactionTestCase):
+class ServiceAccountOfferingTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering

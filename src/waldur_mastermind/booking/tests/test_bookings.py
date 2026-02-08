@@ -12,7 +12,7 @@ from ...marketplace.enums import BOOKING_OFFERING
 from . import fixtures
 
 
-class BookingsTest(test.APITransactionTestCase):
+class BookingsTest(test.APITestCase):
     def setUp(self):
         self.schedules = [
             {
@@ -98,7 +98,7 @@ class BookingsTest(test.APITransactionTestCase):
 
 
 @freeze_time("2020-02-01")
-class SlotsTest(test.APITransactionTestCase):
+class SlotsTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         schedules = [

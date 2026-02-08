@@ -8,7 +8,7 @@ from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
 @ddt
-class IntegrationStatusCreationTest(test.APITransactionTestCase):
+class IntegrationStatusCreationTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -119,7 +119,7 @@ class IntegrationStatusCreationTest(test.APITransactionTestCase):
 
 
 @ddt
-class IntegrationStatusGetTest(test.APITransactionTestCase):
+class IntegrationStatusGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering

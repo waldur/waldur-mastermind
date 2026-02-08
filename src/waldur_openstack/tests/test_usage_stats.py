@@ -17,7 +17,7 @@ def clean_rows(rows):
     return sorted(map(clean_row, rows), key=lambda k: k["name"])
 
 
-class TestImageUsageStats(test.APITransactionTestCase):
+class TestImageUsageStats(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.admin = self.fixture.staff
@@ -79,7 +79,7 @@ class TestImageUsageStats(test.APITransactionTestCase):
         self.assertListEqual(clean_rows(expected), clean_rows(response.data))
 
 
-class TestFlavorUsageStats(test.APITransactionTestCase):
+class TestFlavorUsageStats(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.admin = self.fixture.staff

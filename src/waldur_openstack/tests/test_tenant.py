@@ -20,7 +20,7 @@ from . import factories, fixtures
 
 
 @override_openstack_settings(TENANT_CREDENTIALS_VISIBLE=True)
-class BaseTenantActionsTest(test.APITransactionTestCase):
+class BaseTenantActionsTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.OpenStackFixture()
@@ -761,7 +761,7 @@ class TenantChangePasswordTest(BaseTenantActionsTest):
 
 
 @ddt
-class TenantExecutorTest(test.APITransactionTestCase):
+class TenantExecutorTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant
@@ -805,7 +805,7 @@ class TenantExecutorTest(test.APITransactionTestCase):
         )
 
 
-class TenantTasksTest(test.APITransactionTestCase):
+class TenantTasksTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant
@@ -839,7 +839,7 @@ class TenantTasksTest(test.APITransactionTestCase):
             self.assertEqual(self.tenant.state, CoreStates.ERRED)
 
 
-class TenantDisabledActionsTest(test.APITransactionTestCase):
+class TenantDisabledActionsTest(test.APITestCase):
     """Tests to verify that create and destroy actions are disabled for the tenant endpoint."""
 
     def setUp(self):

@@ -4,7 +4,7 @@ from waldur_core.structure.tests import fixtures
 from waldur_mastermind.marketplace import serializers
 
 
-class ConditionalCascadeEdgeCasesTest(test.APITransactionTestCase):
+class ConditionalCascadeEdgeCasesTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 

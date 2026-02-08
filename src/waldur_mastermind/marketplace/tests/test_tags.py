@@ -9,7 +9,7 @@ from . import factories, fixtures
 
 
 @ddt
-class TagListTest(test.APITransactionTestCase):
+class TagListTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.tag = factories.TagFactory()
@@ -25,7 +25,7 @@ class TagListTest(test.APITransactionTestCase):
 
 
 @ddt
-class TagPermissionTest(test.APITransactionTestCase):
+class TagPermissionTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.other_fixture = fixtures.MarketplaceFixture()
@@ -97,7 +97,7 @@ class TagPermissionTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class TagOfferingCountTest(test.APITransactionTestCase):
+class TagOfferingCountTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.other_fixture = fixtures.MarketplaceFixture()
@@ -149,7 +149,7 @@ class TagOfferingCountTest(test.APITransactionTestCase):
         self.assertEqual(response.data["offering_count"], 4)
 
 
-class OfferingTagFilterTest(test.APITransactionTestCase):
+class OfferingTagFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.tag_hpc = factories.TagFactory(name="hpc")
@@ -239,7 +239,7 @@ class OfferingTagFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 0)  # No offering has both tags
 
 
-class OfferingTagUpdateTest(test.APITransactionTestCase):
+class OfferingTagUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.tag1 = factories.TagFactory(name="tag1")

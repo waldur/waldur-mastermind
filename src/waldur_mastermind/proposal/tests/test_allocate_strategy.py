@@ -13,7 +13,7 @@ from . import factories
 
 
 @ddt
-class ManualApproveTest(test.APITransactionTestCase):
+class ManualApproveTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal

@@ -108,9 +108,7 @@ class ProposalComplianceTestMixin:
 
 
 @ddt
-class ProposalComplianceCreationTest(
-    ProposalComplianceTestMixin, test.APITransactionTestCase
-):
+class ProposalComplianceCreationTest(ProposalComplianceTestMixin, test.APITestCase):
     """Test automatic creation of checklist completion objects."""
 
     def test_checklist_completion_created_on_proposal_creation(self):
@@ -169,9 +167,7 @@ class ProposalComplianceCreationTest(
 
 
 @ddt
-class ProposalComplianceAPITest(
-    ProposalComplianceTestMixin, test.APITransactionTestCase
-):
+class ProposalComplianceAPITest(ProposalComplianceTestMixin, test.APITestCase):
     """Test compliance checklist API endpoints."""
 
     def test_get_compliance_checklist_as_proposal_manager(self):
@@ -373,9 +369,7 @@ class ProposalComplianceAPITest(
 
 
 @ddt
-class CallManagerComplianceTest(
-    ProposalComplianceTestMixin, test.APITransactionTestCase
-):
+class CallManagerComplianceTest(ProposalComplianceTestMixin, test.APITestCase):
     """Test call manager compliance oversight features."""
 
     def setUp(self):
@@ -534,7 +528,7 @@ class CallManagerComplianceTest(
 
 @ddt
 class ProposalSubmissionWithComplianceTest(
-    ProposalComplianceTestMixin, test.APITransactionTestCase
+    ProposalComplianceTestMixin, test.APITestCase
 ):
     """Test proposal submission with compliance requirements."""
 
@@ -616,9 +610,7 @@ class ProposalSubmissionWithComplianceTest(
 
 
 @ddt
-class CallComplianceConfigurationTest(
-    ProposalComplianceTestMixin, test.APITransactionTestCase
-):
+class CallComplianceConfigurationTest(ProposalComplianceTestMixin, test.APITestCase):
     """Test call compliance checklist configuration."""
 
     def test_assign_compliance_checklist_to_call(self):
@@ -705,7 +697,7 @@ class CallComplianceConfigurationTest(
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class ChecklistCompletionTest(ProposalComplianceTestMixin, test.APITransactionTestCase):
+class ChecklistCompletionTest(ProposalComplianceTestMixin, test.APITestCase):
     """Test the ChecklistCompletion model functionality."""
 
     def test_completion_percentage_calculation(self):
@@ -834,9 +826,7 @@ class ChecklistCompletionTest(ProposalComplianceTestMixin, test.APITransactionTe
         self.assertEqual(unanswered.count(), 0)
 
 
-class ProposalComplianceSignalsTest(
-    ProposalComplianceTestMixin, test.APITransactionTestCase
-):
+class ProposalComplianceSignalsTest(ProposalComplianceTestMixin, test.APITestCase):
     """Test Django signals related to proposal compliance."""
 
     def test_checklist_completion_created_via_signal(self):

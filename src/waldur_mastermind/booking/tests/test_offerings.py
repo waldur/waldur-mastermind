@@ -19,7 +19,7 @@ from .. import calendar
 
 
 @ddt
-class BookingOfferingActionsTest(test.APITransactionTestCase):
+class BookingOfferingActionsTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.offering = marketplace_factories.OfferingFactory(

@@ -15,7 +15,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from .. import tasks
 
 
-class NotificationsTest(test.APITransactionTestCase):
+class NotificationsTest(test.APITestCase):
     def setUp(self):
         fixture = structure_fixtures.ProjectFixture()
         offering = marketplace_factories.OfferingFactory(type=BOOKING_OFFERING)

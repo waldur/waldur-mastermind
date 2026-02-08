@@ -170,7 +170,7 @@ class DemoPresetCommandTest(TestCase):
 
 
 @ddt
-class DemoPresetAPITest(test.APITransactionTestCase):
+class DemoPresetAPITest(test.APITestCase):
     """API tests for DemoPresetViewSet."""
 
     def setUp(self):
@@ -291,7 +291,7 @@ class DemoPresetAPITest(test.APITransactionTestCase):
 
 
 @ddt
-class DemoPresetLoadTest(test.APITransactionTestCase):
+class DemoPresetLoadTest(test.APITestCase):
     """Integration tests for loading demo presets into the database."""
 
     @data(

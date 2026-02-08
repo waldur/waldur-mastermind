@@ -10,7 +10,7 @@ from waldur_openstack.tests import factories as openstack_factories
 
 
 @ddt
-class ProjectMoveTest(test.APITransactionTestCase):
+class ProjectMoveTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering

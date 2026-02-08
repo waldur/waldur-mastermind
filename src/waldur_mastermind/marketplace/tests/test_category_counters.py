@@ -4,7 +4,7 @@ from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 
 
-class CategoryCountersTest(test.APITransactionTestCase):
+class CategoryCountersTest(test.APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.client.force_authenticate(self.fixture.staff)

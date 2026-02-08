@@ -8,7 +8,7 @@ from waldur_core.logging.tests import factories
 from waldur_core.structure.tests import fixtures
 
 
-class EventSubscriptionQueueModelTest(test.APITransactionTestCase):
+class EventSubscriptionQueueModelTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.event_subscription = factories.EventSubscriptionFactory(
@@ -77,7 +77,7 @@ class EventSubscriptionQueueModelTest(test.APITransactionTestCase):
         self.assertEqual(models.EventSubscriptionQueue.objects.count(), 2)
 
 
-class EventSubscriptionQueueSerializerTest(test.APITransactionTestCase):
+class EventSubscriptionQueueSerializerTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.event_subscription = factories.EventSubscriptionFactory(
@@ -169,7 +169,7 @@ class EventSubscriptionQueueSerializerTest(test.APITransactionTestCase):
         self.assertIn("offering_uuid", serializer.errors)
 
 
-class EventSubscriptionQueueDeleteSignalTest(test.APITransactionTestCase):
+class EventSubscriptionQueueDeleteSignalTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.event_subscription = factories.EventSubscriptionFactory(
@@ -236,7 +236,7 @@ class EventSubscriptionQueueDeleteSignalTest(test.APITransactionTestCase):
         self.assertEqual(models.EventSubscriptionQueue.objects.count(), 0)
 
 
-class CleanupOrphanSubscriptionQueuesTest(test.APITransactionTestCase):
+class CleanupOrphanSubscriptionQueuesTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.event_subscription = factories.EventSubscriptionFactory(
@@ -372,7 +372,7 @@ class CleanupOrphanSubscriptionQueuesTest(test.APITransactionTestCase):
         self.assertEqual(mock_task_backend.delete_queue.call_count, 2)
 
 
-class EventSubscriptionCreateQueueActionTest(test.APITransactionTestCase):
+class EventSubscriptionCreateQueueActionTest(test.APITestCase):
     """Tests for the create_queue action on EventSubscriptionViewSet."""
 
     def setUp(self):
@@ -537,7 +537,7 @@ class EventSubscriptionCreateQueueActionTest(test.APITransactionTestCase):
         self.assertIn("offering_uuid", response.data)
 
 
-class EventSubscriptionQueueViewSetTest(test.APITransactionTestCase):
+class EventSubscriptionQueueViewSetTest(test.APITestCase):
     """Tests for EventSubscriptionQueueViewSet (list, retrieve, destroy)."""
 
     def setUp(self):

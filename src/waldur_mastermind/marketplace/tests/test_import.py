@@ -12,7 +12,7 @@ from waldur_mastermind.marketplace_azure import VIRTUAL_MACHINE_TYPE
 
 
 @ddt
-class ImportableOfferingsListTest(test.APITransactionTestCase):
+class ImportableOfferingsListTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ServiceFixture()
 
@@ -62,7 +62,7 @@ class ImportableOfferingsListTest(test.APITransactionTestCase):
         self.assertEqual(1, len(offerings))
 
 
-class ImportableResourcesListTest(test.APITransactionTestCase):
+class ImportableResourcesListTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ServiceFixture()
 

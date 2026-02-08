@@ -9,7 +9,7 @@ from waldur_mastermind.marketplace_support.tests.fixtures import (
 )
 
 
-class RequestCreateTest(test.APITransactionTestCase):
+class RequestCreateTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = SupportFixture()
@@ -45,7 +45,7 @@ class RequestCreateTest(test.APITransactionTestCase):
         return self.client.post(url, payload)
 
 
-class RequestUpdateTest(test.APITransactionTestCase):
+class RequestUpdateTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = MarketplaceSupportApprovedFixture()

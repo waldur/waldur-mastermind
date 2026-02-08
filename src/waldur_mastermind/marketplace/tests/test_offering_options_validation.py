@@ -6,7 +6,7 @@ from waldur_mastermind.marketplace import enums
 from waldur_mastermind.marketplace.tests import factories
 
 
-class OfferingOptionsValidationTest(test.APITransactionTestCase):
+class OfferingOptionsValidationTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.customer = self.fixture.customer

@@ -16,7 +16,7 @@ from waldur_core.structure.tests.utils import (
 )
 
 
-class CustomerPermissionListTest(test.APITransactionTestCase):
+class CustomerPermissionListTest(test.APITestCase):
     def test_user_cannot_list_roles_of_customer_he_is_not_affiliated(self):
         response = client_list_users(
             self.client, factories.UserFactory(), factories.CustomerFactory()
@@ -62,7 +62,7 @@ class CustomerPermissionListTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-class CustomerPermissionGrantTest(test.APITransactionTestCase):
+class CustomerPermissionGrantTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.owner = factories.UserFactory()
@@ -144,7 +144,7 @@ class CustomerPermissionGrantTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class CustomerPermissionRevokeTest(test.APITransactionTestCase):
+class CustomerPermissionRevokeTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.owner = factories.UserFactory()
@@ -217,7 +217,7 @@ class CustomerPermissionRevokeTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
-class CustomerPermissionExpirationTest(test.APITransactionTestCase):
+class CustomerPermissionExpirationTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.user = factories.UserFactory()

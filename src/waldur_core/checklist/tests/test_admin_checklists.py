@@ -9,7 +9,7 @@ from .. import enums
 
 
 @ddt
-class ChecklistAdminGetTest(test.APITransactionTestCase):
+class ChecklistAdminGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CheckListFixture()
         self.url = factories.ChecklistFactory.get_admin_list_url()
@@ -31,7 +31,7 @@ class ChecklistAdminGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class ChecklistAdminCreateTest(test.APITransactionTestCase):
+class ChecklistAdminCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.url = factories.ChecklistFactory.get_admin_list_url()
@@ -88,7 +88,7 @@ class ChecklistAdminCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ChecklistAdminUpdateTest(test.APITransactionTestCase):
+class ChecklistAdminUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CheckListFixture()
         self.url = factories.ChecklistFactory.get_admin_url(self.fixture.checklist)
@@ -116,7 +116,7 @@ class ChecklistAdminUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ChecklistAdminDeleteTest(test.APITransactionTestCase):
+class ChecklistAdminDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CheckListFixture()
         self.url = factories.ChecklistFactory.get_admin_url(self.fixture.checklist)
@@ -139,7 +139,7 @@ class ChecklistAdminDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class ChecklistFilterTest(test.APITransactionTestCase):
+class ChecklistFilterTest(test.APITestCase):
     """Test ChecklistFilter functionality for filtering checklists by type."""
 
     def setUp(self):

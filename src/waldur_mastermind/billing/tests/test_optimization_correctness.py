@@ -11,7 +11,7 @@ from waldur_mastermind.invoices.tests import fixtures as invoice_fixtures
 
 
 @ddt
-class BillingOptimizationCorrectnessTest(test.APITransactionTestCase):
+class BillingOptimizationCorrectnessTest(test.APITestCase):
     """
     Test that the billing optimization returns identical results to the standard logic.
     """

@@ -11,7 +11,7 @@ from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 
 
 @ddt
-class ResourceUpdateOptionsTest(test.APITransactionTestCase):
+class ResourceUpdateOptionsTest(test.APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         options = {

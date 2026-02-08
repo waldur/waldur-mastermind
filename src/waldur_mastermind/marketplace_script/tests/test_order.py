@@ -9,7 +9,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from . import fixtures
 
 
-class OrderProcessedTest(test.APITransactionTestCase):
+class OrderProcessedTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ScriptFixture()
 

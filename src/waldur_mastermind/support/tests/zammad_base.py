@@ -15,7 +15,7 @@ from . import fixtures
     ZAMMAD_API_URL="http://localhost:8080",
     ZAMMAD_TOKEN="token",
 )
-class BaseTest(test.APITransactionTestCase):
+class BaseTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.SupportFixture()
 

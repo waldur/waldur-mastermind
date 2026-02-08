@@ -39,7 +39,7 @@ from waldur_mastermind.marketplace_remote.tests.dns_utils import (
 )
 
 
-class OrderReviewByProviderTest(test.APITransactionTestCase):
+class OrderReviewByProviderTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -146,7 +146,7 @@ class LimitsUpdateTest(test.APITransactionTestCase):
         process_order.assert_not_called()
 
 
-class OrderPullTest(test.APITransactionTestCase):
+class OrderPullTest(test.APITestCase):
     def setUp(self) -> None:
         self.dns_patcher = create_selective_dns_mock()
         self.dns_patcher.start()
@@ -231,7 +231,7 @@ class OrderPullTest(test.APITransactionTestCase):
         self.assertEqual(ResourceStates.OK, self.order.resource.state)
 
 
-class RemoteUpdateResourceProcessorTest(test.APITransactionTestCase):
+class RemoteUpdateResourceProcessorTest(test.APITestCase):
     def setUp(self):
         self.dns_patcher = create_selective_dns_mock()
         self.dns_patcher.start()

@@ -5,7 +5,7 @@ from waldur_vmware import models
 from . import factories, fixtures
 
 
-class VirtualDiskCreateTest(test.APITransactionTestCase):
+class VirtualDiskCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.VMwareFixture()
         self.vm = self.fixture.virtual_machine
@@ -66,7 +66,7 @@ class VirtualDiskCreateTest(test.APITransactionTestCase):
         return {"size": size}
 
 
-class VirtualDiskExtendTest(test.APITransactionTestCase):
+class VirtualDiskExtendTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.VMwareFixture()
         self.disk = self.fixture.disk
@@ -142,7 +142,7 @@ class VirtualDiskExtendTest(test.APITransactionTestCase):
         self.assertEqual(self.disk.vm.disk, 20 * 1024)
 
 
-class VirtualDiskDeleteTest(test.APITransactionTestCase):
+class VirtualDiskDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.VMwareFixture()
         self.disk = self.fixture.disk

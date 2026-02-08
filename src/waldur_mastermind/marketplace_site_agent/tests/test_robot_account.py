@@ -13,7 +13,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 
 
-class RobotAccountGlauthConfigTest(test.APITransactionTestCase):
+class RobotAccountGlauthConfigTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering

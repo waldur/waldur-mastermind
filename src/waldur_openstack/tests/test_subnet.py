@@ -6,7 +6,7 @@ from rest_framework import status, test
 from . import factories, fixtures
 
 
-class BaseSubNetTest(test.APITransactionTestCase):
+class BaseSubNetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
 
@@ -207,7 +207,7 @@ class SubNetUpdateActionTest(BaseSubNetTest):
 
 
 @ddt
-class SubNetRBACTest(test.APITransactionTestCase):
+class SubNetRBACTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.subnet = self.fixture.subnet

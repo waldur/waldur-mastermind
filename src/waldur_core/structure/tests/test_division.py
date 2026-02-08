@@ -6,7 +6,7 @@ from waldur_core.structure.tests import factories, fixtures
 
 
 @ddt
-class OrganizationGroupListTest(test.APITransactionTestCase):
+class OrganizationGroupListTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.organization_group_1 = factories.OrganizationGroupFactory()
@@ -60,7 +60,7 @@ class OrganizationGroupListTest(test.APITransactionTestCase):
 
 
 @ddt
-class OrganizationGroupChangeTest(test.APITransactionTestCase):
+class OrganizationGroupChangeTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         self.organization_group_1 = factories.OrganizationGroupFactory()
@@ -102,7 +102,7 @@ class OrganizationGroupChangeTest(test.APITransactionTestCase):
 
 
 @ddt
-class OrganizationGroupCreateTest(test.APITransactionTestCase):
+class OrganizationGroupCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 

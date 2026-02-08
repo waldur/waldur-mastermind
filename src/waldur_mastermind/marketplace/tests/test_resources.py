@@ -42,7 +42,7 @@ from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 from waldur_openstack.tests import factories as openstack_factories
 
 
-class ResourceGetTest(test.APITransactionTestCase):
+class ResourceGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project
@@ -402,7 +402,7 @@ class ResourceSwitchPlanTest(test.APITransactionTestCase):
         mock_tasks.process_order.delay.assert_not_called()
 
 
-class ResourceRenewTest(test.APITransactionTestCase):
+class ResourceRenewTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project
@@ -626,7 +626,7 @@ class ResourceRenewTest(test.APITransactionTestCase):
 
 
 @ddt
-class ResourceTerminateTest(test.APITransactionTestCase):
+class ResourceTerminateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project
@@ -757,7 +757,7 @@ class ResourceTerminateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
-class PlanUsageTest(test.APITransactionTestCase):
+class PlanUsageTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project
@@ -871,7 +871,7 @@ class PlanUsageTest(test.APITransactionTestCase):
         )
 
 
-class ResourceCostEstimateTest(test.APITransactionTestCase):
+class ResourceCostEstimateTest(test.APITestCase):
     @override_config(
         WALDUR_SUPPORT_ENABLED=True,
         WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE="basic",
@@ -1114,7 +1114,7 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class ResourceReallocateLimitsTest(test.APITransactionTestCase):
+class ResourceReallocateLimitsTest(test.APITestCase):
     def setUp(self):
         plugins.manager.register(
             offering_type="TEST_TYPE",
@@ -1592,7 +1592,7 @@ class ResourceReallocateLimitsTest(test.APITransactionTestCase):
         )
 
 
-class ResourceMoveTest(test.APITransactionTestCase):
+class ResourceMoveTest(test.APITestCase):
     def setUp(self):
         self.tenant = openstack_factories.TenantFactory()
         self.fixture = fixtures.ProjectFixture()
@@ -1671,7 +1671,7 @@ class ResourceMoveTest(test.APITransactionTestCase):
 
 
 @ddt
-class ResourceBackendIDTest(test.APITransactionTestCase):
+class ResourceBackendIDTest(test.APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.resource = self.fixture.resource
@@ -1700,7 +1700,7 @@ class ResourceBackendIDTest(test.APITransactionTestCase):
 
 
 @ddt
-class ResourceBackendMetadataTest(test.APITransactionTestCase):
+class ResourceBackendMetadataTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = MarketplaceFixture()
         self.resource = self.fixture.resource
@@ -1733,7 +1733,7 @@ class ResourceBackendMetadataTest(test.APITransactionTestCase):
 
 
 @ddt
-class ResourceSetStateErredTest(test.APITransactionTestCase):
+class ResourceSetStateErredTest(test.APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.resource = self.fixture.resource
@@ -1779,7 +1779,7 @@ class ResourceSetStateErredTest(test.APITransactionTestCase):
 
 
 @ddt
-class ResourceReportTest(test.APITransactionTestCase):
+class ResourceReportTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -1827,7 +1827,7 @@ class ResourceReportTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class ResourceDetailsTest(test.APITransactionTestCase):
+class ResourceDetailsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -1859,7 +1859,7 @@ class ResourceDetailsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
-class ResourceGetTeamTest(test.APITransactionTestCase):
+class ResourceGetTeamTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -1899,7 +1899,7 @@ class ResourceGetTeamTest(test.APITransactionTestCase):
         self.assertEqual(self.admin.username, user["username"])
 
 
-class ResourceUsageLimitsTest(test.APITransactionTestCase):
+class ResourceUsageLimitsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.user = self.fixture.staff
@@ -1964,7 +1964,7 @@ class ResourceUsageLimitsTest(test.APITransactionTestCase):
 
 
 @ddt
-class ResourceForceTerminateTest(test.APITransactionTestCase):
+class ResourceForceTerminateTest(test.APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.resource = self.fixture.resource
@@ -2034,7 +2034,7 @@ class ResourceForceTerminateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProviderResourcesTest(test.APITransactionTestCase):
+class ProviderResourcesTest(test.APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.resource = self.fixture.resource
@@ -2055,7 +2055,7 @@ class ProviderResourcesTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProviderResourceLimitsSetTest(test.APITransactionTestCase):
+class ProviderResourceLimitsSetTest(test.APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.resource = self.fixture.resource
@@ -2098,7 +2098,7 @@ class ProviderResourceLimitsSetTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProviderUpdateOptionsDirectTest(test.APITransactionTestCase):
+class ProviderUpdateOptionsDirectTest(test.APITestCase):
     def setUp(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_OPTIONS)
         self.fixture = MarketplaceFixture()

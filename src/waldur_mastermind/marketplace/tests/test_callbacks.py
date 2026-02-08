@@ -9,7 +9,7 @@ from waldur_openstack.tests.factories import InstanceFactory
 
 
 @freeze_time("2018-11-01")
-class CallbacksTest(test.APITransactionTestCase):
+class CallbacksTest(test.APITestCase):
     def test_when_resource_is_created_new_period_is_opened(self):
         # Arrange
         start = parse_datetime("2018-11-01")

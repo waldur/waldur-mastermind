@@ -25,7 +25,7 @@ from waldur_mastermind.marketplace_remote.tests.dns_utils import (
 )
 
 
-class InvoiceItemPullTest(test.APITransactionTestCase):
+class InvoiceItemPullTest(test.APITestCase):
     def setUp(self) -> None:
         self.dns_patcher = create_selective_dns_mock()
         self.dns_patcher.start()

@@ -10,7 +10,7 @@ from . import factories, fixtures
 
 
 @ddt
-class CreateRbacPolicyTest(test.APITransactionTestCase):
+class CreateRbacPolicyTest(test.APITestCase):
     def setUp(self):
         self.neutron_client_patcher = mock.patch(
             "waldur_openstack.backend.get_neutron_client"
@@ -81,7 +81,7 @@ class CreateRbacPolicyTest(test.APITransactionTestCase):
 
 
 @ddt
-class DeleteRbacPolicyTest(test.APITransactionTestCase):
+class DeleteRbacPolicyTest(test.APITestCase):
     def setUp(self):
         self.neutron_client_patcher = mock.patch(
             "waldur_openstack.backend.get_neutron_client"

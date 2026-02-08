@@ -4,7 +4,7 @@ from waldur_core.core import models as core_models
 from waldur_core.structure.tests import factories
 
 
-class BaseSshKeyTest(test.APITransactionTestCase):
+class BaseSshKeyTest(test.APITestCase):
     def setUp(self):
         self.staff = factories.UserFactory(is_staff=True)
         self.user = factories.UserFactory()

@@ -7,7 +7,7 @@ from waldur_core.structure.tests.factories import UserFactory
 
 
 @ddt
-class TestCustomerQuotas(test.APITransactionTestCase):
+class TestCustomerQuotas(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.customer = self.fixture.customer

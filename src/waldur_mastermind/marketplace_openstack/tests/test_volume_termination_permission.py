@@ -22,7 +22,7 @@ from waldur_mastermind.marketplace.tests import factories
 from waldur_openstack.tests import factories as openstack_factories
 
 
-class VolumeTerminationPermissionTest(test.APITransactionTestCase):
+class VolumeTerminationPermissionTest(test.APITestCase):
     """
     Test that PROJECT.MANAGER users can terminate marketplace resources
     with OpenStack Volume scopes without permission errors.

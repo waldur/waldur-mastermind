@@ -9,7 +9,7 @@ from waldur_openstack import models
 from . import factories, fixtures
 
 
-class BaseServerGroupTest(test.APITransactionTestCase):
+class BaseServerGroupTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
 

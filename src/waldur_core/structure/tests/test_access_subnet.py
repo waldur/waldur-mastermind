@@ -9,7 +9,7 @@ from waldur_core.structure.tests import factories, fixtures
 
 
 @ddt
-class AccessSubnetCreateTest(test.APITransactionTestCase):
+class AccessSubnetCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer_url = factories.CustomerFactory.get_url(
@@ -44,7 +44,7 @@ class AccessSubnetCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class AccessSubnetUpdateTest(test.APITransactionTestCase):
+class AccessSubnetUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.patcher = mock.patch("waldur_core.structure.managers.core_utils")
@@ -97,7 +97,7 @@ class AccessSubnetUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class AccessSubnetDeleteTest(test.APITransactionTestCase):
+class AccessSubnetDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project_user = self.fixture.user
@@ -130,7 +130,7 @@ class AccessSubnetDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class AccessSubnetGetTest(test.APITransactionTestCase):
+class AccessSubnetGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.access_subnet = factories.AccessSubnetFactory(
@@ -157,7 +157,7 @@ class AccessSubnetGetTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 0)
 
 
-class AccessSubnetOrderingTest(test.APITransactionTestCase):
+class AccessSubnetOrderingTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 

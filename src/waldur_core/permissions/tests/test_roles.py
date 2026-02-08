@@ -17,7 +17,7 @@ from waldur_mastermind.marketplace.tests import fixtures
 ROLE_ENDPOINT = "/api/roles/"
 
 
-class RoleTest(test.APITransactionTestCase):
+class RoleTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.project = self.fixture.project
@@ -194,7 +194,7 @@ class RoleTest(test.APITransactionTestCase):
         self.assertEqual(action_response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class RoleUpdateDescriptionsTest(test.APITransactionTestCase):
+class RoleUpdateDescriptionsTest(test.APITestCase):
     def setUp(self):
         self.staff = UserFactory(is_staff=True)
         self.role = models.Role.objects.create(
@@ -235,7 +235,7 @@ class RoleUpdateDescriptionsTest(test.APITransactionTestCase):
 
 
 @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
-class UserDeactivationTest(test.APITransactionTestCase):
+class UserDeactivationTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.user = self.fixture.owner

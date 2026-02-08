@@ -17,7 +17,7 @@ from . import factories
 
 
 @ddt
-class PublicCallGetTest(test.APITransactionTestCase):
+class PublicCallGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
 
@@ -46,7 +46,7 @@ class PublicCallGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class CallGetTest(test.APITransactionTestCase):
+class CallGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
 
@@ -82,7 +82,7 @@ class CallGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class CallCreateTest(test.APITransactionTestCase):
+class CallCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.manager = self.fixture.manager
@@ -211,7 +211,7 @@ class CallUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class CallDeleteTest(test.APITransactionTestCase):
+class CallDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.draft_call = self.fixture.new_call
@@ -263,7 +263,7 @@ class CallDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class CallActivateTest(test.APITransactionTestCase):
+class CallActivateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.draft_call = self.fixture.new_call
@@ -327,7 +327,7 @@ class CallActivateTest(test.APITransactionTestCase):
 
 
 @ddt
-class CallArchiveTest(test.APITransactionTestCase):
+class CallArchiveTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.draft_call = self.fixture.new_call
@@ -362,7 +362,7 @@ class CallArchiveTest(test.APITransactionTestCase):
 
 
 @ddt
-class RequestedOfferingsGetTest(test.APITransactionTestCase):
+class RequestedOfferingsGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.url = factories.RequestedOfferingFactory.get_list_url(self.fixture.call)
@@ -492,7 +492,7 @@ class RequestedOfferingsGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class RequestedOfferingsCreateTest(test.APITransactionTestCase):
+class RequestedOfferingsCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.url = factories.RequestedOfferingFactory.get_list_url(self.fixture.call)
@@ -557,7 +557,7 @@ class RequestedOfferingsCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class RequestedOfferingsUpdateTest(test.APITransactionTestCase):
+class RequestedOfferingsUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.requested_offering = self.fixture.requested_offering
@@ -605,7 +605,7 @@ class RequestedOfferingsUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class RequestedOfferingsDeleteTest(test.APITransactionTestCase):
+class RequestedOfferingsDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.requested_offering = self.fixture.requested_offering
@@ -653,7 +653,7 @@ class RequestedOfferingsDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class AvailableChecklistsTest(test.APITransactionTestCase):
+class AvailableChecklistsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.checklist = checklist_factories.ChecklistFactory(
@@ -739,7 +739,7 @@ class AvailableChecklistsTest(test.APITransactionTestCase):
         self.assertIn("category_uuid", checklist_data)
 
 
-class CallProposalSlugTemplateSerializerTest(test.APITransactionTestCase):
+class CallProposalSlugTemplateSerializerTest(test.APITestCase):
     """Tests for proposal_slug_template field validation in Call serializer."""
 
     def setUp(self):

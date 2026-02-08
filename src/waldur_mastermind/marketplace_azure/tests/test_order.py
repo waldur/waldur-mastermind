@@ -9,7 +9,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_mastermind.marketplace_azure import SQL_SERVER_TYPE, VIRTUAL_MACHINE_TYPE
 
 
-class VirtualMachineCreateTest(test.APITransactionTestCase):
+class VirtualMachineCreateTest(test.APITestCase):
     def test_virtual_machine_is_created_when_order_is_processed(self):
         order = self.trigger_virtual_machine_creation()
         self.assertEqual(order.state, OrderStates.EXECUTING)
@@ -72,7 +72,7 @@ class VirtualMachineCreateTest(test.APITransactionTestCase):
         return order
 
 
-class SQLServerCreateTest(test.APITransactionTestCase):
+class SQLServerCreateTest(test.APITestCase):
     def test_sql_server_is_created_when_order_is_processed(self):
         order = self.trigger_resource_creation()
         self.assertEqual(order.state, OrderStates.EXECUTING)

@@ -9,7 +9,7 @@ from waldur_core.users import models
 from waldur_core.users.tests import factories
 
 
-class PublicGroupInvitationTest(test.APITransactionTestCase):
+class PublicGroupInvitationTest(test.APITestCase):
     def setUp(self):
         self.staff = structure_factories.UserFactory(is_staff=True)
         self.regular_user = structure_factories.UserFactory()

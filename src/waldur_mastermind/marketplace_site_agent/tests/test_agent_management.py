@@ -16,7 +16,7 @@ from waldur_mastermind.marketplace_site_agent.tests import factories
 
 
 @ddt
-class AgentServiceDestroyTest(test.APITransactionTestCase):
+class AgentServiceDestroyTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -61,7 +61,7 @@ class AgentServiceDestroyTest(test.APITransactionTestCase):
 
 
 @ddt
-class AgentProcessorDestroyTest(test.APITransactionTestCase):
+class AgentProcessorDestroyTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -119,7 +119,7 @@ class AgentProcessorDestroyTest(test.APITransactionTestCase):
 
 
 @ddt
-class AgentIdentityCleanupOrphanedTest(test.APITransactionTestCase):
+class AgentIdentityCleanupOrphanedTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -195,7 +195,7 @@ class AgentIdentityCleanupOrphanedTest(test.APITransactionTestCase):
 
 
 @ddt
-class AgentServiceCleanupStaleTest(test.APITransactionTestCase):
+class AgentServiceCleanupStaleTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -271,7 +271,7 @@ class AgentServiceCleanupStaleTest(test.APITransactionTestCase):
 
 
 @ddt
-class AgentStatsViewSetTest(test.APITransactionTestCase):
+class AgentStatsViewSetTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -345,7 +345,7 @@ class AgentStatsViewSetTest(test.APITransactionTestCase):
 
 
 @ddt
-class AgentTaskStatsViewSetTest(test.APITransactionTestCase):
+class AgentTaskStatsViewSetTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
 
@@ -384,7 +384,7 @@ class AgentTaskStatsViewSetTest(test.APITransactionTestCase):
 
 
 @ddt
-class AgentServiceStaleFilterTest(test.APITransactionTestCase):
+class AgentServiceStaleFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -432,7 +432,7 @@ class AgentServiceStaleFilterTest(test.APITransactionTestCase):
 
 
 @ddt
-class AgentIdentityOrphanedFilterTest(test.APITransactionTestCase):
+class AgentIdentityOrphanedFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering

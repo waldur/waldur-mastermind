@@ -35,12 +35,31 @@
 - Test boundary conditions: exact expiration time, microseconds past expiration
 - Create roles with `timezone.now() ± timedelta()` for realistic time testing
 
-### 6. Integration vs Unit Test Strategy
+### 6. Test Base Class Selection
 
-- **Use integration tests for workflows**, unit tests for utilities
-- Test complete permission flows: role creation → permission assignment → permission checking
-- Use `APITransactionTestCase` for integration tests requiring database transactions
-- Use `TestCase` for simple unit tests of utility functions
+Choose the right test base class for each test:
+
+- **Default: `test.APITestCase`** — uses transaction rollback, much faster
+- **Use `test.APITransactionTestCase`** only when:
+  1. `transaction.on_commit()` callbacks must fire (e.g., Celery task dispatch)
+  2. `IntegrityError` is deliberately triggered (breaks TestCase's wrapping transaction)
+  3. Threading or multi-process database access is needed
+  4. `responses.start()` in `setUp` for class-wide HTTP mocking (leaks across TestCase classes)
+
+```python
+# GOOD: Default to APITestCase
+class MyTest(test.APITestCase):
+    def test_something(self):
+        ...
+
+# GOOD: Use APITransactionTestCase when on_commit is needed
+class OrderProcessingTest(test.APITransactionTestCase):
+    def test_order_triggers_task(self):
+        # on_commit callback fires Celery task
+        ...
+```
+
+A CI lint job (`scripts/analyze_transaction_test_cases.py --ci --baseline N`) enforces this — adding new unjustified `APITransactionTestCase` classes will fail the pipeline. The baseline is lowered as classes are migrated.
 
 ### 7. Performance Testing Considerations
 
@@ -61,6 +80,75 @@
 - Handle `AttributeError` when accessing missing nested attributes
 - Test with inactive users, deleted roles, removed permissions
 - Verify behavior with complex nested object hierarchies
+
+### 10. HTTP Mocking Patterns
+
+**Preferred: `@responses.activate` per method** — fully isolated, no cleanup needed:
+
+```python
+class MyTest(test.APITestCase):
+    @responses.activate
+    def test_external_call(self):
+        responses.add(responses.GET, "https://api.example.com/data", json={"ok": True})
+        result = my_function()
+        self.assertEqual(result, {"ok": True})
+```
+
+**Class-wide mocking with `responses.start()`** — requires `APITransactionTestCase`:
+
+```python
+class ExternalAPITest(test.APITransactionTestCase):
+    """responses.start() in setUp leaks state across TestCase classes."""
+
+    def setUp(self):
+        super().setUp()
+        responses.start()
+        responses.add(responses.GET, "https://api.example.com/data", json={"ok": True})
+
+    def tearDown(self):
+        responses.stop()
+        responses.reset()
+        super().tearDown()
+```
+
+Using `responses.start()` in `setUp` with `APITestCase` causes leaked mock state across test classes because `TestCase` doesn't fully reset process-level state between classes.
+
+### 11. Multiple Inheritance Pitfall
+
+When combining `APITransactionTestCase` with a mixin that extends `APITestCase`, Python's MRO can silently break `TransactionTestCase` behavior:
+
+```python
+# BAD: MRO puts TestCase._fixture_teardown first
+class MyTest(test.APITransactionTestCase, SomeTestMixin):
+    ...  # SomeTestMixin extends APITestCase — TransactionTestCase teardown is skipped
+
+# GOOD: Ensure all parents use TransactionTestCase, or use standalone setup
+class MyTest(test.APITransactionTestCase):
+    def setUp(self):
+        super().setUp()
+        # Set up mocks directly instead of inheriting from a TestCase mixin
+```
+
+### 12. OpenStack Backend Test Patterns
+
+When writing standalone backend tests that don't inherit from `BaseBackendTestCase`:
+
+```python
+class StandaloneBackendTest(test.APITransactionTestCase):
+    def setUp(self):
+        super().setUp()
+        self.fixture = openstack_fixtures.OpenStackFixture()
+        # Mock all 5 OpenStack clients
+        self.mock_admin = mock.patch("waldur_openstack.openstack_base.backend.AdminSession").start()
+        self.mock_session = mock.patch("waldur_openstack.openstack_base.backend.SessionManager").start()
+        self.mock_nova = mock.patch("waldur_openstack.openstack_base.backend.NovaClient").start()
+        self.mock_neutron = mock.patch("waldur_openstack.openstack_base.backend.NeutronClient").start()
+        self.mock_cinder = mock.patch("waldur_openstack.openstack_base.backend.CinderClient").start()
+
+    def tearDown(self):
+        mock.patch.stopall()
+        super().tearDown()
+```
 
 ## Test Guidelines
 

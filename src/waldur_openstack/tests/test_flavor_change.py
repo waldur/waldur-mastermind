@@ -9,7 +9,7 @@ from . import factories, fixtures
 
 
 @ddt
-class FlavorListRetrieveTestCase(test.APITransactionTestCase):
+class FlavorListRetrieveTestCase(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.flavor = self.fixture.flavor
@@ -24,7 +24,7 @@ class FlavorListRetrieveTestCase(test.APITransactionTestCase):
 
 
 @ddt
-class FlavorChangeInstanceTestCase(test.APITransactionTestCase):
+class FlavorChangeInstanceTestCase(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.instance = self.fixture.instance

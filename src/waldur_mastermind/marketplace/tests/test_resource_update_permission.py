@@ -16,7 +16,7 @@ from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 
 
 @ddt
-class ResourceUpdatePermissionTest(test.APITransactionTestCase):
+class ResourceUpdatePermissionTest(test.APITestCase):
     """Test UPDATE_RESOURCE permission for resource update operations."""
 
     def setUp(self):
@@ -248,7 +248,7 @@ class ResourceUpdatePermissionTest(test.APITransactionTestCase):
 
 
 @ddt
-class ResourceUpdatePermissionIntegrationTest(test.APITransactionTestCase):
+class ResourceUpdatePermissionIntegrationTest(test.APITestCase):
     """Integration tests for UPDATE_RESOURCE permission with complex scenarios."""
 
     def setUp(self):
