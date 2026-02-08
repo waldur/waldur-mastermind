@@ -304,6 +304,7 @@ class EventType(str, Enum):
     USER_PASSWORD_UPDATED = "user_password_updated"
     USER_PASSWORD_UPDATED_BY_STAFF = "user_password_updated_by_staff"
     USER_UPDATE_SUCCEEDED = "user_update_succeeded"
+    USER_GROUP_INVITATION_UPDATED = "user_group_invitation_updated"
     USER_INVITATION_UPDATED = "user_invitation_updated"
     USER_INVITATION_DELETED = "user_invitation_deleted"
     TERMS_OF_SERVICE_CONSENT_GRANTED = "terms_of_service_consent_granted"
@@ -630,6 +631,7 @@ EVENT_GROUP_MAPPING = {
         EventType.USER_PASSWORD_UPDATED,
         EventType.USER_PASSWORD_UPDATED_BY_STAFF,
         EventType.USER_UPDATE_SUCCEEDED,
+        EventType.USER_GROUP_INVITATION_UPDATED,
         EventType.USER_INVITATION_UPDATED,
         EventType.USER_INVITATION_DELETED,
     ],

@@ -457,6 +457,14 @@ class InvitationViewSet(viewsets.ModelViewSet):
         summary="Create group invitation",
         description="Create a new group invitation, which acts as a template for users to request permissions.",
     ),
+    update=extend_schema(
+        summary="Update a group invitation",
+        description="Update an active group invitation. Only active invitations can be edited.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update a group invitation",
+        description="Partially update an active group invitation. Only active invitations can be edited.",
+    ),
     destroy=extend_schema(
         summary="Delete a group invitation",
         description="Deletes an inactive group invitation. Only invitations that have been canceled (is_active=False) can be deleted.",
@@ -473,13 +481,40 @@ class GroupInvitationViewSet(ActionsViewSet):
     permission_classes = (rf_permissions.IsAuthenticated,)
     filterset_class = filters.GroupInvitationFilter
     lookup_field = "uuid"
-    disabled_actions = ["update", "partial_update"]
 
     def get_permissions(self):
         """Allow unauthenticated access for list and retrieve of public invitations."""
         if self.action in ("list", "retrieve"):
             return []
         return super().get_permissions()
+
+    def get_serializer_class(self):
+        if self.action in ["update", "partial_update"]:
+            return serializers.GroupInvitationUpdateSerializer
+        return super().get_serializer_class()
+
+    def perform_update(self, serializer):
+        invitation = self.get_object()
+        if not can_manage_invitation_with(self.request, invitation.scope):
+            raise NotFound()
+
+        if not invitation.is_active:
+            raise ValidationError(_("Only active invitations can be edited."))
+
+        serializer.save()
+
+        event_logger.emit(
+            "Group invitation for {scope_name} has been updated by {user_username}.",
+            event_type=EventType.USER_GROUP_INVITATION_UPDATED,
+            event_context={
+                "scope_name": invitation.scope.name,
+                "user_username": self.request.user.username,
+                "invitation": invitation,
+                "user": self.request.user,
+                "scope": invitation.scope,
+            },
+            scopes=[invitation.scope],
+        )
 
     @extend_schema(
         summary="List projects for a customer-scoped group invitation",
