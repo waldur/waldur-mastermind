@@ -668,7 +668,7 @@ CONSTANCE_CONFIG = {
         "Available options: username, full_name, email, phone_number, organization, job_title, affiliations, "
         "gender, personal_title, birth_date, place_of_birth, "
         "country_of_residence, nationality, nationalities, "
-        "organization_country, organization_type, eduperson_assurance, "
+        "organization_country, organization_type, organization_registry_code, eduperson_assurance, "
         "civil_number, identity_source.",
         "list_field",
     ),
@@ -684,7 +684,7 @@ CONSTANCE_CONFIG = {
         "Available options: phone_number, organization, job_title, affiliations, "
         "gender, personal_title, birth_date, place_of_birth, "
         "country_of_residence, nationality, nationalities, "
-        "organization_country, organization_type, eduperson_assurance, "
+        "organization_country, organization_type, organization_registry_code, eduperson_assurance, "
         "civil_number, identity_source.",
         "list_field",
     ),

@@ -444,6 +444,12 @@ class User(
         validators=[validate_schac_organization_type],
         help_text=_("SCHAC URN (e.g., urn:schac:homeOrganizationType:int:university)"),
     )
+    organization_registry_code = models.CharField(
+        _("organization registry code"),
+        max_length=255,
+        blank=True,
+        help_text=_("Company registration code of the user's organization, if known"),
+    )
 
     # Identity assurance (from IdP only)
     eduperson_assurance = models.JSONField(
@@ -481,6 +487,7 @@ class User(
         "nationalities",
         "organization_country",
         "organization_type",
+        "organization_registry_code",
         "eduperson_assurance",
     ]
 

@@ -1063,6 +1063,9 @@ class Command(BaseCommand):
                         existing_user.organization_type = user_data.get(
                             "organization_type", ""
                         )
+                        existing_user.organization_registry_code = user_data.get(
+                            "organization_registry_code", ""
+                        )
                         existing_user.eduperson_assurance = user_data.get(
                             "eduperson_assurance", []
                         )
@@ -1165,6 +1168,9 @@ class Command(BaseCommand):
                         nationalities=user_data.get("nationalities", []),
                         organization_country=user_data.get("organization_country", ""),
                         organization_type=user_data.get("organization_type", ""),
+                        organization_registry_code=user_data.get(
+                            "organization_registry_code", ""
+                        ),
                         eduperson_assurance=user_data.get("eduperson_assurance", []),
                     )
                     if user_data.get("civil_number"):

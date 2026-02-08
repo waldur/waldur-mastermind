@@ -6153,6 +6153,7 @@ class OfferingUserSerializer(
         "nationalities": "user_nationalities",
         "organization_country": "user_organization_country",
         "organization_type": "user_organization_type",
+        "organization_registry_code": "user_organization_registry_code",
         "eduperson_assurance": "user_eduperson_assurance",
         "civil_number": "user_civil_number",
         "birth_date": "user_birth_date",

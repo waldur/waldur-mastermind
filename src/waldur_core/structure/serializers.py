@@ -1213,6 +1213,7 @@ class UserSerializer(
             "nationalities",
             "organization_country",
             "organization_type",
+            "organization_registry_code",
             "eduperson_assurance",
         )
         read_only_fields = (
@@ -1292,6 +1293,7 @@ class UserSerializer(
                     "nationalities",
                     "organization_country",
                     "organization_type",
+                    "organization_registry_code",
                     "eduperson_assurance",
                 )
                 for field in detail_fields:
@@ -1376,6 +1378,7 @@ class UserSerializer(
             "nationalities",
             "organization_country",
             "organization_type",
+            "organization_registry_code",
             "eduperson_assurance",
         ]
     )
