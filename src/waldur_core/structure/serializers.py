@@ -1215,6 +1215,11 @@ class UserSerializer(
             "organization_type",
             "organization_registry_code",
             "eduperson_assurance",
+            # Identity Bridge fields (staff-only, see get_fields)
+            "is_identity_manager",
+            "attribute_sources",
+            "managed_isds",
+            "active_isds",
         )
         read_only_fields = (
             "uuid",
@@ -1225,6 +1230,8 @@ class UserSerializer(
             "affiliations",
             "identity_source",
             "has_active_session",
+            "attribute_sources",
+            "active_isds",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
@@ -1256,6 +1263,16 @@ class UserSerializer(
                 "description",
                 "has_active_session",
             )
+            # Identity Bridge fields are staff-only
+            staff_only_fields = (
+                "attribute_sources",
+                "managed_isds",
+                "active_isds",
+                "is_identity_manager",
+            )
+            for field in staff_only_fields:
+                if field in fields:
+                    del fields[field]
             if user.is_support:
                 for field in protected_fields:
                     if field in fields:
@@ -1311,17 +1328,33 @@ class UserSerializer(
         else:
             return self.instance == user
 
+    def _is_staff_editing_other_user(self):
+        try:
+            request = self.context["request"]
+            return (
+                request.user.is_staff
+                and self.instance
+                and request.user != self.instance
+            )
+        except (KeyError, AttributeError):
+            return False
+
     def validate(self, attrs):
         agree_with_policy = attrs.pop("agree_with_policy", False)
         if self.instance and not self.instance.agreement_date:
             if not agree_with_policy:
                 if (
-                    self.instance.is_active
-                    and "is_active" in attrs.keys()
-                    and not attrs["is_active"]
-                    and len(attrs) == 1
-                ) or self.instance.is_staff:
-                    # Deactivation of user.
+                    (
+                        self.instance.is_active
+                        and "is_active" in attrs.keys()
+                        and not attrs["is_active"]
+                        and len(attrs) == 1
+                    )
+                    or self.instance.is_staff
+                    or self._is_staff_editing_other_user()
+                ):
+                    # Deactivation of user, staff editing own profile,
+                    # or staff editing another user.
                     pass
                 else:
                     raise serializers.ValidationError(
@@ -1454,6 +1487,58 @@ class UserRegistrationTrendSerializer(serializers.Serializer):
 
     month = serializers.CharField()
     count = serializers.IntegerField()
+
+
+class AttributeSourceDetailSerializer(serializers.Serializer):
+    """Serializer for a single attribute source entry with staleness info."""
+
+    source = serializers.CharField()
+    timestamp = serializers.CharField()
+    age_days = serializers.FloatField()
+    is_stale = serializers.BooleanField()
+
+
+class IdentityBridgeUserStatusSerializer(serializers.Serializer):
+    """Serializer for per-user identity bridge diagnostic info."""
+
+    active_isds = serializers.ListField(child=serializers.CharField())
+    managed_isds = serializers.ListField(child=serializers.CharField())
+    attribute_sources = serializers.DictField(
+        child=AttributeSourceDetailSerializer(),
+    )
+    stale_attributes = serializers.ListField(child=serializers.CharField())
+    effective_bridge_fields = serializers.ListField(child=serializers.CharField())
+    is_federated = serializers.BooleanField()
+
+
+class ISDUserCountSerializer(serializers.Serializer):
+    """Serializer for per-ISD user count."""
+
+    isd = serializers.CharField()
+    user_count = serializers.IntegerField()
+    stale_user_count = serializers.IntegerField()
+    oldest_sync = serializers.CharField(allow_null=True)
+
+
+class IdentityManagerSerializer(serializers.Serializer):
+    """Serializer for identity manager info in bridge stats."""
+
+    uuid = serializers.UUIDField()
+    full_name = serializers.CharField()
+    managed_isds = serializers.ListField(child=serializers.CharField())
+
+
+class IdentityBridgeStatsSerializer(serializers.Serializer):
+    """Serializer for system-wide identity bridge statistics."""
+
+    enabled = serializers.BooleanField()
+    deactivation_policy = serializers.CharField()
+    allowed_attributes = serializers.ListField(child=serializers.CharField())
+    total_federated_users = serializers.IntegerField()
+    total_active_federated_users = serializers.IntegerField()
+    users_per_isd = ISDUserCountSerializer(many=True)
+    stale_threshold_days = serializers.IntegerField()
+    identity_managers = IdentityManagerSerializer(many=True)
 
 
 class SshKeySerializer(

@@ -131,10 +131,12 @@ class RemoteEduteamsTest(test.APITestCase):
 
         mock_event_logger.assert_any_call(
             (
-                "User {affected_user_username} has been updated. Details:\n"
+                "User {affected_user_username} has been updated."
+                " Source: isd:eduteams. Details:\n"
                 "email: steve@jobs.com -> john@snow.me\n"
                 "first_name: Steve -> John\n"
-                "last_name: Jobs -> Snow"
+                "last_name: Jobs -> Snow\n"
+                "active_isds: [] -> ['isd:eduteams']"
             ),
             event_type=EventType.USER_UPDATE_SUCCEEDED,
             event_context={"affected_user": mock.ANY},

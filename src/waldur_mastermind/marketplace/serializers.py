@@ -6123,6 +6123,9 @@ class OfferingUserSerializer(
     user_birth_date = serializers.ReadOnlyField(source="user.birth_date")
     user_identity_source = serializers.ReadOnlyField(source="user.identity_source")
 
+    # Identity Bridge attributes
+    user_active_isds = serializers.ReadOnlyField(source="user.active_isds")
+
     customer_uuid = serializers.UUIDField(
         read_only=True, source="offering.customer.uuid"
     )
@@ -6158,6 +6161,7 @@ class OfferingUserSerializer(
         "civil_number": "user_civil_number",
         "birth_date": "user_birth_date",
         "identity_source": "user_identity_source",
+        "active_isds": "user_active_isds",
     }
 
     class Meta:
@@ -6194,6 +6198,8 @@ class OfferingUserSerializer(
             "user_civil_number",
             "user_birth_date",
             "user_identity_source",
+            # Identity Bridge attributes
+            "user_active_isds",
             # Other fields
             "created",
             "modified",

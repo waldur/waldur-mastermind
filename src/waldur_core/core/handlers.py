@@ -158,9 +158,17 @@ def log_user_save(sender, instance: User, created=False, **kwargs):
                 and old_value != getattr(instance, field_name)
             ]
 
+            change_source = getattr(instance, "_change_source", None)
+            source_suffix = f" Source: {change_source}." if change_source else ""
+
+            # Escape braces in diff values to avoid .format() interpretation
+            safe_diff = "\n".join(
+                line.replace("{", "{{").replace("}", "}}") for line in diff
+            )
+
             event_logger.emit(
-                "User {affected_user_username} has been updated. Details:\n%s"
-                % "\n".join(diff),
+                "User {affected_user_username} has been updated.%s Details:\n%s"
+                % (source_suffix, safe_diff),
                 event_type=EventType.USER_UPDATE_SUCCEEDED,
                 event_context={"affected_user": instance},
                 scopes=[instance],

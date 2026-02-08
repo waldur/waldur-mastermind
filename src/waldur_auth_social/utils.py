@@ -1,5 +1,6 @@
 import logging
 import uuid
+from datetime import UTC
 from typing import cast
 from urllib.parse import urlparse
 
@@ -8,6 +9,7 @@ from constance import config
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.utils import timezone
 from requests.auth import HTTPBasicAuth
 from rest_framework.exceptions import NotFound, ParseError
@@ -20,7 +22,10 @@ from waldur_auth_social.const import (
 from waldur_auth_social.exceptions import OAuthException
 from waldur_auth_social.models import IdentityProvider
 from waldur_core.core.models import SshPublicKey, User
-from waldur_core.core.user_attributes import get_enabled_idp_sync_fields
+from waldur_core.core.user_attributes import (
+    get_enabled_idp_sync_fields,
+    get_federated_identity_sync_allowed_fields,
+)
 from waldur_core.core.validators import validate_ssh_public_key
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.models import Invitation
@@ -129,6 +134,9 @@ def create_or_update_oauth_user(
         logger.warning("Roles claim %s is not a list or string: %s", roles_claim, roles)
         roles = None
 
+    # Determine structured source for attribute tracking
+    source = migrate_legacy_source(identity_provider.provider)
+
     try:
         created = False
         # Use all_objects to reactivate a user who might have been deactivated
@@ -139,11 +147,26 @@ def create_or_update_oauth_user(
 
         # Prepare for update
         update_fields = set()
+        now_iso = timezone.now().isoformat()
+        attribute_sources = dict(user.attribute_sources or {})
 
         for field, value in payload.items():
             if getattr(user, field) != value:
                 setattr(user, field, value)
                 update_fields.add(field)
+            # Track source for all provided fields
+            if value not in (None, "", []):
+                attribute_sources[field] = {"source": source, "timestamp": now_iso}
+
+        user.attribute_sources = attribute_sources
+        update_fields.add("attribute_sources")
+
+        # Ensure source is in active_isds
+        active_isds = list(user.active_isds or [])
+        if source not in active_isds:
+            active_isds.append(source)
+            user.active_isds = active_isds
+            update_fields.add("active_isds")
 
         if roles is not None:
             should_be_staff = "staff" in roles
@@ -159,6 +182,7 @@ def create_or_update_oauth_user(
         if update_fields:
             user.last_sync = timezone.now()
             update_fields.add("last_sync")
+            user._change_source = source
             user.save(update_fields=update_fields)
 
     except User.DoesNotExist:
@@ -200,6 +224,16 @@ def create_or_update_oauth_user(
             ),
         )
         user.set_unusable_password()
+
+        # Set attribute_sources and active_isds for new user
+        now_iso = timezone.now().isoformat()
+        user.attribute_sources = {
+            field: {"source": source, "timestamp": now_iso}
+            for field, value in payload.items()
+            if value not in (None, "", [])
+        }
+        user.active_isds = [source]
+        user._change_source = source
         user.save()
 
     return user, created
@@ -263,9 +297,8 @@ def pull_remote_eduteams_user(username):
         except User.DoesNotExist:
             return None, False
         else:
-            user.is_active = False
-            user.last_sync = timezone.now()
-            user.save(update_fields=["is_active", "last_sync"])
+            # Use multi-ISD aware deactivation instead of hard deactivation
+            remove_user_from_isd(user, "isd:eduteams")
             return user, False
     else:
         try:
@@ -406,6 +439,345 @@ def refresh_remote_eduteams_token(force=False):
 
     cache.set("REMOTE_EDUTEAMS_ACCESS_TOKEN", access_token, 30 * 60)
     return access_token
+
+
+LEGACY_SOURCE_MAP = {
+    "eduteams": "isd:eduteams",
+    "remote-eduteams": "isd:eduteams",
+    "tara": "isd:tara",
+    "keycloak": "isd:keycloak",
+}
+
+
+def migrate_legacy_source(legacy_value: str) -> str:
+    """Convert a legacy identity_source / registration_method to structured format."""
+    if not legacy_value:
+        return ""
+    if ":" in legacy_value:
+        return legacy_value  # Already structured
+    return LEGACY_SOURCE_MAP.get(legacy_value, f"isd:{legacy_value}")
+
+
+@transaction.atomic
+def update_user_attributes_from_source(
+    user: User,
+    payload: dict,
+    source: str,
+    *,
+    allowed_fields: set[str] | None = None,
+) -> set[str]:
+    """
+    Update user attributes with source-aware ownership tracking.
+
+    Implements the preserve-other-sources policy:
+    - If a field's new value is empty and the current owner is a different source,
+      the field is preserved (not cleared).
+    - If the new value is non-empty, the field is updated and ownership transfers.
+    - Timestamps are updated even if the value is unchanged (confirms freshness).
+
+    Args:
+        user: User instance (must be fetched with select_for_update for concurrency).
+        payload: Dict of field_name -> new_value.
+        source: Source identifier (e.g., "isd:puhuri").
+        allowed_fields: Optional set of fields to restrict updates to.
+
+    Returns:
+        Set of field names that were actually changed.
+    """
+    # Lock the user row for concurrent safety
+    User.objects.select_for_update().filter(pk=user.pk).exists()
+
+    now_iso = timezone.now().isoformat()
+    updated_fields = set()
+    attribute_sources = dict(user.attribute_sources or {})
+
+    for field, new_value in payload.items():
+        if allowed_fields and field not in allowed_fields:
+            continue
+        if field not in WRITABLE_USER_FIELDS:
+            continue
+
+        current_value = getattr(user, field, None)
+        current_source_info = attribute_sources.get(field, {})
+        current_owner = (
+            current_source_info.get("source")
+            if isinstance(current_source_info, dict)
+            else current_source_info
+        )
+
+        # Determine if new value is "empty"
+        is_empty = new_value is None or new_value == "" or new_value == []
+
+        if is_empty and current_owner and current_owner != source:
+            # Preserve-other-sources: skip clearing fields owned by another source
+            continue
+
+        if current_value != new_value:
+            setattr(user, field, new_value)
+            updated_fields.add(field)
+
+        # Always update source/timestamp for freshness tracking
+        attribute_sources[field] = {"source": source, "timestamp": now_iso}
+
+    user.attribute_sources = attribute_sources
+
+    # Ensure source is in active_isds
+    active_isds = list(user.active_isds or [])
+    if source not in active_isds:
+        active_isds.append(source)
+        user.active_isds = active_isds
+        updated_fields.add("active_isds")
+
+    # Set _change_source for audit trail
+    user._change_source = source
+
+    if updated_fields or attribute_sources != (user.attribute_sources or {}):
+        save_fields = updated_fields | {"attribute_sources", "active_isds", "last_sync"}
+        user.last_sync = timezone.now()
+        user.save(update_fields=save_fields)
+
+    return updated_fields
+
+
+def create_or_update_bridge_user(
+    username: str,
+    attributes: dict,
+    source: str,
+) -> tuple[User, bool, set[str]]:
+    """
+    Create or update a user via the Identity Bridge.
+
+    Args:
+        username: The CUID / username to look up.
+        attributes: Dict of attribute_name -> value.
+        source: ISD source identifier (e.g., "isd:puhuri").
+
+    Returns:
+        Tuple of (user, created, updated_fields).
+    """
+    allowed_fields = get_federated_identity_sync_allowed_fields()
+
+    try:
+        user = cast(User, User.all_objects.get(username=username))
+        created = False
+
+        if not user.is_active:
+            raise ParseError(f"User {username} is deactivated.")
+
+        updated_fields = update_user_attributes_from_source(
+            user, attributes, source, allowed_fields=allowed_fields
+        )
+        return user, created, updated_fields
+
+    except User.DoesNotExist:
+        created = True
+
+        # Filter attributes to allowed fields
+        filtered_attrs = {
+            k: v
+            for k, v in attributes.items()
+            if k in allowed_fields and k in WRITABLE_USER_FIELDS
+        }
+
+        now_iso = timezone.now().isoformat()
+        attribute_sources = {
+            field: {"source": source, "timestamp": now_iso}
+            for field, value in filtered_attrs.items()
+            if value not in (None, "", [])
+        }
+
+        user = cast(
+            User,
+            User.objects.create_user(
+                username=username,
+                registration_method=source,
+                **filtered_attrs,
+            ),
+        )
+        user.set_unusable_password()
+        user.notifications_enabled = False
+        user.attribute_sources = attribute_sources
+        user.active_isds = [source]
+        user._change_source = source
+        user.save()
+
+        return user, created, set(filtered_attrs.keys())
+
+
+@transaction.atomic
+def remove_user_from_isd(user: User, source: str) -> bool:
+    """
+    Remove a user from an ISD and handle deactivation policy.
+
+    - Removes source from active_isds.
+    - Clears attribute_sources entries owned by this source.
+    - Clears corresponding attribute values.
+    - Deactivates user if active_isds is empty and policy is 'all_isds_removed',
+      or always if policy is 'any_isd_removed'.
+
+    Args:
+        user: User instance.
+        source: ISD source identifier to remove.
+
+    Returns:
+        True if user was deactivated, False otherwise.
+    """
+    User.objects.select_for_update().filter(pk=user.pk).exists()
+
+    active_isds = list(user.active_isds or [])
+    if source in active_isds:
+        active_isds.remove(source)
+        user.active_isds = active_isds
+
+    # Clear attribute_sources and values owned by this source
+    attribute_sources = dict(user.attribute_sources or {})
+    for field, source_info in list(attribute_sources.items()):
+        owner = (
+            source_info.get("source") if isinstance(source_info, dict) else source_info
+        )
+        if owner == source:
+            del attribute_sources[field]
+            # Clear the actual field value
+            if hasattr(user, field):
+                default = [] if isinstance(getattr(user, field), list) else ""
+                setattr(user, field, default)
+
+    user.attribute_sources = attribute_sources
+
+    policy = config.FEDERATED_IDENTITY_DEACTIVATION_POLICY
+    should_deactivate = False
+
+    if policy == "any_isd_removed":
+        should_deactivate = True
+    elif not active_isds:
+        # all_isds_removed (default): deactivate only when empty
+        should_deactivate = True
+
+    if should_deactivate:
+        user.is_active = False
+
+    user._change_source = source
+    user.last_sync = timezone.now()
+    user.save(
+        update_fields=[
+            "active_isds",
+            "attribute_sources",
+            "is_active",
+            "last_sync",
+        ]
+    )
+
+    return should_deactivate
+
+
+def get_identity_bridge_stats(stale_threshold_days: int = 7) -> dict:
+    """
+    Compute system-wide Identity Bridge statistics.
+
+    Returns configuration state, per-ISD user counts with staleness info,
+    and total federated user counts.
+    """
+    from collections import Counter
+    from datetime import datetime
+
+    from waldur_core.core.user_attributes import (
+        get_federated_identity_sync_allowed_fields,
+    )
+
+    now = datetime.now(UTC)
+
+    # All users with non-empty active_isds
+    federated_users = User.all_objects.exclude(active_isds=[]).exclude(
+        active_isds__isnull=True
+    )
+    total_federated = federated_users.count()
+    total_active_federated = federated_users.filter(is_active=True).count()
+
+    # Per-ISD stats
+    isd_counter = Counter()
+    isd_stale_counter = Counter()
+    isd_oldest_sync = {}
+
+    for user in federated_users.only(
+        "active_isds", "attribute_sources", "is_active"
+    ).iterator():
+        active_isds = user.active_isds or []
+        attribute_sources = user.attribute_sources or {}
+
+        for isd in active_isds:
+            isd_counter[isd] += 1
+
+            # Find the most recent timestamp from this ISD
+            latest_ts = None
+            for _field, info in attribute_sources.items():
+                if not isinstance(info, dict):
+                    continue
+                if info.get("source") != isd:
+                    continue
+                ts_str = info.get("timestamp", "")
+                if not ts_str:
+                    continue
+                try:
+                    ts = datetime.fromisoformat(ts_str)
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=UTC)
+                    if latest_ts is None or ts > latest_ts:
+                        latest_ts = ts
+                except (ValueError, TypeError):
+                    continue
+
+            if latest_ts is None:
+                isd_stale_counter[isd] += 1
+            else:
+                age_days = (now - latest_ts).total_seconds() / 86400
+                if age_days > stale_threshold_days:
+                    isd_stale_counter[isd] += 1
+
+                # Track oldest sync per ISD
+                if isd not in isd_oldest_sync or latest_ts < isd_oldest_sync[isd]:
+                    isd_oldest_sync[isd] = latest_ts
+
+    users_per_isd = sorted(
+        [
+            {
+                "isd": isd,
+                "user_count": count,
+                "stale_user_count": isd_stale_counter.get(isd, 0),
+                "oldest_sync": isd_oldest_sync[isd].isoformat()
+                if isd in isd_oldest_sync
+                else None,
+            }
+            for isd, count in isd_counter.items()
+        ],
+        key=lambda x: x["user_count"],
+        reverse=True,
+    )
+
+    # Identity managers
+    identity_managers = []
+    for mgr in (
+        User.objects.filter(is_identity_manager=True)
+        .only("uuid", "first_name", "last_name", "username", "managed_isds")
+        .order_by("first_name", "last_name")
+    ):
+        identity_managers.append(
+            {
+                "uuid": str(mgr.uuid),
+                "full_name": mgr.full_name or mgr.username,
+                "managed_isds": mgr.managed_isds or [],
+            }
+        )
+
+    return {
+        "enabled": config.FEDERATED_IDENTITY_SYNC_ENABLED,
+        "deactivation_policy": config.FEDERATED_IDENTITY_DEACTIVATION_POLICY,
+        "allowed_attributes": sorted(get_federated_identity_sync_allowed_fields()),
+        "total_federated_users": total_federated,
+        "total_active_federated_users": total_active_federated,
+        "users_per_isd": users_per_isd,
+        "stale_threshold_days": stale_threshold_days,
+        "identity_managers": identity_managers,
+    }
 
 
 def validate_and_get_redirect_url(
