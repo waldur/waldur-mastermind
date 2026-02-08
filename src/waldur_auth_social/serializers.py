@@ -1,3 +1,4 @@
+import re
 from urllib.parse import urlparse
 
 import requests
@@ -10,6 +11,7 @@ from waldur_auth_social.const import (
     WRITABLE_USER_FIELDS,
     ProviderChoices,
 )
+from waldur_core.core.user_attributes import get_federated_identity_sync_allowed_fields
 
 from . import models
 
@@ -260,3 +262,113 @@ class DiscoverMetadataResponseSerializer(serializers.Serializer):
         child=serializers.CharField(),
         help_text="Recommended scopes to request based on claim mappings",
     )
+
+
+SOURCE_PATTERN = re.compile(r"^[a-z]+:[a-zA-Z0-9._-]+$")
+
+
+class IdentityBridgeRequestSerializer(serializers.Serializer):
+    username = serializers.CharField(
+        max_length=128,
+        help_text="CUID / username of the user to create or update.",
+    )
+    source = serializers.CharField(
+        max_length=100,
+        help_text="ISD source identifier, e.g. 'isd:puhuri'. Must match ^[a-z]+:[a-zA-Z0-9._-]+$.",
+    )
+
+    # All WRITABLE_USER_FIELDS as optional
+    first_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    last_name = serializers.CharField(max_length=100, required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    organization = serializers.CharField(
+        max_length=255, required=False, allow_blank=True
+    )
+    affiliations = serializers.ListField(child=serializers.CharField(), required=False)
+    civil_number = serializers.CharField(
+        max_length=50, required=False, allow_blank=True
+    )
+    phone_number = serializers.CharField(
+        max_length=255, required=False, allow_blank=True
+    )
+    identity_source = serializers.CharField(
+        max_length=50, required=False, allow_blank=True
+    )
+    gender = serializers.IntegerField(required=False, allow_null=True)
+    personal_title = serializers.CharField(
+        max_length=50, required=False, allow_blank=True
+    )
+    birth_date = serializers.DateField(required=False, allow_null=True)
+    place_of_birth = serializers.CharField(
+        max_length=255, required=False, allow_blank=True
+    )
+    country_of_residence = serializers.CharField(
+        max_length=2, required=False, allow_blank=True
+    )
+    nationality = serializers.CharField(max_length=2, required=False, allow_blank=True)
+    nationalities = serializers.ListField(child=serializers.CharField(), required=False)
+    organization_country = serializers.CharField(
+        max_length=2, required=False, allow_blank=True
+    )
+    organization_type = serializers.CharField(
+        max_length=255, required=False, allow_blank=True
+    )
+    eduperson_assurance = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+
+    def validate_source(self, value):
+        if not SOURCE_PATTERN.match(value):
+            raise ValidationError(
+                "Source must match pattern '<type>:<name>' (e.g. 'isd:puhuri')."
+            )
+        return value
+
+    def validate(self, attrs):
+        allowed = get_federated_identity_sync_allowed_fields()
+        # Check for schema generation context
+        view = self.context.get("view")
+        if getattr(view, "swagger_fake_view", False):
+            return attrs
+
+        disallowed = set()
+        for field in list(attrs.keys()):
+            if field in ("username", "source"):
+                continue
+            if field not in allowed:
+                disallowed.add(field)
+
+        if disallowed:
+            raise ValidationError(
+                f"Fields not allowed by Identity Bridge configuration: {', '.join(sorted(disallowed))}"
+            )
+        return attrs
+
+
+class IdentityBridgeResponseSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    created = serializers.BooleanField()
+    updated_fields = serializers.ListField(child=serializers.CharField())
+
+
+class IdentityBridgeRemoveSerializer(serializers.Serializer):
+    username = serializers.CharField(
+        max_length=128,
+        help_text="CUID / username of the user to remove from the ISD.",
+    )
+    source = serializers.CharField(
+        max_length=100,
+        help_text="ISD source identifier, e.g. 'isd:puhuri'. Must match ^[a-z]+:[a-zA-Z0-9._-]+$.",
+    )
+
+    def validate_source(self, value):
+        if not SOURCE_PATTERN.match(value):
+            raise ValidationError(
+                "Source must match pattern '<type>:<name>' (e.g. 'isd:puhuri')."
+            )
+        return value
+
+
+class IdentityBridgeRemoveResponseSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    deactivated = serializers.BooleanField()

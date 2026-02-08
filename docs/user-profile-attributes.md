@@ -42,6 +42,7 @@ flowchart TD
         I1[identity_source]
         I2[civil_number]
         I3[eduperson_assurance]
+        I4[active_isds]
     end
 ```
 
@@ -384,7 +385,8 @@ See [Offering Users](./core-concepts/offering-users.md#user-attribute-exposure-c
 User profile data can come from:
 
 1. **Identity Provider (IdP)**: Claims from OIDC/SAML authentication (highest priority)
-2. **User self-assertion**: Manual profile editing (when fields are not protected)
-3. **NOT from invitations**: Invitation fields are for email personalization only and are never copied to user profiles
+2. **Identity Bridge**: Push-based attribute sync from ISDs with per-attribute source tracking (see [Identity Bridge](./identity-bridge.md))
+3. **User self-assertion**: Manual profile editing (when fields are not protected)
+4. **NOT from invitations**: Invitation fields are for email personalization only and are never copied to user profiles
 
-This hierarchy ensures data integrity while allowing users to maintain their profiles when IdP data is not available.
+When multiple ISDs provide attributes via the Identity Bridge, each attribute is tracked to its source. See [Identity Bridge — Attribute Lifecycle](./identity-bridge.md#attribute-lifecycle) for conflict resolution rules.

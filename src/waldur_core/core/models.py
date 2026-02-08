@@ -389,6 +389,32 @@ class User(
     last_name = models.CharField(_("last name"), max_length=100, blank=True)
     birth_date = models.DateField(_("birth date"), null=True, blank=True)
 
+    # Identity Bridge fields
+    attribute_sources = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Per-attribute source and freshness tracking. "
+            "Format: {'field_name': {'source': 'isd:<name>', 'timestamp': 'ISO8601'}}."
+        ),
+    )
+    managed_isds = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_(
+            "List of ISD source identifiers this user can manage via Identity Bridge. "
+            "E.g., ['isd:puhuri', 'isd:fenix']. Non-empty list implies identity manager role."
+        ),
+    )
+    active_isds = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_(
+            "List of ISDs that have asserted this user exists. "
+            "User is deactivated when this becomes empty."
+        ),
+    )
+
     # AAI (Authentication and Authorization Infrastructure) attributes
     # Personal identity (from passport/IdP)
     gender = models.PositiveSmallIntegerField(
@@ -489,6 +515,8 @@ class User(
         "organization_type",
         "organization_registry_code",
         "eduperson_assurance",
+        "managed_isds",
+        "active_isds",
     ]
 
     @property

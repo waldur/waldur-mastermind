@@ -49,6 +49,7 @@ ALL_PROFILE_ATTRIBUTES = frozenset(
         "eduperson_assurance",
         "civil_number",
         "identity_source",
+        "active_isds",
     ]
 )
 
@@ -90,6 +91,21 @@ def is_attribute_enabled(attribute_name: str) -> bool:
         True if the attribute is enabled (either core or configured)
     """
     return attribute_name in get_enabled_profile_attributes()
+
+
+def get_federated_identity_sync_allowed_fields() -> set[str]:
+    """
+    Get fields allowed for the Identity Bridge (three-way intersection).
+
+    Returns the intersection of:
+    - FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES (Constance setting)
+    - WRITABLE_USER_FIELDS (security whitelist)
+    - Enabled profile attributes (ENABLED_USER_PROFILE_ATTRIBUTES + core)
+    """
+    bridge_list = config.FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES or []
+    return (
+        set(bridge_list) & set(WRITABLE_USER_FIELDS) & get_enabled_profile_attributes()
+    )
 
 
 def get_mandatory_attributes() -> list[str]:

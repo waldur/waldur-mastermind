@@ -946,6 +946,21 @@ CONSTANCE_CONFIG = {
         90,
         "Number of days to retain SLURM policy evaluation log entries before automatic cleanup.",
     ),
+    # Identity Bridge settings
+    "FEDERATED_IDENTITY_SYNC_ENABLED": (
+        False,
+        "Enable the Identity Bridge API for push-based ISD user attribute synchronization.",
+    ),
+    "FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES": (
+        ["first_name", "last_name", "email", "organization", "affiliations"],
+        "User attributes settable via Identity Bridge. Must be a subset of WRITABLE_USER_FIELDS.",
+        "list_field",
+    ),
+    "FEDERATED_IDENTITY_DEACTIVATION_POLICY": (
+        "any_isd_removed",
+        "When to deactivate a federated user: 'all_isds_removed' (only when removed from all ISDs) "
+        "or 'any_isd_removed' (on first ISD removal, backward compatible).",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -1234,6 +1249,11 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ARROW_BILLING_CHECK_INTERVAL_HOURS",
     ),
     "SLURM Policy": ("SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS",),
+    "Identity Bridge": (
+        "FEDERATED_IDENTITY_SYNC_ENABLED",
+        "FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES",
+        "FEDERATED_IDENTITY_DEACTIVATION_POLICY",
+    ),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (

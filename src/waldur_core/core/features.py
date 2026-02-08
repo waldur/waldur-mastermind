@@ -115,6 +115,10 @@ class UserSection(FeatureSection):
         "Enable Data Access tab showing who can access user profile data."
     )
 
+    show_identity_bridge = Feature(
+        "Show identity bridge information in user profiles and admin views."
+    )
+
 
 class MarketplaceSection(FeatureSection):
     class Meta:

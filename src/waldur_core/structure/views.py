@@ -1822,6 +1822,77 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
 
     user_registration_trend_permissions = [permissions.is_staff_or_support]
 
+    @extend_schema(
+        summary="Get identity bridge status for a user",
+        responses={200: serializers.IdentityBridgeUserStatusSerializer},
+        description=(
+            "Returns diagnostic information about a user's identity bridge state: "
+            "active ISDs, per-attribute source tracking with staleness detection, "
+            "and effective bridge-writable fields. Staff only."
+        ),
+    )
+    @action(detail=True, methods=["get"])
+    def identity_bridge_status(self, request, uuid=None):
+        """Get identity bridge diagnostic info for a user."""
+        user = self.get_object()
+        attribute_sources = user.attribute_sources or {}
+        now = timezone.now()
+        stale_threshold_days = 7
+
+        enriched_sources = {}
+        stale_attributes = []
+        for field, info in attribute_sources.items():
+            if isinstance(info, dict):
+                source = info.get("source", "")
+                timestamp = info.get("timestamp", "")
+            else:
+                source = str(info)
+                timestamp = ""
+
+            if timestamp:
+                try:
+                    ts = datetime.fromisoformat(timestamp)
+                    if ts.tzinfo is None:
+                        ts = ts.replace(tzinfo=now.tzinfo)
+                    age = now - ts
+                    age_days = round(age.total_seconds() / 86400, 1)
+                except (ValueError, TypeError):
+                    age_days = -1
+            else:
+                age_days = -1
+
+            is_stale = age_days > stale_threshold_days or age_days < 0
+            if is_stale:
+                stale_attributes.append(field)
+
+            enriched_sources[field] = {
+                "source": source,
+                "timestamp": timestamp,
+                "age_days": age_days,
+                "is_stale": is_stale,
+            }
+
+        from waldur_core.core.user_attributes import (
+            get_federated_identity_sync_allowed_fields,
+        )
+
+        data = {
+            "active_isds": user.active_isds or [],
+            "managed_isds": user.managed_isds or [],
+            "attribute_sources": enriched_sources,
+            "stale_attributes": sorted(stale_attributes),
+            "effective_bridge_fields": sorted(
+                get_federated_identity_sync_allowed_fields()
+            ),
+            "is_federated": bool(user.active_isds),
+        }
+        return Response(data, status=status.HTTP_200_OK)
+
+    identity_bridge_status_permissions = [permissions.is_staff]
+    identity_bridge_status_serializer_class = (
+        serializers.IdentityBridgeUserStatusSerializer
+    )
+
     def perform_create(self, serializer):
         user = serializer.save()
         event_logger.emit(
