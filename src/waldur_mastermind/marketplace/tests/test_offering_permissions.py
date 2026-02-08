@@ -19,7 +19,7 @@ from waldur_core.structure.tests.utils import (
 from . import factories
 
 
-class BaseOfferingPermissionTest(test.APITransactionTestCase):
+class BaseOfferingPermissionTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory(

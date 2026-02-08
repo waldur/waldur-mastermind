@@ -8,7 +8,7 @@ from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
 @ddt
-class CreateComponentUserUsageLimitTest(test.APITransactionTestCase):
+class CreateComponentUserUsageLimitTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.customer = self.fixture.customer
@@ -62,7 +62,7 @@ class CreateComponentUserUsageLimitTest(test.APITransactionTestCase):
 
 
 @ddt
-class GetComponentUserUsageLimitTest(test.APITransactionTestCase):
+class GetComponentUserUsageLimitTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.component_user_usage_limit = factories.ComponentUserUsageLimitFactory(
@@ -93,7 +93,7 @@ class GetComponentUserUsageLimitTest(test.APITransactionTestCase):
 
 
 @ddt
-class UpdateComponentUserUsageLimitTest(test.APITransactionTestCase):
+class UpdateComponentUserUsageLimitTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.component_user_usage_limit = factories.ComponentUserUsageLimitFactory(
@@ -129,7 +129,7 @@ class UpdateComponentUserUsageLimitTest(test.APITransactionTestCase):
 
 
 @ddt
-class DeleteComponentUserUsageLimitTest(test.APITransactionTestCase):
+class DeleteComponentUserUsageLimitTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.component_user_usage_limit = factories.ComponentUserUsageLimitFactory(

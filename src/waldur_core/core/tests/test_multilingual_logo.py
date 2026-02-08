@@ -13,7 +13,7 @@ from waldur_core.media.utils import dummy_image
 from waldur_core.structure.tests.factories import UserFactory
 
 
-class MultilingualLoginLogoViewTest(test.APITransactionTestCase):
+class MultilingualLoginLogoViewTest(test.APITestCase):
     def setUp(self):
         self.url = "/api/icons/login_logo/"
 
@@ -211,7 +211,7 @@ class SetLoginLogoLanguageCommandTest(TestCase):
         self.assertIn("et", setting.value)
 
 
-class MultilingualLogoRestApiTest(test.APITransactionTestCase):
+class MultilingualLogoRestApiTest(test.APITestCase):
     """Test setting LOGIN_LOGO_MULTILINGUAL via REST API."""
 
     def setUp(self):
@@ -282,7 +282,7 @@ class MultilingualLogoRestApiTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class MultilingualLogoBinaryUploadTest(test.APITransactionTestCase):
+class MultilingualLogoBinaryUploadTest(test.APITestCase):
     """Test binary image upload for LOGIN_LOGO_MULTILINGUAL via REST API."""
 
     def setUp(self):
@@ -362,7 +362,7 @@ class MultilingualLogoBinaryUploadTest(test.APITransactionTestCase):
         # The previous 'fr' value would be replaced since we're posting new data.
 
 
-class SingleLogoFileUploadTest(test.APITransactionTestCase):
+class SingleLogoFileUploadTest(test.APITestCase):
     """
     Test uploading single logo files (non-multilingual) via REST API.
 

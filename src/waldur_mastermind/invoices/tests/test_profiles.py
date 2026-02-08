@@ -11,7 +11,7 @@ from waldur_mastermind.invoices.tests import factories
 
 
 @ddt
-class ProfileRetrieveTest(test.APITransactionTestCase):
+class ProfileRetrieveTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.profile = factories.PaymentProfileFactory(
@@ -92,7 +92,7 @@ class ProfileRetrieveTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProfileCreateTest(test.APITransactionTestCase):
+class ProfileCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.url = factories.PaymentProfileFactory.get_list_url()
@@ -122,7 +122,7 @@ class ProfileCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProfileUpdateTest(test.APITransactionTestCase):
+class ProfileUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.profile = factories.PaymentProfileFactory(
@@ -162,7 +162,7 @@ class ProfileUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProfileDeleteTest(test.APITransactionTestCase):
+class ProfileDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.profile = factories.PaymentProfileFactory(
@@ -185,7 +185,7 @@ class ProfileDeleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class ProfileModelTest(test.APITransactionTestCase):
+class ProfileModelTest(test.APITestCase):
     def setUp(self):
         self.customer = structure_factories.CustomerFactory()
         self.profile = factories.PaymentProfileFactory(
@@ -208,7 +208,7 @@ class ProfileModelTest(test.APITransactionTestCase):
         self.assertTrue(self.profile.is_active)
 
 
-class ProfileProcessingTest(test.APITransactionTestCase):
+class ProfileProcessingTest(test.APITestCase):
     def setUp(self):
         self.profile = factories.PaymentProfileFactory(
             payment_type=models.PaymentType.FIXED_PRICE
@@ -250,7 +250,7 @@ class ProfileProcessingTest(test.APITransactionTestCase):
             mock_send_invoice_notification.delay.assert_called_once()
 
 
-class ProfileNotificationTest(test.APITransactionTestCase):
+class ProfileNotificationTest(test.APITestCase):
     def setUp(self):
         self.profile = factories.PaymentProfileFactory(
             payment_type=models.PaymentType.FIXED_PRICE,

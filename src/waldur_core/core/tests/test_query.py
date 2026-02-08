@@ -1,10 +1,10 @@
 from rest_framework import status
-from rest_framework.test import APITransactionTestCase
+from rest_framework.test import APITestCase
 
 from waldur_core.structure.tests import fixtures
 
 
-class QueryTest(APITransactionTestCase):
+class QueryTest(APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.url = "/api/query/"

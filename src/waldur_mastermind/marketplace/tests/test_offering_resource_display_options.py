@@ -7,7 +7,7 @@ from waldur_mastermind.marketplace import serializers
 from waldur_mastermind.marketplace.tests import factories
 
 
-class OfferingResourceDisplayOptionsSerializerTest(test.APITransactionTestCase):
+class OfferingResourceDisplayOptionsSerializerTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 
@@ -89,7 +89,7 @@ class OfferingResourceDisplayOptionsSerializerTest(test.APITransactionTestCase):
         self.assertEqual(validated_data["auto_approve_remote_orders"], False)
 
 
-class OfferingResourceDisplayOptionsIntegrationTest(test.APITransactionTestCase):
+class OfferingResourceDisplayOptionsIntegrationTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_INTEGRATION)

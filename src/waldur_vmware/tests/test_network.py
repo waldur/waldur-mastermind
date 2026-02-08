@@ -8,7 +8,7 @@ from waldur_vmware import backend, models
 from . import factories
 
 
-class NetworkGetTest(test.APITransactionTestCase):
+class NetworkGetTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = ProjectFixture()
@@ -51,7 +51,7 @@ class NetworkGetTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 2)
 
 
-class NetworkPullTest(test.APITransactionTestCase):
+class NetworkPullTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.settings = factories.VMwareServiceSettingsFactory()

@@ -40,7 +40,7 @@ class ProjectPermissionGrantTest(TransactionTestCase):
 
 
 @ddt
-class ProjectUpdateDeleteTest(test.APITransactionTestCase):
+class ProjectUpdateDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
@@ -125,7 +125,7 @@ class ProjectUpdateDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProjectCreateTest(test.APITransactionTestCase):
+class ProjectCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT)
@@ -425,7 +425,7 @@ class ProjectCreateTest(test.APITransactionTestCase):
         }
 
 
-class ProjectApiPermissionTest(test.APITransactionTestCase):
+class ProjectApiPermissionTest(test.APITestCase):
     forbidden_combinations = (
         # User role, Project
         ("admin", "manager"),
@@ -645,7 +645,7 @@ class TestExecutor(executors.BaseCleanupExecutor):
 
 
 @mock.patch("waldur_core.core.WaldurExtension.get_extensions")
-class ProjectCleanupTest(test.APITransactionTestCase):
+class ProjectCleanupTest(test.APITestCase):
     def test_executors_are_sorted_in_topological_order(self, get_extensions):
         class ParentExecutor(executors.BaseCleanupExecutor):
             pass
@@ -702,7 +702,7 @@ class ProjectCleanupTest(test.APITransactionTestCase):
         )
 
 
-class ChangeProjectCustomerTest(test.APITransactionTestCase):
+class ChangeProjectCustomerTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -735,7 +735,7 @@ class ChangeProjectCustomerTest(test.APITransactionTestCase):
 
 
 @ddt
-class ChangeProjectImageTest(test.APITransactionTestCase):
+class ChangeProjectImageTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -764,7 +764,7 @@ class ChangeProjectImageTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class ProjectMoveTest(test.APITransactionTestCase):
+class ProjectMoveTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -863,7 +863,7 @@ class ProjectMoveTest(test.APITransactionTestCase):
         self.assertNotEqual(self.project.customer, self.customer)
 
 
-class ProjectListFilterTest(test.APITransactionTestCase):
+class ProjectListFilterTest(test.APITestCase):
     _valid_backend_id = uuid.uuid4()
     _valid_effective_id = uuid.uuid4()
 
@@ -929,7 +929,7 @@ class ProjectListFilterTest(test.APITransactionTestCase):
         self.assertEqual(response.data[0]["name"], self.project1.name)
 
 
-class ProjectResourceQuotasTest(test.APITransactionTestCase):
+class ProjectResourceQuotasTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -983,7 +983,7 @@ class ProjectResourceQuotasTest(test.APITransactionTestCase):
         self.assertEqual(ram_component["measured_unit"], "GB")
 
 
-class ProjectOtherUsersTest(test.APITransactionTestCase):
+class ProjectOtherUsersTest(test.APITestCase):
     def test_user_can_list_other_users(self):
         fixture = fixtures.ProjectFixture()
         ProjectRole.ADMIN.add_permission(PermissionEnum.LIST_PROJECTS)
@@ -1016,7 +1016,7 @@ class ProjectOtherUsersTest(test.APITransactionTestCase):
         )
 
 
-class ProjectRecoveryTest(test.APITransactionTestCase):
+class ProjectRecoveryTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -1653,7 +1653,7 @@ class ProjectRecoveryTest(test.APITransactionTestCase):
         self.assertIsNone(response.data["termination_metadata"])
 
 
-class GracePeriodTest(test.APITransactionTestCase):
+class GracePeriodTest(test.APITestCase):
     """Test grace period functionality for projects and customers."""
 
     def setUp(self):
@@ -2040,7 +2040,7 @@ class GracePeriodTest(test.APITransactionTestCase):
         self.assertEqual(project.end_date_with_grace, expected_grace_end)
 
 
-class ProjectListQueryOptimizationTest(test.APITransactionTestCase):
+class ProjectListQueryOptimizationTest(test.APITestCase):
     """
     Test that project list endpoint is optimized to avoid N+1 queries.
 

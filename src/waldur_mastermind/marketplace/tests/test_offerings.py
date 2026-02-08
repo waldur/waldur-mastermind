@@ -59,7 +59,7 @@ from . import fixtures as marketplace_fixtures
 
 
 @ddt
-class OfferingGetTest(test.APITransactionTestCase):
+class OfferingGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory(
@@ -122,7 +122,7 @@ class OfferingGetTest(test.APITransactionTestCase):
         self.assertEqual(list(response.json()[0].keys())[0], "organization_groups")
 
 
-class OfferingExtraFieldsTest(test.APITransactionTestCase):
+class OfferingExtraFieldsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.offering_1 = factories.OfferingFactory(shared=True)
@@ -201,7 +201,7 @@ class OfferingExtraFieldsTest(test.APITransactionTestCase):
         self.assertEqual(response.json()[1][field_name], value)
 
 
-class OfferingPlanInfoTest(test.APITransactionTestCase):
+class OfferingPlanInfoTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory(shared=True)
@@ -283,7 +283,7 @@ class OfferingPlanInfoTest(test.APITransactionTestCase):
 
 
 @ddt
-class SecretOptionsTests(test.APITransactionTestCase):
+class SecretOptionsTests(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory(
@@ -308,7 +308,7 @@ class SecretOptionsTests(test.APITransactionTestCase):
         self.assertFalse("secret_options" in response.data)
 
 
-class OfferingFilterTest(test.APITransactionTestCase):
+class OfferingFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         attributes = {
@@ -513,7 +513,7 @@ class OfferingFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 3)
 
 
-class OfferingPlansFilterTest(test.APITransactionTestCase):
+class OfferingPlansFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -597,7 +597,7 @@ class OfferingPlansFilterTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingCreateTest(test.APITransactionTestCase):
+class OfferingCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -1057,7 +1057,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.assertEqual(offering.plugin_options, {})
 
 
-class BaseOfferingUpdateTest(test.APITransactionTestCase):
+class BaseOfferingUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -1219,7 +1219,7 @@ class OfferingUpdateAttributesTest(BaseOfferingUpdateTest):
 
 
 @ddt
-class OfferingPartialUpdateTest(test.APITransactionTestCase):
+class OfferingPartialUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -1441,7 +1441,7 @@ class OfferingPartialUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingOrganizationGroupsTest(test.APITransactionTestCase):
+class OfferingOrganizationGroupsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -1502,7 +1502,7 @@ class OfferingOrganizationGroupsTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingDeleteTest(test.APITransactionTestCase):
+class OfferingDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -1580,7 +1580,7 @@ class OfferingDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingAttributesTest(test.APITransactionTestCase):
+class OfferingAttributesTest(test.APITestCase):
     def setUp(self):
         self.serializer = serializers.OfferingCreateSerializer()
         self.category = factories.CategoryFactory()
@@ -1662,7 +1662,7 @@ class OfferingAttributesTest(test.APITransactionTestCase):
         )
 
 
-class OfferingQuotaTest(test.APITransactionTestCase):
+class OfferingQuotaTest(test.APITestCase):
     def get_usage(self, category):
         return category.get_quota_usage("offering_count")
 
@@ -1693,7 +1693,7 @@ class OfferingQuotaTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingStateTest(test.APITransactionTestCase):
+class OfferingStateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -1861,7 +1861,7 @@ class OfferingStateTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingPublicGetTest(test.APITransactionTestCase):
+class OfferingPublicGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.offerings = [
@@ -1975,7 +1975,7 @@ class OfferingPublicGetTest(test.APITransactionTestCase):
         self.assertEqual(len(result.data), 1)
 
 
-class OfferingExportImportTest(test.APITransactionTestCase):
+class OfferingExportImportTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.temp_dir = tempfile.gettempdir()
@@ -2059,7 +2059,7 @@ class OfferingExportImportTest(test.APITransactionTestCase):
         return data
 
 
-class OfferingDoiTest(test.APITransactionTestCase):
+class OfferingDoiTest(test.APITestCase):
     def setUp(self):
         self.dc_resp = load_json_resource("datacite-resp.json", __name__)["data"]
         self.ref_pids = [
@@ -2112,7 +2112,7 @@ class OfferingDoiTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingThumbnailTest(test.APITransactionTestCase):
+class OfferingThumbnailTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -2199,7 +2199,7 @@ class OfferingThumbnailTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingCreateComponentsTest(test.APITransactionTestCase):
+class OfferingCreateComponentsTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -2269,7 +2269,7 @@ class OfferingCreateComponentsTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingUpdateComponentsTest(test.APITransactionTestCase):
+class OfferingUpdateComponentsTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -2357,7 +2357,7 @@ class OfferingUpdateComponentsTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingRemoveComponentsTest(test.APITransactionTestCase):
+class OfferingRemoveComponentsTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -2414,7 +2414,7 @@ class OfferingRemoveComponentsTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingBackendMetadataTest(test.APITransactionTestCase):
+class OfferingBackendMetadataTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -2442,7 +2442,7 @@ class OfferingBackendMetadataTest(test.APITransactionTestCase):
 
 
 @ddt
-class ListCustomerProjectsTest(test.APITransactionTestCase):
+class ListCustomerProjectsTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.fixture.resource.state = ResourceStates.OK
@@ -2492,7 +2492,7 @@ class ListCustomerProjectsTest(test.APITransactionTestCase):
 
 
 @ddt
-class ListCustomerUsersTest(test.APITransactionTestCase):
+class ListCustomerUsersTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.fixture.resource.state = ResourceStates.OK
@@ -2586,7 +2586,7 @@ class ListCustomerUsersTest(test.APITransactionTestCase):
         self.assertGreaterEqual(len(response.data), 2)
 
 
-class ResourceOfferingsViewSetTest(test.APITransactionTestCase):
+class ResourceOfferingsViewSetTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.category = self.fixture.offering.category
@@ -2603,7 +2603,7 @@ class ResourceOfferingsViewSetTest(test.APITransactionTestCase):
 
 
 @ddt
-class RefreshOfferingUsernamesTest(test.APITransactionTestCase):
+class RefreshOfferingUsernamesTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.customer = self.fixture.offering_customer
@@ -2685,7 +2685,7 @@ class RefreshOfferingUsernamesTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class OrderNotificationTest(test.APITransactionTestCase):
+class OrderNotificationTest(test.APITestCase):
     def setUp(self):
         self.order = factories.OrderFactory(state=OrderStates.PENDING_PROVIDER)
 
@@ -2698,7 +2698,7 @@ class OrderNotificationTest(test.APITransactionTestCase):
         mock_notify.assert_called_once_with(self.order.uuid.hex)
 
 
-class ProviderOfferingOrdersTest(test.APITransactionTestCase):
+class ProviderOfferingOrdersTest(test.APITestCase):
     """
     This test is to check that the marketplace offering provider orders endpoint is working as expected
     """
@@ -2908,7 +2908,7 @@ class ProviderOfferingOrdersTest(test.APITransactionTestCase):
         )
 
 
-class OfferingMoveTest(test.APITransactionTestCase):
+class OfferingMoveTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -2948,7 +2948,7 @@ class OfferingMoveTest(test.APITransactionTestCase):
         self.assertEqual(self.offering.customer, self.fixture.customer)
 
 
-class OfferingComplianceChecklistSerializerTest(test.APITransactionTestCase):
+class OfferingComplianceChecklistSerializerTest(test.APITestCase):
     """Test that ProviderOfferingDetailsSerializer exposes compliance_checklist field."""
 
     def setUp(self):
@@ -3077,7 +3077,7 @@ class OfferingComplianceChecklistSerializerTest(test.APITransactionTestCase):
         self.assertFalse(offering_without_checklist_data["has_compliance_requirements"])
 
 
-class CheckUniqueBackendIDTest(test.APITransactionTestCase):
+class CheckUniqueBackendIDTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory(customer=self.fixture.customer)
@@ -3413,7 +3413,7 @@ class CheckUniqueBackendIDTest(test.APITransactionTestCase):
         self.assertFalse(response.data["is_unique"])
 
 
-class OfferingBillingTypeClassificationTest(test.APITransactionTestCase):
+class OfferingBillingTypeClassificationTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 
@@ -3583,7 +3583,7 @@ class OfferingBillingTypeClassificationTest(test.APITransactionTestCase):
         self.assertEqual(usage_offering["billing_type_classification"], "usage_only")
 
 
-class RestrictedOfferingVisibilityModeTest(test.APITransactionTestCase):
+class RestrictedOfferingVisibilityModeTest(test.APITestCase):
     """Tests for RESTRICTED_OFFERING_VISIBILITY_MODE setting."""
 
     def setUp(self):

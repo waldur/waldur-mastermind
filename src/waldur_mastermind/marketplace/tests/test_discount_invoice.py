@@ -11,7 +11,7 @@ from . import fixtures
 
 
 @freeze_time("2024-01-15")  # A 31-day month
-class VolumeDiscountTest(test.APITransactionTestCase):
+class VolumeDiscountTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.MarketplaceFixture()

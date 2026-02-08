@@ -7,7 +7,7 @@ from . import factories
 
 
 @ddt
-class RequestedResourceGetTest(test.APITransactionTestCase):
+class RequestedResourceGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.url = factories.RequestedResourceFactory.get_provider_list_url()

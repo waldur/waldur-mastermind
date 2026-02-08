@@ -1,13 +1,13 @@
 from datetime import timedelta
 from unittest.mock import patch
 
-from rest_framework.test import APITransactionTestCase
+from rest_framework.test import APITestCase
 
 from waldur_core.logging import models, tasks
 from waldur_core.logging.tests import factories
 
 
-class DeleteStaleEventSubscriptionsTest(APITransactionTestCase):
+class DeleteStaleEventSubscriptionsTest(APITestCase):
     @patch("waldur_core.logging.backend.RabbitMQManagementBackend.delete_rabbitmq_user")
     def test_delete_stale_event_subscriptions(self, mock_delete_rabbitmq_user):
         event_subscription1 = factories.EventSubscriptionFactory()

@@ -5,7 +5,7 @@ from waldur_openstack import models
 from . import factories, fixtures
 
 
-class PortSecurityGroupsTest(test.APITransactionTestCase):
+class PortSecurityGroupsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.port = self.fixture.port

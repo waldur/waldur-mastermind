@@ -6,7 +6,7 @@ from waldur_core.checklist.tests import factories, fixtures
 
 
 @ddt
-class QuestionDependencyAdminGetTest(test.APITransactionTestCase):
+class QuestionDependencyAdminGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CheckListFixture()
         self.url = factories.QuestionDependencyFactory.get_admin_list_url()
@@ -27,7 +27,7 @@ class QuestionDependencyAdminGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class QuestionDependencyAdminCreateTest(test.APITransactionTestCase):
+class QuestionDependencyAdminCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CheckListFixture()
         self.select_question = factories.QuestionFactory(
@@ -171,7 +171,7 @@ class QuestionDependencyAdminCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class QuestionDependencyAdminUpdateTest(test.APITransactionTestCase):
+class QuestionDependencyAdminUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CheckListFixture()
         self.question_dependency = self.fixture.question_dependency
@@ -219,7 +219,7 @@ class QuestionDependencyAdminUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class QuestionDependencyAdminDeleteTest(test.APITransactionTestCase):
+class QuestionDependencyAdminDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CheckListFixture()
         self.question_dependency = self.fixture.question_dependency
@@ -252,7 +252,7 @@ class QuestionDependencyAdminDeleteTest(test.APITransactionTestCase):
         )
 
 
-class QuestionVisibilityTest(test.APITransactionTestCase):
+class QuestionVisibilityTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CheckListFixture()
         self.user = self.fixture.user

@@ -12,7 +12,7 @@ from django.test.utils import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APITransactionTestCase
+from rest_framework.test import APITestCase, APITransactionTestCase
 
 from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
@@ -64,7 +64,7 @@ def deactivate_tos_config(tos_config):
 
 
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
-class TermsOfServiceConsentTest(APITransactionTestCase):
+class TermsOfServiceConsentTest(APITestCase):
     def setUp(self):
         ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_RESOURCES)
 
@@ -1489,7 +1489,7 @@ class TermsOfServiceConsentTest(APITransactionTestCase):
 
 
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
-class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
+class ProviderOfferingToSManagementViewsetTest(APITestCase):
     """Test cases for ProviderOfferingToSManagementViewset."""
 
     def setUp(self):
@@ -2001,7 +2001,7 @@ class ProviderOfferingToSManagementViewsetTest(APITransactionTestCase):
 
 
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
-class ResourceToSConsentPermissionTest(APITransactionTestCase):
+class ResourceToSConsentPermissionTest(APITestCase):
     """Test cases for resource access control based on ToS consent."""
 
     def setUp(self):
@@ -2086,7 +2086,7 @@ class ResourceToSConsentPermissionTest(APITransactionTestCase):
 
 
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
-class ResourceConsentUIFieldsTest(APITransactionTestCase):
+class ResourceConsentUIFieldsTest(APITestCase):
     """Test cases for user_requires_reconsent field in ResourceSerializer."""
 
     def setUp(self):
@@ -2411,7 +2411,7 @@ class ResourceConsentUIFieldsTest(APITransactionTestCase):
 
 
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
-class OfferingUsersViewSetPerformanceTest(APITransactionTestCase):
+class OfferingUsersViewSetPerformanceTest(APITestCase):
     """Test performance of OfferingUsersViewSet.get_queryset method."""
 
     def setUp(self):
@@ -2682,7 +2682,7 @@ class OfferingUsersViewSetPerformanceTest(APITransactionTestCase):
             )
 
 
-class OfferingTermsOfServiceFilterTest(APITransactionTestCase):
+class OfferingTermsOfServiceFilterTest(APITestCase):
     """Test the has_active_terms_of_service filter for offerings."""
 
     def setUp(self):
@@ -2967,7 +2967,7 @@ class OfferingTermsOfServiceFilterTest(APITransactionTestCase):
 
 
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
-class TermsOfServiceConsentEventLoggingTest(APITransactionTestCase):
+class TermsOfServiceConsentEventLoggingTest(APITestCase):
     """Test event logging for Terms of Service consent operations."""
 
     def setUp(self):
@@ -3179,7 +3179,7 @@ class TermsOfServiceConsentEventLoggingTest(APITransactionTestCase):
 
 
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
-class ToSConsentStatsTest(APITransactionTestCase):
+class ToSConsentStatsTest(APITestCase):
     """Test cases for ToS consent statistics using quota system."""
 
     def setUp(self):
@@ -4016,7 +4016,7 @@ class ToSConsentNotificationTest(APITransactionTestCase):
 
 
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
-class GracePeriodRevokeConsentsTest(APITransactionTestCase):
+class GracePeriodRevokeConsentsTest(APITestCase):
     """Test cases for grace period and automatic consent revocation."""
 
     def setUp(self):

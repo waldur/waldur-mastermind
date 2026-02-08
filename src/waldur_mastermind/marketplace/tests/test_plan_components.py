@@ -15,7 +15,7 @@ from . import factories
 
 
 @ddt
-class PlanComponentsGetTest(test.APITransactionTestCase):
+class PlanComponentsGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer

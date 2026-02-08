@@ -17,7 +17,7 @@ from waldur_mastermind.marketplace.tests.test_offerings import BaseOfferingUpdat
 
 
 @ddt
-class PlanGetTest(test.APITransactionTestCase):
+class PlanGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer_fixture = fixtures.CustomerFixture()
@@ -58,7 +58,7 @@ class PlanGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class PlanCreateTest(test.APITransactionTestCase):
+class PlanCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -90,7 +90,7 @@ class PlanCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class PlanUpdateTest(test.APITransactionTestCase):
+class PlanUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -122,7 +122,7 @@ class PlanUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class PlanDeleteTest(test.APITransactionTestCase):
+class PlanDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.plan = factories.PlanFactory()
@@ -142,7 +142,7 @@ class PlanDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class PlanArchiveTest(test.APITransactionTestCase):
+class PlanArchiveTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -170,7 +170,7 @@ class PlanArchiveTest(test.APITransactionTestCase):
         return self.client.post(self.url)
 
 
-class PlanRenderTest(test.APITransactionTestCase):
+class PlanRenderTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -241,7 +241,7 @@ class PlanRenderTest(test.APITransactionTestCase):
 
 
 @ddt
-class PlanOrganizationGroupsTest(test.APITransactionTestCase):
+class PlanOrganizationGroupsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -525,7 +525,7 @@ class OfferingUpdatePlansTest(BaseOfferingUpdateTest):
         self.assertEqual(1, self.offering.plans.count())
 
 
-class PlanSumComponentsTest(test.APITransactionTestCase):
+class PlanSumComponentsTest(test.APITestCase):
     """Tests for Plan.sum_components() method which calculates price * amount."""
 
     def setUp(self):

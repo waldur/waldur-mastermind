@@ -13,7 +13,7 @@ from waldur_mastermind.marketplace.tests import (
 )
 
 
-class ServiceAccountMessageTest(test.APITransactionTestCase):
+class ServiceAccountMessageTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.service_account = marketplace_factories.ProjectServiceAccountFactory(

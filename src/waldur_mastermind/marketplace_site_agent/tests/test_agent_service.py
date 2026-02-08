@@ -9,7 +9,7 @@ from waldur_mastermind.marketplace_site_agent.tests import factories
 
 
 @ddt
-class AgentServiceSetStatisticsTest(test.APITransactionTestCase):
+class AgentServiceSetStatisticsTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -215,7 +215,7 @@ class AgentServiceSetStatisticsTest(test.APITransactionTestCase):
 
 
 @ddt
-class AgentServiceListTest(test.APITransactionTestCase):
+class AgentServiceListTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.fixture.offering_admin
@@ -256,7 +256,7 @@ class AgentServiceListTest(test.APITransactionTestCase):
 
 
 @ddt
-class AgentServiceRegisterProcessorTest(test.APITransactionTestCase):
+class AgentServiceRegisterProcessorTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -502,7 +502,7 @@ class AgentServiceRegisterProcessorTest(test.APITransactionTestCase):
 
 
 @ddt
-class AgentProcessorListTest(test.APITransactionTestCase):
+class AgentProcessorListTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.fixture.offering_admin

@@ -17,7 +17,7 @@ from waldur_mastermind.policy.tests import factories as policy_factories
 
 
 @ddt
-class CustomerComponentUsagePolicyCreateTest(test.APITransactionTestCase):
+class CustomerComponentUsagePolicyCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.customer = self.fixture.customer
@@ -56,7 +56,7 @@ class CustomerComponentUsagePolicyCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class CustomerComponentUsagePolicyUpdateTest(test.APITransactionTestCase):
+class CustomerComponentUsagePolicyUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.customer = self.fixture.customer
@@ -187,7 +187,7 @@ class CustomerComponentUsagePolicyUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class CustomerComponentUsagePolicyDeleteTest(test.APITransactionTestCase):
+class CustomerComponentUsagePolicyDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.customer = self.fixture.customer
@@ -218,7 +218,7 @@ class CustomerComponentUsagePolicyDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class CustomerComponentUsagePolicyValidationTest(test.APITransactionTestCase):
+class CustomerComponentUsagePolicyValidationTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.customer = self.fixture.customer
@@ -265,7 +265,7 @@ class CustomerComponentUsagePolicyValidationTest(test.APITransactionTestCase):
         )
 
 
-class CustomerComponentUsagePolicyTriggerTest(test.APITransactionTestCase):
+class CustomerComponentUsagePolicyTriggerTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.customer = self.fixture.customer

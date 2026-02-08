@@ -7,7 +7,7 @@ from rest_framework import status, test
 from . import factories, fixtures
 
 
-class ImageListDuplicateNamesTestCase(test.APITransactionTestCase):
+class ImageListDuplicateNamesTestCase(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant

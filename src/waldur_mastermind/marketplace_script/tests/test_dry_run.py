@@ -15,7 +15,7 @@ from . import fixtures
 
 @ddt
 @mock.patch("waldur_mastermind.marketplace_script.utils.execute_script")
-class DryRunTest(test.APITransactionTestCase):
+class DryRunTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.ScriptFixture()
         self.offering = self.fixture.offering

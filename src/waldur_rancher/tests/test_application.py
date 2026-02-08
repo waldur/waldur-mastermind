@@ -7,7 +7,7 @@ from waldur_core.structure.tests.factories import ProjectFactory
 from . import factories, fixtures, utils
 
 
-class ApplicationCreateTest(test.APITransactionTestCase):
+class ApplicationCreateTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()

@@ -13,7 +13,7 @@ from . import factories
 
 
 @ddt
-class RequestedOfferingGetTest(test.APITransactionTestCase):
+class RequestedOfferingGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.url = factories.RequestedOfferingFactory.get_provider_list_url()
@@ -42,7 +42,7 @@ class RequestedOfferingGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class RequestedOfferingAcceptTest(test.APITransactionTestCase):
+class RequestedOfferingAcceptTest(test.APITestCase):
     def setUp(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.ACCEPT_REQUESTED_OFFERING)
         self.fixture = fixtures.ProposalFixture()
@@ -104,7 +104,7 @@ class RequestedOfferingAcceptTest(test.APITransactionTestCase):
 
 
 @ddt
-class RequestedOfferingCancelTest(test.APITransactionTestCase):
+class RequestedOfferingCancelTest(test.APITestCase):
     def setUp(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.ACCEPT_REQUESTED_OFFERING)
         self.fixture = fixtures.ProposalFixture()

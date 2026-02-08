@@ -11,7 +11,7 @@ from waldur_mastermind.marketplace import models
 from . import factories
 
 
-class LoadEessiCatalogCommandTest(test.APITransactionTestCase):
+class LoadEessiCatalogCommandTest(test.APITestCase):
     def setUp(self):
         self.sample_eessi_data = {
             "targets": [

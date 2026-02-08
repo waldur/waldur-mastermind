@@ -8,7 +8,7 @@ from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 
 
-class ProjectStaffNotesTest(test.APITransactionTestCase):
+class ProjectStaffNotesTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -153,7 +153,7 @@ class ProjectStaffNotesTest(test.APITransactionTestCase):
         self.assertEqual(response.data["staff_notes"], "")
 
 
-class ProjectStaffNotesSchemaTest(test.APITransactionTestCase):
+class ProjectStaffNotesSchemaTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 
@@ -182,7 +182,7 @@ class ProjectStaffNotesSchemaTest(test.APITransactionTestCase):
         self.assertIn("staff_notes", fields)
 
 
-class ProjectStaffNotesListTest(test.APITransactionTestCase):
+class ProjectStaffNotesListTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.staff_user = factories.UserFactory(is_staff=True)

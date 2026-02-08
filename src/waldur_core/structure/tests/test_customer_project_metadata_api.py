@@ -8,7 +8,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 
 
-class CustomerProjectMetadataAPITest(test.APITransactionTestCase):
+class CustomerProjectMetadataAPITest(test.APITestCase):
     """Test Customer project_metadata_checklist field API functionality."""
 
     def setUp(self):

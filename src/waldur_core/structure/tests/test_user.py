@@ -19,7 +19,7 @@ from waldur_core.structure.tests import factories, fixtures
 from .. import tasks
 
 
-class UserPermissionApiTest(test.APITransactionTestCase):
+class UserPermissionApiTest(test.APITestCase):
     def setUp(self):
         self.users = {
             "staff": factories.UserFactory(
@@ -334,7 +334,7 @@ class UserPermissionApiTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class UserPermissionApiListTest(test.APITransactionTestCase):
+class UserPermissionApiListTest(test.APITestCase):
     def setUp(self):
         self.users = {
             "staff": factories.UserFactory(
@@ -373,7 +373,7 @@ class UserPermissionApiListTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
 
 
-class UserFilterTest(test.APITransactionTestCase):
+class UserFilterTest(test.APITestCase):
     def test_user_list_can_be_filtered(self):
         supported_filters = [
             "full_name",
@@ -482,7 +482,7 @@ class UserFilterTest(test.APITransactionTestCase):
         )
 
 
-class CustomUsersFilterTest(test.APITransactionTestCase):
+class CustomUsersFilterTest(test.APITestCase):
     def setUp(self):
         fixture = fixtures.ProjectFixture()
         self.customer1 = fixture.customer
@@ -519,7 +519,7 @@ class CustomUsersFilterTest(test.APITransactionTestCase):
 
 @ddt
 @freeze_time("2017-01-19")
-class UserUpdateTest(test.APITransactionTestCase):
+class UserUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.user = self.fixture.user
@@ -791,7 +791,7 @@ class UserConfirmEmailTest(test.APITransactionTestCase):
 
 
 @ddt
-class UserFullnameTest(test.APITransactionTestCase):
+class UserFullnameTest(test.APITestCase):
     def setUp(self):
         self.user = factories.UserFactory()
 
@@ -808,7 +808,7 @@ class UserFullnameTest(test.APITransactionTestCase):
 
 
 @ddt
-class UserCreateTest(test.APITransactionTestCase):
+class UserCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.staff = self.fixture.staff
@@ -880,7 +880,7 @@ class UserCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class UserNotificationsEnabledTest(test.APITransactionTestCase):
+class UserNotificationsEnabledTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.user = self.fixture.user
@@ -921,7 +921,7 @@ class UserNotificationsEnabledTest(test.APITransactionTestCase):
         self.assertFalse(self.user.notifications_enabled)
 
 
-class UserFilterIsStaffIsSupportTest(test.APITransactionTestCase):
+class UserFilterIsStaffIsSupportTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
         self.staff = self.fixture.staff
@@ -994,7 +994,7 @@ class UserFilterIsStaffIsSupportTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 0)
 
 
-class UserPermissionsFieldTest(test.APITransactionTestCase):
+class UserPermissionsFieldTest(test.APITestCase):
     """Tests for the permissions field in user serializer.
 
     Fixes CSCS-1XR: N+1 query on /api/users/ endpoint.
@@ -1065,7 +1065,7 @@ class UserPermissionsFieldTest(test.APITransactionTestCase):
         self.assertEqual(len(multi_role_data["permissions"]), 2)
 
 
-class UserAggregationEndpointsTest(test.APITransactionTestCase):
+class UserAggregationEndpointsTest(test.APITestCase):
     """Tests for user aggregation endpoints (staff/support only)."""
 
     def setUp(self):
@@ -1246,7 +1246,7 @@ class UserAggregationEndpointsTest(test.APITransactionTestCase):
         self.assertEqual(counts, sorted(counts, reverse=True))
 
 
-class ProfileCompletenessTest(test.APITransactionTestCase):
+class ProfileCompletenessTest(test.APITestCase):
     """Test profile completeness endpoint and /me endpoint update."""
 
     def setUp(self):

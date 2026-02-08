@@ -7,7 +7,7 @@ from waldur_core.structure.tests.factories import ProjectFactory, ServiceSetting
 from . import factories, fixtures
 
 
-class InstanceCreateTest(test.APITransactionTestCase):
+class InstanceCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.AWSFixture()
         self.url = factories.InstanceFactory.get_list_url()
@@ -35,7 +35,7 @@ class InstanceCreateTest(test.APITransactionTestCase):
         }
 
 
-class InstanceResizeTest(test.APITransactionTestCase):
+class InstanceResizeTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.AWSFixture()
 

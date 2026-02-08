@@ -9,7 +9,7 @@ from waldur_mastermind.analytics import models, tasks
 from waldur_mastermind.common.utils import parse_date
 
 
-class TestDailyQuotasEndpoint(test.APITransactionTestCase):
+class TestDailyQuotasEndpoint(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -54,7 +54,7 @@ class TestDailyQuotasEndpoint(test.APITransactionTestCase):
         self.assertDictEqual(response.data, expected)
 
 
-class TestDailyQuotasTask(test.APITransactionTestCase):
+class TestDailyQuotasTask(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.project = self.fixture.project

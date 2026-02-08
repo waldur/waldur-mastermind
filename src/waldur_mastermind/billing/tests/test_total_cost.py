@@ -5,7 +5,7 @@ from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.invoices.tests import fixtures as invoice_fixtures
 
 
-class TotalCostTest(test.APITransactionTestCase):
+class TotalCostTest(test.APITestCase):
     def setUp(self):
         self.fixture1 = invoice_fixtures.InvoiceFixture()
         self.fixture2 = invoice_fixtures.InvoiceFixture()

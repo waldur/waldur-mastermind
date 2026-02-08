@@ -23,7 +23,7 @@ from waldur_core.core.tests.dns_utils import (
         ]
     }
 )
-class SSRFProtectionTest(test.APITransactionTestCase):
+class SSRFProtectionTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         respx.start()

@@ -10,7 +10,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 
 
-class CustomerProjectMetadataComplianceAPITest(test.APITransactionTestCase):
+class CustomerProjectMetadataComplianceAPITest(test.APITestCase):
     """Test CustomerProjectMetadataComplianceViewSet API functionality."""
 
     def setUp(self):
@@ -477,7 +477,7 @@ class CustomerProjectMetadataComplianceAPITest(test.APITransactionTestCase):
             self.assertEqual(len(question_data["project_answers"]), 0)
 
 
-class CustomerProjectMetadataCompliancePermissionsTest(test.APITransactionTestCase):
+class CustomerProjectMetadataCompliancePermissionsTest(test.APITestCase):
     """Test permissions for CustomerProjectMetadataComplianceViewSet."""
 
     def setUp(self):
@@ -605,7 +605,7 @@ class CustomerProjectMetadataCompliancePermissionsTest(test.APITransactionTestCa
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
-class CustomerProjectMetadataComplianceDataAccuracyTest(test.APITransactionTestCase):
+class CustomerProjectMetadataComplianceDataAccuracyTest(test.APITestCase):
     """Test data accuracy for CustomerProjectMetadataComplianceViewSet."""
 
     def setUp(self):
@@ -968,9 +968,7 @@ class CustomerProjectMetadataComplianceDataAccuracyTest(test.APITransactionTestC
         self.assertEqual(set(answered_project["answer_data"]), set(expected_uuids))
 
 
-class CustomerProjectMetadataComplianceDetailsEnhancementTest(
-    test.APITransactionTestCase
-):
+class CustomerProjectMetadataComplianceDetailsEnhancementTest(test.APITestCase):
     """Test enhanced compliance details with question_options and answer_labels."""
 
     def setUp(self):
@@ -1172,9 +1170,7 @@ class CustomerProjectMetadataComplianceDetailsEnhancementTest(
             )
 
 
-class CustomerProjectMetadataComplianceQueryOptimizationTest(
-    test.APITransactionTestCase
-):
+class CustomerProjectMetadataComplianceQueryOptimizationTest(test.APITestCase):
     """Test query optimization for CustomerProjectMetadataQuestionAnswersViewSet."""
 
     def setUp(self):
@@ -1317,7 +1313,7 @@ class CustomerProjectMetadataComplianceQueryOptimizationTest(
                         self.assertIsNotNone(project_answer["answer_labels"])
 
 
-class NumberValidationFieldsTest(test.APITransactionTestCase):
+class NumberValidationFieldsTest(test.APITestCase):
     """Test that min_value and max_value fields are exposed in API responses."""
 
     def setUp(self):

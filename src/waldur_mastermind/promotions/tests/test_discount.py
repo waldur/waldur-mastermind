@@ -11,7 +11,7 @@ from waldur_mastermind.promotions.tests import fixtures
 
 
 @ddt
-class DiscountTest(test.APITransactionTestCase):
+class DiscountTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.PromotionsFixture()
         self.resource = self.fixture.resource

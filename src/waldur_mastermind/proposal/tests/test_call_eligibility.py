@@ -11,7 +11,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal.tests import factories, fixtures
 
 
-class CallEligibilityAPITest(test.APITransactionTestCase):
+class CallEligibilityAPITest(test.APITestCase):
     """Test the check_eligibility endpoint on calls."""
 
     def setUp(self):
@@ -192,7 +192,7 @@ class CallEligibilityAPITest(test.APITransactionTestCase):
         self.assertTrue(response.data["is_eligible"])
 
 
-class CallEligibilitySerializerTest(test.APITransactionTestCase):
+class CallEligibilitySerializerTest(test.APITestCase):
     """Test that eligibility fields are properly serialized."""
 
     def setUp(self):
@@ -247,7 +247,7 @@ class CallEligibilitySerializerTest(test.APITransactionTestCase):
         self.assertEqual(self.call.user_nationalities, ["DE", "FR"])
 
 
-class ProposalCreationEligibilityTest(test.APITransactionTestCase):
+class ProposalCreationEligibilityTest(test.APITestCase):
     """Test that proposal creation validates eligibility."""
 
     def setUp(self):

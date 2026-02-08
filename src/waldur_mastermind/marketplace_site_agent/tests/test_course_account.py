@@ -15,7 +15,7 @@ from waldur_mastermind.marketplace.tests import (
 )
 
 
-class CourseAccountMessageTest(test.APITransactionTestCase):
+class CourseAccountMessageTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         project = self.fixture.project

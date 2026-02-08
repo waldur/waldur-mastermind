@@ -17,7 +17,7 @@ from . import fixtures
     SMAX_LOGIN="user@example.com",
     SMAX_PASSWORD="password",
 )
-class BaseTest(test.APITransactionTestCase):
+class BaseTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.SupportFixture()
 

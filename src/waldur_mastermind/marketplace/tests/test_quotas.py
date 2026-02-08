@@ -28,7 +28,7 @@ class TestNewInstanceCreateProcessor(utils.TestCreateProcessor):
     fields = ["name", "cores"]
 
 
-class QuotasValidateTest(test.APITransactionTestCase):
+class QuotasValidateTest(test.APITestCase):
     def setUp(self):
         manager.register(
             offering_type="TEST_TYPE",

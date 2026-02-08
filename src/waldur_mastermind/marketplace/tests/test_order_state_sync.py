@@ -5,7 +5,7 @@ from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes, Resourc
 from waldur_mastermind.marketplace.tests import factories
 
 
-class OrderStateSyncTest(test.APITransactionTestCase):
+class OrderStateSyncTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project

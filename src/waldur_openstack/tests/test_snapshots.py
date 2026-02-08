@@ -9,7 +9,7 @@ from . import factories, fixtures
 
 
 @ddt
-class SnapshotRestoreTest(test.APITransactionTestCase):
+class SnapshotRestoreTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
 
@@ -149,7 +149,7 @@ class SnapshotRestoreTest(test.APITransactionTestCase):
 
 
 @ddt
-class SnapshotRetrieveTest(test.APITransactionTestCase):
+class SnapshotRetrieveTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
 

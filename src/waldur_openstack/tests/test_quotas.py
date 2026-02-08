@@ -3,7 +3,7 @@ from rest_framework import test
 from . import fixtures
 
 
-class TenantQuotasTest(test.APITransactionTestCase):
+class TenantQuotasTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.OpenStackFixture()

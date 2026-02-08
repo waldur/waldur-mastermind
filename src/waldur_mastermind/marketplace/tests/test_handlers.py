@@ -4,7 +4,7 @@ from unittest import mock
 import httpx
 import respx
 from django.db import transaction
-from rest_framework.test import APITransactionTestCase
+from rest_framework.test import APITestCase
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.logging.models import Event
@@ -32,7 +32,7 @@ def add_user_to_project(user, project, role=None):
     tasks.create_or_restore_offering_users_for_user(user.uuid.hex, project.uuid.hex)
 
 
-class ResourceHandlerTest(APITransactionTestCase):
+class ResourceHandlerTest(APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
 
@@ -370,7 +370,7 @@ class ResourceHandlerTest(APITransactionTestCase):
         )
 
 
-class UpdateOfferingUserUsernameAfterUserChangeTest(APITransactionTestCase):
+class UpdateOfferingUserUsernameAfterUserChangeTest(APITestCase):
     def setUp(self):
         self.offering = factories.OfferingFactory(
             type=BASIC_OFFERING,
@@ -419,7 +419,7 @@ class UpdateOfferingUserUsernameAfterUserChangeTest(APITransactionTestCase):
         self.assertEqual(offering_user.username, "old_username")
 
 
-class SetOrderCompletionTimestampTest(APITransactionTestCase):
+class SetOrderCompletionTimestampTest(APITestCase):
     def setUp(self):
         self.fixed_time = datetime.datetime(2025, 5, 23, 12, 0, 0)
         self.order = factories.OrderFactory(state=OrderStates.PENDING_PROVIDER)
@@ -482,7 +482,7 @@ TOKEN_SECRET = "test-secret"
     SERVICE_ACCOUNT_TOKEN_CLIENT_ID=TOKEN_CLIENT_ID,
     SERVICE_ACCOUNT_TOKEN_SECRET=TOKEN_SECRET,
 )
-class ServiceAccountHandlersTest(APITransactionTestCase):
+class ServiceAccountHandlersTest(APITestCase):
     def setUp(self):
         respx.start()
         self.fixture = fixtures.MarketplaceFixture()
@@ -661,7 +661,7 @@ class ServiceAccountHandlersTest(APITransactionTestCase):
         )
 
 
-class OfferingUserCreationWithUsernameTest(APITransactionTestCase):
+class OfferingUserCreationWithUsernameTest(APITestCase):
     """
     Test that OfferingUser instances are created with correct state when username is known.
     """
@@ -740,7 +740,7 @@ class OfferingUserCreationWithUsernameTest(APITransactionTestCase):
             self.assertEqual(offering_user.username, "")
 
 
-class OfferingUserDirectCreationTest(APITransactionTestCase):
+class OfferingUserDirectCreationTest(APITestCase):
     """
     Test direct creation of OfferingUser objects with different username scenarios.
     """
@@ -789,7 +789,7 @@ class OfferingUserDirectCreationTest(APITransactionTestCase):
         self.assertEqual(offering_user.username, "")
 
 
-class OfferingUserDeletionOnProjectAccessLossTest(APITransactionTestCase):
+class OfferingUserDeletionOnProjectAccessLossTest(APITestCase):
     """Test that offering users are marked for deletion when user loses project access."""
 
     def setUp(self):
@@ -914,7 +914,7 @@ class OfferingUserDeletionOnProjectAccessLossTest(APITransactionTestCase):
         )
 
 
-class OfferingUserRestorationOnProjectAccessGainedTest(APITransactionTestCase):
+class OfferingUserRestorationOnProjectAccessGainedTest(APITestCase):
     """Test that offering users are restored when user regains project access."""
 
     def setUp(self):
@@ -1098,7 +1098,7 @@ class OfferingUserRestorationOnProjectAccessGainedTest(APITransactionTestCase):
         self.assertIn(self.fixture.offering.name, event.message)
 
 
-class CleanupStaleOfferingUsersTest(APITransactionTestCase):
+class CleanupStaleOfferingUsersTest(APITestCase):
     """Test the periodic cleanup task for stale offering users."""
 
     def setUp(self):

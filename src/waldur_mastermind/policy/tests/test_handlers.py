@@ -12,7 +12,7 @@ from waldur_mastermind.policy.models import ProjectEstimatedCostPolicy
 from waldur_mastermind.policy.tests import factories
 
 
-class TestCostPolicyDeletionHandler(test.APITransactionTestCase):
+class TestCostPolicyDeletionHandler(test.APITestCase):
     def setUp(self):
         self.url = factories.ProjectEstimatedCostPolicyFactory.get_url()
         self.client = test.APIClient()
@@ -63,7 +63,7 @@ class TestCostPolicyDeletionHandler(test.APITransactionTestCase):
         )
 
 
-class TestIsMockedSkipsPolicyCheck(test.APITransactionTestCase):
+class TestIsMockedSkipsPolicyCheck(test.APITestCase):
     def setUp(self):
         self.project = structure_factories.ProjectFactory()
         self.policy = factories.ProjectEstimatedCostPolicyFactory(scope=self.project)
@@ -88,7 +88,7 @@ class TestIsMockedSkipsPolicyCheck(test.APITransactionTestCase):
             actions_mock.assert_called_once()
 
 
-class TestPolicySignalHandlerIsRegistered(test.APITransactionTestCase):
+class TestPolicySignalHandlerIsRegistered(test.APITestCase):
     """
     Test that policy signal handlers are properly registered and fire.
 

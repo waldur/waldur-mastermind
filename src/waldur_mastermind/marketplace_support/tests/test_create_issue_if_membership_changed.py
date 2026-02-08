@@ -13,7 +13,7 @@ from waldur_mastermind.marketplace.tests import (
 from waldur_mastermind.support import models as support_models
 
 
-class TestMembershipChangeIssues(test.APITransactionTestCase):
+class TestMembershipChangeIssues(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = marketplace_fixtures.MarketplaceFixture()

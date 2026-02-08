@@ -8,7 +8,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.test import (
     APIRequestFactory,
-    APITransactionTestCase,
+    APITestCase,
     force_authenticate,
 )
 from rest_framework.views import APIView
@@ -122,7 +122,7 @@ class DictSerializerFieldTest(unittest.TestCase):
         self.assertFalse(serializer.is_valid(), "Serializer should reject None values")
 
 
-class GenericRelatedFieldTest(APITransactionTestCase):
+class GenericRelatedFieldTest(APITestCase):
     def setUp(self):
         self.user = UserFactory(is_staff=True)
         self.request = APIRequestFactory().get("/")
@@ -245,7 +245,7 @@ class UserListView(ListAPIView):
     ]
 
 
-class RestrictedSerializerTest(APITransactionTestCase):
+class RestrictedSerializerTest(APITestCase):
     def setUp(self):
         """
         Set up common objects for all tests in this class.
@@ -320,7 +320,7 @@ class RestrictedSerializerTest(APITransactionTestCase):
             )
 
 
-class SlugSerializerMixinTest(APITransactionTestCase):
+class SlugSerializerMixinTest(APITestCase):
     """Test SlugSerializerMixin uniqueness validation for staff users."""
 
     def setUp(self):

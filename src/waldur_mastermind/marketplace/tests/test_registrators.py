@@ -12,7 +12,7 @@ from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 
 
-class PrepaidBillingTestBase(test.APITransactionTestCase):
+class PrepaidBillingTestBase(test.APITestCase):
     """Base class for prepaid billing tests with a complete offering setup."""
 
     def setUp(self):

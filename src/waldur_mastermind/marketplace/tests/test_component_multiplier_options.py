@@ -6,7 +6,7 @@ from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.tests import factories
 
 
-class ComponentMultiplierOptionsSerializerTest(test.APITransactionTestCase):
+class ComponentMultiplierOptionsSerializerTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
 
@@ -93,7 +93,7 @@ class ComponentMultiplierOptionsSerializerTest(test.APITransactionTestCase):
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
 
-class ComponentMultiplierOptionsIntegrationTest(test.APITransactionTestCase):
+class ComponentMultiplierOptionsIntegrationTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer

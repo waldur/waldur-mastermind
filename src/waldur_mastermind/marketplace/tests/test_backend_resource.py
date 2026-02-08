@@ -16,7 +16,7 @@ from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
 @ddt
-class BackendResourcePermissionsTest(test.APITransactionTestCase):
+class BackendResourcePermissionsTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.MarketplaceFixture()
         self.url = factories.BackendResourceFactory.get_list_url()
@@ -100,7 +100,7 @@ class BackendResourcePermissionsTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class BackendResourceImportTest(test.APITransactionTestCase):
+class BackendResourceImportTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -204,7 +204,7 @@ class BackendResourceImportTest(test.APITransactionTestCase):
 
 
 @ddt
-class BackendResourceRequestTest(test.APITransactionTestCase):
+class BackendResourceRequestTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering

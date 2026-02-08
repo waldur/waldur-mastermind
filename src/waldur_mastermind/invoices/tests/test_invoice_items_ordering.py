@@ -5,7 +5,7 @@ from waldur_mastermind.invoices.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
-class InvoiceItemsOrderingTest(test.APITransactionTestCase):
+class InvoiceItemsOrderingTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
 
@@ -210,7 +210,7 @@ class InvoiceItemsOrderingTest(test.APITransactionTestCase):
         # Empty project name should appear first or last depending on null ordering
 
 
-class InvoiceItemsOrderingWithFiltersTest(test.APITransactionTestCase):
+class InvoiceItemsOrderingWithFiltersTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
 

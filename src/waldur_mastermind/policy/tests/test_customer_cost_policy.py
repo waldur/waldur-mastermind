@@ -16,7 +16,7 @@ from waldur_mastermind.policy.tests import factories
 
 
 @freeze_time("2024-09-01")
-class ActionsFunctionsTest(test.APITransactionTestCase):
+class ActionsFunctionsTest(test.APITestCase):
     def setUp(self):
         self.notify_organization_owners_mock = mock.MagicMock()
         self.notify_organization_owners_mock.__name__ = "notify_organization_owners"
@@ -178,7 +178,7 @@ class ActionsFunctionsTest(test.APITransactionTestCase):
 
 
 @ddt
-class GetPolicyTest(test.APITransactionTestCase):
+class GetPolicyTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.customer = self.fixture.customer
@@ -289,7 +289,7 @@ class CreatePolicyTest(test.APITransactionTestCase):
 
 
 @ddt
-class DeletePolicyTest(test.APITransactionTestCase):
+class DeletePolicyTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.customer = self.fixture.customer
@@ -312,7 +312,7 @@ class DeletePolicyTest(test.APITransactionTestCase):
 
 
 @ddt
-class UpdatePolicyTest(test.APITransactionTestCase):
+class UpdatePolicyTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.customer = self.fixture.customer

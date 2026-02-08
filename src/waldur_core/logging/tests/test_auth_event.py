@@ -6,7 +6,7 @@ from waldur_core.core.models import User
 from waldur_core.logging import models
 
 
-class AuthenticationEventLogTest(test.APITransactionTestCase):
+class AuthenticationEventLogTest(test.APITestCase):
     def setUp(self):
         self.username = "test"
         self.password = "secret"

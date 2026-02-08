@@ -18,7 +18,7 @@ from . import fixtures
 
 @mock.patch("waldur_mastermind.marketplace_script.utils.docker")
 @mock.patch("waldur_mastermind.marketplace_script.utils.check_docker_socket_access")
-class CreateOutputFormatTest(test.APITransactionTestCase):
+class CreateOutputFormatTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ScriptFixture()
         self.fixture.offering.secret_options = {
@@ -114,7 +114,7 @@ class CreateOutputFormatTest(test.APITransactionTestCase):
 
 @mock.patch("waldur_mastermind.marketplace_script.utils.docker")
 @mock.patch("waldur_mastermind.marketplace_script.utils.check_docker_socket_access")
-class PullOutputFormatTest(test.APITransactionTestCase):
+class PullOutputFormatTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.ScriptFixture()
         self.offering = self.fixture.offering

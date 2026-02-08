@@ -3,7 +3,7 @@ from unittest import mock
 
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APITransactionTestCase
+from rest_framework.test import APITestCase, APITransactionTestCase
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import ProjectRole
@@ -207,7 +207,7 @@ class OrderStateChangeRecalculationTest(APITransactionTestCase):
         )
 
 
-class ExecuteActionCleanupTest(APITransactionTestCase):
+class ExecuteActionCleanupTest(APITestCase):
     """Test that cleanup is triggered after executing a corrective action."""
 
     def setUp(self):

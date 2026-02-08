@@ -14,7 +14,7 @@ from waldur_mastermind.invoices.tests import factories as invoice_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
-class CustomerEstimatedCostFilterTest(test.APITransactionTestCase):
+class CustomerEstimatedCostFilterTest(test.APITestCase):
     def setUp(self):
         models.PriceEstimate.objects.filter(
             scope=structure_factories.CustomerFactory()
@@ -103,7 +103,7 @@ class CustomerTotalCostFilterTest(test.APITransactionTestCase):
 
 
 @override_waldur_core_settings(ENABLE_ACCOUNTING_START_DATE=True)
-class FinancialReportFilterTest(test.APITransactionTestCase):
+class FinancialReportFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.url = "/api/financial-reports/"
@@ -126,7 +126,7 @@ class FinancialReportFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 0)
 
 
-class FinancialReportProviderFilterTest(test.APITransactionTestCase):
+class FinancialReportProviderFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.url = "/api/financial-reports/"

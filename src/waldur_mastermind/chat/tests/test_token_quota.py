@@ -79,7 +79,7 @@ class TokenQuotaCreationTest(test.APITransactionTestCase):
         self.assertEqual(len(errors), 0, f"Unexpected errors: {errors}")
 
 
-class TokenQuotaResetAtSerializerTest(test.APITransactionTestCase):
+class TokenQuotaResetAtSerializerTest(test.APITestCase):
     """Test that serializer calculates next reset times correctly."""
 
     def setUp(self):
@@ -142,7 +142,7 @@ class TokenQuotaResetAtSerializerTest(test.APITransactionTestCase):
         self.assertEqual(reset_at.day, 1)
 
 
-class TokenQuotaLimitsTest(test.APITransactionTestCase):
+class TokenQuotaLimitsTest(test.APITestCase):
     """Test effective limit calculation with user overrides and system defaults."""
 
     def setUp(self):
@@ -228,7 +228,7 @@ class TokenQuotaLimitsTest(test.APITransactionTestCase):
         self.assertEqual(TokenQuota._coerce_limit(999999), 999999)
 
 
-class TokenQuotaInvalidConfigTest(test.APITransactionTestCase):
+class TokenQuotaInvalidConfigTest(test.APITestCase):
     """Test handling of invalid constance configuration values."""
 
     def setUp(self):
@@ -266,7 +266,7 @@ class TokenQuotaInvalidConfigTest(test.APITransactionTestCase):
             self.quota.get_effective_limit("weekly")
 
 
-class CalendarBasedResetTasksTest(test.APITransactionTestCase):
+class CalendarBasedResetTasksTest(test.APITestCase):
     """Test calendar-based reset tasks."""
 
     def setUp(self):
@@ -371,7 +371,7 @@ class TokenQuotaUsageTest(test.APITransactionTestCase):
         self.assertEqual(self.quota.monthly_usage, 1000)
 
 
-class TokenQuotaRemainingTest(test.APITransactionTestCase):
+class TokenQuotaRemainingTest(test.APITestCase):
     """Test remaining token calculations."""
 
     def setUp(self):
@@ -444,7 +444,7 @@ class TokenQuotaConcurrencyTest(test.APITransactionTestCase):
             self.assertIn("non-negative", str(ctx.exception))
 
 
-class QuotaUsageAPITest(test.APITransactionTestCase):
+class QuotaUsageAPITest(test.APITestCase):
     """Test quota usage API endpoint."""
 
     def setUp(self):
@@ -608,7 +608,7 @@ class QuotaUsageAPITest(test.APITransactionTestCase):
         self.assertEqual(response.data["monthly_system_default"], 200000)
 
 
-class SetTokenQuotaAPITest(test.APITransactionTestCase):
+class SetTokenQuotaAPITest(test.APITestCase):
     """Tests for staff setting user AI token quotas via set_quota endpoint."""
 
     def setUp(self):

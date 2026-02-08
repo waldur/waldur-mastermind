@@ -2,7 +2,7 @@ import uuid
 
 from ddt import data, ddt
 from rest_framework import status
-from rest_framework.test import APITransactionTestCase
+from rest_framework.test import APITestCase
 
 from waldur_mastermind.marketplace.tests import (
     factories as marketplace_factories,
@@ -17,7 +17,7 @@ from waldur_mastermind.marketplace_remote.tests import (
 
 
 @ddt
-class BaseRemoteSynchronisationTest(APITransactionTestCase):
+class BaseRemoteSynchronisationTest(APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.remote_synchronisation = (

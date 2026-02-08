@@ -17,7 +17,7 @@ from waldur_mastermind.proposal.tests import factories, fixtures
 
 
 @ddt
-class ProposalGetTest(test.APITransactionTestCase):
+class ProposalGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.url = factories.ProposalFactory.get_url(self.fixture.proposal)
@@ -69,7 +69,7 @@ class ProposalGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProposalCreateTest(test.APITransactionTestCase):
+class ProposalCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.url = factories.ProposalFactory.get_list_url()
@@ -117,7 +117,7 @@ class ProposalCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class UpdateProposalProjectDetailsTest(test.APITransactionTestCase):
+class UpdateProposalProjectDetailsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
@@ -213,7 +213,7 @@ class UpdateProposalProjectDetailsTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProposalDeleteTest(test.APITransactionTestCase):
+class ProposalDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
@@ -247,7 +247,7 @@ class ProposalDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class ActionTest(test.APITransactionTestCase):
+class ActionTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
@@ -446,7 +446,7 @@ class ActionTest(test.APITransactionTestCase):
 
 
 @ddt
-class RequestedResourceGetTest(test.APITransactionTestCase):
+class RequestedResourceGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.url = factories.RequestedResourceFactory.get_list_url(
@@ -477,7 +477,7 @@ class RequestedResourceGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class RequestedResourceCreateTest(test.APITransactionTestCase):
+class RequestedResourceCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal
@@ -536,7 +536,7 @@ class RequestedResourceCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class RequestedResourceUpdateTest(test.APITransactionTestCase):
+class RequestedResourceUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.requested_resource = self.fixture.requested_resource
@@ -585,7 +585,7 @@ class RequestedResourceUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class RequestedResourceDeleteTest(test.APITransactionTestCase):
+class RequestedResourceDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.requested_resource = self.fixture.requested_resource
@@ -636,7 +636,7 @@ class RequestedResourceDeleteTest(test.APITransactionTestCase):
         return self.client.delete(self.url)
 
 
-class TaskTest(test.APITransactionTestCase):
+class TaskTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.proposal = self.fixture.proposal

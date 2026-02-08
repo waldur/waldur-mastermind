@@ -7,7 +7,7 @@ from waldur_core.structure.registry import SupportedServices
 from waldur_core.structure.tests import factories
 
 
-class ServiceSettingsListTest(test.APITransactionTestCase):
+class ServiceSettingsListTest(test.APITestCase):
     def setUp(self):
         self.users = {
             "staff": factories.UserFactory(is_staff=True),
@@ -103,7 +103,7 @@ class ServiceSettingsListTest(test.APITransactionTestCase):
             self.assertNotIn(field, data["options"])
 
 
-class ServiceBackendClassesTest(test.APITransactionTestCase):
+class ServiceBackendClassesTest(test.APITestCase):
     def setUp(self):
         self.service_settings = factories.ServiceSettingsFactory()
 

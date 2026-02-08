@@ -9,7 +9,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 
 
 @ddt
-class ReviewTriggerModelTest(test.APITransactionTestCase):
+class ReviewTriggerModelTest(test.APITestCase):
     """Test the model-level review trigger functionality."""
 
     def setUp(self):
@@ -86,7 +86,7 @@ class ReviewTriggerModelTest(test.APITransactionTestCase):
 
 
 @ddt
-class ReviewTriggerAPITest(test.APITransactionTestCase):
+class ReviewTriggerAPITest(test.APITestCase):
     """Test review trigger configuration via REST API."""
 
     def setUp(self):
@@ -173,7 +173,7 @@ class ReviewTriggerAPITest(test.APITransactionTestCase):
 
 
 @ddt
-class CombinedReviewAndGuidanceTest(test.APITransactionTestCase):
+class CombinedReviewAndGuidanceTest(test.APITestCase):
     """Test questions that combine review triggers and user guidance."""
 
     def setUp(self):
@@ -268,7 +268,7 @@ class CombinedReviewAndGuidanceTest(test.APITransactionTestCase):
 
 
 @ddt
-class ReviewTriggerDocumentationScenariosTest(test.APITransactionTestCase):
+class ReviewTriggerDocumentationScenariosTest(test.APITestCase):
     """Test review trigger scenarios from documentation."""
 
     def setUp(self):
@@ -391,7 +391,7 @@ class ReviewTriggerDocumentationScenariosTest(test.APITransactionTestCase):
 
 
 @ddt
-class AnswerReviewFlagTest(test.APITransactionTestCase):
+class AnswerReviewFlagTest(test.APITestCase):
     """Test that Answer objects are correctly flagged for review when saved."""
 
     def setUp(self):

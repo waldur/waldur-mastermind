@@ -12,7 +12,7 @@ from . import fixtures
 
 
 @mock.patch("waldur_mastermind.marketplace_script.utils.execute_script")
-class PullResourceTest(test.APITransactionTestCase):
+class PullResourceTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.ScriptFixture()
         self.offering = self.fixture.offering
@@ -36,7 +36,7 @@ class PullResourceTest(test.APITransactionTestCase):
         self.assertEqual(self.resource.error_message, "")
 
 
-class ResourceOptionsHandlerTest(test.APITransactionTestCase):
+class ResourceOptionsHandlerTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.ScriptFixture()
         self.offering = self.fixture.offering

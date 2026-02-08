@@ -12,7 +12,7 @@ from waldur_core.structure.tests import factories as structure_factories
 
 
 @skip("Fails in GitLab, works locally")
-class TestHookService(test.APITransactionTestCase):
+class TestHookService(test.APITestCase):
     def setUp(self):
         self.owner = structure_factories.UserFactory()
         self.customer = structure_factories.CustomerFactory()

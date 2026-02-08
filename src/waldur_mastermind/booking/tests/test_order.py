@@ -16,7 +16,7 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
-class OrderProcessedTest(test.APITransactionTestCase):
+class OrderProcessedTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.ProjectFixture()
         self.offering = marketplace_factories.OfferingFactory(type=BOOKING_OFFERING)
@@ -61,7 +61,7 @@ class OrderProcessedTest(test.APITransactionTestCase):
 
 
 @freeze_time("2018-12-01")
-class OrderCreateTest(test.APITransactionTestCase):
+class OrderCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project

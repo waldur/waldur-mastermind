@@ -5,7 +5,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession
 
 
-class MessageModelTest(test.APITransactionTestCase):
+class MessageModelTest(test.APITestCase):
     """Test Message model business logic."""
 
     def setUp(self):
@@ -32,7 +32,7 @@ class MessageModelTest(test.APITransactionTestCase):
             )
 
 
-class ChatSessionViewSetTest(test.APITransactionTestCase):
+class ChatSessionViewSetTest(test.APITestCase):
     """Test ChatSessionViewSet endpoints."""
 
     def setUp(self):
@@ -68,7 +68,7 @@ class ChatSessionViewSetTest(test.APITransactionTestCase):
         self.assertEqual(ChatSession.objects.filter(user=self.user).count(), 1)
 
 
-class ThreadSessionViewSetTest(test.APITransactionTestCase):
+class ThreadSessionViewSetTest(test.APITestCase):
     """Test ThreadSessionViewSet endpoints."""
 
     def setUp(self):

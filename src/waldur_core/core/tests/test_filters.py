@@ -10,7 +10,7 @@ from waldur_core.structure.tests.factories import CustomerFactory
 from waldur_mastermind.marketplace.models import ServiceProvider
 
 
-class TestGetGenericFieldFilter(test.APITransactionTestCase):
+class TestGetGenericFieldFilter(test.APITestCase):
     """Tests for get_generic_field_filter function."""
 
     def test_filter_does_not_raise_error_for_models_with_name_property(self):
@@ -61,7 +61,7 @@ class TestGetGenericFieldFilter(test.APITransactionTestCase):
         self.assertIsInstance(result, models.QuerySet)
 
 
-class TestUrlFilter(test.APITransactionTestCase):
+class TestUrlFilter(test.APITestCase):
     def setUp(self):
         self.customer = CustomerFactory()
         self.url = CustomerFactory.get_url(self.customer)

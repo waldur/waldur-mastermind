@@ -11,7 +11,7 @@ from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
 @ddt
-class OfferingExportImportTestCase(test.APITransactionTestCase):
+class OfferingExportImportTestCase(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.customer = self.fixture.customer

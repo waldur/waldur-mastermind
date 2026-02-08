@@ -700,7 +700,7 @@ class ScimReconcileTasksTest(BaseScimTestCase):
         )
 
 
-class ScimSyncAllApiTest(test.APITransactionTestCase):
+class ScimSyncAllApiTest(test.APITestCase):
     def setUp(self):
         self.staff_user = structure_factories.UserFactory(is_staff=True)
         self.regular_user = structure_factories.UserFactory(is_staff=False)

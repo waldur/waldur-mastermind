@@ -8,7 +8,7 @@ from . import fixtures
 
 
 @freeze_time("2020-02-01")
-class TaskTest(test.APITransactionTestCase):
+class TaskTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.BookingFixture()
         self.fixture.order.state = OrderStates.EXECUTING

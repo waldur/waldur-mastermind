@@ -1,13 +1,13 @@
 from datetime import datetime, timedelta
 
-from rest_framework.test import APITransactionTestCase
+from rest_framework.test import APITestCase
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.structure.tests import factories
 from waldur_core.structure.tests.factories import ProjectFactory, UserFactory
 
 
-class CustomerAccountingStartDateFilterTest(APITransactionTestCase):
+class CustomerAccountingStartDateFilterTest(APITestCase):
     def setUp(self):
         running_customer = factories.CustomerFactory(
             accounting_start_date=datetime.now() - timedelta(days=7)
@@ -45,7 +45,7 @@ class CustomerAccountingStartDateFilterTest(APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
 
 
-class ProjectIsRemovedFilterTest(APITransactionTestCase):
+class ProjectIsRemovedFilterTest(APITestCase):
     def setUp(self):
         self.active_project = factories.ProjectFactory()
         self.removed_project = factories.ProjectFactory()
@@ -89,7 +89,7 @@ class ProjectIsRemovedFilterTest(APITransactionTestCase):
         self.assertIn(str(self.removed_project.uuid), project_uuids)
 
 
-class ProjectQueryFilterTest(APITransactionTestCase):
+class ProjectQueryFilterTest(APITestCase):
     def setUp(self):
         self.project1 = factories.ProjectFactory(name="Test Project Alpha")
         self.project2 = factories.ProjectFactory(name="Beta Project")

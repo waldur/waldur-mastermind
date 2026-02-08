@@ -4,7 +4,7 @@ from rest_framework import test
 from waldur_core.structure.tests.factories import UserFactory
 
 
-class OverrideSettingsTest(test.APITransactionTestCase):
+class OverrideSettingsTest(test.APITestCase):
     def setUp(self):
         self.url = "/api/override-settings/"
         self.staff = UserFactory(is_staff=True)

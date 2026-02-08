@@ -74,7 +74,7 @@ class StaffMaintenanceFixture(ArrowFixture):
         return self._billing_sync_item
 
 
-class TriggerConsumptionSyncTest(test.APITransactionTestCase):
+class TriggerConsumptionSyncTest(test.APITestCase):
     """Tests for trigger_consumption_sync action."""
 
     def setUp(self):
@@ -111,7 +111,7 @@ class TriggerConsumptionSyncTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class TriggerReconciliationTest(test.APITransactionTestCase):
+class TriggerReconciliationTest(test.APITestCase):
     """Tests for trigger_reconciliation action."""
 
     def setUp(self):
@@ -131,7 +131,7 @@ class TriggerReconciliationTest(test.APITransactionTestCase):
         mock_delay.assert_called_once()
 
 
-class CleanupConsumptionTest(test.APITransactionTestCase):
+class CleanupConsumptionTest(test.APITestCase):
     """Tests for cleanup_consumption action."""
 
     def setUp(self):
@@ -205,7 +205,7 @@ class CleanupConsumptionTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class PauseResumeSyncTest(test.APITransactionTestCase):
+class PauseResumeSyncTest(test.APITestCase):
     """Tests for pause_sync and resume_sync actions."""
 
     def setUp(self):
@@ -264,7 +264,7 @@ class PauseResumeSyncTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-class ConsumptionStatusTest(test.APITransactionTestCase):
+class ConsumptionStatusTest(test.APITestCase):
     """Tests for consumption_status action."""
 
     def setUp(self):
@@ -282,7 +282,7 @@ class ConsumptionStatusTest(test.APITransactionTestCase):
         self.assertIn("settings_uuid", response.data)
 
 
-class ConsumptionStatisticsTest(test.APITransactionTestCase):
+class ConsumptionStatisticsTest(test.APITestCase):
     """Tests for consumption_statistics action."""
 
     def setUp(self):
@@ -304,7 +304,7 @@ class ConsumptionStatisticsTest(test.APITransactionTestCase):
         self.assertEqual(response.data["total_consumed_sell"], "100.00")
 
 
-class PendingRecordsTest(test.APITransactionTestCase):
+class PendingRecordsTest(test.APITestCase):
     """Tests for pending_records action."""
 
     def setUp(self):
@@ -333,7 +333,7 @@ class PendingRecordsTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 0)
 
 
-class FetchConsumptionTest(test.APITransactionTestCase):
+class FetchConsumptionTest(test.APITestCase):
     """Tests for fetch_consumption action."""
 
     def setUp(self):
@@ -373,7 +373,7 @@ class FetchConsumptionTest(test.APITransactionTestCase):
         self.assertEqual(response.data["row_count"], 1)
 
 
-class FetchBillingExportTest(test.APITransactionTestCase):
+class FetchBillingExportTest(test.APITestCase):
     """Tests for fetch_billing_export action."""
 
     def setUp(self):
@@ -398,7 +398,7 @@ class FetchBillingExportTest(test.APITransactionTestCase):
         self.assertEqual(response.data["row_count"], 1)
 
 
-class FetchLicenseInfoTest(test.APITransactionTestCase):
+class FetchLicenseInfoTest(test.APITestCase):
     """Tests for fetch_license_info action."""
 
     def setUp(self):
@@ -422,7 +422,7 @@ class FetchLicenseInfoTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
-class ArrowConsumptionRecordViewSetTest(test.APITransactionTestCase):
+class ArrowConsumptionRecordViewSetTest(test.APITestCase):
     """Tests for ArrowConsumptionRecordViewSet."""
 
     def setUp(self):
@@ -508,7 +508,7 @@ class ArrowConsumptionRecordViewSetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
 
 
-class ArrowBillingSyncItemViewSetTest(test.APITransactionTestCase):
+class ArrowBillingSyncItemViewSetTest(test.APITestCase):
     """Tests for ArrowBillingSyncItemViewSet."""
 
     def setUp(self):

@@ -7,7 +7,7 @@ from rest_framework import status, test
 from . import factories, fixtures
 
 
-class BaseRouterTest(test.APITransactionTestCase):
+class BaseRouterTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.OpenStackFixture()
         self.client.force_authenticate(user=self.fixture.owner)

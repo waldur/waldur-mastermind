@@ -9,7 +9,7 @@ from waldur_mastermind.policy.tests.factories import SlurmPeriodicUsagePolicyFac
 
 
 @ddt
-class SlurmPeriodicUsagePolicyGetTest(test.APITransactionTestCase):
+class SlurmPeriodicUsagePolicyGetTest(test.APITestCase):
     def setUp(self):
         self.customer = structure_factories.CustomerFactory()
         self.project = structure_factories.ProjectFactory(customer=self.customer)
@@ -49,7 +49,7 @@ class SlurmPeriodicUsagePolicyGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class SlurmPeriodicUsagePolicyCreateTest(test.APITransactionTestCase):
+class SlurmPeriodicUsagePolicyCreateTest(test.APITestCase):
     def setUp(self):
         self.customer = structure_factories.CustomerFactory()
         self.offering = marketplace_factories.OfferingFactory(customer=self.customer)
@@ -127,7 +127,7 @@ class SlurmPeriodicUsagePolicyCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class SlurmPeriodicUsagePolicyUpdateTest(test.APITransactionTestCase):
+class SlurmPeriodicUsagePolicyUpdateTest(test.APITestCase):
     def setUp(self):
         self.customer = structure_factories.CustomerFactory()
         self.offering = marketplace_factories.OfferingFactory(customer=self.customer)
@@ -168,7 +168,7 @@ class SlurmPeriodicUsagePolicyUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class SlurmPeriodicUsagePolicyDeleteTest(test.APITransactionTestCase):
+class SlurmPeriodicUsagePolicyDeleteTest(test.APITestCase):
     def setUp(self):
         self.customer = structure_factories.CustomerFactory()
         self.offering = marketplace_factories.OfferingFactory(customer=self.customer)
@@ -199,7 +199,7 @@ class SlurmPeriodicUsagePolicyDeleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-class SlurmPeriodicUsagePolicyActionsTest(test.APITransactionTestCase):
+class SlurmPeriodicUsagePolicyActionsTest(test.APITestCase):
     def setUp(self):
         self.customer = structure_factories.CustomerFactory()
         self.offering = marketplace_factories.OfferingFactory(customer=self.customer)
@@ -219,7 +219,7 @@ class SlurmPeriodicUsagePolicyActionsTest(test.APITransactionTestCase):
 
 
 @ddt
-class SlurmPeriodicUsagePolicyPreviewImpactTest(test.APITransactionTestCase):
+class SlurmPeriodicUsagePolicyPreviewImpactTest(test.APITestCase):
     def setUp(self):
         self.customer = structure_factories.CustomerFactory()
         self.offering = marketplace_factories.OfferingFactory(customer=self.customer)

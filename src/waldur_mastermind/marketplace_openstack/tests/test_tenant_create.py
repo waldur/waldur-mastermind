@@ -11,7 +11,7 @@ from waldur_openstack.tests.fixtures import OpenStackFixture
 
 
 @ddt
-class MarketplaceTenantCreateTest(test.APITransactionTestCase):
+class MarketplaceTenantCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = OpenStackFixture()
         self.view = views.MarketplaceTenantViewSet.as_view({"post": "create"})

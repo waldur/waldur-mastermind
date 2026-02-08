@@ -29,7 +29,7 @@ COURSE_ACCOUNT_TOKEN_URL = "http://example.com/api/token"
     COURSE_ACCOUNT_TOKEN_SECRET="test-client-secret",
 )
 @ddt
-class CourseAccountPermissionTest(test.APITransactionTestCase):
+class CourseAccountPermissionTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
 
@@ -348,7 +348,7 @@ class CourseAccountPermissionTest(test.APITransactionTestCase):
     COURSE_ACCOUNT_TOKEN_CLIENT_ID="test-client-id",
     COURSE_ACCOUNT_TOKEN_SECRET="test-client-secret",
 )
-class CourseAccountHandlerTest(test.APITransactionTestCase):
+class CourseAccountHandlerTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
 
@@ -628,7 +628,7 @@ class CourseAccountHandlerTest(test.APITransactionTestCase):
     COURSE_ACCOUNT_TOKEN_SECRET="test-client-secret",
 )
 @ddt
-class CourseAccountBulkCreateTest(test.APITransactionTestCase):
+class CourseAccountBulkCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
 
@@ -931,7 +931,7 @@ class CourseAccountBulkCreateTest(test.APITransactionTestCase):
 @override_waldur_core_settings(
     COURSE_ACCOUNT_USE_API=False,  # Disable API calls for these tests
 )
-class CourseAccountDateFieldsTest(test.APITransactionTestCase):
+class CourseAccountDateFieldsTest(test.APITestCase):
     """Test for CourseAccount serializer project date fields"""
 
     def setUp(self):
@@ -1027,7 +1027,7 @@ class CourseAccountDateFieldsTest(test.APITransactionTestCase):
 @override_waldur_core_settings(
     COURSE_ACCOUNT_USE_API=False,  # Disable API calls for these tests
 )
-class CourseAccountDateFilterTest(test.APITransactionTestCase):
+class CourseAccountDateFilterTest(test.APITestCase):
     """Test filtering CourseAccounts by project start and end dates"""
 
     def setUp(self):
@@ -1193,7 +1193,7 @@ class CourseAccountDateFilterTest(test.APITransactionTestCase):
 @override_waldur_core_settings(
     COURSE_ACCOUNT_USE_API=False,  # Disable API calls for these tests
 )
-class CourseAccountOrderingTest(test.APITransactionTestCase):
+class CourseAccountOrderingTest(test.APITestCase):
     """Test ordering CourseAccounts using the OrderingFilter"""
 
     def setUp(self):

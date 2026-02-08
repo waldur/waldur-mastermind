@@ -12,7 +12,7 @@ from waldur_core.structure.tests.factories import UserFactory
 from waldur_core.structure.tests.fixtures import ProjectFixture
 
 
-class DependencyLogicOperatorTest(test.APITransactionTestCase):
+class DependencyLogicOperatorTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = CheckListFixture()

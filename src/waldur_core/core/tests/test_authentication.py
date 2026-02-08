@@ -17,7 +17,7 @@ from waldur_core.core.models import User
 from . import helpers
 
 
-class TokenAuthenticationTest(test.APITransactionTestCase):
+class TokenAuthenticationTest(test.APITestCase):
     def setUp(self):
         self.username = "test"
         self.password = "secret"
@@ -202,7 +202,7 @@ VALID_JWT_TOKEN = jwt.encode(VALID_JWT_PAYLOAD, "test_secret")
     OIDC_CLIENT_SECRET="test-secret",
     OIDC_USER_FIELD="username",
 )
-class OIDCAuthenticationTest(test.APITransactionTestCase):
+class OIDCAuthenticationTest(test.APITestCase):
     def tearDown(self):
         cache.clear()
 

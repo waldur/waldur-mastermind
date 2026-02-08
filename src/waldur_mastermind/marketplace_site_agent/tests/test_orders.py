@@ -25,7 +25,7 @@ from waldur_mastermind.marketplace_site_agent.tests import (
 )
 
 
-class SendMessagesAboutPendingOrdersTest(test.APITransactionTestCase):
+class SendMessagesAboutPendingOrdersTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -87,7 +87,7 @@ class SendMessagesAboutPendingOrdersTest(test.APITransactionTestCase):
         mocked_publish_messages.assert_called_once()
 
 
-class AllocationDeleteTest(test.APITransactionTestCase):
+class AllocationDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = site_agent_fixtures.MarketplaceSiteAgentFixture()
         self.allocation = self.fixture.allocation
@@ -159,7 +159,7 @@ class AllocationDeleteTest(test.APITransactionTestCase):
         self.allocation.refresh_from_db()
 
 
-class AllocationCreationFailureTest(test.APITransactionTestCase):
+class AllocationCreationFailureTest(test.APITestCase):
     def setUp(self):
         self.fixture = site_agent_fixtures.MarketplaceSiteAgentFixture()
         self.offering = self.fixture.offering
@@ -242,7 +242,7 @@ class AllocationCreationFailureTest(test.APITransactionTestCase):
         )
 
 
-class AllocationCleanupTest(test.APITransactionTestCase):
+class AllocationCleanupTest(test.APITestCase):
     def setUp(self):
         self.fixture = site_agent_fixtures.MarketplaceSiteAgentFixture()
         self.allocation = self.fixture.allocation

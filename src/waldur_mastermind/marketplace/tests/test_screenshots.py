@@ -14,7 +14,7 @@ from . import factories
 
 
 @ddt
-class ScreenshotsGetTest(test.APITransactionTestCase):
+class ScreenshotsGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.screenshot = factories.ScreenshotFactory()
@@ -90,7 +90,7 @@ class ScreenshotsCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ScreenshotsUpdateTest(test.APITransactionTestCase):
+class ScreenshotsUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -125,7 +125,7 @@ class ScreenshotsUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ScreenshotsDeleteTest(test.APITransactionTestCase):
+class ScreenshotsDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer

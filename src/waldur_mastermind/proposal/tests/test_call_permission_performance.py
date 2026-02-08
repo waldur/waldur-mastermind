@@ -24,7 +24,7 @@ from waldur_mastermind.proposal.tests import factories
 logging.getLogger("django.db.backends").setLevel(logging.WARNING)
 
 
-class CallPermissionPerformanceTest(test.APITransactionTestCase):
+class CallPermissionPerformanceTest(test.APITestCase):
     """
     Test SQL query performance for call-related permission scenarios in CustomerViewSet.
 

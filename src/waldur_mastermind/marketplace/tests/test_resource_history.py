@@ -11,7 +11,7 @@ from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.tests import factories, fixtures
 
 
-class ResourceReversionRegistrationTest(test.APITransactionTestCase):
+class ResourceReversionRegistrationTest(test.APITestCase):
     """Test that Resource model is registered with django-reversion."""
 
     def test_resource_is_registered_with_reversion(self):
@@ -53,7 +53,7 @@ class ResourceReversionRegistrationTest(test.APITransactionTestCase):
             self.assertIn(field, data)
 
 
-class ResourceHistoryEndpointTest(test.APITransactionTestCase):
+class ResourceHistoryEndpointTest(test.APITestCase):
     """Test resource history endpoint."""
 
     def setUp(self):
@@ -169,7 +169,7 @@ class ResourceHistoryEndpointTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class ResourceHistoryFilteringTest(test.APITransactionTestCase):
+class ResourceHistoryFilteringTest(test.APITestCase):
     """Test resource history filtering."""
 
     def setUp(self):
@@ -251,7 +251,7 @@ class ResourceHistoryFilteringTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 2)
 
 
-class ResourceActionReversionTest(test.APITransactionTestCase):
+class ResourceActionReversionTest(test.APITestCase):
     """Test that resource actions create reversion entries."""
 
     def setUp(self):
@@ -380,7 +380,7 @@ class CreateReversionMixinBugTest(unittest.TestCase):
         )
 
 
-class OfferingCreationRevisionTest(test.APITransactionTestCase):
+class OfferingCreationRevisionTest(test.APITestCase):
     """Test that creating an offering via the API records an initial revision.
 
     Currently fails because:
@@ -404,7 +404,7 @@ class OfferingCreationRevisionTest(test.APITransactionTestCase):
         )
 
 
-class ResourceCreationRevisionTest(test.APITransactionTestCase):
+class ResourceCreationRevisionTest(test.APITestCase):
     """Test that resources have an initial revision after creation.
 
     The history API returns empty for newly created resources because
@@ -440,7 +440,7 @@ class ResourceCreationRevisionTest(test.APITransactionTestCase):
         )
 
 
-class PlanCreationRevisionTest(test.APITransactionTestCase):
+class PlanCreationRevisionTest(test.APITestCase):
     """Test that plans have an initial revision after creation."""
 
     def setUp(self):

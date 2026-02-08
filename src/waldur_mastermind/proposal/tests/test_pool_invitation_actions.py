@@ -11,7 +11,7 @@ from waldur_mastermind.proposal.enums import ReviewerPoolInvitationStatuses
 from . import factories
 
 
-class PoolInvitationAcceptTest(test.APITransactionTestCase):
+class PoolInvitationAcceptTest(test.APITestCase):
     """Tests for the accept action on CallReviewerPoolViewSet."""
 
     def setUp(self):
@@ -106,7 +106,7 @@ class PoolInvitationAcceptTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
-class PoolInvitationAcceptByEmailTest(test.APITransactionTestCase):
+class PoolInvitationAcceptByEmailTest(test.APITestCase):
     """Tests for accepting invitations sent to email (no reviewer profile linked)."""
 
     def setUp(self):
@@ -167,7 +167,7 @@ class PoolInvitationAcceptByEmailTest(test.APITransactionTestCase):
         self.assertEqual(self.pool_entry.invited_user, self.user)
 
 
-class PoolInvitationDeclineTest(test.APITransactionTestCase):
+class PoolInvitationDeclineTest(test.APITestCase):
     """Tests for the decline action on CallReviewerPoolViewSet."""
 
     def setUp(self):
@@ -243,7 +243,7 @@ class PoolInvitationDeclineTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
-class PoolInvitationTokenHidingTest(test.APITransactionTestCase):
+class PoolInvitationTokenHidingTest(test.APITestCase):
     """Tests that invitation_token is hidden from authenticated responses."""
 
     def setUp(self):

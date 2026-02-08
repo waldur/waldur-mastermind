@@ -43,7 +43,7 @@ class MarketplaceFixture(fixtures.BookingFixture):
         )
 
 
-class OrderGetTest(test.APITransactionTestCase):
+class OrderGetTest(test.APITestCase):
     def setUp(self) -> None:
         super().setUp()
         self.fixture = MarketplaceFixture()
@@ -85,7 +85,7 @@ class OrderGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class OrderAcceptTest(test.APITransactionTestCase):
+class OrderAcceptTest(test.APITestCase):
     def setUp(self) -> None:
         super().setUp()
         self.fixture = MarketplaceFixture()
@@ -134,7 +134,7 @@ class OrderAcceptTest(test.APITransactionTestCase):
         )
 
 
-class OrderRejectTest(test.APITransactionTestCase):
+class OrderRejectTest(test.APITestCase):
     def setUp(self) -> None:
         super().setUp()
         self.fixture = MarketplaceFixture()
@@ -182,7 +182,7 @@ class OrderRejectTest(test.APITransactionTestCase):
 
 
 @ddt
-class ResourceGetTest(test.APITransactionTestCase):
+class ResourceGetTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.BookingFixture()

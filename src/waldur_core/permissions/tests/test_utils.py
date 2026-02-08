@@ -88,7 +88,7 @@ class HasPermissionUtilTest(TestCase):
         self.assertEqual(result_user, result_request)
 
 
-class PermissionFactoryTest(test.APITransactionTestCase):
+class PermissionFactoryTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer

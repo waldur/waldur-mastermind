@@ -7,7 +7,7 @@ from waldur_rancher import models
 from . import factories, fixtures, utils
 
 
-class CatalogCreateTest(test.APITransactionTestCase):
+class CatalogCreateTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()
@@ -35,7 +35,7 @@ class CatalogCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
 
-class CatalogUpdateTest(test.APITransactionTestCase):
+class CatalogUpdateTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()
@@ -55,7 +55,7 @@ class CatalogUpdateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
-class CatalogDeleteTest(test.APITransactionTestCase):
+class CatalogDeleteTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.RancherFixture()

@@ -6,7 +6,7 @@ from waldur_core.structure.models import AccessSubnet
 from waldur_core.structure.tests import fixtures
 
 
-class UserPermissionAccessSubnetFilterTest(test.APITransactionTestCase):
+class UserPermissionAccessSubnetFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer

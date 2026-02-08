@@ -10,7 +10,7 @@ from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 
 
-class PermissionsSystemIntegrationTest(test.APITransactionTestCase):
+class PermissionsSystemIntegrationTest(test.APITestCase):
     """Comprehensive integration tests for the permissions system."""
 
     def setUp(self):

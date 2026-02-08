@@ -8,7 +8,7 @@ from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.tests import factories, fixtures
 
 
-class ExternalNetworkAutoRecoveryTest(test.APITransactionTestCase):
+class ExternalNetworkAutoRecoveryTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant
@@ -210,7 +210,7 @@ class ExternalNetworkAutoRecoveryTest(test.APITransactionTestCase):
         self.assertEqual(self.tenant.external_network_id, "ext-net-2")
 
 
-class FloatingIPCreationRecoveryTest(test.APITransactionTestCase):
+class FloatingIPCreationRecoveryTest(test.APITestCase):
     """Test auto-recovery during floating IP creation."""
 
     def setUp(self):

@@ -40,7 +40,7 @@ from ...marketplace.enums import OPENSTACK_VOLUME_OFFERING
 from .utils import BaseOpenStackTest, override_plugin_settings
 
 
-class PlanComponentsTest(test.APITransactionTestCase):
+class PlanComponentsTest(test.APITestCase):
     prices = {
         "cores": 10,
         "ram": 100,
@@ -164,7 +164,7 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
         return tenant
 
 
-class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
+class OfferingComponentForVolumeTypeTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
@@ -372,7 +372,7 @@ class OfferingCreateTest(BaseBackendTestCase):
 
 
 @ddt
-class OfferingUpdateTest(test.APITransactionTestCase):
+class OfferingUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
@@ -418,7 +418,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class OfferingDetailsTest(test.APITransactionTestCase):
+class OfferingDetailsTest(test.APITestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
@@ -460,7 +460,7 @@ class OfferingDetailsTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingNameTest(test.APITransactionTestCase):
+class OfferingNameTest(test.APITestCase):
     def setUp(self):
         self.fixture = OpenStackFixture()
 
@@ -478,7 +478,7 @@ class OfferingNameTest(test.APITransactionTestCase):
         self.assertTrue("new_name" in offering.name)
 
 
-class RouterExternalIPTest(test.APITransactionTestCase):
+class RouterExternalIPTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.UserFixture()
         self.router = openstack_factories.RouterFactory(fixed_ips=["100.100.100.1"])
@@ -511,7 +511,7 @@ class RouterExternalIPTest(test.APITransactionTestCase):
         self.assertEqual(response.data["offering_external_ips"], [])
 
 
-class InstanceExternalIPTest(test.APITransactionTestCase):
+class InstanceExternalIPTest(test.APITestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.instance = self.fixture.instance
@@ -602,7 +602,7 @@ class InstanceExternalIPTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
 
 
-class ImportedFloatingIPExternalMappingTest(test.APITransactionTestCase):
+class ImportedFloatingIPExternalMappingTest(test.APITestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.parent_offering = marketplace_factories.OfferingFactory(
@@ -683,7 +683,7 @@ class ImportedFloatingIPExternalMappingTest(test.APITransactionTestCase):
         self.assertEqual(floating_ip.external_address, None)
 
 
-class UpdateSecretOptionsTest(test.APITransactionTestCase):
+class UpdateSecretOptionsTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.UserFixture()
         self.secret_options = {
@@ -711,7 +711,7 @@ class UpdateSecretOptionsTest(test.APITransactionTestCase):
         self.assertEqual(self.offering.secret_options, self.secret_options)
 
 
-class OfferingPluginOptionsMaxSecurityGroupsTest(test.APITransactionTestCase):
+class OfferingPluginOptionsMaxSecurityGroupsTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.offering = marketplace_factories.OfferingFactory(

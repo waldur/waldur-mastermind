@@ -10,7 +10,7 @@ from waldur_openstack.tests.fixtures import OpenStackFixture, mock_session
 from waldur_openstack.utils import get_external_network, get_external_network_id
 
 
-class ExternalNetworkApiTest(test.APITransactionTestCase):
+class ExternalNetworkApiTest(test.APITestCase):
     def setUp(self):
         self.fixture = OpenStackFixture()
         self.ext_net = factories.ExternalNetworkFactory(settings=self.fixture.settings)
@@ -50,7 +50,7 @@ class ExternalNetworkApiTest(test.APITransactionTestCase):
         self.assertEqual(response.data[0]["uuid"], self.ext_net.uuid.hex)
 
 
-class GetExternalNetworkUtilTest(test.APITransactionTestCase):
+class GetExternalNetworkUtilTest(test.APITestCase):
     def setUp(self):
         self.fixture = OpenStackFixture()
 
@@ -98,7 +98,7 @@ class GetExternalNetworkUtilTest(test.APITransactionTestCase):
         self.assertEqual(result, "legacy-ext-net-id")
 
 
-class PullExternalNetworksTest(test.APITransactionTestCase):
+class PullExternalNetworksTest(test.APITestCase):
     def setUp(self):
         self.fixture = OpenStackFixture()
         self.neutron_patcher = mock.patch("waldur_openstack.backend.get_neutron_client")

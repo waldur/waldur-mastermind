@@ -60,7 +60,7 @@ class PriceEstimateSignalsTest(test.APITransactionTestCase):
 
 
 @ddt
-class PriceEstimateAPITest(test.APITransactionTestCase):
+class PriceEstimateAPITest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
 
@@ -115,7 +115,7 @@ class PriceEstimateAPITest(test.APITransactionTestCase):
 
 @ddt
 @freeze_time("2017-01-01")
-class PriceEstimateInvoiceItemTest(test.APITransactionTestCase):
+class PriceEstimateInvoiceItemTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
 

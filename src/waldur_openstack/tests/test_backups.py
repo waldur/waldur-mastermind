@@ -14,7 +14,7 @@ from . import factories, fixtures
 
 
 @ddt
-class BackupDeleteTest(test.APITransactionTestCase):
+class BackupDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
 
@@ -33,7 +33,7 @@ class BackupDeleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class BackupListPermissionsTest(test.APITransactionTestCase):
+class BackupListPermissionsTest(test.APITestCase):
     def get_users_and_expected_results(self):
         """
         Return list or generator of dictionaries with such keys:
@@ -79,7 +79,7 @@ class BackupListPermissionsTest(test.APITransactionTestCase):
                     self.assertEqual(actual[key], value)
 
 
-class BackupPermissionsTest(test.APITransactionTestCase):
+class BackupPermissionsTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = fixtures.OpenStackFixture()
@@ -148,7 +148,7 @@ class BackupPermissionsTest(test.APITransactionTestCase):
                 )
 
 
-class BackupSourceFilterTest(test.APITransactionTestCase):
+class BackupSourceFilterTest(test.APITestCase):
     def test_filter_backup_by_scope(self):
         user = structure_factories.UserFactory.create(is_staff=True)
 
@@ -174,7 +174,7 @@ class BackupSourceFilterTest(test.APITransactionTestCase):
         )
 
 
-class BackupRestorationTest(test.APITransactionTestCase):
+class BackupRestorationTest(test.APITestCase):
     def setUp(self):
         user = structure_factories.UserFactory(is_staff=True)
         self.client.force_authenticate(user=user)

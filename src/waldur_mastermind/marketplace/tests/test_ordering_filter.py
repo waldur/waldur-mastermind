@@ -10,7 +10,7 @@ from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 
 
-class OrderingFilterTest(test.APITransactionTestCase):
+class OrderingFilterTest(test.APITestCase):
     """Test ordering functionality for checklist completions."""
 
     def setUp(self):
@@ -194,7 +194,7 @@ class OrderingFilterTest(test.APITransactionTestCase):
         # All False completions should come before True completions
 
 
-class FilterOrderingIntegrationTest(test.APITransactionTestCase):
+class FilterOrderingIntegrationTest(test.APITestCase):
     """Test integration between filtering and ordering."""
 
     def setUp(self):

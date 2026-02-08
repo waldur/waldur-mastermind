@@ -16,7 +16,7 @@ from .. import enums
 
 
 @ddt
-class ProposalComplianceFileAccessTest(test.APITransactionTestCase):
+class ProposalComplianceFileAccessTest(test.APITestCase):
     """Test file access for proposal compliance checklists with proper reviewer permissions."""
 
     def setUp(self):

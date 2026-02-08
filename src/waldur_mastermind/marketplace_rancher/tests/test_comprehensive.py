@@ -38,7 +38,7 @@ class Request:
         self.user = request_user
 
 
-class RancherMultiTenantTest(test.APITransactionTestCase):
+class RancherMultiTenantTest(test.APITestCase):
     """Test multi-tenant scenarios and resource aggregation"""
 
     def setUp(self):
@@ -196,7 +196,7 @@ class RancherMultiTenantTest(test.APITransactionTestCase):
         self.assertIn("should be odd", str(context.exception))
 
 
-class ManagedRancherResourceCalculationTest(test.APITransactionTestCase):
+class ManagedRancherResourceCalculationTest(test.APITestCase):
     """Test resource calculation logic including fixed overhead"""
 
     def setUp(self):
@@ -374,7 +374,7 @@ class ManagedRancherResourceCalculationTest(test.APITransactionTestCase):
         self.assertEqual(limits[STORAGE_TYPE], expected_storage)
 
 
-class ManagedRancherEdgeCasesTest(test.APITransactionTestCase):
+class ManagedRancherEdgeCasesTest(test.APITestCase):
     """Test edge cases and error conditions"""
 
     def setUp(self):
@@ -588,7 +588,7 @@ class ManagedRancherEdgeCasesTest(test.APITransactionTestCase):
             self.assertIn("MB", str(context.exception))
 
 
-class ManagedRancherDynamicStorageTest(test.APITransactionTestCase):
+class ManagedRancherDynamicStorageTest(test.APITestCase):
     """Test dynamic storage mode with volume types"""
 
     def setUp(self):
@@ -724,7 +724,7 @@ class ManagedRancherDynamicStorageTest(test.APITransactionTestCase):
         self.assertIn("not available", str(context.exception))
 
 
-class ManagedRancherIntegrationTest(test.APITransactionTestCase):
+class ManagedRancherIntegrationTest(test.APITestCase):
     """Test complete integration flow"""
 
     @patch("waldur_mastermind.marketplace_rancher.processors.submit_creation_order")
@@ -907,7 +907,7 @@ class ManagedRancherIntegrationTest(test.APITransactionTestCase):
                 self.assertEqual(load_balancers[0].uuid, mock_instance.uuid)
 
 
-class ManagedRancherStorageIntegrationTest(test.APITransactionTestCase):
+class ManagedRancherStorageIntegrationTest(test.APITestCase):
     """Test that MB storage values pass through correctly to OpenStack node creation"""
 
     def setUp(self):

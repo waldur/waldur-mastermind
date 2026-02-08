@@ -9,7 +9,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 
 
 @ddt
-class NumberValidationModelTest(test.APITransactionTestCase):
+class NumberValidationModelTest(test.APITestCase):
     """Test the model-level number validation functionality."""
 
     def setUp(self):
@@ -190,7 +190,7 @@ class NumberValidationModelTest(test.APITransactionTestCase):
 
 
 @ddt
-class NumberValidationSerializerTest(test.APITransactionTestCase):
+class NumberValidationSerializerTest(test.APITestCase):
     """Test number validation via serializers and API."""
 
     def setUp(self):
@@ -368,7 +368,7 @@ class NumberValidationSerializerTest(test.APITransactionTestCase):
 
 
 @ddt
-class NumberValidationAnswerSubmissionTest(test.APITransactionTestCase):
+class NumberValidationAnswerSubmissionTest(test.APITestCase):
     """Test number validation during answer submission."""
 
     def setUp(self):
@@ -460,7 +460,7 @@ class NumberValidationAnswerSubmissionTest(test.APITransactionTestCase):
 
 
 @ddt
-class NumberValidationIntegrationTest(test.APITransactionTestCase):
+class NumberValidationIntegrationTest(test.APITestCase):
     """Integration tests for number validation in real workflow scenarios."""
 
     def setUp(self):

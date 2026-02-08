@@ -19,7 +19,7 @@ from waldur_rancher.tests import factories as rancher_factories
 from waldur_rancher.tests.utils import format_nodes
 
 
-class OrderProcessedTest(test.APITransactionTestCase):
+class OrderProcessedTest(test.APITestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
 

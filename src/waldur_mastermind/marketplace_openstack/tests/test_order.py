@@ -41,7 +41,7 @@ from .. import (
 )
 
 
-class TenantGetTest(test.APITransactionTestCase):
+class TenantGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(
@@ -319,7 +319,7 @@ class TenantCreateTest(BaseOpenStackTest):
         self.assertEqual(tenant.get_quota_limit("gigabytes_ssd"), -1)
 
 
-class TenantMutateTest(test.APITransactionTestCase):
+class TenantMutateTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = openstack_fixtures.OpenStackFixture()
@@ -371,7 +371,7 @@ class TenantDeleteTest(TenantMutateTest):
         self.tenant.refresh_from_db()
 
 
-class InstanceCreateTest(test.APITransactionTestCase):
+class InstanceCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant
@@ -724,7 +724,7 @@ class InstanceDeleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
 
-class VolumeCreateTest(test.APITransactionTestCase):
+class VolumeCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.service_settings = self.fixture.tenant.service_settings
@@ -831,7 +831,7 @@ class VolumeDeleteTest(test.APITransactionTestCase):
         self.volume.refresh_from_db()
 
 
-class TenantUpdateLimitTestBase(test.APITransactionTestCase):
+class TenantUpdateLimitTestBase(test.APITestCase):
     def setUp(self):
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.offering = marketplace_factories.OfferingFactory(

@@ -14,7 +14,7 @@ from waldur_mastermind.notifications.utils import (
 )
 
 
-class BroadcastQueryTest(test.APITransactionTestCase):
+class BroadcastQueryTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project
@@ -99,7 +99,7 @@ class BroadcastQueryTest(test.APITransactionTestCase):
         self.assertIn("support@acme.com", emails)
 
 
-class BroadcastMappingTest(test.APITransactionTestCase):
+class BroadcastMappingTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project
@@ -154,7 +154,7 @@ class BroadcastMappingTest(test.APITransactionTestCase):
         self.assertIn("support@acme.com", notification_emails)
 
 
-class BroadcastRecipientsTest(test.APITransactionTestCase):
+class BroadcastRecipientsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project
@@ -245,7 +245,7 @@ class BroadcastRecipientsTest(test.APITransactionTestCase):
             self.assertEqual(len(recipient["offerings"]), 0)
 
 
-class BroadcastAPITest(test.APITransactionTestCase):
+class BroadcastAPITest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
         self.project = self.fixture.project
@@ -422,7 +422,7 @@ class BroadcastAPITest(test.APITransactionTestCase):
         self.assertIn("support@acme.com", emails)
 
 
-class BroadcastTaskTest(test.APITransactionTestCase):
+class BroadcastTaskTest(test.APITestCase):
     def setUp(self):
         self.emails_1 = ["email_%s@gmail.com" % i for i in range(1, 51)]
         self.emails_2 = ["email_%s@gmail.com" % i for i in range(51, 101)]

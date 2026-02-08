@@ -6,7 +6,7 @@ from django.db import IntegrityError
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APITransactionTestCase
+from rest_framework.test import APITestCase
 
 from waldur_core.core.models import DailyTableSizeHistory
 from waldur_core.core.tasks import check_table_growth_alerts, sample_table_sizes
@@ -100,7 +100,7 @@ class DailyTableSizeHistoryModelTest(TestCase):
         self.assertEqual(entries[2].table_name, "z_table")
 
 
-class TableGrowthStatsAPITest(APITransactionTestCase):
+class TableGrowthStatsAPITest(APITestCase):
     """Tests for the table growth stats API endpoint."""
 
     def setUp(self):
@@ -496,7 +496,7 @@ class CheckTableGrowthAlertsTaskTest(TestCase):
         self.assertEqual(context["alerts"][0]["growth_percent"], 250.0)
 
 
-class LegacyEndpointTest(APITransactionTestCase):
+class LegacyEndpointTest(APITestCase):
     """Tests that legacy endpoints still work."""
 
     def setUp(self):

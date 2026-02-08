@@ -22,7 +22,7 @@ from waldur_mastermind.marketplace.tests import factories
 from waldur_openstack.tests import factories as openstack_factories
 
 
-class ProjectManagerTerminationPermissionBugTest(test.APITransactionTestCase):
+class ProjectManagerTerminationPermissionBugTest(test.APITestCase):
     """
     Test to reproduce the production issue where PROJECT.MANAGER users
     cannot terminate marketplace resources with OpenStack Instance scopes.

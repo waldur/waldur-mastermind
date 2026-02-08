@@ -63,7 +63,7 @@ def serialize_data(serializer_class, instance):
     return json.loads(json.dumps(serialized_order, cls=WaldurJsonEncoder))
 
 
-class RemoteCustomersTest(test.APITransactionTestCase):
+class RemoteCustomersTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.dns_patcher = create_selective_dns_mock()
@@ -95,7 +95,7 @@ class RemoteCustomersTest(test.APITransactionTestCase):
         )
 
 
-class RemoteСategoriesTest(test.APITransactionTestCase):
+class RemoteСategoriesTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.dns_patcher = create_selective_dns_mock()
@@ -126,7 +126,7 @@ class RemoteСategoriesTest(test.APITransactionTestCase):
         self.assertEqual(response.data, [])
 
 
-class RemoteOfferingsListTest(test.APITransactionTestCase):
+class RemoteOfferingsListTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.dns_patcher = create_selective_dns_mock()
@@ -189,7 +189,7 @@ class RemoteOfferingsListTest(test.APITransactionTestCase):
         self.assertTrue(offerings_mock.called)
 
 
-class OfferingDetailsPullTest(test.APITransactionTestCase):
+class OfferingDetailsPullTest(test.APITestCase):
     def setUp(self) -> None:
         self.dns_patcher = create_selective_dns_mock()
         self.dns_patcher.start()
@@ -672,7 +672,7 @@ class OfferingDetailsPullTest(test.APITransactionTestCase):
         )
 
 
-class OfferingUpdateTest(test.APITransactionTestCase):
+class OfferingUpdateTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -692,7 +692,7 @@ class OfferingUpdateTest(test.APITransactionTestCase):
 
 
 @override_waldur_core_settings(MASTERMIND_URL="http://localhost")
-class OfferingRemoteVersionTest(test.APITransactionTestCase):
+class OfferingRemoteVersionTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -742,7 +742,7 @@ class OfferingRemoteVersionTest(test.APITransactionTestCase):
         self.assertTrue(order.backend_id)
 
 
-class OfferingCreateTest(test.APITransactionTestCase):
+class OfferingCreateTest(test.APITestCase):
     def setUp(self) -> None:
         self.dns_patcher = create_selective_dns_mock()
         self.dns_patcher.start()
@@ -868,7 +868,7 @@ class OfferingCreateTest(test.APITransactionTestCase):
         self.assertEqual(offering.category.uuid.hex, new_payload["local_category_uuid"])
 
 
-class OfferingImageTest(test.APITransactionTestCase):
+class OfferingImageTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
@@ -947,7 +947,7 @@ class OfferingImageTest(test.APITransactionTestCase):
         self.assertEqual(self.offering.remote_image_uuid, self.new_uuid)
 
 
-class OfferingScreenshotsTest(test.APITransactionTestCase):
+class OfferingScreenshotsTest(test.APITestCase):
     def setUp(self):
         self.dns_patcher = create_selective_dns_mock()
         self.dns_patcher.start()

@@ -22,7 +22,7 @@ from waldur_mastermind.policy.tests import factories
 
 @freeze_time("2024-09-01")
 @ddt
-class ActionsTest(test.APITransactionTestCase):
+class ActionsTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.project = self.fixture.project

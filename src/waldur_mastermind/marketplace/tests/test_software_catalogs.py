@@ -9,7 +9,7 @@ from waldur_mastermind.marketplace import models, tasks
 from . import factories
 
 
-class SoftwareCatalogModelTest(test.APITransactionTestCase):
+class SoftwareCatalogModelTest(test.APITestCase):
     def setUp(self):
         self.catalog = factories.SoftwareCatalogFactory(
             name="EESSI",
@@ -29,7 +29,7 @@ class SoftwareCatalogModelTest(test.APITransactionTestCase):
         self.assertIsNotNone(self.catalog.modified)
 
 
-class SoftwarePackageModelTest(test.APITransactionTestCase):
+class SoftwarePackageModelTest(test.APITestCase):
     def setUp(self):
         self.catalog = factories.SoftwareCatalogFactory()
         self.package = factories.SoftwarePackageFactory(
@@ -50,7 +50,7 @@ class SoftwarePackageModelTest(test.APITransactionTestCase):
         self.assertIsNotNone(self.package.uuid)
 
 
-class SoftwareVersionModelTest(test.APITransactionTestCase):
+class SoftwareVersionModelTest(test.APITestCase):
     def setUp(self):
         self.catalog = factories.SoftwareCatalogFactory()
         self.package = factories.SoftwarePackageFactory(catalog=self.catalog)
@@ -68,7 +68,7 @@ class SoftwareVersionModelTest(test.APITransactionTestCase):
         self.assertIsNotNone(self.version.uuid)
 
 
-class SoftwareTargetModelTest(test.APITransactionTestCase):
+class SoftwareTargetModelTest(test.APITestCase):
     def setUp(self):
         self.catalog = factories.SoftwareCatalogFactory()
         self.package = factories.SoftwarePackageFactory(catalog=self.catalog)
@@ -92,7 +92,7 @@ class SoftwareTargetModelTest(test.APITransactionTestCase):
         self.assertIsNotNone(self.target.uuid)
 
 
-class OfferingSoftwareCatalogModelTest(test.APITransactionTestCase):
+class OfferingSoftwareCatalogModelTest(test.APITestCase):
     def setUp(self):
         self.offering = factories.OfferingFactory()
         self.catalog = factories.SoftwareCatalogFactory()
@@ -124,7 +124,7 @@ class OfferingSoftwareCatalogModelTest(test.APITransactionTestCase):
 
 
 @ddt
-class SoftwareCatalogViewSetTest(test.APITransactionTestCase):
+class SoftwareCatalogViewSetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.catalog = factories.SoftwareCatalogFactory(name="EESSI", version="2023.06")
@@ -204,7 +204,7 @@ class SoftwareCatalogViewSetTest(test.APITransactionTestCase):
 
 
 @ddt
-class SoftwarePackageViewSetTest(test.APITransactionTestCase):
+class SoftwarePackageViewSetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.catalog = factories.SoftwareCatalogFactory(version="0.5")
@@ -425,7 +425,7 @@ class SoftwarePackageViewSetTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingSoftwareCatalogActionsTest(test.APITransactionTestCase):
+class OfferingSoftwareCatalogActionsTest(test.APITestCase):
     """Test offering software catalog management actions."""
 
     def setUp(self):
@@ -606,7 +606,7 @@ class OfferingSoftwareCatalogActionsTest(test.APITransactionTestCase):
         self.assertIn("description", nested_catalog)
 
 
-class SoftwareVersionNewFieldsTest(test.APITransactionTestCase):
+class SoftwareVersionNewFieldsTest(test.APITestCase):
     """Test new fields in software version serializers (module, extensions, etc.)."""
 
     def setUp(self):
@@ -781,7 +781,7 @@ class SoftwareVersionNewFieldsTest(test.APITransactionTestCase):
         self.assertEqual(response.data["toolchain_families_compatibility"], [])
 
 
-class SoftwarePackageExtensionFilterTest(test.APITransactionTestCase):
+class SoftwarePackageExtensionFilterTest(test.APITestCase):
     """Test extension filtering for software packages."""
 
     def setUp(self):
@@ -886,7 +886,7 @@ class SoftwarePackageExtensionFilterTest(test.APITransactionTestCase):
 
 
 @ddt
-class SoftwareCatalogDiscoverTest(test.APITransactionTestCase):
+class SoftwareCatalogDiscoverTest(test.APITestCase):
     """Tests for the discover endpoint on SoftwareCatalogViewSet."""
 
     def setUp(self):
@@ -980,7 +980,7 @@ class SoftwareCatalogDiscoverTest(test.APITransactionTestCase):
 
 
 @ddt
-class SoftwareCatalogImportTest(test.APITransactionTestCase):
+class SoftwareCatalogImportTest(test.APITestCase):
     """Tests for the import_catalog action on SoftwareCatalogViewSet."""
 
     def setUp(self):
@@ -1026,7 +1026,7 @@ class SoftwareCatalogImportTest(test.APITransactionTestCase):
 
 
 @ddt
-class SoftwareCatalogUpdateTest(test.APITransactionTestCase):
+class SoftwareCatalogUpdateTest(test.APITestCase):
     """Tests for the update_catalog action on SoftwareCatalogViewSet."""
 
     def setUp(self):

@@ -14,7 +14,7 @@ from . import factories
 
 
 @ddt
-class ManagerGetTest(test.APITransactionTestCase):
+class ManagerGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.call_manager = self.fixture.manager
@@ -50,7 +50,7 @@ class ManagerGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class ManagerCreateTest(test.APITransactionTestCase):
+class ManagerCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -100,7 +100,7 @@ class ManagerCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ManagerUpdateTest(test.APITransactionTestCase):
+class ManagerUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -152,7 +152,7 @@ class ManagerUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ManagerDeleteTest(test.APITransactionTestCase):
+class ManagerDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -190,7 +190,7 @@ class ManagerDeleteTest(test.APITransactionTestCase):
         return response
 
 
-class OrganizationVisibilityTest(test.APITransactionTestCase):
+class OrganizationVisibilityTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
 

@@ -9,7 +9,7 @@ from . import factories
 
 
 @ddt
-class OfferingFileGetTest(test.APITransactionTestCase):
+class OfferingFileGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.offering_file = factories.OfferingFileFactory()
@@ -42,7 +42,7 @@ class OfferingFileGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingFileCreateTest(test.APITransactionTestCase):
+class OfferingFileCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -79,7 +79,7 @@ class OfferingFileCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingFileDeleteTest(test.APITransactionTestCase):
+class OfferingFileDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.customer = self.fixture.customer

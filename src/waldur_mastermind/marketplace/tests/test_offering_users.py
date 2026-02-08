@@ -28,7 +28,7 @@ from . import factories, fixtures
 
 
 @ddt
-class ListOfferingUsersTest(test.APITransactionTestCase):
+class ListOfferingUsersTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory(
@@ -121,7 +121,7 @@ class ListOfferingUsersTest(test.APITransactionTestCase):
 
 
 @ddt
-class CreateOfferingUsersTest(test.APITransactionTestCase):
+class CreateOfferingUsersTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.offering = factories.OfferingFactory(
@@ -196,7 +196,7 @@ class CreateOfferingUsersTest(test.APITransactionTestCase):
 
 
 @ddt
-class ListUsersTest(test.APITransactionTestCase):
+class ListUsersTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.fixture.admin
@@ -240,7 +240,7 @@ class ListUsersTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingUsersUpdateTest(test.APITransactionTestCase):
+class OfferingUsersUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.offering = factories.OfferingFactory(
@@ -287,7 +287,7 @@ class OfferingUsersUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingUsersDeleteTest(test.APITransactionTestCase):
+class OfferingUsersDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.offering = factories.OfferingFactory(
@@ -329,7 +329,7 @@ class OfferingUsersDeleteTest(test.APITransactionTestCase):
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
 
 
-class OfferingUsersHandlerTest(test.APITransactionTestCase):
+class OfferingUsersHandlerTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
 
@@ -360,7 +360,7 @@ class OfferingUsersHandlerTest(test.APITransactionTestCase):
 
 
 @ddt
-class OferingUserRestrictedUpdateTest(test.APITransactionTestCase):
+class OferingUserRestrictedUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.offering = factories.OfferingFactory(
@@ -417,7 +417,7 @@ class OferingUserRestrictedUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingUserStateTransitionTest(test.APITransactionTestCase):
+class OfferingUserStateTransitionTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.offering = factories.OfferingFactory(
@@ -883,7 +883,7 @@ class OfferingUserStateTransitionTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingUserBackwardCompatibilityTest(test.APITransactionTestCase):
+class OfferingUserBackwardCompatibilityTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.offering = factories.OfferingFactory(
@@ -995,7 +995,7 @@ class OfferingUserBackwardCompatibilityTest(test.APITransactionTestCase):
         self.assertEqual(offering_user.state, OfferingUserStates.OK)
 
 
-class SetOfferingsUsernameBackwardCompatibilityTest(test.APITransactionTestCase):
+class SetOfferingsUsernameBackwardCompatibilityTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.service_provider = factories.ServiceProviderFactory(
@@ -1126,7 +1126,7 @@ class SetOfferingsUsernameBackwardCompatibilityTest(test.APITransactionTestCase)
 
 
 @ddt
-class OfferingUserStateFilterTest(test.APITransactionTestCase):
+class OfferingUserStateFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.offering = factories.OfferingFactory(
@@ -1246,7 +1246,7 @@ class OfferingUserStateFilterTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
+class OfferingUserDeletionWorkflowTest(test.APITestCase):
     """Test the complete deletion workflow for OfferingUsers."""
 
     def setUp(self):
@@ -1426,7 +1426,7 @@ class OfferingUserDeletionWorkflowTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingUserChecklistTest(test.APITransactionTestCase):
+class OfferingUserChecklistTest(test.APITestCase):
     """Test checklist functionality for offering users."""
 
     def setUp(self):
@@ -1685,7 +1685,7 @@ class OfferingUserChecklistTest(test.APITransactionTestCase):
 
 
 @ddt
-class ServiceProviderComplianceTest(test.APITransactionTestCase):
+class ServiceProviderComplianceTest(test.APITestCase):
     """Test service provider compliance management endpoints."""
 
     def setUp(self):
@@ -2120,7 +2120,7 @@ class ServiceProviderComplianceTest(test.APITransactionTestCase):
             )
 
 
-class OfferingComplianceSerializerTest(test.APITransactionTestCase):
+class OfferingComplianceSerializerTest(test.APITestCase):
     """Test that offering API exposes compliance checklist information."""
 
     def setUp(self):
@@ -2167,7 +2167,7 @@ class OfferingComplianceSerializerTest(test.APITransactionTestCase):
 
 
 @ddt
-class ServiceProviderCompliancePerformanceTest(test.APITransactionTestCase):
+class ServiceProviderCompliancePerformanceTest(test.APITestCase):
     """Test performance of compliance_overview action."""
 
     def setUp(self):
@@ -2396,7 +2396,7 @@ class ServiceProviderCompliancePerformanceTest(test.APITransactionTestCase):
         self.assertAlmostEqual(first_offering_data["compliance_rate"], 66.67, places=1)
 
 
-class OfferingUserSignalTest(test.APITransactionTestCase):
+class OfferingUserSignalTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
 
@@ -2567,7 +2567,7 @@ class OfferingUserSignalTest(test.APITransactionTestCase):
         self.assertEqual(payload["state"], self.offering_user.get_state_display())
 
 
-class OfferingUserComplianceFieldTest(test.APITransactionTestCase):
+class OfferingUserComplianceFieldTest(test.APITestCase):
     """Test the has_compliance_checklist field in OfferingUserSerializer."""
 
     def setUp(self):
@@ -2651,7 +2651,7 @@ class OfferingUserComplianceFieldTest(test.APITransactionTestCase):
 
 
 @ddt
-class OfferingUserCommentUrlResetTest(test.APITransactionTestCase):
+class OfferingUserCommentUrlResetTest(test.APITestCase):
     """Test cases for the comment_url field reset bug fix."""
 
     def setUp(self):

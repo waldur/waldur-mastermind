@@ -18,7 +18,7 @@ from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.fixtures import MarketplaceFixture
 
 
-class ResourceUpdateTest(test.APITransactionTestCase):
+class ResourceUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.resource = self.fixture.resource
@@ -177,7 +177,7 @@ class ResourceUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
+class ResourceSetEndDateByProviderTest(test.APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.resource = self.fixture.resource
@@ -276,7 +276,7 @@ class ResourceSetEndDateByProviderTest(test.APITransactionTestCase):
 
 
 @ddt
-class ResourceSetEndDateByStaffTest(test.APITransactionTestCase):
+class ResourceSetEndDateByStaffTest(test.APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.resource = self.fixture.resource
@@ -327,7 +327,7 @@ class ResourceSetEndDateByStaffTest(test.APITransactionTestCase):
 
 
 @freeze_time("2024-01-01")
-class ResourcePrepaidUpdateTest(test.APITransactionTestCase):
+class ResourcePrepaidUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()
         self.staff = self.fixture.staff

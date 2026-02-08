@@ -7,7 +7,7 @@ from waldur_pid import backend
 from waldur_pid.tests import factories
 
 
-class DataciteTest(test.APITransactionTestCase):
+class DataciteTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.offering = factories.OfferingFactory()

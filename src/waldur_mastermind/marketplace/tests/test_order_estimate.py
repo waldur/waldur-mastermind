@@ -5,7 +5,7 @@ from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 from waldur_mastermind.marketplace.tests import factories
 
 
-class OrderEstimateTest(test.APITransactionTestCase):
+class OrderEstimateTest(test.APITestCase):
     def test_old_cost_estimate(self):
         # 1. Setup offering, plan, and components
         offering = factories.OfferingFactory()

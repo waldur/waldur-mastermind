@@ -8,7 +8,7 @@ from waldur_core.core.enums import CoreStates
 from . import factories, fixtures
 
 
-class BaseNetworkTest(test.APITransactionTestCase):
+class BaseNetworkTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
 
@@ -238,7 +238,7 @@ class NetworkFieldsFilterTest(BaseNetworkTest):
 
 
 @ddt
-class NetworkRBACTest(test.APITransactionTestCase):
+class NetworkRBACTest(test.APITestCase):
     def setUp(self):
         self.fixture_1 = fixtures.OpenStackFixture()
         self.fixture_2 = fixtures.OpenStackFixture()

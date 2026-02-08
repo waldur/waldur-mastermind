@@ -4,7 +4,7 @@ from rest_framework.exceptions import ValidationError
 from waldur_mastermind.common.serializers import validate_options
 
 
-class OptionsValidationTest(test.APITransactionTestCase):
+class OptionsValidationTest(test.APITestCase):
     def test_greater_than_validator(self):
         options = {
             "hard_limit": {

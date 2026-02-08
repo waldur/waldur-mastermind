@@ -5,7 +5,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.notifications.tests import factories
 
 
-class AdminAnnouncementCreateTest(test.APITransactionTestCase):
+class AdminAnnouncementCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.url = factories.AdminAnnouncementFactory.get_list_url()
@@ -62,7 +62,7 @@ class AdminAnnouncementCreateTest(test.APITransactionTestCase):
         return response
 
 
-class AdminAnnouncementGetTest(test.APITransactionTestCase):
+class AdminAnnouncementGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.admin_announcement = factories.AdminAnnouncementFactory()
@@ -79,7 +79,7 @@ class AdminAnnouncementGetTest(test.APITransactionTestCase):
 
 
 @freeze_time("2025-01-01")
-class AdminAnnouncementFilterTest(test.APITransactionTestCase):
+class AdminAnnouncementFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.admin_announcement = factories.AdminAnnouncementFactory(

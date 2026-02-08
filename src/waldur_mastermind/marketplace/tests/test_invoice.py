@@ -27,7 +27,7 @@ from . import fixtures
 
 
 @freeze_time("2020-11-01")
-class InvoiceTest(test.APITransactionTestCase):
+class InvoiceTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource
@@ -383,7 +383,7 @@ class TotalLimitTest(test.APITransactionTestCase):
 
 @ddt
 @freeze_time("2020-11-01")
-class InvoiceItemsTest(test.APITransactionTestCase):
+class InvoiceItemsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource
@@ -429,7 +429,7 @@ class InvoiceItemsTest(test.APITransactionTestCase):
 
 
 @freeze_time("2020-04-15")  # Middle of Q2 (April is a quarterly billing month)
-class QuarterlyBillingTest(test.APITransactionTestCase):
+class QuarterlyBillingTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         # Create a quarterly limit-based component
@@ -491,7 +491,7 @@ class QuarterlyBillingTest(test.APITransactionTestCase):
 
 
 @freeze_time("2020-01-15")  # Middle of Q1
-class QuarterlyVsMonthlyBillingTest(test.APITransactionTestCase):
+class QuarterlyVsMonthlyBillingTest(test.APITestCase):
     """Test quarterly billing behavior compared to monthly billing."""
 
     def setUp(self):
@@ -608,7 +608,7 @@ class QuarterlyVsMonthlyBillingTest(test.APITransactionTestCase):
 
 
 @ddt
-class QuarterlyBillingMonthDetectionTest(test.APITransactionTestCase):
+class QuarterlyBillingMonthDetectionTest(test.APITestCase):
     """Test quarterly billing month detection logic."""
 
     @data(
@@ -683,7 +683,7 @@ class QuarterlyBillingMonthDetectionTest(test.APITransactionTestCase):
 
 
 @freeze_time("2020-01-01")
-class QuarterlyBillingIntegrationTest(test.APITransactionTestCase):
+class QuarterlyBillingIntegrationTest(test.APITestCase):
     """Integration test for quarterly billing with create_monthly_invoices task."""
 
     def setUp(self):
@@ -760,7 +760,7 @@ class QuarterlyBillingIntegrationTest(test.APITransactionTestCase):
 
 
 @freeze_time("2020-01-01")
-class QuarterlyLimitChangeInNonQuarterlyMonthTest(test.APITransactionTestCase):
+class QuarterlyLimitChangeInNonQuarterlyMonthTest(test.APITestCase):
     """Test that changing limits in a non-quarterly month updates the original
     quarterly invoice item rather than creating a duplicate on the new month's invoice."""
 
@@ -896,7 +896,7 @@ class QuarterlyLimitChangeInNonQuarterlyMonthTest(test.APITransactionTestCase):
 
 
 @ddt
-class AnnualBillingMonthDetectionTest(test.APITransactionTestCase):
+class AnnualBillingMonthDetectionTest(test.APITestCase):
     """Test anniversary-based annual billing month detection logic."""
 
     def setUp(self):
@@ -970,7 +970,7 @@ class AnnualBillingMonthDetectionTest(test.APITransactionTestCase):
 
 
 @freeze_time("2020-03-01")
-class AnnualBillingIntegrationTest(test.APITransactionTestCase):
+class AnnualBillingIntegrationTest(test.APITestCase):
     """Integration test for anniversary-based annual billing with create_monthly_invoices task."""
 
     def setUp(self):
@@ -1055,7 +1055,7 @@ class AnnualBillingIntegrationTest(test.APITransactionTestCase):
 
 
 @freeze_time("2020-06-01")
-class AnnualAndMonthlyMixedBillingTest(test.APITransactionTestCase):
+class AnnualAndMonthlyMixedBillingTest(test.APITestCase):
     """Test that annual and monthly components are billed correctly together
     using anniversary-based annual billing."""
 
@@ -1147,7 +1147,7 @@ class AnnualAndMonthlyMixedBillingTest(test.APITransactionTestCase):
 
 
 @freeze_time("2024-10-03")
-class LimitBillingDuplicateInvoiceTest(test.APITransactionTestCase):
+class LimitBillingDuplicateInvoiceTest(test.APITestCase):
     """Test that reproduces the issue where LIMIT components get incorrectly billed during monthly invoice creation."""
 
     def setUp(self):
@@ -1615,7 +1615,7 @@ class LimitBillingDuplicateInvoiceTest(test.APITransactionTestCase):
 
 
 @freeze_time("2020-11-01")
-class NonBillableOfferingTest(test.APITransactionTestCase):
+class NonBillableOfferingTest(test.APITestCase):
     """
     Test that resources with non-billable offerings are not billed.
 
@@ -1694,7 +1694,7 @@ class NonBillableOfferingTest(test.APITransactionTestCase):
 
 
 @freeze_time("2020-11-01")
-class NonBillableChildOfferingTest(test.APITransactionTestCase):
+class NonBillableChildOfferingTest(test.APITestCase):
     """
     Test billing behavior for child offerings (like OpenStack.Instance)
     that are nested under parent offerings (like OpenStack.Tenant).

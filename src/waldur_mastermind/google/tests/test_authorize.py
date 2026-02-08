@@ -7,7 +7,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 
 
 @ddt
-class GoogleAuthTest(test.APITransactionTestCase):
+class GoogleAuthTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.service_provider = marketplace_factories.ServiceProviderFactory(

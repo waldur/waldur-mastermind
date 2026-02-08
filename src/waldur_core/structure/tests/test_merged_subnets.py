@@ -4,7 +4,7 @@ from waldur_core.structure.management.commands import organization_access_subnet
 from waldur_core.structure.tests import factories
 
 
-class MergedSubnetsTest(test.APITransactionTestCase):
+class MergedSubnetsTest(test.APITestCase):
     def setUp(self):
         from waldur_core.structure import models
 

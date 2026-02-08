@@ -21,7 +21,7 @@ from . import factories
 
 
 @ddt
-class ServiceProviderGetTest(test.APITransactionTestCase):
+class ServiceProviderGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.service_provider = self.fixture.service_provider
@@ -89,7 +89,7 @@ class ServiceProviderGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class ServiceProviderRegisterTest(test.APITransactionTestCase):
+class ServiceProviderRegisterTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -137,7 +137,7 @@ class ServiceProviderRegisterTest(test.APITransactionTestCase):
 
 
 @ddt
-class ServiceProviderUpdateTest(test.APITransactionTestCase):
+class ServiceProviderUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -216,7 +216,7 @@ class ServiceProviderUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ServiceProviderDeleteTest(test.APITransactionTestCase):
+class ServiceProviderDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.customer = self.fixture.customer
@@ -266,7 +266,7 @@ class ServiceProviderDeleteTest(test.APITransactionTestCase):
         return response
 
 
-class CustomerSerializerTest(test.APITransactionTestCase):
+class CustomerSerializerTest(test.APITestCase):
     def test_service_provider_is_not_defined(self):
         customer = structure_factories.CustomerFactory()
         self.assertFalse(self.get_value(customer))
@@ -284,7 +284,7 @@ class CustomerSerializerTest(test.APITransactionTestCase):
         return response.data["is_service_provider"]
 
 
-class ServiceProviderNotificationTest(test.APITransactionTestCase):
+class ServiceProviderNotificationTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.fixture.owner
@@ -318,7 +318,7 @@ class ServiceProviderNotificationTest(test.APITransactionTestCase):
         self.assertEqual(len(utils.get_info_about_missing_usage_reports()), 0)
 
 
-class ConsumerProjectListTest(test.APITransactionTestCase):
+class ConsumerProjectListTest(test.APITestCase):
     def setUp(self) -> None:
         self.mp_fixture = fixtures.MarketplaceFixture()
 
@@ -339,7 +339,7 @@ class ConsumerProjectListTest(test.APITransactionTestCase):
         )
 
 
-class ConsumerSshKeyListTest(test.APITransactionTestCase):
+class ConsumerSshKeyListTest(test.APITestCase):
     def setUp(self) -> None:
         self.mp_fixture = fixtures.MarketplaceFixture()
 
@@ -365,7 +365,7 @@ class ConsumerSshKeyListTest(test.APITransactionTestCase):
         self.assertIn(self.ssh_key.uuid.hex, [item["uuid"] for item in response.data])
 
 
-class ConsumerProjectPermissionListTest(test.APITransactionTestCase):
+class ConsumerProjectPermissionListTest(test.APITestCase):
     def setUp(self) -> None:
         self.mp_fixture = fixtures.MarketplaceFixture()
 
@@ -390,7 +390,7 @@ class ConsumerProjectPermissionListTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 1)
 
 
-class ConsumerUserListTest(test.APITransactionTestCase):
+class ConsumerUserListTest(test.APITestCase):
     def setUp(self) -> None:
         self.mp_fixture = fixtures.MarketplaceFixture()
 
@@ -425,7 +425,7 @@ class ConsumerUserListTest(test.APITransactionTestCase):
         self.assertNotIn(self.admin.uuid.hex, [item["uuid"] for item in response.data])
 
 
-class SetOfferingUsersTest(test.APITransactionTestCase):
+class SetOfferingUsersTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.MarketplaceFixture()
 
@@ -497,7 +497,7 @@ class SetOfferingUsersTest(test.APITransactionTestCase):
         self.assertEqual("ADMIN_NEW", offering_user.username)
 
 
-class ServiceProviderUserCustomersTest(test.APITransactionTestCase):
+class ServiceProviderUserCustomersTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.service_provider = factories.ServiceProviderFactory(
@@ -532,7 +532,7 @@ class ServiceProviderUserCustomersTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
-class ServiceProviderProjectServiceAccountsTest(test.APITransactionTestCase):
+class ServiceProviderProjectServiceAccountsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.service_provider = self.fixture.service_provider
@@ -587,7 +587,7 @@ class ServiceProviderProjectServiceAccountsTest(test.APITransactionTestCase):
         self.assertEqual(service_account["project_uuid"], new_project.uuid.hex)
 
 
-class ServiceProviderCourseAccountsTest(test.APITransactionTestCase):
+class ServiceProviderCourseAccountsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.service_provider = self.fixture.service_provider
@@ -637,7 +637,7 @@ class ServiceProviderCourseAccountsTest(test.APITransactionTestCase):
         self.assertEqual(course_account["project_uuid"], new_project.uuid.hex)
 
 
-class ServiceProviderUsersGDPRFilteringTest(test.APITransactionTestCase):
+class ServiceProviderUsersGDPRFilteringTest(test.APITestCase):
     """Test GDPR-aware attribute filtering on service provider users endpoint."""
 
     def setUp(self):

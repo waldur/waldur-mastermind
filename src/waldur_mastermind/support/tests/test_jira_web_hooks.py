@@ -9,7 +9,7 @@ from constance.test.unittest import override_config as override_constance_config
 from django.core import mail
 from django.test import override_settings
 from django.urls import reverse
-from rest_framework.test import APITransactionTestCase
+from rest_framework.test import APITestCase
 
 from waldur_core.core.tests.helpers import load_json_resource
 from waldur_mastermind.support.backend import SupportBackendType
@@ -27,7 +27,7 @@ from waldur_mastermind.support.tests import factories
     WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE="basic",
 )
 @override_settings(task_always_eager=True)
-class TestJiraWebHooks(APITransactionTestCase):
+class TestJiraWebHooks(APITestCase):
     def setUp(self):
         self.url = reverse("web-hook-receiver")
         backend_id = "SNT-101"
@@ -114,7 +114,7 @@ MockResolution = collections.namedtuple("MockResolution", ["name"])
 
 @override_settings(task_always_eager=True)
 @override_constance_config(WALDUR_SUPPORT_ENABLED=True)
-class TestUpdateIssueFromJira(APITransactionTestCase):
+class TestUpdateIssueFromJira(APITestCase):
     def setUp(self):
         self.issue = factories.IssueFactory()
 
@@ -302,7 +302,7 @@ class TestUpdateIssueFromJira(APITransactionTestCase):
         self.assertEqual(self.issue.feedback_request, False)
 
 
-class TestUpdateCommentFromJira(APITransactionTestCase):
+class TestUpdateCommentFromJira(APITestCase):
     @override_constance_config(
         WALDUR_SUPPORT_ENABLED=True,
         WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE=SupportBackendType.ATLASSIAN,
@@ -385,7 +385,7 @@ class TestUpdateCommentFromJira(APITransactionTestCase):
         self.assertEqual(self.comment.description, expected_comment_body)
 
 
-class TestUpdateAttachmentFromJira(APITransactionTestCase):
+class TestUpdateAttachmentFromJira(APITestCase):
     @override_constance_config(
         WALDUR_SUPPORT_ENABLED=True,
         WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE=SupportBackendType.ATLASSIAN,

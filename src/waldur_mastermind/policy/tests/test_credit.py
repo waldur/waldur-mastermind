@@ -8,7 +8,7 @@ from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.policy.tests import factories
 
 
-class CreditHasBeenChangedTest(test.APITransactionTestCase):
+class CreditHasBeenChangedTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.customer_policy = factories.CustomerEstimatedCostPolicyFactory(

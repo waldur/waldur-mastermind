@@ -4,7 +4,7 @@ from waldur_core.structure.models import UserAgreement
 from waldur_core.structure.tests import factories, fixtures
 
 
-class UserAgreementListTest(test.APITransactionTestCase):
+class UserAgreementListTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         self.url = factories.UserAgreementFactory.get_list_url()
@@ -35,7 +35,7 @@ class UserAgreementListTest(test.APITransactionTestCase):
         self.assertEqual(response.data[0]["agreement_type"], "TOS")
 
 
-class UserAgreementLanguageTest(test.APITransactionTestCase):
+class UserAgreementLanguageTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         self.url = factories.UserAgreementFactory.get_list_url()
@@ -100,7 +100,7 @@ class UserAgreementLanguageTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 3)
 
 
-class UserAgreementCreateTest(test.APITransactionTestCase):
+class UserAgreementCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         self.url = factories.UserAgreementFactory.get_list_url()
@@ -131,7 +131,7 @@ class UserAgreementCreateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class UserAgreementUpdateTest(test.APITransactionTestCase):
+class UserAgreementUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         self.agreement = factories.UserAgreementFactory(
@@ -153,7 +153,7 @@ class UserAgreementUpdateTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
-class UserAgreementModelTest(test.APITransactionTestCase):
+class UserAgreementModelTest(test.APITestCase):
     def test_str_with_language(self):
         agreement = factories.UserAgreementFactory(
             agreement_type=UserAgreement.UserAgreements.TOS, language="de"

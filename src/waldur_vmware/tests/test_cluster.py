@@ -8,7 +8,7 @@ from waldur_vmware import backend, models
 from . import factories
 
 
-class ClusterGetTest(test.APITransactionTestCase):
+class ClusterGetTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = ProjectFixture()
@@ -51,7 +51,7 @@ class ClusterGetTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 2)
 
 
-class ClusterPullTest(test.APITransactionTestCase):
+class ClusterPullTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.settings = factories.VMwareServiceSettingsFactory()

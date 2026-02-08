@@ -75,7 +75,7 @@ class LogRoleEventTest(TestCase):
         )
 
 
-class AccessSubnetCreateModifyDelete(test.APITransactionTestCase):
+class AccessSubnetCreateModifyDelete(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         self.client.force_authenticate(user=self.fixture.owner)

@@ -4,7 +4,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_openstack.tests import factories as openstack_factories
 
 
-class NetworkMtuTest(test.APITransactionTestCase):
+class NetworkMtuTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.tenant = openstack_factories.TenantFactory()

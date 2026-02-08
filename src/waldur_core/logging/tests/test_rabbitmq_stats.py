@@ -8,7 +8,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 
 
 @ddt
-class RabbitMQStatsGetTest(test.APITransactionTestCase):
+class RabbitMQStatsGetTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.url = "/api/rabbitmq-stats/"
@@ -86,7 +86,7 @@ class RabbitMQStatsGetTest(test.APITransactionTestCase):
 
 
 @ddt
-class RabbitMQStatsPurgeTest(test.APITransactionTestCase):
+class RabbitMQStatsPurgeTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.CustomerFixture()
         self.url = "/api/rabbitmq-stats/"

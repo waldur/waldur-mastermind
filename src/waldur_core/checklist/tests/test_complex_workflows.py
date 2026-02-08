@@ -17,7 +17,7 @@ from waldur_core.structure.tests import fixtures as structure_fixtures
 
 
 @ddt
-class ComplexWorkflowScenariosTest(test.APITransactionTestCase):
+class ComplexWorkflowScenariosTest(test.APITestCase):
     """Test complex workflows combining multiple checklist features."""
 
     def setUp(self):
@@ -833,7 +833,7 @@ class ComplexWorkflowScenariosTest(test.APITransactionTestCase):
 
 
 @ddt
-class DocumentationExampleValidationTest(test.APITransactionTestCase):
+class DocumentationExampleValidationTest(test.APITestCase):
     """Validate that all documented examples work as described."""
 
     def setUp(self):
@@ -1096,7 +1096,7 @@ class DocumentationExampleValidationTest(test.APITransactionTestCase):
 
 
 @ddt
-class RealWorldIntegrationPatternsTest(test.APITransactionTestCase):
+class RealWorldIntegrationPatternsTest(test.APITestCase):
     """Test patterns for real-world integration scenarios."""
 
     def setUp(self):

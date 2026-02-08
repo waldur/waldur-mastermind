@@ -9,7 +9,7 @@ from waldur_mastermind.invoices.utils import get_current_month, get_current_year
 from . import factories
 
 
-class EventsStatsGetTest(test.APITransactionTestCase):
+class EventsStatsGetTest(test.APITestCase):
     def setUp(self) -> None:
         with freeze_time("2021-01-01"):
             self.user = structure_factories.UserFactory(is_staff=True)
@@ -62,7 +62,7 @@ class EventsStatsGetTest(test.APITransactionTestCase):
         self.assertEqual(401, response.status_code)
 
 
-class EventsFilteringTest(test.APITransactionTestCase):
+class EventsFilteringTest(test.APITestCase):
     def setUp(self):
         self.user = structure_factories.UserFactory(is_staff=True)
         self.client.force_authenticate(user=self.user)
@@ -114,7 +114,7 @@ class EventsFilteringTest(test.APITransactionTestCase):
         self.assertEqual(len(response.data), 0)
 
 
-class EventGroupsAPITest(test.APITransactionTestCase):
+class EventGroupsAPITest(test.APITestCase):
     def setUp(self):
         self.user = structure_factories.UserFactory(is_staff=True)
         self.client.force_authenticate(user=self.user)
@@ -168,7 +168,7 @@ class EventGroupsAPITest(test.APITransactionTestCase):
         self.assertEqual(response.data, expected_data)
 
 
-class ExpandEventGroupsTest(test.APITransactionTestCase):
+class ExpandEventGroupsTest(test.APITestCase):
     """Test expand_event_groups function with different input types"""
 
     def test_expand_event_groups_with_string_input(self):

@@ -9,7 +9,7 @@ from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories, fixtures
 
 
-class UserDataAccessPermissionTest(test.APITransactionTestCase):
+class UserDataAccessPermissionTest(test.APITestCase):
     """Test permission checks for data access endpoint."""
 
     def setUp(self):
@@ -52,7 +52,7 @@ class UserDataAccessPermissionTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
-class UserDataAccessAdministrativeTest(test.APITransactionTestCase):
+class UserDataAccessAdministrativeTest(test.APITestCase):
     """Test administrative access section of data access endpoint."""
 
     def setUp(self):
@@ -112,7 +112,7 @@ class UserDataAccessAdministrativeTest(test.APITransactionTestCase):
         self.assertIn("users", admin_access)
 
 
-class UserDataAccessOrganizationalTest(test.APITransactionTestCase):
+class UserDataAccessOrganizationalTest(test.APITestCase):
     """Test organizational access section of data access endpoint."""
 
     def setUp(self):
@@ -194,7 +194,7 @@ class UserDataAccessOrganizationalTest(test.APITransactionTestCase):
         self.assertNotIn(str(self.owner.uuid), all_user_uuids)
 
 
-class UserDataAccessSummaryTest(test.APITransactionTestCase):
+class UserDataAccessSummaryTest(test.APITestCase):
     """Test summary section of data access endpoint."""
 
     def setUp(self):
@@ -238,7 +238,7 @@ class UserDataAccessSummaryTest(test.APITransactionTestCase):
         self.assertGreaterEqual(summary["total_provider_access"], 0)
 
 
-class UserDataAccessServiceProviderTest(test.APITransactionTestCase):
+class UserDataAccessServiceProviderTest(test.APITestCase):
     """Test service provider access section of data access endpoint."""
 
     def setUp(self):
@@ -259,7 +259,7 @@ class UserDataAccessServiceProviderTest(test.APITransactionTestCase):
         self.assertEqual(len(provider_access), 0)
 
 
-class UserDataAccessLoggingTest(test.APITransactionTestCase):
+class UserDataAccessLoggingTest(test.APITestCase):
     """Test user data access logging functionality."""
 
     def setUp(self):
@@ -357,7 +357,7 @@ class UserDataAccessLoggingTest(test.APITransactionTestCase):
         self.assertEqual(log_count, 0)
 
 
-class UserDataAccessHistoryTest(test.APITransactionTestCase):
+class UserDataAccessHistoryTest(test.APITestCase):
     """Test user data access history endpoint."""
 
     def setUp(self):
@@ -466,7 +466,7 @@ class UserDataAccessHistoryTest(test.APITransactionTestCase):
             self.assertEqual(entry["accessor_type"], "staff")
 
 
-class GlobalDataAccessLogsPermissionTest(test.APITransactionTestCase):
+class GlobalDataAccessLogsPermissionTest(test.APITestCase):
     """Test permission checks for global data access logs endpoint."""
 
     def setUp(self):
@@ -495,7 +495,7 @@ class GlobalDataAccessLogsPermissionTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
-class GlobalDataAccessLogsListTest(test.APITransactionTestCase):
+class GlobalDataAccessLogsListTest(test.APITestCase):
     """Test list functionality for global data access logs endpoint."""
 
     def setUp(self):
@@ -580,7 +580,7 @@ class GlobalDataAccessLogsListTest(test.APITransactionTestCase):
         self.assertIn("context", log_data)
 
 
-class GlobalDataAccessLogsFilterTest(test.APITransactionTestCase):
+class GlobalDataAccessLogsFilterTest(test.APITestCase):
     """Test filtering for global data access logs endpoint."""
 
     def setUp(self):
@@ -674,7 +674,7 @@ class GlobalDataAccessLogsFilterTest(test.APITransactionTestCase):
         self.assertIn(str(self.old_log.uuid), log_uuids)
 
 
-class GlobalDataAccessLogsOrderingTest(test.APITransactionTestCase):
+class GlobalDataAccessLogsOrderingTest(test.APITestCase):
     """Test ordering for global data access logs endpoint."""
 
     def setUp(self):
@@ -730,7 +730,7 @@ class GlobalDataAccessLogsOrderingTest(test.APITransactionTestCase):
         self.assertLess(idx1, idx2)
 
 
-class GlobalDataAccessLogsDeleteTest(test.APITransactionTestCase):
+class GlobalDataAccessLogsDeleteTest(test.APITestCase):
     """Test delete functionality for global data access logs endpoint."""
 
     def setUp(self):

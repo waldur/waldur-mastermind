@@ -12,7 +12,7 @@ from waldur_openstack.serializers import (
 from . import factories, fixtures
 
 
-class BasePortTest(test.APITransactionTestCase):
+class BasePortTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.OpenStackFixture()
         self.client.force_authenticate(user=self.fixture.owner)
@@ -170,7 +170,7 @@ class PortDeleteTest(BasePortTest):
         delete_port_executor_mock.assert_called_once()
 
 
-class PortSerializerTest(test.APITransactionTestCase):
+class PortSerializerTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.subnet = self.fixture.subnet
@@ -209,7 +209,7 @@ class PortSerializerTest(test.APITransactionTestCase):
         self.assertFalse(serializer.is_valid())
 
 
-class PortNetworkValidationTest(test.APITransactionTestCase):
+class PortNetworkValidationTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         # Create two different tenants to test cross-tenant validation
@@ -262,7 +262,7 @@ class PortNetworkValidationTest(test.APITransactionTestCase):
         self.assertIn("subnet", serializer.errors)
 
 
-class PortExecutorTest(test.APITransactionTestCase):
+class PortExecutorTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.port = self.fixture.port
@@ -358,7 +358,7 @@ class PortIPUpdateValidationTest(BasePortTest):
         self.assertIn("subnet", serializer.errors)
 
 
-class PortSharedNetworkTest(test.APITransactionTestCase):
+class PortSharedNetworkTest(test.APITestCase):
     """Tests for shared network port creation functionality."""
 
     def setUp(self):
@@ -464,7 +464,7 @@ class PortSharedNetworkTest(test.APITransactionTestCase):
         self.assertTrue(serializer.is_valid(), serializer.errors)
 
 
-class PortBackendSharedNetworkTest(test.APITransactionTestCase):
+class PortBackendSharedNetworkTest(test.APITestCase):
     """Tests for backend methods handling shared networks."""
 
     def setUp(self):
@@ -561,7 +561,7 @@ class PortBackendSharedNetworkTest(test.APITransactionTestCase):
         )
 
 
-class InstancePortCreationTest(test.APITransactionTestCase):
+class InstancePortCreationTest(test.APITestCase):
     """Tests for port creation during instance provisioning in shared networks."""
 
     def setUp(self):

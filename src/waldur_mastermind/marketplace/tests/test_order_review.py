@@ -32,7 +32,7 @@ from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 
 
-class OrderApproveByConsumerTest(test.APITransactionTestCase):
+class OrderApproveByConsumerTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -342,7 +342,7 @@ class OrderApproveByProviderTest(test.APITransactionTestCase):
 
 
 @ddt
-class OrderRejectByConsumerTest(test.APITransactionTestCase):
+class OrderRejectByConsumerTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -422,7 +422,7 @@ class OrderRejectByConsumerTest(test.APITransactionTestCase):
 
 
 @ddt
-class OrderRejectByProviderTest(test.APITransactionTestCase):
+class OrderRejectByProviderTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.project = self.fixture.project
@@ -528,7 +528,7 @@ class OrderRejectByProviderTest(test.APITransactionTestCase):
 
 
 @ddt
-class ApproveOrderAsProviderFilterTest(test.APITransactionTestCase):
+class ApproveOrderAsProviderFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.order = self.fixture.order
@@ -559,7 +559,7 @@ class ApproveOrderAsProviderFilterTest(test.APITransactionTestCase):
 
 
 @ddt
-class ApproveOrderAsConsumerFilterTest(test.APITransactionTestCase):
+class ApproveOrderAsConsumerFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.fixture.order.state = OrderStates.PENDING_CONSUMER
@@ -591,7 +591,7 @@ class ApproveOrderAsConsumerFilterTest(test.APITransactionTestCase):
         self.assertEqual(len(response.json()), expected)
 
 
-class OrderApprovalByConsumerNotificationTest(test.APITransactionTestCase):
+class OrderApprovalByConsumerNotificationTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
 
@@ -624,7 +624,7 @@ class OrderApprovalByConsumerNotificationTest(test.APITransactionTestCase):
         self.assertEqual(len(mail.outbox), 0)
 
 
-class OrderApprovalByProviderNotificationTest(test.APITransactionTestCase):
+class OrderApprovalByProviderNotificationTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = marketplace_fixtures.MarketplaceFixture()
         self.order = self.fixture.order
@@ -652,7 +652,7 @@ class OrderApprovalByProviderNotificationTest(test.APITransactionTestCase):
         self.assertEqual(len(mail.outbox), 0)
 
 
-class ScriptOfferingOrderReviewTest(test.APITransactionTestCase):
+class ScriptOfferingOrderReviewTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project

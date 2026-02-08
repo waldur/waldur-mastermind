@@ -5,7 +5,7 @@ from . import factories, fixtures
 
 
 @ddt
-class VolumeAvailabilityZoneTest(test.APITransactionTestCase):
+class VolumeAvailabilityZoneTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()
         self.url = factories.VolumeAvailabilityZoneFactory.get_list_url()

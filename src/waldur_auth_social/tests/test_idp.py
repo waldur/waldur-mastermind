@@ -7,7 +7,7 @@ from waldur_auth_social.const import PROVIDER_DEFAULTS, ProviderChoices
 from waldur_core.structure.tests.fixtures import UserFixture
 
 
-class IdentityProvidersViewSetTest(test.APITransactionTestCase):
+class IdentityProvidersViewSetTest(test.APITestCase):
     def setUp(self):
         super().setUp()
         self.fixture = UserFixture()

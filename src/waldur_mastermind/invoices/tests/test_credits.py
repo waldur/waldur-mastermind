@@ -16,7 +16,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 
 
 @ddt
-class CustomerCreditRetrieveTest(test.APITransactionTestCase):
+class CustomerCreditRetrieveTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()
         self.url = factories.CustomerCreditFactory.get_url(self.fixture.customer_credit)
@@ -35,7 +35,7 @@ class CustomerCreditRetrieveTest(test.APITransactionTestCase):
 
 
 @ddt
-class CustomerCreditCreateTest(test.APITransactionTestCase):
+class CustomerCreditCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
 
@@ -124,7 +124,7 @@ class CustomerCreditCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class CustomerCreditUpdateTest(test.APITransactionTestCase):
+class CustomerCreditUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()
         self.fixture.customer_credit
@@ -166,7 +166,7 @@ class CustomerCreditUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class CustomerCreditDeleteTest(test.APITransactionTestCase):
+class CustomerCreditDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()
 
@@ -187,7 +187,7 @@ class CustomerCreditDeleteTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProjectCreditRetrieveTest(test.APITransactionTestCase):
+class ProjectCreditRetrieveTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()
         self.url = factories.ProjectCreditFactory.get_url(self.fixture.project_credit)
@@ -206,7 +206,7 @@ class ProjectCreditRetrieveTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProjectCreditCreateTest(test.APITransactionTestCase):
+class ProjectCreditCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()
         self.fixture.customer_credit
@@ -232,7 +232,7 @@ class ProjectCreditCreateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProjectCreditUpdateTest(test.APITransactionTestCase):
+class ProjectCreditUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()
 
@@ -261,7 +261,7 @@ class ProjectCreditUpdateTest(test.APITransactionTestCase):
 
 
 @ddt
-class ProjectCreditDeleteTest(test.APITransactionTestCase):
+class ProjectCreditDeleteTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()
         self.project_credit = self.fixture.project_credit
@@ -315,7 +315,7 @@ class ProjectCreditDeleteTest(test.APITransactionTestCase):
 
 @ddt
 @freeze_time("2024-01-01")
-class CustomerCreditTest(test.APITransactionTestCase):
+class CustomerCreditTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.InvoiceFixture()
         self.invoice = self.fixture.invoice
@@ -400,7 +400,7 @@ class CustomerCreditTest(test.APITransactionTestCase):
 
 
 @freeze_time("2024-01-01")
-class ProjectCreditTest(test.APITransactionTestCase):
+class ProjectCreditTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()
         self.customer_credit = self.fixture.customer_credit
@@ -472,7 +472,7 @@ class CompensationTestResult:
         return max(self.consumption, self.expected_consumption)
 
 
-class ProcessingCreditTest(test.APITransactionTestCase):
+class ProcessingCreditTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()
         self.customer_credit = self.fixture.customer_credit
@@ -599,7 +599,7 @@ class ProcessingCreditTest(test.APITransactionTestCase):
 
 
 @freeze_time("2025-08-01")
-class CalculateMinimalConsumptionTest(test.APITransactionTestCase):
+class CalculateMinimalConsumptionTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()
         self.customer_credit = self.fixture.customer_credit
@@ -648,7 +648,7 @@ class CalculateMinimalConsumptionTest(test.APITransactionTestCase):
 
 
 @ddt
-class CustomerCreditHistoricalValuesTest(test.APITransactionTestCase):
+class CustomerCreditHistoricalValuesTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()
         self.url = factories.CustomerCreditFactory.get_url(
@@ -693,7 +693,7 @@ class CustomerCreditHistoricalValuesTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-class CompensationQueryOptimizationTest(test.APITransactionTestCase):
+class CompensationQueryOptimizationTest(test.APITestCase):
     """Test to validate N+1 query optimization in compensation calculations"""
 
     def setUp(self):

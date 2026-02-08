@@ -33,3 +33,8 @@ ALLOWED_HOSTS = ["localhost"]
 
 CELERY_BROKER_URL = "memory://"
 CELERY_RESULT_BACKEND = "cache+memory://"
+
+# Disable throttling in tests. With APITestCase (which wraps tests in
+# transactions), the in-memory throttle cache persists across tests and
+# can cause spurious 429 responses.
+REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []  # noqa: F405

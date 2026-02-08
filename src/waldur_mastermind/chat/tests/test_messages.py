@@ -5,7 +5,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession
 
 
-class MessageViewSetTest(test.APITransactionTestCase):
+class MessageViewSetTest(test.APITestCase):
     """Test MessageViewSet endpoints."""
 
     def setUp(self):
@@ -176,7 +176,7 @@ class MessageViewSetTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-class MessageEditTest(test.APITransactionTestCase):
+class MessageEditTest(test.APITestCase):
     """Test message editing functionality."""
 
     def setUp(self):
@@ -340,7 +340,7 @@ class MessageEditTest(test.APITransactionTestCase):
         self.assertNotEqual(response.data["uuid"], str(original.uuid))
 
 
-class MessageHistoryTest(test.APITransactionTestCase):
+class MessageHistoryTest(test.APITestCase):
     """Test message history functionality."""
 
     def setUp(self):
@@ -442,7 +442,7 @@ class MessageHistoryTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-class MessageConcurrencyTest(test.APITransactionTestCase):
+class MessageConcurrencyTest(test.APITestCase):
     """Test concurrent message creation handling."""
 
     def setUp(self):

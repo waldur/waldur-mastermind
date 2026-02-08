@@ -9,7 +9,7 @@ from waldur_mastermind.chat import tasks
 from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession
 
 
-class ChatSessionCleanupTest(test.APITransactionTestCase):
+class ChatSessionCleanupTest(test.APITestCase):
     def setUp(self):
         self.user1 = structure_factories.UserFactory()
         self.user2 = structure_factories.UserFactory()

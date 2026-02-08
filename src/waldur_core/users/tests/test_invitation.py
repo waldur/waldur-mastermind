@@ -27,7 +27,7 @@ from waldur_core.users.utils import get_invitation_link, get_invitation_token
 from waldur_mastermind.proposal.tests.factories import ProposalFactory
 
 
-class InvitationFieldValidationTest(test.APITransactionTestCase):
+class InvitationFieldValidationTest(test.APITestCase):
     def setUp(self):
         self.staff = structure_factories.UserFactory(is_staff=True)
         self.customer = structure_factories.CustomerFactory()
@@ -1432,7 +1432,7 @@ class InvitationRejectTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
-class InvitationScopeDescriptionTest(test.APITransactionTestCase):
+class InvitationScopeDescriptionTest(test.APITestCase):
     """Test cases for the scope_description field in invitation serializer."""
 
     def setUp(self):
@@ -1658,7 +1658,7 @@ class InvitationScopeDescriptionTest(test.APITransactionTestCase):
         )
 
 
-class InvitationScopeFilterTest(test.APITransactionTestCase):
+class InvitationScopeFilterTest(test.APITestCase):
     """Test cases for scope name and scope description filters in invitation list."""
 
     def setUp(self):
@@ -1878,7 +1878,7 @@ class InvitationScopeFilterTest(test.APITransactionTestCase):
         self.assertEqual(invitation_uuids, expected_uuids)
 
 
-class GroupInvitationSubmitRequestTest(test.APITransactionTestCase):
+class GroupInvitationSubmitRequestTest(test.APITestCase):
     """Test cases for the submit_request method response format."""
 
     def setUp(self):
@@ -1981,7 +1981,7 @@ class GroupInvitationSubmitRequestTest(test.APITransactionTestCase):
         self.assertIsInstance(response.data["auto_approved"], bool)
 
 
-class PermissionRequestCancelTest(test.APITransactionTestCase):
+class PermissionRequestCancelTest(test.APITestCase):
     """Test cases for the cancel_request action."""
 
     def setUp(self):
@@ -2350,7 +2350,7 @@ class InvitationUpdateTest(BaseInvitationTest):
         self.assertEqual(self.invitation.role, CustomerRole.SUPPORT)
 
 
-class IsPermanentWebhookErrorTest(test.APITransactionTestCase):
+class IsPermanentWebhookErrorTest(test.APITestCase):
     def test_returns_true_for_4xx_errors(self):
         """4xx HTTP errors are permanent and should not be retried."""
         test_cases = [
@@ -2396,7 +2396,7 @@ class IsPermanentWebhookErrorTest(test.APITransactionTestCase):
                 self.assertFalse(tasks.is_permanent_webhook_error(error_message))
 
 
-class InvitationResendStuckTaskTest(test.APITransactionTestCase):
+class InvitationResendStuckTaskTest(test.APITestCase):
     def setUp(self):
         self.sender = structure_factories.UserFactory()
 
@@ -2484,7 +2484,7 @@ class InvitationResendStuckTaskTest(test.APITransactionTestCase):
             )
 
 
-class InvitationWebhookScopeTest(test.APITransactionTestCase):
+class InvitationWebhookScopeTest(test.APITestCase):
     """Tests for webhook scope filtering - webhooks only support project invitations."""
 
     def setUp(self):

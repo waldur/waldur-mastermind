@@ -9,7 +9,7 @@ from . import fixtures
 
 
 @freeze_time("2020-11-01")
-class InvoiceTest(test.APITransactionTestCase):
+class InvoiceTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ScriptFixture()
         self.resource = self.fixture.resource

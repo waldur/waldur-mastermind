@@ -3,7 +3,7 @@ from rest_framework import test
 from waldur_mastermind.invoices.tests import factories, fixtures
 
 
-class InvoiceItemFilterTest(test.APITransactionTestCase):
+class InvoiceItemFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CreditFixture()
         self.invoice_item = self.fixture.invoice_item

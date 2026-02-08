@@ -5,7 +5,7 @@ from waldur_mastermind.marketplace.tests import factories as marketplace_factori
 from waldur_slurm.tests import fixtures as slurm_fixtures
 
 
-class OfferingComponentForVolumeTypeTest(test.APITransactionTestCase):
+class OfferingComponentForVolumeTypeTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = slurm_fixtures.SlurmFixture()
         self.offering = marketplace_factories.OfferingFactory(

@@ -11,7 +11,7 @@ from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession
 from waldur_mastermind.chat.views import LLMStreamer
 
 
-class LLMStreamerPersistenceTest(test.APITransactionTestCase):
+class LLMStreamerPersistenceTest(test.APITestCase):
     """Verify that LLMStreamer._persist_messages writes (or skips) Message rows."""
 
     def _fake_response(self, lines):
@@ -163,7 +163,7 @@ class LLMStreamerPersistenceTest(test.APITransactionTestCase):
         self.assertEqual(assistant_msg.content, "")
 
 
-class ChatSessionRBACTest(test.APITransactionTestCase):
+class ChatSessionRBACTest(test.APITestCase):
     """Staff and support see all sessions; audit fires on cross-user retrieve."""
 
     def setUp(self):
@@ -232,7 +232,7 @@ class ChatSessionRBACTest(test.APITransactionTestCase):
         mock_event_logger.emit.assert_not_called()
 
 
-class ThreadSessionRBACTest(test.APITransactionTestCase):
+class ThreadSessionRBACTest(test.APITestCase):
     """Staff sees all threads, can filter by user, audit fires on cross-user retrieve."""
 
     def setUp(self):
@@ -296,7 +296,7 @@ class ThreadSessionRBACTest(test.APITransactionTestCase):
         mock_event_logger.emit.assert_not_called()
 
 
-class MessageRBACTest(test.APITransactionTestCase):
+class MessageRBACTest(test.APITestCase):
     """Staff and support can list messages across all users."""
 
     def setUp(self):

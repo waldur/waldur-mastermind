@@ -72,7 +72,7 @@ class MockReviewerChecklistViewSet(
 
 
 @ddt
-class UserChecklistMixinIntegrationTest(test.APITransactionTestCase):
+class UserChecklistMixinIntegrationTest(test.APITestCase):
     """Integration tests for UserChecklistMixin."""
 
     def setUp(self):
@@ -328,7 +328,7 @@ class UserChecklistMixinIntegrationTest(test.APITransactionTestCase):
 
 
 @ddt
-class ReviewerChecklistMixinIntegrationTest(test.APITransactionTestCase):
+class ReviewerChecklistMixinIntegrationTest(test.APITestCase):
     """Integration tests for ReviewerChecklistMixin."""
 
     def setUp(self):
@@ -464,7 +464,7 @@ class ReviewerChecklistMixinIntegrationTest(test.APITransactionTestCase):
 
 
 @ddt
-class CombinedUserReviewerMixinIntegrationTest(test.APITransactionTestCase):
+class CombinedUserReviewerMixinIntegrationTest(test.APITestCase):
     """Integration tests for ViewSets that use both User and Reviewer mixins."""
 
     class MockCombinedViewSet(
@@ -593,7 +593,7 @@ class CombinedUserReviewerMixinIntegrationTest(test.APITransactionTestCase):
 
 
 @ddt
-class MixinSecurityBoundariesTest(test.APITransactionTestCase):
+class MixinSecurityBoundariesTest(test.APITestCase):
     """Test security boundaries between user and reviewer information."""
 
     def setUp(self):
@@ -740,7 +740,7 @@ class MixinSecurityBoundariesTest(test.APITransactionTestCase):
 
 
 @ddt
-class MixinQuestionVisibilityIntegrationTest(test.APITransactionTestCase):
+class MixinQuestionVisibilityIntegrationTest(test.APITestCase):
     """Test question visibility logic integration with ViewSet mixins."""
 
     def setUp(self):
@@ -881,7 +881,7 @@ class MixinQuestionVisibilityIntegrationTest(test.APITransactionTestCase):
 
 
 @ddt
-class AnswerRemovalIntegrationTest(test.APITransactionTestCase):
+class AnswerRemovalIntegrationTest(test.APITestCase):
     """Integration tests for answer removal functionality via submit_answers with null values."""
 
     def setUp(self):

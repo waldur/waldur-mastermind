@@ -18,7 +18,7 @@ from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.utils import TestCreateProcessor
 
 
-class OrderUpdateTest(test.APITransactionTestCase):
+class OrderUpdateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.project = self.fixture.project

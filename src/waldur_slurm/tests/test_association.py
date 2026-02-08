@@ -3,7 +3,7 @@ from rest_framework import test
 from . import factories, fixtures
 
 
-class AssociationGetTest(test.APITransactionTestCase):
+class AssociationGetTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.SlurmFixture()
         self.association = self.fixture.association

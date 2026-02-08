@@ -15,7 +15,7 @@ from . import factories
 
 @unittest.skip("Move import to marketplace")
 @mock.patch("digitalocean.Manager")
-class ImportDropletTest(test.APITransactionTestCase):
+class ImportDropletTest(test.APITestCase):
     def setUp(self):
         self.import_url = factories.DropletFactory.get_url(self.link.service)
         self.project_url = structure_factories.ProjectFactory.get_url(self.link.project)

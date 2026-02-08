@@ -31,7 +31,7 @@ from waldur_openstack_replication.models import Migration
 from waldur_openstack_replication.tasks import CreateReplicatedPortTask
 
 
-class MigrationTest(test.APITransactionTestCase):
+class MigrationTest(test.APITestCase):
     def setUp(self):
         self.fixture = OpenStackFixture()
         self.offering = OfferingFactory(scope=self.fixture.settings)
@@ -264,7 +264,7 @@ class MigrationTest(test.APITransactionTestCase):
         self.assertIn("10.0.0.0/24", routes)
 
 
-class CreateReplicatedPortTaskTest(test.APITransactionTestCase):
+class CreateReplicatedPortTaskTest(test.APITestCase):
     """Tests for handling port creation with data-driven approach."""
 
     def setUp(self):
