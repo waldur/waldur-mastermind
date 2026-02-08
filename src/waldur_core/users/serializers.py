@@ -12,7 +12,10 @@ from waldur_core.permissions.utils import get_valid_models
 from waldur_core.structure.permissions import _get_customer
 from waldur_core.users import models
 from waldur_core.users.enums import InvitationState
-from waldur_core.users.utils import get_invitation_duplicates
+from waldur_core.users.utils import (
+    can_manage_invitation_with,
+    get_invitation_duplicates,
+)
 
 
 class BaseInvitationDetailsSerializer(serializers.HyperlinkedModelSerializer):
@@ -208,6 +211,7 @@ class GroupInvitationSerializer(BaseInvitationSerializer):
             "user_email_patterns",
             "user_identity_sources",
             "scope_image",
+            "custom_text",
         )
         read_only_fields = BaseInvitationSerializer.Meta.read_only_fields + (
             "is_active",
@@ -280,6 +284,145 @@ class GroupInvitationSerializer(BaseInvitationSerializer):
                 )
 
         return attrs
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        if request and instance.is_public:
+            user = request.user
+            if not user.is_authenticated or (
+                not user.is_staff
+                and not user.is_support
+                and not can_manage_invitation_with(request, instance.scope)
+            ):
+                data["created_by_full_name"] = None
+                data["created_by_username"] = None
+                data["created_by_image"] = None
+        return data
+
+
+class GroupInvitationUpdateSerializer(serializers.ModelSerializer):
+    role = serializers.SlugRelatedField(
+        queryset=Role.objects.filter(is_active=True),
+        slug_field="uuid",
+        required=False,
+        help_text="UUID of the role to grant.",
+    )
+    project_role = serializers.SlugRelatedField(
+        queryset=Role.objects.filter(is_active=True, name__startswith="PROJECT."),
+        slug_field="uuid",
+        required=False,
+        allow_null=True,
+        help_text="UUID of the project role to grant if auto_create_project is enabled",
+    )
+    scope = GenericRelatedField(
+        get_valid_models,
+        required=False,
+        help_text="URL of the scope (Customer or Project) for this invitation",
+    )
+
+    class Meta:
+        model = models.GroupInvitation
+        fields = (
+            "is_public",
+            "role",
+            "scope",
+            "auto_create_project",
+            "auto_approve",
+            "project_name_template",
+            "project_role",
+            "user_affiliations",
+            "user_email_patterns",
+            "user_identity_sources",
+            "custom_text",
+        )
+
+    def validate_user_email_patterns(self, value):
+        models.GroupInvitation.validate_user_email_patterns(value)
+        return value
+
+    def validate_project_name_template(self, value):
+        if not value:
+            return value
+        placeholders = re.findall(r"\{([^}]+)\}", value)
+        allowed_placeholders = {"username", "email", "full_name"}
+        invalid_placeholders = set(placeholders) - allowed_placeholders
+        if invalid_placeholders:
+            raise serializers.ValidationError(
+                f"Invalid placeholders in template: {', '.join(invalid_placeholders)}. "
+                f"Allowed placeholders are: {', '.join(sorted(allowed_placeholders))}"
+            )
+        return value
+
+    def validate(self, attrs):
+        invitation = self.instance
+
+        if not invitation.is_active:
+            raise serializers.ValidationError(
+                _("Only active invitations can be edited.")
+            )
+
+        # Merge attrs with existing instance values for full-state validation
+        is_public = attrs.get("is_public", invitation.is_public)
+        auto_create_project = attrs.get(
+            "auto_create_project", invitation.auto_create_project
+        )
+        role = attrs.get("role", invitation.role)
+        scope = attrs.get("scope", invitation.scope)
+
+        # Staff-only check for is_public
+        if is_public:
+            request = self.context.get("request")
+            if not (request and request.user.is_staff):
+                raise serializers.ValidationError(
+                    {"is_public": "Only staff users can create public invitations."}
+                )
+
+        # Public invitations must use auto_create_project
+        if is_public and not auto_create_project:
+            raise serializers.ValidationError(
+                {
+                    "auto_create_project": "Public invitations must have auto_create_project enabled."
+                }
+            )
+
+        # Public invitations should only use project-level roles
+        if is_public and role and not role.name.startswith("PROJECT."):
+            raise serializers.ValidationError(
+                {
+                    "role": "Public invitations can only use project-level roles, not customer-level roles."
+                }
+            )
+
+        # Role/scope compatibility
+        if role:
+            from waldur_core.structure.models import Customer, Project
+
+            model_class = role.content_type.model_class()
+            if model_class and not isinstance(scope, model_class):
+                if not (
+                    auto_create_project
+                    and model_class == Project
+                    and isinstance(scope, Customer)
+                ):
+                    raise serializers.ValidationError(
+                        "Role and scope should belong to the same content type."
+                    )
+
+        # Validate project_role
+        project_role = attrs.get("project_role", invitation.project_role)
+        if auto_create_project and project_role:
+            if not project_role.name.startswith("PROJECT."):
+                raise serializers.ValidationError(
+                    "project_role must be a project-level role"
+                )
+
+        return attrs
+
+    def update(self, instance, validated_data):
+        if "scope" in validated_data:
+            validated_data["customer"] = _get_customer(validated_data["scope"])
+        return super().update(instance, validated_data)
 
 
 class InvitationSerializer(BaseInvitationSerializer):

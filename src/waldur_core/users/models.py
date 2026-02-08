@@ -70,6 +70,12 @@ class GroupInvitation(
         default=False,
         help_text="Automatically approve permission requests from users matching email patterns or affiliations",
     )
+    custom_text = models.TextField(
+        blank=True,
+        default="",
+        max_length=500,
+        help_text="Custom description text displayed to users viewing this invitation.",
+    )
 
     class Permissions:
         customer_path = "customer"

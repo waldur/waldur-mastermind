@@ -113,6 +113,79 @@ class GroupInvitationRetrieveTest(BaseGroupInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
 
+    def test_unauthenticated_user_does_not_see_creator_on_public_invitation(self):
+        public_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            role=ProjectRole.ADMIN,
+            auto_create_project=True,
+            is_public=True,
+        )
+        response = self.client.get(
+            factories.GroupInvitationBaseFactory.get_url(public_invitation)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["created_by_full_name"])
+        self.assertIsNone(response.data["created_by_username"])
+        self.assertIsNone(response.data["created_by_image"])
+
+    def test_staff_sees_creator_on_public_invitation(self):
+        public_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            role=ProjectRole.ADMIN,
+            auto_create_project=True,
+            is_public=True,
+            created_by=self.staff,
+        )
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.get(
+            factories.GroupInvitationBaseFactory.get_url(public_invitation)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(response.data["created_by_full_name"])
+
+    def test_owner_sees_creator_on_own_public_invitation(self):
+        public_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            role=ProjectRole.ADMIN,
+            auto_create_project=True,
+            is_public=True,
+            created_by=self.customer_owner,
+        )
+        self.client.force_authenticate(user=self.customer_owner)
+        response = self.client.get(
+            factories.GroupInvitationBaseFactory.get_url(public_invitation)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(response.data["created_by_full_name"])
+
+    def test_regular_user_does_not_see_creator_on_public_invitation(self):
+        public_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            role=ProjectRole.ADMIN,
+            auto_create_project=True,
+            is_public=True,
+        )
+        self.client.force_authenticate(user=self.user)
+        response = self.client.get(
+            factories.GroupInvitationBaseFactory.get_url(public_invitation)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["created_by_full_name"])
+        self.assertIsNone(response.data["created_by_username"])
+        self.assertIsNone(response.data["created_by_image"])
+
+    def test_custom_text_in_response(self):
+        invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            custom_text="Welcome to our organization!",
+        )
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.get(
+            factories.GroupInvitationBaseFactory.get_url(invitation)
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["custom_text"], "Welcome to our organization!")
+
 
 @ddt
 class GroupInvitationCreateTest(BaseGroupInvitationTest):
@@ -525,6 +598,164 @@ class GroupInvitationDeleteTest(BaseGroupInvitationTest):
             models.PermissionRequest.objects.filter(
                 uuid=permission_request.uuid
             ).exists()
+        )
+
+
+@ddt
+class GroupInvitationUpdateTest(BaseGroupInvitationTest):
+    def _get_update_url(self, invitation):
+        return factories.GroupInvitationBaseFactory.get_url(invitation)
+
+    @data("staff", "customer_owner")
+    def test_user_with_access_can_update_project_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        self.client.force_authenticate(user=getattr(self, user))
+        response = self.client.patch(
+            self._get_update_url(self.project_group_invitation),
+            data={"auto_approve": True},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project_group_invitation.refresh_from_db()
+        self.assertTrue(self.project_group_invitation.auto_approve)
+
+    @data("staff", "customer_owner")
+    def test_user_with_access_can_update_customer_invitation(self, user):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        self.client.force_authenticate(user=getattr(self, user))
+        response = self.client.patch(
+            self._get_update_url(self.customer_group_invitation),
+            data={"auto_approve": True},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.customer_group_invitation.refresh_from_db()
+        self.assertTrue(self.customer_group_invitation.auto_approve)
+
+    def test_staff_can_set_is_public(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        # Use a project-scoped invitation with auto_create_project for public
+        factories.ProjectGroupInvitationFactory(
+            scope=self.project,
+            auto_create_project=False,
+        )
+        # First make it a customer-scoped invitation with project role and auto_create_project
+        invitation_customer = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            role=ProjectRole.ADMIN,
+            auto_create_project=True,
+        )
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.patch(
+            self._get_update_url(invitation_customer),
+            data={"is_public": True},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        invitation_customer.refresh_from_db()
+        self.assertTrue(invitation_customer.is_public)
+
+    def test_non_staff_cannot_set_is_public(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            role=ProjectRole.ADMIN,
+            auto_create_project=True,
+        )
+        self.client.force_authenticate(user=self.customer_owner)
+        response = self.client.patch(
+            self._get_update_url(invitation),
+            data={"is_public": True},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_cannot_update_inactive_invitation(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        self.project_group_invitation.cancel()
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.patch(
+            self._get_update_url(self.project_group_invitation),
+            data={"auto_approve": True},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data("project_admin", "user")
+    def test_user_without_permission_gets_404(self, user):
+        self.client.force_authenticate(user=getattr(self, user))
+        response = self.client.patch(
+            self._get_update_url(self.project_group_invitation),
+            data={"auto_approve": True},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_public_invitation_requires_auto_create_project(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            role=ProjectRole.ADMIN,
+            auto_create_project=True,
+            is_public=True,
+        )
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.patch(
+            self._get_update_url(invitation),
+            data={"auto_create_project": False},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_partial_update_single_field(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.patch(
+            self._get_update_url(self.project_group_invitation),
+            data={"user_email_patterns": [".*@example.com"]},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project_group_invitation.refresh_from_db()
+        self.assertEqual(
+            self.project_group_invitation.user_email_patterns, [".*@example.com"]
+        )
+
+    def test_can_update_role(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.patch(
+            self._get_update_url(self.project_group_invitation),
+            data={"role": ProjectRole.ADMIN.uuid.hex},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project_group_invitation.refresh_from_db()
+        self.assertEqual(self.project_group_invitation.role, ProjectRole.ADMIN)
+
+    def test_project_manager_can_update_project_invitation(self):
+        self.client.force_authenticate(user=self.project_manager)
+        response = self.client.patch(
+            self._get_update_url(self.project_group_invitation),
+            data={"auto_approve": True},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project_group_invitation.refresh_from_db()
+        self.assertTrue(self.project_group_invitation.auto_approve)
+
+    def test_can_update_custom_text(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.patch(
+            self._get_update_url(self.project_group_invitation),
+            data={"custom_text": "Updated custom text"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project_group_invitation.refresh_from_db()
+        self.assertEqual(
+            self.project_group_invitation.custom_text, "Updated custom text"
         )
 
 
