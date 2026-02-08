@@ -320,6 +320,7 @@
 - user_deactivated
 - user_deletion_succeeded
 - user_details_update_succeeded
+- user_group_invitation_updated
 - user_has_been_created_by_staff
 - user_invitation_deleted
 - user_invitation_updated
