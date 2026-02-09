@@ -568,9 +568,7 @@ class CustomerContactUpdateTest(CustomerBaseTest):
             "contact_details": "Updated contact details",
             "email": "contact@example.com",
             "phone_number": "+372000000",
-            "address": "Luhamaa 28, 10128 Tallinn",
-            "postal": "10128",
-            "country": "EE",
+            "homepage": "http://example.com",
             "notification_emails": "contact@example.com,alt@example.com",
         }
 

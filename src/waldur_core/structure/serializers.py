@@ -611,9 +611,7 @@ class CustomerContactUpdateSerializer(serializers.ModelSerializer):
             "contact_details",
             "email",
             "phone_number",
-            "address",
-            "postal",
-            "country",
+            "homepage",
             "notification_emails",
         )
 
