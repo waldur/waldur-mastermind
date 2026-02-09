@@ -20,6 +20,10 @@ Enable onboarding functionality.
 
 Allows to show permission reviews tab and popups for organisations.
 
+## customer.show_project_digest
+
+Enable display of project digest configuration in organization settings.
+
 ## deployment.enable_cookie_notice
 
 Enable cookie notice in marketplace.

@@ -2773,3 +2773,11 @@ User attributes settable via Identity Bridge. Must be a subset of WRITABLE_USER_
 **Default value:** any_isd_removed
 
 When to deactivate a federated user: 'all_isds_removed' (only when removed from all ISDs) or 'any_isd_removed' (on first ISD removal, backward compatible).
+
+### Project Digest
+
+#### ENABLE_PROJECT_DIGEST
+
+**Type:** bool
+
+Enable project digest email notifications for organizations.
