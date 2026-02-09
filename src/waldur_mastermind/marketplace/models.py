@@ -58,7 +58,7 @@ from waldur_mastermind.notifications import models as notifications_models
 from waldur_pid import mixins as pid_mixins
 
 from ..common import mixins as common_mixins
-from . import managers, plugins
+from . import managers, plugins, signals
 from .attribute_types import ATTRIBUTE_TYPES
 
 logger = logging.getLogger(__name__)
@@ -1330,9 +1330,48 @@ class CostEstimateMixin(models.Model):
             return
         try:
             self.cost = self.plan.get_estimate(self.limits)
+
+            # Proactive policy validation for new resources
+            if self._should_validate_cost_policies():
+                self._validate_project_cost_policies()
+
         except PolicyException:
             self.set_state_erred()
             self.error_message = "Policy is violated."
+
+    def _should_validate_cost_policies(self):
+        """
+        Determine if we should proactively validate cost policies.
+
+        Returns True only for NEW Resource instances (not Orders, not updates).
+        """
+
+        # Only validate for Resource instances, not Order instances
+        if not isinstance(self, Resource):
+            return False
+
+        # Only validate for new resources (pk is None before first save)
+        if self.pk is not None:
+            return False
+
+        # Must have a calculated cost to validate
+        if self.cost is None:
+            return False
+
+        return True
+
+    def _validate_project_cost_policies(self):
+        """
+        Emit signal to allow external modules to validate resource creation.
+
+        This prevents the first resource from bypassing cost limits when policy.has_fired=False.
+        External modules (e.g., policy) can subscribe to this signal and raise PolicyException.
+        """
+        # Emit signal with resource and cost information
+        # External validators (policy module) can raise PolicyException
+        signals.resource_creation_validation.send(
+            sender=self.__class__, resource=self, cost=self.cost
+        )
 
 
 class SafeAttributesMixin(models.Model):

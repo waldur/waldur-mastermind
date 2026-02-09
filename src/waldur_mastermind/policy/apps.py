@@ -64,3 +64,11 @@ class PolicyConfig(AppConfig):
             sender=models.ProjectEstimatedCostPolicy,
             dispatch_uid="waldur_mastermind.policy.run_reset_actions_upon_cost_policy_deletion",
         )
+
+        # Connect to marketplace resource creation validation signal
+        from waldur_mastermind.marketplace import signals as marketplace_signals
+
+        marketplace_signals.resource_creation_validation.connect(
+            handlers.validate_resource_creation_against_cost_policies,
+            dispatch_uid="waldur_mastermind.policy.validate_resource_creation_against_cost_policies",
+        )

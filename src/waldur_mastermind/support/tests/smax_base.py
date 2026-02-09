@@ -5,6 +5,7 @@ from rest_framework import test
 
 from waldur_mastermind.support import models
 from waldur_mastermind.support.backend import SupportBackendType
+from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 
 from . import fixtures
 
@@ -23,6 +24,17 @@ class BaseTest(test.APITestCase):
 
         mock_patch = mock.patch("waldur_mastermind.support.backend.smax.SmaxBackend")
         self.mock_smax = mock_patch.start()
+
+        # Mock get_active_backend to return a real SmaxServiceBackend instance.
+        # This prevents failures from mock leaks when other tests that mock
+        # get_active_backend run before SMAX tests in the same CI shard.
+        # The SmaxServiceBackend uses the already-mocked SmaxBackend as its
+        # internal manager, so all self.mock_smax() assertions still work.
+        backend_mock_patch = mock.patch(
+            "waldur_mastermind.support.backend.get_active_backend",
+            return_value=SmaxServiceBackend(),
+        )
+        backend_mock_patch.start()
 
         models.IssueStatus.objects.create(
             name="done", type=models.IssueStatus.Types.RESOLVED

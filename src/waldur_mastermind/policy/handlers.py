@@ -296,3 +296,89 @@ def run_reset_actions_upon_cost_policy_deletion(
             getattr(policy, "uuid", "unknown"),
             str(e),
         )
+
+
+def validate_resource_creation_against_cost_policies(sender, resource, cost, **kwargs):
+    """
+    Proactively validate that creating a resource won't violate project cost policies.
+
+    This handler is called by the marketplace module via resource_creation_validation signal.
+    It prevents the first resource from bypassing cost limits when policy.has_fired=False.
+    """
+    import datetime
+
+    from dateutil.relativedelta import relativedelta
+    from django.db.models import Q
+
+    from waldur_core.core.utils import month_start
+    from waldur_mastermind.invoices import compensations as invoices_compensation
+    from waldur_mastermind.marketplace.exceptions import PolicyException
+
+    # Only validate if resource has a project
+    if not hasattr(resource, "project") or not resource.project:
+        return
+
+    # Find active policies for this project with blocking action
+    policies = models.ProjectEstimatedCostPolicy.objects.filter(
+        scope=resource.project, actions__contains="block_creation_of_new_resources"
+    )
+
+    if not policies.exists():
+        return  # No relevant policies to check
+
+    # Calculate current month start
+    current_month_start = month_start(datetime.date.today())
+
+    for policy in policies:
+        # Calculate the time period to check based on policy.period
+        period_months = 0
+        if policy.period == models.ProjectEstimatedCostPolicy.Periods.MONTH_1:
+            period_months = 1
+        elif policy.period == models.ProjectEstimatedCostPolicy.Periods.MONTH_3:
+            period_months = 3
+        elif policy.period == models.ProjectEstimatedCostPolicy.Periods.MONTH_12:
+            period_months = 12
+
+        # Build query for invoice items in the relevant period
+        query = Q()
+        for n in range(period_months):
+            previous_month = current_month_start - relativedelta(months=n)
+            query |= Q(
+                invoice__month=previous_month.month,
+                invoice__year=previous_month.year,
+            )
+
+        # Get existing invoice items for this project (excluding canceled invoices)
+        from waldur_core.structure.models import Customer
+
+        active_customers = Customer.objects.filter(blocked=False, archived=False)
+
+        existing_items = (
+            invoices_models.InvoiceItem.objects.filter(
+                project=resource.project,
+                invoice__customer__in=active_customers,
+            )
+            .exclude(invoice__state=invoices_models.Invoice.States.CANCELED)
+            .filter(query)
+        )
+
+        # Calculate total existing cost
+        existing_total = sum([item.total for item in existing_items])
+
+        # Get project compensation (credits)
+        compensation = invoices_compensation.MonthlyCompensation(
+            resource.project.customer
+        )
+        project_compensation = compensation.get_project_compensation(resource.project)
+
+        # Calculate projected total WITH this new resource
+        projected_total = existing_total + cost
+
+        # Check if projected total would exceed the policy limit
+        if projected_total - project_compensation > policy.limit_cost:
+            # Policy would be violated - raise exception
+            raise PolicyException(
+                f"Creation of new resources in this project is prohibited by {policy}. "
+                f"Projected cost ({projected_total - project_compensation}) would exceed "
+                f"limit ({policy.limit_cost})."
+            )
