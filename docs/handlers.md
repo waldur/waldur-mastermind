@@ -719,6 +719,7 @@ td:nth-child(4) {
 | `update_resource_scope_availability_on_offering_state_change` | `Django Signal (post_save)` | `marketplace.Offering` | No description |
 | `update_resource_state_on_order_creation` | `Django Signal (post_save)` | `marketplace.Order` | Update resource state when an order is created. |
 | `update_resource_state_on_order_rejection_error_or_cancellation` | `Django Signal (post_save)` | `marketplace.Order` | Update resource state when an order is rejected, erred or canceled. |
+| `validate_resource_creation_against_cost_policies` | `Custom Signal (resource_creation_validation)` | `—` | Proactively validate that creating a resource won't violate project cost policies. |
 
 ## Application: `waldur_openportal`
 
@@ -795,14 +796,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 716
+Total unique handlers found: 717
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 365 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 293 handlers
+- **waldur_mastermind**: 294 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
