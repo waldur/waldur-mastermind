@@ -5,6 +5,7 @@ from unittest import mock
 from ddt import data, ddt
 from django.core import mail
 from django.test import override_settings
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -158,8 +159,8 @@ class UpdateInvoiceItemProjectTest(test.APITestCase):
 class MeasuredUnitTest(test.APITestCase):
     def get_invoice_item(self, unit, measured_unit=""):
         return factories.InvoiceItemFactory(
-            start=datetime.date(year=2020, month=12, day=1),
-            end=datetime.date(year=2020, month=12, day=10),
+            start=timezone.make_aware(datetime.datetime(year=2020, month=12, day=1)),
+            end=timezone.make_aware(datetime.datetime(year=2020, month=12, day=10)),
             quantity=2,
             unit=unit,
             measured_unit=measured_unit,

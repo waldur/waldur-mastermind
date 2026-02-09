@@ -141,7 +141,7 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
         mock_list_projects = self.mock_list_projects()
         mock_list_users = self.mock_list_users([])
 
-        expiration_time = datetime.now() + timedelta(days=1)
+        expiration_time = datetime.now(UTC) + timedelta(days=1)
         add_user_mock = self.mock_add_user()
         self.project.add_user(
             user=self.new_user,
@@ -176,8 +176,8 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
         self.mock_remote_eduteams()
         self.mock_list_projects()
 
-        old_expiration_time = datetime.now() + timedelta(days=1)
-        new_expiration_time = (datetime.now() + timedelta(days=2)).replace(tzinfo=UTC)
+        old_expiration_time = datetime.now(UTC) + timedelta(days=1)
+        new_expiration_time = datetime.now(UTC) + timedelta(days=2)
         self.mock_list_users([{"expiration_time": old_expiration_time.isoformat()}])
         update_user_mock = self.mock_update_user()
 

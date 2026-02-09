@@ -19,6 +19,7 @@ class UserFactory(
 ):
     class Meta:
         model = core_models.User
+        skip_postgeneration_save = True
 
     username = factory.Sequence(lambda n: "john%s" % n)
     civil_number = factory.Sequence(lambda n: "%08d" % n)
@@ -45,6 +46,8 @@ class UserFactory(
     @factory.post_generation
     def query_field(self, create, extracted, **kwargs):
         self.query_field = normalize_unicode(self.first_name + " " + self.last_name)
+        if create:
+            self.save(update_fields=["query_field"])
 
     @classmethod
     def get_url(cls, user=None, action=None):
@@ -293,6 +296,7 @@ class NotificationFactory(
 
     class Meta:
         model = core_models.Notification
+        skip_postgeneration_save = True
 
     @classmethod
     def get_url(cls, notification=None, action=None):

@@ -699,6 +699,7 @@ class ComponentUserUsageLimitFactory(
 
     class Meta:
         model = models.ComponentUserUsageLimit
+        skip_postgeneration_save = True
 
     @classmethod
     def get_url(cls, integration_status=None, action=None):
