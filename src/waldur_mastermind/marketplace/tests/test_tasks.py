@@ -49,8 +49,8 @@ class CalculateUsageForCurrentMonthTest(test.APITestCase):
             resource=resource,
             component=self.offering_component,
             usage=10,
-            date=datetime.datetime.now(),
-            billing_period=core_utils.month_start(datetime.datetime.now()),
+            date=timezone.now(),
+            billing_period=core_utils.month_start(timezone.now()),
             plan_period=plan_period,
         )
 

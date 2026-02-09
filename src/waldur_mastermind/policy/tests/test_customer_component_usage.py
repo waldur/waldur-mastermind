@@ -1,6 +1,5 @@
-import datetime
-
 from ddt import data, ddt
+from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
@@ -293,8 +292,8 @@ class CustomerComponentUsagePolicyTriggerTest(test.APITestCase):
             resource=self.resource,
             component=self.component,
             usage=150,
-            billing_period=core_utils.month_start(datetime.date.today()),
-            date=datetime.datetime.now(),
+            billing_period=core_utils.month_start(timezone.now()),
+            date=timezone.now(),
         )
 
         self.policy.refresh_from_db()
@@ -308,8 +307,8 @@ class CustomerComponentUsagePolicyTriggerTest(test.APITestCase):
             resource=self.resource,
             component=self.component,
             usage=50,
-            billing_period=core_utils.month_start(datetime.date.today()),
-            date=datetime.datetime.now(),
+            billing_period=core_utils.month_start(timezone.now()),
+            date=timezone.now(),
         )
 
         self.policy.refresh_from_db()

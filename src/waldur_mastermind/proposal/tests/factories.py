@@ -2,6 +2,7 @@ import datetime
 
 import factory
 from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
 from rest_framework.reverse import reverse
 
 from waldur_core.checklist import models as checklist_models
@@ -179,8 +180,12 @@ class RoundFactory(
         model = models.Round
 
     call = factory.SubFactory(CallFactory)
-    start_time = datetime.date.today() + datetime.timedelta(days=5)
-    cutoff_time = datetime.date.today() + datetime.timedelta(days=10)
+    start_time = factory.LazyFunction(
+        lambda: timezone.now() + datetime.timedelta(days=5)
+    )
+    cutoff_time = factory.LazyFunction(
+        lambda: timezone.now() + datetime.timedelta(days=10)
+    )
 
     @classmethod
     def get_url(cls, call=None, call_round=None, action=None):

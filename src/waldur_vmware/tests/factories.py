@@ -1,8 +1,7 @@
-import datetime
-
 import factory
 import factory.fuzzy
 from django.urls import reverse
+from django.utils import timezone
 
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.tests.types import BaseMetaFactory
@@ -27,8 +26,8 @@ class TemplateFactory(
     class Meta:
         model = models.Template
 
-    created = datetime.datetime.now()
-    modified = datetime.datetime.now()
+    created = factory.LazyFunction(timezone.now)
+    modified = factory.LazyFunction(timezone.now)
     settings = factory.SubFactory(VMwareServiceSettingsFactory)
     name = factory.Sequence(lambda n: "template-%s" % n)
     backend_id = factory.Sequence(lambda n: "template-%s" % n)

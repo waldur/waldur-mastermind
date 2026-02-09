@@ -28,6 +28,7 @@ class TestMembershipChangeIssues(test.APITestCase):
 
         mock_patch = mock.patch("waldur_mastermind.support.backend.get_active_backend")
         self.mock_get_active_backend = mock_patch.start()
+        self.addCleanup(mock_patch.stop)
         self.mock_get_active_backend().get_issue_details.return_value = {}
 
     def test_issue_created_when_user_added_to_project(self):

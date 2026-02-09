@@ -4,6 +4,7 @@ from unittest import mock
 from ddt import data, ddt
 from django.core import mail
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.core import utils as core_utils
@@ -366,7 +367,7 @@ class ActionTest(test.APITestCase):
             round=self.fixture.round,
             state=ProposalStates.IN_REVIEW,
         )
-        allocation_date = datetime.datetime.now() + datetime.timedelta(weeks=1)
+        allocation_date = timezone.now() + datetime.timedelta(weeks=1)
         new_proposal.round.allocation_date = allocation_date
         new_proposal.round.allocation_time = models.Round.AllocationTimes.FIXED_DATE
         new_proposal.round.save()
@@ -645,13 +646,13 @@ class TaskTest(test.APITestCase):
         self.round = self.fixture.round
 
     def test_proposals_for_ended_rounds_should_be_cancelled(self):
-        self.round.cutoff_time = datetime.datetime.now() + datetime.timedelta(days=1)
+        self.round.cutoff_time = timezone.now() + datetime.timedelta(days=1)
         self.round.save()
         tasks.proposals_for_ended_rounds_should_be_cancelled()
         self.proposal.refresh_from_db()
         self.assertEqual(self.proposal.state, ProposalStates.DRAFT)
 
-        self.round.cutoff_time = datetime.datetime.now() - datetime.timedelta(days=1)
+        self.round.cutoff_time = timezone.now() - datetime.timedelta(days=1)
         self.round.save()
         tasks.proposals_for_ended_rounds_should_be_cancelled()
         self.proposal.refresh_from_db()
@@ -666,7 +667,7 @@ class TaskTest(test.APITestCase):
         structure_factories.NotificationFactory(
             key="proposal.proposal_cancelled",
         )
-        self.round.cutoff_time = datetime.datetime.now() - datetime.timedelta(days=1)
+        self.round.cutoff_time = timezone.now() - datetime.timedelta(days=1)
         self.round.save()
         tasks.proposals_for_ended_rounds_should_be_cancelled()
         self.proposal.refresh_from_db()

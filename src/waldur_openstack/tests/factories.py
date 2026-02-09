@@ -485,6 +485,7 @@ class InstanceFactory(
 ):
     class Meta:
         model = models.Instance
+        skip_postgeneration_save = True
 
     name = factory.Sequence(lambda n: "instance%s" % n)
     service_settings = factory.LazyAttribute(lambda o: o.tenant.service_settings)

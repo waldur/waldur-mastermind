@@ -27,6 +27,8 @@ class TestModels(TestCase):
 class TestSlugModel(models.Model):
     """Test model for slug generation testing"""
 
+    __test__ = False
+
     slug = models.SlugField(max_length=255, unique=True)
 
     class Meta:

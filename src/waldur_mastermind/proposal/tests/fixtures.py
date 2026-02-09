@@ -1,6 +1,7 @@
 import datetime
 
 from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
 from django.utils.functional import cached_property
 
 from waldur_core.permissions import enums
@@ -120,8 +121,8 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     def round(self):
         return proposal_factories.RoundFactory(
             call=self.call,
-            start_time=datetime.date.today(),
-            cutoff_time=datetime.date.today() + datetime.timedelta(days=10),
+            start_time=timezone.now(),
+            cutoff_time=timezone.now() + datetime.timedelta(days=10),
             minimum_number_of_reviewers=1,
         )
 
@@ -129,8 +130,8 @@ class ProposalFixture(structure_fixtures.CustomerFixture):
     def new_round(self):
         return proposal_factories.RoundFactory(
             call=self.call,
-            start_time=datetime.date.today(),
-            cutoff_time=datetime.date.today() + datetime.timedelta(days=10),
+            start_time=timezone.now(),
+            cutoff_time=timezone.now() + datetime.timedelta(days=10),
         )
 
     @cached_property

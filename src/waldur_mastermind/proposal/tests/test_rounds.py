@@ -3,6 +3,7 @@ import datetime
 from ddt import data, ddt
 from django.core import mail
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.permissions.fixtures import CallRole
@@ -77,8 +78,8 @@ class RoundCreateTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProposalFixture()
         self.round = self.fixture.round
-        self.round.start_time = datetime.date.today() - datetime.timedelta(days=10)
-        self.round.cutoff_time = datetime.date.today() - datetime.timedelta(days=5)
+        self.round.start_time = timezone.now() - datetime.timedelta(days=10)
+        self.round.cutoff_time = timezone.now() - datetime.timedelta(days=5)
         self.round.save()
         self.url = factories.RoundFactory.get_list_url(self.fixture.call)
 
@@ -111,40 +112,40 @@ class RoundCreateTest(test.APITestCase):
 
         # old: ---------[-]-
         # new: --------[-]--
-        self.round.start_time = datetime.date.today() + datetime.timedelta(days=1)
-        self.round.cutoff_time = datetime.date.today() + datetime.timedelta(days=2)
+        self.round.start_time = timezone.now() + datetime.timedelta(days=1)
+        self.round.cutoff_time = timezone.now() + datetime.timedelta(days=2)
         self.round.save()
         response = self.create_round("staff")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # old: -------[-]---
         # new: --------[-]--
-        self.round.start_time = datetime.date.today() - datetime.timedelta(days=1)
-        self.round.cutoff_time = datetime.date.today() + datetime.timedelta(days=1)
+        self.round.start_time = timezone.now() - datetime.timedelta(days=1)
+        self.round.cutoff_time = timezone.now() + datetime.timedelta(days=1)
         self.round.save()
         response = self.create_round("staff")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # old: -------[---]-
         # new: --------[-]--
-        self.round.start_time = datetime.date.today() - datetime.timedelta(days=1)
-        self.round.cutoff_time = datetime.date.today() + datetime.timedelta(days=3)
+        self.round.start_time = timezone.now() - datetime.timedelta(days=1)
+        self.round.cutoff_time = timezone.now() + datetime.timedelta(days=3)
         self.round.save()
         response = self.create_round("staff")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # old: ---------[]---
         # new: --------[--]--
-        self.round.start_time = datetime.date.today() + datetime.timedelta(days=1)
-        self.round.cutoff_time = datetime.date.today() + datetime.timedelta(days=1)
+        self.round.start_time = timezone.now() + datetime.timedelta(days=1)
+        self.round.cutoff_time = timezone.now() + datetime.timedelta(days=1)
         self.round.save()
         response = self.create_round("staff")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
         # old: ------------[-]
         # new: --------[-]----
-        self.round.start_time = datetime.date.today() + datetime.timedelta(days=3)
-        self.round.cutoff_time = datetime.date.today() + datetime.timedelta(days=4)
+        self.round.start_time = timezone.now() + datetime.timedelta(days=3)
+        self.round.cutoff_time = timezone.now() + datetime.timedelta(days=4)
         self.round.save()
         response = self.create_round("staff")
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
@@ -154,18 +155,18 @@ class RoundCreateTest(test.APITestCase):
         self.client.force_authenticate(user)
 
         payload = {
-            "start_time": (datetime.date.today()).strftime("%Y-%m-%dT%H:%M:%S"),
-            "cutoff_time": (
-                datetime.date.today() + datetime.timedelta(days=2)
-            ).strftime("%Y-%m-%dT%H:%M:%S"),
+            "start_time": (timezone.now()).strftime("%Y-%m-%dT%H:%M:%S"),
+            "cutoff_time": (timezone.now() + datetime.timedelta(days=2)).strftime(
+                "%Y-%m-%dT%H:%M:%S"
+            ),
             "review_strategy": models.Round.ReviewStrategies.AFTER_PROPOSAL,
             "deciding_entity": models.Round.AllocationStrategies.BY_CALL_MANAGER,
             "review_duration_in_days": 2,
             "minimum_number_of_reviewers": 3,
             "minimal_average_scoring": 3.0,
-            "allocation_date": (
-                datetime.date.today() + datetime.timedelta(days=2)
-            ).strftime("%Y-%m-%dT%H:%M:%S"),
+            "allocation_date": (timezone.now() + datetime.timedelta(days=2)).strftime(
+                "%Y-%m-%dT%H:%M:%S"
+            ),
         }
 
         return self.client.post(self.url, payload)
@@ -200,10 +201,10 @@ class RoundUpdateTest(test.APITestCase):
         self.client.force_authenticate(user)
 
         payload = {
-            "start_time": datetime.date.today().strftime("%Y-%m-%dT%H:%M:%S"),
-            "cutoff_time": (
-                datetime.date.today() + datetime.timedelta(days=3)
-            ).strftime("%Y-%m-%dT%H:%M:%S"),
+            "start_time": timezone.now().strftime("%Y-%m-%dT%H:%M:%S"),
+            "cutoff_time": (timezone.now() + datetime.timedelta(days=3)).strftime(
+                "%Y-%m-%dT%H:%M:%S"
+            ),
         }
         response = self.client.patch(self.url, payload)
         self.round.refresh_from_db()
@@ -303,9 +304,7 @@ class RoundNotificationsTest(test.APITestCase):
         self.call.add_user(self.call_manager, CallRole.MANAGER)
 
         # set the other round in another time not to trigger notification
-        self.fixture.new_round.start_time = datetime.date.today() + datetime.timedelta(
-            days=2
-        )
+        self.fixture.new_round.start_time = timezone.now() + datetime.timedelta(days=2)
         self.fixture.new_round.save()
 
     @override_settings(task_always_eager=True)
@@ -336,7 +335,7 @@ class RoundNotificationsTest(test.APITestCase):
         structure_factories.NotificationFactory(
             key="proposal.round_closing_for_managers",
         )
-        self.round.cutoff_time = datetime.datetime.now()
+        self.round.cutoff_time = timezone.now()
         self.round.save()
 
         tasks.notify_manager_on_round_cutoff()
