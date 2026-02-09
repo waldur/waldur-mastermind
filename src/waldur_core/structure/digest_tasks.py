@@ -3,6 +3,7 @@ from collections import defaultdict
 from datetime import timedelta
 
 from celery import shared_task
+from constance import config as constance_config
 from django.conf import settings
 from django.template.loader import render_to_string
 from django.utils import timezone, translation
@@ -145,6 +146,10 @@ def send_project_digest_notifications():
     then dispatch per-customer subtasks.
     """
     from waldur_core.structure.models import ProjectDigestConfiguration
+
+    if not constance_config.ENABLE_PROJECT_DIGEST:
+        logger.info("Project digest notifications are disabled.")
+        return 0
 
     configs = ProjectDigestConfiguration.objects.filter(
         is_enabled=True,
