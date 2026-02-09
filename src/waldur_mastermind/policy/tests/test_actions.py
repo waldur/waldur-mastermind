@@ -11,6 +11,7 @@ from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
+    BillingTypes,
     OrderTypes,
     ResourceStates,
 )
@@ -67,6 +68,181 @@ class ActionsTest(test.APITestCase):
         self.assertTrue(
             logging_models.Event.objects.filter(event_type="policy_notification")
         )
+
+    def test_block_first_resource_creation_with_zero_threshold_policy(self):
+        """Test that first resource is blocked when cost exceeds policy limit."""
+        # Setup: Create policy with limit_cost=20, actions='block_creation_of_new_resources'
+        self.project_policy.limit_cost = 20
+        self.project_policy.actions = "block_creation_of_new_resources"
+        self.project_policy.save()
+
+        # Create CustomerCredit with value=20
+        invoices_factories.CustomerCreditFactory(
+            customer=self.customer,
+            value=20,
+        )
+
+        # Create offering with limit-based component
+        offering = marketplace_factories.OfferingFactory(customer=self.customer)
+        plan = marketplace_factories.PlanFactory(offering=offering, unit_price=0)
+        component = marketplace_factories.OfferingComponentFactory(
+            offering=offering,
+            billing_type=BillingTypes.LIMIT,
+            type="cpu",
+        )
+        marketplace_factories.PlanComponentFactory(
+            plan=plan,
+            component=component,
+            price=10,
+        )
+
+        # Attempt to create Resource with cost=100 (10 CPUs * 10 price)
+        project_url = structure_factories.ProjectFactory.get_url(self.project)
+        offering_url = marketplace_factories.OfferingFactory.get_public_url(offering)
+        plan_url = marketplace_factories.PlanFactory.get_public_url(plan)
+
+        payload = {
+            "project": project_url,
+            "offering": offering_url,
+            "plan": plan_url,
+            "limits": {"cpu": 10},  # Cost = 10 * 10 = 100
+            "attributes": {"name": "test_resource"},
+        }
+        self.client.force_login(self.fixture.staff)
+        url = marketplace_factories.OrderFactory.get_list_url()
+        response = self.client.post(url, payload)
+
+        # Expected: Order created but resource in ERRED state due to PolicyException
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        resource = marketplace_models.Resource.objects.get(
+            uuid=response.data["marketplace_resource_uuid"]
+        )
+        self.assertEqual(resource.state, ResourceStates.ERRED)
+        self.assertIn("Policy is violated", resource.error_message)
+
+    def test_allow_first_resource_creation_when_under_limit(self):
+        """Test that first resource is allowed when cost is under policy limit."""
+        # Setup: Create policy with limit_cost=150
+        self.project_policy.limit_cost = 150
+        self.project_policy.actions = "block_creation_of_new_resources"
+        self.project_policy.save()
+
+        # Create CustomerCredit with value=100
+        invoices_factories.CustomerCreditFactory(
+            customer=self.customer,
+            value=100,
+        )
+
+        # Create offering with limit-based component
+        offering = marketplace_factories.OfferingFactory(customer=self.customer)
+        plan = marketplace_factories.PlanFactory(offering=offering, unit_price=0)
+        component = marketplace_factories.OfferingComponentFactory(
+            offering=offering,
+            billing_type=BillingTypes.LIMIT,
+            type="cpu",
+        )
+        marketplace_factories.PlanComponentFactory(
+            plan=plan,
+            component=component,
+            price=10,
+        )
+
+        # Attempt to create Resource with cost=100 (10 CPUs * 10 price)
+        # Projected cost - compensation = 100 - 100 = 0 < 150 (limit)
+        project_url = structure_factories.ProjectFactory.get_url(self.project)
+        offering_url = marketplace_factories.OfferingFactory.get_public_url(offering)
+        plan_url = marketplace_factories.PlanFactory.get_public_url(plan)
+
+        payload = {
+            "project": project_url,
+            "offering": offering_url,
+            "plan": plan_url,
+            "limits": {"cpu": 10},  # Cost = 10 * 10 = 100
+            "attributes": {"name": "test_resource"},
+        }
+        self.client.force_login(self.fixture.staff)
+        url = marketplace_factories.OrderFactory.get_list_url()
+        response = self.client.post(url, payload)
+
+        # Expected: Resource created successfully
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        resource = marketplace_models.Resource.objects.get(
+            uuid=response.data["marketplace_resource_uuid"]
+        )
+        self.assertNotEqual(resource.state, ResourceStates.ERRED)
+
+    def test_second_resource_still_blocked_by_existing_mechanism(self):
+        """Test that second resource is blocked by existing signal-based mechanism."""
+        # Setup: Create policy
+        self.project_policy.limit_cost = 0
+        self.project_policy.actions = "block_creation_of_new_resources"
+        self.project_policy.save()
+
+        # Create first resource (should be allowed since proactive check allows it with no existing invoices)
+        response = self.create_order()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Create invoice item to trigger policy
+        self.create_invoice_item(100)
+
+        # Attempt to create second resource
+        response = self.create_order()
+
+        # Expected: Blocked by existing signal-based mechanism
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_multiple_policies_checked(self):
+        """Test that all relevant policies are checked."""
+        # Create two policies with different limits
+        factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.project,
+            limit_cost=200,
+            actions="block_creation_of_new_resources",
+        )
+        factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.project,
+            limit_cost=50,
+            actions="block_creation_of_new_resources",
+        )
+
+        # Create offering with limit-based component
+        offering = marketplace_factories.OfferingFactory(customer=self.customer)
+        plan = marketplace_factories.PlanFactory(offering=offering, unit_price=0)
+        component = marketplace_factories.OfferingComponentFactory(
+            offering=offering,
+            billing_type=BillingTypes.LIMIT,
+            type="cpu",
+        )
+        marketplace_factories.PlanComponentFactory(
+            plan=plan,
+            component=component,
+            price=10,
+        )
+
+        # Attempt to create Resource with cost=100
+        # Should violate policy2 (limit=50) even though policy1 (limit=200) would allow it
+        project_url = structure_factories.ProjectFactory.get_url(self.project)
+        offering_url = marketplace_factories.OfferingFactory.get_public_url(offering)
+        plan_url = marketplace_factories.PlanFactory.get_public_url(plan)
+
+        payload = {
+            "project": project_url,
+            "offering": offering_url,
+            "plan": plan_url,
+            "limits": {"cpu": 10},  # Cost = 100
+            "attributes": {"name": "test_resource"},
+        }
+        self.client.force_login(self.fixture.staff)
+        url = marketplace_factories.OrderFactory.get_list_url()
+        response = self.client.post(url, payload)
+
+        # Expected: Blocked by policy2
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        resource = marketplace_models.Resource.objects.get(
+            uuid=response.data["marketplace_resource_uuid"]
+        )
+        self.assertEqual(resource.state, ResourceStates.ERRED)
+        self.assertIn("Policy is violated", resource.error_message)
 
     @mock.patch("waldur_core.core.utils.send_mail")
     def test_notify_organization_owners(self, mock_send_mail):
