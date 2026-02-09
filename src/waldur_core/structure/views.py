@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 
+from constance import config as constance_config
 from dbtemplates.models import Template
 from dbtemplates.utils.cache import remove_cached_template
 from django.conf import settings as django_settings
@@ -455,6 +456,9 @@ class CustomerViewSet(
         url_path="project-digest-config",
     )
     def project_digest_config(self, request, uuid=None):
+        if not constance_config.ENABLE_PROJECT_DIGEST:
+            raise ValidationError(_("Project digest feature is disabled."))
+
         customer = self.get_object()
         if not (
             request.user.is_staff
@@ -482,6 +486,9 @@ class CustomerViewSet(
         url_path="update-project-digest-config",
     )
     def update_project_digest_config(self, request, uuid=None):
+        if not constance_config.ENABLE_PROJECT_DIGEST:
+            raise ValidationError(_("Project digest feature is disabled."))
+
         customer = self.get_object()
         if not (
             request.user.is_staff
@@ -516,6 +523,9 @@ class CustomerViewSet(
         url_path="project-digest-config/send-test",
     )
     def project_digest_send_test(self, request, uuid=None):
+        if not constance_config.ENABLE_PROJECT_DIGEST:
+            raise ValidationError(_("Project digest feature is disabled."))
+
         customer = self.get_object()
         if not (
             request.user.is_staff
@@ -541,6 +551,9 @@ class CustomerViewSet(
         url_path="project-digest-config/preview",
     )
     def project_digest_preview(self, request, uuid=None):
+        if not constance_config.ENABLE_PROJECT_DIGEST:
+            raise ValidationError(_("Project digest feature is disabled."))
+
         customer = self.get_object()
         if not (
             request.user.is_staff

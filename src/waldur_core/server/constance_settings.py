@@ -961,6 +961,11 @@ CONSTANCE_CONFIG = {
         "When to deactivate a federated user: 'all_isds_removed' (only when removed from all ISDs) "
         "or 'any_isd_removed' (on first ISD removal, backward compatible).",
     ),
+    # Project Digest settings
+    "ENABLE_PROJECT_DIGEST": (
+        False,
+        "Enable project digest email notifications for organizations.",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -1254,6 +1259,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES",
         "FEDERATED_IDENTITY_DEACTIVATION_POLICY",
     ),
+    "Project Digest": ("ENABLE_PROJECT_DIGEST",),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (
@@ -1319,4 +1325,6 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "ENABLED_USER_PROFILE_ATTRIBUTES",
     "MANDATORY_USER_ATTRIBUTES",
     "ENFORCE_MANDATORY_USER_ATTRIBUTES",
+    # Project Digest
+    "ENABLE_PROJECT_DIGEST",
 )
