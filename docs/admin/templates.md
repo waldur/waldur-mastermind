@@ -1203,6 +1203,14 @@ Resource {{ resource_name }} deletion has failed.
 
 ```
 
+### notify_consumer_about_provider_info_subject.txt (waldur_mastermind.marketplace)
+
+```txt
+
+Message from provider regarding your order for {{ order.offering.name }}{% if order.resource %} ({{ order.resource.name }}){% endif %}
+
+```
+
 ### marketplace_resource_termination_scheduled_subject.txt (waldur_mastermind.marketplace)
 
 ```txt
@@ -1312,6 +1320,18 @@ Thank you for your attention to this matter.
 ```txt
 
 A new order by {{ order.created_by.get_full_name }} is waiting for approval.
+
+```
+
+### notify_provider_about_consumer_info_message.txt (waldur_mastermind.marketplace)
+
+```txt
+
+Hello!
+
+{{ order.created_by.get_full_name }} has responded to your message regarding an order for {{ order.offering.name }}{% if order.resource %} ({{ order.resource.name }}){% endif %}.
+
+Please visit {{ order_url }} to find out more details.
 
 ```
 
@@ -1512,6 +1532,14 @@ Phone: {{ support_phone }}
 
 ```
 
+### notify_provider_about_consumer_info_subject.txt (waldur_mastermind.marketplace)
+
+```txt
+
+Response from {{ order.created_by.get_full_name }} regarding order for {{ order.offering.name }}{% if order.resource %} ({{ order.resource.name }}){% endif %}
+
+```
+
 ### marketplace_resource_update_succeeded_message.html (waldur_mastermind.marketplace)
 
 ```html
@@ -1705,6 +1733,18 @@ Reminder about missing usage reports.
 
 ```
 
+### notify_consumer_about_provider_info_message.txt (waldur_mastermind.marketplace)
+
+```txt
+
+Hello!
+
+Service provider has sent a message regarding your order for {{ order.offering.name }}{% if order.resource %} ({{ order.resource.name }}){% endif %}.
+
+Please visit {{ order_url }} to find out more details.
+
+```
+
 ### marketplace_resource_termination_scheduled_staff_subject.txt (waldur_mastermind.marketplace)
 
 ```txt
@@ -1752,6 +1792,31 @@ Action required: Updated Terms of Service for {{ offering.name }}
 ```txt
 
 A new order by {{ order.created_by.get_full_name }} is waiting for approval.
+
+```
+
+### notify_consumer_about_provider_info_message.html (waldur_mastermind.marketplace)
+
+```html
+
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Message from provider regarding your order for {{ order.offering.name }}</title>
+</head>
+<body>
+<p>
+    Hello!
+</p>
+<p>
+    Service provider has sent a message regarding your order
+    for <b>{{ order.offering.name }}</b>{% if order.resource %} ({{ order.resource.name }}){% endif %}.
+</p>
+<p>
+    Please visit <a href="{{ order_url }}">{{ site_name }}</a> to find out more details.
+</p>
+</body>
+</html>
 
 ```
 
@@ -2060,6 +2125,31 @@ Resource {{ resource_name }} deletion has failed.
 ```txt
 
 Resource {{ resource.name }} will be deleted.
+
+```
+
+### notify_provider_about_consumer_info_message.html (waldur_mastermind.marketplace)
+
+```html
+
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Response from {{ order.created_by.get_full_name }} regarding order for {{ order.offering.name }}</title>
+</head>
+<body>
+<p>
+    Hello!
+</p>
+<p>
+    <b>{{ order.created_by.get_full_name }}</b> has responded to your message regarding an order
+    for <b>{{ order.offering.name }}</b>{% if order.resource %} ({{ order.resource.name }}){% endif %}.
+</p>
+<p>
+    Please visit <a href="{{ order_url }}">{{ site_name }}</a> to find out more details.
+</p>
+</body>
+</html>
 
 ```
 

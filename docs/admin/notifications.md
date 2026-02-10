@@ -1579,55 +1579,9 @@ Notifies project members with approval permissions about a pending order.
 
 ```
 
-### marketplace.notify_provider_about_pending_order
-
-Notifies service provider owners about a pending order for their offering.
-
-#### Templates
-
-=== "marketplace/notify_provider_about_pending_order_subject.txt"
-
-```txt
-
-    A new order by {{ order.created_by.get_full_name }} is waiting for approval.
-
-```
-
-=== "marketplace/notify_provider_about_pending_order_message.txt"
-
-```txt
-
-    Hello!
-
-    A new order by {{ order.created_by.get_full_name }} is waiting for approval.
-
-```
-
-=== "marketplace/notify_provider_about_pending_order_message.html"
-
-```txt
-
-    <html>
-    <head lang="en">
-        <meta charset="UTF-8">
-        <title>A new order by {{ order.created_by.get_full_name }} is waiting for approval.</title>
-    </head>
-    <body>
-    <p>
-        Hello!
-    </p>
-    <p>
-        Please visit <a href="{{ order_url }}">{{ site_name }}</a> to find out more details.
-    </p>
-    </body>
-    </html>
-
-```
-
 ### marketplace.notify_consumer_about_provider_info
 
-Notifies the order creator when the service provider sends a message on a pending order.
-Controlled by the offering's `plugin_options.notify_about_provider_consumer_messages` setting (default: disabled).
+Notifies the order creator when the provider sends a message on a pending order.
 
 #### Templates
 
@@ -1678,8 +1632,7 @@ Controlled by the offering's `plugin_options.notify_about_provider_consumer_mess
 
 ### marketplace.notify_provider_about_consumer_info
 
-Notifies the service provider when the consumer responds with a message on a pending order.
-Controlled by the offering's `plugin_options.notify_about_provider_consumer_messages` setting (default: disabled).
+Notifies the provider when the consumer responds with a message on a pending order.
 
 #### Templates
 
@@ -1719,6 +1672,51 @@ Controlled by the offering's `plugin_options.notify_about_provider_consumer_mess
     <p>
         <b>{{ order.created_by.get_full_name }}</b> has responded to your message regarding an order
         for <b>{{ order.offering.name }}</b>{% if order.resource %} ({{ order.resource.name }}){% endif %}.
+    </p>
+    <p>
+        Please visit <a href="{{ order_url }}">{{ site_name }}</a> to find out more details.
+    </p>
+    </body>
+    </html>
+
+```
+
+### marketplace.notify_provider_about_pending_order
+
+Notifies service provider owners about a pending order for their offering.
+
+#### Templates
+
+=== "marketplace/notify_provider_about_pending_order_subject.txt"
+
+```txt
+
+    A new order by {{ order.created_by.get_full_name }} is waiting for approval.
+
+```
+
+=== "marketplace/notify_provider_about_pending_order_message.txt"
+
+```txt
+
+    Hello!
+
+    A new order by {{ order.created_by.get_full_name }} is waiting for approval.
+
+```
+
+=== "marketplace/notify_provider_about_pending_order_message.html"
+
+```txt
+
+    <html>
+    <head lang="en">
+        <meta charset="UTF-8">
+        <title>A new order by {{ order.created_by.get_full_name }} is waiting for approval.</title>
+    </head>
+    <body>
+    <p>
+        Hello!
     </p>
     <p>
         Please visit <a href="{{ order_url }}">{{ site_name }}</a> to find out more details.

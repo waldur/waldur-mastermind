@@ -1156,6 +1156,12 @@ It is used for rendering callback URL in HomePort
 
 Label for the username field in Rancher external user resource access management.
 
+#### DISCLAIMER_AREA_TEXT
+
+**Type:** text_field
+
+Text content rendered in the disclaimer area below the footer.
+
 ### Marketplace Branding
 
 #### SITE_ADDRESS
@@ -1591,6 +1597,12 @@ Default logo for offering
 **Type:** image_field
 
 A custom PNG icon for Keycloak login button
+
+#### DISCLAIMER_AREA_LOGO
+
+**Type:** image_field
+
+The logo image rendered in the disclaimer area below the footer.
 
 ### Service desk integration settings
 

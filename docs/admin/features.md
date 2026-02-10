@@ -28,6 +28,10 @@ Enable display of project digest configuration in organization settings.
 
 Enable cookie notice in marketplace.
 
+## deployment.enable_disclaimer_area
+
+Enable disclaimer area below the footer.
+
 ## deployment.send_metrics
 
 Send telemetry metrics.

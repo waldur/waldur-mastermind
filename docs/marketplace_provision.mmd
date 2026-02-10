@@ -92,6 +92,11 @@ classDiagram
         +date start_date
         +string request_comment
         +file attachment
+        +string provider_message
+        +string provider_message_url
+        +file provider_message_attachment
+        +string consumer_message
+        +file consumer_message_attachment
     }
     Order "*" -- "1" Plan : old_plan
     Order "*" -- "1" Plan : plan
