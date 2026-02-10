@@ -1624,6 +1624,110 @@ Notifies service provider owners about a pending order for their offering.
 
 ```
 
+### marketplace.notify_consumer_about_provider_info
+
+Notifies the order creator when the service provider sends a message on a pending order.
+Controlled by the offering's `plugin_options.notify_about_provider_consumer_messages` setting (default: disabled).
+
+#### Templates
+
+=== "marketplace/notify_consumer_about_provider_info_subject.txt"
+
+```txt
+
+    Message from provider regarding your order for {{ order.offering.name }}{% if order.resource %} ({{ order.resource.name }}){% endif %}
+
+```
+
+=== "marketplace/notify_consumer_about_provider_info_message.txt"
+
+```txt
+
+    Hello!
+
+    Service provider has sent a message regarding your order for {{ order.offering.name }}{% if order.resource %} ({{ order.resource.name }}){% endif %}.
+
+    Please visit {{ order_url }} to find out more details.
+
+```
+
+=== "marketplace/notify_consumer_about_provider_info_message.html"
+
+```txt
+
+    <html>
+    <head lang="en">
+        <meta charset="UTF-8">
+        <title>Message from provider regarding your order for {{ order.offering.name }}</title>
+    </head>
+    <body>
+    <p>
+        Hello!
+    </p>
+    <p>
+        Service provider has sent a message regarding your order
+        for <b>{{ order.offering.name }}</b>{% if order.resource %} ({{ order.resource.name }}){% endif %}.
+    </p>
+    <p>
+        Please visit <a href="{{ order_url }}">{{ site_name }}</a> to find out more details.
+    </p>
+    </body>
+    </html>
+
+```
+
+### marketplace.notify_provider_about_consumer_info
+
+Notifies the service provider when the consumer responds with a message on a pending order.
+Controlled by the offering's `plugin_options.notify_about_provider_consumer_messages` setting (default: disabled).
+
+#### Templates
+
+=== "marketplace/notify_provider_about_consumer_info_subject.txt"
+
+```txt
+
+    Response from {{ order.created_by.get_full_name }} regarding order for {{ order.offering.name }}{% if order.resource %} ({{ order.resource.name }}){% endif %}
+
+```
+
+=== "marketplace/notify_provider_about_consumer_info_message.txt"
+
+```txt
+
+    Hello!
+
+    {{ order.created_by.get_full_name }} has responded to your message regarding an order for {{ order.offering.name }}{% if order.resource %} ({{ order.resource.name }}){% endif %}.
+
+    Please visit {{ order_url }} to find out more details.
+
+```
+
+=== "marketplace/notify_provider_about_consumer_info_message.html"
+
+```txt
+
+    <html>
+    <head lang="en">
+        <meta charset="UTF-8">
+        <title>Response from {{ order.created_by.get_full_name }} regarding order for {{ order.offering.name }}</title>
+    </head>
+    <body>
+    <p>
+        Hello!
+    </p>
+    <p>
+        <b>{{ order.created_by.get_full_name }}</b> has responded to your message regarding an order
+        for <b>{{ order.offering.name }}</b>{% if order.resource %} ({{ order.resource.name }}){% endif %}.
+    </p>
+    <p>
+        Please visit <a href="{{ order_url }}">{{ site_name }}</a> to find out more details.
+    </p>
+    </body>
+    </html>
+
+```
+
 ### marketplace.tos_consent_required
 
 Notifies user that ToS consent is required to access a resource.

@@ -1,0 +1,1 @@
+Response from {{ order.created_by.get_full_name }} regarding order for {{ order.offering.name }}{% if order.resource %} ({{ order.resource.name }}){% endif %}

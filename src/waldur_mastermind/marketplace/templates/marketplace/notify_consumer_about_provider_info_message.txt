@@ -1,0 +1,5 @@
+Hello!
+
+Service provider has sent a message regarding your order for {{ order.offering.name }}{% if order.resource %} ({{ order.resource.name }}){% endif %}.
+
+Please visit {{ order_url }} to find out more details.

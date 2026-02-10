@@ -1976,6 +1976,26 @@ class Order(
         null=True,
         validators=[FileTypeValidator(allowed_types=["application/pdf"])],
     )
+
+    # Provider-to-consumer communication
+    provider_message = models.TextField(blank=True, default="")
+    provider_message_url = models.URLField(blank=True, default="")
+    provider_message_attachment = models.FileField(
+        upload_to="marketplace_order_provider_attachments",
+        blank=True,
+        null=True,
+        validators=[FileTypeValidator(allowed_types=["application/pdf"])],
+    )
+
+    # Consumer-to-provider response
+    consumer_message = models.TextField(blank=True, default="")
+    consumer_message_attachment = models.FileField(
+        upload_to="marketplace_order_consumer_attachments",
+        blank=True,
+        null=True,
+        validators=[FileTypeValidator(allowed_types=["application/pdf"])],
+    )
+
     get_type_display: Callable[[], str]
 
     class Permissions:

@@ -67,6 +67,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
+from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.core.models import User
 from waldur_core.core.renderers import PlainTextRenderer
@@ -5532,12 +5533,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         summary="Approve an order (consumer)",
         description="Approves a pending order from the consumer's side (e.g., project manager, customer owner). This transitions the order to the next state, which could be pending provider approval or executing.",
         request=None,
-        responses={
-            200: {
-                "type": "string",
-                "example": "Order has been approved and is being processed.",
-            }
-        },
+        responses=serializers.OrderInfoResponseSerializer,
     )
     @action(detail=True, methods=["post"])
     def approve_by_consumer(self, request, uuid=None):
@@ -5558,10 +5554,10 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         ):
             order.state = OrderStates.PENDING_PROJECT
             order.save(update_fields=["state"])
-            return Response(
-                "Order is pending project activation.",
-                status=status.HTTP_200_OK,
+            response_serializer = serializers.OrderInfoResponseSerializer(
+                {"detail": "Order is pending project activation."}
             )
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
 
         # 2. Check if provider review is needed
         if not utils.order_should_not_be_reviewed_by_provider(order):
@@ -5570,10 +5566,10 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             transaction.on_commit(
                 lambda: tasks.notify_provider_about_pending_order.delay(order.uuid)
             )
-            return Response(
-                "Order is pending provider approval.",
-                status=status.HTTP_200_OK,
+            response_serializer = serializers.OrderInfoResponseSerializer(
+                {"detail": "Order is pending provider approval."}
             )
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
 
         # 3. If no provider review, check for order's own start_date
         if (
@@ -5589,10 +5585,10 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
                 order.id,
                 order.start_date,
             )
-            return Response(
-                "Order is pending start date.",
-                status=status.HTTP_200_OK,
+            response_serializer = serializers.OrderInfoResponseSerializer(
+                {"detail": "Order is pending start date."}
             )
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
 
         # 4. If all checks pass, proceed to execution
         order.set_state_executing()
@@ -5604,10 +5600,10 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             order.resource,
         )
         tasks.process_order_on_commit(order, request.user)
-        return Response(
-            "Order has been approved and is being processed.",
-            status=status.HTTP_200_OK,
+        response_serializer = serializers.OrderInfoResponseSerializer(
+            {"detail": "Order has been approved and is being processed."}
         )
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
 
     approve_by_provider_validators = [
         structure_utils.check_customer_blocked_or_archived,
@@ -5627,12 +5623,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     @extend_schema(
         summary="Approve an order (provider)",
         description="Approves a pending order from the provider's side. This typically transitions the order to the executing state.",
-        responses={
-            200: {
-                "type": "string",
-                "example": "Order has been approved and is being processed.",
-            }
-        },
+        responses=serializers.OrderInfoResponseSerializer,
     )
     @action(detail=True, methods=["post"])
     def approve_by_provider(self, request, uuid=None):
@@ -5659,10 +5650,10 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
                 order.id,
                 order.start_date,
             )
-            return Response(
-                "Order is pending start date.",
-                status=status.HTTP_200_OK,
+            response_serializer = serializers.OrderInfoResponseSerializer(
+                {"detail": "Order is pending start date."}
             )
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
 
         order.set_state_executing()
         order.save(update_fields=["state"])
@@ -5673,10 +5664,122 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             order.resource,
         )
         tasks.process_order_on_commit(order, request.user)
-        return Response(
-            "Order has been approved and is being processed.",
-            status=status.HTTP_200_OK,
+        response_serializer = serializers.OrderInfoResponseSerializer(
+            {"detail": "Order has been approved and is being processed."}
         )
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    def _check_provider_consumer_messaging_enabled(order):
+        if not order.offering.plugin_options.get("enable_provider_consumer_messaging"):
+            raise IncorrectStateException(
+                _("Provider-consumer messaging is not enabled for this offering.")
+            )
+
+    set_provider_info_validators = [
+        structure_utils.check_customer_blocked_or_archived,
+        core_validators.StateValidator(
+            OrderStates.PENDING_PROVIDER, state_enum=OrderStates
+        ),
+        _check_provider_consumer_messaging_enabled,
+    ]
+
+    set_provider_info_permissions = [
+        permission_factory(
+            PermissionEnum.APPROVE_ORDER,
+            ["offering.customer"],
+        )
+    ]
+    set_provider_info_serializer_class = serializers.OrderProviderInfoSerializer
+
+    @extend_schema(
+        summary="Set provider info on order",
+        description="Allows a service provider to send a message with an optional URL and file attachment to the consumer on a pending order.",
+        responses=serializers.OrderInfoResponseSerializer,
+    )
+    @action(detail=True, methods=["post"])
+    def set_provider_info(self, request, uuid=None):
+        order: models.Order = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        update_fields = []
+        for field in (
+            "provider_message",
+            "provider_message_url",
+            "provider_message_attachment",
+        ):
+            if field in serializer.validated_data:
+                value = serializer.validated_data[field]
+                if (
+                    field == "provider_message_attachment"
+                    and order.provider_message_attachment
+                ):
+                    order.provider_message_attachment.delete(save=False)
+                setattr(order, field, value)
+                update_fields.append(field)
+
+        if update_fields:
+            order.save(update_fields=update_fields)
+
+        transaction.on_commit(
+            lambda: tasks.notify_consumer_about_provider_info.delay(order.uuid.hex)
+        )
+
+        response_serializer = serializers.OrderInfoResponseSerializer(
+            {"detail": "Provider info has been saved."}
+        )
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    set_consumer_info_validators = [
+        structure_utils.check_customer_blocked_or_archived,
+        core_validators.StateValidator(
+            OrderStates.PENDING_PROVIDER, state_enum=OrderStates
+        ),
+        _check_provider_consumer_messaging_enabled,
+    ]
+
+    set_consumer_info_permissions = [
+        permission_factory(
+            PermissionEnum.APPROVE_ORDER,
+            ["project", "project.customer"],
+        )
+    ]
+    set_consumer_info_serializer_class = serializers.OrderConsumerInfoSerializer
+
+    @extend_schema(
+        summary="Set consumer info on order",
+        description="Allows a consumer to respond to a provider's message with an optional message and file attachment on a pending order.",
+        responses=serializers.OrderInfoResponseSerializer,
+    )
+    @action(detail=True, methods=["post"])
+    def set_consumer_info(self, request, uuid=None):
+        order: models.Order = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        update_fields = []
+        for field in ("consumer_message", "consumer_message_attachment"):
+            if field in serializer.validated_data:
+                value = serializer.validated_data[field]
+                if (
+                    field == "consumer_message_attachment"
+                    and order.consumer_message_attachment
+                ):
+                    order.consumer_message_attachment.delete(save=False)
+                setattr(order, field, value)
+                update_fields.append(field)
+
+        if update_fields:
+            order.save(update_fields=update_fields)
+
+        transaction.on_commit(
+            lambda: tasks.notify_provider_about_consumer_info.delay(order.uuid.hex)
+        )
+
+        response_serializer = serializers.OrderInfoResponseSerializer(
+            {"detail": "Consumer info has been saved."}
+        )
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
 
     reject_by_consumer_validators = [
         structure_utils.check_customer_blocked_or_archived,

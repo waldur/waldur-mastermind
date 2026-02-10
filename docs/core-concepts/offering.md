@@ -221,6 +221,8 @@ With this configuration:
 | `create_orders_on_resource_option_change` | boolean | `false` | Create UPDATE orders when resource_options change |
 | `enable_purchase_order_upload` | boolean | `false` | Allow users to attach purchase orders |
 | `require_purchase_order_upload` | boolean | `false` | Require purchase order attachment |
+| `enable_provider_consumer_messaging` | boolean | `false` | Allow providers and consumers to exchange messages with attachments on pending orders |
+| `notify_about_provider_consumer_messages` | boolean | `false` | Send email notifications when providers or consumers exchange messages on pending orders. Requires `enable_provider_consumer_messaging` |
 
 ### Display and UI
 
