@@ -549,6 +549,16 @@ class MarketplaceSection(NotificationSection):
         description="Notifies service provider owners about a pending order for their offering.",
         context_model=NotifyProviderAboutPendingOrderContext,
     )
+    notify_consumer_about_provider_info = Notification(
+        key="notify_consumer_about_provider_info",
+        description="Notifies the order creator when the provider sends a message on a pending order.",
+        context_model=NotifyProviderAboutPendingOrderContext,
+    )
+    notify_provider_about_consumer_info = Notification(
+        key="notify_provider_about_consumer_info",
+        description="Notifies the provider when the consumer responds with a message on a pending order.",
+        context_model=NotifyProviderAboutPendingOrderContext,
+    )
     tos_consent_required = Notification(
         key="tos_consent_required",
         description="Notifies user that ToS consent is required to access a resource.",

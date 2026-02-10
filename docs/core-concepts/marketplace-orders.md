@@ -470,6 +470,51 @@ The processor integrates with Waldur's signal system for event handling:
 - Audit log creation
 - External system synchronization
 
+## Provider-Consumer Messaging
+
+While an order is in the `PENDING_PROVIDER` state, providers and consumers can exchange messages. This enables workflows like requesting signed documents, sharing additional information, or asking clarifying questions — all without leaving the order approval flow.
+
+### Enabling
+
+Messaging is controlled by two per-offering `plugin_options`:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `enable_provider_consumer_messaging` | `false` | Enable the messaging endpoints on orders for this offering |
+| `notify_about_provider_consumer_messages` | `false` | Send email notifications when messages are exchanged |
+
+### API Endpoints
+
+Both endpoints require the order to be in `PENDING_PROVIDER` state.
+
+#### `POST /api/marketplace-orders/{uuid}/set_provider_info/`
+
+Allows the service provider to send a message to the consumer. Accepts:
+
+- `provider_message` (string) — text message
+- `provider_message_url` (URL, optional) — link to external resource
+- `provider_message_attachment` (file, optional) — PDF attachment
+
+**Permission:** `APPROVE_ORDER` on `offering.customer`
+
+#### `POST /api/marketplace-orders/{uuid}/set_consumer_info/`
+
+Allows the consumer to respond. Accepts:
+
+- `consumer_message` (string) — text message
+- `consumer_message_attachment` (file, optional) — PDF attachment
+
+**Permission:** `APPROVE_ORDER` on `project` or `project.customer`
+
+### Notifications
+
+When `notify_about_provider_consumer_messages` is enabled on the offering:
+
+- **Provider sends a message** → email sent to the order creator (and consumer reviewer if present)
+- **Consumer responds** → email sent to all users with `APPROVE_ORDER` permission on the offering's organization
+
+Email subjects include the offering and resource name to prevent grouping by email clients.
+
 ## Best Practices for Processor Implementation
 
 ### 1. Inherit from Appropriate Base Class

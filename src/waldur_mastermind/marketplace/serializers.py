@@ -197,6 +197,14 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="If set to True, resource can be restored.",
     )
+    enable_provider_consumer_messaging = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, service providers can send messages with attachments to consumers on pending orders, and consumers can respond.",
+    )
+    notify_about_provider_consumer_messages = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, send email notifications when providers or consumers exchange messages on pending orders.",
+    )
 
     def validate_latest_date_for_resource_termination(self, value):
         try:
@@ -3753,6 +3761,21 @@ class OrderApproveByProviderSerializer(serializers.Serializer):
         return attributes
 
 
+class OrderProviderInfoSerializer(serializers.Serializer):
+    provider_message = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    provider_message_url = serializers.URLField(required=False, allow_blank=True)
+    provider_message_attachment = serializers.FileField(required=False)
+
+
+class OrderConsumerInfoSerializer(serializers.Serializer):
+    consumer_message = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    consumer_message_attachment = serializers.FileField(required=False)
+
+
+class OrderInfoResponseSerializer(serializers.Serializer):
+    detail = serializers.CharField(read_only=True)
+
+
 class OrderDetailsSerializer(BaseOrderSerializer):
     class Meta(BaseOrderSerializer.Meta):
         fields = BaseOrderSerializer.Meta.fields + (
@@ -3787,6 +3810,11 @@ class OrderDetailsSerializer(BaseOrderSerializer):
             "termination_comment",
             "backend_id",
             "order_subtype",
+            "provider_message",
+            "provider_message_url",
+            "provider_message_attachment",
+            "consumer_message",
+            "consumer_message_attachment",
         )
         extra_kwargs = {
             **BaseOrderSerializer.Meta.extra_kwargs,

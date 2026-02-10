@@ -23,7 +23,8 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.models import User
 from waldur_core.logging import event_logger
 from waldur_core.logging import models as logging_models
-from waldur_core.logging.enums import EventType
+from waldur_core.logging import tasks as logging_tasks
+from waldur_core.logging.enums import EventType, ObservableObjectType
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models as structure_models
@@ -134,6 +135,111 @@ def notify_provider_about_pending_order(order_uuid):
 
     core_utils.broadcast_mail(
         "marketplace", "notify_provider_about_pending_order", context, approvers
+    )
+
+
+@shared_task
+def notify_consumer_about_provider_info(order_uuid):
+    order = models.Order.objects.get(uuid=order_uuid)
+
+    # Send pubsub message regardless of email notification settings
+    messages = utils.prepare_messages(
+        order.offering,
+        {
+            "order_uuid": order.uuid.hex,
+            "action": "provider_info_set",
+        },
+        ObservableObjectType.ORDER,
+    )
+    if messages:
+        logging_tasks.publish_messages.delay(messages)
+
+    if not order.offering.plugin_options.get("notify_about_provider_consumer_messages"):
+        return
+
+    recipients = set()
+    if order.created_by and order.created_by.email:
+        recipients.add(order.created_by.email)
+    if (
+        order.consumer_reviewed_by
+        and order.consumer_reviewed_by.email
+        and order.consumer_reviewed_by.notifications_enabled
+    ):
+        recipients.add(order.consumer_reviewed_by.email)
+
+    if not recipients:
+        return
+
+    link = core_utils.format_homeport_link(
+        "marketplace-order-details/{order_uuid}/",
+        order_uuid=order.uuid,
+    )
+
+    context = {
+        "order_url": link,
+        "order": order,
+        "site_name": config.SITE_NAME,
+    }
+
+    logger.info(
+        "Sending provider info notification for order %s to %s",
+        order,
+        recipients,
+    )
+
+    core_utils.broadcast_mail(
+        "marketplace",
+        "notify_consumer_about_provider_info",
+        context,
+        list(recipients),
+    )
+
+
+@shared_task
+def notify_provider_about_consumer_info(order_uuid):
+    order = models.Order.objects.get(uuid=order_uuid)
+
+    # Send pubsub message regardless of email notification settings
+    messages = utils.prepare_messages(
+        order.offering,
+        {
+            "order_uuid": order.uuid.hex,
+            "action": "consumer_info_set",
+        },
+        ObservableObjectType.ORDER,
+    )
+    if messages:
+        logging_tasks.publish_messages.delay(messages)
+
+    if not order.offering.plugin_options.get("notify_about_provider_consumer_messages"):
+        return
+
+    approvers = get_provider_approvers(order)
+    if not approvers:
+        return
+
+    link = core_utils.format_homeport_link(
+        "marketplace-order-details/{order_uuid}/",
+        order_uuid=order.uuid,
+    )
+
+    context = {
+        "order_url": link,
+        "order": order,
+        "site_name": config.SITE_NAME,
+    }
+
+    logger.info(
+        "Sending consumer info notification for order %s to %s",
+        order,
+        approvers,
+    )
+
+    core_utils.broadcast_mail(
+        "marketplace",
+        "notify_provider_about_consumer_info",
+        context,
+        list(approvers),
     )
 
 
