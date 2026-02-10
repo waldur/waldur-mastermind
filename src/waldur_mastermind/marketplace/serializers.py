@@ -3791,6 +3791,9 @@ class OrderDetailsSerializer(BaseOrderSerializer):
             "created_by_username",
             "created_by_full_name",
             "created_by_civil_number",
+            "created_by_email",
+            "created_by_organization",
+            "created_by_organization_registry_code",
             "customer_name",
             "customer_uuid",
             "customer_slug",
@@ -3856,6 +3859,18 @@ class OrderDetailsSerializer(BaseOrderSerializer):
     created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
     created_by_civil_number = serializers.ReadOnlyField(
         source="created_by.civil_number",
+        allow_null=True,
+    )
+    created_by_email = serializers.ReadOnlyField(
+        source="created_by.email",
+        allow_null=True,
+    )
+    created_by_organization = serializers.ReadOnlyField(
+        source="created_by.organization",
+        allow_null=True,
+    )
+    created_by_organization_registry_code = serializers.ReadOnlyField(
+        source="created_by.organization_registry_code",
         allow_null=True,
     )
 
