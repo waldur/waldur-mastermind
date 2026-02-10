@@ -396,7 +396,7 @@ Publish the latest multiarch docker image:
 Publish multiarch docker image with specific version:
   extends: .Publish multiarch docker image with specific version template
   services:
-    - name: public.ecr.aws/docker/library/docker:dind
+    - name: registry.hpc.ut.ee/mirror/library/docker:27-dind
       command: ["--mtu=1400"]
       alias: docker
   before_script:
