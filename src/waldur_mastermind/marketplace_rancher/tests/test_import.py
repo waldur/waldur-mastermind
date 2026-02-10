@@ -10,6 +10,7 @@ from waldur_mastermind.marketplace_rancher import (
 )
 from waldur_openstack.tests import factories as os_factories
 from waldur_rancher import models
+from waldur_rancher.backend import RancherBackend
 from waldur_rancher.tests import factories, fixtures
 
 MOCK_CLUSTER = {
@@ -49,13 +50,15 @@ class BaseClusterImportTest(test.APITransactionTestCase):
             shared=False,
             customer=self.fixture.customer,
         )
-        self.client_patcher = mock.patch("waldur_rancher.client.RancherClient")
-        self.mocked_client = self.client_patcher.start()()
-        self.mocked_client.login.return_value = None
-
-    def tearDown(self):
-        super().tearDown()
-        mock.patch.stopall()
+        self.mocked_client = mock.MagicMock()
+        self.client_patcher = mock.patch.object(
+            RancherBackend,
+            "client",
+            new_callable=mock.PropertyMock,
+            return_value=self.mocked_client,
+        )
+        self.client_patcher.start()
+        self.addCleanup(self.client_patcher.stop)
 
 
 class ClusterImportableResourcesTest(BaseClusterImportTest):
