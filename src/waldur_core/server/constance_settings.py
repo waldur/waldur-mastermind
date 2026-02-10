@@ -57,6 +57,11 @@ CONSTANCE_CONFIG = {
         "Username",
         "Label for the username field in Rancher external user resource access management.",
     ),
+    "DISCLAIMER_AREA_TEXT": (
+        "",
+        "Text content rendered in the disclaimer area below the footer.",
+        "text_field",
+    ),
     "SITE_ADDRESS": ("", "It is used in marketplace order header."),
     "SITE_EMAIL": ("", "It is used in marketplace order header and UI footer."),
     "SITE_PHONE": ("", "It is used in marketplace order header and UI footer."),
@@ -290,6 +295,11 @@ CONSTANCE_CONFIG = {
     ),
     "FAVICON": ("", "A custom favicon .png image file", "image_field"),
     "OFFERING_LOGO_PLACEHOLDER": ("", "Default logo for offering", "image_field"),
+    "DISCLAIMER_AREA_LOGO": (
+        "",
+        "The logo image rendered in the disclaimer area below the footer.",
+        "image_field",
+    ),
     # service desk integration settings
     "WALDUR_SUPPORT_ENABLED": (
         True,
@@ -976,6 +986,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SITE_DESCRIPTION",
         "HOMEPORT_URL",
         "RANCHER_USERNAME_INPUT_LABEL",
+        "DISCLAIMER_AREA_TEXT",
     ),
     "Marketplace Branding": (
         "SITE_ADDRESS",
@@ -1055,6 +1066,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "FAVICON",
         "OFFERING_LOGO_PLACEHOLDER",
         "KEYCLOAK_ICON",
+        "DISCLAIMER_AREA_LOGO",
     ),
     "Service desk integration settings": (
         "WALDUR_SUPPORT_ENABLED",
@@ -1291,6 +1303,8 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "LOGIN_LOGO",
     "FAVICON",
     "OFFERING_LOGO_PLACEHOLDER",
+    "DISCLAIMER_AREA_LOGO",
+    "DISCLAIMER_AREA_TEXT",
     "COMMON_FOOTER_TEXT",
     "COMMON_FOOTER_HTML",
     "LANGUAGE_CHOICES",

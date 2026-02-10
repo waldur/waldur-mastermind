@@ -25,6 +25,7 @@ LOGO_MAP = {
     "FAVICON": "api/icons/favicon/",
     "OFFERING_LOGO_PLACEHOLDER": "api/icons/offering_logo_placeholder/",
     "KEYCLOAK_ICON": "api/icons/keycloak_icon/",
+    "DISCLAIMER_AREA_LOGO": "api/icons/disclaimer_area_logo/",
 }
 
 DEFAULT_LOGOS = {
