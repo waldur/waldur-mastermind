@@ -241,6 +241,7 @@ class WaldurDeploymentSection(FeatureSection):
 
     send_metrics = Feature("Send telemetry metrics.")
     enable_cookie_notice = Feature("Enable cookie notice in marketplace.")
+    enable_disclaimer_area = Feature("Enable disclaimer area below the footer.")
 
 
 class ResellerSection(FeatureSection):

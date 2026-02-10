@@ -76,12 +76,10 @@ class TenantAuditLogNetworkEventsTest(BaseBackendTestCase):
         )
         network_uuid = network.uuid.hex
         self.mocked_neutron.create_network.return_value = {
-            "networks": [
-                {
-                    "id": "backend-network-id",
-                    "status": "ACTIVE",
-                }
-            ]
+            "network": {
+                "id": "backend-network-id",
+                "status": "ACTIVE",
+            }
         }
 
         # Act: create network and delete it in backend
