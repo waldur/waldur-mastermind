@@ -3,11 +3,12 @@ from unittest import TestCase, mock
 
 from cinderclient import exceptions as cinder_exceptions
 from ddt import ddt
+from django.urls import reverse
 from glanceclient import exc as glance_exceptions
 from keystoneclient import exceptions as keystone_exceptions
 from neutronclient.client import exceptions as neutron_exceptions
 from novaclient import exceptions as nova_exceptions
-from rest_framework import test
+from rest_framework import status, test
 
 from waldur_core.core.enums import CoreStates
 from waldur_core.logging.enums import EventType
@@ -57,6 +58,50 @@ class BaseBackendTestCase(test.APITestCase):
     def tearDown(self):
         super().tearDown()
         mock.patch.stopall()
+
+
+class TenantAuditLogNetworkEventsTest(BaseBackendTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(user=self.fixture.owner)
+        self.events_url = reverse("event-list")
+
+    def test_network_create_and_delete_events_appear_in_tenant_audit_log(self):
+        # Arrange: create network to be sent to backend
+        network = factories.NetworkFactory(
+            tenant=self.tenant,
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+            backend_id="",
+        )
+        network_uuid = network.uuid.hex
+        self.mocked_neutron.create_network.return_value = {
+            "networks": [
+                {
+                    "id": "backend-network-id",
+                    "status": "ACTIVE",
+                }
+            ]
+        }
+
+        # Act: create network and delete it in backend
+        self.backend.create_network(network)
+        self.mocked_neutron.delete_network.return_value = None
+        self.backend.delete_network(network)
+
+        # Assert: tenant audit log includes network events
+        response = self.client.get(
+            self.events_url,
+            {"scope": factories.TenantFactory.get_url(self.tenant)},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        event_types = {
+            event["event_type"]
+            for event in response.data
+            if event["context"]["network_uuid"] == network_uuid
+        }
+        self.assertIn(EventType.OPENSTACK_NETWORK_CREATED, event_types)
+        self.assertIn(EventType.OPENSTACK_NETWORK_DELETED, event_types)
 
 
 @ddt
