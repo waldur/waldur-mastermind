@@ -84,6 +84,10 @@ Enable display of software catalog in UI.
 
 Enable display of user terms of service in UI.
 
+## marketplace.hide_marketplace_from_end_users
+
+Hide marketplace functionality from end users but allow staff access.
+
 ## marketplace.import_resources
 
 Allow to import resources from service provider to project.
