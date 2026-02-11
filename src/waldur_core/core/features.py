@@ -167,6 +167,10 @@ class MarketplaceSection(FeatureSection):
         "Enable display of offering partitions in UI."
     )
 
+    hide_marketplace_from_end_users = Feature(
+        "Hide marketplace functionality from end users but allow staff access."
+    )
+
 
 class SupportSection(FeatureSection):
     class Meta:
