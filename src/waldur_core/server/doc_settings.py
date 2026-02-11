@@ -39,7 +39,6 @@ TEMPLATES = [
         "OPTIONS": {
             "context_processors": CONTEXT_PROCESSORS,  # noqa: F405
             "loaders": (
-                "admin_tools.template_loaders.Loader",
                 "django.template.loaders.filesystem.Loader",
                 "django.template.loaders.app_directories.Loader",
             ),  # noqa: F405

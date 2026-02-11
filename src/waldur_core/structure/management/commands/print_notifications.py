@@ -9,7 +9,6 @@ from waldur_core.structure.notifications import NOTIFICATIONS
 TAB_OF_4 = " " * 4
 
 CUSTOM_LOADER_SETTING = (
-    "admin_tools.template_loaders.Loader",
     "django.template.loaders.filesystem.Loader",
     "django.template.loaders.app_directories.Loader",
 )
