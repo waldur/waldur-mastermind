@@ -3413,6 +3413,551 @@ class CheckUniqueBackendIDTest(test.APITestCase):
         self.assertFalse(response.data["is_unique"])
 
 
+class BackendIdRulesConfigurationTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_OPTIONS)
+        self.offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+        )
+        self.url = factories.OfferingFactory.get_url(
+            self.offering, "update_backend_id_rules"
+        )
+
+    def test_staff_can_set_valid_format_rules(self):
+        self.client.force_authenticate(self.fixture.staff)
+        rules = {
+            "format": {
+                "regex": r"^[A-Z]{2}-\d{6}$",
+                "description": "Must be 2 uppercase letters, dash, 6 digits",
+            }
+        }
+        response = self.client.post(
+            self.url, {"backend_id_rules": rules}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering.refresh_from_db()
+        self.assertEqual(
+            self.offering.backend_id_rules["format"]["regex"], r"^[A-Z]{2}-\d{6}$"
+        )
+
+    def test_owner_can_set_rules(self):
+        self.client.force_authenticate(self.fixture.owner)
+        rules = {"uniqueness": {"scope": "offering"}}
+        response = self.client.post(
+            self.url, {"backend_id_rules": rules}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering.refresh_from_db()
+        self.assertEqual(
+            self.offering.backend_id_rules["uniqueness"]["scope"], "offering"
+        )
+
+    def test_set_combined_format_and_uniqueness_rules(self):
+        self.client.force_authenticate(self.fixture.staff)
+        rules = {
+            "format": {"regex": r"^RES-\d+$"},
+            "uniqueness": {"scope": "service_provider"},
+        }
+        response = self.client.post(
+            self.url, {"backend_id_rules": rules}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.backend_id_rules, rules)
+
+    def test_set_empty_rules_clears_validation(self):
+        self.offering.backend_id_rules = {"format": {"regex": r"^[A-Z]+$"}}
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, {"backend_id_rules": {}}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.backend_id_rules, {})
+
+    def test_reject_invalid_regex(self):
+        self.client.force_authenticate(self.fixture.staff)
+        rules = {"format": {"regex": "[invalid("}}
+        response = self.client.post(
+            self.url, {"backend_id_rules": rules}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reject_dangerous_regex(self):
+        self.client.force_authenticate(self.fixture.staff)
+        # Adjacent quantifiers pattern: detected by UserDetailsMatchMixin
+        rules = {"format": {"regex": "a+?+"}}
+        response = self.client.post(
+            self.url, {"backend_id_rules": rules}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reject_too_long_regex(self):
+        self.client.force_authenticate(self.fixture.staff)
+        rules = {"format": {"regex": "a" * 201}}
+        response = self.client.post(
+            self.url, {"backend_id_rules": rules}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reject_invalid_uniqueness_scope(self):
+        self.client.force_authenticate(self.fixture.staff)
+        rules = {"uniqueness": {"scope": "invalid_scope"}}
+        response = self.client.post(
+            self.url, {"backend_id_rules": rules}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reject_unknown_top_level_keys(self):
+        self.client.force_authenticate(self.fixture.staff)
+        rules = {"format": {"regex": "^ok$"}, "unknown_key": True}
+        response = self.client.post(
+            self.url, {"backend_id_rules": rules}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reject_unknown_format_keys(self):
+        self.client.force_authenticate(self.fixture.staff)
+        rules = {"format": {"regex": "^ok$", "extra_key": "value"}}
+        response = self.client.post(
+            self.url, {"backend_id_rules": rules}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reject_unknown_uniqueness_keys(self):
+        self.client.force_authenticate(self.fixture.staff)
+        rules = {"uniqueness": {"scope": "offering", "extra": True}}
+        response = self.client.post(
+            self.url, {"backend_id_rules": rules}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_all_valid_uniqueness_scopes_accepted(self):
+        self.client.force_authenticate(self.fixture.staff)
+        for scope in [
+            "offering",
+            "offering_group",
+            "service_provider",
+            "service_provider_category",
+        ]:
+            rules = {"uniqueness": {"scope": scope}}
+            response = self.client.post(
+                self.url, {"backend_id_rules": rules}, format="json"
+            )
+            self.assertEqual(
+                response.status_code, status.HTTP_200_OK, f"Scope {scope} rejected"
+            )
+
+    def test_rules_visible_in_provider_offering_detail(self):
+        rules = {
+            "format": {"regex": r"^[A-Z]{2}-\d{6}$"},
+            "uniqueness": {"scope": "offering"},
+        }
+        self.offering.backend_id_rules = rules
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OfferingFactory.get_url(self.offering)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["backend_id_rules"], rules)
+
+
+class BackendIdFormatValidationTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_BACKEND_ID)
+        self.offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+            backend_id_rules={
+                "format": {
+                    "regex": r"^[A-Z]{2}-\d{6}$",
+                    "description": "Must be 2 uppercase letters, dash, 6 digits",
+                }
+            },
+        )
+        self.resource = factories.ResourceFactory(
+            offering=self.offering,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+        self.url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, action="set_backend_id"
+        )
+
+    def test_set_backend_id_valid_format(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, {"backend_id": "AB-123456"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.backend_id, "AB-123456")
+
+    def test_set_backend_id_invalid_format_rejected(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, {"backend_id": "invalid"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("backend_id", response.data)
+
+    def test_set_backend_id_empty_bypasses_validation(self):
+        self.resource.backend_id = "AB-111111"
+        self.resource.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, {"backend_id": ""})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_no_rules_allows_any_format(self):
+        self.offering.backend_id_rules = {}
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, {"backend_id": "anything-goes"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_format_validation_error_includes_description(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url, {"backend_id": "bad"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        error_msg = str(response.data["backend_id"])
+        self.assertIn("2 uppercase letters", error_msg)
+
+
+class BackendIdUniquenessValidationTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_BACKEND_ID)
+
+        self.category = factories.CategoryFactory()
+        self.other_category = factories.CategoryFactory()
+
+        self.offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+            category=self.category,
+        )
+        self.offering2 = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+            category=self.category,
+        )
+        self.offering_other_category = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+            category=self.other_category,
+        )
+
+        other_customer = structure_factories.CustomerFactory()
+        self.offering_other_provider = factories.OfferingFactory(
+            customer=other_customer,
+            state=OfferingStates.ACTIVE,
+            category=self.category,
+        )
+
+    def _create_resource(self, offering, backend_id, state=ResourceStates.OK):
+        return factories.ResourceFactory(
+            offering=offering,
+            project=self.fixture.project,
+            backend_id=backend_id,
+            state=state,
+        )
+
+    def _set_rules(self, offering, scope, include_terminated=True):
+        offering.backend_id_rules = {
+            "uniqueness": {"scope": scope, "include_terminated": include_terminated}
+        }
+        offering.save()
+
+    def _set_backend_id(self, resource, backend_id):
+        url = factories.ResourceFactory.get_provider_resource_url(
+            resource, action="set_backend_id"
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        return self.client.post(url, {"backend_id": backend_id})
+
+    # --- offering scope ---
+    def test_offering_scope_rejects_duplicate_in_same_offering(self):
+        self._set_rules(self.offering, "offering")
+        self._create_resource(self.offering, "DUP-001")
+        resource2 = self._create_resource(self.offering, "")
+        response = self._set_backend_id(resource2, "DUP-001")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_offering_scope_allows_same_id_different_offering(self):
+        self._set_rules(self.offering, "offering")
+        self._create_resource(self.offering2, "DUP-001")
+        resource = self._create_resource(self.offering, "")
+        response = self._set_backend_id(resource, "DUP-001")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_offering_scope_includes_terminated_resources(self):
+        self._set_rules(self.offering, "offering")
+        self._create_resource(
+            self.offering, "TERM-001", state=ResourceStates.TERMINATED
+        )
+        resource = self._create_resource(self.offering, "")
+        response = self._set_backend_id(resource, "TERM-001")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # --- include_terminated=false ---
+    def test_include_terminated_false_excludes_terminated(self):
+        self._set_rules(self.offering, "offering", include_terminated=False)
+        self._create_resource(
+            self.offering, "TERM-001", state=ResourceStates.TERMINATED
+        )
+        resource = self._create_resource(self.offering, "")
+        response = self._set_backend_id(resource, "TERM-001")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_include_terminated_false_rejects_active_duplicate(self):
+        self._set_rules(self.offering, "offering", include_terminated=False)
+        self._create_resource(self.offering, "ACT-001", state=ResourceStates.OK)
+        resource = self._create_resource(self.offering, "")
+        response = self._set_backend_id(resource, "ACT-001")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # --- offering_group scope ---
+    def test_offering_group_scope_rejects_duplicate_across_offerings_with_same_backend_id(
+        self,
+    ):
+        self.offering.backend_id = "vcluster-errigal"
+        self.offering.save()
+        self.offering2.backend_id = "vcluster-errigal"
+        self.offering2.save()
+        self._set_rules(self.offering, "offering_group")
+        self._create_resource(self.offering2, "RES-001")
+        resource = self._create_resource(self.offering, "")
+        response = self._set_backend_id(resource, "RES-001")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_offering_group_scope_allows_different_offering_backend_id(self):
+        self.offering.backend_id = "vcluster-errigal"
+        self.offering.save()
+        self.offering2.backend_id = "vcluster-kay"
+        self.offering2.save()
+        self._set_rules(self.offering, "offering_group")
+        self._create_resource(self.offering2, "RES-001")
+        resource = self._create_resource(self.offering, "")
+        response = self._set_backend_id(resource, "RES-001")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_offering_group_scope_falls_back_to_offering_when_no_backend_id(self):
+        self.offering.backend_id = ""
+        self.offering.save()
+        self._set_rules(self.offering, "offering_group")
+        self._create_resource(self.offering2, "RES-001")
+        resource = self._create_resource(self.offering, "")
+        response = self._set_backend_id(resource, "RES-001")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    # --- service_provider scope ---
+    def test_service_provider_scope_rejects_duplicate_across_offerings(self):
+        self._set_rules(self.offering, "service_provider")
+        self._create_resource(self.offering2, "SP-001")
+        resource = self._create_resource(self.offering, "")
+        response = self._set_backend_id(resource, "SP-001")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_service_provider_scope_allows_different_provider(self):
+        self._set_rules(self.offering, "service_provider")
+        self._create_resource(self.offering_other_provider, "SP-001")
+        resource = self._create_resource(self.offering, "")
+        response = self._set_backend_id(resource, "SP-001")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    # --- service_provider_category scope ---
+    def test_service_provider_category_scope_rejects_same_category(self):
+        self._set_rules(self.offering, "service_provider_category")
+        self._create_resource(self.offering2, "SPC-001")  # same customer, same category
+        resource = self._create_resource(self.offering, "")
+        response = self._set_backend_id(resource, "SPC-001")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_service_provider_category_scope_allows_different_category(self):
+        self._set_rules(self.offering, "service_provider_category")
+        self._create_resource(self.offering_other_category, "SPC-001")
+        resource = self._create_resource(self.offering, "")
+        response = self._set_backend_id(resource, "SPC-001")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    # --- exclude_resource (updating own ID) ---
+    def test_updating_own_backend_id_to_same_value_is_allowed(self):
+        self._set_rules(self.offering, "offering")
+        resource = self._create_resource(self.offering, "MY-001")
+        response = self._set_backend_id(resource, "MY-001")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    # --- no rules configured ---
+    def test_no_uniqueness_rules_allows_duplicates(self):
+        self.offering.backend_id_rules = {}
+        self.offering.save()
+        self._create_resource(self.offering, "DUP-001")
+        resource = self._create_resource(self.offering, "")
+        response = self._set_backend_id(resource, "DUP-001")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+
+class CheckUniqueBackendIdWithRulesTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+            backend_id_rules={
+                "format": {
+                    "regex": r"^[A-Z]{2}-\d{6}$",
+                    "description": "Must be 2 uppercase letters, dash, 6 digits",
+                },
+                "uniqueness": {"scope": "offering"},
+            },
+        )
+        self.url = factories.OfferingFactory.get_url(
+            self.offering, "check_unique_backend_id"
+        )
+        factories.ResourceFactory(
+            offering=self.offering,
+            backend_id="AB-000001",
+            state=ResourceStates.OK,
+        )
+
+    def test_use_offering_rules_valid_and_unique(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.url, {"backend_id": "CD-999999", "use_offering_rules": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_unique"])
+        self.assertTrue(response.data["is_valid_format"])
+        self.assertEqual(response.data["errors"], [])
+
+    def test_use_offering_rules_invalid_format(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.url, {"backend_id": "bad-format", "use_offering_rules": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_valid_format"])
+        self.assertGreater(len(response.data["errors"]), 0)
+
+    def test_use_offering_rules_not_unique(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.url, {"backend_id": "AB-000001", "use_offering_rules": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])
+        self.assertTrue(response.data["is_valid_format"])
+
+    def test_use_offering_rules_invalid_format_and_not_unique(self):
+        # Create a resource with a specific backend_id that doesn't match format
+        factories.ResourceFactory(
+            offering=self.offering,
+            backend_id="bad",
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.url, {"backend_id": "bad", "use_offering_rules": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])
+        self.assertFalse(response.data["is_valid_format"])
+
+    def test_without_use_offering_rules_returns_original_response(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.url, {"backend_id": "bad-format", "use_offering_rules": False}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Original behavior: only is_unique field
+        self.assertIn("is_unique", response.data)
+        self.assertTrue(response.data["is_unique"])
+
+    def test_no_format_rules_returns_null_is_valid_format(self):
+        self.offering.backend_id_rules = {"uniqueness": {"scope": "offering"}}
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.url, {"backend_id": "anything", "use_offering_rules": True}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["is_valid_format"])
+        self.assertTrue(response.data["is_unique"])
+
+    def test_use_offering_rules_falls_back_to_check_all_offerings_when_no_scope(self):
+        """When use_offering_rules=True but no uniqueness scope is configured,
+        check_all_offerings should still control the uniqueness check."""
+        self.offering.backend_id_rules = {
+            "format": {
+                "regex": r"^[A-Z]{2}-\d{6}$",
+                "description": "Must be 2 uppercase letters, dash, 6 digits",
+            }
+            # No uniqueness scope configured
+        }
+        self.offering.save()
+
+        # Create resource in another offering of the same customer
+        other_offering = factories.OfferingFactory(customer=self.fixture.customer)
+        factories.ResourceFactory(offering=other_offering, backend_id="XY-123456")
+
+        self.client.force_authenticate(self.fixture.staff)
+
+        # check_all_offerings=False: unique within this offering
+        response = self.client.post(
+            self.url,
+            {
+                "backend_id": "XY-123456",
+                "use_offering_rules": True,
+                "check_all_offerings": False,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["is_unique"])
+        self.assertTrue(response.data["is_valid_format"])
+
+        # check_all_offerings=True: not unique across customer
+        response = self.client.post(
+            self.url,
+            {
+                "backend_id": "XY-123456",
+                "use_offering_rules": True,
+                "check_all_offerings": True,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["is_unique"])
+        self.assertTrue(response.data["is_valid_format"])
+
+
+class BackendIdRulesNotInPublicAPITest(test.APITestCase):
+    def test_backend_id_rules_not_exposed_in_public_offering(self):
+        fixture = fixtures.ProjectFixture()
+        offering = factories.OfferingFactory(
+            customer=fixture.customer,
+            state=OfferingStates.ACTIVE,
+            shared=True,
+            backend_id_rules={"format": {"regex": r"^[A-Z]+$"}},
+        )
+        self.client.force_authenticate(fixture.staff)
+        url = factories.OfferingFactory.get_public_url(offering)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("backend_id_rules", response.data)
+
+    def test_backend_id_rules_exposed_in_provider_offering(self):
+        fixture = fixtures.ProjectFixture()
+        offering = factories.OfferingFactory(
+            customer=fixture.customer,
+            state=OfferingStates.ACTIVE,
+            backend_id_rules={"format": {"regex": r"^[A-Z]+$"}},
+        )
+        self.client.force_authenticate(fixture.staff)
+        url = factories.OfferingFactory.get_url(offering)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("backend_id_rules", response.data)
+        self.assertEqual(
+            response.data["backend_id_rules"]["format"]["regex"], r"^[A-Z]+$"
+        )
+
+
 class OfferingBillingTypeClassificationTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()

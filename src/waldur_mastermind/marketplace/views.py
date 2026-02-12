@@ -2232,6 +2232,7 @@ class ProviderOfferingViewSet(
         )
 
         offering: models.Offering = self.get_object()
+        utils.validate_backend_id(backend_id, offering)
         backend = offering.scope.get_backend()
         method = plugins.manager.import_resource_backend_method(offering.type)
         if not method:
@@ -2321,6 +2322,23 @@ class ProviderOfferingViewSet(
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(status=status.HTTP_200_OK)
+
+    @staticmethod
+    def _extract_validation_errors(exc):
+        """Extract flat list of error strings from a DRF ValidationError."""
+        messages = []
+        detail = exc.detail
+        if isinstance(detail, dict):
+            for field_errors in detail.values():
+                if isinstance(field_errors, list):
+                    messages.extend(str(err) for err in field_errors)
+                else:
+                    messages.append(str(field_errors))
+        elif isinstance(detail, list):
+            messages.extend(str(err) for err in detail)
+        else:
+            messages.append(str(detail))
+        return messages
 
     @extend_schema(
         summary="Update offering location",
@@ -3804,14 +3822,59 @@ class ProviderOfferingViewSet(
         check_all_offerings = serializer.validated_data.get(
             "check_all_offerings", False
         )
+        use_offering_rules = serializer.validated_data.get("use_offering_rules", False)
 
+        if use_offering_rules and backend_id:
+            errors = []
+            is_valid_format = None
+
+            rules = offering.backend_id_rules or {}
+
+            # Check format if rules are configured
+            if rules.get("format", {}).get("regex"):
+                try:
+                    utils.validate_backend_id_format(backend_id, offering)
+                    is_valid_format = True
+                except rf_exceptions.ValidationError as e:
+                    is_valid_format = False
+                    errors.extend(self._extract_validation_errors(e))
+
+            # Check uniqueness: use offering's scope if configured,
+            # otherwise fall back to check_all_offerings toggle
+            uniqueness_scope = rules.get("uniqueness", {}).get("scope")
+            if uniqueness_scope:
+                is_unique = True
+                try:
+                    utils.validate_backend_id_uniqueness(backend_id, offering)
+                except rf_exceptions.ValidationError as e:
+                    is_unique = False
+                    errors.extend(self._extract_validation_errors(e))
+            else:
+                if check_all_offerings:
+                    resources_query = models.Resource.objects.filter(
+                        offering__customer=offering.customer,
+                        backend_id=backend_id,
+                    )
+                else:
+                    resources_query = models.Resource.objects.filter(
+                        offering=offering, backend_id=backend_id
+                    )
+                is_unique = not resources_query.exists()
+
+            return Response(
+                {
+                    "is_unique": is_unique,
+                    "is_valid_format": is_valid_format,
+                    "errors": errors,
+                }
+            )
+
+        # Original behavior (use_offering_rules=False)
         if check_all_offerings:
-            # Check all offerings of the same customer
             resources_query = models.Resource.objects.filter(
                 offering__customer=offering.customer, backend_id=backend_id
             )
         else:
-            # Check only this offering
             resources_query = models.Resource.objects.filter(
                 offering=offering, backend_id=backend_id
             )
@@ -3831,6 +3894,27 @@ class ProviderOfferingViewSet(
             ["*", "customer", "customer.serviceprovider"],
         )
     ]
+
+    @extend_schema(
+        summary="Update offering backend_id rules",
+        description="Configure validation rules for resource backend_id: format regex and uniqueness scope.",
+        request=serializers.OfferingBackendIdRulesUpdateSerializer,
+        responses={200: None},
+    )
+    @action(detail=True, methods=["post"])
+    def update_backend_id_rules(self, request, uuid=None):
+        return self._update_action(request)
+
+    update_backend_id_rules_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_OPTIONS,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+    update_backend_id_rules_validators = update_validators
+    update_backend_id_rules_serializer_class = (
+        serializers.OfferingBackendIdRulesUpdateSerializer
+    )
 
     @extend_schema(
         summary="Export offering data",
@@ -7317,6 +7401,9 @@ class ProviderResourceViewSet(BaseResourceViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         new_backend_id = serializer.validated_data["backend_id"]
+        utils.validate_backend_id(
+            new_backend_id, resource.offering, exclude_resource=resource
+        )
         old_backend_id = resource.backend_id
         if new_backend_id != old_backend_id:
             resource.backend_id = serializer.validated_data["backend_id"]
@@ -11821,6 +11908,7 @@ class BackendResourceViewSet(core_views.ActionsViewSet):
             )
 
         backend_id = backend_resource.backend_id
+        utils.validate_backend_id(backend_id, offering)
         logger.info(
             "Importing the backend resource %s (%s)", backend_resource.name, backend_id
         )

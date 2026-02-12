@@ -2761,6 +2761,7 @@ class ProviderOfferingDetailsSerializer(
             "longitude",
             "country",
             "backend_id",
+            "backend_id_rules",
             "organization_groups",
             "tags",
             "image",
@@ -2989,7 +2990,11 @@ set_override(
 class PublicOfferingDetailsSerializer(ProviderOfferingDetailsSerializer):
     class Meta(ProviderOfferingDetailsSerializer.Meta):
         view_name = "marketplace-public-offering-detail"
-        fields = ProviderOfferingDetailsSerializer.Meta.fields + (
+        fields = tuple(
+            f
+            for f in ProviderOfferingDetailsSerializer.Meta.fields
+            if f != "backend_id_rules"
+        ) + (
             "user_has_consent",
             "is_accessible",
         )
@@ -5327,6 +5332,16 @@ class OrderBackendIDSerializer(serializers.ModelSerializer):
         fields = ("backend_id",)
 
 
+class OfferingBackendIdRulesUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Offering
+        fields = ("backend_id_rules",)
+
+    def validate_backend_id_rules(self, value):
+        utils.validate_backend_id_rules(value)
+        return value
+
+
 class CheckUniqueBackendIDSerializer(serializers.Serializer):
     backend_id = serializers.CharField(
         required=True, max_length=255, help_text="Backend identifier to check"
@@ -5334,10 +5349,25 @@ class CheckUniqueBackendIDSerializer(serializers.Serializer):
     check_all_offerings = serializers.BooleanField(
         required=False, default=False, help_text="Check across all offerings"
     )
+    use_offering_rules = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="Apply the offering's backend_id_rules for format and uniqueness validation",
+    )
 
 
 class CheckUniqueBackendIDResponseSerializer(serializers.Serializer):
     is_unique = serializers.BooleanField(help_text="Whether the backend ID is unique")
+    is_valid_format = serializers.BooleanField(
+        required=False,
+        allow_null=True,
+        help_text="Whether the backend ID matches the offering's format regex (null if no rules configured)",
+    )
+    errors = serializers.ListField(
+        child=serializers.CharField(),
+        required=False,
+        help_text="List of validation error messages",
+    )
 
 
 class ResourceSlugSerializer(serializers.ModelSerializer):

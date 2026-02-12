@@ -529,3 +529,24 @@ def validate_unix_path(path):
             raise ValidationError(
                 _("Path component is too long (maximum 255 characters).")
             )
+
+
+# Patterns that indicate potential ReDoS vulnerability
+_REDOS_PATTERNS = [
+    r"\(\?P?<[^>]*>[^)]*[+*][^)]*\)[+*]",  # Nested quantifiers: (a+)+
+    r"\([^)]*\|[^)]*\)[+*]{2,}",  # Overlapping alternations with quantifiers
+    r"[+*]\?[+*]",  # Adjacent quantifiers
+]
+_REDOS_REGEX = re.compile("|".join(_REDOS_PATTERNS))
+_MAX_REGEX_PATTERN_LENGTH = 200
+
+
+def is_potentially_dangerous_regex(pattern: str) -> bool:
+    """Check if a regex pattern might cause ReDoS.
+
+    Returns True if the pattern exceeds the maximum length or contains
+    constructs known to cause catastrophic backtracking.
+    """
+    if len(pattern) > _MAX_REGEX_PATTERN_LENGTH:
+        return True
+    return bool(_REDOS_REGEX.search(pattern))

@@ -142,6 +142,65 @@ Defines which attributes can be modified after resource creation. When an order 
 
 Defines behavioral rules, constraints, and provider-specific settings. This is where most operational configuration lives.
 
+### backend_id_rules
+
+Defines per-offering validation rules for the `backend_id` field on resources. Supports format validation via regex and configurable uniqueness scopes. Default is `{}` (no validation, backward compatible). Empty `backend_id` values always bypass validation.
+
+```json
+{
+  "backend_id_rules": {
+    "format": {
+      "regex": "^[A-Z]{2}-\\d{6}$",
+      "description": "Must be 2 uppercase letters, dash, 6 digits"
+    },
+    "uniqueness": {
+      "scope": "offering",
+      "include_terminated": false
+    }
+  }
+}
+```
+
+Both `format` and `uniqueness` are optional top-level keys.
+
+**Format validation:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `format.regex` | string | Python regex pattern validated with `re.fullmatch`. Max 200 characters. Patterns with nested/adjacent quantifiers are rejected (ReDoS protection) |
+| `format.description` | string | Human-readable description shown in validation errors. Falls back to displaying the regex pattern |
+
+**Uniqueness configuration:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `uniqueness.scope` | string | — | Scope for uniqueness check (see table below) |
+| `uniqueness.include_terminated` | boolean | `true` | Whether terminated resources are included in the uniqueness check |
+
+**Uniqueness scopes:**
+
+| Scope | Description |
+|-------|-------------|
+| `offering` | Unique across resources of this offering |
+| `offering_group` | Unique across all offerings that share the same `offering.backend_id` (e.g. offerings attached to the same vcluster). Falls back to `offering` scope if the offering has no `backend_id` |
+| `service_provider` | Unique across all offerings of the same customer/service provider |
+| `service_provider_category` | Unique across all offerings of the same provider in the same category |
+
+**API endpoints:**
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/marketplace-provider-offerings/{uuid}/update_backend_id_rules/` | POST | Configure rules. Requires `UPDATE_OFFERING_OPTIONS` permission |
+| `/api/marketplace-provider-offerings/{uuid}/check_unique_backend_id/` | POST | Check a backend ID. Set `use_offering_rules: true` to validate format and uniqueness per configured rules |
+
+**Enforcement points:**
+
+- `set_backend_id` action (manual backend ID assignment)
+- `import_resource` action (resource import from external systems)
+- Not applied when backend systems automatically set `backend_id` via processors
+
+**Visibility:** `backend_id_rules` is exposed on the provider offering serializer but excluded from the public offering serializer.
+
 ## Plugin Options Reference
 
 ### Approval and Auto-Processing
@@ -339,6 +398,16 @@ When an order is created, the following `plugin_options` are validated:
 2. **`unique_resource_per_attribute`**: Checks if a non-terminated resource with the same attribute value exists
 3. **`minimal_team_count_for_provisioning`**: Validates project team size
 4. **`required_team_role_for_provisioning`**: Validates user has required role
+
+### Backend ID Validation
+
+When `backend_id_rules` is configured on the offering, the following checks run on `set_backend_id` and `import_resource`:
+
+1. If `backend_id` is empty, all validation is skipped
+2. **Format check**: If `format.regex` is set, the value must match using `re.fullmatch`
+3. **Uniqueness check**: If `uniqueness.scope` is set, a duplicate query runs against the configured scope
+
+The `check_unique_backend_id` endpoint performs the same checks when `use_offering_rules` is `true`, returning `is_unique` and `is_valid_format` fields in the response.
 
 ### Approval Flow
 
