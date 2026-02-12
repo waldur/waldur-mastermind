@@ -860,14 +860,12 @@ class ServiceProviderUsersGDPRFilteringTest(test.APITestCase):
         # organization is in config1 but not in defaults - NOT exposed
         self.assertNotIn("organization", user_data)
 
-    def test_first_name_last_name_not_in_attribute_map(self):
-        """first_name and last_name are not filtered by GDPR config (not in USER_ATTRIBUTE_FIELD_MAP)."""
-        # Note: first_name and last_name are included in the serializer but
-        # the USER_ATTRIBUTE_FIELD_MAP only has full_name, not first/last separately
+    def test_first_last_name_filtered_with_full_name(self):
+        """first_name and last_name are filtered together with full_name via USER_ATTRIBUTE_EXTRA_FIELDS."""
         models.OfferingUserAttributeConfig.objects.create(
             offering=self.offering,
             expose_username=True,
-            expose_full_name=False,  # Disable full_name
+            expose_full_name=False,  # Disable full_name → also hides first/last name
             expose_email=False,
         )
 
@@ -880,11 +878,10 @@ class ServiceProviderUsersGDPRFilteringTest(test.APITestCase):
         )
         self.assertIsNotNone(user_data)
 
-        # first_name and last_name are in Meta.fields but NOT in USER_ATTRIBUTE_FIELD_MAP
-        # So they should still be present (not filtered)
-        self.assertIn("first_name", user_data)
-        self.assertIn("last_name", user_data)
-        # But full_name should be filtered out
+        # first_name and last_name are linked to full_name via USER_ATTRIBUTE_EXTRA_FIELDS
+        # When expose_full_name=False, all three should be filtered out
+        self.assertNotIn("first_name", user_data)
+        self.assertNotIn("last_name", user_data)
         self.assertNotIn("full_name", user_data)
 
     def test_affiliations_field_filtering(self):

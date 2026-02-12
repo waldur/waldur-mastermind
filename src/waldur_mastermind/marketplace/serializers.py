@@ -6166,6 +6166,8 @@ class OfferingUserSerializer(
     # Core user attributes (controlled by OfferingUserAttributeConfig)
     user_username = serializers.ReadOnlyField(source="user.username")
     user_full_name = serializers.ReadOnlyField(source="user.full_name")
+    user_first_name = serializers.ReadOnlyField(source="user.first_name")
+    user_last_name = serializers.ReadOnlyField(source="user.last_name")
     user_email = serializers.ReadOnlyField(source="user.email")
 
     # Extended profile attributes
@@ -6212,7 +6214,12 @@ class OfferingUserSerializer(
     has_compliance_checklist = serializers.SerializerMethodField()
     consent_data = serializers.SerializerMethodField()
 
-    # Mapping from config field names to serializer field names
+    # Extra serializer fields exposed/hidden together with their parent attribute.
+    # When expose_full_name is enabled, first/last name are also exposed.
+    USER_ATTRIBUTE_EXTRA_FIELDS = {
+        "full_name": {"user_first_name", "user_last_name"},
+    }
+
     USER_ATTRIBUTE_FIELD_MAP = {
         "username": "user_username",
         "full_name": "user_full_name",
@@ -6251,6 +6258,8 @@ class OfferingUserSerializer(
             # Core user attributes
             "user_username",
             "user_full_name",
+            "user_first_name",
+            "user_last_name",
             "user_email",
             # Extended profile attributes
             "user_phone_number",
@@ -6512,9 +6521,16 @@ class OfferingUserSerializer(
                 for attr in exposed_attributes
                 if attr in self.USER_ATTRIBUTE_FIELD_MAP
             }
+            # Include extra fields linked to exposed attributes
+            for attr in exposed_attributes:
+                extra = self.USER_ATTRIBUTE_EXTRA_FIELDS.get(attr)
+                if extra:
+                    exposed_serializer_fields.update(extra)
 
             # Remove user attribute fields that are not exposed
             all_user_attribute_fields = set(self.USER_ATTRIBUTE_FIELD_MAP.values())
+            for extra in self.USER_ATTRIBUTE_EXTRA_FIELDS.values():
+                all_user_attribute_fields.update(extra)
             fields_to_remove = all_user_attribute_fields - exposed_serializer_fields
 
             for field_name in fields_to_remove:
@@ -6578,9 +6594,16 @@ class OfferingUserSerializer(
             for attr in exposed_attributes
             if attr in self.USER_ATTRIBUTE_FIELD_MAP
         }
+        # Include extra fields linked to exposed attributes
+        for attr in exposed_attributes:
+            extra = self.USER_ATTRIBUTE_EXTRA_FIELDS.get(attr)
+            if extra:
+                exposed_serializer_fields.update(extra)
 
         # Remove non-exposed user attribute fields from the output
         all_user_attribute_fields = set(self.USER_ATTRIBUTE_FIELD_MAP.values())
+        for extra in self.USER_ATTRIBUTE_EXTRA_FIELDS.values():
+            all_user_attribute_fields.update(extra)
         fields_to_remove = all_user_attribute_fields - exposed_serializer_fields
 
         for field_name in fields_to_remove:
@@ -7615,10 +7638,13 @@ class MarketplaceServiceProviderUserSerializer(
     attributes that are exposed by ALL offerings are shown.
     """
 
+    # Extra serializer fields exposed/hidden together with their parent attribute.
+    USER_ATTRIBUTE_EXTRA_FIELDS = {
+        "full_name": {"first_name", "last_name"},
+    }
+
     # Map attribute names to serializer field names
     # For User model, field names match attribute names (unlike OfferingUserSerializer)
-    # Note: first_name and last_name are NOT included here (matching OfferingUserSerializer)
-    # because OfferingUserAttributeConfig only has expose_full_name, not separate first/last
     USER_ATTRIBUTE_FIELD_MAP = {
         "username": "username",
         "full_name": "full_name",
@@ -7754,9 +7780,16 @@ class MarketplaceServiceProviderUserSerializer(
             for attr in exposed_attributes
             if attr in self.USER_ATTRIBUTE_FIELD_MAP
         }
+        # Include extra fields linked to exposed attributes
+        for attr in exposed_attributes:
+            extra = self.USER_ATTRIBUTE_EXTRA_FIELDS.get(attr)
+            if extra:
+                exposed_serializer_fields.update(extra)
 
         # Remove user attribute fields that are not exposed
         all_user_attribute_fields = set(self.USER_ATTRIBUTE_FIELD_MAP.values())
+        for extra in self.USER_ATTRIBUTE_EXTRA_FIELDS.values():
+            all_user_attribute_fields.update(extra)
         fields_to_remove = all_user_attribute_fields - exposed_serializer_fields
 
         for field_name in fields_to_remove:
