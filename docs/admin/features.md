@@ -88,6 +88,10 @@ Enable display of user terms of service in UI.
 
 Hide marketplace functionality from end users but allow staff access.
 
+## marketplace.hide_organization_information_from_project_members
+
+Hide organization information from project-level users. Organization owners, managers, and staff retain full access.
+
 ## marketplace.import_resources
 
 Allow to import resources from service provider to project.
