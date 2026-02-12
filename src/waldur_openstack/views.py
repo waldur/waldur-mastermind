@@ -371,6 +371,7 @@ class SecurityGroupViewSet(structure_views.ResourceViewSet):
     ),
 )
 class ServerGroupViewSet(structure_views.ResourceViewSet):
+    disabled_actions = ["update", "partial_update"]
     queryset = models.ServerGroup.objects.all().order_by("tenant__name")
     serializer_class = serializers.OpenStackServerGroupSerializer
     filterset_class = filters.ServerGroupFilter
