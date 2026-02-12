@@ -1717,6 +1717,9 @@ class OfferingStateTest(test.APITestCase):
         CustomerRole.OWNER.add_permission(PermissionEnum.UNPAUSE_OFFERING)
         ServiceProviderRole.MANAGER.add_permission(PermissionEnum.UNPAUSE_OFFERING)
 
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.CREATE_OFFERING)
+
     @data(
         "staff",
     )
@@ -1735,6 +1738,31 @@ class OfferingStateTest(test.APITestCase):
 
     @data("owner", "user", "customer_support", "admin", "manager", "service_manager")
     def test_unauthorized_user_can_not_activate_offering(self, user):
+        response, offering = self.update_offering_state(user, "activate")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(offering.state, OfferingStates.DRAFT)
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_ACTIVATION=True)
+    @data("staff", "owner", "service_manager")
+    def test_authorized_user_can_activate_offering_when_sp_activation_enabled(
+        self, user
+    ):
+        response, offering = self.update_offering_state(user, "activate")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(offering.state, OfferingStates.ACTIVE)
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_ACTIVATION=True)
+    @data("customer_support", "admin", "manager")
+    def test_unauthorized_user_can_not_activate_offering_when_sp_activation_enabled(
+        self, user
+    ):
+        response, offering = self.update_offering_state(user, "activate")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(offering.state, OfferingStates.DRAFT)
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_ACTIVATION=False)
+    @data("owner", "service_manager")
+    def test_sp_can_not_activate_offering_when_feature_disabled(self, user):
         response, offering = self.update_offering_state(user, "activate")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(offering.state, OfferingStates.DRAFT)

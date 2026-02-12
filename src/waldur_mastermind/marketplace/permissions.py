@@ -285,3 +285,26 @@ def is_service_provider_or_staff(request, view, obj=None):
     raise exceptions.PermissionDenied(
         _("Only staff and service providers can create tags.")
     )
+
+
+def can_activate_offering(request, view, obj=None):
+    if request.user.is_staff:
+        return
+
+    if not config.ALLOW_SERVICE_PROVIDER_OFFERING_ACTIVATION:
+        raise exceptions.PermissionDenied()
+
+    if not obj:
+        return
+
+    scopes = [obj, obj.customer]
+    try:
+        scopes.append(obj.customer.serviceprovider)
+    except models.ServiceProvider.DoesNotExist:
+        pass
+
+    for scope in scopes:
+        if has_permission(request, PermissionEnum.CREATE_OFFERING, scope):
+            return
+
+    raise exceptions.PermissionDenied()

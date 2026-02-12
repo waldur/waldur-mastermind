@@ -2146,7 +2146,7 @@ class ProviderOfferingViewSet(
         )
     ]
 
-    activate_permissions = [structure_permissions.is_staff]
+    activate_permissions = [marketplace_permissions.can_activate_offering]
 
     activate_validators = pause_validators = archive_validators = destroy_validators = [
         structure_utils.check_customer_blocked_or_archived
