@@ -216,7 +216,34 @@ def resource_update_succeeded(resource: models.Resource, validate=False):
         if limits_changed:
             log.log_resource_limit_update_succeeded(locked_resource)
 
+        if limits_changed and (locked_resource.downscaled or locked_resource.paused):
+            resource_uuid = str(locked_resource.uuid)
+            offering_id = locked_resource.offering_id
+            transaction.on_commit(
+                lambda: _trigger_slurm_policy_reevaluation(resource_uuid, offering_id)
+            )
+
         return order
+
+
+def _trigger_slurm_policy_reevaluation(resource_uuid, offering_id):
+    """Trigger immediate SLURM policy re-evaluation after limit changes.
+
+    When resource limits increase on a downscaled/paused resource,
+    the policy system needs to re-evaluate usage percentages so that
+    QoS restrictions are lifted promptly instead of waiting for the
+    next periodic evaluation cycle.
+    """
+    from waldur_mastermind.policy import models as policy_models
+    from waldur_mastermind.policy import tasks as policy_tasks
+
+    policies = policy_models.SlurmPeriodicUsagePolicy.objects.filter(
+        scope_id=offering_id,
+    )
+    for policy in policies:
+        policy_tasks.evaluate_resource_against_policy.delay(
+            resource_uuid, str(policy.uuid)
+        )
 
 
 def resource_update_failed(resource: models.Resource, validate=False):

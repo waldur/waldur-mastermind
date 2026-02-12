@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from freezegun import freeze_time
 from rest_framework import test
 
@@ -5,6 +7,7 @@ from waldur_mastermind.common.utils import parse_datetime
 from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace.enums import OrderStates, OrderTypes, ResourceStates
 from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.policy import models as policy_models
 from waldur_openstack.tests.factories import InstanceFactory
 
 
@@ -138,3 +141,102 @@ class CallbacksTest(test.APITestCase):
         order.refresh_from_db()
         self.assertEqual(order.error_message, error_message)
         self.assertEqual(order.error_traceback, error_traceback)
+
+
+class LimitUpdateTriggersPolicyReevaluationTest(test.APITestCase):
+    def setUp(self):
+        self.offering = factories.OfferingFactory(
+            type="Marketplace.Slurm",
+            plugin_options={"supports_downscaling": True, "supports_pausing": True},
+        )
+        self.component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="node-hours",
+            name="Node hours",
+            billing_type="limit",
+        )
+        self.resource = factories.ResourceFactory(
+            offering=self.offering,
+            state=ResourceStates.UPDATING,
+            limits={"node-hours": 1000},
+            downscaled=True,
+        )
+        self.policy = policy_models.SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.offering,
+            actions="request_slurm_resource_downscaling,request_slurm_resource_pausing",
+            apply_to_all=True,
+            grace_ratio=0.2,
+            carryover_enabled=False,
+            period=3,
+        )
+        policy_models.OfferingComponentLimit.objects.create(
+            policy=self.policy,
+            component=self.component,
+            limit=1000,
+        )
+
+    def _create_update_order(self, **kwargs):
+        defaults = dict(
+            state=OrderStates.EXECUTING,
+            type=OrderTypes.UPDATE,
+            resource=self.resource,
+            offering=self.offering,
+            project=self.resource.project,
+        )
+        defaults.update(kwargs)
+        return factories.OrderFactory(**defaults)
+
+    @patch("waldur_mastermind.policy.tasks.evaluate_resource_against_policy.delay")
+    def test_limit_increase_on_downscaled_resource_triggers_reevaluation(
+        self, mock_delay
+    ):
+        order = self._create_update_order(limits={"node-hours": 2000})
+
+        with self.captureOnCommitCallbacks(execute=True):
+            callbacks.resource_update_succeeded(order.resource)
+
+        mock_delay.assert_called_once_with(
+            str(self.resource.uuid), str(self.policy.uuid)
+        )
+
+    @patch("waldur_mastermind.policy.tasks.evaluate_resource_against_policy.delay")
+    def test_limit_increase_on_paused_resource_triggers_reevaluation(self, mock_delay):
+        self.resource.downscaled = False
+        self.resource.paused = True
+        self.resource.save()
+
+        order = self._create_update_order(limits={"node-hours": 2000})
+
+        with self.captureOnCommitCallbacks(execute=True):
+            callbacks.resource_update_succeeded(order.resource)
+
+        mock_delay.assert_called_once_with(
+            str(self.resource.uuid), str(self.policy.uuid)
+        )
+
+    @patch("waldur_mastermind.policy.tasks.evaluate_resource_against_policy.delay")
+    def test_limit_increase_on_normal_resource_does_not_trigger_reevaluation(
+        self, mock_delay
+    ):
+        self.resource.downscaled = False
+        self.resource.paused = False
+        self.resource.save()
+
+        order = self._create_update_order(limits={"node-hours": 2000})
+
+        with self.captureOnCommitCallbacks(execute=True):
+            callbacks.resource_update_succeeded(order.resource)
+
+        mock_delay.assert_not_called()
+
+    @patch("waldur_mastermind.policy.tasks.evaluate_resource_against_policy.delay")
+    def test_plan_change_without_limit_change_does_not_trigger_reevaluation(
+        self, mock_delay
+    ):
+        new_plan = factories.PlanFactory()
+        order = self._create_update_order(plan=new_plan)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            callbacks.resource_update_succeeded(order.resource)
+
+        mock_delay.assert_not_called()
