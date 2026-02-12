@@ -22,7 +22,7 @@ class Command(BaseCommand):
         # reset loaders to use only filesystem based
         file_engine[0].engine.loaders = CUSTOM_LOADER_SETTING
         # reset cached_property
-        del file_engine[0].engine.__dict__["template_loaders"]
+        file_engine[0].engine.__dict__.pop("template_loaders", None)
 
         output = ["# Notifications\n"]
 
