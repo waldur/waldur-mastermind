@@ -28,6 +28,7 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.utils import normalize_unicode, send_mail
 from waldur_core.core.validators import (
+    is_potentially_dangerous_regex,
     validate_iso_3166_alpha2,
     validate_name,
     validate_phone_number,
@@ -1124,23 +1125,10 @@ class UserDetailsMatchMixin(models.Model):
 
         return items
 
-    # Patterns that indicate potential ReDoS vulnerability
-    _REDOS_PATTERNS = [
-        r"\(\?P?<[^>]*>[^)]*[+*][^)]*\)[+*]",  # Nested quantifiers: (a+)+
-        r"\([^)]*\|[^)]*\)[+*]{2,}",  # Overlapping alternations with quantifiers
-        r"[+*]\?[+*]",  # Adjacent quantifiers
-    ]
-    _REDOS_REGEX = re.compile("|".join(_REDOS_PATTERNS))
-
-    # Maximum pattern length to prevent overly complex patterns
-    _MAX_PATTERN_LENGTH = 200
-
     @staticmethod
     def _is_potentially_dangerous_pattern(pattern: str) -> bool:
         """Check if a regex pattern might cause ReDoS."""
-        if len(pattern) > UserDetailsMatchMixin._MAX_PATTERN_LENGTH:
-            return True
-        return bool(UserDetailsMatchMixin._REDOS_REGEX.search(pattern))
+        return is_potentially_dangerous_regex(pattern)
 
     @staticmethod
     def _is_pattern_match(pattern, email):

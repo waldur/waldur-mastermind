@@ -606,6 +606,13 @@ class Offering(
             "Private data used by specific plugin, such as credentials and hooks."
         ),
     )
+    backend_id_rules = models.JSONField(
+        blank=True,
+        default=dict,
+        help_text=_(
+            "Validation rules for resource backend_id: format regex and uniqueness scope."
+        ),
+    )
 
     privacy_policy_link = models.URLField(blank=True)
     country = models.CharField(max_length=2, blank=True)

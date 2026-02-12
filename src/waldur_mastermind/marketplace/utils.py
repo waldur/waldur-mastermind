@@ -39,6 +39,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
+from waldur_core.core.validators import is_potentially_dangerous_regex
 from waldur_core.logging import models as logging_models
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging.enums import ObservableObjectType
@@ -2928,3 +2929,162 @@ def calculate_new_limits(current_limits, allocated_limits, subtract=False):
             new_limits[component] = current_value + allocated_value
 
     return new_limits
+
+
+VALID_UNIQUENESS_SCOPES = {
+    "offering",
+    "offering_group",
+    "service_provider",
+    "service_provider_category",
+}
+
+
+def validate_backend_id_rules(rules):
+    """Validate the JSON structure of backend_id_rules. Raises rest_framework ValidationError."""
+    if not isinstance(rules, dict):
+        raise rf_exceptions.ValidationError(
+            {"backend_id_rules": "Must be a JSON object."}
+        )
+
+    allowed_keys = {"format", "uniqueness"}
+    unknown_keys = set(rules.keys()) - allowed_keys
+    if unknown_keys:
+        raise rf_exceptions.ValidationError(
+            {"backend_id_rules": f"Unknown keys: {', '.join(sorted(unknown_keys))}"}
+        )
+
+    if "format" in rules:
+        fmt = rules["format"]
+        if not isinstance(fmt, dict):
+            raise rf_exceptions.ValidationError(
+                {"backend_id_rules": "format must be a JSON object."}
+            )
+        fmt_allowed = {"regex", "description"}
+        fmt_unknown = set(fmt.keys()) - fmt_allowed
+        if fmt_unknown:
+            raise rf_exceptions.ValidationError(
+                {
+                    "backend_id_rules": f"Unknown keys in format: {', '.join(sorted(fmt_unknown))}"
+                }
+            )
+        regex = fmt.get("regex")
+        if regex is not None:
+            if not isinstance(regex, str):
+                raise rf_exceptions.ValidationError(
+                    {"backend_id_rules": "format.regex must be a string."}
+                )
+            if is_potentially_dangerous_regex(regex):
+                raise rf_exceptions.ValidationError(
+                    {
+                        "backend_id_rules": "format.regex is potentially dangerous (too long or contains nested/adjacent quantifiers)."
+                    }
+                )
+            try:
+                re.compile(regex)
+            except re.error as e:
+                raise rf_exceptions.ValidationError(
+                    {
+                        "backend_id_rules": f"format.regex is not a valid regular expression: {e}"
+                    }
+                )
+
+    if "uniqueness" in rules:
+        uniq = rules["uniqueness"]
+        if not isinstance(uniq, dict):
+            raise rf_exceptions.ValidationError(
+                {"backend_id_rules": "uniqueness must be a JSON object."}
+            )
+        uniq_allowed = {"scope", "include_terminated"}
+        uniq_unknown = set(uniq.keys()) - uniq_allowed
+        if uniq_unknown:
+            raise rf_exceptions.ValidationError(
+                {
+                    "backend_id_rules": f"Unknown keys in uniqueness: {', '.join(sorted(uniq_unknown))}"
+                }
+            )
+        scope = uniq.get("scope")
+        if scope is not None and scope not in VALID_UNIQUENESS_SCOPES:
+            raise rf_exceptions.ValidationError(
+                {
+                    "backend_id_rules": f"uniqueness.scope must be one of: {', '.join(sorted(VALID_UNIQUENESS_SCOPES))}"
+                }
+            )
+        include_terminated = uniq.get("include_terminated")
+        if include_terminated is not None and not isinstance(include_terminated, bool):
+            raise rf_exceptions.ValidationError(
+                {"backend_id_rules": "uniqueness.include_terminated must be a boolean."}
+            )
+
+
+def validate_backend_id_format(backend_id, offering):
+    """Check backend_id against the offering's format regex. Raises ValidationError if invalid."""
+    rules = offering.backend_id_rules or {}
+    fmt = rules.get("format", {})
+    regex = fmt.get("regex")
+    if not regex:
+        return
+
+    if is_potentially_dangerous_regex(regex):
+        # Skip validation for dangerous patterns
+        return
+
+    try:
+        if not re.fullmatch(regex, backend_id):
+            description = fmt.get("description", f"Must match pattern: {regex}")
+            raise rf_exceptions.ValidationError(
+                {"backend_id": f"Invalid format. {description}"}
+            )
+    except re.error:
+        # Skip validation for invalid patterns
+        return
+
+
+def validate_backend_id_uniqueness(backend_id, offering, exclude_resource=None):
+    """Check backend_id uniqueness per the offering's scope config. Raises ValidationError if not unique."""
+    rules = offering.backend_id_rules or {}
+    uniq = rules.get("uniqueness", {})
+    scope = uniq.get("scope")
+    if not scope:
+        return
+
+    include_terminated = uniq.get("include_terminated", True)
+
+    queryset = models.Resource.objects.filter(backend_id=backend_id)
+
+    if not include_terminated:
+        queryset = queryset.exclude(state=ResourceStates.TERMINATED)
+
+    if scope == "offering":
+        queryset = queryset.filter(offering=offering)
+    elif scope == "offering_group":
+        if offering.backend_id:
+            queryset = queryset.filter(offering__backend_id=offering.backend_id)
+        else:
+            queryset = queryset.filter(offering=offering)
+    elif scope == "service_provider":
+        queryset = queryset.filter(offering__customer=offering.customer)
+    elif scope == "service_provider_category":
+        queryset = queryset.filter(
+            offering__customer=offering.customer,
+            offering__category=offering.category,
+        )
+    else:
+        return
+
+    if exclude_resource is not None:
+        queryset = queryset.exclude(pk=exclude_resource.pk)
+
+    if queryset.exists():
+        raise rf_exceptions.ValidationError(
+            {"backend_id": "This backend_id is already in use."}
+        )
+
+
+def validate_backend_id(backend_id, offering, exclude_resource=None):
+    """Run all backend_id validations. Skips if backend_id is empty."""
+    if not backend_id:
+        return
+    validate_backend_id_format(backend_id, offering)
+    validate_backend_id_uniqueness(
+        backend_id, offering, exclude_resource=exclude_resource
+    )
