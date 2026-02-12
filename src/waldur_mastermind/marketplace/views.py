@@ -7397,6 +7397,39 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     submit_report_serializer_class = serializers.ResourceReportSerializer
 
     @extend_schema(
+        summary="Set resource state to OK",
+        description="Allows a service provider to manually set the resource state to OK. This is useful for recovering from Erred state.",
+        methods=["POST"],
+        request=None,
+        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def set_state_ok(self, request, uuid=None):
+        resource = cast(models.Resource, self.get_object())
+        resource.set_state_ok()
+        resource.save(update_fields=["state"])
+        return Response(
+            {"status": _("Resource state has been set to OK.")},
+            status=status.HTTP_200_OK,
+        )
+
+    set_state_ok_permissions = [
+        permission_factory(
+            PermissionEnum.SET_RESOURCE_STATE,
+            ["offering.customer"],
+        )
+    ]
+    set_state_ok_validators = [
+        core_validators.StateValidator(
+            ResourceStates.ERRED,
+            ResourceStates.CREATING,
+            ResourceStates.UPDATING,
+            ResourceStates.TERMINATING,
+            state_enum=ResourceStates,
+        )
+    ]
+
+    @extend_schema(
         summary="Set resource backend metadata",
         description="Allows a service provider to set or update the backend-specific metadata for a resource.",
         request=serializers.ResourceBackendMetadataSerializer,
