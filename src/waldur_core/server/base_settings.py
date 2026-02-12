@@ -175,12 +175,11 @@ TEMPLATES = [
         "DIRS": (os.path.join(BASE_DIR, "src", "waldur_core", "templates"),),
         "OPTIONS": {
             "context_processors": CONTEXT_PROCESSORS,
-            "loaders": ADMIN_TEMPLATE_LOADERS
-            + (
+            "loaders": (
                 "dbtemplates.loader.Loader",
                 "django.template.loaders.filesystem.Loader",
                 "django.template.loaders.app_directories.Loader",
-            ),  # noqa: F405
+            ),
         },
     },
 ]

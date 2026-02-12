@@ -679,15 +679,6 @@ wheels = [
 ]
 
 [[package]]
-name = "django-admin-tools"
-version = "0.9.2"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b8/fa/ee77e59d53f09f58217f4091f8c5a2319919a8073b984dee2a441ca46f51/django-admin-tools-0.9.2.tar.gz", hash = "sha256:65c97a2dadf1b2ed5e27bc9ba4c34a4c3448fd2569be98f3bbf6056ccd757b51", size = 467824, upload-time = "2021-12-12T15:42:10.602Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/19/1b/f739d72538cf0c5b741e4c6543de2a62cd9d397497043e15f66e9337ccd2/django_admin_tools-0.9.2-py2.py3-none-any.whl", hash = "sha256:f0f3eaa47deb917f13f6ebac93abecb270ae8c47c927ca7022aa198d9b1424df", size = 294698, upload-time = "2021-12-12T15:42:13.219Z" },
-]
-
-[[package]]
 name = "django-appconf"
 version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -782,18 +773,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/50/bc/dc19ae39c235332926dd0efe0951f663fa1a9fc6be8430737ff7fd566b20/django_filter-24.3.tar.gz", hash = "sha256:d8ccaf6732afd21ca0542f6733b11591030fa98669f8d15599b358e24a2cd9c3", size = 144444, upload-time = "2024-08-02T13:27:58.132Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/09/b1/92f1c30b47c1ebf510c35a2ccad9448f73437e5891bbd2b4febe357cc3de/django_filter-24.3-py3-none-any.whl", hash = "sha256:c4852822928ce17fb699bcfccd644b3574f1a2d80aeb2b4ff4f16b02dd49dc64", size = 95011, upload-time = "2024-08-02T13:27:55.616Z" },
-]
-
-[[package]]
-name = "django-fluent-dashboard"
-version = "2.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django-admin-tools" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/33/da/83b0f150bc0864902c24d9dbf88a94012456ae0b3ad169de1513874f7704/django-fluent-dashboard-2.0.tar.gz", hash = "sha256:848cbd8d7f241b89a5245071a543c5fe67b3a5b157fc4179f87abfbfd35ab0c5", size = 377374, upload-time = "2021-11-17T12:04:06.188Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/5d/cf/ac8d7a5e7158d2aab3d99429555612be1ff6383ab0d078b374dc9a89d3d6/django_fluent_dashboard-2.0-py3-none-any.whl", hash = "sha256:4eec8827182d16a7ae53450c934824eaf6f4279ebc70f5cdc81af22d0cd89f6a", size = 422263, upload-time = "2021-11-17T12:04:04.654Z" },
 ]
 
 [[package]]
@@ -1203,7 +1182,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/7d/ed/6bfa4109fcb23a58819600392564fea69cdc6551ffd5e69ccf1d52a40cbc/greenlet-3.2.4-cp310-cp310-macosx_11_0_universal2.whl", hash = "sha256:8c68325b0d0acf8d91dde4e6f930967dd52a5302cd4062932a6b2e7c2969f47c", size = 271061, upload-time = "2025-08-07T13:17:15.373Z" },
     { url = "https://files.pythonhosted.org/packages/2a/fc/102ec1a2fc015b3a7652abab7acf3541d58c04d3d17a8d3d6a44adae1eb1/greenlet-3.2.4-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:94385f101946790ae13da500603491f04a76b6e4c059dab271b3ce2e283b2590", size = 629475, upload-time = "2025-08-07T13:42:54.009Z" },
     { url = "https://files.pythonhosted.org/packages/c5/26/80383131d55a4ac0fb08d71660fd77e7660b9db6bdb4e8884f46d9f2cc04/greenlet-3.2.4-cp310-cp310-manylinux2014_ppc64le.manylinux_2_17_ppc64le.whl", hash = "sha256:f10fd42b5ee276335863712fa3da6608e93f70629c631bf77145021600abc23c", size = 640802, upload-time = "2025-08-07T13:45:25.52Z" },
-    { url = "https://files.pythonhosted.org/packages/9f/7c/e7833dbcd8f376f3326bd728c845d31dcde4c84268d3921afcae77d90d08/greenlet-3.2.4-cp310-cp310-manylinux2014_s390x.manylinux_2_17_s390x.whl", hash = "sha256:c8c9e331e58180d0d83c5b7999255721b725913ff6bc6cf39fa2a45841a4fd4b", size = 636703, upload-time = "2025-08-07T13:53:12.622Z" },
     { url = "https://files.pythonhosted.org/packages/e9/49/547b93b7c0428ede7b3f309bc965986874759f7d89e4e04aeddbc9699acb/greenlet-3.2.4-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:58b97143c9cc7b86fc458f215bd0932f1757ce649e05b640fea2e79b54cedb31", size = 635417, upload-time = "2025-08-07T13:18:25.189Z" },
     { url = "https://files.pythonhosted.org/packages/7f/91/ae2eb6b7979e2f9b035a9f612cf70f1bf54aad4e1d125129bef1eae96f19/greenlet-3.2.4-cp310-cp310-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c2ca18a03a8cfb5b25bc1cbe20f3d9a4c80d8c3b13ba3df49ac3961af0b1018d", size = 584358, upload-time = "2025-08-07T13:18:23.708Z" },
     { url = "https://files.pythonhosted.org/packages/f7/85/433de0c9c0252b22b16d413c9407e6cb3b41df7389afc366ca204dbc1393/greenlet-3.2.4-cp310-cp310-musllinux_1_1_aarch64.whl", hash = "sha256:9fe0a28a7b952a21e2c062cd5756d34354117796c6d9215a87f55e38d15402c5", size = 1113550, upload-time = "2025-08-07T13:42:37.467Z" },
@@ -1214,7 +1192,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/a4/de/f28ced0a67749cac23fecb02b694f6473f47686dff6afaa211d186e2ef9c/greenlet-3.2.4-cp311-cp311-macosx_11_0_universal2.whl", hash = "sha256:96378df1de302bc38e99c3a9aa311967b7dc80ced1dcc6f171e99842987882a2", size = 272305, upload-time = "2025-08-07T13:15:41.288Z" },
     { url = "https://files.pythonhosted.org/packages/09/16/2c3792cba130000bf2a31c5272999113f4764fd9d874fb257ff588ac779a/greenlet-3.2.4-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:1ee8fae0519a337f2329cb78bd7a8e128ec0f881073d43f023c7b8d4831d5246", size = 632472, upload-time = "2025-08-07T13:42:55.044Z" },
     { url = "https://files.pythonhosted.org/packages/ae/8f/95d48d7e3d433e6dae5b1682e4292242a53f22df82e6d3dda81b1701a960/greenlet-3.2.4-cp311-cp311-manylinux2014_ppc64le.manylinux_2_17_ppc64le.whl", hash = "sha256:94abf90142c2a18151632371140b3dba4dee031633fe614cb592dbb6c9e17bc3", size = 644646, upload-time = "2025-08-07T13:45:26.523Z" },
-    { url = "https://files.pythonhosted.org/packages/d5/5e/405965351aef8c76b8ef7ad370e5da58d57ef6068df197548b015464001a/greenlet-3.2.4-cp311-cp311-manylinux2014_s390x.manylinux_2_17_s390x.whl", hash = "sha256:4d1378601b85e2e5171b99be8d2dc85f594c79967599328f95c1dc1a40f1c633", size = 640519, upload-time = "2025-08-07T13:53:13.928Z" },
     { url = "https://files.pythonhosted.org/packages/25/5d/382753b52006ce0218297ec1b628e048c4e64b155379331f25a7316eb749/greenlet-3.2.4-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:0db5594dce18db94f7d1650d7489909b57afde4c580806b8d9203b6e79cdc079", size = 639707, upload-time = "2025-08-07T13:18:27.146Z" },
     { url = "https://files.pythonhosted.org/packages/1f/8e/abdd3f14d735b2929290a018ecf133c901be4874b858dd1c604b9319f064/greenlet-3.2.4-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:2523e5246274f54fdadbce8494458a2ebdcdbc7b802318466ac5606d3cded1f8", size = 587684, upload-time = "2025-08-07T13:18:25.164Z" },
     { url = "https://files.pythonhosted.org/packages/5d/65/deb2a69c3e5996439b0176f6651e0052542bb6c8f8ec2e3fba97c9768805/greenlet-3.2.4-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:1987de92fec508535687fb807a5cea1560f6196285a4cde35c100b8cd632cc52", size = 1116647, upload-time = "2025-08-07T13:42:38.655Z" },
@@ -1672,19 +1649,19 @@ wheels = [
 
 [[package]]
 name = "openportal"
-version = "0.20.2"
+version = "0.22.0"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/80/6e/9da9689285462f2b9822da56db07e97b9c0ad1ca9f2bbf656562b2dff9c3/openportal-0.20.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e23037571bfd525f2b516c78877835839fd17f71fc00d8a52764ed1eca48ec5b", size = 2534463, upload-time = "2025-11-15T09:54:30.867Z" },
-    { url = "https://files.pythonhosted.org/packages/ab/7b/8ee6ec884196209ab729f7643909bea51b0bbcd7ad4ca1a9ecab87a98b4a/openportal-0.20.2-cp310-cp310-musllinux_1_1_aarch64.whl", hash = "sha256:cf37e562edde50c239c25476817bb3911c2539c05345d1078ec225e667ba82cc", size = 2634057, upload-time = "2025-11-15T09:54:12.68Z" },
-    { url = "https://files.pythonhosted.org/packages/fa/24/45d5452bbdcc7703a7c00fa9a61a8ceefe530bb3207db6537523c82024ba/openportal-0.20.2-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:515123a819adc93c0d08af98b69bcbcdda268663813299e71c393e5cff8cc90d", size = 2749690, upload-time = "2025-11-15T09:54:42.224Z" },
-    { url = "https://files.pythonhosted.org/packages/55/48/8e33022528f8d9ebba1b03814706e5633766fe0fd1aeeae5e6975359b992/openportal-0.20.2-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:89da7228e276b60f492ba681cc42eebb966cbcd40f61c4bc299ad4866c6dfc34", size = 2558623, upload-time = "2025-11-15T09:54:58.088Z" },
-    { url = "https://files.pythonhosted.org/packages/5d/be/9c125cbb1194f121dde475dfb8efd23ecadd1bfce47e36c69c1e8187a0a0/openportal-0.20.2-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:548b700f8237fd68df8718dee3688a1c2b8086a5dcf84ce4a09e3d3bac0ebf14", size = 2534443, upload-time = "2025-11-15T09:54:32.26Z" },
-    { url = "https://files.pythonhosted.org/packages/2b/af/5c9ba1f4e650915b61f378ec3069e5749bebe6b53a4afd97880fbd2dfecf/openportal-0.20.2-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:d96ab47d217468fc73c3929b25272907c8497898869782d1c63137f463f1b419", size = 2634162, upload-time = "2025-11-15T09:54:14.456Z" },
-    { url = "https://files.pythonhosted.org/packages/a2/d6/e7dcdf6a70905264ca30c0a81fe7093b93ee1043be7d22a20f13d9cb86d5/openportal-0.20.2-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:997616b0d292a5a446f4de288f5410614d2032931101143148e3607705f8be89", size = 2749643, upload-time = "2025-11-15T09:54:43.682Z" },
-    { url = "https://files.pythonhosted.org/packages/33/ae/0574d1a55b7b49ace763ef3cb28a096a8a8fe8164423efb894e259df76fe/openportal-0.20.2-pp311-pypy311_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:38971134ada333a0e8f6a7466ea2c0ae3253f181dfc9f0585a8e95eed0e8ef3a", size = 2534536, upload-time = "2025-11-15T09:54:40.753Z" },
-    { url = "https://files.pythonhosted.org/packages/44/e3/bd0ce3de123504f76526b2f5bdb8065ae96aa2fc1ef9c97084785f5e1ee1/openportal-0.20.2-pp311-pypy311_pp73-musllinux_1_1_aarch64.whl", hash = "sha256:25645beea0183cbfd7f2696fcee908db6bd173da3c2375952615cde32a461103", size = 2634406, upload-time = "2025-11-15T09:54:29.414Z" },
-    { url = "https://files.pythonhosted.org/packages/c8/1a/bec3771883c0ce912cb6b8e386d136738a91368f12282da46c4ad7dbdfd8/openportal-0.20.2-pp311-pypy311_pp73-musllinux_1_1_x86_64.whl", hash = "sha256:f757c4e05ac4fb25f188b7915c4eac1220fd65d0383e450b7f97aa6c473d0033", size = 2750486, upload-time = "2025-11-15T09:54:56.792Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/28/4019eb9716663abbbeb0fe0904bbd9ee1d17773c0882eb091d822614efd2/openportal-0.22.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:59b376871c24e1e07ecc7e0261d8ce5220428025b70059e9efde720dd3929bc7", size = 2770051, upload-time = "2026-01-14T07:51:44.806Z" },
+    { url = "https://files.pythonhosted.org/packages/17/a6/8cc9cf446c2f0e7913caa4a358adc4fe62d7f19c22eea5dbba74c8bfa90e/openportal-0.22.0-cp310-cp310-musllinux_1_1_aarch64.whl", hash = "sha256:84936e0e1c29f677e5dccded4a977efb0c135fde2ac75f588396e26e2abbf778", size = 2848878, upload-time = "2026-01-14T07:51:21.597Z" },
+    { url = "https://files.pythonhosted.org/packages/3b/7b/26fa2a2b63944941dd9abb0851fc01f66ca6de8c1964a7b5d66b3ff90253/openportal-0.22.0-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:837c5e6632350d1f5ea43907f210e46d17a5c09e30e598b11627e5db750ace14", size = 3022758, upload-time = "2026-01-14T07:51:59.36Z" },
+    { url = "https://files.pythonhosted.org/packages/3a/d0/e8129f7b3cee8a5980bac41968ce45c23a40d60fc91aec4d3fe78e0e6db7/openportal-0.22.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:396411bcaf36f6d2ac936df96351f16a7acae68df59a8e35a50b3b6cac6a1094", size = 2719692, upload-time = "2026-01-14T07:52:20.475Z" },
+    { url = "https://files.pythonhosted.org/packages/ad/ff/8fbef3f2252ad17fec994e9d3afb4d4447e7515f9378aece1d128c49fc3f/openportal-0.22.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:2eb4cad12789b408ae36cafc887db864afba2e3b6fe280595c35e69052adc75f", size = 2770029, upload-time = "2026-01-14T07:51:46.951Z" },
+    { url = "https://files.pythonhosted.org/packages/da/a3/ca2967da87587dbe7737ebd36991b0c2f6857b14e187f49838714a52421b/openportal-0.22.0-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:87c90d59b15ea39437f8785e3ba6ba6ff4edb74508822d25933c2c78acb206ea", size = 2848934, upload-time = "2026-01-14T07:51:23.802Z" },
+    { url = "https://files.pythonhosted.org/packages/98/38/ecfd38350ec08af399512f6daec4eb52fe0b3ceff4ca3bf615d976f95e7a/openportal-0.22.0-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:1d669171196e3f98270a3deeb04b65017c65ab5bf6a91f5da2eca95141aa021d", size = 3023245, upload-time = "2026-01-14T07:52:01.403Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/7d/012584bccdff406329114851b689e4729d7b8b09bffd0635198f9e2862e8/openportal-0.22.0-pp311-pypy311_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:eb7259033b9a32f230196040518a251d6e4e91762f52af3241ac3e7daf3526cb", size = 2770043, upload-time = "2026-01-14T07:51:57.695Z" },
+    { url = "https://files.pythonhosted.org/packages/f2/5e/27f25a6c17532821915a611601cf03e256133ca3399dbb38ea015772d28a/openportal-0.22.0-pp311-pypy311_pp73-musllinux_1_1_aarch64.whl", hash = "sha256:73885634d682d80925d9adbc0e7f2f3636e7536dcffab6daf143248835e155ec", size = 2848623, upload-time = "2026-01-14T07:51:42.83Z" },
+    { url = "https://files.pythonhosted.org/packages/5f/60/8a032143facd652e203312615c3d6941d497b3c5d12f247155cda9389b4f/openportal-0.22.0-pp311-pypy311_pp73-musllinux_1_1_x86_64.whl", hash = "sha256:0ad07cab1be54dada9d3d577c5cc8e9383db689ca6280a798b0cada95e5f465e", size = 3022627, upload-time = "2026-01-14T07:52:18.147Z" },
 ]
 
 [[package]]
@@ -3136,14 +3113,12 @@ dependencies = [
     { name = "celery" },
     { name = "cryptography" },
     { name = "django" },
-    { name = "django-admin-tools" },
     { name = "django-auth-ldap" },
     { name = "django-axes" },
     { name = "django-constance", extra = ["database"] },
     { name = "django-cors-headers" },
     { name = "django-dbtemplates" },
     { name = "django-filter" },
-    { name = "django-fluent-dashboard" },
     { name = "django-fsm" },
     { name = "django-health-check" },
     { name = "django-jsoneditor" },
@@ -3239,14 +3214,12 @@ requires-dist = [
     { name = "celery", specifier = "==5.5.3" },
     { name = "cryptography", specifier = "==44.0.1" },
     { name = "django", specifier = ">=4.2.27,<5.0.0" },
-    { name = "django-admin-tools", specifier = "==0.9.2" },
     { name = "django-auth-ldap", specifier = "==4.1.0" },
     { name = "django-axes", specifier = ">=7.0.0,<8.0.0" },
     { name = "django-constance", extras = ["database"], specifier = ">=2.9.1,<3.0.0" },
     { name = "django-cors-headers", specifier = ">=4.5.0,<5.0.0" },
     { name = "django-dbtemplates", git = "https://github.com/jazzband/django-dbtemplates?rev=master" },
     { name = "django-filter", specifier = "==24.3" },
-    { name = "django-fluent-dashboard", specifier = "==2.0" },
     { name = "django-fsm", specifier = "==2.8.1" },
     { name = "django-health-check", specifier = ">=3.20.0,<4.0.0" },
     { name = "django-jsoneditor", specifier = "==0.2.3" },
