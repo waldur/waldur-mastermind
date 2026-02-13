@@ -1135,10 +1135,9 @@ class UserSerializer(
 
     def get_requested_email(self, user: core_models.User) -> str | None:
         try:
-            requested_email = core_models.ChangeEmailRequest.objects.get(user=user)
-            return requested_email.email
+            return user.changeemailrequest.email
         except core_models.ChangeEmailRequest.DoesNotExist:
-            pass
+            return None
 
     def get_identity_provider_name(self, user: core_models.User) -> str:
         return utils.get_identity_provider_name(user.registration_method)
@@ -1422,19 +1421,32 @@ class UserSerializer(
 
         request = self.context.get("request")
         if request and hasattr(request, "user") and request.user.is_authenticated:
+            view = self.context.get("view")
             # Skip logging during schema generation
-            if not getattr(self.context.get("view"), "swagger_fake_view", False):
+            if not getattr(view, "swagger_fake_view", False):
                 # Only log access to personal data fields, not technical fields
                 personal_fields_accessed = [
                     field for field in data.keys() if field in self.PERSONAL_DATA_FIELDS
                 ]
                 if personal_fields_accessed:
-                    log_user_data_access_sync(
-                        target_user=instance,
-                        accessor=request.user,
-                        request=request,
-                        accessed_fields=personal_fields_accessed,
-                    )
+                    action = getattr(view, "action", None)
+                    if action == "list":
+                        # Buffer entries for bulk insert to avoid N+1 INSERTs
+                        if not hasattr(view, "_data_access_log_entries"):
+                            view._data_access_log_entries = []
+                        view._data_access_log_entries.append(
+                            {
+                                "target_user": instance,
+                                "accessed_fields": personal_fields_accessed,
+                            }
+                        )
+                    else:
+                        log_user_data_access_sync(
+                            target_user=instance,
+                            accessor=request.user,
+                            request=request,
+                            accessed_fields=personal_fields_accessed,
+                        )
 
         return data
 

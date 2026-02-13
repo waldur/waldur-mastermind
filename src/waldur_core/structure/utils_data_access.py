@@ -118,6 +118,58 @@ def log_user_data_access_sync(
         logger.warning("Failed to log user data access: %s", e)
 
 
+def bulk_log_user_data_access(entries, accessor, request):
+    """
+    Bulk log user data access entries using a single INSERT.
+
+    Used by list views to avoid N+1 INSERT queries when serializing
+    multiple users. Also avoids N+1 constance config lookups by
+    checking settings once before the bulk operation.
+
+    Args:
+        entries: List of dicts with 'target_user' and 'accessed_fields' keys
+        accessor: The user who accessed the data
+        request: The HTTP request
+    """
+    from waldur_core.logging.models import UserDataAccessLog
+
+    if not entries:
+        return
+
+    if not config.USER_DATA_ACCESS_LOGGING_ENABLED:
+        return
+
+    log_self_access = config.USER_DATA_ACCESS_LOG_SELF_ACCESS
+    ip_address = get_client_ip(request)
+    log_context = {}
+    if request:
+        log_context["endpoint"] = request.path
+        log_context["method"] = request.method
+
+    logs = []
+    for entry in entries:
+        target_user = entry["target_user"]
+        if accessor == target_user and not log_self_access:
+            continue
+        accessor_type = determine_accessor_type(accessor, target_user)
+        logs.append(
+            UserDataAccessLog(
+                target_user=target_user,
+                accessor=accessor,
+                accessor_type=accessor_type,
+                accessed_fields=entry["accessed_fields"],
+                ip_address=ip_address,
+                context=log_context,
+            )
+        )
+
+    if logs:
+        try:
+            UserDataAccessLog.objects.bulk_create(logs)
+        except Exception as e:
+            logger.warning("Failed to bulk log user data access: %s", e)
+
+
 # Backwards compatibility alias
 log_user_data_access_async = log_user_data_access_sync
 
