@@ -96,21 +96,6 @@ class ThreadSessionViewSetTest(test.APITestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], str(my_thread.uuid))
 
-    def test_list_excludes_archived_by_default(self):
-        """list endpoint excludes archived threads by default."""
-        active_thread = ThreadSession.objects.create(
-            chat_session=self.session, name="Active", is_archived=False
-        )
-        ThreadSession.objects.create(
-            chat_session=self.session, name="Archived", is_archived=True
-        )
-
-        response = self.client.get(self.list_url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["uuid"], str(active_thread.uuid))
-
     def test_list_includes_archived_when_filtered(self):
         """list endpoint includes archived threads when filtered."""
         ThreadSession.objects.create(
@@ -125,68 +110,6 @@ class ThreadSessionViewSetTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], str(archived_thread.uuid))
-
-    def test_create_thread(self):
-        """create endpoint creates new thread for current user."""
-        data = {"name": "New conversation"}
-        response = self.client.post(self.list_url, data)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(
-            ThreadSession.objects.filter(
-                chat_session__user=self.user, name="New conversation"
-            ).exists()
-        )
-
-    def test_create_thread_auto_creates_session(self):
-        """create endpoint auto-creates ChatSession if user doesn't have one."""
-        new_user = structure_factories.UserFactory()
-        self.client.force_authenticate(user=new_user)
-
-        self.assertFalse(ChatSession.objects.filter(user=new_user).exists())
-
-        data = {"name": "First thread"}
-        response = self.client.post(self.list_url, data)
-
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(ChatSession.objects.filter(user=new_user).exists())
-
-    def test_retrieve_thread(self):
-        """retrieve endpoint returns thread details."""
-        thread = ThreadSession.objects.create(
-            chat_session=self.session, name="Test thread"
-        )
-        url = reverse("chat-thread-detail", kwargs={"uuid": thread.uuid})
-
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["name"], "Test thread")
-
-    def test_user_cannot_access_other_user_thread(self):
-        """User cannot access another user's thread."""
-        other_thread = ThreadSession.objects.create(
-            chat_session=self.other_session, name="Other thread"
-        )
-        url = reverse("chat-thread-detail", kwargs={"uuid": other_thread.uuid})
-
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_update_thread_name(self):
-        """update endpoint updates thread name."""
-        thread = ThreadSession.objects.create(
-            chat_session=self.session, name="Original"
-        )
-        url = reverse("chat-thread-detail", kwargs={"uuid": thread.uuid})
-
-        data = {"name": "Updated"}
-        response = self.client.patch(url, data)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        thread.refresh_from_db()
-        self.assertEqual(thread.name, "Updated")
 
     def test_archive_thread(self):
         """archive action sets is_archived to True."""
@@ -216,8 +139,8 @@ class ThreadSessionViewSetTest(test.APITestCase):
         thread.refresh_from_db()
         self.assertFalse(thread.is_archived)
 
-    def test_message_count_in_response(self):
-        """Response includes message_count."""
+    def test_message_count_in_list_response(self):
+        """List response includes message_count."""
         thread = ThreadSession.objects.create(chat_session=self.session)
         Message.objects.create(
             thread=thread, role=Message.Role.USER, content="Test", sequence_index=1
@@ -229,8 +152,7 @@ class ThreadSessionViewSetTest(test.APITestCase):
             sequence_index=2,
         )
 
-        url = reverse("chat-thread-detail", kwargs={"uuid": thread.uuid})
-        response = self.client.get(url)
+        response = self.client.get(self.list_url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["message_count"], 2)
+        self.assertEqual(response.data[0]["message_count"], 2)

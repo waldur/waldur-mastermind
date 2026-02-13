@@ -21,6 +21,21 @@ class ChatRequestSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Thread UUID whose name should be set to the assistant's response. Skips message persistence for this call.",
     )
+    mode = serializers.ChoiceField(
+        choices=models.ChatMode.choices,
+        required=False,
+        allow_null=True,
+        default=None,
+        help_text="'reload': replace the last assistant response. Omit for normal new-message behavior.",
+    )
+
+    def validate(self, attrs):
+        """Validate that mode requires thread_uuid."""
+        if attrs.get("mode") and not attrs.get("thread_uuid"):
+            raise serializers.ValidationError(
+                {"mode": "mode requires thread_uuid to be provided."}
+            )
+        return attrs
 
 
 class ToolExecuteSerializer(serializers.Serializer):
@@ -195,14 +210,10 @@ class SetTokenQuotaSerializer(serializers.Serializer):
 
 
 class MessageSerializer(serializers.ModelSerializer):
-    thread = serializers.SlugRelatedField(
-        slug_field="uuid", queryset=models.ThreadSession.objects.all()
-    )
+    thread = serializers.SlugRelatedField(slug_field="uuid", read_only=True)
     replaces = serializers.SlugRelatedField(
         slug_field="uuid",
-        queryset=models.Message.objects.all(),
-        required=False,
-        allow_null=True,
+        read_only=True,
     )
 
     class Meta:
@@ -216,7 +227,7 @@ class MessageSerializer(serializers.ModelSerializer):
             "replaces",
             "created",
         )
-        read_only_fields = ("uuid", "created", "sequence_index")
+        read_only_fields = ("uuid", "created", "sequence_index", "role", "replaces")
 
 
 class ThreadSessionSerializer(
@@ -225,6 +236,12 @@ class ThreadSessionSerializer(
     chat_session = serializers.SlugRelatedField(slug_field="uuid", read_only=True)
 
     message_count = serializers.IntegerField(read_only=True)
+    user_username = serializers.CharField(
+        source="chat_session.user.username", read_only=True
+    )
+    user_full_name = serializers.CharField(
+        source="chat_session.user.full_name", read_only=True
+    )
 
     class Meta:
         model = models.ThreadSession
@@ -235,9 +252,21 @@ class ThreadSessionSerializer(
             "flags",
             "is_archived",
             "message_count",
+            "user_username",
+            "user_full_name",
             "created",
+            "modified",
         )
-        read_only_fields = ("uuid", "created", "chat_session", "flags")
+        read_only_fields = (
+            "uuid",
+            "created",
+            "modified",
+            "chat_session",
+            "flags",
+            "message_count",
+            "user_username",
+            "user_full_name",
+        )
 
 
 class ChatSessionSerializer(
