@@ -78,6 +78,7 @@ from waldur_core.structure.serializers_data_access import (
     UserDataAccessSerializer,
 )
 from waldur_core.structure.utils import get_components_usage_data_from_resources
+from waldur_core.structure.utils_data_access import bulk_log_user_data_access
 from waldur_core.user_actions import serializers as user_action_serializers
 from waldur_core.user_actions import tasks as user_action_tasks
 from waldur_core.users import tasks as user_tasks
@@ -1334,7 +1335,9 @@ class ProjectOtherUsersViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
 
 
 class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
-    queryset = core_models.User.all_objects.select_related("auth_token")
+    queryset = core_models.User.all_objects.select_related(
+        "auth_token", "changeemailrequest"
+    )
     serializer_class = serializers.UserSerializer
     lookup_field = "uuid"
     permission_classes = (
@@ -1373,7 +1376,13 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
                 _("Identity manager is not allowed to list users."),
                 status=status.HTTP_403_FORBIDDEN,
             )
-        return super().list(request, *args, **kwargs)
+        response = super().list(request, *args, **kwargs)
+        # Flush buffered GDPR data access logs as a single bulk INSERT
+        entries = getattr(self, "_data_access_log_entries", None)
+        if entries:
+            bulk_log_user_data_access(entries, request.user, request)
+            del self._data_access_log_entries
+        return response
 
     @extend_schema(
         summary="Request email change",
