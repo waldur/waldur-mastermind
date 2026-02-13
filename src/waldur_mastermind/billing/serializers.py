@@ -99,7 +99,19 @@ def get_price_estimate(serializer, scope):
     ):
         # Use cached estimate from bulk loading
         estimate = request._price_estimates_cache[scope.id]
-        if estimate:
+        if isinstance(estimate, list):
+            # Aggregated from multiple project-level estimates (restricted visibility)
+            result = {"total": 0.0, "current": 0.0, "tax": 0.0, "tax_current": 0.0}
+            for proj_estimate in estimate:
+                data = NestedPriceEstimateSerializer(
+                    instance=proj_estimate, context=serializer.context
+                ).data
+                result["total"] += float(data["total"])
+                result["current"] += float(data["current"])
+                result["tax"] += float(data["tax"])
+                result["tax_current"] += float(data["tax_current"])
+            return result
+        elif estimate:
             serializer_instance = NestedPriceEstimateSerializer(
                 instance=estimate, context=serializer.context
             )
@@ -111,6 +123,41 @@ def get_price_estimate(serializer, scope):
                 "tax": 0.0,
                 "tax_current": 0.0,
             }
+
+    # For restricted visibility on detail view, aggregate project-level estimates
+    if (
+        request
+        and hasattr(request, "_user_has_full_visibility")
+        and not request._user_has_full_visibility
+        and hasattr(scope, "projects")
+        and scope.id not in request._direct_customer_ids
+    ):
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.structure import models as structure_models
+
+        project_ct = ContentType.objects.get_for_model(structure_models.Project)
+        visible_project_ids = list(
+            structure_models.Project.available_objects.filter(
+                customer=scope, id__in=request._user_project_ids
+            ).values_list("id", flat=True)
+        )
+        if not visible_project_ids:
+            return {"total": 0.0, "current": 0.0, "tax": 0.0, "tax_current": 0.0}
+
+        project_estimates = models.PriceEstimate.objects.filter(
+            content_type=project_ct, object_id__in=visible_project_ids
+        )
+        result = {"total": 0.0, "current": 0.0, "tax": 0.0, "tax_current": 0.0}
+        for proj_estimate in project_estimates:
+            data = NestedPriceEstimateSerializer(
+                instance=proj_estimate, context=serializer.context
+            ).data
+            result["total"] += float(data["total"])
+            result["current"] += float(data["current"])
+            result["tax"] += float(data["tax"])
+            result["tax_current"] += float(data["tax_current"])
+        return result
 
     # Fallback to original query behavior
     try:
