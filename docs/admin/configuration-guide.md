@@ -1298,11 +1298,11 @@ List of offering types disabled for creation and selection.
 
 Allow setting start date to control when resource creation order is processed.
 
-#### ALLOW_SERVICE_PROVIDER_OFFERING_ACTIVATION
+#### ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT
 
 **Type:** bool
 
-If true, service provider owners and managers can activate offerings without staff approval.
+If true, service provider owners and managers can manage offering lifecycle (activate, pause, unpause, archive, draft, delete) without staff approval.
 
 ### Project
 
