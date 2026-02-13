@@ -1,11 +1,15 @@
 import decimal
 
+from django.db.models import F, Sum
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.permissions import _get_project
+from waldur_mastermind.billing.utils import get_current_expression
 from waldur_mastermind.common.mixins import PRICE_DECIMAL_PLACES, PRICE_MAX_DIGITS
+from waldur_mastermind.common.utils import quantize_price
+from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.serializers import (
     PaymentProfileSerializer,
     get_payment_profiles,
@@ -84,25 +88,95 @@ class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
         fields = ("total", "current", "tax", "tax_current")
 
 
+_EMPTY_ESTIMATE = {
+    "total": 0.0,
+    "current": 0.0,
+    "tax": 0.0,
+    "tax_current": 0.0,
+}
+
+
+def _parse_period_from_request(request):
+    """Parse year/month from request query params."""
+    try:
+        year = int(request.query_params.get("year", ""))
+        month = int(request.query_params.get("month", ""))
+        if not utils.check_past_date(year, month):
+            return None, None
+        return year, month
+    except ValueError:
+        return None, None
+
+
+def _bulk_compute_project_estimates(project_ids, year, month):
+    """Compute billing price estimates for multiple projects in a single query.
+
+    Returns a dict mapping project_id -> {total, current, tax, tax_current}.
+    Uses 1 GROUP BY query instead of 4*N individual queries.
+    """
+    query_year = year or utils.get_current_year()
+    query_month = month or utils.get_current_month()
+
+    qs = invoices_models.InvoiceItem.objects.filter(
+        invoice__year=query_year,
+        invoice__month=query_month,
+        project_id__in=project_ids,
+    ).select_related("invoice")
+
+    current_qty = get_current_expression()
+
+    aggregates = qs.values("project_id").annotate(
+        total_val=Sum(F("unit_price") * F("quantity")),
+        current_val=Sum(F("unit_price") * current_qty),
+        tax_val=Sum(F("unit_price") * F("quantity") * F("invoice__tax_percent") / 100),
+        tax_current_val=Sum(
+            F("unit_price") * current_qty * F("invoice__tax_percent") / 100
+        ),
+    )
+
+    cache = {}
+    for row in aggregates:
+        pid = row["project_id"]
+        cache[pid] = {
+            "total": quantize_price(decimal.Decimal(str(row["total_val"] or 0))),
+            "current": quantize_price(decimal.Decimal(str(row["current_val"] or 0))),
+            "tax": quantize_price(decimal.Decimal(str(row["tax_val"] or 0))),
+            "tax_current": quantize_price(
+                decimal.Decimal(str(row["tax_current_val"] or 0))
+            ),
+        }
+
+    # Fill in projects with no invoice items
+    for pid in project_ids:
+        if pid not in cache:
+            cache[pid] = dict(_EMPTY_ESTIMATE)
+
+    return cache
+
+
 @extend_schema_field(NestedPriceEstimateSerializer)
 def get_price_estimate(serializer, scope):
     # For cases when we want to get project estimates under project cost policies
     if isinstance(scope, policy_models.ProjectEstimatedCostPolicy):
         scope = _get_project(scope)
 
-    # Check if bulk optimization is available (set by eager_load)
     request = serializer.context.get("request")
+
+    # Check if bulk optimization is available
     if (
         request
         and hasattr(request, "_price_estimates_cache")
         and scope.id in request._price_estimates_cache
     ):
-        # Use cached estimate from bulk loading
-        estimate = request._price_estimates_cache[scope.id]
-        if isinstance(estimate, list):
-            # Aggregated from multiple project-level estimates (restricted visibility)
+        cached = request._price_estimates_cache[scope.id]
+        # Cache may contain pre-computed dicts (from project bulk),
+        # PriceEstimate objects (from customer view bulk loading),
+        # or lists (aggregated from multiple project-level estimates for restricted visibility)
+        if isinstance(cached, dict):
+            return cached
+        if isinstance(cached, list):
             result = {"total": 0.0, "current": 0.0, "tax": 0.0, "tax_current": 0.0}
-            for proj_estimate in estimate:
+            for proj_estimate in cached:
                 data = NestedPriceEstimateSerializer(
                     instance=proj_estimate, context=serializer.context
                 ).data
@@ -111,18 +185,28 @@ def get_price_estimate(serializer, scope):
                 result["tax"] += float(data["tax"])
                 result["tax_current"] += float(data["tax_current"])
             return result
-        elif estimate:
-            serializer_instance = NestedPriceEstimateSerializer(
-                instance=estimate, context=serializer.context
+        if cached is not None:
+            return NestedPriceEstimateSerializer(
+                instance=cached, context=serializer.context
+            ).data
+        return dict(_EMPTY_ESTIMATE)
+
+    # For list serialization of Projects, compute all estimates in bulk on first access
+    if (
+        request
+        and isinstance(serializer.parent, serializers.ListSerializer)
+        and isinstance(scope, structure_models.Project)
+        and not hasattr(request, "_price_estimates_cache")
+    ):
+        all_scopes = serializer.parent.instance
+        if all_scopes:
+            scope_ids = [obj.id for obj in all_scopes]
+            year, month = _parse_period_from_request(request)
+            request._price_estimates_cache = _bulk_compute_project_estimates(
+                scope_ids, year, month
             )
-            return serializer_instance.data
-        else:
-            return {
-                "total": 0.0,
-                "current": 0.0,
-                "tax": 0.0,
-                "tax_current": 0.0,
-            }
+            if scope.id in request._price_estimates_cache:
+                return request._price_estimates_cache[scope.id]
 
     # For restricted visibility on detail view, aggregate project-level estimates
     if (
@@ -134,8 +218,6 @@ def get_price_estimate(serializer, scope):
     ):
         from django.contrib.contenttypes.models import ContentType
 
-        from waldur_core.structure import models as structure_models
-
         project_ct = ContentType.objects.get_for_model(structure_models.Project)
         visible_project_ids = list(
             structure_models.Project.available_objects.filter(
@@ -143,7 +225,7 @@ def get_price_estimate(serializer, scope):
             ).values_list("id", flat=True)
         )
         if not visible_project_ids:
-            return {"total": 0.0, "current": 0.0, "tax": 0.0, "tax_current": 0.0}
+            return dict(_EMPTY_ESTIMATE)
 
         project_estimates = models.PriceEstimate.objects.filter(
             content_type=project_ct, object_id__in=visible_project_ids
@@ -159,16 +241,11 @@ def get_price_estimate(serializer, scope):
             result["tax_current"] += float(data["tax_current"])
         return result
 
-    # Fallback to original query behavior
+    # Fallback to original query behavior for single-object views
     try:
         estimate = models.PriceEstimate.objects.get(scope=scope)
     except models.PriceEstimate.DoesNotExist:
-        return {
-            "total": 0.0,
-            "current": 0.0,
-            "tax": 0.0,
-            "tax_current": 0.0,
-        }
+        return dict(_EMPTY_ESTIMATE)
     else:
         serializer_instance = NestedPriceEstimateSerializer(
             instance=estimate, context=serializer.context

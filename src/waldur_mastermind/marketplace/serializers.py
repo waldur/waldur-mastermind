@@ -7616,31 +7616,37 @@ class ProjectUserSerializer(serializers.ModelSerializer):
             "url": {"lookup_field": "uuid"},
         }
 
-    def get_offering_user_username(self, user) -> str | None:
+    def _get_offering_user(self, user):
+        offering_users_map = self.context.get("offering_users_map")
+        if offering_users_map is not None:
+            return offering_users_map.get(user.id)
         offering = self.context["offering"]
-        offering_user = models.OfferingUser.objects.filter(
-            user=user, offering=offering
-        ).first()
+        return models.OfferingUser.objects.filter(user=user, offering=offering).first()
+
+    def _get_permission(self, user):
+        permissions_map = self.context.get("permissions_map")
+        if permissions_map is not None:
+            return permissions_map.get(user.id)
+        project = self.context["project"]
+        return get_permissions(project, user).select_related("role").first()
+
+    def get_offering_user_username(self, user) -> str | None:
+        offering_user = self._get_offering_user(user)
         return offering_user.username if offering_user else None
 
     def get_role(self, user: User) -> str:
-        project = self.context["project"]
-        permission = get_permissions(project, user).first()
+        permission = self._get_permission(user)
         return permission and permission.role.name
 
     def get_expiration_time(self, user: User) -> datetime.datetime | None:
-        project = self.context["project"]
-        permission = get_permissions(project, user).first()
+        permission = self._get_permission(user)
         return permission and permission.expiration_time
 
     @extend_schema_field(
         serializers.ChoiceField(choices=OfferingUserStates.VALUES, allow_null=True)
     )
     def get_offering_user_state(self, user: User) -> OfferingUserStatesType | None:
-        offering = self.context["offering"]
-        offering_user = models.OfferingUser.objects.filter(
-            user=user, offering=offering
-        ).first()
+        offering_user = self._get_offering_user(user)
         return offering_user.get_state_display() if offering_user else None
 
 

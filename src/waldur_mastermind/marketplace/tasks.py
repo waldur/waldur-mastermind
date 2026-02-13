@@ -318,22 +318,97 @@ def calculate_usage_for_scope(start, end, scope):
         )
 
 
+def _bulk_aggregate_reported_usage(start, end, scope_field):
+    """Aggregate reported usage in bulk, grouped by scope and component."""
+    queryset = (
+        models.ComponentUsage.objects.filter(date__date__gte=start, date__date__lte=end)
+        .exclude(component__parent=None)
+        .values(scope_id=F(scope_field), component_parent_id=F("component__parent_id"))
+        .annotate(total=Sum("usage"))
+    )
+    result = collections.defaultdict(dict)
+    for row in queryset:
+        result[row["scope_id"]][row["component_parent_id"]] = row["total"]
+    return result
+
+
+def _bulk_aggregate_fixed_usage(start, end, scope_field):
+    """Aggregate fixed usage in bulk, grouped by scope and component."""
+    queryset = (
+        models.ResourcePlanPeriod.objects.filter(
+            Q(start__gte=start, end__lte=end)
+            | Q(end__isnull=True)
+            | Q(end__gte=start, end__lte=end)
+        )
+        .values(
+            scope_id=F(scope_field),
+            component_parent_id=F("plan__components__component__parent_id"),
+        )
+        .annotate(total=Sum("plan__components__amount"))
+    )
+    result = collections.defaultdict(dict)
+    for row in queryset:
+        result[row["scope_id"]][row["component_parent_id"]] = row["total"]
+    return result
+
+
 @shared_task(name="waldur_mastermind.marketplace.calculate_usage_for_current_month")
 def calculate_usage_for_current_month():
     """Calculate marketplace resource usage for the current month across all customers and projects."""
     start = invoice_utils.get_current_month_start()
     end = invoice_utils.get_current_month_end()
-    scopes = []
+
+    # Bulk aggregate for projects (4 queries instead of 2*N)
+    project_reported = _bulk_aggregate_reported_usage(
+        start, end, "resource__project_id"
+    )
+    project_fixed = _bulk_aggregate_fixed_usage(start, end, "resource__project_id")
+
+    customer_reported = _bulk_aggregate_reported_usage(
+        start, end, "resource__project__customer_id"
+    )
+    customer_fixed = _bulk_aggregate_fixed_usage(
+        start, end, "resource__project__customer_id"
+    )
+
+    project_ct = ContentType.objects.get_for_model(structure_models.Project)
+    customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
 
     for customer in structure_models.Customer.objects.all():
-        scopes.append(customer)
+        reported_usage = customer_reported.get(customer.id, {})
+        fixed_usage = customer_fixed.get(customer.id, {})
+        fixed_usage.pop(None, None)
+        components = set(reported_usage.keys()) | set(fixed_usage.keys())
+        for component_id in components:
+            models.CategoryComponentUsage.objects.update_or_create(
+                content_type=customer_ct,
+                object_id=customer.id,
+                component_id=component_id,
+                date=start,
+                defaults={
+                    "reported_usage": reported_usage.get(component_id),
+                    "fixed_usage": fixed_usage.get(component_id),
+                },
+            )
+
         for project in structure_models.Project.available_objects.filter(
             customer=customer
         ):
-            scopes.append(project)
-
-    for scope in scopes:
-        calculate_usage_for_scope(start, end, scope)
+            reported_usage = project_reported.get(project.id, {})
+            fixed_usage = project_fixed.get(project.id, {})
+            fixed_usage.pop(None, None)
+            components = set(reported_usage.keys()) | set(fixed_usage.keys())
+            for component_id in components:
+                models.CategoryComponentUsage.objects.update_or_create(
+                    content_type=project_ct,
+                    object_id=project.id,
+                    component_id=component_id,
+                    date=start,
+                    defaults={
+                        "reported_usage": reported_usage.get(component_id),
+                        "fixed_usage": fixed_usage.get(component_id),
+                    },
+                )
 
 
 @shared_task
