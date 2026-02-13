@@ -266,7 +266,7 @@ def get_billing_price_estimate_for_resources(resources):
         resource__in=resources,
         invoice__year=get_current_year(),
         invoice__month=get_current_month(),
-    )
+    ).select_related("invoice")
     result = {
         "total": Decimal(0.0),
         "current": Decimal(0.0),

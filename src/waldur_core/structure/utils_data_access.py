@@ -119,17 +119,11 @@ def log_user_data_access_sync(
 
 
 def bulk_log_user_data_access(entries, accessor, request):
-    """
-    Bulk log user data access entries using a single INSERT.
+    """Bulk log user data access entries using a single INSERT.
 
     Used by list views to avoid N+1 INSERT queries when serializing
     multiple users. Also avoids N+1 constance config lookups by
     checking settings once before the bulk operation.
-
-    Args:
-        entries: List of dicts with 'target_user' and 'accessed_fields' keys
-        accessor: The user who accessed the data
-        request: The HTTP request
     """
     from waldur_core.logging.models import UserDataAccessLog
 

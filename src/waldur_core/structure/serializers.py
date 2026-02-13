@@ -1478,9 +1478,11 @@ class UserSerializer(
                     field for field in data.keys() if field in self.PERSONAL_DATA_FIELDS
                 ]
                 if personal_fields_accessed:
-                    action = getattr(view, "action", None)
-                    if action == "list":
-                        # Buffer entries for bulk insert to avoid N+1 INSERTs
+                    # Buffer entries for bulk insert when serializing multiple users
+                    is_list_context = isinstance(
+                        self.parent, serializers.ListSerializer
+                    )
+                    if is_list_context and view is not None:
                         if not hasattr(view, "_data_access_log_entries"):
                             view._data_access_log_entries = []
                         view._data_access_log_entries.append(
@@ -1489,7 +1491,7 @@ class UserSerializer(
                                 "accessed_fields": personal_fields_accessed,
                             }
                         )
-                    else:
+                    elif not is_list_context:
                         log_user_data_access_sync(
                             target_user=instance,
                             accessor=request.user,

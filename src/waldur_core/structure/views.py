@@ -2106,7 +2106,7 @@ class SshKeyViewSet(
     Project administrators can select what SSH key will be injected into VM instance during instance provisioning.
     """
 
-    queryset = core_models.SshPublicKey.objects.all()
+    queryset = core_models.SshPublicKey.objects.select_related("user").all()
     serializer_class = serializers.SshKeySerializer
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)

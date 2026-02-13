@@ -118,6 +118,7 @@ from waldur_core.structure.managers import (
 from waldur_core.structure.registry import SupportedServices
 from waldur_core.structure.signals import resource_imported
 from waldur_core.structure.utils import get_identity_provider_name
+from waldur_core.structure.utils_data_access import bulk_log_user_data_access
 from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.invoices import serializers as invoice_serializers
@@ -1020,7 +1021,7 @@ class ServiceProviderKeysViewSet(mixins.ListModelMixin, rf_viewsets.GenericViewS
         user_ids = utils.get_service_provider_user_ids(
             self.request.user, self.get_service_provider()
         )
-        return self.queryset.filter(user_id__in=user_ids)
+        return self.queryset.filter(user_id__in=user_ids).select_related("user")
 
 
 @extend_schema_view(
@@ -3361,9 +3362,15 @@ class ProviderOfferingViewSet(
         serializer = structure_serializers.UserSerializer(
             instance=page,
             many=True,
-            context={"request": request},
+            context={"request": request, "view": self},
         )
-        return self.get_paginated_response(serializer.data)
+        result = self.get_paginated_response(serializer.data)
+        # Flush buffered GDPR data access logs as a single bulk INSERT
+        entries = getattr(self, "_data_access_log_entries", None)
+        if entries:
+            bulk_log_user_data_access(entries, request.user, request)
+            del self._data_access_log_entries
+        return result
 
     list_customer_projects_permissions = list_customer_users_permissions = [
         structure_permissions.is_owner
@@ -6867,15 +6874,34 @@ class BaseResourceViewSet(
     def team(self, request, uuid=None):
         resource: models.Resource = self.get_object()
         project = resource.project
+        offering = resource.offering
+        users = project.get_users()
+
+        # Prefetch permissions for all users in bulk to avoid N+1
+        from waldur_core.permissions.utils import get_permissions
+
+        permissions_qs = get_permissions(project).select_related("role")
+        permissions_map = {}
+        for perm in permissions_qs:
+            if perm.user_id not in permissions_map:
+                permissions_map[perm.user_id] = perm
+
+        # Prefetch offering users for all users in bulk to avoid N+1
+        offering_users_qs = models.OfferingUser.objects.filter(
+            offering=offering, user__in=users
+        )
+        offering_users_map = {ou.user_id: ou for ou in offering_users_qs}
 
         return Response(
             serializers.ProjectUserSerializer(
-                instance=project.get_users(),
+                instance=users,
                 many=True,
                 context={
                     "project": project,
-                    "offering": resource.offering,
+                    "offering": offering,
                     "request": request,
+                    "permissions_map": permissions_map,
+                    "offering_users_map": offering_users_map,
                 },
             ).data,
             status=status.HTTP_200_OK,
