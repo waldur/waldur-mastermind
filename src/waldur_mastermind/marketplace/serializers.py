@@ -3823,6 +3823,8 @@ class OrderDetailsSerializer(BaseOrderSerializer):
             "provider_message_attachment",
             "consumer_message",
             "consumer_message_attachment",
+            "consumer_rejection_comment",
+            "provider_rejection_comment",
         )
         extra_kwargs = {
             **BaseOrderSerializer.Meta.extra_kwargs,
@@ -3930,6 +3932,8 @@ class OrderDetailsSerializer(BaseOrderSerializer):
 
     can_terminate = serializers.SerializerMethodField()
     termination_comment = serializers.ReadOnlyField()
+    consumer_rejection_comment = serializers.ReadOnlyField()
+    provider_rejection_comment = serializers.ReadOnlyField()
 
     def get_can_terminate(self, order: models.Order) -> bool:
         if not plugins.manager.can_cancel_order(order.offering.type):
@@ -3953,8 +3957,21 @@ class OrderErrorDetailsSerializer(
 ):
     class Meta:
         model = models.Order
-        fields = ("error_message", "error_traceback")
-        protected_fields = ("error_message", "error_traceback")
+        fields = ("error_message", "error_traceback", "consumer_rejection_comment")
+        protected_fields = (
+            "error_message",
+            "error_traceback",
+            "consumer_rejection_comment",
+        )
+
+
+class OrderProviderRejectionSerializer(
+    serializers.ModelSerializer, core_serializers.AugmentedSerializerMixin
+):
+    class Meta:
+        model = models.Order
+        fields = ("provider_rejection_comment",)
+        protected_fields = ("provider_rejection_comment",)
 
 
 def validate_public_offering(order: models.Order, request):

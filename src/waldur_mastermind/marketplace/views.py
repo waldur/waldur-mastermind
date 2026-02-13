@@ -5915,6 +5915,9 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             )
         order.error_message = serializer.validated_data.get("error_message", "")
         order.error_traceback = serializer.validated_data.get("error_traceback", "")
+        order.consumer_rejection_comment = serializer.validated_data.get(
+            "consumer_rejection_comment", ""
+        )
         order.review_by_consumer(request.user)
         order.reject()
         order.save()
@@ -5934,15 +5937,22 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         )
     ]
 
+    reject_by_provider_serializer_class = serializers.OrderProviderRejectionSerializer
+
     @extend_schema(
         summary="Reject an order (provider)",
         description="Rejects a pending order from the provider's side. This moves the order to the 'rejected' state.",
-        request=None,
+        request=serializers.OrderProviderRejectionSerializer,
         responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def reject_by_provider(self, request, uuid=None):
         order: models.Order = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        order.provider_rejection_comment = serializer.validated_data.get(
+            "provider_rejection_comment", ""
+        )
         order.review_by_provider(request.user)
         order.reject()
         order.save()

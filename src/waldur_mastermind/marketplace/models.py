@@ -2003,6 +2003,9 @@ class Order(
         validators=[FileTypeValidator(allowed_types=["application/pdf"])],
     )
 
+    consumer_rejection_comment = models.TextField(blank=True, default="")
+    provider_rejection_comment = models.TextField(blank=True, default="")
+
     get_type_display: Callable[[], str]
 
     class Permissions:

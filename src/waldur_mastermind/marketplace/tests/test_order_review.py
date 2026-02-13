@@ -420,6 +420,24 @@ class OrderRejectByConsumerTest(test.APITestCase):
         self.assertEqual(self.order.error_message, "Only message provided")
         self.assertEqual(self.order.error_traceback, "")
 
+    def test_consumer_rejection_comment_is_saved(self):
+        data = {"consumer_rejection_comment": "Budget not approved"}
+        response = self.reject_order(self.fixture.staff, data=data)
+
+        self.order.refresh_from_db()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.order.state, OrderStates.REJECTED)
+        self.assertEqual(self.order.consumer_rejection_comment, "Budget not approved")
+
+    def test_consumer_rejection_comment_defaults_to_empty(self):
+        response = self.reject_order(self.fixture.staff)
+
+        self.order.refresh_from_db()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.order.consumer_rejection_comment, "")
+
 
 @ddt
 class OrderRejectByProviderTest(test.APITestCase):
@@ -520,11 +538,45 @@ class OrderRejectByProviderTest(test.APITestCase):
         self.order.refresh_from_db()
         self.assertEqual(ResourceStates.OK, self.order.resource.state)
 
-    def reject_order(self, user):
+    def reject_order(self, user, data=None):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         url = factories.OrderFactory.get_url(self.order, "reject_by_provider")
-        return self.client.post(url)
+        return self.client.post(url, data=data)
+
+    def test_provider_rejection_comment_is_saved(self):
+        data = {"provider_rejection_comment": "Insufficient resources available"}
+        response = self.reject_order("owner", data=data)
+
+        self.order.refresh_from_db()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.order.state, OrderStates.REJECTED)
+        self.assertEqual(
+            self.order.provider_rejection_comment, "Insufficient resources available"
+        )
+
+    def test_empty_body_still_works_for_provider_rejection(self):
+        response = self.reject_order("owner")
+
+        self.order.refresh_from_db()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.order.state, OrderStates.REJECTED)
+        self.assertEqual(self.order.provider_rejection_comment, "")
+
+    def test_provider_rejection_comment_visible_in_order_detail(self):
+        data = {"provider_rejection_comment": "Cannot fulfill order"}
+        self.reject_order("owner", data=data)
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OrderFactory.get_url(self.order)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["provider_rejection_comment"], "Cannot fulfill order"
+        )
 
 
 @ddt
