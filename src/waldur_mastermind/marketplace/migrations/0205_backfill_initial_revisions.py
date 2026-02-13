@@ -5,42 +5,47 @@ def backfill_initial_revisions(apps, schema_editor):
     """Create initial reversion snapshots for existing Resources, Offerings,
     and Plans that were created before the version-history signal handler
     was deployed and therefore have no history entries.
+
+    Uses apps.get_model() (historical models) instead of live model imports
+    so that queries only reference columns that exist at this migration state.
     """
-    import reversion
-    from django.contrib.contenttypes.models import ContentType
-    from reversion.models import Version
+    from django.core import serializers as core_serializers
 
-    from waldur_mastermind.marketplace.models import Offering, Plan, Resource
+    ContentType = apps.get_model("contenttypes", "ContentType")
+    Revision = apps.get_model("reversion", "Revision")
+    Version = apps.get_model("reversion", "Version")
 
-    def get_unversioned_objects(Model):
+    Offering = apps.get_model("marketplace", "Offering")
+    Plan = apps.get_model("marketplace", "Plan")
+    Resource = apps.get_model("marketplace", "Resource")
+
+    db_alias = schema_editor.connection.alias
+
+    def backfill_model(Model):
         content_type = ContentType.objects.get_for_model(Model)
         versioned_ids = set(
             Version.objects.filter(content_type=content_type)
             .values_list("object_id", flat=True)
             .distinct()
         )
-        return [
-            obj for obj in Model.objects.iterator() if str(obj.pk) not in versioned_ids
-        ]
+        for obj in Model.objects.iterator():
+            if str(obj.pk) not in versioned_ids:
+                revision = Revision.objects.create(
+                    comment="Initial version (backfill)",
+                )
+                Version.objects.create(
+                    revision=revision,
+                    content_type=content_type,
+                    object_id=str(obj.pk),
+                    db=db_alias,
+                    format="json",
+                    serialized_data=core_serializers.serialize("json", [obj]),
+                    object_repr=str(obj),
+                )
 
-    # 1. Resources – no follow relations, standalone
-    for obj in get_unversioned_objects(Resource):
-        with reversion.create_revision():
-            reversion.add_to_revision(obj)
-            reversion.set_comment("Initial version (backfill)")
-
-    # 2. Offerings – follow=("components", "plans", "screenshots")
-    #    This also creates Version rows for related Plans and their components.
-    for obj in get_unversioned_objects(Offering):
-        with reversion.create_revision():
-            reversion.add_to_revision(obj)
-            reversion.set_comment("Initial version (backfill)")
-
-    # 3. Any remaining Plans not already covered by Offering's follow relations
-    for obj in get_unversioned_objects(Plan):
-        with reversion.create_revision():
-            reversion.add_to_revision(obj)
-            reversion.set_comment("Initial version (backfill)")
+    backfill_model(Resource)
+    backfill_model(Offering)
+    backfill_model(Plan)
 
 
 class Migration(migrations.Migration):

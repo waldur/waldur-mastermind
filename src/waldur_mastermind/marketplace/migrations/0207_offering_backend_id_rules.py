@@ -3,11 +3,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0204_offeringuserattributeconfig_expose_registration_method"),
-    ]
-
-    run_before = [
-        ("marketplace", "0205_backfill_initial_revisions"),
+        ("marketplace", "0206_order_provider_consumer_messages"),
     ]
 
     operations = [
