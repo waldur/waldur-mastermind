@@ -5,14 +5,14 @@ import django_filters
 import requests
 from constance import config
 from django.db import transaction
-from django.db.models import Count, Max
+from django.db.models import Count, Max, Q
 from django.http import StreamingHttpResponse
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, status, viewsets
 from rest_framework import exceptions as rf_exceptions
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -98,7 +98,27 @@ class LLMStreamer:
         storage_enabled=False,
         original_input="",
         update_thread_name=None,
+        mode=None,
     ):
+        self.headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Token {token}",
+        }
+        self.parser = StreamParser()
+        self.accumulated_content = ""  # For tool call detection
+        self.user = user
+        self.input_tokens = 0
+        self.output_tokens = 0
+        self.error = None
+        self.is_tool_call = False  # Track if response looks like a tool call
+        self.might_be_tool_call = False  # Track if we're buffering potential tool call
+        self.thread = thread
+        self.storage_enabled = storage_enabled
+        self.original_input = original_input
+        self.update_thread_name = update_thread_name
+        self.mode = mode
+        self._persisted_message_meta = None
+        self._messages_persisted = False
         self.url = url
         # Inject tool definitions and UI capabilities into the system prompt (system prompt is currently in external service, will be migrated fully to Waldur, once ready).
         system_prompt = SYSTEM_PROMPT.format(tools=get_tools_prompt())
@@ -117,24 +137,6 @@ class LLMStreamer:
             full_input = f"{system_prompt}\n\n{input_text}"
 
         self.payload = {"input": full_input}
-        self.headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Token {token}",
-        }
-
-        self.parser = StreamParser()
-        self.accumulated_content = ""  # For tool call detection
-        self.user = user
-        self.input_tokens = 0
-        self.output_tokens = 0
-        self.error = None
-        self.is_tool_call = False  # Track if response looks like a tool call
-        self.might_be_tool_call = False  # Track if we're buffering potential tool call
-
-        self.thread = thread
-        self.storage_enabled = storage_enabled
-        self.original_input = original_input
-        self.update_thread_name = update_thread_name
 
     def _format_ndjson(self, data: dict) -> str:
         """
@@ -145,6 +147,8 @@ class LLMStreamer:
     def __iter__(self):
         if self.storage_enabled and self.thread:
             yield self._format_ndjson({"m": {"thread_uuid": str(self.thread.uuid)}})
+
+        self._messages_persisted = False
 
         try:
             with requests.post(
@@ -244,24 +248,34 @@ class LLMStreamer:
                         # Looked like JSON but wasn't a valid tool call - send as-is
                         yield self._format_ndjson({"c": self.accumulated_content})
 
+            # Normal completion: persist and yield UUIDs
+            self._persist_messages()
+            if self._persisted_message_meta:
+                yield self._format_ndjson({"m": self._persisted_message_meta})
+
         except requests.RequestException as e:
             logger.error("Upstream LLM request failed.", exc_info=True)
             self.error = str(e)
             yield self._format_ndjson(
                 {"e": "Chat processing was interrupted. Please try again later."}
             )
+            # Error path: persist and yield UUIDs
+            self._persist_messages()
+            if self._persisted_message_meta:
+                yield self._format_ndjson({"m": self._persisted_message_meta})
 
         finally:
             # Always record usage, even if stream was interrupted (GeneratorExit)
             self._record_usage()
-            self._persist_messages()
+            # Safety net for GeneratorExit - can't yield here
+            if not self._messages_persisted:
+                self._persist_messages()
             self._apply_thread_name()
 
     def _persist_messages(self):
         """
         Save user and assistant messages to the thread if storage is enabled.
-        Called in the finally block so the assistant message is always persisted,
-        even if the stream was interrupted partway through.
+        In reload mode, only replace the last assistant message.
         """
         if not self.storage_enabled or not self.thread:
             return
@@ -271,25 +285,75 @@ class LLMStreamer:
                 locked_thread = models.ThreadSession.objects.select_for_update().get(
                     pk=self.thread.pk
                 )
-                last_index = (
-                    locked_thread.messages.aggregate(Max("sequence_index"))[
-                        "sequence_index__max"
-                    ]
-                    or 0
-                )
 
-                models.Message.objects.create(
-                    thread=locked_thread,
-                    role=models.Message.Role.USER,
-                    content=self.original_input,
-                    sequence_index=last_index + 1,
-                )
-                models.Message.objects.create(
-                    thread=locked_thread,
-                    role=models.Message.Role.ASSISTANT,
-                    content=self.accumulated_content,
-                    sequence_index=last_index + 2,
-                )
+                user_msg = None
+                assistant_msg = None
+
+                if self.mode == models.ChatMode.RELOAD:
+                    # Find last active assistant message to replace
+                    last_assistant = (
+                        locked_thread.messages.filter(
+                            role=models.Message.Role.ASSISTANT,
+                            replaced_by__isnull=True,
+                        )
+                        .order_by("-sequence_index")
+                        .first()
+                    )
+
+                    if last_assistant:
+                        # Create replacement with same sequence_index
+                        assistant_msg = models.Message.objects.create(
+                            thread=locked_thread,
+                            role=models.Message.Role.ASSISTANT,
+                            content=self.accumulated_content,
+                            sequence_index=last_assistant.sequence_index,
+                            replaces=last_assistant,
+                        )
+                    else:
+                        # Fallback to normal mode if no assistant message found
+                        logger.warning(
+                            f"reload mode requested but no assistant message found in thread {self.thread.uuid}, falling back to normal mode"
+                        )
+                        self.mode = None
+
+                # Normal mode (or fallback from reload)
+                if self.mode != models.ChatMode.RELOAD:
+                    last_index = (
+                        locked_thread.messages.aggregate(Max("sequence_index"))[
+                            "sequence_index__max"
+                        ]
+                        or 0
+                    )
+
+                    user_msg = models.Message.objects.create(
+                        thread=locked_thread,
+                        role=models.Message.Role.USER,
+                        content=self.original_input,
+                        sequence_index=last_index + 1,
+                    )
+                    assistant_msg = models.Message.objects.create(
+                        thread=locked_thread,
+                        role=models.Message.Role.ASSISTANT,
+                        content=self.accumulated_content,
+                        sequence_index=last_index + 2,
+                    )
+
+                # Store UUIDs for metadata response
+                self._persisted_message_meta = {}
+                if user_msg:
+                    self._persisted_message_meta["user_message_uuid"] = str(
+                        user_msg.uuid
+                    )
+                if assistant_msg:
+                    self._persisted_message_meta["assistant_message_uuid"] = str(
+                        assistant_msg.uuid
+                    )
+
+                # Update thread's modified timestamp to reflect latest message
+                locked_thread.save(update_fields=["modified"])
+
+                self._messages_persisted = True
+
         except Exception as e:
             logger.error(
                 f"Failed to persist messages for thread {self.thread.uuid}: {e}",
@@ -438,6 +502,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             storage_enabled=storage_enabled,
             original_input=serializer.validated_data["input"],
             update_thread_name=update_thread_name,
+            mode=serializer.validated_data.get("mode"),
         )
 
         return StreamingHttpResponse(
@@ -587,19 +652,42 @@ def _log_chat_access(event_type, request, target_user):
 
 class ThreadSessionFilter(django_filters.FilterSet):
     user = django_filters.UUIDFilter(field_name="chat_session__user__uuid")
+    created = django_filters.DateFilter(field_name="created", lookup_expr="date")
+    modified = django_filters.DateFilter(field_name="modified", lookup_expr="date")
+    query = django_filters.CharFilter(method="filter_by_query")
+    o = django_filters.OrderingFilter(fields=("created", "modified"))
 
     class Meta:
         model = models.ThreadSession
         fields = ["is_archived", "user"]
 
-    def filter_queryset(self, queryset):
-        if "is_archived" not in self.data:
-            queryset = queryset.filter(is_archived=False)
-        return super().filter_queryset(queryset)
+    def filter_by_query(self, queryset, name, value):
+        """Full-text search across thread name and user details."""
+        return queryset.filter(
+            Q(name__icontains=value)
+            | Q(chat_session__user__username__icontains=value)
+            | Q(chat_session__user__first_name__icontains=value)
+            | Q(chat_session__user__last_name__icontains=value)
+            | Q(chat_session__user__email__icontains=value)
+        ).distinct()
 
 
 class MessageFilter(django_filters.FilterSet):
     thread = django_filters.UUIDFilter(field_name="thread__uuid")
+    include_history = django_filters.BooleanFilter(method="filter_include_history")
+
+    def filter_include_history(self, queryset, name, value):
+        if not value:
+            return queryset.filter(replaced_by__isnull=True)
+        return queryset
+
+    @property
+    def qs(self):
+        parent_qs = super().qs
+        # Default: exclude replaced messages when include_history is not provided
+        if "include_history" not in self.data:
+            parent_qs = parent_qs.filter(replaced_by__isnull=True)
+        return parent_qs
 
     class Meta:
         model = models.Message
@@ -617,6 +705,7 @@ class ChatSessionViewSet(ActionsViewSet):
     serializer_class = serializers.ChatSessionSerializer
     filter_backends = [StaffOrUserFilter]
     lookup_field = "uuid"
+    http_method_names = ["get", "options"]
     permission_classes = [IsAuthenticated, core_permissions.ActionsPermission]
     disabled_actions = ["create", "update", "partial_update", "destroy"]
 
@@ -641,15 +730,17 @@ class ChatSessionViewSet(ActionsViewSet):
 class ThreadSessionViewSet(ActionsViewSet):
     """
     ViewSet for ThreadSession model.
-    Handles CRUD operations for chat threads.
+    Provides read-only access and archive/unarchive actions for chat threads.
+    Staff and support users can view all threads; regular users see only their own.
     """
 
     queryset = models.ThreadSession.objects.all().order_by("-created")
     serializer_class = serializers.ThreadSessionSerializer
     filterset_class = ThreadSessionFilter
     lookup_field = "uuid"
+    http_method_names = ["get", "post", "options"]
     permission_classes = [IsAuthenticated, core_permissions.ActionsPermission]
-    disabled_actions = ["destroy"]
+    disabled_actions = ["create", "destroy", "update", "partial_update"]
 
     def get_queryset(self):
         """Filter threads to current user's threads; staff/support see all."""
@@ -672,11 +763,6 @@ class ThreadSessionViewSet(ActionsViewSet):
         )
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
-
-    def perform_create(self, serializer):
-        """Auto-create ChatSession if user doesn't have one."""
-        session, _ = models.ChatSession.objects.get_or_create(user=self.request.user)
-        serializer.save(chat_session=session)
 
     @extend_schema(
         summary="Archive thread",
@@ -708,15 +794,17 @@ class ThreadSessionViewSet(ActionsViewSet):
 class MessageViewSet(ActionsViewSet):
     """
     ViewSet for Message model.
-    Handles CRUD operations for messages within threads.
+    Provides read-only list access and message editing for chat messages.
+    Staff and support users can view all messages; regular users see only their own.
     """
 
     queryset = models.Message.objects.all()
     serializer_class = serializers.MessageSerializer
     filterset_class = MessageFilter
     lookup_field = "uuid"
+    http_method_names = ["get", "post", "options"]
     permission_classes = [IsAuthenticated, core_permissions.ActionsPermission]
-    disabled_actions = ["destroy", "update", "partial_update"]
+    disabled_actions = ["create", "destroy", "update", "partial_update", "retrieve"]
 
     def get_queryset(self):
         """Filter messages to current user's; staff/support see all."""
@@ -726,28 +814,7 @@ class MessageViewSet(ActionsViewSet):
             qs = models.Message.objects.filter(
                 thread__chat_session__user=self.request.user
             )
-        if not self.request.query_params.get("include_history"):
-            qs = qs.filter(replaced_by__isnull=True)
         return qs.select_related("thread", "replaces")
-
-    def perform_create(self, serializer):
-        """Validate thread ownership and auto-assign sequence_index."""
-        thread = serializer.validated_data["thread"]
-        if thread.chat_session.user != self.request.user:
-            raise PermissionDenied("You can only create messages in your own threads.")
-
-        # Auto-assign sequence_index with transaction lock to prevent race conditions
-        with transaction.atomic():
-            # Lock the thread to prevent concurrent sequence_index conflicts
-            locked_thread = models.ThreadSession.objects.select_for_update().get(
-                pk=thread.pk
-            )
-            last_index = locked_thread.messages.aggregate(Max("sequence_index"))[
-                "sequence_index__max"
-            ]
-            if last_index is None:
-                last_index = 0
-            serializer.save(sequence_index=last_index + 1)
 
     @extend_schema(
         summary="Edit message",
@@ -779,10 +846,6 @@ class MessageViewSet(ActionsViewSet):
             if original.role != models.Message.Role.USER:
                 raise ValidationError("Can only edit user messages")
 
-            # Check if already replaced
-            if original.replaced_by.exists():
-                raise ValidationError("This message has already been edited")
-
             # Only allow editing the last user message
             last_user_msg = (
                 original.thread.messages.filter(
@@ -803,19 +866,3 @@ class MessageViewSet(ActionsViewSet):
                 replaces=original,
             )
             return Response(serializers.MessageSerializer(new_msg).data)
-
-    @extend_schema(
-        summary="Get message edit history",
-        description="Get all versions of a message (edit history).",
-        responses={200: serializers.MessageSerializer(many=True)},
-    )
-    @decorators.action(detail=True, methods=["get"])
-    def history(self, request, uuid=None):
-        """Get all versions of a message (edit history)."""
-        msg = self.get_object()
-        history = models.Message.objects.filter(
-            thread=msg.thread,
-            sequence_index=msg.sequence_index,
-            created__lte=msg.created,
-        ).order_by("-created")
-        return Response(serializers.MessageSerializer(history, many=True).data)

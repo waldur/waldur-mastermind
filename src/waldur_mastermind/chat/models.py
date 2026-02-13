@@ -14,6 +14,10 @@ from waldur_core.core.models import User, UuidMixin
 logger = logging.getLogger(__name__)
 
 
+class ChatMode(models.TextChoices):
+    RELOAD = "reload", _("Reload")
+
+
 class TokenLimit(IntEnum):
     UNLIMITED = -1
 

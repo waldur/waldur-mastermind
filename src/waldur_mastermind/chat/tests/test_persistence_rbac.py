@@ -1,13 +1,16 @@
 import json
+import uuid
 from unittest.mock import Mock, patch
 
 import requests
 from django.urls import reverse
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession
+from waldur_mastermind.chat.models import ChatMode, ChatSession, Message, ThreadSession
+from waldur_mastermind.chat.serializers import ChatRequestSerializer
 from waldur_mastermind.chat.views import LLMStreamer
 
 
@@ -162,6 +165,164 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         assistant_msg = Message.objects.get(thread=thread, role=Message.Role.ASSISTANT)
         self.assertEqual(assistant_msg.content, "")
 
+    def test_reload_mode_replaces_last_assistant_only(self):
+        """reload mode creates replacement assistant message, no new user message."""
+        user = structure_factories.UserFactory()
+        thread = self._make_thread(user)
+
+        # Create initial pair
+        Message.objects.create(
+            thread=thread, role=Message.Role.USER, content="Question", sequence_index=1
+        )
+        original_assistant = Message.objects.create(
+            thread=thread,
+            role=Message.Role.ASSISTANT,
+            content="Old answer",
+            sequence_index=2,
+        )
+
+        # Run streamer in reload mode
+        resp = self._fake_response(self._content_and_usage_lines("New answer"))
+        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
+            mock_post.return_value.__enter__.return_value = resp
+            streamer = LLMStreamer(
+                "Ignored input",
+                "https://llm/stream",
+                "tok",
+                user=user,
+                thread=thread,
+                storage_enabled=True,
+                original_input="Ignored input",
+                mode=ChatMode.RELOAD,
+            )
+            list(streamer)
+
+        # Should have 1 user message (original) and 2 assistant messages (original + replacement)
+        self.assertEqual(
+            Message.objects.filter(thread=thread, role=Message.Role.USER).count(), 1
+        )
+        self.assertEqual(
+            Message.objects.filter(thread=thread, role=Message.Role.ASSISTANT).count(),
+            2,
+        )
+
+        # Find the replacement
+        replacement = Message.objects.get(
+            thread=thread, role=Message.Role.ASSISTANT, replaces=original_assistant
+        )
+        self.assertEqual(replacement.content, "New answer")
+        self.assertEqual(replacement.sequence_index, 2)  # Same index as original
+        self.assertEqual(replacement.replaces, original_assistant)
+
+    def test_reload_mode_falls_back_when_no_assistant(self):
+        """reload mode falls back to normal mode if no assistant message exists."""
+        user = structure_factories.UserFactory()
+        thread = self._make_thread(user)
+
+        # Thread is empty, no assistant to replace
+        resp = self._fake_response(self._content_and_usage_lines("Answer"))
+        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
+            mock_post.return_value.__enter__.return_value = resp
+            streamer = LLMStreamer(
+                "Question",
+                "https://llm/stream",
+                "tok",
+                user=user,
+                thread=thread,
+                storage_enabled=True,
+                original_input="Question",
+                mode=ChatMode.RELOAD,
+            )
+            list(streamer)
+
+        # Should create normal pair (fallback behavior)
+        self.assertEqual(
+            Message.objects.filter(thread=thread, role=Message.Role.USER).count(), 1
+        )
+        self.assertEqual(
+            Message.objects.filter(thread=thread, role=Message.Role.ASSISTANT).count(),
+            1,
+        )
+
+        user_msg = Message.objects.get(thread=thread, role=Message.Role.USER)
+        assistant_msg = Message.objects.get(thread=thread, role=Message.Role.ASSISTANT)
+        self.assertEqual(user_msg.content, "Question")
+        self.assertEqual(assistant_msg.content, "Answer")
+        self.assertIsNone(assistant_msg.replaces)
+
+    def test_stream_returns_message_uuids(self):
+        """Stream yields metadata with user_message_uuid and assistant_message_uuid."""
+        user = structure_factories.UserFactory()
+        thread = self._make_thread(user)
+
+        resp = self._fake_response(self._content_and_usage_lines("Answer"))
+        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
+            mock_post.return_value.__enter__.return_value = resp
+            streamer = LLMStreamer(
+                "Question",
+                "https://llm/stream",
+                "tok",
+                user=user,
+                thread=thread,
+                storage_enabled=True,
+                original_input="Question",
+            )
+            output = list(streamer)
+
+        # Parse all NDJSON lines
+        messages_metadata = None
+        for line in output:
+            if line.strip():
+                obj = json.loads(line)
+                if "m" in obj and "user_message_uuid" in obj["m"]:
+                    messages_metadata = obj["m"]
+                    break
+
+        self.assertIsNotNone(messages_metadata)
+        self.assertIn("user_message_uuid", messages_metadata)
+        self.assertIn("assistant_message_uuid", messages_metadata)
+
+        # Verify UUIDs match actual messages
+        user_msg = Message.objects.get(thread=thread, role=Message.Role.USER)
+        assistant_msg = Message.objects.get(thread=thread, role=Message.Role.ASSISTANT)
+        self.assertEqual(messages_metadata["user_message_uuid"], str(user_msg.uuid))
+        self.assertEqual(
+            messages_metadata["assistant_message_uuid"], str(assistant_msg.uuid)
+        )
+
+    def test_default_mode_unchanged(self):
+        """Normal mode (mode=None) works as before."""
+        user = structure_factories.UserFactory()
+        thread = self._make_thread(user)
+
+        self._run_streamer(
+            user, thread, True, "User question", self._content_and_usage_lines()
+        )
+
+        user_msg = Message.objects.get(thread=thread, role=Message.Role.USER)
+        assistant_msg = Message.objects.get(thread=thread, role=Message.Role.ASSISTANT)
+
+        self.assertEqual(user_msg.content, "User question")
+        self.assertEqual(assistant_msg.content, "Hello")
+        self.assertIsNone(user_msg.replaces)
+        self.assertIsNone(assistant_msg.replaces)
+
+    @freeze_time("2025-01-01 12:00:00", as_kwarg="frozen_time")
+    def test_thread_modified_updated_on_message_persist(self, frozen_time):
+        """Thread's modified timestamp is updated when messages are added."""
+        user = structure_factories.UserFactory()
+        thread = self._make_thread(user)
+        initial_modified = thread.modified
+
+        frozen_time.tick()
+
+        self._run_streamer(
+            user, thread, True, "New message", self._content_and_usage_lines()
+        )
+
+        thread.refresh_from_db()
+        self.assertGreater(thread.modified, initial_modified)
+
 
 class ChatSessionRBACTest(test.APITestCase):
     """Staff and support see all sessions; audit fires on cross-user retrieve."""
@@ -271,6 +432,51 @@ class ThreadSessionRBACTest(test.APITestCase):
         self.assertIn(str(self.other_thread.uuid), uuids)
         self.assertNotIn(str(self.user_thread.uuid), uuids)
 
+    def test_query_filter_matches_thread_name(self):
+        """ThreadSessionFilter.query matches on thread name."""
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.get(self.list_url, {"query": "Mine"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertIn(str(self.user_thread.uuid), uuids)
+        self.assertNotIn(str(self.other_thread.uuid), uuids)
+
+    def test_query_filter_matches_username(self):
+        """ThreadSessionFilter.query matches on user's username."""
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.get(self.list_url, {"query": self.other_user.username})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertIn(str(self.other_thread.uuid), uuids)
+
+    @freeze_time("2030-01-01 00:00:00")
+    def test_ordering_by_modified(self):
+        """ThreadSessionFilter ordering by modified works."""
+        self.client.force_authenticate(user=self.staff)
+
+        # Touch user_thread to make it more recently modified than setUp timestamps
+        self.user_thread.save(update_fields=["modified"])
+
+        response = self.client.get(self.list_url, {"o": "-modified"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        uuids = [item["uuid"] for item in response.data]
+        user_idx = uuids.index(str(self.user_thread.uuid))
+        other_idx = uuids.index(str(self.other_thread.uuid))
+        self.assertLess(user_idx, other_idx)
+
+    def test_filter_by_created_date(self):
+        """ThreadSessionFilter.created filters by date."""
+        self.client.force_authenticate(user=self.staff)
+        today = self.user_thread.created.strftime("%Y-%m-%d")
+        response = self.client.get(self.list_url, {"created": today})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertIn(str(self.user_thread.uuid), uuids)
+
     @patch("waldur_mastermind.chat.views.event_logger")
     def test_staff_retrieve_other_thread_emits_audit(self, mock_event_logger):
         self.client.force_authenticate(user=self.staff)
@@ -294,6 +500,41 @@ class ThreadSessionRBACTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_event_logger.emit.assert_not_called()
+
+
+class ChatRequestSerializerTest(test.APITestCase):
+    """Test ChatRequestSerializer validation."""
+
+    def test_mode_requires_thread_uuid(self):
+        """mode='reload' requires thread_uuid to be provided."""
+        # Invalid: mode without thread_uuid
+        serializer = ChatRequestSerializer(data={"input": "test", "mode": "reload"})
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("mode", serializer.errors)
+
+        # Valid: mode with thread_uuid
+        thread_uuid = str(uuid.uuid4())
+        serializer = ChatRequestSerializer(
+            data={"input": "test", "mode": "reload", "thread_uuid": thread_uuid}
+        )
+        self.assertTrue(serializer.is_valid())
+
+    def test_mode_rejects_invalid_values(self):
+        """mode only accepts 'reload' or None."""
+        thread_uuid = str(uuid.uuid4())
+
+        # Invalid mode value
+        serializer = ChatRequestSerializer(
+            data={"input": "test", "mode": "invalid", "thread_uuid": thread_uuid}
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("mode", serializer.errors)
+
+    def test_mode_omitted_is_valid(self):
+        """Omitting mode field works (backward compatibility)."""
+        serializer = ChatRequestSerializer(data={"input": "test"})
+        self.assertTrue(serializer.is_valid())
+        self.assertIsNone(serializer.validated_data.get("mode"))
 
 
 class MessageRBACTest(test.APITestCase):
