@@ -1,3 +1,5 @@
+import hashlib
+import json
 import logging
 import traceback
 from uuid import uuid4
@@ -9,6 +11,7 @@ from celery.local import Proxy
 from celery.result import AsyncResult
 from celery.worker.request import Request
 from constance import config
+from django.core.cache import cache
 from django.db import IntegrityError
 from django.db import models as django_models
 from django.db.models import ObjectDoesNotExist
@@ -390,47 +393,92 @@ class BackgroundTask(CeleryTask, metaclass=TaskType):
      - all background tasks are scheduled in separate queue "background-durable";
      - by default we do not log background tasks in celery logs. So tasks
        should log themselves explicitly and make sure that they will not
-       spam error messages.
-
-    Implement "is_equal" method to define what tasks are equal and should
-    be executed simultaneously.
+       spam error messages;
+     - prevents queue overflow and eliminates O(N) worker inspection by using cache with TTL.
     """
 
     is_background = True
 
-    def is_equal(self, other_task, *args, **kwargs):
-        """Return True if task do the same operation as other_task.
+    # Safety net: If worker crashes hard (SIGKILL), lock auto-expires after this time.
+    # Set generously above CELERY_TASK_TIME_LIMIT to account for queue wait time
+    # and scheduling delays. Current CELERY_TASK_TIME_LIMIT is 30 min.
+    lock_timeout = 60 * 60 * 2  # 2 hours default
 
-        Note! Other task is represented as serialized celery task - dictionary.
+    def get_unique_key(self, args, kwargs):
         """
-        raise NotImplementedError(
-            'BackgroundTask should implement "is_equal" method to avoid queue overload.'
-        )
+        Generate a unique lock ID.
+        Override this in subclasses to ignore specific args.
+        """
+        # Default: Hash task name + args. Ignore kwargs by default to be safe.
+        # For Waldur resources, usually args[0] (serialized resource) is enough.
+        # Safe JSON serialization
+        try:
+            payload_str = json.dumps(args, sort_keys=True)
+        except (TypeError, ValueError):
+            payload_str = str(args)
 
-    def is_previous_task_processing(self, *args, **kwargs):
-        """Return True if exist task that is equal to current and is uncompleted"""
-        app = self._get_app()
-        inspect = app.control.inspect()
-        active = inspect.active() or {}
-        scheduled = inspect.scheduled() or {}
-        reserved = inspect.reserved() or {}
-        uncompleted = sum(
-            list(active.values()) + list(scheduled.values()) + list(reserved.values()),
-            [],
-        )
-        return any(self.is_equal(task, *args, **kwargs) for task in uncompleted)
+        payload_hash = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
+        return f"celery-lock:{self.name}:{payload_hash}"
 
     def apply_async(self, args=None, kwargs=None, **options):
-        """Do not run background task if previous task is uncompleted"""
-        if self.is_previous_task_processing(*args, **kwargs):
-            message = (
-                "Background task %s was not scheduled, because its predecessor is not completed yet."
-                % self.name
+        args = args or ()
+        kwargs = kwargs or {}
+
+        # 1. Generate Key
+        lock_key = self.get_unique_key(args, kwargs)
+
+        # 2. Check Lock (Atomic ADD)
+        # We store the task_id inside the lock for debugging purposes
+        task_id = options.get("task_id") or str(uuid4())
+
+        # cache.add returns True if key was set, False if key already existed
+        if not cache.add(lock_key, task_id, timeout=self.lock_timeout):
+            logger.info(
+                "Skipping task %s (args=%s) - Lock exists: %s",
+                self.name,
+                args,
+                lock_key,
             )
-            logger.info(message)
-            # It is expected by Celery that apply_async return AsyncResult, otherwise celerybeat dies
-            return self.AsyncResult(options.get("task_id") or str(uuid4()))
-        return super().apply_async(args=args, kwargs=kwargs, **options)
+            # Return dummy result to satisfy Celery Beat
+            return self.AsyncResult(task_id)
+
+        # 3. Schedule Task
+        try:
+            # We inject the lock key into headers so the worker knows what to delete
+            headers = options.get("headers", {})
+            headers["__waldur_lock_key"] = lock_key
+            options["headers"] = headers
+
+            return super().apply_async(args=args, kwargs=kwargs, **options)
+        except Exception:
+            # If connection to Broker fails, release lock immediately
+            cache.delete(lock_key)
+            raise
+
+    def after_return(self, status, retval, task_id, args, kwargs, einfo):
+        """
+        Cleanup handler.
+        Runs on Success, Failure, and SoftTimeLimitExceeded.
+        Does NOT run on SIGKILL (Hard Crash).
+        """
+        lock_key = self.request.headers.get("__waldur_lock_key")
+
+        if lock_key:
+            # Check if we own the lock before deleting
+            # (prevents race condition if lock expired and was re-acquired by another worker)
+            current_lock_holder = cache.get(lock_key)
+            if current_lock_holder == task_id:
+                cache.delete(lock_key)
+                logger.debug("Released lock for task %s: %s", self.name, lock_key)
+            else:
+                logger.debug(
+                    "Lock not owned by task %s (owner: %s), skipping release: %s",
+                    task_id,
+                    current_lock_holder,
+                    lock_key,
+                )
+
+        super().after_return(status, retval, task_id, args, kwargs, einfo)
 
 
 def log_celery_task(request):
