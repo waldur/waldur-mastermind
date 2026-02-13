@@ -1270,6 +1270,12 @@ You can submit resource usage via API or do it manually at {{ public_resources_u
 Hello!
 
 Your order {{ link }} to {{ order_type }} a resource {{ order.resource.name }} has been rejected.
+{% if order.consumer_rejection_comment %}
+Consumer rejection reason: {{ order.consumer_rejection_comment }}
+{% endif %}
+{% if order.provider_rejection_comment %}
+Provider rejection reason: {{ order.provider_rejection_comment }}
+{% endif %}
 
 ```
 
@@ -1719,6 +1725,16 @@ Reminder about missing usage reports.
 <p>
     Your <a href="{{ link }}">order</a> to {{ order_type }} a resource {{ order.resource.name }} has been rejected.
 </p>
+{% if order.consumer_rejection_comment %}
+<p>
+    Consumer rejection reason: {{ order.consumer_rejection_comment }}
+</p>
+{% endif %}
+{% if order.provider_rejection_comment %}
+<p>
+    Provider rejection reason: {{ order.provider_rejection_comment }}
+</p>
+{% endif %}
 </body>
 </html>
 

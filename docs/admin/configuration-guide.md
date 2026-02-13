@@ -2156,6 +2156,12 @@ Deactivate user if all roles are revoked (except staff/support)
 
 If true, block creation of an account on OIDC login if user email is not provided or provided and is not in the list of one of the active invitations.
 
+#### OIDC_MATCHMAKING_BY_EMAIL
+
+**Type:** bool
+
+If true, when OIDC login fails to find a user by the primary lookup field, attempt a secondary lookup by email before creating a new user. On successful email match, the user's primary lookup field is updated to the OIDC claim value.
+
 #### OIDC_ACCESS_TOKEN_ENABLED
 
 **Type:** bool
