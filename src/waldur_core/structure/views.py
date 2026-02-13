@@ -176,23 +176,47 @@ class CustomerViewSet(
     )
     filterset_class = filters.CustomerFilter
 
+    def _compute_user_visibility_context(self, request):
+        """Compute and cache visibility context on the request.
+
+        Determines which customers the user has full visibility for
+        (all projects) vs restricted visibility (only their projects).
+        """
+        if hasattr(request, "_user_has_full_visibility"):
+            return
+
+        user = request.user
+        if user.is_staff or user.is_support:
+            request._user_has_full_visibility = True
+            request._direct_customer_ids = set()
+            request._user_project_ids = set()
+            return
+
+        request._user_has_full_visibility = False
+
+        customer_ct = ContentType.objects.get_for_model(models.Customer)
+        project_ct = ContentType.objects.get_for_model(models.Project)
+
+        customer_roles = UserRole.objects.filter(
+            user=user, is_active=True, content_type=customer_ct
+        ).values_list("object_id", flat=True)
+        request._direct_customer_ids = set(customer_roles)
+
+        project_roles = UserRole.objects.filter(
+            user=user, is_active=True, content_type=project_ct
+        ).values_list("object_id", flat=True)
+        request._user_project_ids = set(project_roles)
+
+    @staticmethod
+    def _user_has_full_customer_visibility(request, customer):
+        """Return True if user has full visibility for this customer."""
+        if request._user_has_full_visibility:
+            return True
+        return customer.id in request._direct_customer_ids
+
     def get_queryset(self):
+        self._compute_user_visibility_context(self.request)
         queryset = super().get_queryset()
-
-        # Annotate with projects_count to avoid N+1 queries
-        queryset = queryset.annotate(
-            projects_count=Count("projects", filter=Q(projects__is_removed=False))
-        )
-
-        # Add users_count annotation - we'll calculate this differently due to complexity
-        # For now, we'll use a simpler approach that can be optimized later
-        # The serializer will try to use the annotated value if available
-        queryset = queryset.extra(
-            select={
-                "users_count": "0"
-            }  # Placeholder - will be calculated efficiently in serializer
-        )
-
         return queryset
 
     def paginate_queryset(self, queryset):
@@ -201,11 +225,33 @@ class CustomerViewSet(
         if page is not None:
             # Only optimize expensive fields if they're actually requested
             requested_fields = self.request.query_params.getlist("field")
+            if not requested_fields or "projects_count" in requested_fields:
+                self._optimize_projects_count(page)
             if not requested_fields or "users_count" in requested_fields:
                 self._optimize_users_count(page)
             if not requested_fields or "billing_price_estimate" in requested_fields:
                 self._optimize_billing_estimates(page)
         return page
+
+    def _optimize_projects_count(self, customers):
+        """Bulk calculate projects_count for a list of customers, respecting visibility."""
+        if not customers:
+            return
+
+        for customer in customers:
+            if self._user_has_full_customer_visibility(self.request, customer):
+                customer._cached_projects_count = (
+                    models.Project.available_objects.filter(
+                        customer_id=customer.id
+                    ).count()
+                )
+            else:
+                customer._cached_projects_count = (
+                    models.Project.available_objects.filter(
+                        customer_id=customer.id,
+                        id__in=self.request._user_project_ids,
+                    ).count()
+                )
 
     def _optimize_users_count(self, customers):
         """Bulk calculate users_count for a list of customers to avoid N+1 queries."""
@@ -225,33 +271,49 @@ class CustomerViewSet(
                 customer._cached_users_count = 0
             return
 
-        # Calculate users count for all customers in a single efficient operation
-        # Get all users with roles in these customers or their projects
         customer_ct = ContentType.objects.get_for_model(models.Customer)
         project_ct = ContentType.objects.get_for_model(models.Project)
 
-        # Use exact user counting that handles overlap between customer and project roles
-
-        # For each customer, count unique users with roles at customer OR project level
         for customer in customers:
-            # Get project IDs for this customer
-            project_ids = list(
-                models.Project.available_objects.filter(
-                    customer_id=customer.id
-                ).values_list("id", flat=True)
-            )
-
-            # Count unique users with roles either at customer level or project level
-            user_roles_query = Q(
-                content_type=customer_ct, object_id=customer.id, is_active=True
-            )
-
-            if project_ids:
-                user_roles_query |= Q(
-                    content_type=project_ct, object_id__in=project_ids, is_active=True
+            if self._user_has_full_customer_visibility(self.request, customer):
+                # Full visibility: count users across all projects
+                project_ids = list(
+                    models.Project.available_objects.filter(
+                        customer_id=customer.id
+                    ).values_list("id", flat=True)
                 )
 
-            # Count distinct users - this ensures no double counting
+                user_roles_query = Q(
+                    content_type=customer_ct,
+                    object_id=customer.id,
+                    is_active=True,
+                )
+
+                if project_ids:
+                    user_roles_query |= Q(
+                        content_type=project_ct,
+                        object_id__in=project_ids,
+                        is_active=True,
+                    )
+            else:
+                # Restricted visibility: count users only in visible projects
+                visible_project_ids = list(
+                    models.Project.available_objects.filter(
+                        customer_id=customer.id,
+                        id__in=self.request._user_project_ids,
+                    ).values_list("id", flat=True)
+                )
+
+                if not visible_project_ids:
+                    customer._cached_users_count = 0
+                    continue
+
+                user_roles_query = Q(
+                    content_type=project_ct,
+                    object_id__in=visible_project_ids,
+                    is_active=True,
+                )
+
             unique_user_count = (
                 UserRole.objects.filter(user_roles_query)
                 .values("user_id")
@@ -274,28 +336,48 @@ class CustomerViewSet(
         if "billing_price_estimate" not in fields:
             return
 
-        customer_ids = [c.id for c in customers]
         customer_ct = ContentType.objects.get_for_model(models.Customer)
+        project_ct = ContentType.objects.get_for_model(models.Project)
 
-        # Bulk load all price estimates for these customers
-        price_estimates = billing_models.PriceEstimate.objects.filter(
-            content_type=customer_ct, object_id__in=customer_ids
-        ).select_related("content_type")
-
-        # Create a mapping of customer_id -> price_estimate
-        estimates_by_customer = {}
-        for estimate in price_estimates:
-            estimates_by_customer[estimate.object_id] = estimate
-
-        # Cache the estimates on the request for use in serializers
         if not hasattr(self.request, "_price_estimates_cache"):
             self.request._price_estimates_cache = {}
 
-        # Add estimates to cache, including None for customers without estimates
         for customer in customers:
-            self.request._price_estimates_cache[customer.id] = (
-                estimates_by_customer.get(customer.id)
-            )
+            if self._user_has_full_customer_visibility(self.request, customer):
+                # Full visibility: use customer-level estimate
+                estimate = (
+                    billing_models.PriceEstimate.objects.filter(
+                        content_type=customer_ct, object_id=customer.id
+                    )
+                    .select_related("content_type")
+                    .first()
+                )
+                self.request._price_estimates_cache[customer.id] = estimate
+            else:
+                # Restricted visibility: aggregate from visible project estimates
+                visible_project_ids = list(
+                    models.Project.available_objects.filter(
+                        customer_id=customer.id,
+                        id__in=self.request._user_project_ids,
+                    ).values_list("id", flat=True)
+                )
+
+                if not visible_project_ids:
+                    self.request._price_estimates_cache[customer.id] = None
+                    continue
+
+                project_estimates = list(
+                    billing_models.PriceEstimate.objects.filter(
+                        content_type=project_ct,
+                        object_id__in=visible_project_ids,
+                    )
+                )
+
+                if not project_estimates:
+                    self.request._price_estimates_cache[customer.id] = None
+                else:
+                    # Store the list of project estimates for aggregation in serializer
+                    self.request._price_estimates_cache[customer.id] = project_estimates
 
     def create(self, request, *args, **kwargs):
         return super().create(request, *args, **kwargs)

@@ -788,9 +788,19 @@ class CustomerSerializer(
         return customer.get_display_name()
 
     def get_projects_count(self, customer) -> int:
-        # Use annotated value from queryset if available, otherwise fallback to query
-        if hasattr(customer, "projects_count"):
-            return customer.projects_count
+        # Use cached value from bulk optimization if available
+        if hasattr(customer, "_cached_projects_count"):
+            return customer._cached_projects_count
+        # Fallback for detail view: respect visibility context
+        request = self.context.get("request")
+        if request and hasattr(request, "_user_has_full_visibility"):
+            if (
+                not request._user_has_full_visibility
+                and customer.id not in request._direct_customer_ids
+            ):
+                return models.Project.available_objects.filter(
+                    customer=customer, id__in=request._user_project_ids
+                ).count()
         return models.Project.available_objects.filter(customer=customer).count()
 
     @extend_schema_field(PermissionProjectSerializer(many=True))
@@ -801,6 +811,19 @@ class CustomerSerializer(
         else:
             projects = models.Project.available_objects.filter(customer=customer)
 
+        # Apply visibility filtering for users with only project-level roles
+        request = self.context.get("request")
+        if request and hasattr(request, "_user_has_full_visibility"):
+            if (
+                not request._user_has_full_visibility
+                and customer.id not in request._direct_customer_ids
+            ):
+                visible_ids = request._user_project_ids
+                if hasattr(customer, "_prefetched_projects"):
+                    projects = [p for p in projects if p.id in visible_ids]
+                else:
+                    projects = projects.filter(id__in=visible_ids)
+
         show_all_projects = self.context["request"].query_params.get(
             "show_all_projects"
         )
@@ -808,7 +831,9 @@ class CustomerSerializer(
             query = self.context["request"].query_params.get("query")
             if query:
                 # If we have prefetched data, filter in Python; otherwise use DB filter
-                if hasattr(customer, "_prefetched_projects"):
+                if isinstance(projects, list):
+                    projects = [p for p in projects if query.lower() in p.name.lower()]
+                elif hasattr(customer, "_prefetched_projects"):
                     projects = [p for p in projects if query.lower() in p.name.lower()]
                 else:
                     projects = projects.filter(name__icontains=query)
@@ -821,7 +846,31 @@ class CustomerSerializer(
         # Use cached/optimized calculation if available
         if hasattr(customer, "_cached_users_count"):
             return customer._cached_users_count
-        # Fallback to the original calculation
+        # Fallback for detail view: respect visibility context
+        request = self.context.get("request")
+        if request and hasattr(request, "_user_has_full_visibility"):
+            if (
+                not request._user_has_full_visibility
+                and customer.id not in request._direct_customer_ids
+            ):
+                project_ct = ContentType.objects.get_for_model(models.Project)
+                visible_project_ids = list(
+                    models.Project.available_objects.filter(
+                        customer=customer, id__in=request._user_project_ids
+                    ).values_list("id", flat=True)
+                )
+                if not visible_project_ids:
+                    return 0
+                return (
+                    UserRole.objects.filter(
+                        content_type=project_ct,
+                        object_id__in=visible_project_ids,
+                        is_active=True,
+                    )
+                    .values("user_id")
+                    .distinct()
+                    .count()
+                )
         return count_customer_users(customer)
 
 
