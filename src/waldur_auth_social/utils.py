@@ -137,16 +137,61 @@ def create_or_update_oauth_user(
     # Determine structured source for attribute tracking
     source = migrate_legacy_source(identity_provider.provider)
 
-    try:
-        created = False
-        # Use all_objects to reactivate a user who might have been deactivated
-        user = cast(User, User.all_objects.get(**lookup_params))
+    user = None
+    email_matched = False
 
+    # Primary lookup
+    try:
+        user = cast(User, User.all_objects.get(**lookup_params))
+    except User.DoesNotExist:
+        # Email-based failover
+        if config.OIDC_MATCHMAKING_BY_EMAIL:
+            email = payload.get("email")
+            if email and identity_provider.user_field != "email":
+                matches = User.all_objects.filter(email__iexact=email)
+                count = matches.count()
+                if count > 1:
+                    logger.warning(
+                        "OIDC email matchmaking: %d users with email %s",
+                        count,
+                        email,
+                    )
+                    raise OAuthException(
+                        identity_provider.provider,
+                        "Multiple users found with the same email. "
+                        "Cannot determine which account to use.",
+                    )
+                elif count == 1:
+                    user = cast(User, matches.first())
+                    email_matched = True
+
+    if user is not None:
+        # --- Existing user found (primary or email match) ---
         if not user.is_active:
             raise OAuthException(identity_provider.provider, "User is deactivated.")
 
-        # Prepare for update
+        created = False
         update_fields = set()
+
+        # If matched via email failover, update the primary lookup field
+        if email_matched:
+            lookup_value = get_lookup_value(identity_provider, backend_user)
+            user_field = identity_provider.user_field
+            old_value = getattr(user, user_field)
+            setattr(user, user_field, lookup_value)
+            update_fields.add(user_field)
+            logger.info(
+                "OIDC email matchmaking: matched user %s (pk=%s) by email %s. "
+                "Updated %s from '%s' to '%s'.",
+                user.username,
+                user.pk,
+                payload.get("email"),
+                user_field,
+                old_value,
+                lookup_value,
+            )
+
+        # Prepare for update
         now_iso = timezone.now().isoformat()
         attribute_sources = dict(user.attribute_sources or {})
 
@@ -185,7 +230,8 @@ def create_or_update_oauth_user(
             user._change_source = source
             user.save(update_fields=update_fields)
 
-    except User.DoesNotExist:
+    else:
+        # --- No user found, create new ---
         if config.OIDC_BLOCK_CREATION_OF_UNINVITED_USERS:
             if "email" not in payload or not payload["email"]:
                 raise OAuthException(

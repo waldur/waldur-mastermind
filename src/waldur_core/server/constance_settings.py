@@ -659,6 +659,12 @@ CONSTANCE_CONFIG = {
         False,
         "If true, block creation of an account on OIDC login if user email is not provided or provided and is not in the list of one of the active invitations.",
     ),
+    "OIDC_MATCHMAKING_BY_EMAIL": (
+        False,
+        "If true, when OIDC login fails to find a user by the primary lookup field, "
+        "attempt a secondary lookup by email before creating a new user. "
+        "On successful email match, the user's primary lookup field is updated to the OIDC claim value.",
+    ),
     "DEACTIVATE_USER_IF_NO_ROLES": (
         False,
         "Deactivate user if all roles are revoked (except staff/support)",
@@ -1164,6 +1170,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "DEFAULT_IDP",
         "DEACTIVATE_USER_IF_NO_ROLES",
         "OIDC_BLOCK_CREATION_OF_UNINVITED_USERS",
+        "OIDC_MATCHMAKING_BY_EMAIL",
         "OIDC_ACCESS_TOKEN_ENABLED",
         "REMOTE_EDUTEAMS_REFRESH_TOKEN",
     ),
