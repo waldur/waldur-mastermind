@@ -52,11 +52,6 @@ class BackgroundPullTask(core_tasks.BackgroundTask):
         else:
             self.on_pull_success(instance)
 
-    def is_equal(self, other_task, serialized_instance):
-        return self.name == other_task.get(
-            "name"
-        ) and serialized_instance in other_task.get("args", [])
-
     def pull(self, instance):
         """Pull instance from backend.
 
@@ -101,9 +96,6 @@ class BackgroundListPullTask(core_tasks.BackgroundTask):
 
     model = NotImplemented
     pull_task = NotImplemented
-
-    def is_equal(self, other_task):
-        return self.name == other_task.get("name")
 
     def get_pulled_objects(self):
         return self.model.objects.filter(
@@ -216,9 +208,6 @@ class SetErredStuckResources(core_tasks.BackgroundTask):
     """
 
     name = "waldur_core.structure.SetErredStuckResources"
-
-    def is_equal(self, other_task):
-        return self.name == other_task.get("name")
 
     def run(self):
         cutoff = timezone.now() - timedelta(hours=3)

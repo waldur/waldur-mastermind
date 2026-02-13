@@ -76,7 +76,17 @@ To mark task as background you need to inherit it from core.BackgroundTask:
       print('** Background task')
 ```
 
-Explore BackgroundTask to discover background tasks features.
+Background tasks use **cache-based locking** to prevent duplicate execution.
+When a task is scheduled via `apply_async`, an atomic cache key is created
+from the task name and its positional arguments. If the key already exists,
+the task is skipped. The lock is released automatically when the task
+completes (success or failure) or expires after `lock_timeout` as a safety net.
+
+To customize deduplication logic, override `get_unique_key(self, args, kwargs)`
+in your subclass. By default, kwargs are ignored for deduplication purposes.
+
+**Note:** This mechanism requires a shared cache backend (e.g. Redis) in
+production. LocMemCache only works for single-process setups.
 
 ## Task registration
 

@@ -53,9 +53,6 @@ class TenantPullQuotas(core_tasks.BackgroundTask):
 
     name = "openstack.TenantPullQuotas"
 
-    def is_equal(self, other_task):
-        return self.name == other_task.get("name")
-
     def run(self):
         from . import executors
 
@@ -182,9 +179,6 @@ class VolumeExtendErredTask(core_tasks.ErrorStateTransitionTask):
 
 class BaseDeleteExpiredResourcesTask(core_tasks.BackgroundTask):
     model = NotImplemented
-
-    def is_equal(self, other_task):
-        return self.name == other_task.get("name")
 
     def _get_executor(self):
         raise NotImplementedError()
