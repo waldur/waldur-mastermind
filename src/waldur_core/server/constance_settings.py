@@ -86,9 +86,9 @@ CONSTANCE_CONFIG = {
         "'hide_inaccessible': Hide offerings user cannot access. "
         "'require_membership': Hide all unless user belongs to an organization/project.",
     ),
-    "ALLOW_SERVICE_PROVIDER_OFFERING_ACTIVATION": (
+    "ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT": (
         False,
-        "If true, service provider owners and managers can activate offerings without staff approval.",
+        "If true, service provider owners and managers can manage offering lifecycle (activate, pause, unpause, archive, draft, delete) without staff approval.",
     ),
     "NOTIFY_STAFF_ABOUT_APPROVALS": (
         False,
@@ -1014,7 +1014,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ENFORCE_USER_CONSENT_FOR_OFFERINGS",
         "DISABLED_OFFERING_TYPES",
         "ENABLE_ORDER_START_DATE",
-        "ALLOW_SERVICE_PROVIDER_OFFERING_ACTIVATION",
+        "ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT",
     ),
     "Project": ("PROJECT_END_DATE_MANDATORY",),
     "Telemetry": (

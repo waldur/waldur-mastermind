@@ -1516,9 +1516,18 @@ class OfferingDeleteTest(test.APITestCase):
         factories.PlanFactory(offering=self.offering)
         CustomerRole.OWNER.add_permission(PermissionEnum.DELETE_OFFERING)
 
-    @data("staff", "owner")
-    def test_authorized_user_can_delete_offering(self, user):
-        response = self.delete_offering(user)
+    def test_staff_can_delete_offering(self):
+        response = self.delete_offering("staff")
+        self.assertEqual(
+            response.status_code, status.HTTP_204_NO_CONTENT, response.data
+        )
+        self.assertFalse(
+            models.Offering.objects.filter(customer=self.customer).exists()
+        )
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
+    def test_owner_can_delete_offering_when_management_enabled(self):
+        response = self.delete_offering("owner")
         self.assertEqual(
             response.status_code, status.HTTP_204_NO_CONTENT, response.data
         )
@@ -1532,12 +1541,14 @@ class OfferingDeleteTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
 
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
     def test_offering_deleting_is_not_available_for_blocked_organization(self):
         self.customer.blocked = True
         self.customer.save()
         response = self.delete_offering("owner")
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
     def test_customer_owner_can_not_delete_offering_if_it_is_not_in_draft_state(self):
         self.offering.state = OfferingStates.ACTIVE
         self.offering.save()
@@ -1548,6 +1559,7 @@ class OfferingDeleteTest(test.APITestCase):
             "Offering was not deleted since offering is not in draft state.",
         )
 
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
     def test_customer_owner_can_not_delete_offering_if_it_has_resources(self):
         self.offering.state = OfferingStates.DRAFT
         factories.ResourceFactory(offering=self.offering)
@@ -1557,6 +1569,22 @@ class OfferingDeleteTest(test.APITestCase):
             response.data["detail"], "Offering was not deleted since it has resources."
         )
 
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=False)
+    def test_sp_can_not_delete_offering_when_management_disabled(self):
+        response = self.delete_offering("owner")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(models.Offering.objects.filter(customer=self.customer).exists())
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
+    def test_sp_can_delete_offering_when_management_enabled(self):
+        response = self.delete_offering("owner")
+        self.assertEqual(
+            response.status_code, status.HTTP_204_NO_CONTENT, response.data
+        )
+        self.assertFalse(
+            models.Offering.objects.filter(customer=self.customer).exists()
+        )
+
     def delete_offering(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
@@ -1564,6 +1592,7 @@ class OfferingDeleteTest(test.APITestCase):
         response = self.client.delete(url)
         return response
 
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
     def test_when_offering_is_deleted_related_service_setting_is_deleted(self):
         # Arrange
         self.service_settings = structure_factories.ServiceSettingsFactory(
@@ -1720,6 +1749,9 @@ class OfferingStateTest(test.APITestCase):
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
         ServiceProviderRole.MANAGER.add_permission(PermissionEnum.CREATE_OFFERING)
 
+        CustomerRole.OWNER.add_permission(PermissionEnum.ARCHIVE_OFFERING)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.ARCHIVE_OFFERING)
+
     @data(
         "staff",
     )
@@ -1736,37 +1768,133 @@ class OfferingStateTest(test.APITestCase):
         )
         self.assertTrue("Offering does not have any billing plans." in response.data)
 
-    @data("owner", "user", "customer_support", "admin", "manager", "service_manager")
+    @data("owner", "customer_support", "admin", "manager", "service_manager")
     def test_unauthorized_user_can_not_activate_offering(self, user):
         response, offering = self.update_offering_state(user, "activate")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(offering.state, OfferingStates.DRAFT)
 
-    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_ACTIVATION=True)
+    def test_user_without_offering_access_can_not_activate_offering(self):
+        response, offering = self.update_offering_state("user", "activate")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(offering.state, OfferingStates.DRAFT)
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
     @data("staff", "owner", "service_manager")
-    def test_authorized_user_can_activate_offering_when_sp_activation_enabled(
+    def test_authorized_user_can_activate_offering_when_sp_management_enabled(
         self, user
     ):
         response, offering = self.update_offering_state(user, "activate")
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(offering.state, OfferingStates.ACTIVE)
 
-    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_ACTIVATION=True)
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
     @data("customer_support", "admin", "manager")
-    def test_unauthorized_user_can_not_activate_offering_when_sp_activation_enabled(
+    def test_unauthorized_user_can_not_activate_offering_when_sp_management_enabled(
         self, user
     ):
         response, offering = self.update_offering_state(user, "activate")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(offering.state, OfferingStates.DRAFT)
 
-    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_ACTIVATION=False)
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=False)
     @data("owner", "service_manager")
-    def test_sp_can_not_activate_offering_when_feature_disabled(self, user):
+    def test_sp_can_not_activate_offering_when_management_disabled(self, user):
         response, offering = self.update_offering_state(user, "activate")
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(offering.state, OfferingStates.DRAFT)
 
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=False)
+    @data("owner", "service_manager")
+    def test_sp_can_not_pause_offering_when_management_disabled(self, user):
+        self.offering.state = OfferingStates.ACTIVE
+        self.offering.save()
+        response, offering = self.update_offering_state(user, "pause")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(offering.state, OfferingStates.ACTIVE)
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=False)
+    @data("owner", "service_manager")
+    def test_sp_can_not_unpause_offering_when_management_disabled(self, user):
+        self.offering.state = OfferingStates.PAUSED
+        self.offering.save()
+        response, offering = self.update_offering_state(user, "unpause")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(offering.state, OfferingStates.PAUSED)
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=False)
+    @data("owner", "service_manager")
+    def test_sp_can_not_archive_offering_when_management_disabled(self, user):
+        self.offering.state = OfferingStates.ACTIVE
+        self.offering.save()
+        response, offering = self.update_offering_state(user, "archive")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(offering.state, OfferingStates.ACTIVE)
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=False)
+    @data("owner", "service_manager")
+    def test_sp_can_not_draft_offering_when_management_disabled(self, user):
+        self.offering.state = OfferingStates.ACTIVE
+        self.offering.save()
+        response, offering = self.update_offering_state(user, "draft")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(offering.state, OfferingStates.ACTIVE)
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=False)
+    @data("owner", "service_manager")
+    def test_sp_can_not_make_unavailable_when_management_disabled(self, user):
+        self.offering.state = OfferingStates.ACTIVE
+        self.offering.save()
+        response, offering = self.update_offering_state(user, "make_unavailable")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(offering.state, OfferingStates.ACTIVE)
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
+    @data("owner", "service_manager")
+    def test_sp_can_pause_offering_when_management_enabled(self, user):
+        self.offering.state = OfferingStates.ACTIVE
+        self.offering.save()
+        response, offering = self.update_offering_state(user, "pause")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(offering.state, OfferingStates.PAUSED)
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
+    @data("owner", "service_manager")
+    def test_sp_can_unpause_offering_when_management_enabled(self, user):
+        self.offering.state = OfferingStates.PAUSED
+        self.offering.save()
+        response, offering = self.update_offering_state(user, "unpause")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(offering.state, OfferingStates.ACTIVE)
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
+    @data("owner", "service_manager")
+    def test_sp_can_archive_offering_when_management_enabled(self, user):
+        self.offering.state = OfferingStates.ACTIVE
+        self.offering.save()
+        response, offering = self.update_offering_state(user, "archive")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(offering.state, OfferingStates.ARCHIVED)
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
+    @data("owner", "service_manager")
+    def test_sp_can_draft_offering_when_management_enabled(self, user):
+        self.offering.state = OfferingStates.ACTIVE
+        self.offering.save()
+        response, offering = self.update_offering_state(user, "draft")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(offering.state, OfferingStates.DRAFT)
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
+    @data("owner", "service_manager")
+    def test_sp_can_make_unavailable_when_management_enabled(self, user):
+        self.offering.state = OfferingStates.ACTIVE
+        self.offering.save()
+        response, offering = self.update_offering_state(user, "make_unavailable")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(offering.state, OfferingStates.UNAVAILABLE)
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
     @data("owner", "service_manager")
     def test_authorized_user_can_pause_offering(self, user):
         self.offering.state = OfferingStates.ACTIVE
@@ -1785,6 +1913,7 @@ class OfferingStateTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
         self.assertEqual(offering.state, OfferingStates.ACTIVE)
 
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
     @data("owner", "service_manager")
     def test_authorized_user_can_mark_offering_unavailable(self, user):
         self.offering.state = OfferingStates.ACTIVE
@@ -1803,6 +1932,7 @@ class OfferingStateTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN, response.data)
         self.assertEqual(offering.state, OfferingStates.ACTIVE)
 
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
     @data("owner", "service_manager")
     def test_authorized_user_can_unpause_offering(self, user):
         self.offering.state = OfferingStates.PAUSED
@@ -1812,6 +1942,7 @@ class OfferingStateTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.assertEqual(offering.state, OfferingStates.ACTIVE)
 
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
     @data("owner", "service_manager")
     def test_authorized_user_can_make_unavailable_offering_active(self, user):
         self.offering.state = OfferingStates.UNAVAILABLE
@@ -1867,6 +1998,7 @@ class OfferingStateTest(test.APITestCase):
             response.status_code, status.HTTP_400_BAD_REQUEST, response.data
         )
 
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
     @data("owner", "service_manager")
     def test_authorized_user_can_not_unpause_offering_without_plans(self, user):
         self.plan.delete()

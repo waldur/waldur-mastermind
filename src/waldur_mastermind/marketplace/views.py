@@ -1940,10 +1940,11 @@ class ProviderOfferingViewSet(
         return queryset
 
     destroy_permissions = [
+        marketplace_permissions.can_manage_offering_lifecycle,
         permission_factory(
             PermissionEnum.DELETE_OFFERING,
             ["customer"],
-        )
+        ),
     ]
 
     def destroy(self, request, *args, **kwargs):
@@ -2125,28 +2126,45 @@ class ProviderOfferingViewSet(
         )
 
     pause_permissions = [
+        marketplace_permissions.can_manage_offering_lifecycle,
         permission_factory(
             PermissionEnum.PAUSE_OFFERING,
             ["*", "customer", "customer.serviceprovider"],
-        )
+        ),
     ]
     make_unavailable_permissions = make_available_permissions = pause_permissions
 
     unpause_permissions = [
+        marketplace_permissions.can_manage_offering_lifecycle,
         permission_factory(
             PermissionEnum.UNPAUSE_OFFERING,
             ["*", "customer", "customer.serviceprovider"],
-        )
+        ),
     ]
 
     archive_permissions = [
+        marketplace_permissions.can_manage_offering_lifecycle,
         permission_factory(
             PermissionEnum.ARCHIVE_OFFERING,
             ["*", "customer", "customer.serviceprovider"],
-        )
+        ),
     ]
 
-    activate_permissions = [marketplace_permissions.can_activate_offering]
+    activate_permissions = [
+        marketplace_permissions.can_manage_offering_lifecycle,
+        permission_factory(
+            PermissionEnum.CREATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        ),
+    ]
+
+    draft_permissions = [
+        marketplace_permissions.can_manage_offering_lifecycle,
+        permission_factory(
+            PermissionEnum.CREATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        ),
+    ]
 
     activate_validators = pause_validators = archive_validators = destroy_validators = [
         structure_utils.check_customer_blocked_or_archived
