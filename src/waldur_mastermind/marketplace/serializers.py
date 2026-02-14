@@ -205,6 +205,10 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="If set to True, send email notifications when providers or consumers exchange messages on pending orders.",
     )
+    restrict_deletion_with_active_resources = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, offering cannot be deleted while it has non-terminated resources.",
+    )
 
     def validate_latest_date_for_resource_termination(self, value):
         try:

@@ -1585,6 +1585,52 @@ class OfferingDeleteTest(test.APITestCase):
             models.Offering.objects.filter(customer=self.customer).exists()
         )
 
+    def test_staff_cannot_delete_offering_with_active_resources_when_restriction_enabled(
+        self,
+    ):
+        self.offering.plugin_options["restrict_deletion_with_active_resources"] = True
+        self.offering.save()
+        factories.ResourceFactory(offering=self.offering, state=ResourceStates.OK)
+        response = self.delete_offering("staff")
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_staff_can_delete_offering_without_active_resources_when_restriction_enabled(
+        self,
+    ):
+        self.offering.plugin_options["restrict_deletion_with_active_resources"] = True
+        self.offering.save()
+        response = self.delete_offering("staff")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(models.Offering.objects.filter(pk=self.offering.pk).exists())
+
+    def test_staff_can_delete_offering_with_resources_when_restriction_disabled(self):
+        factories.ResourceFactory(offering=self.offering, state=ResourceStates.OK)
+        response = self.delete_offering("staff")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(models.Offering.objects.filter(pk=self.offering.pk).exists())
+
+    @override_config(ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT=True)
+    def test_owner_cannot_delete_offering_with_active_resources_when_restriction_enabled(
+        self,
+    ):
+        self.offering.plugin_options["restrict_deletion_with_active_resources"] = True
+        self.offering.save()
+        factories.ResourceFactory(offering=self.offering, state=ResourceStates.OK)
+        response = self.delete_offering("owner")
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_deletion_allowed_when_all_resources_terminated_and_restriction_enabled(
+        self,
+    ):
+        self.offering.plugin_options["restrict_deletion_with_active_resources"] = True
+        self.offering.save()
+        factories.ResourceFactory(
+            offering=self.offering, state=ResourceStates.TERMINATED
+        )
+        response = self.delete_offering("staff")
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(models.Offering.objects.filter(pk=self.offering.pk).exists())
+
     def delete_offering(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
