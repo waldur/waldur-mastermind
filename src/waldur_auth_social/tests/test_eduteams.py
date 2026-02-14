@@ -31,14 +31,17 @@ class RemoteEduteamsTest(test.APITestCase):
         self.user_url = (
             f"https://proxy.acc.researcher-access.org/api/userinfo/{self.valid_cuid}"
         )
+        cache.delete("REMOTE_EDUTEAMS_ACCESS_TOKEN")
+
+    def setup_token_response(self):
         responses.add(
             method="POST",
             url="https://proxy.acc.researcher-access.org/OIDC/token",
             json={"access_token": "random_token", "refresh_token": "new_refresh_token"},
         )
-        cache.delete("REMOTE_EDUTEAMS_ACCESS_TOKEN")
 
     def setup_user_info(self):
+        self.setup_token_response()
         responses.add(
             method="GET",
             url=self.user_url,
@@ -54,8 +57,8 @@ class RemoteEduteamsTest(test.APITestCase):
             },
         )
 
+    @responses.activate
     def test_unauthorized_user_can_not_sync_remote_users(self):
-        self.setup_user_info()
         user = structure_factories.UserFactory()
         self.client.force_login(user)
         response = self.client.post(self.url)
@@ -145,6 +148,7 @@ class RemoteEduteamsTest(test.APITestCase):
 
     @responses.activate
     def test_when_user_is_not_found_it_is_disabled(self):
+        self.setup_token_response()
         valid_cuid = (
             "17b867ff52768f8c11f1501598c2dd1e526fe7f0@acc.researcher-access.org"
         )
