@@ -1950,6 +1950,25 @@ class ProviderOfferingViewSet(
 
     def destroy(self, request, *args, **kwargs):
         offering: models.Offering = self.get_object()
+
+        if offering.plugin_options.get(
+            "restrict_deletion_with_active_resources", False
+        ):
+            active_resources_count = (
+                models.Resource.objects.filter(offering=offering)
+                .exclude(state=ResourceStates.TERMINATED)
+                .count()
+            )
+            if active_resources_count > 0:
+                return Response(
+                    {
+                        "detail": _(
+                            "Offering cannot be deleted since it has active resources and deletion restriction is enabled."
+                        )
+                    },
+                    status=status.HTTP_409_CONFLICT,
+                )
+
         serializer = serializers.ProviderOfferingSerializer(
             offering, many=False, context=self.get_serializer_context()
         )

@@ -29,11 +29,12 @@ set -e
 
 # --- CONFIGURATION ---
 
-# The minimum number of discovered tests required to trigger parallel splitting.
-# This prevents the overhead of splitting a tiny number of tests across many runners.
-# For example, it's faster for one runner to execute 40 tests than for 10 runners
-# to start up, coordinate, and each run 4 tests.
-TEST_SPLITTING_THRESHOLD=250
+# The minimum number of affected application paths required to trigger parallel
+# splitting. Using app count instead of test count avoids the need for a full
+# Django/database setup during the pipeline generation stage. With fewer than
+# this many apps, the overhead of spinning up multiple runners outweighs the
+# benefit of parallelization.
+APP_SPLITTING_THRESHOLD=5
 
 # The absolute maximum number of parallel jobs to create. This acts as a ceiling
 # to prevent creating an excessive number of jobs even for a very large test suite.
@@ -101,44 +102,34 @@ if [ "${SELECTED_PATHS}" = "src" ]; then
   ENABLE_SPLITTING_VAR="true"
   PARALLEL_BLOCK="parallel: ${MAX_PARALLEL_JOBS}"
 else
-  # --- STEP 3: DISCOVER TEST COUNT FOR PARTIAL RUNS ---
-  # If it's not a full run, we need to determine the exact workload.
+  # --- STEP 3: DECIDE PARALLELIZATION FOR PARTIAL RUNS ---
+  # We use the number of affected application paths as a proxy for workload.
+  # This is fast, reliable, and avoids needing a full Django/database setup
+  # that `pytest --collect-only` would require (the "Generate test pipeline"
+  # job does not have a postgres service).
   echo "[+] STEP 2/4: Partial run detected."
-  uv sync --group dev
 
-  echo "[+] Discovering number of tests for selected paths..."
-  # Run pytest in "collect-only" mode. This is a dry run that finds all test
-  # functions without executing them. We count the lines to get the total.
-  # `|| true` prevents the script from failing if pytest encounters a collection error.
-  TEST_COUNT=$(uv run pytest --collect-only -q ${SELECTED_PATHS} | wc -l || true)
-  # Ensure TEST_COUNT is a valid integer, defaulting to 0 if the command failed.
-  TEST_COUNT=${TEST_COUNT:-0}
-  echo "[+] Discovered ${TEST_COUNT} tests."
+  PATH_COUNT=$(echo "${SELECTED_PATHS}" | wc -w | tr -d ' ')
+  echo "[+] Number of affected app paths: ${PATH_COUNT}"
 
-  # Decide on splitting based on the discovered count and our threshold.
-  if [ "${TEST_COUNT}" -ge "${TEST_SPLITTING_THRESHOLD}" ]; then
-    echo "[+] Test count (${TEST_COUNT}) is >= threshold (${TEST_SPLITTING_THRESHOLD}). Enabling parallelization."
+  if [ "${PATH_COUNT}" -ge "${APP_SPLITTING_THRESHOLD}" ]; then
+    echo "[+] App count (${PATH_COUNT}) >= threshold (${APP_SPLITTING_THRESHOLD}). Enabling parallelization."
     ENABLE_SPLITTING_VAR="true"
 
-    # Calculate the desired number of parallel jobs. The goal is to have roughly
-    # TEST_SPLITTING_THRESHOLD tests per job. We use ceiling division to ensure
-    # we have enough jobs for all tests.
-    # Formula for shell integer ceiling division: (numerator + denominator - 1) / denominator
-    PARALLEL_COUNT=$(( (TEST_COUNT + TEST_SPLITTING_THRESHOLD - 1) / TEST_SPLITTING_THRESHOLD ))
+    # Scale parallel jobs with the number of affected apps.
+    # Use roughly 2 apps per job as a heuristic, capped at the maximum.
+    PARALLEL_COUNT=$(( (PATH_COUNT + 1) / 2 ))
 
-    # Cap the parallel count at the configured maximum.
     if [ "${PARALLEL_COUNT}" -gt "${MAX_PARALLEL_JOBS}" ]; then
       echo "[+] Calculated parallel count (${PARALLEL_COUNT}) exceeds maximum (${MAX_PARALLEL_JOBS}). Capping at ${MAX_PARALLEL_JOBS}."
       PARALLEL_COUNT=${MAX_PARALLEL_JOBS}
     fi
     echo "[+] Setting parallel job count to ${PARALLEL_COUNT}."
 
-    # This variable will contain the `parallel: N` YAML keyword.
     PARALLEL_BLOCK="parallel: ${PARALLEL_COUNT}"
   else
-    echo "[+] Test count (${TEST_COUNT}) is < threshold (${TEST_SPLITTING_THRESHOLD}). Disabling parallelization."
+    echo "[+] App count (${PATH_COUNT}) < threshold (${APP_SPLITTING_THRESHOLD}). Running as single job."
     ENABLE_SPLITTING_VAR="false"
-    # This variable will be empty, so no parallel keyword is added to the YAML.
     PARALLEL_BLOCK=""
   fi
 fi

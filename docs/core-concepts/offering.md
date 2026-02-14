@@ -260,6 +260,7 @@ With this configuration:
 | `can_restore_resource` | boolean | `false` | Allow restoring terminated resources |
 | `supports_downscaling` | boolean | `false` | Allow reducing resource limits |
 | `supports_pausing` | boolean | `false` | Allow pausing/resuming resources |
+| `restrict_deletion_with_active_resources` | boolean | `false` | Prevent offering deletion while it has non-terminated resources (applies to all users including staff) |
 
 **Example:**
 
@@ -268,7 +269,8 @@ With this configuration:
   "plugin_options": {
     "is_resource_termination_date_required": true,
     "default_resource_termination_offset_in_days": 90,
-    "max_resource_termination_offset_in_days": 365
+    "max_resource_termination_offset_in_days": 365,
+    "restrict_deletion_with_active_resources": true
   }
 }
 ```
