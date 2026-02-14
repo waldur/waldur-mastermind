@@ -58,6 +58,8 @@ FULL_RUN_TRIGGERS = [
     ".gitlab-ci.yml",
     "tests/dependency_graph.yaml",  # If the graph itself changes, run all tests.
     "src/waldur_core/server",
+    "src/waldur_core/permissions",  # Nearly all apps depend on permissions.
+    "conftest.py",  # Root conftest affects all tests.
     str(Path(__file__).relative_to(PROJECT_ROOT)),  # If this script changes.
 ]
 

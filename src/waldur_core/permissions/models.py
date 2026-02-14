@@ -16,11 +16,22 @@ from . import signals
 
 
 class RoleManager(models.Manager):
+    _cache: dict[str, "Role"] = {}
+
     def get_system_role(self, name: str, content_type) -> "Role":
+        cache_key = name.value if hasattr(name, "value") else name
+        if cache_key in self._cache:
+            return self._cache[cache_key]
         role, _ = self.get_or_create(
-            name=name, defaults={"is_system_role": True, "content_type": content_type}
+            name=cache_key,
+            defaults={"is_system_role": True, "content_type": content_type},
         )
+        self._cache[cache_key] = role
         return role
+
+    @classmethod
+    def clear_cache(cls):
+        cls._cache.clear()
 
 
 class Role(DescribableMixin, UuidMixin):
