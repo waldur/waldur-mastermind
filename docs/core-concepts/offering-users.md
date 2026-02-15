@@ -429,6 +429,7 @@ State transitions generate:
 
 - **Event logs**: Recorded in the system event log for audit purposes
 - **Application logs**: Logged with user attribution for debugging and monitoring
+- **STOMP messages**: Published to the `offering_user` queue for external systems (see [Event-Based Order Processing](event-based-order-processing.md#offering-user-event-messages)). `OfferingUserAttributeConfig` also gates which user profile attributes are included in STOMP event payloads.
 
 ## User Attribute Exposure Configuration
 

@@ -2194,12 +2194,18 @@ def send_offering_user_created_message(
     offering_user = instance
     offering = offering_user.offering
 
+    exposed_attrs = set(
+        models.OfferingUserAttributeConfig.get_exposed_fields_for_offering(offering)
+    )
+    attributes = _build_filtered_user_attributes(offering_user.user, exposed_attrs)
+
     payload = {
         "offering_user_uuid": offering_user.uuid.hex,
         "user_uuid": offering_user.user.uuid.hex,
         "username": offering_user.username,
         "state": offering_user.get_state_display(),
         "action": "create",
+        "attributes": attributes,
     }
 
     logger.debug("Preparing OfferingUser creation messages for %s", offering_user)
@@ -2272,6 +2278,102 @@ def send_offering_user_deleted_message(sender, instance: models.OfferingUser, **
     )
     if messages:
         logging_tasks.publish_messages.delay(messages)
+
+
+USER_FIELD_TO_ATTRIBUTE = {
+    "first_name": "full_name",
+    "last_name": "full_name",
+    "email": "email",
+    "phone_number": "phone_number",
+    "organization": "organization",
+    "job_title": "job_title",
+    "affiliations": "affiliations",
+    "gender": "gender",
+    "civil_number": "civil_number",
+    "birth_date": "birth_date",
+    "personal_title": "personal_title",
+    "place_of_birth": "place_of_birth",
+    "country_of_residence": "country_of_residence",
+    "nationality": "nationality",
+    "nationalities": "nationalities",
+    "organization_country": "organization_country",
+    "organization_type": "organization_type",
+    "eduperson_assurance": "eduperson_assurance",
+    "identity_source": "identity_source",
+    "registration_method": "registration_method",
+}
+
+
+def _serialize_user_field(value):
+    """Serialize a User model field value for JSON payload."""
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return value
+
+
+def _build_filtered_user_attributes(user, exposed_attributes):
+    """Build dict of user profile values filtered by exposed attributes."""
+    attributes = {}
+    for field, attr_gate in USER_FIELD_TO_ATTRIBUTE.items():
+        if attr_gate in exposed_attributes:
+            val = getattr(user, field, None)
+            if val is not None and val != "" and val != []:
+                attributes[field] = _serialize_user_field(val)
+    return attributes
+
+
+def send_user_attribute_update_message(sender, instance, created=False, **kwargs):
+    """Publish OFFERING_USER events when User profile attributes change.
+
+    For each offering the user belongs to, filters changed attributes through
+    OfferingUserAttributeConfig and publishes only exposed attribute values.
+    """
+    if created or get_skip_side_effects():
+        return
+
+    user = instance
+    changed = user.tracker.changed()
+    if not changed:
+        return
+
+    changed_profile_fields = set(changed.keys()) & set(USER_FIELD_TO_ATTRIBUTE.keys())
+    if not changed_profile_fields:
+        return
+
+    for offering_user in models.OfferingUser.objects.filter(user=user).select_related(
+        "offering"
+    ):
+        offering = offering_user.offering
+        exposed_attrs = set(
+            models.OfferingUserAttributeConfig.get_exposed_fields_for_offering(offering)
+        )
+
+        relevant_fields = {
+            f
+            for f in changed_profile_fields
+            if USER_FIELD_TO_ATTRIBUTE[f] in exposed_attrs
+        }
+        if not relevant_fields:
+            continue
+
+        attributes = _build_filtered_user_attributes(user, exposed_attrs)
+
+        payload = {
+            "offering_user_uuid": offering_user.uuid.hex,
+            "user_uuid": user.uuid.hex,
+            "username": offering_user.username,
+            "action": "attribute_update",
+            "changed_attributes": sorted(relevant_fields),
+            "attributes": attributes,
+        }
+
+        messages = marketplace_utils.prepare_messages(
+            offering, payload, ObservableObjectType.OFFERING_USER
+        )
+        if messages:
+            logging_tasks.publish_messages.delay(messages)
 
 
 def notify_users_about_tos_update_signal(sender, instance, created, **kwargs):
