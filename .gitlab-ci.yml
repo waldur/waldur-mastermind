@@ -639,8 +639,9 @@ Generate Python SDK:
   needs:
     - Generate OpenAPI schema
   script: |
-    pip install git+https://github.com/waldur/openapi-python-client.git
+    pip install git+https://github.com/waldur/openapi-python-client.git pyyaml
     openapi-python-client generate --path waldur-openapi-schema.yaml --output-path py-client --overwrite --meta poetry
+    python scripts/generate_llm_docs.py waldur-openapi-schema.yaml py-client/
   artifacts:
     paths:
       - py-client/
@@ -701,7 +702,13 @@ Upload Python SDK:
     - cd py-client
     - git pull
     - rm -rf waldur_api_client && cp -a "$CI_PROJECT_DIR/py-client/waldur_api_client" waldur_api_client
-    - git add waldur_api_client
+    - cp "$CI_PROJECT_DIR/py-client/llms.txt" llms.txt
+    - cp "$CI_PROJECT_DIR/py-client/llms-full.txt" llms-full.txt
+    - cp "$CI_PROJECT_DIR/py-client/api-map.md" api-map.md
+    - cp llms.txt waldur_api_client/llms.txt
+    - cp llms-full.txt waldur_api_client/llms-full.txt
+    - cp api-map.md waldur_api_client/api-map.md
+    - git add waldur_api_client llms.txt llms-full.txt api-map.md
     - git commit -m "Update Waldur Python SDK" || exit 0
     - git push
   before_script: *build_before_script
