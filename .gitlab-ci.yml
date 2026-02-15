@@ -21,12 +21,13 @@ include:
   #   file: "/templates/test/lint-md-files.yml"
   - project: "waldur/waldur-pipelines"
     file: "/templates/deploy/dev-env-update.yml"
-  - project: "waldur/waldur-pipelines"
-    file: "/templates/sbom/generate-python-codebase-sbom.yml"
-  - project: "waldur/waldur-pipelines"
-    file: "/templates/sbom/upload-sboms-to-docs.yml"
-  - project: "waldur/waldur-pipelines"
-    file: "/templates/sbom/generate-image-sbom.yml"
+  # Temporarily disabled - SBOMs taking too much space in docs
+  # - project: "waldur/waldur-pipelines"
+  #   file: "/templates/sbom/generate-python-codebase-sbom.yml"
+  # - project: "waldur/waldur-pipelines"
+  #   file: "/templates/sbom/upload-sboms-to-docs.yml"
+  # - project: "waldur/waldur-pipelines"
+  #   file: "/templates/sbom/generate-image-sbom.yml"
 
 before_script:
   - export
@@ -348,18 +349,19 @@ Try building docker image:
       ${CI_PROJECT_DIR}
 
 
-Generate Image SBOM:
-  extends: .Generate Image SBOM template
-  variables:
-    PROJECT_NAME: "waldur-mastermind"
+# Temporarily disabled - SBOMs taking too much space in docs
+# Generate Image SBOM:
+#   extends: .Generate Image SBOM template
+#   variables:
+#     PROJECT_NAME: "waldur-mastermind"
 
-Generate Codebase SBOM:
-  extends: .Generate Codebase SBOM template
-  variables:
-    PROJECT_NAME: "waldur-mastermind"
-  before_script:
-    - apt-get update
-    - apt-get install -y gcc libldap2-dev libsasl2-dev libssl-dev libdb-dev
+# Generate Codebase SBOM:
+#   extends: .Generate Codebase SBOM template
+#   variables:
+#     PROJECT_NAME: "waldur-mastermind"
+#   before_script:
+#     - apt-get update
+#     - apt-get install -y gcc libldap2-dev libsasl2-dev libssl-dev libdb-dev
 
 Build docker image for tests:
   stage: build
@@ -463,23 +465,24 @@ Lint dockerfile:
         - DL3015 # "--no-install-recommends" info
         - SC2094 # "read and write the same file in the same pipeline" info
 
-Upload Image SBOM:
-  extends: .Upload SBOM template
-  needs:
-    - Generate Image SBOM
-  variables:
-    PROJECT_NAME: "waldur-mastermind"
-    SBOM_TYPE: "image"
-    SBOM_DIR: "images"
+# Temporarily disabled - SBOMs taking too much space in docs
+# Upload Image SBOM:
+#   extends: .Upload SBOM template
+#   needs:
+#     - Generate Image SBOM
+#   variables:
+#     PROJECT_NAME: "waldur-mastermind"
+#     SBOM_TYPE: "image"
+#     SBOM_DIR: "images"
 
-Upload Source SBOM:
-  extends: .Upload SBOM template
-  needs:
-    - Generate Codebase SBOM
-  variables:
-    PROJECT_NAME: "waldur-mastermind"
-    SBOM_TYPE: "source"
-    SBOM_DIR: "source"
+# Upload Source SBOM:
+#   extends: .Upload SBOM template
+#   needs:
+#     - Generate Codebase SBOM
+#   variables:
+#     PROJECT_NAME: "waldur-mastermind"
+#     SBOM_TYPE: "source"
+#     SBOM_DIR: "source"
 
 Upload configuration guide:
   stage: postdeploy
