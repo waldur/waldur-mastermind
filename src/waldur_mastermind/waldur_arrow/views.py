@@ -162,11 +162,12 @@ class ArrowSettingsViewSet(core_views.ActionsViewSet):
             arrow_customers_raw = client.list_all_customers()
             arrow_customers = [
                 {
-                    "reference": c.get("reference", ""),
-                    "companyName": c.get("companyName", ""),
-                    "email": c.get("contact", {}).get("email", ""),
-                    "city": c.get("address", {}).get("city", ""),
-                    "countryCode": c.get("address", {}).get("countryCode", ""),
+                    "reference": c.get("Reference", ""),
+                    "companyName": c.get("CompanyName", ""),
+                    "email": c.get("EmailContact", "")
+                    or c.get("Contact", {}).get("Email", ""),
+                    "city": c.get("City", ""),
+                    "countryCode": c.get("CountryCode", ""),
                 }
                 for c in arrow_customers_raw
             ]
@@ -175,6 +176,97 @@ class ArrowSettingsViewSet(core_views.ActionsViewSet):
                 {"error": str(e)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # Fetch available export types and validate compatibility
+        export_types = []
+        try:
+            types_response = client.list_export_types()
+            raw_types = types_response.get("data", {}).get("exportTypes", {})
+            if isinstance(raw_types, dict):
+                export_type_refs = [
+                    {"reference": ref, "name": name} for ref, name in raw_types.items()
+                ]
+            elif isinstance(raw_types, list):
+                export_type_refs = raw_types
+            else:
+                export_type_refs = []
+
+            # Check each export type's headers for compatibility.
+            # Required: billing sync breaks without these.
+            required_fields = {
+                "Classification",
+                "Vendor Subscription ID",
+                "End User Company Name",
+                "Customer Total Price",
+                "Total Wholesale Price",
+            }
+            # Important: used for resource sync, invoicing, and reporting.
+            # Note: some fields have fallback chains in code:
+            #   Line Reference -> Sequence -> Order Id
+            #   License Reference -> ARS Subscription ID
+            #   Customer Reference -> End User Company Name (matching)
+            important_fields = {
+                "Friendly Name",
+                "Report Period",
+                "Vendor Name",
+                "Offer Name",
+                "Qty",
+                "Order Id",
+                "Description",
+                "Service Name",
+                "Arrow SKU",
+                "Vendor SKU",
+                "Billing Cycle",
+                "Customer Unit Price",
+                "Bill From",
+                "Bill To",
+                "End User Company ID",
+                "End User E-mail",
+                "End User Country Code",
+                "End User Address Line1",
+                "End User City",
+                "End User Post Code",
+                "Sequence",
+                "ARS Subscription ID",
+            }
+
+            for et in export_type_refs:
+                try:
+                    sample = client.export_billing_sync(
+                        export_type_reference=et["reference"],
+                        period_from="2025-01",
+                        period_to="2025-01",
+                        page=1,
+                    )
+                    headers = set(sample.get("data", {}).get("headers", []))
+                    missing_required = sorted(required_fields - headers)
+                    missing_important = sorted(important_fields - headers)
+                    found_required = len(required_fields) - len(missing_required)
+                    found_important = len(important_fields) - len(missing_important)
+                    et["required_fields_total"] = len(required_fields)
+                    et["required_fields_found"] = found_required
+                    et["important_fields_total"] = len(important_fields)
+                    et["important_fields_found"] = found_important
+                    et["missing_required_fields"] = missing_required
+                    et["missing_important_fields"] = missing_important
+                    et["compatible"] = found_required == len(required_fields)
+                    et["recommended"] = (
+                        et["compatible"]
+                        and found_important >= len(important_fields) // 2
+                    )
+                except ArrowBackendError:
+                    et["required_fields_total"] = len(required_fields)
+                    et["required_fields_found"] = 0
+                    et["important_fields_total"] = len(important_fields)
+                    et["important_fields_found"] = 0
+                    et["missing_required_fields"] = sorted(required_fields)
+                    et["missing_important_fields"] = sorted(important_fields)
+                    et["compatible"] = False
+                    et["recommended"] = False
+
+            export_types = export_type_refs
+        except ArrowBackendError:
+            pass
 
         # Get Waldur customers
         waldur_customers = list(
@@ -221,6 +313,7 @@ class ArrowSettingsViewSet(core_views.ActionsViewSet):
                 "arrow_customers": arrow_customers,
                 "waldur_customers": waldur_customers,
                 "suggestions": suggestions,
+                "export_types": export_types,
             },
             status=status.HTTP_200_OK,
         )
@@ -352,10 +445,13 @@ class ArrowSettingsViewSet(core_views.ActionsViewSet):
                             arrow_customer = client.get_customer(
                                 mapping["arrow_reference"]
                             )
+                            customers_list = arrow_customer.get("data", {}).get(
+                                "customers", []
+                            )
                             arrow_company_name = (
-                                arrow_customer.get("data", {})
-                                .get("customer", {})
-                                .get("companyName", "")
+                                customers_list[0].get("CompanyName", "")
+                                if customers_list
+                                else ""
                             )
                         except ArrowBackendError:
                             arrow_company_name = ""
@@ -525,7 +621,9 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
             arrow_customers = client.list_all_customers()
             # Build map using .get() to handle missing keys gracefully
             arrow_customer_map = {
-                c.get("reference"): c for c in arrow_customers if c.get("reference")
+                c.get("Reference") or c.get("reference"): c
+                for c in arrow_customers
+                if c.get("Reference") or c.get("reference")
             }
 
             updated = 0
@@ -534,7 +632,9 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
             ):
                 arrow_customer = arrow_customer_map.get(mapping.arrow_reference)
                 if arrow_customer:
-                    new_name = arrow_customer.get("companyName", "")
+                    new_name = arrow_customer.get(
+                        "CompanyName", ""
+                    ) or arrow_customer.get("companyName", "")
                     if mapping.arrow_company_name != new_name:
                         mapping.arrow_company_name = new_name
                         mapping.save(update_fields=["arrow_company_name"])
@@ -701,34 +801,37 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
                     export_type_reference=settings.export_type_reference,
                     period_from=period,
                     period_to=period,
-                    classification=settings.classification_filter,
                 )
                 all_lines = client.parse_billing_export_to_dicts(billing_data)
 
-                # Filter by customer reference
+                # Filter by customer company name
                 for line in all_lines:
-                    if line.get("Customer Reference") == mapping.arrow_reference:
-                        sell = Decimal(str(line.get("Customer Total Price", 0) or 0))
-                        buy = Decimal(str(line.get("Total Wholesale Price", 0) or 0))
-                        qty = line.get("Quantity")
-                        license_ref = line.get("License Reference", "")
+                    if (
+                        line.get("End User Company Name", "")
+                        != mapping.arrow_company_name
+                    ):
+                        continue
+                    sell = Decimal(str(line.get("Customer Total Price", 0) or 0))
+                    buy = Decimal(str(line.get("Total Wholesale Price", 0) or 0))
+                    qty = line.get("Qty") or line.get("Quantity")
+                    license_ref = line.get("ARS Subscription ID", "")
 
-                        billing_lines.append(
-                            {
-                                "vendor_name": line.get("Vendor Name", ""),
-                                "subscription_reference": line.get(
-                                    "Subscription Reference", ""
-                                ),
-                                "license_reference": license_ref,
-                                "offer_sku": line.get("Offer SKU", ""),
-                                "classification": line.get("Classification", ""),
-                                "quantity": Decimal(str(qty)) if qty else None,
-                                "sell_price": sell,
-                                "buy_price": buy,
-                            }
-                        )
-                        billing_total_sell += sell
-                        billing_total_buy += buy
+                    billing_lines.append(
+                        {
+                            "vendor_name": line.get("Vendor Name", ""),
+                            "subscription_reference": line.get(
+                                "Vendor Subscription ID", ""
+                            ),
+                            "license_reference": license_ref,
+                            "offer_sku": line.get("Arrow SKU", ""),
+                            "classification": line.get("Classification", ""),
+                            "quantity": Decimal(str(qty)) if qty else None,
+                            "sell_price": sell,
+                            "buy_price": buy,
+                        }
+                    )
+                    billing_total_sell += sell
+                    billing_total_buy += buy
 
                 billing_available = True
             except ArrowBackendError as e:
@@ -1232,16 +1335,16 @@ class ArrowCustomerMappingViewSet(core_views.ActionsViewSet):
             # but some endpoints may return camelCase, so we check both
             arrow_customers = []
             for c in arrow_customers_raw:
-                contact = c.get("contact", c.get("Contact", {})) or {}
-                address = c.get("address", c.get("Address", {})) or {}
+                contact = c.get("Contact", c.get("contact", {})) or {}
                 arrow_customers.append(
                     {
-                        "reference": c.get("reference") or c.get("Reference", ""),
-                        "companyName": c.get("companyName") or c.get("CompanyName", ""),
-                        "email": contact.get("email") or contact.get("Email", ""),
-                        "city": address.get("city") or address.get("City", ""),
-                        "countryCode": address.get("countryCode")
-                        or address.get("CountryCode", ""),
+                        "reference": c.get("Reference") or c.get("reference", ""),
+                        "companyName": c.get("CompanyName") or c.get("companyName", ""),
+                        "email": c.get("EmailContact", "")
+                        or contact.get("Email", "")
+                        or contact.get("email", ""),
+                        "city": c.get("City") or c.get("city", ""),
+                        "countryCode": c.get("CountryCode") or c.get("countryCode", ""),
                     }
                 )
         except ArrowBackendError as e:
@@ -1355,6 +1458,7 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
             year=serializer.validated_data["year"],
             month=serializer.validated_data["month"],
             settings_uuid=str(serializer.validated_data.get("settings_uuid", "")),
+            resource_uuid=str(serializer.validated_data.get("resource_uuid", "")),
         )
 
         return response.Response(
@@ -1499,6 +1603,8 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
         resource_uuid = serializer.validated_data["resource_uuid"]
         period_from = serializer.validated_data.get("period_from")
         period_to = serializer.validated_data.get("period_to")
+        force = serializer.validated_data.get("force", False)
+        dry_run = serializer.validated_data.get("dry_run", False)
 
         # Get the resource
         try:
@@ -1563,7 +1669,10 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
             "resource_name": resource.name,
             "periods_synced": 0,
             "periods_skipped": 0,
+            "periods_no_data": 0,
             "errors": [],
+            "dry_run": dry_run,
+            "preview_periods": [],
         }
 
         for billing_period in periods:
@@ -1576,21 +1685,59 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
                 license_reference=license_ref,
             ).first()
 
-            if existing and existing.is_finalized:
+            if existing and existing.is_finalized and not force:
                 results["periods_skipped"] += 1
                 continue
 
-            try:
-                tasks._sync_resource_consumption(
-                    client=client,
-                    resource=resource,
-                    license_ref=license_ref,
-                    billing_period=billing_period,
-                    period=period_str,
-                )
-                results["periods_synced"] += 1
-            except Exception as e:
-                results["errors"].append({"period": period_str, "error": str(e)})
+            if dry_run:
+                # Preview mode: fetch data from Arrow but don't save
+                try:
+                    consumption_data = client.get_monthly_consumption(
+                        license_reference=license_ref,
+                        period_from=period_str,
+                        period_to=period_str,
+                    )
+                    consumption_lines = client.parse_consumption_to_dicts(
+                        consumption_data
+                    )
+                    total_sell = sum(
+                        tasks._parse_decimal(line.get("Total sell price", 0))
+                        for line in consumption_lines
+                    )
+                    total_buy = sum(
+                        tasks._parse_decimal(line.get("Total buy price", 0))
+                        for line in consumption_lines
+                    )
+                    preview = {
+                        "period": period_str,
+                        "consumed_sell": str(total_sell),
+                        "consumed_buy": str(total_buy),
+                        "has_existing": existing is not None,
+                        "existing_consumed_sell": str(existing.consumed_sell)
+                        if existing
+                        else None,
+                        "is_finalized": existing.is_finalized if existing else False,
+                        "is_reconciled": existing.is_reconciled if existing else False,
+                    }
+                    results["preview_periods"].append(preview)
+                except Exception as e:
+                    results["errors"].append({"period": period_str, "error": str(e)})
+            else:
+                try:
+                    synced = tasks._sync_resource_consumption(
+                        client=client,
+                        resource=resource,
+                        license_ref=license_ref,
+                        billing_period=billing_period,
+                        period=period_str,
+                        prefix=settings.invoice_item_prefix or "Arrow consumption",
+                    )
+                    if synced:
+                        results["periods_synced"] += 1
+                    else:
+                        results["periods_no_data"] += 1
+                except Exception as e:
+                    results["errors"].append({"period": period_str, "error": str(e)})
 
         return response.Response(results, status=status.HTTP_200_OK)
 

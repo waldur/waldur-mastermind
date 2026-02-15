@@ -80,6 +80,12 @@ class ArrowSettings(core_models.UuidMixin, TimeStampedModel):
         default=PriceSources.SELL,
         help_text=_("Which price to use for invoice items: sell or buy"),
     )
+    invoice_item_prefix = models.CharField(
+        max_length=100,
+        default="Arrow consumption",
+        blank=True,
+        help_text=_("Prefix for invoice item names (e.g. 'Arrow consumption')"),
+    )
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
@@ -122,6 +128,14 @@ class ArrowVendorOfferingMapping(core_models.UuidMixin, TimeStampedModel):
         on_delete=models.CASCADE,
         related_name="arrow_vendor_mappings",
         help_text=_("Waldur marketplace offering for this vendor"),
+    )
+    plan = models.ForeignKey(
+        "marketplace.Plan",
+        on_delete=models.CASCADE,
+        related_name="arrow_vendor_mappings",
+        help_text=_("Waldur marketplace plan to use for billing Arrow resources"),
+        null=True,
+        blank=True,
     )
     is_active = models.BooleanField(
         default=True,
