@@ -50,10 +50,9 @@ via the API or setup wizard (see Setup Workflow below). Key fields:
 
 | Field | Description |
 |-------|-------------|
-| `api_url` | Arrow API base URL |
+| `api_url` | Arrow API base URL (e.g., `https://xsp.arrow.com/index.php/api/`) |
 | `api_key` | API key for authentication |
 | `export_type_reference` | Billing export template reference (discovered from API) |
-| `classification_filter` | Filter for IaaS/SaaS classification (default: `IAAS`). If the Arrow API rejects requests with this filter, the system automatically retries without it. |
 | `invoice_price_source` | Which price to use for invoice items: `sell` (default) or `buy` |
 | `sync_enabled` | Whether automatic billing sync is enabled |
 | `is_active` | Whether this settings record is active |
@@ -73,7 +72,7 @@ Use the setup wizard endpoints to configure credentials:
 ```text
 POST /api/admin/arrow/settings/validate_credentials/
 {
-    "api_url": "https://xsp.arrow.com/api/",
+    "api_url": "https://xsp.arrow.com/index.php/api/",
     "api_key": "your-api-key"
 }
 ```
@@ -85,10 +84,9 @@ Then save the settings:
 ```text
 POST /api/admin/arrow/settings/save_settings/
 {
-    "api_url": "https://xsp.arrow.com/api/",
+    "api_url": "https://xsp.arrow.com/index.php/api/",
     "api_key": "your-api-key",
     "export_type_reference": "DJ284LDZ-standard",
-    "classification_filter": "IAAS",
     "sync_enabled": true,
     "customer_mappings": [
         {"arrow_reference": "XSP661245", "waldur_customer_uuid": "..."}
@@ -103,13 +101,17 @@ Discover Arrow customers and get mapping suggestions:
 ```text
 POST /api/admin/arrow/settings/discover_customers/
 {
-    "api_url": "https://xsp.arrow.com/api/",
+    "api_url": "https://xsp.arrow.com/index.php/api/",
     "api_key": "your-api-key"
 }
 ```
 
-The response includes fuzzy-matched suggestions between Arrow company names and Waldur
-organizations. Create mappings via:
+The response includes:
+
+- Fuzzy-matched suggestions between Arrow company names and Waldur organizations
+- Export type compatibility information showing which export types have the required and important fields used by Waldur (see Export Type Compatibility below)
+
+Create mappings via:
 
 ```text
 POST /api/admin/arrow/customer-mappings/
@@ -129,18 +131,19 @@ POST /api/admin/arrow/customer-mappings/sync_from_arrow/
 
 ### Step 4: Map Vendors to Offerings
 
-Map Arrow vendor names to Waldur marketplace offerings:
+Map Arrow vendor names to Waldur marketplace offerings and plans:
 
 ```text
 POST /api/admin/arrow/vendor-offering-mappings/
 {
     "settings": "<settings-uuid>",
     "arrow_vendor_name": "Microsoft",
-    "offering": "<offering-uuid>"
+    "offering": "<offering-uuid>",
+    "plan": "<plan-uuid>"
 }
 ```
 
-Use the `vendor_choices` endpoint to list available vendor names:
+The `plan` field is mandatory and must reference a plan belonging to the selected offering. Use the `vendor_choices` endpoint to list available vendor names:
 
 ```text
 GET /api/admin/arrow/vendor-offering-mappings/vendor_choices/
@@ -167,9 +170,7 @@ Resources must have their `backend_id` field set to the Arrow license reference 
 The license reference is stored in the resource's `arrow_license_reference` attribute.
 Use the `discover_licenses` and `link_resource` actions on customer mappings to link resources.
 
-During consumption sync, matching uses both `License Reference` and `ARS Subscription ID`
-fields from the Arrow billing export, so resources are found regardless of which field the
-export type populates.
+During consumption sync, resources are matched by `ARS Subscription ID` from the Arrow billing export.
 
 ## API Endpoints
 
@@ -182,7 +183,7 @@ Standard CRUD plus:
 | Action | Method | Description |
 |--------|--------|-------------|
 | `validate_credentials` | POST | Test API credentials without saving |
-| `discover_customers` | POST | Fetch Arrow customers with mapping suggestions |
+| `discover_customers` | POST | Fetch Arrow customers with mapping suggestions and export type compatibility |
 | `preview_settings` | POST | Preview settings before saving |
 | `save_settings` | POST | Save settings and optionally create customer mappings |
 
@@ -288,8 +289,12 @@ waldur sync_arrow_resources --dry-run --period-from 2025-07 --period-to 2026-01
 waldur sync_arrow_resources --force-import
 ```
 
-In force-import mode, each Arrow customer gets a Waldur Customer with an
-"Arrow Azure Subscriptions" project automatically created.
+In force-import mode, the system:
+
+1. Creates a Waldur Customer for each Arrow customer (with an "Arrow Azure Subscriptions" project)
+2. Creates a usage-based plan ("Arrow Cloud Cost") on the offering with a `cloud_cost` component
+3. Assigns each resource to this plan and creates a `ResourcePlanPeriod` record
+4. Records `ComponentUsage` for each billing period, enabling proper billing integration
 
 ## Invoice Price Source
 
@@ -307,37 +312,39 @@ This affects:
 ## Billing Export Field Mapping
 
 Different Arrow export types use different column names. The system handles this with fallback
-chains — it tries the first field name and falls back to alternatives:
+chains -- it tries the first field name and falls back to alternatives:
 
 | Waldur Field | Primary Column | Fallback Column(s) |
 |-------------|----------------|---------------------|
-| Line reference | `Line Reference` | `Sequence` → `Order Id` |
+| Line reference | `Sequence` | `Order Id` |
 | Sell price | `Sell Total Price` | `Customer Total Price` |
 | Buy price | `Buy Total Price` | `Total Wholesale Price` |
 | Quantity | `Quantity` | `Qty` (defaults to 1) |
 | Vendor | `Vendor Name` | `Service Name` |
-| Product | `Product Name` | `Friendly Name` → `Description` |
-| License reference | `License Reference` | `ARS Subscription ID` |
-| Customer grouping | `Customer Reference` | `End User Company Name` (matched via `arrow_company_name`) |
-
-### Classification Filter Fallback
-
-When `classification_filter` is set (e.g., `IAAS`), the system first requests billing data
-filtered by classification. If the Arrow API rejects the filter (HTTP 400), the system
-automatically retries the request without the classification filter. This applies to:
-
-- Billing sync (`sync_arrow_billing`)
-- Billing reconciliation (`reconcile_arrow_billing`)
-- Consumption reconciliation (`check_and_reconcile_billing`)
+| Product | `Product Name` | `Friendly Name` -> `Description` |
+| License reference | `ARS Subscription ID` | -- |
+| Customer grouping | `End User Company Name` | -- |
+| Subscription reference | `Vendor Subscription ID` | -- |
+| SKU | `Arrow SKU` | -- |
 
 ### Customer Grouping
 
-Billing lines are grouped by customer using two strategies:
+Billing lines are grouped by `End User Company Name`, matched against
+`ArrowCustomerMapping.arrow_company_name`. Each mapping's `arrow_company_name` field must
+match the company name that appears in the billing export for that customer.
 
-1. **By `Customer Reference`**: Lines with a `Customer Reference` field are matched to
-   `ArrowCustomerMapping.arrow_reference`
-2. **By company name** (fallback): If no lines match by reference, lines with an
-   `End User Company Name` are matched to `ArrowCustomerMapping.arrow_company_name`
+### Export Type Compatibility
+
+The `discover_customers` endpoint checks each available export type for compatibility by
+inspecting its column headers. For each export type, the response includes:
+
+- `compatible`: Whether all required fields are present
+- `recommended`: Whether the export type has both required and most important fields
+- `missing_required_fields`: List of missing required fields
+- `missing_important_fields`: List of missing important fields
+
+The compatible export type is typically "MSP (Extended)". Choose an export type where
+`compatible` is `true` and `recommended` is `true` for best results.
 
 ## Billing Sync Lifecycle
 
@@ -363,9 +370,9 @@ When billing moves from Synced to Validated, the system can automatically apply 
 if `ARROW_AUTO_RECONCILIATION` is enabled. Otherwise, use the `reconcile` action to trigger
 reconciliation manually.
 
-During reconciliation, license references are matched using a fallback chain: first by
-`License Reference`, then by `ARS Subscription ID`. The price fields used for comparison
-depend on which columns are present in the export (see Field Mapping above).
+During reconciliation, license references are matched by `ARS Subscription ID`. The price
+fields used for comparison depend on which columns are present in the export (see Field
+Mapping above).
 
 ### Consumption-Based Reconciliation
 
@@ -387,13 +394,10 @@ setup wizard.
 ### Billing sync runs but creates no items
 
 - Verify customer mappings exist and are active
-- Check that `export_type_reference` is set correctly (use `validate_credentials` to discover types)
-- Confirm the `classification_filter` matches your subscriptions (default: `IAAS`). The system
-  retries without the filter if the Arrow API rejects it, but verify in logs.
-- Check that `arrow_company_name` is set on customer mappings — some export types don't include
-  `Customer Reference` and rely on company name matching instead
-- Different export types use different column names (e.g., `Customer Total Price` vs
-  `Sell Total Price`). The system handles this with fallback chains, but check logs for warnings.
+- Ensure `arrow_company_name` is set correctly on customer mappings -- billing lines are matched by company name
+- Check that `export_type_reference` is set correctly (use `discover_customers` to see export type compatibility)
+- Use an export type where `compatible` is `true` (typically "MSP (Extended)")
+- Different export types use different column names (e.g., `Customer Total Price` vs `Sell Total Price`). The system handles this with fallback chains, but check logs for warnings.
 
 ### Consumption sync not running
 
@@ -410,7 +414,7 @@ create new ones.
 ### API authentication failures
 
 - Verify the API key is valid using `validate_credentials`
-- Check that the Arrow API URL includes the correct base path
+- Check that the Arrow API URL includes the correct base path (e.g., `https://xsp.arrow.com/index.php/api/`)
 - Review Waldur logs for detailed error messages from the Arrow API
 
 ## Related Files

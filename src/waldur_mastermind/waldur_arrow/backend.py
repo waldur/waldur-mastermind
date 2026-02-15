@@ -11,7 +11,6 @@ It handles authentication, pagination, and provides methods for:
 
 import logging
 from dataclasses import dataclass
-from typing import Any
 
 import requests
 
@@ -74,46 +73,70 @@ class ArrowClient:
         url = f"{self.credentials.get_base_url()}{endpoint}"
         try:
             response = self.session.get(url, params=params)
-            if not response.ok:
-                # Capture response body before raise_for_status
-                error_detail = ""
-                try:
-                    error_body = response.json()
-                    error_detail = f" Response: {error_body}"
-                except ValueError:
-                    if response.text:
-                        error_detail = f" Response: {response.text[:500]}"
-                logger.error(
-                    f"Arrow API GET {endpoint} failed: {response.status_code}{error_detail}"
-                )
-            response.raise_for_status()
-            return response.json()
         except requests.exceptions.RequestException as e:
-            logger.error(f"Arrow API GET request failed: {e}")
-            raise ArrowBackendError(f"Arrow API request failed: {e}")
+            logger.error("Arrow API GET %s connection failed: %s", endpoint, e)
+            raise ArrowBackendError(f"Arrow API request to {endpoint} failed: {e}")
+
+        if not response.ok:
+            body = response.text[:500] if response.text else "(empty)"
+            logger.error(
+                "Arrow API GET %s failed with status %s. Response body: %s",
+                endpoint,
+                response.status_code,
+                body,
+            )
+            raise ArrowBackendError(
+                f"Arrow API {endpoint} returned HTTP {response.status_code}: {body}"
+            )
+
+        try:
+            return response.json()
+        except ValueError:
+            body = response.text[:500] if response.text else "(empty)"
+            logger.error(
+                "Arrow API GET %s returned invalid JSON (status %s). Response body: %s",
+                endpoint,
+                response.status_code,
+                body,
+            )
+            raise ArrowBackendError(
+                f"Arrow API {endpoint} returned invalid JSON (status {response.status_code}): {body}"
+            )
 
     def _post(self, endpoint: str, data: dict | None = None) -> dict:
         """Make a POST request to the Arrow API."""
         url = f"{self.credentials.get_base_url()}{endpoint}"
         try:
             response = self.session.post(url, json=data)
-            if not response.ok:
-                # Capture response body before raise_for_status
-                error_detail = ""
-                try:
-                    error_body = response.json()
-                    error_detail = f" Response: {error_body}"
-                except ValueError:
-                    if response.text:
-                        error_detail = f" Response: {response.text[:500]}"
-                logger.error(
-                    f"Arrow API POST {endpoint} failed: {response.status_code}{error_detail}"
-                )
-            response.raise_for_status()
-            return response.json()
         except requests.exceptions.RequestException as e:
-            logger.error(f"Arrow API POST request failed: {e}")
-            raise ArrowBackendError(f"Arrow API request failed: {e}")
+            logger.error("Arrow API POST %s connection failed: %s", endpoint, e)
+            raise ArrowBackendError(f"Arrow API request to {endpoint} failed: {e}")
+
+        if not response.ok:
+            body = response.text[:500] if response.text else "(empty)"
+            logger.error(
+                "Arrow API POST %s failed with status %s. Response body: %s",
+                endpoint,
+                response.status_code,
+                body,
+            )
+            raise ArrowBackendError(
+                f"Arrow API {endpoint} returned HTTP {response.status_code}: {body}"
+            )
+
+        try:
+            return response.json()
+        except ValueError:
+            body = response.text[:500] if response.text else "(empty)"
+            logger.error(
+                "Arrow API POST %s returned invalid JSON (status %s). Response body: %s",
+                endpoint,
+                response.status_code,
+                body,
+            )
+            raise ArrowBackendError(
+                f"Arrow API {endpoint} returned invalid JSON (status {response.status_code}): {body}"
+            )
 
     # -------------------- Validation --------------------
 
@@ -191,6 +214,13 @@ class ArrowClient:
 
         while True:
             response = self.list_customers(page=page)
+            logger.debug(
+                "Arrow customers response keys: %s, data keys: %s",
+                list(response.keys()),
+                list(response.get("data", {}).keys())
+                if isinstance(response.get("data"), dict)
+                else type(response.get("data")).__name__,
+            )
             customers = response.get("data", {}).get("customers", [])
             if not customers:
                 break
@@ -231,34 +261,27 @@ class ArrowClient:
         period_from: str,
         period_to: str,
         page: int = 1,
-        classification: str | None = None,
     ) -> dict:
         """
         Export billing data synchronously (paginated JSON).
 
         Args:
-            export_type_reference: Export type reference (e.g., 'DJ284LDZ-standard')
+            export_type_reference: Export type reference (e.g., 'E1-2-b2f08942207fbd6838ba332a98387c69')
             period_from: Start period in YYYY-MM format
             period_to: End period in YYYY-MM format
             page: Page number (1-indexed)
-            classification: Optional filter (e.g., 'IAAS')
 
         Returns:
             dict with 'headers', 'values', and 'pagination'
         """
-        filters: dict[str, Any] = {
-            "reportPeriod": {
-                "from": period_from,
-                "to": period_to,
-            }
-        }
-
-        if classification:
-            filters["classification"] = classification
-
         payload = {
             "exportTypeReference": export_type_reference,
-            "filters": filters,
+            "filters": {
+                "reportPeriod": {
+                    "from": period_from,
+                    "to": period_to,
+                },
+            },
             "page": page,
         }
 
@@ -269,7 +292,6 @@ class ArrowClient:
         export_type_reference: str,
         period_from: str,
         period_to: str,
-        classification: str | None = None,
     ) -> dict:
         """
         Export all billing data with automatic pagination.
@@ -278,7 +300,6 @@ class ArrowClient:
             export_type_reference: Export type reference
             period_from: Start period in YYYY-MM format
             period_to: End period in YYYY-MM format
-            classification: Optional filter
 
         Returns:
             dict with 'headers' and combined 'values' from all pages
@@ -293,7 +314,6 @@ class ArrowClient:
                 period_from=period_from,
                 period_to=period_to,
                 page=page,
-                classification=classification,
             )
 
             data = response.get("data", {})

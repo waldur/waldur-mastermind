@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.structure import models as structure_models
+from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import models
 
@@ -66,12 +67,28 @@ class DiscoverCustomersRequestSerializer(ArrowCredentialsSerializer):
     pass
 
 
+class ExportTypeCompatibilitySerializer(serializers.Serializer):
+    """Serializer for export type with compatibility info."""
+
+    reference = serializers.CharField()
+    name = serializers.CharField()
+    required_fields_total = serializers.IntegerField()
+    required_fields_found = serializers.IntegerField()
+    important_fields_total = serializers.IntegerField()
+    important_fields_found = serializers.IntegerField()
+    missing_required_fields = serializers.ListField(child=serializers.CharField())
+    missing_important_fields = serializers.ListField(child=serializers.CharField())
+    compatible = serializers.BooleanField()
+    recommended = serializers.BooleanField()
+
+
 class DiscoverCustomersResponseSerializer(serializers.Serializer):
     """Response serializer for customer discovery."""
 
     arrow_customers = ArrowCustomerDiscoverySerializer(many=True)
     waldur_customers = WaldurCustomerBriefSerializer(many=True)
     suggestions = CustomerMappingSuggestionSerializer(many=True)
+    export_types = ExportTypeCompatibilitySerializer(many=True)
 
 
 class CustomerMappingInputSerializer(serializers.Serializer):
@@ -145,6 +162,7 @@ class ArrowSettingsSerializer(
             "partner_reference",
             "partner_name",
             "invoice_price_source",
+            "invoice_item_prefix",
             "created",
             "modified",
         )
@@ -235,13 +253,6 @@ class ArrowCustomerMappingCreateSerializer(ArrowCustomerMappingSerializer):
 # -------------------- Vendor Offering Mapping Serializers --------------------
 
 
-def _get_offering_queryset():
-    """Get the marketplace Offering queryset."""
-    from waldur_mastermind.marketplace import models as marketplace_models
-
-    return marketplace_models.Offering.objects.all()
-
-
 class ArrowVendorOfferingMappingSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
@@ -260,6 +271,8 @@ class ArrowVendorOfferingMappingSerializer(
     offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
     offering_name = serializers.ReadOnlyField(source="offering.name")
     offering_type = serializers.ReadOnlyField(source="offering.type")
+    plan_uuid = serializers.ReadOnlyField(source="plan.uuid")
+    plan_name = serializers.ReadOnlyField(source="plan.name")
 
     class Meta:
         model = models.ArrowVendorOfferingMapping
@@ -273,6 +286,9 @@ class ArrowVendorOfferingMappingSerializer(
             "offering_uuid",
             "offering_name",
             "offering_type",
+            "plan",
+            "plan_uuid",
+            "plan_name",
             "is_active",
             "created",
             "modified",
@@ -282,18 +298,21 @@ class ArrowVendorOfferingMappingSerializer(
             "created",
             "modified",
         )
-        extra_kwargs = {
-            "offering": {
-                "view_name": "marketplace-public-offering-detail",
-                "lookup_field": "uuid",
-            }
-        }
 
     def get_fields(self):
         fields = super().get_fields()
-        # Set queryset dynamically to avoid circular import at module load time
-        if "offering" in fields and hasattr(fields["offering"], "queryset"):
-            fields["offering"].queryset = _get_offering_queryset()
+        # Override offering and plan to use SlugRelatedField so that
+        # both create and update accept bare UUIDs instead of hyperlinks.
+        fields["offering"] = serializers.SlugRelatedField(
+            slug_field="uuid",
+            queryset=marketplace_models.Offering.objects.all(),
+        )
+        fields["plan"] = serializers.SlugRelatedField(
+            slug_field="uuid",
+            queryset=marketplace_models.Plan.objects.all(),
+            required=False,
+            allow_null=True,
+        )
         return fields
 
 
@@ -305,16 +324,15 @@ class ArrowVendorOfferingMappingCreateSerializer(ArrowVendorOfferingMappingSeria
         queryset=models.ArrowSettings.objects.all(),
     )
 
-    def get_fields(self):
-        fields = super().get_fields()
-        # Override offering to use SlugRelatedField for easier creation
-        from waldur_mastermind.marketplace import models as marketplace_models
-
-        fields["offering"] = serializers.SlugRelatedField(
-            slug_field="uuid",
-            queryset=marketplace_models.Offering.objects.all(),
-        )
-        return fields
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        plan = attrs.get("plan")
+        offering = attrs.get("offering")
+        if plan and offering and plan.offering != offering:
+            raise serializers.ValidationError(
+                {"plan": "Plan must belong to the selected offering."}
+            )
+        return attrs
 
 
 class VendorNameChoiceSerializer(serializers.Serializer):
@@ -420,6 +438,10 @@ class TriggerSyncRequestSerializer(serializers.Serializer):
     year = serializers.IntegerField(min_value=2000, max_value=2100)
     month = serializers.IntegerField(min_value=1, max_value=12)
     settings_uuid = serializers.UUIDField(required=False)
+    resource_uuid = serializers.UUIDField(
+        required=False,
+        help_text="If set, only sync billing lines for this resource.",
+    )
 
 
 class ReconcileRequestSerializer(serializers.Serializer):
@@ -551,6 +573,14 @@ class SyncResourceHistoricalConsumptionRequestSerializer(serializers.Serializer)
         required=False,
         help_text="End period in YYYY-MM format. Defaults to current month.",
     )
+    force = serializers.BooleanField(
+        default=False,
+        help_text="If True, sync even for finalized periods.",
+    )
+    dry_run = serializers.BooleanField(
+        default=False,
+        help_text="If True, preview consumption data without saving.",
+    )
 
     def validate_period_from(self, value):
         if value:
@@ -584,7 +614,12 @@ class SyncResourceHistoricalConsumptionResponseSerializer(serializers.Serializer
     resource_name = serializers.CharField()
     periods_synced = serializers.IntegerField()
     periods_skipped = serializers.IntegerField()
+    periods_no_data = serializers.IntegerField(default=0)
     errors = serializers.ListField(child=serializers.DictField())
+    dry_run = serializers.BooleanField(default=False)
+    preview_periods = serializers.ListField(
+        child=serializers.DictField(), required=False, default=list
+    )
 
 
 class SyncPauseRequestSerializer(serializers.Serializer):

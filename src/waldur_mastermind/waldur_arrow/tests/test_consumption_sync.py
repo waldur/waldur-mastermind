@@ -711,7 +711,7 @@ class CheckAndReconcileBillingTaskTest(TestCase):
                 "Vendor Subscription ID": "azure-sub-001",
                 "Customer Total Price": "95.00",
                 "Total Wholesale Price": "76.00",
-                "License Reference": "XSP12345",
+                "ARS Subscription ID": "XSP12345",
             },
         ]
 
@@ -756,7 +756,7 @@ class CheckAndReconcileBillingTaskTest(TestCase):
                 "Vendor Subscription ID": "azure-sub-999",
                 "Customer Total Price": "95.00",
                 "Total Wholesale Price": "76.00",
-                "License Reference": "XSP12345",
+                "ARS Subscription ID": "XSP12345",
             },
         ]
 

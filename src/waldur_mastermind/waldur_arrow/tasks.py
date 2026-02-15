@@ -91,7 +91,6 @@ def check_validated_billing():
                 period_from=period,
                 period_to=period,
                 page=1,
-                classification=settings.classification_filter,
             )
 
             # Check if Arrow has validated the billing
@@ -224,6 +223,7 @@ def sync_arrow_consumption(year: int, month: int, settings_uuid: str = ""):
                 billing_period=billing_period,
                 period=period,
                 price_source=settings.invoice_price_source,
+                prefix=settings.invoice_item_prefix or "Arrow consumption",
             )
             results["synced"] += 1
         except Exception as e:
@@ -253,6 +253,7 @@ def _sync_resource_consumption(
     billing_period: date,
     period: str,
     price_source: str = models.PriceSources.SELL,
+    prefix: str = "Arrow consumption",
 ):
     """
     Sync consumption data for a single resource.
@@ -300,7 +301,7 @@ def _sync_resource_consumption(
     # Skip if no consumption data at all (license didn't exist in this period)
     if total_sell == 0 and total_buy == 0:
         logger.debug(f"No consumption data for {license_ref} in {period}, skipping")
-        return
+        return False
 
     with transaction.atomic():
         # Update or create ArrowConsumptionRecord
@@ -337,11 +338,14 @@ def _sync_resource_consumption(
         _update_component_usage_from_consumption(resource, billing_period, total_sell)
 
         # Create/update invoice item
-        _update_provisional_invoice_item(record, resource, price_source=price_source)
+        _update_provisional_invoice_item(
+            record, resource, price_source=price_source, prefix=prefix
+        )
 
     logger.debug(
         f"Synced consumption for {resource.name}: sell={total_sell}, buy={total_buy}"
     )
+    return True
 
 
 def _extract_prediction_totals(prediction_data: dict) -> tuple[Decimal, Decimal]:
@@ -370,6 +374,8 @@ def _update_component_usage_from_consumption(
 
     This triggers the billing invoice item creation/update via signals.
     """
+    from waldur_mastermind.marketplace.utils import get_or_create_plan_period
+
     # Get cloud_cost component from offering
     component = resource.offering.components.filter(type="cloud_cost").first()
     if not component:
@@ -377,6 +383,8 @@ def _update_component_usage_from_consumption(
             f"No cloud_cost component found for offering {resource.offering.uuid}"
         )
         return
+
+    plan_period = get_or_create_plan_period(resource, billing_period)
 
     usage_date = timezone.make_aware(
         timezone.datetime(billing_period.year, billing_period.month, 1, 0, 0, 0)
@@ -389,6 +397,7 @@ def _update_component_usage_from_consumption(
         defaults={
             "usage": sell_amount,
             "date": usage_date,
+            "plan_period": plan_period,
             "description": f"Arrow consumption for {billing_period.strftime('%Y-%m')}",
         },
     )
@@ -398,6 +407,7 @@ def _update_provisional_invoice_item(
     record: models.ArrowConsumptionRecord,
     resource: marketplace_models.Resource,
     price_source: str = models.PriceSources.SELL,
+    prefix: str = "Arrow consumption",
 ):
     """
     Create or update provisional invoice item from consumption record.
@@ -408,6 +418,7 @@ def _update_provisional_invoice_item(
         record: The consumption record
         resource: The marketplace resource
         price_source: Which price to use for unit_price ("sell" or "buy")
+        prefix: Prefix for invoice item name (e.g. "Arrow consumption")
     """
     customer = resource.project.customer
     year = record.billing_period.year
@@ -440,7 +451,7 @@ def _update_provisional_invoice_item(
             project=resource.project,
             project_name=resource.project.name,
             project_uuid=resource.project.uuid.hex,
-            name=f"Arrow consumption: {resource.name}"[:255],
+            name=f"{prefix}: {resource.name}"[:255],
             unit_price=unit_price,
             quantity=Decimal("1"),
             unit=invoices_models.InvoiceItem.Units.QUANTITY,
@@ -530,27 +541,11 @@ def check_and_reconcile_billing(
             export_type_reference=settings.export_type_reference,
             period_from=period,
             period_to=period,
-            classification=settings.classification_filter,
         )
         billing_lines = client.parse_billing_export_to_dicts(billing_data)
     except ArrowBackendError as e:
-        if settings.classification_filter:
-            logger.info(
-                f"Billing export with classification filter failed ({e}), retrying without filter"
-            )
-            try:
-                billing_data = client.export_billing_all_pages(
-                    export_type_reference=settings.export_type_reference,
-                    period_from=period,
-                    period_to=period,
-                )
-                billing_lines = client.parse_billing_export_to_dicts(billing_data)
-            except ArrowBackendError as e2:
-                logger.warning(f"Failed to fetch billing export for {period}: {e2}")
-                return {"error": str(e2)}
-        else:
-            logger.warning(f"Failed to fetch billing export for {period}: {e}")
-            return {"error": str(e)}
+        logger.warning(f"Failed to fetch billing export for {period}: {e}")
+        return {"error": str(e)}
 
     if not billing_lines:
         logger.info(f"No billing data available for {period}")
@@ -595,6 +590,7 @@ def check_and_reconcile_billing(
                 billing_info=billing_info,
                 force=force_reconcile,
                 price_source=settings.invoice_price_source,
+                prefix=settings.invoice_item_prefix or "Arrow consumption",
             )
 
             results["finalized"] += 1
@@ -633,8 +629,7 @@ def _find_billing_by_license_ref(
     matching_lines = [
         line
         for line in billing_lines
-        if line.get("License Reference") == license_reference
-        or line.get("ARS Subscription ID") == license_reference
+        if line.get("ARS Subscription ID") == license_reference
     ]
 
     if not matching_lines:
@@ -659,6 +654,7 @@ def _reconcile_consumption_record(
     billing_info: dict,
     force: bool = False,
     price_source: str = models.PriceSources.SELL,
+    prefix: str = "Arrow consumption",
 ) -> bool:
     """
     Reconcile a consumption record with finalized billing data.
@@ -670,6 +666,7 @@ def _reconcile_consumption_record(
         billing_info: Dict with sell_total, buy_total from billing export
         force: If True, reconcile even if already reconciled
         price_source: Which price pair to use for adjustment ("sell" or "buy")
+        prefix: Prefix for invoice item name
 
     Returns:
         True if compensation item was created, False otherwise
@@ -703,7 +700,9 @@ def _reconcile_consumption_record(
 
         # Create compensation if significant difference (>= 0.01)
         if abs(adjustment) >= Decimal("0.01"):
-            compensation_created = _create_compensation_item(record, adjustment)
+            compensation_created = _create_compensation_item(
+                record, adjustment, prefix=prefix
+            )
 
         record.reconciled_at = timezone.now()
         record.save()
@@ -723,6 +722,7 @@ def _reconcile_consumption_record(
 def _create_compensation_item(
     record: models.ArrowConsumptionRecord,
     adjustment: Decimal,
+    prefix: str = "Arrow consumption",
 ) -> bool:
     """
     Create compensation invoice item in CURRENT month.
@@ -730,6 +730,7 @@ def _create_compensation_item(
     Args:
         record: The consumption record
         adjustment: The adjustment amount (positive = additional charge, negative = credit)
+        prefix: Prefix for invoice item name
 
     Returns:
         True if item was created
@@ -747,9 +748,11 @@ def _create_compensation_item(
 
     # Determine description
     if adjustment > 0:
-        desc = f"Arrow adjustment: {resource.name} (additional charge for {record.billing_period})"
+        desc = f"{prefix} adjustment: {resource.name} (additional charge for {record.billing_period})"
     else:
-        desc = f"Arrow adjustment: {resource.name} (credit for {record.billing_period})"
+        desc = (
+            f"{prefix} adjustment: {resource.name} (credit for {record.billing_period})"
+        )
 
     # Create compensation item
     compensation_item = invoices_models.InvoiceItem.objects.create(
@@ -780,7 +783,9 @@ def _create_compensation_item(
 
 
 @shared_task(name="waldur_mastermind.waldur_arrow.sync_arrow_billing")
-def sync_arrow_billing(year: int, month: int, settings_uuid: str = ""):
+def sync_arrow_billing(
+    year: int, month: int, settings_uuid: str = "", resource_uuid: str = ""
+):
     """
     Sync Arrow billing for a specific period.
 
@@ -788,6 +793,7 @@ def sync_arrow_billing(year: int, month: int, settings_uuid: str = ""):
         year: Year of the billing period
         month: Month of the billing period
         settings_uuid: Optional specific settings UUID to use
+        resource_uuid: Optional resource UUID to filter billing lines for
     """
     if settings_uuid:
         settings = models.ArrowSettings.objects.filter(uuid=settings_uuid).first()
@@ -796,6 +802,13 @@ def sync_arrow_billing(year: int, month: int, settings_uuid: str = ""):
 
     if not settings:
         logger.error("No Arrow settings found")
+        return
+
+    if not settings.export_type_reference:
+        logger.error(
+            "Arrow settings has no export_type_reference configured. "
+            "Please set it in the Arrow Integration settings."
+        )
         return
 
     period = f"{year:04d}-{month:02d}"
@@ -819,46 +832,49 @@ def sync_arrow_billing(year: int, month: int, settings_uuid: str = ""):
 
     try:
         # Fetch all billing data for the period
-        try:
-            billing_data = client.export_billing_all_pages(
-                export_type_reference=settings.export_type_reference,
-                period_from=period,
-                period_to=period,
-                classification=settings.classification_filter,
-            )
-        except ArrowBackendError:
-            if settings.classification_filter:
-                logger.info(
-                    "Billing export with classification filter failed, retrying without filter"
-                )
-                billing_data = client.export_billing_all_pages(
-                    export_type_reference=settings.export_type_reference,
-                    period_from=period,
-                    period_to=period,
-                )
-            else:
-                raise
+        billing_data = client.export_billing_all_pages(
+            export_type_reference=settings.export_type_reference,
+            period_from=period,
+            period_to=period,
+        )
 
         billing_lines = client.parse_billing_export_to_dicts(billing_data)
         logger.info(f"Retrieved {len(billing_lines)} billing lines from Arrow")
 
-        # Group billing lines by customer reference or company name
-        # Different export types use different fields for customer identification
-        lines_by_ref: dict[str, list[dict]] = {}
+        # If resource_uuid is specified, resolve its license reference for filtering
+        target_license_ref = ""
+        if resource_uuid:
+            resource = marketplace_models.Resource.objects.filter(
+                uuid=resource_uuid
+            ).first()
+            if resource and resource.backend_id:
+                target_license_ref = resource.backend_id
+                logger.info(
+                    f"Filtering billing lines for resource {resource_uuid} "
+                    f"(license ref: {target_license_ref})"
+                )
+            else:
+                logger.warning(
+                    f"Resource {resource_uuid} not found or has no backend_id, "
+                    "skipping resource filter"
+                )
+
+        # Group billing lines by customer company name
         lines_by_name: dict[str, list[dict]] = {}
         for line in billing_lines:
-            customer_ref = line.get("Customer Reference", "")
-            if customer_ref:
-                lines_by_ref.setdefault(customer_ref, []).append(line)
             company_name = line.get("End User Company Name", "")
             if company_name:
                 lines_by_name.setdefault(company_name, []).append(line)
 
         # Process each customer mapping
         for mapping in mappings:
-            customer_lines = lines_by_ref.get(mapping.arrow_reference, [])
-            if not customer_lines and mapping.arrow_company_name:
-                customer_lines = lines_by_name.get(mapping.arrow_company_name, [])
+            customer_lines = lines_by_name.get(mapping.arrow_company_name, [])
+            if target_license_ref:
+                customer_lines = [
+                    line
+                    for line in customer_lines
+                    if line.get("ARS Subscription ID") == target_license_ref
+                ]
             if customer_lines:
                 _process_customer_billing(
                     settings=settings,
@@ -932,11 +948,7 @@ def _process_customer_billing(
     with transaction.atomic():
         for line in lines:
             try:
-                line_ref = (
-                    line.get("Line Reference")
-                    or line.get("Sequence")
-                    or line.get("Order Id", "")
-                )
+                line_ref = line.get("Sequence") or line.get("Order Id", "")
                 if not line_ref:
                     continue
 
@@ -980,12 +992,8 @@ def _process_customer_billing(
                 )
                 description = f"{vendor} - {product}" if vendor else product
 
-                # Look up linked resource by license reference
-                license_ref_value = (
-                    line.get("License Reference")
-                    or line.get("ARS Subscription ID")
-                    or ""
-                )
+                # Look up linked resource by ARS subscription ID
+                license_ref_value = line.get("ARS Subscription ID", "")
                 resource = None
                 project = None
                 if license_ref_value:
@@ -1028,7 +1036,7 @@ def _process_customer_billing(
                             "arrow_line_reference": line_ref,
                             "vendor_name": vendor,
                             "subscription_reference": line.get(
-                                "Subscription Reference", ""
+                                "Vendor Subscription ID", ""
                             ),
                             "classification": line.get("Classification", ""),
                         },
@@ -1041,7 +1049,7 @@ def _process_customer_billing(
                         invoice_item=invoice_item,
                         original_price=unit_price,
                         vendor_name=vendor[:255],
-                        subscription_reference=line.get("Subscription Reference", "")[
+                        subscription_reference=line.get("Vendor Subscription ID", "")[
                             :255
                         ],
                         classification=line.get("Classification", "")[:50],
@@ -1133,25 +1141,11 @@ def reconcile_arrow_billing(
         return
 
     try:
-        try:
-            billing_data = client.export_billing_all_pages(
-                export_type_reference=settings.export_type_reference,
-                period_from=period,
-                period_to=period,
-                classification=settings.classification_filter,
-            )
-        except ArrowBackendError:
-            if settings.classification_filter:
-                logger.info(
-                    "Billing export with classification filter failed, retrying without filter"
-                )
-                billing_data = client.export_billing_all_pages(
-                    export_type_reference=settings.export_type_reference,
-                    period_from=period,
-                    period_to=period,
-                )
-            else:
-                raise
+        billing_data = client.export_billing_all_pages(
+            export_type_reference=settings.export_type_reference,
+            period_from=period,
+            period_to=period,
+        )
         billing_lines = client.parse_billing_export_to_dicts(billing_data)
 
         # Create lookup by line reference
@@ -1173,11 +1167,7 @@ def reconcile_arrow_billing(
         )
         current_prices: dict[str, Decimal] = {}
         for line in billing_lines:
-            line_ref = (
-                line.get("Line Reference")
-                or line.get("Sequence")
-                or line.get("Order Id", "")
-            )
+            line_ref = line.get("Sequence") or line.get("Order Id", "")
             if line_ref:
                 current_prices[line_ref] = _parse_decimal(line.get(price_field, "0"))
 
@@ -1186,12 +1176,14 @@ def reconcile_arrow_billing(
         return
 
     # Process each sync
+    prefix = settings.invoice_item_prefix or "Arrow consumption"
     for sync in syncs:
         _reconcile_sync(
             sync=sync,
             current_prices=current_prices,
             current_year=current_year,
             current_month=current_month,
+            prefix=prefix,
         )
 
 
@@ -1200,6 +1192,7 @@ def _reconcile_sync(
     current_prices: dict[str, Decimal],
     current_year: int,
     current_month: int,
+    prefix: str = "Arrow consumption",
 ):
     """
     Reconcile a single billing sync.
@@ -1233,10 +1226,10 @@ def _reconcile_sync(
             # Create compensation invoice item
             if price_diff > 0:
                 description = (
-                    f"Arrow adjustment: {item.description} (additional charge)"
+                    f"{prefix} adjustment: {item.description} (additional charge)"
                 )
             else:
-                description = f"Arrow adjustment: {item.description} (credit)"
+                description = f"{prefix} adjustment: {item.description} (credit)"
 
             # Carry over resource/project from original invoice item
             original_resource = (
@@ -1421,6 +1414,8 @@ def sync_arrow_resources(
         if not offering:
             return {"error": "Failed to get or create offering"}
 
+        plan = offering.plans.first()
+
         # Process each customer
         for customer_name, customer_info in customers.items():
             try:
@@ -1455,6 +1450,7 @@ def sync_arrow_resources(
                                 info=subscriptions[sub_id],
                                 offering=offering,
                                 project=project,
+                                plan=plan,
                                 arrow_client=client,
                                 period_from=period_from,
                                 period_to=period_to,
@@ -1512,13 +1508,27 @@ def sync_arrow_resources(
         if project_uuid:
             project = structure_models.Project.objects.filter(uuid=project_uuid).first()
 
+        # Build vendor -> (offering, plan) mapping from ArrowVendorOfferingMapping
+        vendor_mapping = {}
+        for vom in models.ArrowVendorOfferingMapping.objects.filter(
+            settings=settings, is_active=True
+        ).select_related("offering", "plan"):
+            vendor_mapping[vom.arrow_vendor_name] = (vom.offering, vom.plan)
+
         for sub_id, info in subscriptions.items():
             try:
+                vendor = info.get("vendor", "")
+                sub_offering = offering
+                sub_plan = None
+                if vendor and vendor in vendor_mapping:
+                    sub_offering, sub_plan = vendor_mapping[vendor]
+
                 created = _sync_resource_from_subscription(
                     sub_id=sub_id,
                     info=info,
-                    offering=offering,
+                    offering=sub_offering,
                     project=project,
+                    plan=sub_plan,
                     arrow_client=client,
                     period_from=period_from,
                     period_to=period_to,
@@ -1554,6 +1564,7 @@ def _get_or_create_arrow_offering(offering_uuid: str = ""):
         ).first()
         if offering:
             _ensure_arrow_offering_component(offering)
+            _ensure_arrow_plan(offering)
             return offering
 
     # Try to find existing Arrow offering
@@ -1562,6 +1573,7 @@ def _get_or_create_arrow_offering(offering_uuid: str = ""):
     ).first()
     if offering:
         _ensure_arrow_offering_component(offering)
+        _ensure_arrow_plan(offering)
         return offering
 
     # Create new offering
@@ -1591,8 +1603,9 @@ def _get_or_create_arrow_offering(offering_uuid: str = ""):
     )
     logger.info(f"Created offering: {offering.name} ({offering.uuid})")
 
-    # Create usage-based component for cloud cost
+    # Create usage-based component and plan for cloud cost
     _ensure_arrow_offering_component(offering)
+    _ensure_arrow_plan(offering)
 
     return offering
 
@@ -1618,6 +1631,34 @@ def _ensure_arrow_offering_component(offering):
         measured_unit="EUR",
     )
     logger.info(f"Created cloud_cost component for offering {offering.uuid}")
+
+
+def _ensure_arrow_plan(offering):
+    """Ensure the Arrow offering has a usage-based plan with cloud_cost component."""
+    from waldur_mastermind.marketplace import models as marketplace_models
+
+    plan = offering.plans.first()
+    if plan:
+        return plan
+
+    plan = marketplace_models.Plan.objects.create(
+        offering=offering,
+        name="Arrow Cloud Cost",
+        description="Usage-based billing plan for Arrow cloud subscriptions",
+        unit_price=0,
+    )
+
+    component = offering.components.filter(type="cloud_cost").first()
+    if component:
+        marketplace_models.PlanComponent.objects.create(
+            plan=plan,
+            component=component,
+            price=1,
+            amount=0,
+        )
+
+    logger.info(f"Created plan '{plan.name}' for offering {offering.uuid}")
+    return plan
 
 
 def _get_or_create_customer_from_arrow(customer_info: dict):
@@ -1735,7 +1776,7 @@ def _aggregate_subscriptions_for_resources(
     unit_price_idx = cols.get("Customer Unit Price", -1)
     bill_from_idx = cols.get("Bill From", -1)
     bill_to_idx = cols.get("Bill To", -1)
-    license_ref_idx = cols.get("License Reference", -1)
+    license_ref_idx = cols.get("ARS Subscription ID", -1)
 
     # Customer detail fields (for force_import)
     customer_id_idx = cols.get("End User Company ID", -1)
@@ -1852,6 +1893,7 @@ def _sync_resource_from_subscription(
     info: dict,
     offering=None,
     project=None,
+    plan=None,
     arrow_client=None,
     period_from: str = "",
     period_to: str = "",
@@ -1924,11 +1966,14 @@ def _sync_resource_from_subscription(
 
             return False
         elif offering and project:
-            # Create new resource
+            # Create new resource with plan
+            if not plan:
+                plan = offering.plans.first()
             resource = marketplace_models.Resource.objects.create(
                 name=info["name"],
                 offering=offering,
                 project=project,
+                plan=plan,
                 backend_id=sub_id,
                 state=marketplace_models.Resource.States.OK,
                 report=report,
@@ -1936,6 +1981,15 @@ def _sync_resource_from_subscription(
                 attributes=attributes,
             )
             logger.info(f"Created resource {resource.uuid} for subscription {sub_id}")
+
+            # Create plan period for billing
+            if plan:
+                marketplace_models.ResourcePlanPeriod.objects.create(
+                    resource=resource,
+                    plan=plan,
+                    start=resource.created,
+                    end=None,
+                )
 
             # Create corresponding Order (following import_marketplace_orders pattern)
             staff_user = User.objects.filter(is_staff=True).first()
@@ -1974,19 +2028,6 @@ def _build_billing_export_report(
     report = []
 
     license_reference = info.get("license_reference")
-
-    # Fetch and add license details if available
-    if arrow_client and license_reference:
-        try:
-            license_data = arrow_client.get_license(license_reference)
-            if license_data:
-                report.append(
-                    _build_license_details_section(license_data, license_reference)
-                )
-        except Exception as e:
-            logger.warning(
-                f"Failed to fetch license details for {license_reference}: {e}"
-            )
 
     # Overview section with billing totals
     margin = info["sell_total"] - info["buy_total"]
@@ -2056,226 +2097,6 @@ def _build_billing_export_report(
     return report
 
 
-def _build_license_details_section(license_data: dict, license_reference: str) -> dict:
-    """
-    Build a report section with detailed license information from Arrow.
-
-    Includes:
-    - License identification (name, ID, SKU)
-    - Status and seats information
-    - Important dates (activation, expiry, renewal)
-    - Pricing and billing terms
-    - Program and category info
-    """
-    lines = []
-
-    # License Identification
-    name = license_data.get("name") or license_data.get("friendlyName") or "N/A"
-    lines.append(f"Name: {name}")
-    lines.append(f"License ID: {license_reference}")
-
-    if license_data.get("vendor_license_id"):
-        lines.append(f"Vendor License ID: {license_data['vendor_license_id']}")
-    if license_data.get("sku"):
-        lines.append(f"SKU: {license_data['sku']}")
-    if license_data.get("service_ref"):
-        lines.append(f"Service Reference: {license_data['service_ref']}")
-
-    # Status
-    lines.append("")
-    lines.append("Status:")
-    state = license_data.get("state", "unknown")
-    lines.append(f"  State: {state}")
-    if license_data.get("isTrial"):
-        lines.append("  Trial: Yes")
-    if license_data.get("isAddon"):
-        lines.append(
-            f"  Addon: Yes (Parent: {license_data.get('parent_license_id', 'N/A')})"
-        )
-    if license_data.get("autoRenew") is not None:
-        lines.append(f"  Auto-Renew: {'Yes' if license_data['autoRenew'] else 'No'}")
-
-    # Seats
-    seats = license_data.get("seats")
-    active_seats = license_data.get("activeSeats", {})
-    if seats:
-        lines.append("")
-        lines.append("Seats:")
-        lines.append(f"  Purchased: {seats}")
-        if active_seats and active_seats.get("number"):
-            lines.append(f"  Active: {active_seats['number']}")
-            if active_seats.get("lastUpdate"):
-                lines.append(f"  Last Updated: {active_seats['lastUpdate'][:10]}")
-
-    # Dates
-    lines.append("")
-    lines.append("Important Dates:")
-    if license_data.get("activation_datetime"):
-        lines.append(f"  Activated: {license_data['activation_datetime'][:10]}")
-    if license_data.get("initialStartDate"):
-        lines.append(f"  Initial Start: {license_data['initialStartDate'][:10]}")
-    if license_data.get("expiry_datetime"):
-        lines.append(f"  Expires: {license_data['expiry_datetime'][:10]}")
-    if license_data.get("nextRenewalDate"):
-        lines.append(f"  Next Renewal: {license_data['nextRenewalDate'][:10]}")
-    if license_data.get("lastRenewalDate"):
-        lines.append(f"  Last Renewal: {license_data['lastRenewalDate'][:10]}")
-    if license_data.get("endDate"):
-        lines.append(f"  End Date: {license_data['endDate'][:10]}")
-
-    # Pricing
-    price = license_data.get("price", {})
-    if price:
-        currency = price.get("currency", "EUR")
-        lines.append("")
-        lines.append("Pricing:")
-
-        unit_price = price.get("unit", {})
-        if unit_price:
-            if unit_price.get("sell"):
-                lines.append(f"  Unit Sell: {currency} {unit_price['sell']:.2f}")
-            if unit_price.get("buy"):
-                lines.append(f"  Unit Buy: {currency} {unit_price['buy']:.2f}")
-            if unit_price.get("list"):
-                lines.append(f"  List Price: {currency} {unit_price['list']:.2f}")
-
-        total_price = price.get("total", {})
-        if total_price:
-            if total_price.get("sell"):
-                lines.append(f"  Total Sell: {currency} {total_price['sell']:.2f}")
-            if total_price.get("buy"):
-                lines.append(f"  Total Buy: {currency} {total_price['buy']:.2f}")
-
-    # Billing terms
-    periodicity = license_data.get("periodicity")
-    term = license_data.get("term")
-    if periodicity or term:
-        lines.append("")
-        lines.append("Billing Terms:")
-        if periodicity:
-            lines.append(f"  Periodicity: {periodicity}")
-        if term:
-            lines.append(f"  Term: {term}")
-
-    # Program and category
-    program = license_data.get("program")
-    category = license_data.get("category")
-    market_segment = license_data.get("marketSegment")
-    marketplace = license_data.get("marketplace")
-
-    if program or category:
-        lines.append("")
-        lines.append("Classification:")
-        if program:
-            lines.append(f"  Program: {program}")
-        if category:
-            lines.append(f"  Category: {category}")
-        if market_segment:
-            lines.append(f"  Market Segment: {market_segment}")
-        if marketplace:
-            lines.append(f"  Marketplace: {marketplace}")
-
-    return {
-        "header": "License Details",
-        "body": "\n".join(lines),
-    }
-
-
-def _build_prediction_section(prediction_data: dict) -> dict | None:
-    """
-    Build a report section with consumption prediction for the current billing period.
-
-    Shows:
-    - Consumed amounts so far this month
-    - Estimated min/max for remaining period
-    - Total projected cost range
-    """
-    if not prediction_data:
-        return None
-
-    currency = prediction_data.get("currency", "EUR")
-    report_period = prediction_data.get("reportPeriod", "Current")
-    billing_start = prediction_data.get("billingStartDate", "")
-    values = prediction_data.get("values", [])
-
-    if not values:
-        return None
-
-    lines = [
-        f"Billing Period: {report_period}",
-        f"Billing Start: {billing_start}",
-        "",
-    ]
-
-    # Aggregate consumed and estimated totals
-    total_consumed_sell = 0
-    total_consumed_buy = 0
-    total_estimated_min_sell = 0
-    total_estimated_max_sell = 0
-    total_estimated_min_buy = 0
-    total_estimated_max_buy = 0
-
-    for value in values:
-        consumed = value.get("consumed") or {}
-        estimated_min = value.get("estimatedMin") or {}
-        estimated_max = value.get("estimatedMax") or {}
-
-        if consumed.get("sell"):
-            total_consumed_sell += float(consumed["sell"])
-        if consumed.get("buy"):
-            total_consumed_buy += float(consumed["buy"])
-        if estimated_min.get("sell"):
-            total_estimated_min_sell += float(estimated_min["sell"])
-        if estimated_min.get("buy"):
-            total_estimated_min_buy += float(estimated_min["buy"])
-        if estimated_max.get("sell"):
-            total_estimated_max_sell += float(estimated_max["sell"])
-        if estimated_max.get("buy"):
-            total_estimated_max_buy += float(estimated_max["buy"])
-
-    # Show consumed so far
-    if total_consumed_sell > 0 or total_consumed_buy > 0:
-        lines.append("Consumed This Period (actual):")
-        lines.append(f"  Sell: {currency} {total_consumed_sell:.2f}")
-        lines.append(f"  Buy: {currency} {total_consumed_buy:.2f}")
-        consumed_margin = total_consumed_sell - total_consumed_buy
-        lines.append(f"  Margin: {currency} {consumed_margin:.2f}")
-        lines.append("")
-
-    # Show estimates for remaining period
-    if total_estimated_min_sell > 0 or total_estimated_max_sell > 0:
-        lines.append("Estimated Remaining (prediction):")
-        lines.append(
-            f"  Sell: {currency} {total_estimated_min_sell:.2f} - {total_estimated_max_sell:.2f}"
-        )
-        lines.append(
-            f"  Buy: {currency} {total_estimated_min_buy:.2f} - {total_estimated_max_buy:.2f}"
-        )
-        lines.append("")
-
-    # Show projected totals
-    if total_consumed_sell > 0 or total_estimated_min_sell > 0:
-        proj_min_sell = total_consumed_sell + total_estimated_min_sell
-        proj_max_sell = total_consumed_sell + total_estimated_max_sell
-        proj_min_buy = total_consumed_buy + total_estimated_min_buy
-        proj_max_buy = total_consumed_buy + total_estimated_max_buy
-
-        lines.append("Projected Month Total:")
-        lines.append(f"  Sell: {currency} {proj_min_sell:.2f} - {proj_max_sell:.2f}")
-        lines.append(f"  Buy: {currency} {proj_min_buy:.2f} - {proj_max_buy:.2f}")
-
-        proj_margin_min = proj_min_sell - proj_max_buy
-        proj_margin_max = proj_max_sell - proj_min_buy
-        lines.append(
-            f"  Margin: {currency} {proj_margin_min:.2f} - {proj_margin_max:.2f}"
-        )
-
-    return {
-        "header": f"Current Period Forecast ({report_period})",
-        "body": "\n".join(lines),
-    }
-
-
 def _build_consumption_report(
     arrow_client,
     license_reference: str,
@@ -2288,36 +2109,13 @@ def _build_consumption_report(
     Build report from Arrow monthly consumption API.
 
     Fetches detailed consumption data including:
-    - License details (state, seats, dates, pricing)
+    - Billing summary (sell/buy totals, margin)
     - Vendor Product Name
     - Vendor Meter Category/Sub-Category
     - Unit of Measure
     - Quantities and prices
     """
     report = []
-
-    # Fetch license details
-    license_data = {}
-    try:
-        license_data = arrow_client.get_license(license_reference)
-    except Exception as e:
-        logger.warning(f"Failed to fetch license details for {license_reference}: {e}")
-
-    # Build license details section
-    if license_data:
-        report.append(_build_license_details_section(license_data, license_reference))
-
-    # Fetch and add prediction for current period (useful for ongoing month)
-    try:
-        prediction_data = arrow_client.get_consumption_prediction(
-            license_reference=license_reference,
-            granularity="monthly",
-        )
-        prediction_section = _build_prediction_section(prediction_data)
-        if prediction_section:
-            report.append(prediction_section)
-    except Exception as e:
-        logger.debug(f"Prediction not available for {license_reference}: {e}")
 
     # Overview section with billing totals
     margin = info["sell_total"] - info["buy_total"]
@@ -2483,6 +2281,7 @@ def _create_component_usages(resource, periods: dict):
     the cloud_cost component for each month.
     """
     from waldur_mastermind.marketplace import models as marketplace_models
+    from waldur_mastermind.marketplace.utils import get_or_create_plan_period
 
     # Get the cloud_cost component from the offering
     component = resource.offering.components.filter(type="cloud_cost").first()
@@ -2498,6 +2297,7 @@ def _create_component_usages(resource, periods: dict):
             year, month = map(int, period.split("-"))
             billing_period = date(year, month, 1)
             usage_date = timezone.make_aware(timezone.datetime(year, month, 1, 0, 0, 0))
+            plan_period = get_or_create_plan_period(resource, billing_period)
 
             # Get or create ComponentUsage for this period
             usage, created = marketplace_models.ComponentUsage.objects.update_or_create(
@@ -2507,6 +2307,7 @@ def _create_component_usages(resource, periods: dict):
                 defaults={
                     "usage": pdata["sell"],
                     "date": usage_date,
+                    "plan_period": plan_period,
                     "description": f"Arrow cloud cost for {period}",
                 },
             )

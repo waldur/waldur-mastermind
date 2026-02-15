@@ -25,18 +25,18 @@ class SyncArrowBillingTest(TestCase):
 
         mock_export.return_value = {
             "headers": [
-                "Line Reference",
-                "Customer Reference",
-                "Sell Total Price",
-                "Buy Total Price",
+                "Sequence",
+                "End User Company Name",
+                "Customer Total Price",
+                "Total Wholesale Price",
                 "Vendor Name",
                 "Statement Reference",
-                "Quantity",
+                "Qty",
             ],
             "values": [
                 [
                     "LINE-001",
-                    self.fixture.customer_mapping.arrow_reference,
+                    self.fixture.customer_mapping.arrow_company_name,
                     "100.00",
                     "80.00",
                     "Microsoft",
@@ -45,7 +45,7 @@ class SyncArrowBillingTest(TestCase):
                 ],
                 [
                     "LINE-002",
-                    self.fixture.customer_mapping.arrow_reference,
+                    self.fixture.customer_mapping.arrow_company_name,
                     "200.00",
                     "160.00",
                     "Amazon",
@@ -85,21 +85,21 @@ class SyncArrowBillingTest(TestCase):
 
         mock_export.return_value = {
             "headers": [
-                "Line Reference",
-                "Customer Reference",
-                "Sell Total Price",
-                "Quantity",
+                "Sequence",
+                "End User Company Name",
+                "Customer Total Price",
+                "Qty",
             ],
             "values": [
                 [
                     "LINE-001",
-                    self.fixture.customer_mapping.arrow_reference,
+                    self.fixture.customer_mapping.arrow_company_name,
                     "100.00",
                     "1",
                 ],
                 [
                     "LINE-002",
-                    self.fixture.customer_mapping.arrow_reference,
+                    self.fixture.customer_mapping.arrow_company_name,
                     "0.00",
                     "1",
                 ],
@@ -124,9 +124,9 @@ class SyncArrowBillingTest(TestCase):
 
         mock_export.return_value = {
             "headers": [
-                "Line Reference",
-                "Customer Reference",
-                "Sell Total Price",
+                "Sequence",
+                "End User Company Name",
+                "Customer Total Price",
             ],
             "values": [
                 ["LINE-001", "UNKNOWN_CUSTOMER", "100.00"],
@@ -189,7 +189,7 @@ class ReconcileArrowBillingTest(TestCase):
 
         # Mock current prices with a difference
         mock_export.return_value = {
-            "headers": ["Line Reference", "Sell Total Price"],
+            "headers": ["Sequence", "Customer Total Price"],
             "values": [["LINE-001", "95.00"]],  # Price decreased by 5
         }
 
@@ -229,7 +229,7 @@ class ReconcileArrowBillingTest(TestCase):
         # Not validated, but using force=True
 
         mock_export.return_value = {
-            "headers": ["Line Reference", "Sell Total Price"],
+            "headers": ["Sequence", "Customer Total Price"],
             "values": [],
         }
 
