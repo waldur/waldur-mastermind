@@ -316,11 +316,11 @@ def sync_user_ssh_keys(user, eduteams_keys, username):
         name = f"eduteams_key_{uuid.uuid4().hex[:10]}"
         new_key = SshPublicKey(user=user, name=name, public_key=key)
         new_key.save()
-        logger.info("%s key is added to user %s", new_key)
+        logger.info("%s key is added to user %s", new_key, username)
 
     for key in stale_keys:
         logger.info(
-            "Deleting stale keys for user %s. Keys: ",
+            "Deleting stale keys for user %s. Keys: %s",
             username,
             ", ".join([key for key in stale_keys]),
         )

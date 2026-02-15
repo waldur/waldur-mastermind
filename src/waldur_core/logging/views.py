@@ -2,7 +2,8 @@ import fnmatch
 import logging
 
 import rest_framework
-from django.db.models import Count
+from django.db import connection
+from django.db.models import Count, Max
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiExample, extend_schema, extend_schema_view
 from rest_framework import (
@@ -445,6 +446,85 @@ class EmailLogView(viewsets.ReadOnlyModelViewSet):
     )
     filterset_class = filters.EmailLogFilter
     serializer_class = serializers.EmailLogSerializer
+
+
+class SystemLogViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Staff and support endpoint to view system logs from API, Worker, and Beat processes.
+
+    Supports multi-pod Kubernetes deployments - each pod identified by `instance`.
+
+    Filters:
+    - source: 'api', 'worker', or 'beat'
+    - instance: pod name (K8s) or container name (Docker)
+    - level: 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
+    - level_gte: minimum level number (20=INFO, 30=WARNING, 40=ERROR, 50=CRITICAL)
+    - created_from/created_to: timestamp range
+    - logger_name: partial match
+    - message: partial match
+    """
+
+    queryset = models.SystemLog.objects.all()
+    permission_classes = (
+        permissions.IsAuthenticated,
+        core_permissions.IsSupport,
+    )
+    serializer_class = serializers.SystemLogSerializer
+    filterset_class = filters.SystemLogFilter
+
+    @extend_schema(
+        summary="Get system log statistics",
+        responses={200: serializers.SystemLogStatsResponseSerializer},
+    )
+    @decorators.action(detail=False)
+    def stats(self, request, *args, **kwargs):
+        """Return log count statistics per source and instance, plus total table size."""
+        # Row counts per source/instance — uses composite index, no heap scan
+        rows = (
+            models.SystemLog.objects.values("source", "instance")
+            .annotate(count=Count("id"))
+            .order_by("source", "instance")
+        )
+
+        # Total table size from pg catalog — O(1), no per-row computation
+        table_name = models.SystemLog._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_total_relation_size(%s)", [table_name])
+            total_size_bytes = cursor.fetchone()[0]
+
+        stats = [
+            {
+                "source": row["source"],
+                "instance": row["instance"],
+                "count": row["count"],
+            }
+            for row in rows
+        ]
+        return response.Response(
+            {
+                "instances": stats,
+                "total_size_bytes": total_size_bytes,
+                "total_size_mb": round(total_size_bytes / (1024 * 1024), 2),
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        summary="List system log instances",
+        responses={200: serializers.SystemLogInstanceSerializer(many=True)},
+    )
+    @decorators.action(detail=False)
+    def instances(self, request, *args, **kwargs):
+        """List all known instances (pods/containers) with their last activity."""
+        instances = list(
+            models.SystemLog.objects.values("source", "instance")
+            .annotate(last_seen=Max("created"), count=Count("id"))
+            .order_by("source", "instance")
+        )
+        paginated = self.paginate_queryset(instances)
+        if paginated is not None:
+            return self.get_paginated_response(paginated)
+        return response.Response(instances, status=status.HTTP_200_OK)
 
 
 class RabbitMQStatsViewSet(generics.GenericAPIView):
@@ -1033,7 +1113,9 @@ class UserDataAccessLogViewSet(
     Only staff users can delete log entries.
     """
 
-    queryset = models.UserDataAccessLog.objects.all().order_by("-timestamp")
+    queryset = models.UserDataAccessLog.objects.select_related(
+        "target_user", "accessor"
+    ).order_by("-timestamp")
     lookup_field = "uuid"
     serializer_class = GlobalUserDataAccessLogSerializer
     permission_classes = (

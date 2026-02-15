@@ -255,6 +255,30 @@ logging.getLogger("axes").propagate = False
 logging.getLogger("celery.utils.imports").setLevel(logging.WARNING)
 logging.getLogger("celery.app.autodiscover").setLevel(logging.WARNING)
 
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "simple": {
+            "format": "%(asctime)s %(levelname)s %(message)s",
+        },
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+        },
+        "database": {
+            "class": "waldur_core.logging.log.DatabaseLogHandler",
+            "level": "INFO",
+        },
+    },
+    "root": {
+        "level": "INFO",
+        "handlers": ["console", "database"],
+    },
+}
+
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 LANGUAGES = (

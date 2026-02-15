@@ -325,3 +325,40 @@ def delete_dangling_event_subscriptions() -> None:
             logger.info("Deleting event subscription %s", event_subscription.uuid)
             event_subscription.delete()
             continue
+
+
+@shared_task(name="waldur_core.logging.cleanup_system_logs")
+def cleanup_system_logs():
+    """
+    Enforce row count limit per source (across all instances).
+
+    Keeps newest logs, deletes oldest when count exceeds the configured limit.
+    Runs periodically to maintain log volume within limits.
+    """
+    if not config.SYSTEM_LOG_ENABLED:
+        return
+
+    max_rows = config.SYSTEM_LOG_MAX_ROWS_PER_SOURCE
+
+    for source in models.SystemLog.SourceChoices.values:
+        total_count = models.SystemLog.objects.filter(source=source).count()
+        delete_count = total_count - max_rows
+
+        if delete_count > 0:
+            # Find the cutoff: the created timestamp of the Nth oldest row to keep
+            cutoff_row = (
+                models.SystemLog.objects.filter(source=source)
+                .order_by("-created")
+                .values_list("created", flat=True)[max_rows : max_rows + 1]
+            )
+            if cutoff_row:
+                deleted, _ = models.SystemLog.objects.filter(
+                    source=source, created__lte=cutoff_row[0]
+                ).delete()
+                logger.info(
+                    "Cleaned up %d system log entries for source %s (had %d rows, limit %d)",
+                    deleted,
+                    source,
+                    total_count,
+                    max_rows,
+                )

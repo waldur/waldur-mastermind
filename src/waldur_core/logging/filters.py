@@ -181,6 +181,33 @@ class EmailLogFilter(django_filters.FilterSet):
         ]
 
 
+class SystemLogFilter(django_filters.FilterSet):
+    source = django_filters.ChoiceFilter(choices=models.SystemLog.SourceChoices.choices)
+    instance = django_filters.CharFilter(lookup_expr="exact")
+    level = django_filters.ChoiceFilter(
+        choices=[
+            ("INFO", "INFO"),
+            ("WARNING", "WARNING"),
+            ("ERROR", "ERROR"),
+            ("CRITICAL", "CRITICAL"),
+        ]
+    )
+    level_gte = django_filters.NumberFilter(
+        field_name="level_number",
+        lookup_expr="gte",
+        help_text="Min level: 20=INFO, 30=WARNING, 40=ERROR, 50=CRITICAL",
+    )
+    created_from = core_filters.TimestampFilter(field_name="created", lookup_expr="gte")
+    created_to = core_filters.TimestampFilter(field_name="created", lookup_expr="lt")
+    logger_name = django_filters.CharFilter(lookup_expr="istartswith")
+    message = django_filters.CharFilter(lookup_expr="icontains")
+    o = django_filters.OrderingFilter(fields=["created", "level_number", "instance"])
+
+    class Meta:
+        model = models.SystemLog
+        fields = ["source", "instance", "level", "logger_name"]
+
+
 class UserDataAccessLogFilter(django_filters.FilterSet):
     """Filter for global data access logs endpoint (staff/support only)."""
 

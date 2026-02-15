@@ -1,8 +1,15 @@
 import datetime
 import json
 import logging
+import os
+import re
+import socket
+import sys
+import threading
+import time
 
 from celery import current_app
+from constance import config
 
 
 class EventFormatter(logging.Formatter):
@@ -89,3 +96,188 @@ class TCPEventHandler(logging.handlers.SocketHandler):
 
     def makePickle(self, record):
         return self.formatter.format(record).encode("utf-8") + b"\n"
+
+
+_SENSITIVE_RE = re.compile(
+    r"(?i)"
+    r"(password|passwd|pwd|token|secret|api_key|apikey|access_key|"
+    r"private_key|auth_token|authorization|credential|client_secret)"
+    r"(\s*[=:]\s*)"
+    r"(\S+)",
+)
+
+
+class DatabaseLogHandler(logging.Handler):
+    """
+    Custom logging handler that stores log records in PostgreSQL.
+
+    Detects source (api/worker/beat) and instance (pod/container name).
+    Buffers log records and bulk inserts to reduce DB load.
+    """
+
+    _ENABLED_CHECK_INTERVAL = 60  # seconds between constance lookups
+    _MAX_BUFFER_SIZE = 10000  # hard cap on buffer; trimmed to _buffer_size
+    _MAX_MESSAGE_LENGTH = 10000
+    _MAX_TRACEBACK_LENGTH = 5000
+    _SystemLog = None  # lazy reference to avoid AppRegistryNotReady
+
+    def __init__(self, source=None, buffer_size=100, flush_interval=5):
+        super().__init__(level=logging.INFO)
+        self._source = source
+        self._instance = None
+        self._detected_source = None
+        self._buffer = []
+        self._buffer_lock = threading.Lock()
+        self._buffer_size = buffer_size
+        self._last_flush = time.time()
+        self._flush_interval = flush_interval
+        self._enabled = True
+        self._enabled_last_check = 0.0
+        self._apps_ready = False
+
+    @property
+    def instance(self):
+        """Get pod/container hostname (cached)."""
+        if self._instance is None:
+            # $HOSTNAME in K8s contains pod name
+            # In Docker, it's the container ID or explicit hostname
+            self._instance = os.environ.get("HOSTNAME") or socket.gethostname()
+        return self._instance
+
+    @property
+    def source(self):
+        """Auto-detect source if not explicitly set."""
+        if self._source:
+            return self._source
+
+        if self._detected_source:
+            return self._detected_source
+
+        # Check command line args for mastermind/worker/beat
+        args = " ".join(sys.argv).lower()
+        if "beat" in args:
+            self._detected_source = "beat"
+        elif "worker" in args:
+            self._detected_source = "worker"
+        else:
+            self._detected_source = "api"
+
+        return self._detected_source
+
+    def _scrub(self, text):
+        """Replace values of sensitive keys (password, token, etc.) with '***'."""
+        if not text:
+            return text
+        return _SENSITIVE_RE.sub(r"\1\2***", text)
+
+    def _check_apps_ready(self):
+        """Check if Django apps are ready, caching the result once True."""
+        if self._apps_ready:
+            return True
+        try:
+            from django.apps import (
+                apps,  # noqa: E402 — must be lazy; module loads before Django
+            )
+
+            if apps.ready:
+                self._apps_ready = True
+                return True
+        except Exception:
+            pass
+        return False
+
+    @classmethod
+    def _get_model(cls):
+        """Lazy-load SystemLog model, caching the class reference."""
+        if cls._SystemLog is None:
+            from waldur_core.logging.models import (
+                SystemLog,  # noqa: E402 — must be lazy; circular import
+            )
+
+            cls._SystemLog = SystemLog
+        return cls._SystemLog
+
+    def emit(self, record):
+        """Buffer log record for later bulk insert."""
+        if not self._check_apps_ready():
+            return
+
+        now = time.time()
+        if now - self._enabled_last_check > self._ENABLED_CHECK_INTERVAL:
+            try:
+                self._enabled = config.SYSTEM_LOG_ENABLED
+            except Exception:
+                pass  # DB may not be ready during startup
+            self._enabled_last_check = now
+
+        if not self._enabled:
+            return
+
+        try:
+            message = self._scrub(self.format(record))[: self._MAX_MESSAGE_LENGTH]
+        except Exception:
+            # Malformed log records (e.g. mismatched %s args) must not crash
+            message = self._scrub(str(record.msg))[: self._MAX_MESSAGE_LENGTH]
+
+        log_entry = {
+            "created": datetime.datetime.fromtimestamp(record.created, datetime.UTC),
+            "source": self.source,
+            "instance": self.instance,
+            "level": record.levelname,
+            "level_number": record.levelno,
+            "logger_name": record.name,
+            "message": message,
+            "context": self._build_context(record),
+        }
+
+        should_flush = False
+        records_to_flush = []
+
+        with self._buffer_lock:
+            self._buffer.append(log_entry)
+
+            if len(self._buffer) > self._MAX_BUFFER_SIZE:
+                self._buffer = self._buffer[-self._buffer_size :]
+
+            should_flush = (
+                len(self._buffer) >= self._buffer_size
+                or time.time() - self._last_flush > self._flush_interval
+            )
+            if should_flush:
+                records_to_flush = self._buffer[:]
+                self._buffer.clear()
+                self._last_flush = time.time()
+
+        if should_flush:
+            self._write_to_db(records_to_flush)
+
+    def _build_context(self, record):
+        """Extract exception and location context."""
+        context = {}
+        if record.exc_info:
+            tb = self._scrub(self.formatException(record.exc_info))
+            context["traceback"] = tb[: self._MAX_TRACEBACK_LENGTH]
+        if record.pathname:
+            context["pathname"] = record.pathname
+        if record.lineno:
+            context["lineno"] = record.lineno
+        if record.funcName:
+            context["funcName"] = record.funcName
+        return context
+
+    def _write_to_db(self, records):
+        """Bulk insert records into the database. Called outside the buffer lock."""
+        try:
+            model = self._get_model()
+            model.objects.bulk_create([model(**record) for record in records])
+        except Exception:
+            pass  # Avoid logging loop
+
+    def close(self):
+        """Flush remaining records on shutdown."""
+        with self._buffer_lock:
+            records = self._buffer[:]
+            self._buffer.clear()
+        if records:
+            self._write_to_db(records)
+        super().close()
