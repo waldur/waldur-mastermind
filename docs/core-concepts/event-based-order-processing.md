@@ -73,18 +73,37 @@ Offering user events are published when offering users are created, updated, or 
 - `send_offering_user_created_message` - Triggers when an OfferingUser is created
 - `send_offering_user_updated_message` - Triggers when an OfferingUser is updated
 - `send_offering_user_deleted_message` - Triggers when an OfferingUser is deleted
+- `send_user_attribute_update_message` - Triggers when a User's profile attributes change
+  (connected to `core.User` post_save, not `OfferingUser`)
 
-**Message Payload Structure for OfferingUser Events:**
+**Message Payload Structure for create/update/delete Events:**
 
 ```json
 {
   "offering_user_uuid": "uuid-hex-string",
   "user_uuid": "user-uuid-hex-string",
   "username": "generated-username",
-  "state": "OK|Requested|Creating|Pending account linking|Pending additional validation|Requested deletion|Deleting|Deleted|Error creating|Error deleting",
+  "state": "OK|Requested|Creating|...",
   "action": "create|update|delete",
-  "offering_uuid": "offering-uuid",
-  "changed_fields": ["field1", "field2"]  // Only present for updates
+  "attributes": {"email": "user@example.com", "first_name": "Alice"},  // create only
+  "changed_fields": ["field1", "field2"]  // update only
+}
+```
+
+**Message Payload Structure for attribute_update Events:**
+
+When a User's profile fields change, a separate event is published for each offering
+the user belongs to. The `OfferingUserAttributeConfig` for the offering determines which
+changed fields are included.
+
+```json
+{
+  "offering_user_uuid": "uuid-hex-string",
+  "user_uuid": "user-uuid-hex-string",
+  "username": "generated-username",
+  "action": "attribute_update",
+  "changed_attributes": ["email", "first_name"],
+  "attributes": {"email": "new@example.com", "first_name": "Alice"}
 }
 ```
 
@@ -93,6 +112,7 @@ Offering user events are published when offering users are created, updated, or 
 - **Create**: When a new offering user account is created for a user in an offering
 - **Update**: When any field of an existing offering user is modified (username, state, etc.)
 - **Delete**: When an offering user account is removed from an offering
+- **Attribute Update**: When a User's profile fields change, filtered through each offering's `OfferingUserAttributeConfig`
 
 ### Resource Periodic Limits Event Messages
 

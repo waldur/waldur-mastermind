@@ -443,6 +443,12 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.update_offering_user_username_after_user_change",
         )
 
+        signals.post_save.connect(
+            handlers.send_user_attribute_update_message,
+            sender=core_models.User,
+            dispatch_uid="waldur_mastermind.marketplace.send_user_attribute_update_message",
+        )
+
         # Add maintenance fields to AdminAnnouncementSerializer
         from waldur_mastermind.notifications.serializers import (
             AdminAnnouncementSerializer,
