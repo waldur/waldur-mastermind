@@ -23,6 +23,10 @@ LOGGING = {
             "level": "DEBUG",
             "stream": sys.stdout,
         },
+        "database": {
+            "class": "waldur_core.logging.log.DatabaseLogHandler",
+            "level": "INFO",
+        },
     },
     # Loggers
     # A logger is the entry point into the logging system.
@@ -32,7 +36,7 @@ LOGGING = {
     # Default logger configuration
     "root": {
         "level": "DEBUG",
-        "handlers": ["console"],
+        "handlers": ["console", "database"],
     },
     # Default empty dict.
     # An extension can set up its own logger, e.g. 'djangosaml2' for SAML2
@@ -40,52 +44,52 @@ LOGGING = {
         # Suppress excessive Celery task registration logging
         "celery": {
             "level": "INFO",
-            "handlers": ["console"],
+            "handlers": ["console", "database"],
             "propagate": False,
         },
         "celery.app": {
             "level": "INFO",
-            "handlers": ["console"],
+            "handlers": ["console", "database"],
             "propagate": False,
         },
         "celery.app.autodiscover": {
             "level": "WARNING",
-            "handlers": ["console"],
+            "handlers": ["console", "database"],
             "propagate": False,
         },
         "celery.app.base": {
             "level": "WARNING",
-            "handlers": ["console"],
+            "handlers": ["console", "database"],
             "propagate": False,
         },
         "celery.utils": {
             "level": "WARNING",
-            "handlers": ["console"],
+            "handlers": ["console", "database"],
             "propagate": False,
         },
         "celery.utils.imports": {
             "level": "WARNING",
-            "handlers": ["console"],
+            "handlers": ["console", "database"],
             "propagate": False,
         },
         "celery.utils.functional": {
             "level": "WARNING",
-            "handlers": ["console"],
+            "handlers": ["console", "database"],
             "propagate": False,
         },
         "celery.loaders": {
             "level": "WARNING",
-            "handlers": ["console"],
+            "handlers": ["console", "database"],
             "propagate": False,
         },
         "celery.worker": {
             "level": "INFO",
-            "handlers": ["console"],
+            "handlers": ["console", "database"],
             "propagate": False,
         },
         "celery.bootsteps": {
             "level": "WARNING",
-            "handlers": ["console"],
+            "handlers": ["console", "database"],
             "propagate": False,
         },
     },

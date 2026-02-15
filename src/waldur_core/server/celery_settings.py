@@ -208,6 +208,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=3, minute=30),
         "args": (),
     },
+    # Cleanup system logs - enforce ~1MB size limit per source
+    "cleanup-system-logs": {
+        "task": "waldur_core.logging.cleanup_system_logs",
+        "schedule": timedelta(minutes=15),
+        "args": (),
+    },
     # Table growth monitoring - sample sizes daily at 1 AM
     "sample-table-sizes": {
         "task": "waldur_core.sample_table_sizes",

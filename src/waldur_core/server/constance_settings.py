@@ -880,6 +880,15 @@ CONSTANCE_CONFIG = {
         90,
         "Number of days to retain old catalog versions",
     ),
+    # System Logging settings
+    "SYSTEM_LOG_ENABLED": (
+        False,
+        "Enable storing system logs (API, Worker, Beat) in the database for staff viewing.",
+    ),
+    "SYSTEM_LOG_MAX_ROWS_PER_SOURCE": (
+        5000,
+        "Maximum number of log rows to keep per source (api, worker, beat). Oldest rows are deleted when exceeded.",
+    ),
     # Table Growth Monitoring settings
     "TABLE_GROWTH_MONITORING_ENABLED": (
         True,
@@ -1254,6 +1263,10 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES",
         "SOFTWARE_CATALOG_CLEANUP_ENABLED",
         "SOFTWARE_CATALOG_RETENTION_DAYS",
+    ),
+    "System Logging": (
+        "SYSTEM_LOG_ENABLED",
+        "SYSTEM_LOG_MAX_ROWS_PER_SOURCE",
     ),
     "Table Growth Monitoring": (
         "TABLE_GROWTH_MONITORING_ENABLED",

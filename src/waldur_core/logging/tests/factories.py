@@ -143,6 +143,39 @@ class EmailLogFactory(
         )
 
 
+class SystemLogFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.SystemLog]
+):
+    class Meta:
+        model = models.SystemLog
+
+    source = "api"
+    instance = "test-pod-1"
+    level = "INFO"
+    level_number = 20
+    logger_name = "waldur_core.test"
+    message = factory.Sequence(lambda i: "test log message #%s" % i)
+    context = factory.LazyFunction(dict)
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("system-log-list")
+
+    @classmethod
+    def get_url(cls, log=None):
+        if log is None:
+            log = SystemLogFactory()
+        return "http://testserver" + reverse("system-log-detail", kwargs={"pk": log.pk})
+
+    @classmethod
+    def get_stats_url(cls):
+        return "http://testserver" + reverse("system-log-stats")
+
+    @classmethod
+    def get_instances_url(cls):
+        return "http://testserver" + reverse("system-log-instances")
+
+
 class EventSubscriptionQueueFactory(
     factory.django.DjangoModelFactory,
     metaclass=BaseMetaFactory[models.EventSubscriptionQueue],

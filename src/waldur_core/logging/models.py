@@ -292,6 +292,41 @@ class EmailLog(UuidMixin):
         ordering = ["-sent_at"]
 
 
+class SystemLog(TimeStampedModel):
+    """Stores system logs from API, Worker, and Beat processes for staff viewing."""
+
+    class SourceChoices(models.TextChoices):
+        API = "api", "API"
+        WORKER = "worker", "Worker"
+        BEAT = "beat", "Beat"
+
+    class Meta:
+        ordering = ["-created"]
+        indexes = [
+            models.Index(
+                fields=["-created", "source"], name="logging_syslog_created_idx"
+            ),
+            models.Index(
+                fields=["source", "instance", "-created"],
+                name="logging_syslog_instance_idx",
+            ),
+        ]
+
+    source = models.CharField(max_length=10, choices=SourceChoices.choices)
+    instance = models.CharField(
+        max_length=255,
+        help_text=_("Pod name (K8s) or container name (Docker)"),
+    )
+    level = models.CharField(max_length=10)
+    level_number = models.PositiveSmallIntegerField()
+    logger_name = models.CharField(max_length=255)
+    message = models.TextField()
+    context = models.JSONField(default=dict, blank=True)
+
+    def __str__(self):
+        return f"[{self.level}] {self.source}/{self.instance}: {self.message[:50]}"
+
+
 class UserDataAccessLog(UuidMixin):
     """
     Log of user profile data access events.

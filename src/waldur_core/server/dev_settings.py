@@ -21,36 +21,6 @@ CELERY_RESULT_BACKEND = f"db+postgresql+psycopg://{DATABASES['default']['USER']}
 
 STATIC_ROOT = "static"
 
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "filters": {
-        "is-event": {
-            "()": "waldur_core.logging.log.RequireEvent",
-        },
-        "is-not-event": {
-            "()": "waldur_core.logging.log.RequireNotEvent",
-        },
-    },
-    "formatters": {
-        "message-only": {
-            "format": "%(message)s",
-        },
-        "simple": {
-            "format": "%(asctime)s %(levelname)s %(message)s",
-        },
-    },
-    "handlers": {
-        "console": {
-            "class": "logging.StreamHandler",
-            "formatter": "simple",
-        },
-    },
-    "root": {
-        "level": "INFO",
-        "handlers": ["console"],
-    },
-}
 
 DEFAULT_FROM_EMAIL = "noreply@example.com"
 DEFAULT_REPLY_TO_EMAIL = "support@example.com"

@@ -410,6 +410,42 @@ class EmailLogSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class SystemLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.SystemLog
+        fields = (
+            "id",
+            "created",
+            "source",
+            "instance",
+            "level",
+            "level_number",
+            "logger_name",
+            "message",
+            "context",
+        )
+        read_only_fields = fields
+
+
+class SystemLogStatsInstanceSerializer(serializers.Serializer):
+    source = serializers.CharField(read_only=True)
+    instance = serializers.CharField(read_only=True)
+    count = serializers.IntegerField(read_only=True)
+
+
+class SystemLogStatsResponseSerializer(serializers.Serializer):
+    instances = SystemLogStatsInstanceSerializer(many=True, read_only=True)
+    total_size_bytes = serializers.IntegerField(read_only=True)
+    total_size_mb = serializers.FloatField(read_only=True)
+
+
+class SystemLogInstanceSerializer(serializers.Serializer):
+    source = serializers.CharField(read_only=True)
+    instance = serializers.CharField(read_only=True)
+    last_seen = serializers.DateTimeField(read_only=True)
+    count = serializers.IntegerField(read_only=True)
+
+
 # RabbitMQ Stats API Serializers
 
 
