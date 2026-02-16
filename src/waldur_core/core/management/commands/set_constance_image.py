@@ -1,7 +1,7 @@
 import os
 
 from constance.admin import get_values
-from constance.backends.database.models import Constance
+from constance.models import Constance
 from django.core.cache import cache
 from django.core.files.storage import default_storage
 from django.core.management import BaseCommand

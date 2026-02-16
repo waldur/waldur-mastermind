@@ -1,5 +1,5 @@
 import uuid
-from datetime import timedelta
+from datetime import UTC, timedelta
 
 import respx
 from django.test import testcases
@@ -251,8 +251,8 @@ class MaintenanceAnnouncementSyncTest(testcases.TransactionTestCase):
             message="Old message",
             maintenance_type=MaintenanceType.SCHEDULED,
             backend_id=self.remote_maintenance_uuid.hex,
-            scheduled_start=timezone.datetime(2025, 8, 18, 0, 0, tzinfo=timezone.utc),
-            scheduled_end=timezone.datetime(2025, 8, 18, 2, 0, tzinfo=timezone.utc),
+            scheduled_start=timezone.datetime(2025, 8, 18, 0, 0, tzinfo=UTC),
+            scheduled_end=timezone.datetime(2025, 8, 18, 2, 0, tzinfo=UTC),
             state=MaintenanceState.DRAFT,
         )
 

@@ -1,18 +1,23 @@
 import unittest
+from unittest.mock import patch
 
 from constance import config
 from constance.test.unittest import override_config
 from django.core import mail
 from django.template import Context, Template
-from django.test import TransactionTestCase, override_settings
+from django.test import TestCase, TransactionTestCase, override_settings
 from django.utils import timezone
 
+from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.support import handlers
 from waldur_mastermind.support.tests import factories
 
 
-@override_config(WALDUR_SUPPORT_ENABLED=True)
+@override_config(
+    WALDUR_SUPPORT_ENABLED=True,
+    WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE="basic",
+)
 @override_settings(task_always_eager=True)
 class IssueUpdatedHandlerTest(TransactionTestCase):
     def setUp(self):
@@ -29,13 +34,41 @@ class IssueUpdatedHandlerTest(TransactionTestCase):
             key="support.notification_issue_updated", enabled=True
         )
 
+    def _assert_send_issue_updated_called_with(
+        self, issue, expected_changed=None, assert_not_called=False, **updates
+    ):
+        """Apply updates to issue, save. Optionally patch and assert task was called or not called."""
+        if expected_changed is not None or assert_not_called:
+            with patch(
+                "waldur_mastermind.support.handlers.tasks.send_issue_updated_notification"
+            ) as mock_send:
+                with TestCase.captureOnCommitCallbacks(execute=True):
+                    for key, value in updates.items():
+                        setattr(issue, key, value)
+                    issue.save()
+
+                if assert_not_called:
+                    mock_send.delay.assert_not_called()
+                else:
+                    mock_send.delay.assert_called_once()
+                    serialized_issue, changed = mock_send.delay.call_args[0]
+                    self.assertEqual(changed, expected_changed)
+                    self.assertEqual(
+                        core_utils.serialize_instance(issue), serialized_issue
+                    )
+        else:
+            for key, value in updates.items():
+                setattr(issue, key, value)
+            issue.save()
+
     def test_email_notification_is_sent_when_issue_is_updated(self):
-        issue = factories.IssueFactory()
+        issue = factories.IssueFactory(summary="old_summary")
 
-        issue.summary = "new_summary"
-        issue.save()
-
-        self.assertEqual(len(mail.outbox), 1)
+        self._assert_send_issue_updated_called_with(
+            issue,
+            expected_changed={"summary": "old_summary"},
+            summary="new_summary",
+        )
 
     @unittest.skip
     def test_old_and_new_summary_is_rendered_in_email(self):
@@ -53,16 +86,19 @@ class IssueUpdatedHandlerTest(TransactionTestCase):
         config.COMMON_FOOTER_TEXT = "Waldur Team!"
         config.COMMON_FOOTER_HTML = "<p>Waldur Team!</p>"
 
-        issue.summary = "new summary"
-        issue.save()
+        with TestCase.captureOnCommitCallbacks(execute=True):
+            issue.summary = "new summary"
+            issue.save()
 
-        body = mail.outbox[0].body
-        self.assertIn(config.COMMON_FOOTER_TEXT, body)
+        self.assertIn(config.COMMON_FOOTER_TEXT, mail.outbox[0].body)
 
     def test_email_notification_is_not_sent_on_issue_creation(self):
-        factories.IssueFactory()
+        with patch(
+            "waldur_mastermind.support.handlers.tasks.send_issue_updated_notification"
+        ) as mock_send:
+            factories.IssueFactory()
 
-        self.assertEqual(len(mail.outbox), 0)
+        mock_send.delay.assert_not_called()
 
     @unittest.skip
     def test_email_notification_is_not_sent_if_feature_is_suppressed(self):
@@ -80,89 +116,101 @@ class IssueUpdatedHandlerTest(TransactionTestCase):
     def test_email_notification_is_not_sent_if_assignee_changes(self):
         issue = factories.IssueFactory()
 
-        issue.assignee = factories.SupportUserFactory()
-        issue.save()
-
-        self.assertEqual(len(mail.outbox), 0)
+        self._assert_send_issue_updated_called_with(
+            issue,
+            assert_not_called=True,
+            assignee=factories.SupportUserFactory(),
+        )
 
     def test_email_notification_is_sent_if_assignee_was_changed_with_status(self):
         issue = factories.IssueFactory()
+        old_status = issue.status
 
-        issue.assignee = factories.SupportUserFactory()
-        issue.status = "new_status"
-        issue.save()
-
-        self.assertEqual(len(mail.outbox), 1)
+        self._assert_send_issue_updated_called_with(
+            issue,
+            expected_changed={"status": old_status},
+            assignee=factories.SupportUserFactory(),
+            status="new_status",
+        )
 
     def test_email_notification_is_not_sent_if_issue_just_has_not_been_created_on_backend_yet(
         self,
     ):
         issue = factories.IssueFactory(backend_id="")
-        issue.status = "new_status"
-        issue.save()
 
-        self.assertEqual(len(mail.outbox), 0)
+        self._assert_send_issue_updated_called_with(
+            issue,
+            assert_not_called=True,
+            status="new_status",
+        )
 
     def test_email_notification_is_not_sent_if_issue_just_has_been_created_on_backend(
         self,
     ):
         issue = factories.IssueFactory(backend_id="")
-        issue.backend_id = "new_backend_id"
-        issue.save()
 
-        self.assertEqual(len(mail.outbox), 0)
+        self._assert_send_issue_updated_called_with(
+            issue,
+            assert_not_called=True,
+            backend_id="new_backend_id",
+        )
 
     def test_email_notification_is_not_sent_if_issue_status_is_ignored(self):
         issue = factories.IssueFactory()
 
-        issue.status = factories.IgnoredIssueStatusFactory().name
-        issue.save()
-
-        self.assertEqual(len(mail.outbox), 0)
+        self._assert_send_issue_updated_called_with(
+            issue,
+            assert_not_called=True,
+            status=factories.IgnoredIssueStatusFactory().name,
+        )
 
     def test_email_notification_subject_include_issue_summary(self):
         issue = factories.IssueFactory()
-
         new_summary = "new_summary"
-        issue.summary = new_summary
-        issue.save()
 
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertTrue(new_summary in mail.outbox[0].subject)
+        with TestCase.captureOnCommitCallbacks(execute=True):
+            issue.summary = new_summary
+            issue.save()
+
+        self.assertIn(new_summary, mail.outbox[0].subject)
 
     def test_subject_does_not_use_autoescape(self):
         issue = factories.IssueFactory()
-
         new_summary = "Request for 'Custom VPC'"
-        issue.summary = new_summary
-        issue.save()
 
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertTrue(new_summary in mail.outbox[0].subject)
+        with patch("waldur_core.core.utils.send_mail") as mock_send_mail:
+            with TestCase.captureOnCommitCallbacks(execute=True):
+                issue.summary = new_summary
+                issue.save()
+
+        mock_send_mail.assert_called_once()
+        call_subject = mock_send_mail.call_args[0][0]
+        self.assertIn(new_summary, call_subject)
 
     def test_email_notification_body_if_custom_template_not_exists(self):
-        issue = factories.IssueFactory()
-        factories.TemplateStatusNotificationFactory()
-
+        old_summary = "old_summary"
         new_summary = "new_summary"
-        body = "Test template %s" % new_summary
-        issue.summary = new_summary
-        issue.save()
+        issue = factories.IssueFactory(
+            status="email_notification_test", summary=old_summary
+        )
 
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertNotEqual(body, mail.outbox[0].body)
+        self._assert_send_issue_updated_called_with(
+            issue,
+            expected_changed={"summary": old_summary},
+            summary=new_summary,
+        )
 
     def test_email_notification_body_if_custom_template_exists(self):
         issue = factories.IssueFactory()
         template = factories.TemplateStatusNotificationFactory()
-
         new_summary = "new_summary"
         body = "Test template %s" % new_summary
-        issue.summary = new_summary
-        issue.status = template.status
-        issue.save()
 
-        self.assertEqual(len(mail.outbox), 1)
+        with TestCase.captureOnCommitCallbacks(execute=True):
+            issue.summary = new_summary
+            issue.status = template.status
+            issue.save()
+
         self.assertEqual(body, mail.outbox[0].body)
 
     def test_email_notification_if_issue_is_resolved(self):
@@ -176,16 +224,19 @@ class IssueUpdatedHandlerTest(TransactionTestCase):
         template = factories.TemplateStatusNotificationFactory(
             status="Resolved", text=template_text
         )
-
         new_summary = "new_summary"
-        issue.summary = new_summary
-        issue.status = template.status
-        issue.resolution_date = timezone.now()
-        issue.save()
 
-        body = Template(template_text).render(Context({"issue": issue}))
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertEqual(body, mail.outbox[0].body)
+        with patch("waldur_core.core.utils.send_mail") as mock_send_mail:
+            with TestCase.captureOnCommitCallbacks(execute=True):
+                issue.summary = new_summary
+                issue.status = template.status
+                issue.resolution_date = timezone.now()
+                issue.save()
+
+        mock_send_mail.assert_called_once()
+        call_body = mock_send_mail.call_args[0][1]
+        expected_body = Template(template_text).render(Context({"issue": issue}))
+        self.assertEqual(expected_body, call_body)
 
 
 @override_config(WALDUR_SUPPORT_ENABLED=True)

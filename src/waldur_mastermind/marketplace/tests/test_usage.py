@@ -699,7 +699,7 @@ class UsageDateBackfillTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.staff)
 
         # Date in December 2023
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 
         payload = {
             "plan_period": self.plan_period.uuid.hex,
@@ -731,7 +731,7 @@ class UsageDateBackfillTest(test.APITestCase):
         """Test that service providers cannot specify date for usage-based components when backfilling past billing periods."""
         self.client.force_authenticate(self.fixture.owner)
 
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 
         payload = {
             "plan_period": self.plan_period.uuid.hex,
@@ -768,7 +768,7 @@ class UsageDateBackfillTest(test.APITestCase):
         )
 
         # Date in December 2023
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 
         payload = {
             "username": "user123",
@@ -809,7 +809,7 @@ class UsageDateBackfillTest(test.APITestCase):
             billing_period=core_utils.month_start(timezone.now()),
         )
 
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 
         payload = {
             "username": "user123",
@@ -896,7 +896,7 @@ class UsageBackfillInvoiceTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.staff)
 
         # Backfill usage for December 2023
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 
         payload = {
             "plan_period": self.plan_period.uuid.hex,
@@ -944,7 +944,7 @@ class UsageBackfillInvoiceTest(test.APITestCase):
         """Test that backfilled usage updates existing invoice items for the same month."""
         self.client.force_authenticate(self.fixture.staff)
 
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 
         # First usage report
         payload = {
@@ -999,7 +999,7 @@ class UsageBackfillInvoiceTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.staff)
 
         # Usage for December 2023
-        december_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        december_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
         payload_december = {
             "plan_period": self.plan_period.uuid.hex,
             "date": december_date.isoformat(),
@@ -1007,7 +1007,7 @@ class UsageBackfillInvoiceTest(test.APITestCase):
         }
 
         # Usage for November 2023
-        november_date = datetime.datetime(2023, 11, 20, 10, 0, 0, tzinfo=timezone.utc)
+        november_date = datetime.datetime(2023, 11, 20, 10, 0, 0, tzinfo=datetime.UTC)
         payload_november = {
             "plan_period": self.plan_period.uuid.hex,
             "date": november_date.isoformat(),
@@ -1061,7 +1061,7 @@ class UsageBackfillInvoiceTest(test.APITestCase):
         }
 
         # Backfilled usage (December 2023)
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
         backfill_payload = {
             "plan_period": self.plan_period.uuid.hex,
             "date": backfill_date.isoformat(),
@@ -1109,7 +1109,7 @@ class UsageBackfillInvoiceTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.staff)
 
         # First create component usage for December 2023 via backfill
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 
         payload = {
             "plan_period": self.plan_period.uuid.hex,
@@ -1161,7 +1161,7 @@ class UsageBackfillInvoiceTest(test.APITestCase):
         """Usage reported for a month whose invoice is already finalized should not update the invoice item."""
         self.client.force_authenticate(self.fixture.staff)
 
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 
         # First usage report creates the invoice and item
         payload = {
@@ -1271,7 +1271,7 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.owner)
 
         # Date in December 2023
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 
         payload = {
             "plan_period": self.plan_period.uuid.hex,
@@ -1303,7 +1303,7 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
         # Authenticate as service provider owner
         self.client.force_authenticate(self.fixture.owner)
 
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 
         payload = {
             "plan_period": self.plan_period.uuid.hex,
@@ -1330,7 +1330,7 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
         # Authenticate as service provider owner
         self.client.force_authenticate(self.fixture.owner)
 
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 
         payload = {
             "plan_period": self.plan_period.uuid.hex,
@@ -1369,7 +1369,7 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
         )
         factories.PlanComponentFactory(plan=self.plan, component=limit_component2)
 
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 
         payload = {
             "plan_period": self.plan_period.uuid.hex,
@@ -1412,7 +1412,7 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
 
         self.client.force_authenticate(other_user)
 
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 
         payload = {
             "plan_period": self.plan_period.uuid.hex,
@@ -1450,7 +1450,7 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
         )
 
         # Date in December 2023
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 
         payload = {
             "username": "user123",
@@ -1493,7 +1493,7 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
             billing_period=core_utils.month_start(timezone.now()),
         )
 
-        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=timezone.utc)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
 
         payload = {
             "username": "user123",
@@ -1519,7 +1519,7 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.owner)
 
         # Date in the same month as frozen time (January 2024)
-        same_month_date = datetime.datetime(2024, 1, 10, 14, 30, 0, tzinfo=timezone.utc)
+        same_month_date = datetime.datetime(2024, 1, 10, 14, 30, 0, tzinfo=datetime.UTC)
 
         payload = {
             "plan_period": self.plan_period.uuid.hex,
@@ -1565,7 +1565,7 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
         )
 
         # Date in the same month as frozen time (January 2024)
-        same_month_date = datetime.datetime(2024, 1, 10, 14, 30, 0, tzinfo=timezone.utc)
+        same_month_date = datetime.datetime(2024, 1, 10, 14, 30, 0, tzinfo=datetime.UTC)
 
         payload = {
             "username": "user123",
@@ -1593,7 +1593,7 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
         self.client.force_authenticate(self.fixture.owner)
 
         # Date in the same month as frozen time (January 2024)
-        same_month_date = datetime.datetime(2024, 1, 10, 14, 30, 0, tzinfo=timezone.utc)
+        same_month_date = datetime.datetime(2024, 1, 10, 14, 30, 0, tzinfo=datetime.UTC)
 
         payload = {
             "plan_period": self.plan_period.uuid.hex,

@@ -38,7 +38,11 @@ class TestAdminEndpoints(TestCase):
         ]
         for name in pages:
             url = self._reverse_url(name)
-            response = self.client.get(url)
+            # Django 5+ logout requires POST; GET returns 405
+            if name == "logout":
+                response = self.client.post(url)
+            else:
+                response = self.client.get(url)
             self.assertIn(response.status_code, [200, 302])
 
     def test_changelist_urls_can_be_queried(self):

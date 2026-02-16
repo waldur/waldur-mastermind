@@ -1,3 +1,5 @@
+from datetime import UTC
+
 from django.test import TestCase
 from django.utils import timezone
 
@@ -344,10 +346,9 @@ class RoleExpirationEdgeCasesTest(TestCase):
 
     def test_timezone_aware_expiration(self):
         """Test that expiration times are properly timezone-aware."""
-        import pytz
 
         # Create expiration in different timezone
-        utc = pytz.UTC
+        utc = UTC
         expiration_time = timezone.now().replace(tzinfo=utc) + timezone.timedelta(
             days=1
         )

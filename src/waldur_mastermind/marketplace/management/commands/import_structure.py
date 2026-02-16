@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from uuid import UUID
 
@@ -5613,7 +5613,7 @@ class Command(BaseCommand):
                     try:
                         created = datetime.fromisoformat(
                             credit_data["created"]
-                        ).replace(tzinfo=timezone.utc)
+                        ).replace(tzinfo=UTC)
                     except (ValueError, TypeError):
                         pass
 
@@ -5622,7 +5622,7 @@ class Command(BaseCommand):
                     try:
                         modified = datetime.fromisoformat(
                             credit_data["modified"]
-                        ).replace(tzinfo=timezone.utc)
+                        ).replace(tzinfo=UTC)
                     except (ValueError, TypeError):
                         pass
 
@@ -5740,7 +5740,7 @@ class Command(BaseCommand):
                     try:
                         created = datetime.fromisoformat(
                             credit_data["created"]
-                        ).replace(tzinfo=timezone.utc)
+                        ).replace(tzinfo=UTC)
                     except (ValueError, TypeError):
                         pass
 
@@ -5749,7 +5749,7 @@ class Command(BaseCommand):
                     try:
                         modified = datetime.fromisoformat(
                             credit_data["modified"]
-                        ).replace(tzinfo=timezone.utc)
+                        ).replace(tzinfo=UTC)
                     except (ValueError, TypeError):
                         pass
 

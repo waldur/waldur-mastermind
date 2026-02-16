@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import UTC, timedelta
 
 from ddt import data, ddt
 from django.utils import timezone
@@ -903,7 +903,7 @@ class AnnualBillingMonthDetectionTest(test.APITestCase):
         self.fixture = fixtures.MarketplaceFixture()
         self.resource = self.fixture.resource
         # Resource created in March
-        self.resource.created = timezone.datetime(2020, 3, 15, tzinfo=timezone.utc)
+        self.resource.created = timezone.datetime(2020, 3, 15, tzinfo=UTC)
         self.resource.save()
 
     @data(
@@ -943,7 +943,7 @@ class AnnualBillingMonthDetectionTest(test.APITestCase):
 
     def test_annual_billing_period_from_creation_date(self):
         """Test annual billing period is based on resource creation anniversary."""
-        test_date = timezone.datetime(2020, 3, 20, tzinfo=timezone.utc)
+        test_date = timezone.datetime(2020, 3, 20, tzinfo=UTC)
         start, end = LimitPeriodProcessor._get_billing_period(
             LimitPeriods.ANNUAL, test_date, self.resource
         )
@@ -956,7 +956,7 @@ class AnnualBillingMonthDetectionTest(test.APITestCase):
 
     def test_annual_billing_period_before_anniversary(self):
         """Test annual billing period when date is before this year's anniversary."""
-        test_date = timezone.datetime(2021, 2, 10, tzinfo=timezone.utc)
+        test_date = timezone.datetime(2021, 2, 10, tzinfo=UTC)
         start, end = LimitPeriodProcessor._get_billing_period(
             LimitPeriods.ANNUAL, test_date, self.resource
         )
@@ -1563,9 +1563,9 @@ class LimitBillingDuplicateInvoiceTest(test.APITestCase):
             customer=test_resource.project.customer, year=2025, month=10
         )
 
-        october_1st = timezone.datetime(2025, 10, 1, tzinfo=timezone.utc)
-        october_15th = timezone.datetime(2025, 10, 15, tzinfo=timezone.utc)
-        october_31st = timezone.datetime(2025, 10, 31, tzinfo=timezone.utc)
+        october_1st = timezone.datetime(2025, 10, 1, tzinfo=UTC)
+        october_15th = timezone.datetime(2025, 10, 15, tzinfo=UTC)
+        october_31st = timezone.datetime(2025, 10, 31, tzinfo=UTC)
 
         LimitPeriodProcessor._create_invoice_item(
             source=test_resource,

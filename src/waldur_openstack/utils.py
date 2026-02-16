@@ -1,7 +1,7 @@
-from django.utils.topological_sort import stable_topological_sort
 from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core import exceptions as core_exceptions
+from waldur_core.core.utils import stable_topological_sort
 from waldur_openstack.models import (
     CustomerOpenStack,
     ExternalNetwork,

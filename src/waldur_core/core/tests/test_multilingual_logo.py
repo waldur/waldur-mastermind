@@ -4,7 +4,7 @@ import tempfile
 from io import StringIO
 from unittest import mock
 
-from constance.backends.database.models import Constance
+from constance.models import Constance
 from django.core.management import call_command
 from django.test import TestCase
 from rest_framework import status, test
