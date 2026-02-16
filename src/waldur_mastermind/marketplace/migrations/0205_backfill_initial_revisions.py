@@ -10,6 +10,7 @@ def backfill_initial_revisions(apps, schema_editor):
     so that queries only reference columns that exist at this migration state.
     """
     from django.core import serializers as core_serializers
+    from django.utils import timezone
 
     ContentType = apps.get_model("contenttypes", "ContentType")
     Revision = apps.get_model("reversion", "Revision")
@@ -28,9 +29,11 @@ def backfill_initial_revisions(apps, schema_editor):
             .values_list("object_id", flat=True)
             .distinct()
         )
+        now = timezone.now()
         for obj in Model.objects.iterator():
             if str(obj.pk) not in versioned_ids:
                 revision = Revision.objects.create(
+                    date_created=now,
                     comment="Initial version (backfill)",
                 )
                 Version.objects.create(
