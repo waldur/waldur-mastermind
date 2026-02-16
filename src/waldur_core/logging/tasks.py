@@ -128,26 +128,17 @@ def delete_stale_event_subscriptions():
     retry_jitter=True,  # Add randomness to prevent thundering herd
 )
 def publish_messages(self, messages: list[dict[str, str]]) -> dict:
-    """Publish messages to MQTT and STOMP message queues.
+    """Publish messages to STOMP message queue.
 
     Uses Celery's built-in retry mechanism with exponential backoff.
     Returns statistics about successful and failed message delivery.
     """
     results = {
-        "mqtt": {"sent": 0, "failed": 0},
         "stomp": {"sent": 0, "failed": 0},
         "retry_count": self.request.retries,
     }
 
-    # MQTT publishing (deprecated, kept for backward compatibility)
-    try:
-        utils.publish_mqtt_messages(messages)
-        results["mqtt"]["sent"] = len(messages)
-    except Exception as e:
-        logger.error("Error publishing MQTT messages: %s", e)
-        results["mqtt"]["failed"] = len(messages)
-
-    # STOMP publishing (primary protocol)
+    # STOMP publishing
     try:
         successful, failed = utils.publish_stomp_messages(messages)
         results["stomp"]["sent"] = successful

@@ -41,7 +41,6 @@ class AgentIdentityCreateTest(test.APITestCase):
                   resource_import_enabled: false
             """),
             "dependencies": [
-                "paho-mqtt=v2.1.0",
                 "pyyaml=v6.0.1",
                 "requests=v2.32.3",
                 "sentry-sdk=v2.3.1",
