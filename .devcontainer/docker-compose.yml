@@ -30,7 +30,7 @@ services:
     environment:
       RABBITMQ_USERNAME: rabbitmq
       RABBITMQ_PASSWORD: rabbitmq
-    command: "/bin/bash -c \"rabbitmq-plugins enable --offline rabbitmq_stomp rabbitmq_web_stomp rabbitmq_mqtt rabbitmq_web_mqtt rabbitmq_management; /opt/bitnami/scripts/rabbitmq/run.sh\""
+    command: "/bin/bash -c \"rabbitmq-plugins enable --offline rabbitmq_stomp rabbitmq_web_stomp rabbitmq_management; /opt/bitnami/scripts/rabbitmq/run.sh\""
     volumes:
       - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
       - rabbitmq-data:/bitnami/rabbitmq/mnesia

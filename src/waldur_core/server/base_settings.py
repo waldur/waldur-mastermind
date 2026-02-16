@@ -206,11 +206,10 @@ USE_TZ = True
 STATIC_URL = "/static/"
 
 # RabbitMQ requirements:
-# rabbitmq-plugins enable rabbitmq_mqtt
-# rabbitmq-plugins enable rabbitmq_web_mqtt (for websockets)
+# rabbitmq-plugins enable rabbitmq_stomp
+# rabbitmq-plugins enable rabbitmq_web_stomp (for websockets)
 RABBITMQ = {
     "HOST": "localhost",
-    "MQTT_PORT": 1883,
     "STOMP_PORT": 61613,
     "USER": "test",
     "PASSWORD": "test",

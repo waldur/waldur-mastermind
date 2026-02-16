@@ -14,8 +14,6 @@
         5672,
         // RabbitMQ management
         15672,
-        // RabbitMQ MQTT WebSocket
-        1883
     ],
     "postCreateCommand": "bash ./.devcontainer/postCreateCommand.sh",
     "remoteUser": "root",
