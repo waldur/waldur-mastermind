@@ -119,9 +119,16 @@ def evaluate_resource_against_policy(resource_uuid: str, policy_uuid: str):
         ):
             actions_needed.append("downscale")
 
-        # Check for notification (independent of other actions)
+        # Check for notification (independent of other actions, once per billing period)
         if usage_percentage >= 80 and "notify_organization_owners" in policy.actions:
-            actions_needed.append("notify")
+            already_notified = models.SlurmPolicyEvaluationLog.objects.filter(
+                policy=policy,
+                resource=resource,
+                billing_period=current_period,
+                actions_taken__contains="notify",
+            ).exists()
+            if not already_notified:
+                actions_needed.append("notify")
 
         # Apply or remove actions based on current usage
         with transaction.atomic():
@@ -281,7 +288,7 @@ def notify_about_resource_usage(
 
         # Send notification to organization owners
         customer = resource.project.customer
-        owners = customer.get_owners()
+        owners = customer.get_user_mails(RoleEnum.CUSTOMER_OWNER)
 
         if owners:
             context = {
