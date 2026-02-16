@@ -23,6 +23,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage as storage
+from django.db import models as models_module
 from django.db import transaction
 from django.db.models import F, Q, Sum
 from django.db.models.fields import FloatField
@@ -3088,3 +3089,134 @@ def validate_backend_id(backend_id, offering, exclude_resource=None):
     validate_backend_id_uniqueness(
         backend_id, offering, exclude_resource=exclude_resource
     )
+
+
+# Mapping from User model field names to attribute "gate" names
+# used by OfferingUserAttributeConfig (expose_<attribute_name>).
+# Shared between handlers.py (pub/sub) and profile completeness filtering.
+USER_FIELD_TO_ATTRIBUTE = {
+    "first_name": "full_name",
+    "last_name": "full_name",
+    "email": "email",
+    "phone_number": "phone_number",
+    "organization": "organization",
+    "job_title": "job_title",
+    "affiliations": "affiliations",
+    "gender": "gender",
+    "civil_number": "civil_number",
+    "birth_date": "birth_date",
+    "personal_title": "personal_title",
+    "place_of_birth": "place_of_birth",
+    "country_of_residence": "country_of_residence",
+    "nationality": "nationality",
+    "nationalities": "nationalities",
+    "organization_country": "organization_country",
+    "organization_type": "organization_type",
+    "eduperson_assurance": "eduperson_assurance",
+    "identity_source": "identity_source",
+    "registration_method": "registration_method",
+}
+
+
+def _is_user_field_empty(user, field_name):
+    """Check if a User model field value is considered empty.
+
+    - CharField/EmailField: "" or None
+    - JSONField: [] or None
+    - PositiveSmallIntegerField/DateField: None
+    """
+    value = getattr(user, field_name, None)
+    if value is None:
+        return True
+    if isinstance(value, str) and value == "":
+        return True
+    if isinstance(value, list) and value == []:
+        return True
+    return False
+
+
+def get_missing_profile_attributes(user, exposed_attributes):
+    """Return list of attribute names the user hasn't filled in.
+
+    Args:
+        user: User model instance
+        exposed_attributes: list of attribute names (e.g. ["email", "full_name"])
+
+    Returns:
+        List of attribute names that are empty on the user's profile.
+    """
+    attr_to_fields = _build_attribute_to_user_fields()
+    missing = []
+    for attr_name in exposed_attributes:
+        user_fields = attr_to_fields.get(attr_name)
+        if not user_fields:
+            continue
+        if len(user_fields) > 1:
+            # full_name: incomplete only when ALL sub-fields are empty
+            if all(_is_user_field_empty(user, uf) for uf in user_fields):
+                missing.append(attr_name)
+        else:
+            if _is_user_field_empty(user, user_fields[0]):
+                missing.append(attr_name)
+    return missing
+
+
+def _build_attribute_to_user_fields():
+    """Invert USER_FIELD_TO_ATTRIBUTE: attribute_name -> [user_field_names]."""
+    result = defaultdict(list)
+    for user_field, attr_name in USER_FIELD_TO_ATTRIBUTE.items():
+        result[attr_name].append(user_field)
+    # username is not in USER_FIELD_TO_ATTRIBUTE (not change-tracked)
+    if "username" not in result:
+        result["username"] = ["username"]
+    return dict(result)
+
+
+def _is_field_empty_q(user_field_name):
+    """Return a Q object that matches when the given User field is empty.
+
+    The "empty" definition depends on the field type:
+    - CharField/EmailField: "" or NULL
+    - JSONField: [] or NULL
+    - PositiveSmallIntegerField/DateField: NULL
+    """
+    from waldur_core.core.models import User
+
+    field = User._meta.get_field(user_field_name)
+    prefix = f"user__{user_field_name}"
+
+    if isinstance(field, models_module.CharField | models_module.EmailField):
+        return Q(**{prefix: ""}) | Q(**{f"{prefix}__isnull": True})
+    elif isinstance(field, models_module.JSONField):
+        return Q(**{prefix: []}) | Q(**{f"{prefix}__isnull": True})
+    else:
+        # DateField, PositiveSmallIntegerField, etc.
+        return Q(**{f"{prefix}__isnull": True})
+
+
+def build_incomplete_profile_q():
+    """Build a Q object matching OfferingUsers with incomplete profiles.
+
+    An OfferingUser is "incomplete" when:
+    1. The offering has an OfferingUserAttributeConfig
+    2. At least one exposed attribute's corresponding User field(s) are empty
+
+    For `full_name`, both first_name AND last_name must be empty for it
+    to be considered incomplete (since full_name = first_name + last_name).
+    """
+    attr_to_fields = _build_attribute_to_user_fields()
+    incomplete_q = Q()
+
+    for attr_name, user_fields in attr_to_fields.items():
+        config_flag = f"offering__user_attribute_config__expose_{attr_name}"
+
+        if len(user_fields) > 1:
+            # full_name case: both first_name AND last_name must be empty
+            all_empty = Q()
+            for uf in user_fields:
+                all_empty &= _is_field_empty_q(uf)
+            incomplete_q |= Q(**{config_flag: True}) & all_empty
+        else:
+            incomplete_q |= Q(**{config_flag: True}) & _is_field_empty_q(user_fields[0])
+
+    return incomplete_q

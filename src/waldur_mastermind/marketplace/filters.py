@@ -53,7 +53,7 @@ from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal.enums import CallStates, RequestedOfferingStates
 from waldur_pid import models as pid_models
 
-from . import models
+from . import models, utils
 
 
 class ServiceProviderFilter(django_filters.FilterSet):
@@ -1572,6 +1572,11 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
         label="User Has Consent",
         widget=BooleanWidget,
     )
+    has_complete_profile = django_filters.BooleanFilter(
+        method="filter_has_complete_profile",
+        label="User has complete profile for the offering",
+        widget=BooleanWidget,
+    )
 
     o = django_filters.OrderingFilter(fields=("created", "modified", "username"))
     query = django_filters.CharFilter(
@@ -1603,6 +1608,15 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
                 user__offering_consents__offering=F("offering"),
                 user__offering_consents__revocation_date__isnull=True,
             ).distinct()
+
+    def filter_has_complete_profile(self, queryset, name, value):
+        if value is None:
+            return queryset
+        incomplete_q = utils.build_incomplete_profile_q()
+        if value:
+            return queryset.exclude(incomplete_q).distinct()
+        else:
+            return queryset.filter(incomplete_q).distinct()
 
 
 class OfferingUserChecklistCompletionsFilter(core_filters.CreatedModifiedFilter):

@@ -734,6 +734,11 @@ CONSTANCE_CONFIG = {
         False,
         "If True, users must have active consent to access offerings that have active Terms of Service.",
     ),
+    "ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS": (
+        False,
+        "If True, service providers only see offering users whose profiles have "
+        "all exposed attributes filled (per OfferingUserAttributeConfig).",
+    ),
     "DISABLED_OFFERING_TYPES": (
         [],
         "List of offering types disabled for creation and selection.",
@@ -1015,21 +1020,28 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "MARKETPLACE_LANDING_PAGE",
         "COUNTRIES",
     ),
-    "Marketplace": (
-        "THUMBNAIL_SIZE",
+    "Marketplace visibility & access": (
         "ANONYMOUS_USER_CAN_VIEW_OFFERINGS",
         "ANONYMOUS_USER_CAN_VIEW_PLANS",
         "RESTRICTED_OFFERING_VISIBILITY_MODE",
+        "ENFORCE_USER_CONSENT_FOR_OFFERINGS",
+        "ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS",
+        "ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT",
+    ),
+    "Marketplace notifications": (
         "NOTIFY_STAFF_ABOUT_APPROVALS",
         "NOTIFY_ABOUT_RESOURCE_CHANGE",
         "DISABLE_SENDING_NOTIFICATIONS_ABOUT_RESOURCE_UPDATE",
         "ENABLE_STALE_RESOURCE_NOTIFICATIONS",
-        "ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND",
-        "ENABLE_MOCK_COURSE_ACCOUNT_BACKEND",
-        "ENFORCE_USER_CONSENT_FOR_OFFERINGS",
+    ),
+    "Offerings & orders": (
+        "THUMBNAIL_SIZE",
         "DISABLED_OFFERING_TYPES",
         "ENABLE_ORDER_START_DATE",
-        "ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT",
+    ),
+    "Marketplace development": (
+        "ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND",
+        "ENABLE_MOCK_COURSE_ACCOUNT_BACKEND",
     ),
     "Project": ("PROJECT_END_DATE_MANDATORY",),
     "Telemetry": (

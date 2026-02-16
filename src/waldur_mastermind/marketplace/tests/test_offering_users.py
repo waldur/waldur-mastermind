@@ -1,5 +1,6 @@
 from unittest import mock
 
+from constance.test.unittest import override_config
 from ddt import data, ddt
 from rest_framework import status, test
 from rest_framework.reverse import reverse
@@ -2799,3 +2800,211 @@ class OfferingUserCommentUrlResetTest(test.APITestCase):
 
         self.offering_user.refresh_from_db()
         self.assertEqual(self.offering_user.service_provider_comment_url, target_url)
+
+
+class OfferingUserProfileCompletenessTest(test.APITestCase):
+    """Tests for filtering OfferingUsers by user attribute completeness."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(
+            shared=True, customer=self.fixture.customer
+        )
+        self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True
+        }
+        self.offering.save()
+
+        # Create a user with complete profile
+        self.complete_user = UserFactory(
+            first_name="John",
+            last_name="Doe",
+            email="john@example.com",
+            username="johndoe",
+        )
+        self.fixture.project.add_user(self.complete_user, ProjectRole.ADMIN)
+        self.complete_offering_user = OfferingUser.objects.create(
+            offering=self.offering,
+            user=self.complete_user,
+            username="johndoe",
+        )
+
+        # Create a user with incomplete profile (empty email)
+        self.incomplete_user = UserFactory(
+            first_name="Jane",
+            last_name="Doe",
+            email="",
+            username="janedoe",
+        )
+        self.fixture.project.add_user(self.incomplete_user, ProjectRole.ADMIN)
+        self.incomplete_offering_user = OfferingUser.objects.create(
+            offering=self.offering,
+            user=self.incomplete_user,
+            username="janedoe",
+        )
+
+        # Create attribute config requiring email
+        self.config = models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_registration_method=False,
+        )
+
+    def _list_offering_users(self, user, params=None):
+        self.client.force_authenticate(user=user)
+        url = OfferingUserFactory.get_list_url()
+        return self.client.get(url, params)
+
+    @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=True)
+    def test_sp_cannot_see_offering_user_with_incomplete_profile(self):
+        response = self._list_offering_users(self.fixture.owner)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertNotIn(str(self.incomplete_offering_user.uuid), uuids)
+
+    @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=True)
+    def test_sp_can_see_offering_user_with_complete_profile(self):
+        response = self._list_offering_users(self.fixture.owner)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertIn(str(self.complete_offering_user.uuid), uuids)
+
+    @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=True)
+    def test_user_always_sees_own_record(self):
+        """A user with incomplete profile still sees their own OfferingUser."""
+        response = self._list_offering_users(self.incomplete_user)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertIn(str(self.incomplete_offering_user.uuid), uuids)
+
+    @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=True)
+    def test_staff_sees_all_regardless_of_completeness(self):
+        response = self._list_offering_users(self.fixture.staff)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertIn(str(self.complete_offering_user.uuid), uuids)
+        self.assertIn(str(self.incomplete_offering_user.uuid), uuids)
+
+    @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=False)
+    def test_enforcement_off_shows_all_records(self):
+        response = self._list_offering_users(self.fixture.owner)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertIn(str(self.complete_offering_user.uuid), uuids)
+        self.assertIn(str(self.incomplete_offering_user.uuid), uuids)
+
+    @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=True)
+    def test_no_config_on_offering_means_no_filtering(self):
+        """When offering has no OfferingUserAttributeConfig, all users are visible."""
+        self.config.delete()
+        response = self._list_offering_users(self.fixture.owner)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertIn(str(self.complete_offering_user.uuid), uuids)
+        self.assertIn(str(self.incomplete_offering_user.uuid), uuids)
+
+    @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=True)
+    def test_json_field_empty_list_is_incomplete(self):
+        """Empty affiliations list treated as incomplete."""
+        self.config.expose_affiliations = True
+        self.config.save()
+        # complete_user has affiliations=[] by default
+        self.complete_user.affiliations = []
+        self.complete_user.save()
+
+        response = self._list_offering_users(self.fixture.owner)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertNotIn(str(self.complete_offering_user.uuid), uuids)
+
+    @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=True)
+    def test_full_name_incomplete_only_when_both_empty(self):
+        """full_name is incomplete only when both first_name AND last_name are empty."""
+        self.config.expose_email = False
+        self.config.save()
+
+        # Only last_name empty - should be complete
+        self.complete_user.first_name = "John"
+        self.complete_user.last_name = ""
+        self.complete_user.save()
+
+        response = self._list_offering_users(self.fixture.owner)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertIn(str(self.complete_offering_user.uuid), uuids)
+
+    @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=True)
+    def test_full_name_incomplete_when_both_names_empty(self):
+        """full_name is incomplete when both first_name AND last_name are empty."""
+        self.config.expose_email = False
+        self.config.save()
+
+        self.complete_user.first_name = ""
+        self.complete_user.last_name = ""
+        self.complete_user.save()
+
+        response = self._list_offering_users(self.fixture.owner)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertNotIn(str(self.complete_offering_user.uuid), uuids)
+
+    @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=True)
+    def test_multiple_attributes_all_must_be_filled(self):
+        """ALL exposed attributes must be filled (AND logic)."""
+        self.config.expose_phone_number = True
+        self.config.save()
+
+        # email is filled but phone_number is not
+        self.complete_user.email = "john@example.com"
+        self.complete_user.phone_number = ""
+        self.complete_user.save()
+
+        response = self._list_offering_users(self.fixture.owner)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertNotIn(str(self.complete_offering_user.uuid), uuids)
+
+    @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=False)
+    def test_has_complete_profile_filter_true(self):
+        """Explicit filter works independently of global toggle."""
+        response = self._list_offering_users(
+            self.fixture.owner, {"has_complete_profile": True}
+        )
+        uuids = {item["uuid"] for item in response.data}
+        self.assertIn(str(self.complete_offering_user.uuid), uuids)
+        self.assertNotIn(str(self.incomplete_offering_user.uuid), uuids)
+
+    @override_config(ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS=False)
+    def test_has_complete_profile_filter_false(self):
+        """Explicit filter can find incomplete profiles."""
+        response = self._list_offering_users(
+            self.fixture.owner, {"has_complete_profile": False}
+        )
+        uuids = {item["uuid"] for item in response.data}
+        self.assertNotIn(str(self.complete_offering_user.uuid), uuids)
+        self.assertIn(str(self.incomplete_offering_user.uuid), uuids)
+
+    def test_response_includes_is_profile_complete_true(self):
+        """Complete user record includes is_profile_complete=True."""
+        response = self._list_offering_users(self.fixture.owner)
+        record = next(
+            item
+            for item in response.data
+            if item["uuid"] == str(self.complete_offering_user.uuid)
+        )
+        self.assertTrue(record["is_profile_complete"])
+        self.assertEqual(record["missing_profile_attributes"], [])
+
+    def test_response_includes_is_profile_complete_false(self):
+        """Incomplete user record includes is_profile_complete=False with missing attrs."""
+        response = self._list_offering_users(self.fixture.owner)
+        record = next(
+            item
+            for item in response.data
+            if item["uuid"] == str(self.incomplete_offering_user.uuid)
+        )
+        self.assertFalse(record["is_profile_complete"])
+        self.assertIn("email", record["missing_profile_attributes"])
+
+    def test_own_record_shows_missing_attributes(self):
+        """User's own record includes missing_profile_attributes for self-service."""
+        response = self._list_offering_users(self.incomplete_user)
+        record = next(
+            item
+            for item in response.data
+            if item["uuid"] == str(self.incomplete_offering_user.uuid)
+        )
+        self.assertFalse(record["is_profile_complete"])
+        self.assertIn("email", record["missing_profile_attributes"])

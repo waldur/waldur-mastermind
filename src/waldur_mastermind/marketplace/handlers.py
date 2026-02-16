@@ -2280,28 +2280,7 @@ def send_offering_user_deleted_message(sender, instance: models.OfferingUser, **
         logging_tasks.publish_messages.delay(messages)
 
 
-USER_FIELD_TO_ATTRIBUTE = {
-    "first_name": "full_name",
-    "last_name": "full_name",
-    "email": "email",
-    "phone_number": "phone_number",
-    "organization": "organization",
-    "job_title": "job_title",
-    "affiliations": "affiliations",
-    "gender": "gender",
-    "civil_number": "civil_number",
-    "birth_date": "birth_date",
-    "personal_title": "personal_title",
-    "place_of_birth": "place_of_birth",
-    "country_of_residence": "country_of_residence",
-    "nationality": "nationality",
-    "nationalities": "nationalities",
-    "organization_country": "organization_country",
-    "organization_type": "organization_type",
-    "eduperson_assurance": "eduperson_assurance",
-    "identity_source": "identity_source",
-    "registration_method": "registration_method",
-}
+USER_FIELD_TO_ATTRIBUTE = marketplace_utils.USER_FIELD_TO_ATTRIBUTE
 
 
 def _serialize_user_field(value):
