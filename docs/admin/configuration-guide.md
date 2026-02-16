@@ -1206,15 +1206,7 @@ Marketplace landing page title.
 
 It is used in organization creation dialog in order to limit country choices to predefined set.
 
-### Marketplace
-
-#### THUMBNAIL_SIZE
-
-**Type:** str
-
-**Default value:** 120x120
-
-Size of the thumbnail to generate when screenshot is uploaded for an offering.
+### Marketplace visibility & access
 
 #### ANONYMOUS_USER_CAN_VIEW_OFFERINGS
 
@@ -1239,6 +1231,26 @@ Allow anonymous users to see plans
 **Default value:** show_all
 
 Controls offering visibility for regular users. 'show_all': Show all shared offerings (current behavior). 'show_restricted_disabled': Show all but mark inaccessible as disabled. 'hide_inaccessible': Hide offerings user cannot access. 'require_membership': Hide all unless user belongs to an organization/project.
+
+#### ENFORCE_USER_CONSENT_FOR_OFFERINGS
+
+**Type:** bool
+
+If True, users must have active consent to access offerings that have active Terms of Service.
+
+#### ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS
+
+**Type:** bool
+
+If True, service providers only see offering users whose profiles have all exposed attributes filled (per OfferingUserAttributeConfig).
+
+#### ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT
+
+**Type:** bool
+
+If true, service provider owners and managers can manage offering lifecycle (activate, pause, unpause, archive, draft, delete) without staff approval.
+
+### Marketplace notifications
 
 #### NOTIFY_STAFF_ABOUT_APPROVALS
 
@@ -1268,23 +1280,15 @@ Disable only resource update events.
 
 Enable reminders to owners about resources of shared offerings that have not generated any cost for the last 3 months.
 
-#### ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND
+### Offerings & orders
 
-**Type:** bool
+#### THUMBNAIL_SIZE
 
-Enable mock returns for the service account service
+**Type:** str
 
-#### ENABLE_MOCK_COURSE_ACCOUNT_BACKEND
+**Default value:** 120x120
 
-**Type:** bool
-
-Enable mock returns for the course account service
-
-#### ENFORCE_USER_CONSENT_FOR_OFFERINGS
-
-**Type:** bool
-
-If True, users must have active consent to access offerings that have active Terms of Service.
+Size of the thumbnail to generate when screenshot is uploaded for an offering.
 
 #### DISABLED_OFFERING_TYPES
 
@@ -1298,11 +1302,19 @@ List of offering types disabled for creation and selection.
 
 Allow setting start date to control when resource creation order is processed.
 
-#### ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT
+### Marketplace development
+
+#### ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND
 
 **Type:** bool
 
-If true, service provider owners and managers can manage offering lifecycle (activate, pause, unpause, archive, draft, delete) without staff approval.
+Enable mock returns for the service account service
+
+#### ENABLE_MOCK_COURSE_ACCOUNT_BACKEND
+
+**Type:** bool
+
+Enable mock returns for the course account service
 
 ### Project
 
