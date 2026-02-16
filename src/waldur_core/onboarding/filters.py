@@ -7,7 +7,9 @@ from . import enums, models
 
 
 class OnboardingVerificationFilter(django_filters.FilterSet):
-    user_uuid = django_filters.UUIDFilter(field_name="user__uuid", label="User UUID")
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="user__uuid", label="User UUID"
+    )
     country = django_filters.CharFilter(field_name="country")
     legal_name = django_filters.CharFilter(
         field_name="legal_name", lookup_expr="icontains"
@@ -57,10 +59,14 @@ class OnboardingVerificationFilter(django_filters.FilterSet):
 
 
 class OnboardingJustificationFilter(django_filters.FilterSet):
-    verification_uuid = django_filters.UUIDFilter(
-        field_name="verification__uuid", label="Verification UUID"
+    verification_uuid = core_filters.RelatedUUIDFilter(
+        view_name="onboarding-verification-detail",
+        field_name="verification__uuid",
+        label="Verification UUID",
     )
-    user_uuid = django_filters.UUIDFilter(field_name="user__uuid", label="User UUID")
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="user__uuid", label="User UUID"
+    )
     query = django_filters.CharFilter(
         method="filter_query",
         label="Filter by legal name, legal person identifier",
@@ -91,10 +97,14 @@ class OnboardingJustificationFilter(django_filters.FilterSet):
 
 
 class OnboardingQuestionMetadataFilter(django_filters.FilterSet):
-    checklist_uuid = django_filters.UUIDFilter(
-        field_name="question__checklist__uuid", label="Checklist uuid"
+    checklist_uuid = core_filters.RelatedUUIDFilter(
+        view_name="checklists-admin-detail",
+        field_name="question__checklist__uuid",
+        label="Checklist uuid",
     )
-    question_uuid = django_filters.UUIDFilter(field_name="question__uuid")
+    question_uuid = core_filters.RelatedUUIDFilter(
+        view_name="checklists-admin-questions-detail", field_name="question__uuid"
+    )
     question_description = django_filters.CharFilter(
         field_name="question__description", lookup_expr="icontains"
     )

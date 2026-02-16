@@ -12,8 +12,10 @@ from . import models
 
 
 class TenantFilterSet(django_filters.FilterSet):
-    tenant_uuid = django_filters.UUIDFilter(
-        field_name="tenant__uuid", label="Tenant UUID"
+    tenant_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-tenant-detail",
+        field_name="tenant__uuid",
+        label="Tenant UUID",
     )
     tenant = core_filters.URLFilter(
         view_name="openstack-tenant-detail",
@@ -23,14 +25,18 @@ class TenantFilterSet(django_filters.FilterSet):
 
 
 class SharedTenantFilterSet(django_filters.FilterSet):
-    tenant_uuid = django_filters.UUIDFilter(method="filter_tenant", label="Tenant UUID")
+    tenant_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-tenant-detail", method="filter_tenant", label="Tenant UUID"
+    )
     tenant = core_filters.URLFilter(
         view_name="openstack-tenant-detail",
         method="filter_tenant",
         label="Tenant URL",
     )
-    offering_uuid = django_filters.UUIDFilter(
-        method="filter_offering", label="Offering UUID"
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        method="filter_offering",
+        label="Offering UUID",
     )
 
     def filter_tenant(self, queryset, name, value):
@@ -174,8 +180,10 @@ class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
     network_name = django_filters.CharFilter(
         label="Search by network name", field_name="network__name"
     )
-    network_uuid = django_filters.UUIDFilter(
-        label="Search by network UUID", field_name="network__uuid"
+    network_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-network-detail",
+        label="Search by network UUID",
+        field_name="network__uuid",
     )
     fixed_ips = django_filters.CharFilter(
         label="Search by fixed IP", lookup_expr="icontains"
@@ -251,7 +259,9 @@ def filter_tenant_fabric(model):
 
 
 class NetworkFilter(structure_filters.BaseResourceFilter):
-    tenant_uuid = django_filters.UUIDFilter(method="filter_tenant", label="Tenant UUID")
+    tenant_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-tenant-detail", method="filter_tenant", label="Tenant UUID"
+    )
     tenant = core_filters.URLFilter(
         view_name="openstack-tenant-detail", method="filter_tenant", label="Tenant URL"
     )
@@ -279,8 +289,10 @@ class NetworkFilter(structure_filters.BaseResourceFilter):
 
 
 class SubNetFilter(structure_filters.BaseResourceFilter):
-    network_uuid = django_filters.UUIDFilter(
-        field_name="network__uuid", label="Network UUID"
+    network_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-network-detail",
+        field_name="network__uuid",
+        label="Network UUID",
     )
     network = core_filters.URLFilter(
         view_name="openstack-network-detail",
@@ -288,7 +300,9 @@ class SubNetFilter(structure_filters.BaseResourceFilter):
         label="Network URL",
     )
 
-    tenant_uuid = django_filters.UUIDFilter(method="filter_tenant", label="Tenant UUID")
+    tenant_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-tenant-detail", method="filter_tenant", label="Tenant UUID"
+    )
     tenant = core_filters.URLFilter(
         view_name="openstack-tenant-detail", method="filter_tenant", label="Tenant URL"
     )
@@ -321,8 +335,10 @@ class VolumeFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
         field_name="instance__uuid",
         label="Instance URL",
     )
-    instance_uuid = django_filters.UUIDFilter(
-        field_name="instance__uuid", label="Instance UUID"
+    instance_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-instance-detail",
+        field_name="instance__uuid",
+        label="Instance UUID",
     )
 
     snapshot = core_filters.URLFilter(
@@ -330,16 +346,20 @@ class VolumeFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
         field_name="restoration__snapshot__uuid",
         label="Snapshot URL",
     )
-    snapshot_uuid = django_filters.UUIDFilter(
-        field_name="restoration__snapshot__uuid", label="Snapshot UUID"
+    snapshot_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-snapshot-detail",
+        field_name="restoration__snapshot__uuid",
+        label="Snapshot UUID",
     )
 
     availability_zone_name = django_filters.CharFilter(
         field_name="availability_zone__name", label="Availability zone name"
     )
 
-    attach_instance_uuid = django_filters.UUIDFilter(
-        method="filter_attach_instance", label="Filter for attachment to instance UUID"
+    attach_instance_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-instance-detail",
+        method="filter_attach_instance",
+        label="Filter for attachment to instance UUID",
     )
 
     def filter_attach_instance(self, queryset, name, value):
@@ -380,16 +400,20 @@ class VolumeFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
 
 
 class SnapshotFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
-    source_volume_uuid = django_filters.UUIDFilter(
-        field_name="source_volume__uuid", label="Source volume UUID"
+    source_volume_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-volume-detail",
+        field_name="source_volume__uuid",
+        label="Source volume UUID",
     )
     source_volume = core_filters.URLFilter(
         view_name="openstack-volume-detail",
         field_name="source_volume__uuid",
         label="Source volume URL",
     )
-    backup_uuid = django_filters.UUIDFilter(
-        field_name="backups__uuid", label="Backup UUID"
+    backup_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-backup-detail",
+        field_name="backups__uuid",
+        label="Backup UUID",
     )
     backup = core_filters.URLFilter(
         view_name="openstack-backup-detail",
@@ -421,8 +445,10 @@ class InstanceFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
     availability_zone_name = django_filters.CharFilter(
         field_name="availability_zone__name", label="Availability zone name"
     )
-    attach_volume_uuid = django_filters.UUIDFilter(
-        method="filter_attach_volume", label="Filter for attachment to volume UUID"
+    attach_volume_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-volume-detail",
+        method="filter_attach_volume",
+        label="Filter for attachment to volume UUID",
     )
     query = django_filters.CharFilter(
         method="filter_query", label="Search by name, internal IP, or external IP"
@@ -484,8 +510,10 @@ class BackupFilter(TenantFilterSet, structure_filters.BaseResourceFilter):
         field_name="instance__uuid",
         label="Instance URL",
     )
-    instance_uuid = django_filters.UUIDFilter(
-        field_name="instance__uuid", label="Instance UUID"
+    instance_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-instance-detail",
+        field_name="instance__uuid",
+        label="Instance UUID",
     )
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
@@ -500,8 +528,10 @@ class VolumeAvailabilityZoneFilter(
 
 
 class NetworkRBACPolicyFilter(django_filters.FilterSet):
-    tenant_uuid = django_filters.UUIDFilter(
-        field_name="network__tenant__uuid", label="Tenant UUID"
+    tenant_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-tenant-detail",
+        field_name="network__tenant__uuid",
+        label="Tenant UUID",
     )
     tenant = core_filters.URLFilter(
         view_name="openstack-tenant-detail",
@@ -509,8 +539,10 @@ class NetworkRBACPolicyFilter(django_filters.FilterSet):
         label="Tenant URL",
     )
 
-    network_uuid = django_filters.UUIDFilter(
-        field_name="network__uuid", label="Network UUID"
+    network_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-network-detail",
+        field_name="network__uuid",
+        label="Network UUID",
     )
     network = core_filters.URLFilter(
         view_name="openstack-network-detail",
@@ -518,8 +550,10 @@ class NetworkRBACPolicyFilter(django_filters.FilterSet):
         label="Network URL",
     )
 
-    target_tenant_uuid = django_filters.UUIDFilter(
-        field_name="target_tenant__uuid", label="Target tenant UUID"
+    target_tenant_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-tenant-detail",
+        field_name="target_tenant__uuid",
+        label="Target tenant UUID",
     )
     target_tenant = core_filters.URLFilter(
         view_name="openstack-tenant-detail",

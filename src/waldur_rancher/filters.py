@@ -14,7 +14,9 @@ class ClusterFilter(structure_filters.BaseResourceFilter):
 
 
 class NodeFilter(django_filters.FilterSet):
-    cluster_uuid = django_filters.UUIDFilter(field_name="cluster__uuid")
+    cluster_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-cluster-detail", field_name="cluster__uuid"
+    )
 
     class Meta:
         model = models.Node
@@ -22,7 +24,9 @@ class NodeFilter(django_filters.FilterSet):
 
 
 class ProjectFilter(structure_filters.ServicePropertySettingsFilter):
-    cluster_uuid = django_filters.UUIDFilter(field_name="cluster__uuid")
+    cluster_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-cluster-detail", field_name="cluster__uuid"
+    )
 
     class Meta:
         model = models.Project
@@ -32,8 +36,12 @@ class ProjectFilter(structure_filters.ServicePropertySettingsFilter):
 
 
 class NamespaceFilter(structure_filters.ServicePropertySettingsFilter):
-    project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
-    cluster_uuid = django_filters.UUIDFilter(field_name="project__cluster__uuid")
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-project-detail", field_name="project__uuid"
+    )
+    cluster_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-cluster-detail", field_name="project__cluster__uuid"
+    )
     o = django_filters.OrderingFilter(
         fields=(
             ("name", "name"),
@@ -51,9 +59,15 @@ class NamespaceFilter(structure_filters.ServicePropertySettingsFilter):
 
 
 class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
-    catalog_uuid = django_filters.UUIDFilter(field_name="catalog__uuid")
-    cluster_uuid = django_filters.UUIDFilter(method="filter_by_cluster")
-    project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
+    catalog_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-catalog-detail", field_name="catalog__uuid"
+    )
+    cluster_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-cluster-detail", method="filter_by_cluster"
+    )
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-project-detail", field_name="project__uuid"
+    )
     o = django_filters.OrderingFilter(
         fields=(("name", "name"), ("catalog__name", "catalog_name"))
     )
@@ -82,14 +96,20 @@ class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
 
 
 class UserFilter(django_filters.FilterSet):
-    cluster_uuid = django_filters.UUIDFilter(
-        method="filter_by_cluster", label="Cluster UUID"
+    cluster_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-cluster-detail",
+        method="filter_by_cluster",
+        label="Cluster UUID",
     )
-    user_uuid = django_filters.UUIDFilter(field_name="user__uuid")
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="user__uuid"
+    )
     user_username = django_filters.CharFilter(
         field_name="user__username", lookup_expr="icontains"
     )
-    settings_uuid = django_filters.UUIDFilter(field_name="settings__uuid")
+    settings_uuid = core_filters.RelatedUUIDFilter(
+        view_name="servicesettings-detail", field_name="settings__uuid"
+    )
     user_full_name = django_filters.CharFilter(
         method="filter_by_full_name", label="User full name contains"
     )
@@ -119,9 +139,15 @@ class UserFilter(django_filters.FilterSet):
 
 
 class WorkloadFilter(structure_filters.ServicePropertySettingsFilter):
-    cluster_uuid = django_filters.UUIDFilter(field_name="cluster__uuid")
-    project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
-    namespace_uuid = django_filters.UUIDFilter(field_name="namespace__uuid")
+    cluster_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-cluster-detail", field_name="cluster__uuid"
+    )
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-project-detail", field_name="project__uuid"
+    )
+    namespace_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-namespace-detail", field_name="namespace__uuid"
+    )
     o = django_filters.OrderingFilter(
         fields=(
             ("name", "name"),
@@ -141,10 +167,18 @@ class WorkloadFilter(structure_filters.ServicePropertySettingsFilter):
 
 
 class HPAFilter(structure_filters.ServicePropertySettingsFilter):
-    cluster_uuid = django_filters.UUIDFilter(field_name="cluster__uuid")
-    project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
-    namespace_uuid = django_filters.UUIDFilter(field_name="namespace__uuid")
-    workload_uuid = django_filters.UUIDFilter(field_name="workload__uuid")
+    cluster_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-cluster-detail", field_name="cluster__uuid"
+    )
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-project-detail", field_name="project__uuid"
+    )
+    namespace_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-namespace-detail", field_name="namespace__uuid"
+    )
+    workload_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-workload-detail", field_name="workload__uuid"
+    )
 
     class Meta:
         model = models.HPA
@@ -157,32 +191,49 @@ class HPAFilter(structure_filters.ServicePropertySettingsFilter):
 
 
 class ApplicationFilter(structure_filters.BaseResourceFilter):
-    cluster_uuid = django_filters.UUIDFilter(field_name="cluster__uuid")
-    project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
-    template_uuid = django_filters.UUIDFilter(field_name="template__uuid")
-    namespace_uuid = django_filters.UUIDFilter(field_name="namespace__uuid")
+    cluster_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-cluster-detail", field_name="cluster__uuid"
+    )
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-project-detail", field_name="project__uuid"
+    )
+    template_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-template-detail", field_name="template__uuid"
+    )
+    namespace_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-namespace-detail", field_name="namespace__uuid"
+    )
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Application
 
 
 class IngressFilter(structure_filters.BaseResourceFilter):
-    cluster_uuid = django_filters.UUIDFilter(field_name="cluster__uuid")
-    rancher_project_uuid = django_filters.UUIDFilter(field_name="rancher_project__uuid")
-    namespace_uuid = django_filters.UUIDFilter(field_name="namespace__uuid")
+    cluster_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-cluster-detail", field_name="cluster__uuid"
+    )
+    rancher_project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-project-detail", field_name="rancher_project__uuid"
+    )
+    namespace_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-namespace-detail", field_name="namespace__uuid"
+    )
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Ingress
 
 
 class ServiceFilter(structure_filters.BaseResourceFilter):
-    cluster_uuid = django_filters.UUIDFilter(
-        field_name="namespace__project__cluster__uuid"
+    cluster_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-cluster-detail",
+        field_name="namespace__project__cluster__uuid",
     )
-    rancher_project_uuid = django_filters.UUIDFilter(
-        field_name="namespace__project__uuid"
+    rancher_project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-project-detail", field_name="namespace__project__uuid"
     )
-    namespace_uuid = django_filters.UUIDFilter(field_name="namespace__uuid")
+    namespace_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-namespace-detail", field_name="namespace__uuid"
+    )
 
     class Meta(structure_filters.BaseResourceFilter.Meta):
         model = models.Service
@@ -203,10 +254,14 @@ class KeycloakGroupFilter(django_filters.FilterSet):
 
 
 class KeycloakUserGroupMembershipFilter(django_filters.FilterSet):
-    group_uuid = django_filters.UUIDFilter(field_name="group__uuid")
+    group_uuid = core_filters.RelatedUUIDFilter(
+        view_name="keycloak-group-detail", field_name="group__uuid"
+    )
     scope_type = django_filters.CharFilter(field_name="group__role__scope_type")
     scope_uuid = django_filters.UUIDFilter(field_name="group__scope_uuid")
-    role_uuid = django_filters.UUIDFilter(field_name="role__uuid")
+    role_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-role-template-detail", field_name="role__uuid"
+    )
     username = django_filters.CharFilter()
     email = django_filters.CharFilter()
     first_name = django_filters.CharFilter()
@@ -233,7 +288,9 @@ class KeycloakUserGroupMembershipFilter(django_filters.FilterSet):
 class RoleTemplateFilter(django_filters.FilterSet):
     scope_type = django_filters.CharFilter(field_name="scope_type")
     name = django_filters.CharFilter(field_name="name")
-    settings_uuid = django_filters.UUIDFilter(field_name="settings__uuid")
+    settings_uuid = core_filters.RelatedUUIDFilter(
+        view_name="servicesettings-detail", field_name="settings__uuid"
+    )
     o = django_filters.OrderingFilter(fields=("name", "scope_type"))
 
     class Meta:
@@ -246,7 +303,9 @@ class RoleTemplateFilter(django_filters.FilterSet):
 
 
 class ClusterSecurityGroupFilter(structure_filters.NameFilterSet):
-    cluster_uuid = django_filters.UUIDFilter(field_name="cluster__uuid")
+    cluster_uuid = core_filters.RelatedUUIDFilter(
+        view_name="rancher-cluster-detail", field_name="cluster__uuid"
+    )
 
     class Meta:
         model = models.ClusterSecurityGroup

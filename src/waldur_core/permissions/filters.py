@@ -1,6 +1,7 @@
 import django_filters
 from django_filters.widgets import BooleanWidget
 
+from waldur_core.core import filters as core_filters
 from waldur_core.core.filters import (
     CreatedModifiedFilter,
     ExtendedOrderingFilter,
@@ -24,7 +25,9 @@ class RoleFilter(django_filters.FilterSet):
 
 
 class UserPermissionFilter(CreatedModifiedFilter, django_filters.FilterSet):
-    user = django_filters.UUIDFilter(field_name="user__uuid")
+    user = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="user__uuid"
+    )
     user_url = URLFilter(
         view_name="user-detail",
         field_name="user__uuid",
@@ -65,7 +68,8 @@ class UserPermissionFilter(CreatedModifiedFilter, django_filters.FilterSet):
         lookup_expr="icontains",
         label="Role name contains",
     )
-    role_uuid = django_filters.UUIDFilter(
+    role_uuid = core_filters.RelatedUUIDFilter(
+        view_name="role-detail",
         field_name="role__uuid",
         lookup_expr="exact",
         label="Role UUID",

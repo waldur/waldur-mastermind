@@ -23,10 +23,14 @@ class AllocationUserUsageFilter(django_filters.FilterSet):
         view_name="openportal-allocation-detail",
         field_name="allocation__uuid",
     )
-    allocation_uuid = django_filters.UUIDFilter(field_name="allocation__uuid")
+    allocation_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openportal-allocation-detail", field_name="allocation__uuid"
+    )
 
     user = core_filters.URLFilter(view_name="user-detail", field_name="user__uuid")
-    user_uuid = django_filters.UUIDFilter(field_name="user__uuid")
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="user__uuid"
+    )
     month = django_filters.NumberFilter(field_name="month")
     year = django_filters.NumberFilter(field_name="year")
 
@@ -35,26 +39,34 @@ class AssociationFilter(django_filters.FilterSet):
     allocation = core_filters.URLFilter(
         view_name="openportal-allocation-detail", field_name="allocation__uuid"
     )
-    allocation_uuid = django_filters.UUIDFilter(field_name="allocation__uuid")
+    allocation_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openportal-allocation-detail", field_name="allocation__uuid"
+    )
 
 
 class RemoteAssociationFilter(django_filters.FilterSet):
     allocation = core_filters.URLFilter(
         view_name="openportal-remote-allocation-detail", field_name="allocation__uuid"
     )
-    allocation_uuid = django_filters.UUIDFilter(field_name="allocation__uuid")
+    allocation_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openportal-allocation-detail", field_name="allocation__uuid"
+    )
 
 
 class UserInfoFilter(django_filters.FilterSet):
     user = core_filters.URLFilter(view_name="user-detail", field_name="user__uuid")
-    user_uuid = django_filters.UUIDFilter(field_name="user__uuid")
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="user__uuid"
+    )
 
 
 class ProjectInfoFilter(django_filters.FilterSet):
     project = core_filters.URLFilter(
         view_name="project-detail", field_name="project__uuid"
     )
-    project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", field_name="project__uuid"
+    )
 
 
 class ProjectTemplateFilter(django_filters.FilterSet):
@@ -79,9 +91,12 @@ class ManagedProjectFilter(django_filters.FilterSet):
         view_name="openportal-project-template", field_name="project_template__uuid"
     )
 
-    project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
-    project_template_uuid = django_filters.UUIDFilter(
-        field_name="project_template__uuid"
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", field_name="project__uuid"
+    )
+    project_template_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openportal-project-template-detail",
+        field_name="project_template__uuid",
     )
     state = core_filters.ReviewStateFilter()
 

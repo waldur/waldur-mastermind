@@ -1,5 +1,3 @@
-import django_filters
-
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
 
@@ -19,12 +17,16 @@ class PortFilter(structure_filters.BaseResourceFilter):
     vm = core_filters.URLFilter(
         view_name="vmware-virtual-machine-detail", field_name="vm__uuid"
     )
-    vm_uuid = django_filters.UUIDFilter(field_name="vm__uuid")
+    vm_uuid = core_filters.RelatedUUIDFilter(
+        view_name="vmware-virtual-machine-detail", field_name="vm__uuid"
+    )
 
     network = core_filters.URLFilter(
         view_name="vmware-network-detail", field_name="network__uuid"
     )
-    network_uuid = django_filters.UUIDFilter(field_name="network__uuid")
+    network_uuid = core_filters.RelatedUUIDFilter(
+        view_name="vmware-network-detail", field_name="network__uuid"
+    )
 
 
 class DiskFilter(structure_filters.BaseResourceFilter):
@@ -34,7 +36,9 @@ class DiskFilter(structure_filters.BaseResourceFilter):
     vm = core_filters.URLFilter(
         view_name="vmware-virtual-machine-detail", field_name="vm__uuid"
     )
-    vm_uuid = django_filters.UUIDFilter(field_name="vm__uuid")
+    vm_uuid = core_filters.RelatedUUIDFilter(
+        view_name="vmware-virtual-machine-detail", field_name="vm__uuid"
+    )
     ORDERING_FIELDS = structure_filters.BaseResourceFilter.ORDERING_FIELDS + (
         ("size", "size"),
     )
@@ -46,8 +50,8 @@ class TemplateFilter(structure_filters.ServicePropertySettingsFilter):
 
 
 class ClusterFilter(structure_filters.ServicePropertySettingsFilter):
-    customer_uuid = django_filters.UUIDFilter(
-        method="filter_customer", label="Customer UUID"
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", method="filter_customer", label="Customer UUID"
     )
 
     def filter_customer(self, queryset, name, value):
@@ -58,11 +62,13 @@ class ClusterFilter(structure_filters.ServicePropertySettingsFilter):
 
 
 class NetworkFilter(structure_filters.ServicePropertySettingsFilter):
-    customer_uuid = django_filters.UUIDFilter(
-        method="filter_customer", label="Customer UUID"
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", method="filter_customer", label="Customer UUID"
     )
-    customer_pair_uuid = django_filters.UUIDFilter(
-        method="filter_customer_pair", label="Customer UUID"
+    customer_pair_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        method="filter_customer_pair",
+        label="Customer UUID",
     )
 
     def filter_customer(self, queryset, name, value):
@@ -76,8 +82,8 @@ class NetworkFilter(structure_filters.ServicePropertySettingsFilter):
 
 
 class DatastoreFilter(structure_filters.ServicePropertySettingsFilter):
-    customer_uuid = django_filters.UUIDFilter(
-        method="filter_customer", label="Customer UUID"
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", method="filter_customer", label="Customer UUID"
     )
 
     def filter_customer(self, queryset, name, value):
@@ -88,8 +94,8 @@ class DatastoreFilter(structure_filters.ServicePropertySettingsFilter):
 
 
 class FolderFilter(structure_filters.ServicePropertySettingsFilter):
-    customer_uuid = django_filters.UUIDFilter(
-        method="filter_customer", label="Customer UUID"
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", method="filter_customer", label="Customer UUID"
     )
 
     def filter_customer(self, queryset, name, value):

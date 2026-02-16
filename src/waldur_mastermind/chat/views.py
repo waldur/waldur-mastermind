@@ -9,15 +9,15 @@ from django.db.models import Count, Max, Q
 from django.http import StreamingHttpResponse
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import decorators, status, viewsets
 from rest_framework import exceptions as rf_exceptions
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from waldur_core.core import filters as core_filters
 from waldur_core.core import permissions as core_permissions
-from waldur_core.core.filters import StaffOrUserFilter
 from waldur_core.core.models import User
 from waldur_core.core.views import (
     ActionsViewSet,
@@ -532,7 +532,16 @@ class TokenQuotaViewSet(ActionsViewSet):
     permission_classes = [IsAuthenticated, core_permissions.ActionsPermission]
 
     @extend_schema(
-        parameters=[serializers.TokenQuotaUsageQuerySerializer],
+        parameters=[
+            OpenApiParameter(
+                name="user_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="UUID of user to view quota for (staff/support only). Omit to view your own quota.",
+                extensions={"x-waldur-operation-id": "users_retrieve"},
+            ),
+        ],
         responses={200: serializers.TokenQuotaUsageResponseSerializer},
         description="""
         Get current token quota and usage for the requesting user.
@@ -651,7 +660,9 @@ def _log_chat_access(event_type, request, target_user):
 
 
 class ThreadSessionFilter(django_filters.FilterSet):
-    user = django_filters.UUIDFilter(field_name="chat_session__user__uuid")
+    user = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="chat_session__user__uuid"
+    )
     created = django_filters.DateFilter(field_name="created", lookup_expr="date")
     modified = django_filters.DateFilter(field_name="modified", lookup_expr="date")
     query = django_filters.CharFilter(method="filter_by_query")
@@ -673,7 +684,9 @@ class ThreadSessionFilter(django_filters.FilterSet):
 
 
 class MessageFilter(django_filters.FilterSet):
-    thread = django_filters.UUIDFilter(field_name="thread__uuid")
+    thread = core_filters.RelatedUUIDFilter(
+        view_name="chat-thread-detail", field_name="thread__uuid"
+    )
     include_history = django_filters.BooleanFilter(method="filter_include_history")
 
     def filter_include_history(self, queryset, name, value):
@@ -703,7 +716,7 @@ class ChatSessionViewSet(ActionsViewSet):
 
     queryset = models.ChatSession.objects.select_related("user").order_by("-created")
     serializer_class = serializers.ChatSessionSerializer
-    filter_backends = [StaffOrUserFilter]
+    filter_backends = [core_filters.StaffOrUserFilter]
     lookup_field = "uuid"
     http_method_names = ["get", "options"]
     permission_classes = [IsAuthenticated, core_permissions.ActionsPermission]

@@ -17,10 +17,14 @@ class AllocationUserUsageFilter(django_filters.FilterSet):
         view_name="slurm-allocation-detail",
         field_name="allocation__uuid",
     )
-    allocation_uuid = django_filters.UUIDFilter(field_name="allocation__uuid")
+    allocation_uuid = core_filters.RelatedUUIDFilter(
+        view_name="slurm-allocation-detail", field_name="allocation__uuid"
+    )
 
     user = core_filters.URLFilter(view_name="user-detail", field_name="user__uuid")
-    user_uuid = django_filters.UUIDFilter(field_name="user__uuid")
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="user__uuid"
+    )
     month = django_filters.NumberFilter(field_name="month")
     year = django_filters.NumberFilter(field_name="year")
 
@@ -29,4 +33,6 @@ class AssociationFilter(django_filters.FilterSet):
     allocation = core_filters.URLFilter(
         view_name="slurm-allocation-detail", field_name="allocation__uuid"
     )
-    allocation_uuid = django_filters.UUIDFilter(field_name="allocation__uuid")
+    allocation_uuid = core_filters.RelatedUUIDFilter(
+        view_name="slurm-allocation-detail", field_name="allocation__uuid"
+    )

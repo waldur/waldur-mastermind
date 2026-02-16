@@ -2,9 +2,11 @@ import unittest
 
 from waldur_core.core.schema_hooks import (
     add_result_count_header,
+    inject_waldur_operation_ids,
     make_fields_optional,
     remove_waldur_cookie_auth,
     transform_paginated_arrays,
+    validate_waldur_operation_ids,
 )
 
 
@@ -245,3 +247,117 @@ class TestAddResultCountHeader(unittest.TestCase):
 
         response = modified["paths"]["/items/"]["get"]["responses"]["200"]
         self.assertNotIn("headers", response)
+
+
+def test_validate_waldur_operation_ids():
+    import pytest
+
+    # 1. Test failure
+    schema = {
+        "paths": {
+            "/api/test": {
+                "get": {
+                    "operationId": "test_list",
+                    "parameters": [
+                        {
+                            "name": "customer_uuid",
+                            "in": "query",
+                            "schema": {"type": "string", "format": "uuid"},
+                        }
+                    ],
+                }
+            }
+        }
+    }
+    with pytest.raises(
+        ValueError, match="is a UUID but is missing 'x-waldur-operation-id'"
+    ):
+        validate_waldur_operation_ids(schema, None)
+
+    # 2. Test whitelist
+    for field in ["uuid", "scope_uuid", "scope", "parent_uuid"]:
+        schema = {
+            "paths": {
+                "/api/test": {
+                    "get": {
+                        "operationId": "test_list",
+                        "parameters": [
+                            {
+                                "name": field,
+                                "in": "query",
+                                "schema": {"type": "string", "format": "uuid"},
+                            }
+                        ],
+                    }
+                }
+            }
+        }
+        validate_waldur_operation_ids(schema, None)  # Should not raise
+
+    # 3. Test success with extension
+    schema = {
+        "paths": {
+            "/api/test": {
+                "get": {
+                    "operationId": "test_list",
+                    "parameters": [
+                        {
+                            "name": "customer_uuid",
+                            "in": "query",
+                            "schema": {"type": "string", "format": "uuid"},
+                            "x-waldur-operation-id": "customers_retrieve",
+                        }
+                    ],
+                }
+            }
+        }
+    }
+    validate_waldur_operation_ids(schema, None)  # Should not raise
+
+
+def test_inject_waldur_operation_ids():
+    from unittest import mock
+
+    from waldur_core.core import filters as core_filters
+
+    # Mock generator and its endpoints
+    # path, path_regex, method, view
+    mock_view = mock.Mock()
+    mock_filter = mock.Mock(spec=core_filters.URLFilter)
+    mock_filter.view_name = "customers-detail"
+    mock_view.cls.filterset_class.base_filters = {"customer": mock_filter}
+
+    generator = mock.Mock()
+    generator.endpoints = [
+        ("/api/customers/", None, "GET", mock.Mock(cls=None)),
+        ("/api/test/", None, "GET", mock_view),
+    ]
+
+    result = {
+        "paths": {
+            "/api/customers/": {"get": {"operationId": "customers_list"}},
+            "/api/test/": {
+                "get": {
+                    "operationId": "test_list",
+                    "parameters": [{"name": "customer", "in": "query"}],
+                }
+            },
+        }
+    }
+
+    with mock.patch("waldur_core.core.schema_hooks.resolve") as mock_resolve:
+
+        def side_effect(path):
+            m = mock.Mock()
+            if "customers" in path:
+                m.view_name = "customers-list"
+            else:
+                m.view_name = "test-list"
+            return m
+
+        mock_resolve.side_effect = side_effect
+
+        inject_waldur_operation_ids(result, generator)
+
+    param = result["paths"]["/api/test/"]["get"]["parameters"][0]
+    assert param["x-waldur-operation-id"] == "customers_list"

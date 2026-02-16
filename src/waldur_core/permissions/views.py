@@ -255,6 +255,7 @@ class UserRoleMixin:
                 type=uuid.UUID,
                 location=OpenApiParameter.QUERY,
                 description="User UUID",
+                extensions={"x-waldur-operation-id": "users_retrieve"},
             ),
             OpenApiParameter(
                 name="user_url",
@@ -291,6 +292,7 @@ class UserRoleMixin:
                 type=uuid.UUID,
                 location=OpenApiParameter.QUERY,
                 description="Role UUID or name",
+                extensions={"x-waldur-operation-id": "roles_retrieve"},
             ),
             OpenApiParameter(
                 name="search_string",

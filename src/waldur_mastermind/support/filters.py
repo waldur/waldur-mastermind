@@ -44,12 +44,16 @@ class IssueFilter(django_filters.FilterSet):
     customer = core_filters.URLFilter(
         view_name="customer-detail", field_name="customer__uuid"
     )
-    customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", field_name="customer__uuid"
+    )
 
     project = core_filters.URLFilter(
         view_name="project-detail", field_name="project__uuid"
     )
-    project_uuid = django_filters.UUIDFilter(field_name="project__uuid")
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", field_name="project__uuid"
+    )
 
     reporter_name = django_filters.CharFilter(
         lookup_expr="icontains", field_name="reporter__name"
@@ -69,8 +73,10 @@ class IssueFilter(django_filters.FilterSet):
     assignee = core_filters.URLFilter(
         view_name="support-user-detail", field_name="assignee__uuid"
     )
-    resource_uuid = django_filters.UUIDFilter(
-        method="filter_by_resource_uuid", label="Resource UUID"
+    resource_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-resource-detail",
+        method="filter_by_resource_uuid",
+        label="Resource UUID",
     )
     # The filter field name MUST match the lookup_key in the resolvers registry.
     resource_external_ip = django_filters.CharFilter(
@@ -197,7 +203,9 @@ class CommentFilter(django_filters.FilterSet):
     issue = core_filters.URLFilter(
         view_name="support-issue-detail", field_name="issue__uuid"
     )
-    issue_uuid = django_filters.UUIDFilter(field_name="issue__uuid")
+    issue_uuid = core_filters.RelatedUUIDFilter(
+        view_name="support-issue-detail", field_name="issue__uuid"
+    )
     author_name = django_filters.CharFilter(
         lookup_expr="icontains", field_name="author__name"
     )
@@ -235,7 +243,9 @@ class AttachmentFilter(django_filters.FilterSet):
     issue = core_filters.URLFilter(
         view_name="support-issue-detail", field_name="issue__uuid"
     )
-    issue_uuid = django_filters.UUIDFilter(field_name="issue__uuid")
+    issue_uuid = core_filters.RelatedUUIDFilter(
+        view_name="support-issue-detail", field_name="issue__uuid"
+    )
 
     class Meta:
         model = models.Attachment
@@ -246,12 +256,16 @@ class FeedbackFilter(django_filters.FilterSet):
     issue = core_filters.URLFilter(
         view_name="support-issue-detail", field_name="issue__uuid"
     )
-    issue_uuid = django_filters.UUIDFilter(field_name="issue__uuid")
+    issue_uuid = core_filters.RelatedUUIDFilter(
+        view_name="support-issue-detail", field_name="issue__uuid"
+    )
 
     user = core_filters.URLFilter(
         view_name="user-detail", field_name="issue__caller__uuid"
     )
-    user_uuid = django_filters.UUIDFilter(field_name="issue__caller__uuid")
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="issue__caller__uuid"
+    )
 
     created_before = django_filters.DateTimeFilter(
         field_name="created", lookup_expr="lte"

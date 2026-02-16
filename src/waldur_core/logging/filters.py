@@ -13,7 +13,9 @@ from waldur_core.logging.event_logger import expand_event_groups
 
 
 class BaseHookFilter(django_filters.FilterSet):
-    author_uuid = django_filters.UUIDFilter(field_name="user__uuid")
+    author_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="user__uuid"
+    )
     author_fullname = django_filters.CharFilter(
         method="filter_by_full_name", label="User full name contains"
     )
@@ -76,13 +78,17 @@ class EventFilter(django_filters.FilterSet):
     created_from = core_filters.TimestampFilter(field_name="created", lookup_expr="gte")
     created_to = core_filters.TimestampFilter(field_name="created", lookup_expr="lt")
     message = django_filters.CharFilter(lookup_expr="icontains")
-    customer_uuid = django_filters.UUIDFilter(
-        method="filter_customer_uuid", label="Customer UUID"
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        method="filter_customer_uuid",
+        label="Customer UUID",
     )
-    project_uuid = django_filters.UUIDFilter(
-        method="filter_project_uuid", label="Project UUID"
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", method="filter_project_uuid", label="Project UUID"
     )
-    user_uuid = django_filters.UUIDFilter(method="filter_user_uuid", label="User UUID")
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", method="filter_user_uuid", label="User UUID"
+    )
     o = django_filters.OrderingFilter(fields=("created",))
 
     class Meta:
@@ -153,10 +159,12 @@ class EventSubscriptionFilter(django_filters.FilterSet):
 
 class EventSubscriptionQueueFilter(django_filters.FilterSet):
     o = django_filters.OrderingFilter(fields=["created"])
-    event_subscription_uuid = django_filters.UUIDFilter(
-        field_name="event_subscription__uuid"
+    event_subscription_uuid = core_filters.RelatedUUIDFilter(
+        view_name="event-subscription-detail", field_name="event_subscription__uuid"
     )
-    offering_uuid = django_filters.UUIDFilter(field_name="offering_uuid")
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail", field_name="offering_uuid"
+    )
     object_type = django_filters.CharFilter(field_name="object_type")
 
     class Meta:
@@ -220,8 +228,12 @@ class UserDataAccessLogFilter(django_filters.FilterSet):
     accessor_type = django_filters.ChoiceFilter(
         choices=models.UserDataAccessLog.AccessorType.CHOICES
     )
-    user_uuid = django_filters.UUIDFilter(field_name="target_user__uuid")
-    accessor_uuid = django_filters.UUIDFilter(field_name="accessor__uuid")
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="target_user__uuid"
+    )
+    accessor_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="accessor__uuid"
+    )
     query = django_filters.CharFilter(method="filter_by_query")
     o = django_filters.OrderingFilter(
         fields=[

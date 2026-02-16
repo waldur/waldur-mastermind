@@ -2,9 +2,10 @@ from collections.abc import Iterable
 
 from django.core import exceptions as django_exceptions
 from django.db.models import Q
-from django_filters import OrderingFilter, UUIDFilter
+from django_filters import OrderingFilter
 from rest_framework.filters import BaseFilterBackend
 
+from waldur_core.core import filters as core_filters
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure.managers import get_connected_customers
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -74,7 +75,9 @@ class SchedulesOrderingFilter(OrderingFilter):
 
 class BookingResourceFilter(ResourceFilter):
     o = SchedulesOrderingFilter(fields=("name", "created", "type"))
-    connected_customer_uuid = UUIDFilter(method="filter_connected_customer")
+    connected_customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", method="filter_connected_customer"
+    )
 
     def filter_connected_customer(self, queryset, name, value):
         return queryset.filter(

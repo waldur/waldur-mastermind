@@ -23,14 +23,18 @@ class ArrowCustomerMappingFilter(django_filters.FilterSet):
         view_name="admin-arrow-settings-detail",
         field_name="settings__uuid",
     )
-    settings_uuid = django_filters.UUIDFilter(field_name="settings__uuid")
+    settings_uuid = core_filters.RelatedUUIDFilter(
+        view_name="admin-arrow-settings-detail", field_name="settings__uuid"
+    )
     arrow_reference = django_filters.CharFilter(lookup_expr="icontains")
     arrow_company_name = django_filters.CharFilter(lookup_expr="icontains")
     waldur_customer = core_filters.URLFilter(
         view_name="customer-detail",
         field_name="waldur_customer__uuid",
     )
-    waldur_customer_uuid = django_filters.UUIDFilter(field_name="waldur_customer__uuid")
+    waldur_customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", field_name="waldur_customer__uuid"
+    )
     is_active = django_filters.BooleanFilter()
 
     class Meta:
@@ -53,13 +57,17 @@ class ArrowVendorOfferingMappingFilter(django_filters.FilterSet):
         view_name="admin-arrow-settings-detail",
         field_name="settings__uuid",
     )
-    settings_uuid = django_filters.UUIDFilter(field_name="settings__uuid")
+    settings_uuid = core_filters.RelatedUUIDFilter(
+        view_name="admin-arrow-settings-detail", field_name="settings__uuid"
+    )
     arrow_vendor_name = django_filters.CharFilter(lookup_expr="icontains")
     offering = core_filters.URLFilter(
         view_name="marketplace-public-offering-detail",
         field_name="offering__uuid",
     )
-    offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-public-offering-detail", field_name="offering__uuid"
+    )
     is_active = django_filters.BooleanFilter()
 
     class Meta:
@@ -81,11 +89,13 @@ class ArrowBillingSyncFilter(django_filters.FilterSet):
         view_name="admin-arrow-customer-mapping-detail",
         field_name="customer_mapping__uuid",
     )
-    customer_mapping_uuid = django_filters.UUIDFilter(
-        field_name="customer_mapping__uuid"
+    customer_mapping_uuid = core_filters.RelatedUUIDFilter(
+        view_name="admin-arrow-customer-mapping-detail",
+        field_name="customer_mapping__uuid",
     )
-    settings_uuid = django_filters.UUIDFilter(
-        field_name="customer_mapping__settings__uuid"
+    settings_uuid = core_filters.RelatedUUIDFilter(
+        view_name="admin-arrow-settings-detail",
+        field_name="customer_mapping__settings__uuid",
     )
     statement_reference = django_filters.CharFilter(lookup_expr="icontains")
     report_period = django_filters.CharFilter(lookup_expr="exact")
@@ -122,10 +132,14 @@ class ArrowConsumptionRecordFilter(django_filters.FilterSet):
         view_name="marketplace-resource-detail",
         field_name="resource__uuid",
     )
-    resource_uuid = django_filters.UUIDFilter(field_name="resource__uuid")
-    project_uuid = django_filters.UUIDFilter(field_name="resource__project__uuid")
-    customer_uuid = django_filters.UUIDFilter(
-        field_name="resource__project__customer__uuid"
+    resource_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-resource-detail", field_name="resource__uuid"
+    )
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", field_name="resource__project__uuid"
+    )
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", field_name="resource__project__customer__uuid"
     )
     license_reference = django_filters.CharFilter(lookup_expr="icontains")
     billing_period = django_filters.DateFilter()
@@ -177,7 +191,9 @@ class ArrowBillingSyncItemFilter(django_filters.FilterSet):
         view_name="admin-arrow-billing-sync-detail",
         field_name="billing_sync__uuid",
     )
-    billing_sync_uuid = django_filters.UUIDFilter(field_name="billing_sync__uuid")
+    billing_sync_uuid = core_filters.RelatedUUIDFilter(
+        view_name="admin-arrow-billing-sync-detail", field_name="billing_sync__uuid"
+    )
     report_period = django_filters.CharFilter(
         field_name="billing_sync__report_period",
         lookup_expr="exact",
