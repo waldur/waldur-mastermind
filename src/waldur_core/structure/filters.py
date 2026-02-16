@@ -311,14 +311,10 @@ class ProjectTypeFilter(NameFilterSet):
         fields = ["name"]
 
 
-class CustomerInFilter(django_filters.BaseInFilter, django_filters.UUIDFilter):
-    pass
-
-
 class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
-    customer = CustomerInFilter(
+    customer = core_filters.RelatedUUIDInFilter(
+        view_name="customer-detail",
         field_name="customer__uuid",
-        lookup_expr="in",
         distinct=True,
         label="Customer UUID",
     )
@@ -554,11 +550,11 @@ class UserFilter(BaseUserFilter):
         method="filter_query",
         label="Filter by first name, last name, civil number, username or email",
     )
-    customer_uuid = django_filters.UUIDFilter(
-        method="filter_by_customer", label="Customer UUID"
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", method="filter_by_customer", label="Customer UUID"
     )
-    project_uuid = django_filters.UUIDFilter(
-        method="filter_by_project", label="Project UUID"
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", method="filter_by_project", label="Project UUID"
     )
     username_list = django_filters.CharFilter(
         method="filter_username_list", label="Comma-separated usernames"
@@ -679,8 +675,8 @@ class ConcatenatedNameOrderingBackend(BaseFilterBackend):
 
 
 class PermissionReviewFilter(django_filters.FilterSet):
-    reviewer_uuid = django_filters.UUIDFilter(
-        field_name="reviewer__uuid", label="Reviewer UUID"
+    reviewer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="reviewer__uuid", label="Reviewer UUID"
     )
     is_pending = django_filters.BooleanFilter(
         field_name="is_pending", label="Is pending"
@@ -696,8 +692,8 @@ class PermissionReviewFilter(django_filters.FilterSet):
 
 
 class CustomerPermissionReviewFilter(PermissionReviewFilter):
-    customer_uuid = django_filters.UUIDFilter(
-        field_name="customer__uuid", label="Customer UUID"
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", field_name="customer__uuid", label="Customer UUID"
     )
 
     class Meta:
@@ -708,8 +704,8 @@ class CustomerPermissionReviewFilter(PermissionReviewFilter):
 
 
 class ProjectPermissionReviewFilter(PermissionReviewFilter):
-    project_uuid = django_filters.UUIDFilter(
-        field_name="project__uuid", label="Project UUID"
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", field_name="project__uuid", label="Project UUID"
     )
 
     class Meta:
@@ -721,7 +717,9 @@ class ProjectPermissionReviewFilter(PermissionReviewFilter):
 
 class SshKeyFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
     uuid = django_filters.UUIDFilter(label="UUID")
-    user_uuid = django_filters.UUIDFilter(field_name="user__uuid", label="User UUID")
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="user__uuid", label="User UUID"
+    )
 
     o = django_filters.OrderingFilter(fields=("name",), label="Ordering")
 
@@ -750,13 +748,13 @@ class ServiceSettingsFilter(NameFilterSet):
         CoreStates.choices,
         label="State",
     )
-    customer = django_filters.UUIDFilter(
-        field_name="customer__uuid", label="Customer UUID"
+    customer = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", field_name="customer__uuid", label="Customer UUID"
     )
-    customer_uuid = django_filters.UUIDFilter(
-        field_name="customer__uuid", label="Customer UUID"
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", field_name="customer__uuid", label="Customer UUID"
     )
-    scope_uuid = django_filters.UUIDFilter(
+    scope_uuid = core_filters.RelatedUUIDFilter(
         method=get_generic_field_filter(
             models_to_search=models.BaseResource.get_all_models()
         ),
@@ -784,11 +782,15 @@ class BaseResourceFilter(NameFilterSet):
         )
 
     # customer
-    customer = django_filters.UUIDFilter(
-        field_name="project__customer__uuid", label="Customer UUID"
+    customer = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        field_name="project__customer__uuid",
+        label="Customer UUID",
     )
-    customer_uuid = django_filters.UUIDFilter(
-        field_name="project__customer__uuid", label="Customer UUID"
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        field_name="project__customer__uuid",
+        label="Customer UUID",
     )
     customer_name = django_filters.CharFilter(
         field_name="project__customer__name",
@@ -806,18 +808,20 @@ class BaseResourceFilter(NameFilterSet):
         label="Customer abbreviation",
     )
     # project
-    project = django_filters.UUIDFilter(
-        field_name="project__uuid", label="Project UUID"
+    project = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", field_name="project__uuid", label="Project UUID"
     )
-    project_uuid = django_filters.UUIDFilter(
-        field_name="project__uuid", label="Project UUID"
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", field_name="project__uuid", label="Project UUID"
     )
     project_name = django_filters.CharFilter(
         field_name="project__name", lookup_expr="icontains", label="Project name"
     )
     # service settings
-    service_settings_uuid = django_filters.UUIDFilter(
-        field_name="service_settings__uuid", label="Service settings UUID"
+    service_settings_uuid = core_filters.RelatedUUIDFilter(
+        view_name="servicesettings-detail",
+        field_name="service_settings__uuid",
+        label="Service settings UUID",
     )
     service_settings_name = django_filters.CharFilter(
         field_name="service_settings__name",
@@ -914,8 +918,10 @@ class BaseServicePropertyFilter(NameFilterSet):
 
 
 class ServicePropertySettingsFilter(BaseServicePropertyFilter):
-    settings_uuid = django_filters.UUIDFilter(
-        field_name="settings__uuid", label="Settings UUID"
+    settings_uuid = core_filters.RelatedUUIDFilter(
+        view_name="servicesettings-detail",
+        field_name="settings__uuid",
+        label="Settings UUID",
     )
     settings = core_filters.URLFilter(
         view_name="servicesettings-detail",
@@ -929,7 +935,11 @@ class ServicePropertySettingsFilter(BaseServicePropertyFilter):
 
 
 class OrganizationGroupFilter(NameFilterSet):
-    parent = django_filters.UUIDFilter(field_name="parent__uuid", label="Parent UUID")
+    parent = core_filters.RelatedUUIDFilter(
+        view_name="organization-group-detail",
+        field_name="parent__uuid",
+        label="Parent UUID",
+    )
 
     class Meta:
         model = models.OrganizationGroup
@@ -1102,8 +1112,8 @@ class AccessSubnetFilter(django_filters.FilterSet):
         field_name="customer__uuid",
         label="Customer URL",
     )
-    customer_uuid = django_filters.UUIDFilter(
-        field_name="customer__uuid", label="Customer UUID"
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", field_name="customer__uuid", label="Customer UUID"
     )
     inet = django_filters.CharFilter(lookup_expr="icontains", label="Inet")
     description = django_filters.CharFilter(

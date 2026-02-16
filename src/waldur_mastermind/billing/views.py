@@ -22,7 +22,12 @@ class TotalCustomerCostView(generics.GenericAPIView):
     @extend_schema(
         parameters=[
             OpenApiParameter("name", str, OpenApiParameter.QUERY),
-            OpenApiParameter("customer_uuid", uuid.UUID, OpenApiParameter.QUERY),
+            OpenApiParameter(
+                "customer_uuid",
+                uuid.UUID,
+                OpenApiParameter.QUERY,
+                extensions={"x-waldur-operation-id": "customers_retrieve"},
+            ),
             OpenApiParameter("accounting_is_running", bool, OpenApiParameter.QUERY),
             OpenApiParameter("year", int, OpenApiParameter.QUERY),
             OpenApiParameter("month", int, OpenApiParameter.QUERY),

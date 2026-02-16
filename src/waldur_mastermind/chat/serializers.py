@@ -82,20 +82,6 @@ class ChatResponseSerializer(serializers.Serializer):
     m = serializers.DictField(required=False, help_text="System metadata.")
 
 
-class TokenQuotaUsageQuerySerializer(serializers.Serializer):
-    """
-    Query parameters for retrieving token quota usage.
-
-    Regular users: Can only view their own quota (user_uuid is ignored).
-    Staff/Support: Can view any user's quota by specifying user_uuid.
-    """
-
-    user_uuid = serializers.UUIDField(
-        required=False,
-        help_text="UUID of user to view quota for (staff/support only). Omit to view your own quota.",
-    )
-
-
 class TokenQuotaUsageResponseSerializer(serializers.ModelSerializer):
     """
     Serializer for TokenQuota showing user's all period limits and usage.

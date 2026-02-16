@@ -16,7 +16,9 @@ class ImageFilter(structure_filters.ServicePropertySettingsFilter):
         view_name="azure-location-detail",
         field_name="location__uuid",
     )
-    location_uuid = django_filters.UUIDFilter(field_name="location__uuid")
+    location_uuid = core_filters.RelatedUUIDFilter(
+        view_name="azure-location-detail", field_name="location__uuid"
+    )
 
 
 class LocationFilter(structure_filters.ServicePropertySettingsFilter):
@@ -45,7 +47,8 @@ class SizeFilter(structure_filters.ServicePropertySettingsFilter):
         field_name="sizeavailabilityzone__location__uuid",
         distinct=True,
     )
-    location_uuid = django_filters.UUIDFilter(
+    location_uuid = core_filters.RelatedUUIDFilter(
+        view_name="azure-location-detail",
         field_name="sizeavailabilityzone__location__uuid",
         distinct=True,
     )
@@ -58,7 +61,9 @@ class BaseResourceGroupFilter(structure_filters.BaseResourceFilter):
     resource_group = core_filters.URLFilter(
         view_name="azure-resource-group-detail", field_name="resource_group__uuid"
     )
-    resource_group_uuid = django_filters.UUIDFilter(field_name="resource_group__uuid")
+    resource_group_uuid = core_filters.RelatedUUIDFilter(
+        view_name="azure-resource-group-detail", field_name="resource_group__uuid"
+    )
 
 
 class VirtualMachineFilter(BaseResourceGroupFilter):
@@ -83,4 +88,6 @@ class SQLDatabaseFilter(BaseResourceGroupFilter):
     server = core_filters.URLFilter(
         view_name="azure-server-detail", field_name="server__uuid"
     )
-    server_uuid = django_filters.UUIDFilter(field_name="server__uuid")
+    server_uuid = core_filters.RelatedUUIDFilter(
+        view_name="azure-sql-server-detail", field_name="server__uuid"
+    )

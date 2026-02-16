@@ -106,12 +106,6 @@ class LooseMultipleChoiceFilter(MultipleChoiceFilter):
     field_class = LooseMultipleChoiceField
 
 
-class UUIDInFilter(django_filters.BaseInFilter, django_filters.UUIDFilter):
-    """A UUIDFilter that accepts multiple values (comma-separated)."""
-
-    pass
-
-
 class CharInFilter(django_filters.BaseInFilter, django_filters.CharFilter):
     """A CharFilter that accepts multiple values (comma-separated)."""
 
@@ -143,6 +137,24 @@ class URLFilter(django_filters.CharFilter):
         if not core_utils.is_uuid_like(uuid_value):
             return qs.none()
         return super().filter(qs, uuid_value)
+
+
+class RelatedUUIDFilter(django_filters.UUIDFilter):
+    """
+    UUIDFilter that also stores view_name for OpenAPI schema generation.
+    """
+
+    def __init__(self, view_name=None, **kwargs):
+        super().__init__(**kwargs)
+        self.view_name = view_name
+
+
+class RelatedUUIDInFilter(django_filters.BaseInFilter, RelatedUUIDFilter):
+    """
+    UUIDInFilter that also stores view_name for OpenAPI schema generation.
+    """
+
+    pass
 
 
 class TimestampFilter(django_filters.NumberFilter):

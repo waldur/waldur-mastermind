@@ -1,6 +1,8 @@
 import django_filters
 from django.utils import timezone
 
+from waldur_core.core import filters as core_filters
+
 from . import models
 
 
@@ -21,7 +23,8 @@ class UserActionFilter(django_filters.FilterSet):
     created_before = django_filters.DateTimeFilter(
         field_name="created", lookup_expr="lte"
     )
-    user_uuid = django_filters.UUIDFilter(
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail",
         field_name="user__uuid",
         help_text="Filter by user UUID (staff only).",
     )

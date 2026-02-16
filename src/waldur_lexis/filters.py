@@ -1,19 +1,23 @@
 import django_filters
 from django.db.models import Q
 
+from waldur_core.core import filters as core_filters
+
 from . import models
 
 
 class LexisLinkFilter(django_filters.FilterSet):
     uuid = django_filters.UUIDFilter(field_name="uuid")
-    resource_uuid = django_filters.UUIDFilter(
-        field_name="robot_account__resource__uuid"
+    resource_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-resource-detail",
+        field_name="robot_account__resource__uuid",
     )
-    project_uuid = django_filters.UUIDFilter(
-        field_name="robot_account__resource__project__uuid"
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", field_name="robot_account__resource__project__uuid"
     )
-    customer_uuid = django_filters.UUIDFilter(
-        field_name="robot_account__resource__customer__uuid"
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        field_name="robot_account__resource__customer__uuid",
     )
     query = django_filters.CharFilter(
         method="filter_query", label="Filter by robot account username or type"

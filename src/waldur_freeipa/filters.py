@@ -1,11 +1,15 @@
 import django_filters
 from django.db.models import Q
 
+from waldur_core.core import filters as core_filters
+
 from . import models
 
 
 class ProfileFilter(django_filters.FilterSet):
-    user = django_filters.UUIDFilter(field_name="user__uuid")
+    user = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="user__uuid"
+    )
     query = django_filters.CharFilter(
         method="filter_query",
         label="Filter by username, user UUID, first name or last name",

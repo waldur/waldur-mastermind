@@ -1,9 +1,13 @@
 import copy
+import re
 from typing import Any
 from unittest import mock
 
+from django.urls import Resolver404, resolve
 from drf_spectacular.generators import SchemaGenerator
 from drf_spectacular.openapi import AutoSchema
+
+from waldur_core.core import filters as core_filters
 
 
 def postprocess_drop_description(result, generator, **kwargs):
@@ -566,4 +570,143 @@ def create_offering_attributes_schema(processor_class, generator):
             for field in fields
             if field in schema["properties"]
         }
-    return schema
+
+
+def inject_waldur_operation_ids(result, generator, **kwargs):
+    """
+    Final Attempt: Using Django Resolver to map URLFilters to OpenAPI Operation IDs.
+    """
+    # 1. Map: Canonical View Name -> operationId
+    # We build this by resolving the actual paths discovered by spectacular.
+    view_name_to_op_id = {}
+
+    # Iterate through all discovered endpoints
+    for path, path_regex, method, view in getattr(generator, "endpoints", []):
+        # We only care about GET/list for the autocomplete target
+        if method != "GET":
+            continue
+
+        try:
+            # We need the operationId that spectacular already wrote into the result
+            op_id = result["paths"][path][method.lower()]["operationId"]
+
+            # Use Django's resolver to get the view_name (e.g., 'marketplace-offering-list')
+            # We replace {uuid} with a dummy string so resolve() works
+            resolve_path = re.sub(r"\{([^}]+)\}", "1", path)
+            if not resolve_path.startswith("/"):
+                resolve_path = "/" + resolve_path
+
+            match = resolve(resolve_path)
+            view_name_to_op_id[match.view_name] = op_id
+
+        except (KeyError, Resolver404, Exception):
+            continue
+
+    # 2. Iterate through endpoints again to find filters and inject IDs
+    for path, path_regex, method, view in getattr(generator, "endpoints", []):
+        view_cls = getattr(view, "cls", None)
+        if not view_cls:
+            continue
+
+        # Get the filters for this ViewSet
+        filterset_class = getattr(view_cls, "filterset_class", None)
+        if not filterset_class and hasattr(view_cls, "get_filterset_class"):
+            try:
+                filterset_class = view_cls.get_filterset_class()
+            except Exception:
+                continue
+
+        if not filterset_class:
+            continue
+
+        # Map the filters defined in the FilterSet to the OpenAPI parameters
+        filters = getattr(filterset_class, "base_filters", {}) or getattr(
+            filterset_class, "filters", {}
+        )
+
+        for field_name, filter_obj in filters.items():
+            if isinstance(
+                filter_obj, core_filters.URLFilter | core_filters.RelatedUUIDFilter
+            ):
+                target_view = getattr(filter_obj, "view_name", None)
+                if not target_view:
+                    continue
+
+                # Find the Operation ID for the target view
+                target_op_id = view_name_to_op_id.get(target_view)
+
+                # Logic: If filter points to 'detail', we actually want 'list' for the UI
+                if not target_op_id and target_view.endswith("-detail"):
+                    target_op_id = view_name_to_op_id.get(
+                        target_view.replace("-detail", "-list")
+                    )
+
+                # If target_op_id is still not found, check if target_view is a simple basename
+                if not target_op_id and not target_view.endswith("-list"):
+                    target_op_id = view_name_to_op_id.get(f"{target_view}-list")
+
+                if target_op_id:
+                    # Search the generated result for this parameter and inject the ID
+                    try:
+                        params = result["paths"][path][method.lower()].get(
+                            "parameters", []
+                        )
+                        for p in params:
+                            if p.get("name") == field_name:
+                                p["x-waldur-operation-id"] = target_op_id
+                    except KeyError:
+                        continue
+
+    return result
+
+
+def validate_waldur_operation_ids(result, generator, **kwargs):
+    """
+    Enforces that all UUID query parameters (except whitelisted ones)
+    must have an 'x-waldur-operation-id' defined.
+    """
+    errors = []
+    # These fields are exempt because they usually refer to the object itself
+    # or are part of a Generic Foreign Key (GFK) structure.
+    whitelist = ["uuid", "scope_uuid", "scope", "parent_uuid"]
+
+    paths = result.get("paths", {})
+    for path, path_obj in paths.items():
+        for method, operation in path_obj.items():
+            if not isinstance(operation, dict):
+                continue
+
+            operation_id = operation.get("operationId", f"{method} {path}")
+            parameters = operation.get("parameters", [])
+
+            for param in parameters:
+                # 1. Must be a query parameter
+                if param.get("in") != "query":
+                    continue
+
+                # 2. Check if it's a UUID string
+                schema = param.get("schema", {})
+                is_uuid = (
+                    schema.get("type") == "string" and schema.get("format") == "uuid"
+                )
+
+                if is_uuid:
+                    name = param.get("name")
+
+                    # 3. Check whitelist
+                    if name in whitelist:
+                        continue
+
+                    # 4. Fail if x-waldur-operation-id is missing
+                    if "x-waldur-operation-id" not in param:
+                        errors.append(
+                            f"Validation Error: Query parameter '{name}' in operation '{operation_id}' "
+                            f"is a UUID but is missing 'x-waldur-operation-id'. "
+                            f"Check if the URLFilter view_name is correct or add the field to the whitelist."
+                        )
+
+    if errors:
+        # Raising an error here will stop the 'waldur spectacular' command and show these messages
+        raise ValueError("\n" + "\n".join(errors))
+
+    return result

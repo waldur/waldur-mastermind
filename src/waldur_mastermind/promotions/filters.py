@@ -16,9 +16,12 @@ class CampaignFilter(django_filters.FilterSet):
         field_name="offering__uuid",
         label="Offering",
     )
-    offering_uuid = django_filters.UUIDFilter(field_name="offering__uuid")
-    service_provider_uuid = django_filters.UUIDFilter(
-        field_name="service_provider__uuid"
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail", field_name="offering__uuid"
+    )
+    service_provider_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-service-provider-detail",
+        field_name="service_provider__uuid",
     )
     start_date = django_filters.DateFilter(field_name="start_date", lookup_expr="gt")
     end_date = django_filters.DateFilter(field_name="end_date", lookup_expr="lt")

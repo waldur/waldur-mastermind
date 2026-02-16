@@ -1,5 +1,6 @@
 import django_filters
 
+from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
 
 from . import models
@@ -10,7 +11,9 @@ class ImageFilter(structure_filters.BaseServicePropertyFilter):
         model = models.Image
         fields = structure_filters.BaseServicePropertyFilter.Meta.fields + ("region",)
 
-    region = django_filters.UUIDFilter(field_name="region__uuid")
+    region = core_filters.RelatedUUIDFilter(
+        view_name="aws-region-detail", field_name="region__uuid"
+    )
 
 
 class SizeFilter(structure_filters.BaseServicePropertyFilter):
@@ -18,7 +21,9 @@ class SizeFilter(structure_filters.BaseServicePropertyFilter):
         model = models.Size
         fields = structure_filters.BaseServicePropertyFilter.Meta.fields + ("region",)
 
-    region = django_filters.UUIDFilter(field_name="regions__uuid")
+    region = core_filters.RelatedUUIDFilter(
+        view_name="aws-region-detail", field_name="regions__uuid"
+    )
 
 
 class RegionFilter(structure_filters.BaseServicePropertyFilter):

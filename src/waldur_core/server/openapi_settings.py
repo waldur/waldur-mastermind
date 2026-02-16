@@ -51,6 +51,8 @@ SPECTACULAR_SETTINGS = {
         "waldur_core.core.schema_hooks.mark_optional_request_bodies",
         "waldur_core.core.schema_hooks.preprocess_request_bodies",
         "waldur_core.core.schema_hooks.add_result_count_header",
+        "waldur_core.core.schema_hooks.inject_waldur_operation_ids",
+        "waldur_core.core.schema_hooks.validate_waldur_operation_ids",
     ],
     "DEFAULT_GENERATOR_CLASS": "waldur_core.core.openapi_generators.WaldurSchemaGenerator",
     "ENUM_GENERATE_CHOICE_DESCRIPTION": False,

@@ -56,9 +56,13 @@ class InvitationFilterBackend(BaseFilterBackend):
 
 
 class BaseInvitationFilter(django_filters.FilterSet):
-    role_uuid = django_filters.UUIDFilter(field_name="role__uuid")
+    role_uuid = core_filters.RelatedUUIDFilter(
+        view_name="role-detail", field_name="role__uuid"
+    )
     role_name = django_filters.CharFilter(field_name="role__name")
-    customer_uuid = django_filters.UUIDFilter(field_name="customer__uuid")
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", field_name="customer__uuid"
+    )
     scope_type = django_filters.CharFilter(method="filter_by_scope_type")
 
     class Meta:
@@ -229,9 +233,15 @@ class PermissionRequestScopeFilterBackend(InvitationScopeFilterBackend):
 
 class PermissionRequestFilter(django_filters.FilterSet):
     state = core_filters.ReviewStateFilter()
-    customer_uuid = django_filters.UUIDFilter(field_name="invitation__customer__uuid")
-    invitation = django_filters.UUIDFilter(field_name="invitation__uuid")
-    created_by = django_filters.UUIDFilter(field_name="created_by__uuid")
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", field_name="invitation__customer__uuid"
+    )
+    invitation = core_filters.RelatedUUIDFilter(
+        view_name="user-invitation-detail", field_name="invitation__uuid"
+    )
+    created_by = core_filters.RelatedUUIDFilter(
+        view_name="user-detail", field_name="created_by__uuid"
+    )
     o = django_filters.OrderingFilter(fields=("state", "created"))
 
     class Meta:
