@@ -885,6 +885,51 @@ class SoftwarePackageExtensionFilterTest(test.APITestCase):
         self.assertEqual(len(response.data), 0)
 
 
+class SoftwarePackageIsExtensionFilterTest(test.APITestCase):
+    """Test is_extension filtering for software packages."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog = factories.SoftwareCatalogFactory(name="EESSI", version="2023.06")
+
+        self.parent_package = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="ParentPackage",
+            is_extension=False,
+        )
+        self.extension_package = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="ExtensionPackage",
+            is_extension=True,
+            parent_software=self.parent_package,
+        )
+        self.url = factories.SoftwarePackageFactory.get_list_url()
+
+    def test_filter_extensions_only(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?is_extension=true")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        package_names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(package_names, {"ExtensionPackage"})
+
+    def test_filter_non_extensions_only(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?is_extension=false")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        package_names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(package_names, {"ParentPackage"})
+
+    def test_no_filter_returns_all(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        package_names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(package_names, {"ParentPackage", "ExtensionPackage"})
+
+
 @ddt
 class SoftwareCatalogDiscoverTest(test.APITestCase):
     """Tests for the discover endpoint on SoftwareCatalogViewSet."""

@@ -592,6 +592,11 @@ class SoftwarePackageFilter(django_filters.FilterSet):
         label="Extension name",
         help_text="Filter packages having extensions with a specific name",
     )
+    is_extension = django_filters.BooleanFilter(
+        widget=BooleanWidget,
+        label="Is extension",
+        help_text="Filter packages that are extensions of other packages",
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
