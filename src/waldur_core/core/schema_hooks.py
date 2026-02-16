@@ -331,6 +331,51 @@ def _get_suffix_for_media_type(media_type: str) -> str:
     return "".join(part.capitalize() for part in parts)
 
 
+def mark_optional_request_bodies(
+    result: dict[str, Any], **kwargs: Any
+) -> dict[str, Any]:
+    """
+    Explicitly sets ``required: false`` on every ``requestBody`` whose schema
+    has no required fields.  Many SDK generators treat the mere *presence* of
+    a ``requestBody`` as mandatory unless the flag is set explicitly, even
+    though the OpenAPI 3.0 spec defaults to ``false``.
+    """
+    schemas = result.get("components", {}).get("schemas", {})
+
+    def _schema_has_required_fields(schema_ref: dict) -> bool:
+        """Return True if the resolved schema declares any required fields."""
+        if "$ref" in schema_ref:
+            name = schema_ref["$ref"].split("/")[-1]
+            schema_ref = schemas.get(name, {})
+        if schema_ref.get("required"):
+            return True
+        for key in ("allOf", "oneOf", "anyOf"):
+            for sub in schema_ref.get(key, []):
+                if _schema_has_required_fields(sub):
+                    return True
+        return False
+
+    for path_data in result.get("paths", {}).values():
+        for operation in path_data.values():
+            request_body = operation.get("requestBody")
+            if not request_body or "content" not in request_body:
+                continue
+            # If already explicitly set, don't override
+            if "required" in request_body:
+                continue
+            # Check all content-type schemas
+            all_optional = True
+            for media_obj in request_body["content"].values():
+                schema = media_obj.get("schema", {})
+                if _schema_has_required_fields(schema):
+                    all_optional = False
+                    break
+            if all_optional:
+                request_body["required"] = False
+
+    return result
+
+
 def preprocess_request_bodies(result: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
     """
     Pre-processes request bodies in the OpenAPI spec with a two-step logic:
