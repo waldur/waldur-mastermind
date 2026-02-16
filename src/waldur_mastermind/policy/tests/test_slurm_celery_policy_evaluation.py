@@ -305,6 +305,26 @@ class TestSlurmCeleryPolicyEvaluation(TestCase):
             85.0,  # usage percentage
         )
 
+    @patch("waldur_mastermind.policy.tasks.notify_about_resource_usage.delay")
+    def test_notification_sent_only_once_per_billing_period(self, mock_notify):
+        """Test that notification is sent only once per resource per billing period."""
+
+        # Create usage that triggers notification (85%)
+        self._create_component_usage(self.resource_low_usage, self.component, 850)
+
+        # First evaluation — should send notification
+        tasks.evaluate_resource_against_policy(
+            str(self.resource_low_usage.uuid), str(self.policy.uuid)
+        )
+        mock_notify.assert_called_once()
+        mock_notify.reset_mock()
+
+        # Second evaluation — should NOT send notification again
+        tasks.evaluate_resource_against_policy(
+            str(self.resource_low_usage.uuid), str(self.policy.uuid)
+        )
+        mock_notify.assert_not_called()
+
     def test_quarterly_period_evaluation(self):
         """Test quarterly period evaluation logic."""
 

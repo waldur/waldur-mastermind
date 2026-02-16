@@ -7,6 +7,7 @@ import socket
 import sys
 import threading
 import time
+import traceback
 
 from celery import current_app
 from constance import config
@@ -255,7 +256,7 @@ class DatabaseLogHandler(logging.Handler):
         """Extract exception and location context."""
         context = {}
         if record.exc_info:
-            tb = self._scrub(self.formatException(record.exc_info))
+            tb = self._scrub("".join(traceback.format_exception(*record.exc_info)))
             context["traceback"] = tb[: self._MAX_TRACEBACK_LENGTH]
         if record.pathname:
             context["pathname"] = record.pathname
