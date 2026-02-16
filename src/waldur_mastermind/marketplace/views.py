@@ -8879,6 +8879,63 @@ class OfferingUsersViewSet(
 
     update_comments_permissions = [_check_update_comments_state]
 
+    @extend_schema(
+        summary="Get profile field warnings",
+        description=(
+            "Returns a mapping of user profile field names to offerings that expose "
+            "those fields. When ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS is enabled, "
+            "clearing a field listed here would make the user invisible to the "
+            "service provider for the associated offerings."
+        ),
+        request=None,
+        responses={200: serializers.ProfileFieldWarningsSerializer},
+    )
+    @action(detail=False, methods=["get"])
+    def profile_field_warnings(self, request):
+        if not config.ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS:
+            return Response({}, status=status.HTTP_200_OK)
+
+        offering_users = models.OfferingUser.objects.filter(
+            user=request.user,
+        ).exclude(state=OfferingUserStates.DELETED)
+
+        attr_to_user_fields = utils._build_attribute_to_user_fields()
+        result: dict[str, list[dict[str, str]]] = {}
+
+        for offering_user in offering_users:
+            offering = offering_user.offering
+
+            has_active_resources = (
+                models.Resource.objects.filter(
+                    offering=offering,
+                )
+                .exclude(state=ResourceStates.TERMINATED)
+                .exists()
+            )
+
+            if not has_active_resources:
+                continue
+
+            exposed_attrs = (
+                models.OfferingUserAttributeConfig.get_exposed_fields_for_offering(
+                    offering
+                )
+            )
+
+            for attr_name in exposed_attrs:
+                user_fields = attr_to_user_fields.get(attr_name, [])
+                for user_field in user_fields:
+                    result.setdefault(user_field, [])
+                    offering_info = {
+                        "offering_uuid": str(offering.uuid),
+                        "offering_name": offering.name,
+                    }
+                    # Avoid duplicates if multiple attrs map to same field
+                    if offering_info not in result[user_field]:
+                        result[user_field].append(offering_info)
+
+        return Response(result, status=status.HTTP_200_OK)
+
 
 @extend_schema_view(
     list=extend_schema(
