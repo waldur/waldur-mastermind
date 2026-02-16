@@ -1683,7 +1683,8 @@ class CallReviewerPool(
             ),
             # Ensure either reviewer or invited_email is provided
             models.CheckConstraint(
-                check=models.Q(reviewer__isnull=False) | models.Q(invited_email__gt=""),
+                condition=models.Q(reviewer__isnull=False)
+                | models.Q(invited_email__gt=""),
                 name="reviewer_or_email_required",
             ),
         ]

@@ -1,7 +1,8 @@
 import os
 
 from constance import config
-from constance.backends.database.models import Constance
+from constance.codecs import dumps
+from constance.models import Constance
 from django.core.cache import cache
 from django.core.files.storage import default_storage
 from django.core.management import BaseCommand
@@ -91,6 +92,6 @@ class Command(BaseCommand):
     def _save_multilingual_setting(self, value):
         """Save the LOGIN_LOGO_MULTILINGUAL setting to database."""
         setting, _ = Constance.objects.get_or_create(key="LOGIN_LOGO_MULTILINGUAL")
-        setting.value = value
+        setting.value = dumps(value)
         setting.save()
         cache.delete("API_CONFIGURATION")

@@ -272,6 +272,23 @@ class UserAdmin(auth_admin.UserAdmin, VersionAdmin):
     form = UserChangeForm
     add_form = UserCreationForm
 
+    # Override parent add_fieldsets: Django 5.2+ includes usable_password,
+    # but Waldur's UserCreationForm does not have that field
+    add_fieldsets = (
+        (
+            None,
+            {
+                "classes": ("wide",),
+                "fields": ("username", "password1", "password2"),
+            },
+        ),
+    )
+
+    def get_fieldsets(self, request, obj=None):
+        if obj is None:
+            return self.add_fieldsets
+        return super().get_fieldsets(request, obj)
+
     def format_details(self, obj):
         return format_json_field(obj.details)
 

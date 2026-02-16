@@ -2,6 +2,7 @@ import functools
 import ipaddress
 import logging
 import re
+from datetime import UTC
 from urllib.parse import urlparse, urlunparse
 
 import httpx
@@ -438,7 +439,7 @@ class OpenStackBackend(ServiceBackend):
                 return None
             parsed = dateparse.parse_datetime(value)
             if parsed and timezone.is_naive(parsed):
-                parsed = timezone.make_aware(parsed, timezone=timezone.utc)
+                parsed = timezone.make_aware(parsed, timezone=UTC)
             return parsed
 
         local_image_mapping = self._tenant_mappings(tenant.images.all())
@@ -4727,7 +4728,7 @@ class OpenStackBackend(ServiceBackend):
             # At the moment OpenStack does not provide any timezone info,
             # but in future it might do.
             if timezone.is_naive(d):
-                launch_time = timezone.make_aware(d, timezone.utc)
+                launch_time = timezone.make_aware(d, UTC)
 
         availability_zone = None
         try:
