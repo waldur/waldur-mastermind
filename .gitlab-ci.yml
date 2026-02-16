@@ -680,9 +680,8 @@ Upload Go SDK:
     - Generate Go SDK
   script:
     - cd /tmp/
-    - git clone git@github.com:waldur/go-client.git
+    - git clone --depth 1 git@github.com:waldur/go-client.git
     - cd go-client
-    - git pull
     - cp $CI_PROJECT_DIR/client.go client.go
     - git add client.go
     - git commit -m "Update Waldur Go SDK" || exit 0
@@ -701,9 +700,8 @@ Upload Python SDK:
     - Generate Python SDK
   script:
     - cd /tmp/
-    - git clone --branch main git@github.com:waldur/py-client.git
+    - git clone --depth 1 --branch main git@github.com:waldur/py-client.git
     - cd py-client
-    - git pull
     - rm -rf waldur_api_client && cp -a "$CI_PROJECT_DIR/py-client/waldur_api_client" waldur_api_client
     - cp "$CI_PROJECT_DIR/py-client/llms.txt" llms.txt
     - cp "$CI_PROJECT_DIR/py-client/llms-full.txt" llms-full.txt
@@ -734,7 +732,7 @@ Generate OpenAPI schema diff:
   script:
     - ls -la
     - echo "Cloning docs repository"
-    - git clone "https://github.com/waldur/waldur-docs.git"
+    - git clone --depth 1 "https://github.com/waldur/waldur-docs.git"
     - ls waldur-docs
     - |
       # First try to find the previous version if current tag exists
@@ -779,7 +777,7 @@ Upload OpenAPI schema and schema diff to docs:
     entrypoint: [""]
   script:
     - cd /tmp/
-    - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
+    - git clone --depth 1 "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
     - git config --global user.name "$GITLAB_USER_NAME"
     - git config --global user.email "$GITLAB_USER_EMAIL"
     - cd waldur-docs
@@ -828,11 +826,10 @@ Upload HomePort enums:
 
     # 3. Clone the HomePort repository and move the generated files into it
     - cd /tmp/
-    - git clone "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-homeport.git"
+    - git clone --depth 1 --branch develop "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-homeport.git"
     - cd waldur-homeport
     - git config --global user.name "$GITLAB_USER_NAME"
     - git config --global user.email "$GITLAB_USER_EMAIL"
-    - git checkout develop
 
     # 4. Move the pre-generated files to their final destinations
     - mv /tmp/permission_enums.ts src/permissions/enums.ts
@@ -861,9 +858,8 @@ Upload TypeScript SDK:
     - Generate TypeScript SDK
   script:
     - cd /tmp/
-    - git clone --branch main git@github.com:waldur/js-client.git
+    - git clone --depth 1 --branch main git@github.com:waldur/js-client.git
     - cd js-client
-    - git pull
     - rm -rf src/
     - mv $CI_PROJECT_DIR/waldur-typescript-sdk src
     - git add src
@@ -1046,9 +1042,8 @@ Upload Ansible module:
     - Generate Ansible module changelog
   script: |
     cd /tmp/
-    git clone --branch main git@github.com:waldur/ansible-waldur-module-next.git
+    git clone --depth 1 --branch main git@github.com:waldur/ansible-waldur-module-next.git
     cd ansible-waldur-module-next
-    git pull
     # The 'ansible_waldur_module' artifact from the previous job contains the updated READMEs
     rm -rf ansible_waldur_module && cp -a "$CI_PROJECT_DIR/ansible_waldur_module/" ansible_waldur_module
 
@@ -1193,7 +1188,7 @@ Update SDK docs generator schema:
 
     # --- Step 1: Clone the target repository using the GITLAB_TOKEN ---
     - echo "Cloning docs generator repository..."
-    - git clone "${DOCS_REPO_URL}" "${DOCS_REPO_DIR}"
+    - git clone --depth 1 "${DOCS_REPO_URL}" "${DOCS_REPO_DIR}"
 
     # --- Step 2: Copy the new schema file ---
     - echo "Copying schema from ${SOURCE_SCHEMA_PATH} to ${DESTINATION_SCHEMA_PATH}"
