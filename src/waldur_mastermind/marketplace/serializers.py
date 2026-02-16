@@ -6234,6 +6234,8 @@ class OfferingUserSerializer(
     requires_reconsent = serializers.SerializerMethodField()
     has_compliance_checklist = serializers.SerializerMethodField()
     consent_data = serializers.SerializerMethodField()
+    is_profile_complete = serializers.SerializerMethodField()
+    missing_profile_attributes = serializers.SerializerMethodField()
 
     # Extra serializer fields exposed/hidden together with their parent attribute.
     # When expose_full_name is enabled, first/last name are also exposed.
@@ -6316,6 +6318,8 @@ class OfferingUserSerializer(
             "requires_reconsent",
             "has_compliance_checklist",
             "consent_data",
+            "is_profile_complete",
+            "missing_profile_attributes",
         )
         extra_kwargs = dict(
             url={
@@ -6504,6 +6508,21 @@ class OfferingUserSerializer(
                 consent.agreement_date.isoformat() if consent.agreement_date else None
             ),
         }
+
+    def _get_missing_attributes(self, obj):
+        """Get missing profile attributes for this offering user, with caching."""
+        exposed_attributes = self._get_exposed_attributes_cached(obj.offering)
+        return utils.get_missing_profile_attributes(obj.user, exposed_attributes)
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_profile_complete(self, obj) -> bool:
+        """Whether the user has filled all exposed attributes for this offering."""
+        return len(self._get_missing_attributes(obj)) == 0
+
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_missing_profile_attributes(self, obj) -> list[str]:
+        """List of attribute names the user still needs to fill in."""
+        return self._get_missing_attributes(obj)
 
     def get_fields(self):
         """

@@ -2479,6 +2479,22 @@ class OfferingUsersViewSetPerformanceTest(APITestCase):
         self.viewset = OfferingUsersViewSet()
         self.viewset.queryset = models.OfferingUser.objects.all()
 
+        # Warm up ContentType cache and constance config so that
+        # one-time lookups don't inflate query counts in tests.
+        from constance import config as constance_config
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.structure.models import Customer, Project
+        from waldur_mastermind.proposal.models import Call, CallManagingOrganisation
+
+        ContentType.objects.get_for_model(Customer)
+        ContentType.objects.get_for_model(Project)
+        ContentType.objects.get_for_model(CallManagingOrganisation)
+        ContentType.objects.get_for_model(Call)
+        # Access constance keys to populate their defaults in the DB
+        _ = constance_config.ENFORCE_USER_CONSENT_FOR_OFFERINGS
+        _ = constance_config.ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS
+
     def test_offering_users_queryset_query_optimization(self):
         """Test that OfferingUsersViewSet.get_queryset uses optimized queries."""
 

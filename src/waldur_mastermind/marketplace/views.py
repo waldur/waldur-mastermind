@@ -234,6 +234,14 @@ def get_allowed_offering_users_for_user(
             )
         )
 
+    if config.ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS and action in [
+        "list",
+        "retrieve",
+    ]:
+        incomplete_q = utils.build_incomplete_profile_q()
+        # Exclude incomplete profiles, but NOT for user's own records
+        queryset = queryset.exclude(~Q(user=request_user) & incomplete_q)
+
     return queryset
 
 
@@ -8392,7 +8400,10 @@ class OfferingUsersViewSet(
                 super()
                 .get_queryset()
                 .select_related(
-                    "offering__compliance_checklist", "user", "offering__customer"
+                    "offering__compliance_checklist",
+                    "offering__user_attribute_config",
+                    "user",
+                    "offering__customer",
                 )
                 .prefetch_related(
                     "offering__user_consents", "offering__terms_of_service_configs"
@@ -8406,7 +8417,10 @@ class OfferingUsersViewSet(
 
         # Apply performance optimizations to filtered queryset
         return filtered_queryset.select_related(
-            "offering__compliance_checklist", "user", "offering__customer"
+            "offering__compliance_checklist",
+            "offering__user_attribute_config",
+            "user",
+            "offering__customer",
         ).prefetch_related(
             "offering__user_consents", "offering__terms_of_service_configs"
         )
