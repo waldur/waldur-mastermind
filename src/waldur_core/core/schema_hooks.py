@@ -645,6 +645,19 @@ def inject_waldur_operation_ids(result, generator, **kwargs):
                 if not target_op_id and not target_view.endswith("-list"):
                     target_op_id = view_name_to_op_id.get(f"{target_view}-list")
 
+                if isinstance(filter_obj, core_filters.URLFilter):
+                    # For URLFilter, we want to ensure format: uri is set
+                    try:
+                        params = result["paths"][path][method.lower()].get(
+                            "parameters", []
+                        )
+                        for p in params:
+                            if p.get("name") == field_name:
+                                schema = p.setdefault("schema", {})
+                                schema["format"] = "uri"
+                    except KeyError:
+                        pass
+
                 if target_op_id:
                     # Search the generated result for this parameter and inject the ID
                     try:

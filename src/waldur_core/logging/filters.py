@@ -2,6 +2,8 @@ import django_filters
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django_filters.widgets import BooleanWidget
+from drf_spectacular.plumbing import build_parameter_type
+from drf_spectacular.utils import OpenApiParameter
 from rest_framework import filters
 from rest_framework.filters import BaseFilterBackend
 
@@ -72,6 +74,25 @@ class HookSummaryFilterBackend(BaseFilterBackend):
             return EmailHookFilter
 
         return BaseHookFilter
+
+    def get_schema_operation_parameters(self, view):
+        return [
+            build_parameter_type(
+                name="author_uuid",
+                schema={"type": "string", "format": "uuid"},
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter by author UUID.",
+                extensions={"x-waldur-operation-id": "users_retrieve"},
+            ),
+            build_parameter_type(
+                name="is_active",
+                schema={"type": "boolean"},
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter by active status.",
+            ),
+        ]
 
 
 class EventFilter(django_filters.FilterSet):
@@ -145,6 +166,31 @@ class EventFilterBackend(filters.BaseFilterBackend):
             queryset = queryset.none()
 
         return queryset
+
+    def get_schema_operation_parameters(self, view):
+        return [
+            build_parameter_type(
+                name="event_type",
+                schema={"type": "array", "items": {"type": "string"}},
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter by event type. Can be specified multiple times.",
+            ),
+            build_parameter_type(
+                name="feature",
+                schema={"type": "array", "items": {"type": "string"}},
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter by feature (event group). Can be specified multiple times.",
+            ),
+            build_parameter_type(
+                name="scope",
+                schema={"type": "string", "format": "uri"},
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter by scope URL.",
+            ),
+        ]
 
 
 class EventSubscriptionFilter(django_filters.FilterSet):
