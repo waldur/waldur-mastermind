@@ -626,7 +626,10 @@ def inject_waldur_operation_ids(result, generator, **kwargs):
 
         for field_name, filter_obj in filters.items():
             if isinstance(
-                filter_obj, core_filters.URLFilter | core_filters.RelatedUUIDFilter
+                filter_obj,
+                core_filters.URLFilter
+                | core_filters.RelatedUUIDFilter
+                | core_filters.ModelMultipleChoiceFilter,
             ):
                 target_view = getattr(filter_obj, "view_name", None)
                 if not target_view:

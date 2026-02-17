@@ -171,6 +171,16 @@ class RelatedUUIDInFilter(django_filters.BaseInFilter, RelatedUUIDFilter):
     pass
 
 
+class ModelMultipleChoiceFilter(django_filters.ModelMultipleChoiceFilter):
+    """
+    ModelMultipleChoiceFilter that also stores view_name for OpenAPI schema generation.
+    """
+
+    def __init__(self, view_name=None, **kwargs):
+        super().__init__(**kwargs)
+        self.view_name = view_name
+
+
 class TimestampFilter(django_filters.NumberFilter):
     """
     Filter for dates in timestamp format

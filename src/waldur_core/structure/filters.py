@@ -196,11 +196,12 @@ class CustomerFilter(NameFilterSet):
     contact_details = django_filters.CharFilter(
         lookup_expr="icontains", label="Contact details"
     )
-    organization_group_uuid = django_filters.ModelMultipleChoiceFilter(
+    organization_group_uuid = core_filters.ModelMultipleChoiceFilter(
         field_name="organization_groups__uuid",
         label="Organization group UUID",
         to_field_name="uuid",
         queryset=models.OrganizationGroup.objects.all(),
+        view_name="organization-group-detail",
     )
     organization_group_name = django_filters.CharFilter(
         field_name="organization_groups__name",
