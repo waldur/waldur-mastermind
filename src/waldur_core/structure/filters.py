@@ -170,6 +170,17 @@ class GenericUserFilter(BaseFilterBackend):
 
         return filter_queryset_for_user(queryset, user)
 
+    def get_schema_operation_parameters(self, view):
+        return [
+            build_parameter_type(
+                name="user_uuid",
+                schema={"type": "string", "format": "uuid"},
+                location=OpenApiParameter.QUERY,
+                description="Filter by user UUID.",
+                extensions={"x-waldur-operation-id": "users_retrieve"},
+            )
+        ]
+
 
 class CustomerFilter(NameFilterSet):
     query = django_filters.CharFilter(
@@ -274,6 +285,17 @@ class AccountingStartDateFilter(BaseFilterBackend):
         query = Q(accounting_start_date__gt=timezone.now())
         return filter_by_accounting_is_running(request, queryset, query)
 
+    def get_schema_operation_parameters(self, view):
+        return [
+            build_parameter_type(
+                name="accounting_is_running",
+                schema={"type": "boolean"},
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter by whether accounting is running.",
+            )
+        ]
+
 
 class CustomerAccountingStartDateFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
@@ -282,6 +304,17 @@ class CustomerAccountingStartDateFilter(BaseFilterBackend):
         else:
             query = Q(customer__accounting_start_date__gt=timezone.now())
         return filter_by_accounting_is_running(request, queryset, query)
+
+    def get_schema_operation_parameters(self, view):
+        return [
+            build_parameter_type(
+                name="accounting_is_running",
+                schema={"type": "boolean"},
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter by whether accounting is running.",
+            )
+        ]
 
 
 def filter_by_accounting_is_running(request, queryset, query):
@@ -911,6 +944,20 @@ class StartTimeFilter(BaseFilterBackend):
             return queryset
         return order_with_nulls(queryset, order_by)
 
+    def get_schema_operation_parameters(self, view):
+        return [
+            build_parameter_type(
+                name="o",
+                schema={
+                    "type": "string",
+                    "enum": ["start_time", "-start_time"],
+                },
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Ordering. Sort by start time.",
+            )
+        ]
+
 
 class BaseServicePropertyFilter(NameFilterSet):
     class Meta:
@@ -1055,6 +1102,20 @@ class ProjectEstimatedCostFilter(BaseFilterBackend):
             estimated_cost=Subquery(estimates.values("total")[:1])
         )
         return order_with_nulls(queryset, order_by)
+
+    def get_schema_operation_parameters(self, view):
+        return [
+            build_parameter_type(
+                name="o",
+                schema={
+                    "type": "string",
+                    "enum": ["estimated_cost", "-estimated_cost"],
+                },
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Ordering. Sort by estimated cost.",
+            )
+        ]
 
 
 class NotificationTemplateFilter(NameFilterSet):

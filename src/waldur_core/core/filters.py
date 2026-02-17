@@ -67,6 +67,20 @@ class GenericKeyFilterBackend(BaseFilterBackend):
             )
         return queryset
 
+    def get_schema_operation_parameters(self, view):
+        return [
+            {
+                "name": self.get_field_name(),
+                "required": False,
+                "in": "query",
+                "schema": {
+                    "type": "string",
+                    "format": "uri",
+                },
+                "description": f"Filter by {self.get_field_name()} URL.",
+            }
+        ]
+
 
 class MappedMultipleChoiceFilter(django_filters.MultipleChoiceFilter):
     """
@@ -233,6 +247,13 @@ class ExternalFilterBackend(BaseFilterBackend):
         for item in self.__class__.get_registered_filters():
             queryset = item.filter_queryset(request, queryset, view)
         return queryset
+
+    def get_schema_operation_parameters(self, view):
+        parameters = []
+        for item in self.__class__.get_registered_filters():
+            if hasattr(item, "get_schema_operation_parameters"):
+                parameters.extend(item.get_schema_operation_parameters(view))
+        return parameters
 
 
 class EmptyFilter(django_filters.CharFilter):

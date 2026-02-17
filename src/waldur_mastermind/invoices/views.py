@@ -54,9 +54,24 @@ class InvoiceViewSet(core_views.HistoryViewSetMixin, core_views.ReadOnlyActionsV
         responses=serializers.InvoiceItemSerializer,
         parameters=[
             OpenApiParameter("query", str, OpenApiParameter.QUERY),
-            OpenApiParameter("provider_uuid", str, OpenApiParameter.QUERY),
-            OpenApiParameter("project_uuid", str, OpenApiParameter.QUERY),
-            OpenApiParameter("offering_uuid", str, OpenApiParameter.QUERY),
+            OpenApiParameter(
+                "provider_uuid",
+                uuid.UUID,
+                OpenApiParameter.QUERY,
+                extensions={"x-waldur-operation-id": "customers_retrieve"},
+            ),
+            OpenApiParameter(
+                "project_uuid",
+                uuid.UUID,
+                OpenApiParameter.QUERY,
+                extensions={"x-waldur-operation-id": "projects_retrieve"},
+            ),
+            OpenApiParameter(
+                "offering_uuid",
+                uuid.UUID,
+                OpenApiParameter.QUERY,
+                extensions={"x-waldur-operation-id": "offerings_retrieve"},
+            ),
             OpenApiParameter(
                 "conceal_compensation_items",
                 bool,
@@ -189,7 +204,14 @@ class InvoiceViewSet(core_views.HistoryViewSetMixin, core_views.ReadOnlyActionsV
     @extend_schema(
         description="Spendings grouped by offerings and filtered by provider.",
         responses=serializers.InvoiceStatsSerializer,
-        parameters=[OpenApiParameter("provider_uuid", str, OpenApiParameter.QUERY)],
+        parameters=[
+            OpenApiParameter(
+                "provider_uuid",
+                uuid.UUID,
+                OpenApiParameter.QUERY,
+                extensions={"x-waldur-operation-id": "customers_retrieve"},
+            )
+        ],
     )
     @action(detail=True)
     def stats(self, request, uuid=None):
@@ -642,6 +664,7 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
                 type=uuid.UUID,
                 location=OpenApiParameter.QUERY,
                 description="UUID of the project for which statistics should be calculated.",
+                extensions={"x-waldur-operation-id": "projects_retrieve"},
             )
         ],
         responses=serializers.InvoiceCostSerializer(many=True),
@@ -743,6 +766,7 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
                 type=uuid.UUID,
                 location=OpenApiParameter.QUERY,
                 description="UUID of the project for which statistics should be calculated.",
+                extensions={"x-waldur-operation-id": "projects_retrieve"},
             ),
         ],
         responses=serializers.CostsForPeriodSerializer,

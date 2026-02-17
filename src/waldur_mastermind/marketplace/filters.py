@@ -7,6 +7,8 @@ from django.db.models import Count, F, Q, QuerySet
 from django.utils.translation import gettext_lazy as _
 from django_filters import DateFromToRangeFilter
 from django_filters.widgets import BooleanWidget
+from drf_spectacular.plumbing import build_parameter_type
+from drf_spectacular.utils import OpenApiParameter
 from rest_framework import exceptions as rf_exceptions
 from rest_framework.filters import BaseFilterBackend
 
@@ -464,6 +466,17 @@ class OfferingImportableFilterBackend(BaseFilterBackend):
                 | Q(project__in=projects_ids)
             )
         return queryset
+
+    def get_schema_operation_parameters(self, view):
+        return [
+            build_parameter_type(
+                name="importable",
+                schema={"type": "string"},
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter by importable offerings.",
+            )
+        ]
 
 
 class OfferingFilterMixin(django_filters.FilterSet):
@@ -1616,6 +1629,17 @@ class CustomerResourceFilter(BaseFilterBackend):
             queryset = queryset.filter(pk__in=customers)
         return queryset
 
+    def get_schema_operation_parameters(self, view):
+        return [
+            build_parameter_type(
+                name="has_resources",
+                schema={"type": "string"},
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter by customers with resources.",
+            )
+        ]
+
 
 class ServiceProviderOfferingFilter(BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
@@ -1628,6 +1652,17 @@ class ServiceProviderOfferingFilter(BaseFilterBackend):
             queryset = queryset.filter(pk__in=customers)
         return queryset
 
+    def get_schema_operation_parameters(self, view):
+        return [
+            build_parameter_type(
+                name="service_provider_uuid",
+                schema={"type": "string", "format": "uuid"},
+                location=OpenApiParameter.QUERY,
+                description="Filter by service provider UUID.",
+                extensions={"x-waldur-operation-id": "service_providers_retrieve"},
+            )
+        ]
+
 
 class CustomerServiceProviderFilter(core_filters.BaseFilterBackend):
     def filter_queryset(self, request, queryset, view):
@@ -1638,6 +1673,17 @@ class CustomerServiceProviderFilter(core_filters.BaseFilterBackend):
             )
             return queryset.filter(pk__in=customers)
         return queryset
+
+    def get_schema_operation_parameters(self, view):
+        return [
+            build_parameter_type(
+                name="is_service_provider",
+                schema={"type": "boolean"},
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter by customers that are service providers.",
+            )
+        ]
 
 
 class CustomerCallManagingOrganisationFilter(core_filters.BaseFilterBackend):
@@ -1651,6 +1697,17 @@ class CustomerCallManagingOrganisationFilter(core_filters.BaseFilterBackend):
             )
             return queryset.filter(pk__in=customers)
         return queryset
+
+    def get_schema_operation_parameters(self, view):
+        return [
+            build_parameter_type(
+                name="is_call_managing_organization",
+                schema={"type": "boolean"},
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter by customers that are call managing organizations.",
+            )
+        ]
 
 
 class OfferingUserRoleFilter(OfferingFilterMixin):
