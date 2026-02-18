@@ -62,11 +62,11 @@ class ArrowVendorOfferingMappingFilter(django_filters.FilterSet):
     )
     arrow_vendor_name = django_filters.CharFilter(lookup_expr="icontains")
     offering = core_filters.URLFilter(
-        view_name="marketplace-public-offering-detail",
+        view_name="marketplace-provider-offering-detail",
         field_name="offering__uuid",
     )
     offering_uuid = core_filters.RelatedUUIDFilter(
-        view_name="marketplace-public-offering-detail", field_name="offering__uuid"
+        view_name="marketplace-provider-offering-detail", field_name="offering__uuid"
     )
     is_active = django_filters.BooleanFilter()
 

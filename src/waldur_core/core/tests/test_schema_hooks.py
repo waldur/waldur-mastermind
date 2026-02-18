@@ -294,9 +294,14 @@ def test_validate_waldur_operation_ids():
         }
         validate_waldur_operation_ids(schema, None)  # Should not raise
 
-    # 3. Test success with extension
+    # 3. Test success with extension (referenced operationId must exist)
     schema = {
         "paths": {
+            "/api/customers/{uuid}/": {
+                "get": {
+                    "operationId": "customers_retrieve",
+                }
+            },
             "/api/test": {
                 "get": {
                     "operationId": "test_list",
@@ -309,10 +314,33 @@ def test_validate_waldur_operation_ids():
                         }
                     ],
                 }
-            }
+            },
         }
     }
     validate_waldur_operation_ids(schema, None)  # Should not raise
+
+    # 4. Test failure when x-waldur-operation-id references a non-existent operationId
+    schema = {
+        "paths": {
+            "/api/test": {
+                "get": {
+                    "operationId": "test_list",
+                    "parameters": [
+                        {
+                            "name": "customer_uuid",
+                            "in": "query",
+                            "schema": {"type": "string", "format": "uuid"},
+                            "x-waldur-operation-id": "nonexistent_operation",
+                        }
+                    ],
+                }
+            }
+        }
+    }
+    with pytest.raises(
+        ValueError, match="does not match any operationId in the schema"
+    ):
+        validate_waldur_operation_ids(schema, None)
 
 
 def test_inject_waldur_operation_ids():

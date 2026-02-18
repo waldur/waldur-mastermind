@@ -70,7 +70,9 @@ class InvoiceViewSet(core_views.HistoryViewSetMixin, core_views.ReadOnlyActionsV
                 "offering_uuid",
                 uuid.UUID,
                 OpenApiParameter.QUERY,
-                extensions={"x-waldur-operation-id": "offerings_retrieve"},
+                extensions={
+                    "x-waldur-operation-id": "marketplace_public_offerings_list"
+                },
             ),
             OpenApiParameter(
                 "conceal_compensation_items",

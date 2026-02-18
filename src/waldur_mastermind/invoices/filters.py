@@ -30,7 +30,7 @@ class InvoiceItemFilter(django_filters.FilterSet):
         view_name="marketplace-resource-detail", field_name="resource__uuid"
     )
     offering_uuid = core_filters.RelatedUUIDFilter(
-        view_name="marketplace-public-offering-detail",
+        view_name="marketplace-provider-offering-detail",
         field_name="resource__offering__uuid",
     )
     year = django_filters.NumberFilter(field_name="invoice__year")

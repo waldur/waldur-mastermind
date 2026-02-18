@@ -679,7 +679,8 @@ def inject_waldur_operation_ids(result, generator, **kwargs):
 def validate_waldur_operation_ids(result, generator, **kwargs):
     """
     Enforces that all UUID query parameters (except whitelisted ones)
-    must have an 'x-waldur-operation-id' defined.
+    must have an 'x-waldur-operation-id' defined, and that all
+    'x-waldur-operation-id' values reference valid operation IDs in the schema.
     """
     errors = []
     # These fields are exempt because they usually refer to the object itself
@@ -687,6 +688,14 @@ def validate_waldur_operation_ids(result, generator, **kwargs):
     whitelist = ["uuid", "scope_uuid", "scope", "parent_uuid"]
 
     paths = result.get("paths", {})
+
+    # Collect all valid operation IDs from the schema
+    valid_operation_ids = set()
+    for path_obj in paths.values():
+        for operation in path_obj.values():
+            if isinstance(operation, dict) and "operationId" in operation:
+                valid_operation_ids.add(operation["operationId"])
+
     for path, path_obj in paths.items():
         for method, operation in path_obj.items():
             if not isinstance(operation, dict):
@@ -720,6 +729,16 @@ def validate_waldur_operation_ids(result, generator, **kwargs):
                             f"is a UUID but is missing 'x-waldur-operation-id'. "
                             f"Check if the URLFilter view_name is correct or add the field to the whitelist."
                         )
+
+                # 5. Validate that x-waldur-operation-id references a valid operation
+                ref_op_id = param.get("x-waldur-operation-id")
+                if ref_op_id and ref_op_id not in valid_operation_ids:
+                    name = param.get("name")
+                    errors.append(
+                        f"Validation Error: Query parameter '{name}' in operation '{operation_id}' "
+                        f"has x-waldur-operation-id='{ref_op_id}' which does not match "
+                        f"any operationId in the schema."
+                    )
 
     if errors:
         # Raising an error here will stop the 'waldur spectacular' command and show these messages

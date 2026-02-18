@@ -1659,7 +1659,9 @@ class ServiceProviderOfferingFilter(BaseFilterBackend):
                 schema={"type": "string", "format": "uuid"},
                 location=OpenApiParameter.QUERY,
                 description="Filter by service provider UUID.",
-                extensions={"x-waldur-operation-id": "service_providers_retrieve"},
+                extensions={
+                    "x-waldur-operation-id": "marketplace_service_providers_list"
+                },
             )
         ]
 

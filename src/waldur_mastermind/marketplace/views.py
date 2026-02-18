@@ -1236,7 +1236,9 @@ class ServiceProviderUserCustomersViewSet(
                 location=OpenApiParameter.QUERY,
                 description="Filter by offering UUID.",
                 required=False,
-                extensions={"x-waldur-operation-id": "marketplace_offering_retrieve"},
+                extensions={
+                    "x-waldur-operation-id": "marketplace_provider_offerings_list"
+                },
             ),
             OpenApiParameter(
                 name="compliance_status",
