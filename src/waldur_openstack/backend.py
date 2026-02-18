@@ -286,6 +286,7 @@ class OpenStackBackend(ServiceBackend):
         self.pull_service_settings_quotas()
         self.pull_global_volume_types()
         self.pull_global_flavors()
+        self.pull_global_images()
         self.pull_external_networks()
 
     def pull_resources(self):
@@ -569,6 +570,43 @@ class OpenStackBackend(ServiceBackend):
                     "cores": remote_flavor.vcpus,
                     "ram": remote_flavor.ram,
                     "disk": self.gb2mb(remote_flavor.disk),
+                },
+            )
+
+    def pull_global_images(self):
+        glance = get_glance_client(self.admin_session)
+        try:
+            remote_images = list(glance.images.list())
+        except glance_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+        remote_images = [
+            image for image in remote_images if image["status"] != "deleted"
+        ]
+
+        def get_backend_created_at(image):
+            value = image.get("created_at")
+            if not value:
+                return None
+            parsed = dateparse.parse_datetime(value)
+            if parsed and timezone.is_naive(parsed):
+                parsed = timezone.make_aware(parsed, timezone=UTC)
+            return parsed
+
+        models.Image.objects.filter(settings=self.settings).exclude(
+            backend_id__in=[image["id"] for image in remote_images]
+        ).delete()
+        for remote_image in remote_images:
+            models.Image.objects.update_or_create(
+                settings=self.settings,
+                backend_id=remote_image["id"],
+                defaults={
+                    "name": remote_image["name"]
+                    or remote_image.get("description")
+                    or remote_image["id"],
+                    "min_ram": remote_image["min_ram"],
+                    "min_disk": self.gb2mb(remote_image["min_disk"]),
+                    "backend_created_at": get_backend_created_at(remote_image),
                 },
             )
 
@@ -4659,10 +4697,19 @@ class OpenStackBackend(ServiceBackend):
                     tenant=tenant, backend_id=backend_volume_id
                 )
 
-                # Check if volume is bootable and has image_metadata
-                if volume.bootable and volume.image_metadata:
-                    image_id = volume.image_metadata.get("image_id")
-                    image_name = volume.image_metadata.get("image_name")
+                # Check if volume is bootable and has image info
+                if volume.bootable:
+                    image_id = None
+                    image_name = None
+
+                    if volume.image_metadata:
+                        image_id = volume.image_metadata.get("image_id")
+                        image_name = volume.image_metadata.get("image_name")
+
+                    # Fall back to volume.image FK if image_metadata is empty
+                    if not image_id and volume.image_id:
+                        image_id = volume.image.backend_id
+                        image_name = volume.image.name
 
                     # Include volume if it has either image_id or image_name
                     if image_id or image_name:
@@ -4806,10 +4853,10 @@ class OpenStackBackend(ServiceBackend):
                         backend_image.name
                     )  # Ensure string conversion
                 else:
-                    # Don't clear image_name if image is not found in backend
-                    # This preserves the original image name that was set during creation
-                    # Only leave unchanged if we have no existing value
-                    pass  # Leave instance.image_name unchanged (will remain empty for new instances)
+                    # Image not found in backend — leave image_name empty on this
+                    # transient object. pull_instance() will skip overwriting
+                    # the DB instance's image_name if it already has a value.
+                    pass
         elif backend_image_name:
             # Use the provided image name directly (from volume metadata fallback)
             instance.image_name = str(backend_image_name)  # Ensure string conversion
@@ -5003,6 +5050,13 @@ class OpenStackBackend(ServiceBackend):
         if instance.modified < import_time:
             if update_fields is None:
                 update_fields = models.Instance.get_backend_fields()
+            # Don't overwrite image_name with empty value if instance already has one
+            if (
+                not imported_instance.image_name
+                and instance.image_name
+                and "image_name" in update_fields
+            ):
+                update_fields = tuple(f for f in update_fields if f != "image_name")
             update_pulled_fields(instance, imported_instance, update_fields)
 
     @log_backend_action()

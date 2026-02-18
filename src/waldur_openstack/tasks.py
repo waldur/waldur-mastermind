@@ -247,9 +247,9 @@ class ThrottleProvisionStateTask(
 class TenantResourcesPullTask(structure_tasks.BackgroundPullTask):
     def pull(self, tenant: models.Tenant):
         backend = OpenStackBackend(tenant.service_settings)
-        backend.pull_tenant_instances(tenant)
         backend.pull_tenant_volumes(tenant)
         backend.pull_tenant_snapshots(tenant)
+        backend.pull_tenant_instances(tenant)
 
 
 class TenantResourcesListPullTask(structure_tasks.BackgroundListPullTask):
