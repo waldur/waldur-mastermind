@@ -34,6 +34,7 @@
 
 - **Cloud Providers**: OpenStack, AWS, Azure, VMware, DigitalOcean
 - **Compute Platforms**: Rancher, SLURM, Kubernetes
+- **Identity Management**: Keycloak (generic offering-level integration)
 - **Authentication**: SAML2, Social/OAuth, Valimo
 
 ## URL Routing and API Structure
