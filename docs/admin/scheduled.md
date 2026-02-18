@@ -119,9 +119,9 @@ td:nth-child(4) {
 | `waldur-firecrest-pull-jobs` | `waldur_firecrest.pull_jobs` | 1 hour | Pull SLURM jobs from Firecrest API for all offering users with valid OAuth tokens. |
 | `waldur-freeipa-sync-groups` | `waldur_freeipa.sync_groups` | 10 minutes | This task is used by Celery beat in order to periodically<br> schedule FreeIPA group synchronization. |
 | `waldur-freeipa-sync-names` | `waldur_freeipa.sync_names` | 1 day | Synchronize user names between Waldur and FreeIPA backend. |
-| `waldur-keycloak-cleanup-orphaned-groups` | `waldur_keycloak.cleanup_orphaned_groups` | 1 hour | Verify Waldur-tracked Keycloak groups still exist remotely. Clears backend_id if the remote group was deleted externally. Does not delete remote groups. |
-| `waldur-keycloak-cleanup-orphaned-memberships` | `waldur_keycloak.cleanup_orphaned_memberships` | 1 hour | Verify active local memberships still exist in remote Keycloak groups. Flags memberships with an error if the user was removed from the remote group externally. Does not remove remote users. |
-| `waldur-keycloak-sync-pending-memberships` | `waldur_keycloak.sync_pending_memberships` | 15 minutes | Find PENDING Keycloak memberships, look up users in Keycloak, add to groups if found, and transition to ACTIVE state. |
+| `waldur-keycloak-cleanup-orphaned-groups` | `waldur_keycloak.cleanup_orphaned_groups` | 1 hour | Task not found in registry |
+| `waldur-keycloak-cleanup-orphaned-memberships` | `waldur_keycloak.cleanup_orphaned_memberships` | 1 hour | Task not found in registry |
+| `waldur-keycloak-sync-pending-memberships` | `waldur_keycloak.sync_pending_memberships` | 15 minutes | Task not found in registry |
 | `waldur-marketplace-calculate-usage` | `waldur_mastermind.marketplace.calculate_usage_for_current_month` | 1 hour | Calculate marketplace resource usage for the current month across all customers and projects. |
 | `waldur-marketplace-script-pull-resources` | `waldur_marketplace_script.pull_resources` | 1 hour | Pull resources from marketplace script offerings by executing configured pull scripts. |
 | `waldur-marketplace-script-remove-old-dry-runs` | `waldur_marketplace_script.remove_old_dry_runs` | 1 day | Remove old dry run records that are older than one day. |

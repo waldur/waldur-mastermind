@@ -420,15 +420,15 @@ td:nth-child(4) {
 
 | Handler Name | Signal Type | Sender | Description |
 |--------------|-------------|--------|-------------|
-| `mark_keycloak_group_deleting` | `Django Signal (pre_delete)` | `waldur_keycloak.OfferingKeycloakGroup` | Mark group PK in thread-local set to prevent cascade re-deletion. |
-| `delete_keycloak_group_from_backend` | `Django Signal (post_delete)` | `waldur_keycloak.OfferingKeycloakGroup` | Delete a Keycloak group from the backend and emit `keycloak_group_deleting` signal. |
-| `delete_keycloak_membership_from_backend` | `Django Signal (post_delete)` | `waldur_keycloak.OfferingKeycloakMembership` | Remove user from Keycloak group; delete group if it was the last membership. |
-| `sync_resource_user_to_keycloak_membership` | `Django Signal (post_save)` | `marketplace.ResourceUser` | Auto-create Keycloak membership when a ResourceUser is created for a keycloak-enabled offering. |
-| `delete_keycloak_membership_on_resource_user_delete` | `Django Signal (post_delete)` | `marketplace.ResourceUser` | Delete corresponding Keycloak membership when a ResourceUser is deleted. |
-| `cleanup_keycloak_groups_on_resource_delete` | `Django Signal (post_delete)` | `marketplace.Resource` | Delete all Keycloak groups for a deleted resource. |
-| `cleanup_keycloak_groups_on_offering_delete` | `Django Signal (post_delete)` | `marketplace.Offering` | Delete all Keycloak groups for a deleted offering. |
-| `cleanup_keycloak_on_user_deactivation` | `Django Signal (post_save)` | `core.User` | Schedule cleanup task when a user is deactivated (is_active set to False). |
-| `cleanup_keycloak_on_role_revoked` | `Django Signal (post_delete)` | `permissions.UserRole` | Schedule cleanup task when a project role is revoked. |
+| `cleanup_keycloak_groups_on_offering_delete` | `Django Signal (pre_delete)` | `marketplace.Offering` | When a marketplace Offering is deleted, delete all its Keycloak groups. |
+| `cleanup_keycloak_groups_on_resource_delete` | `Django Signal (pre_delete)` | `marketplace.Resource` | When a marketplace Resource is deleted, delete all its Keycloak groups. |
+| `cleanup_keycloak_on_role_revoked` | `Custom Signal (role_revoked)` | `permissions.UserRole` | When a project role is revoked, schedule cleanup of Keycloak memberships |
+| `cleanup_keycloak_on_user_deactivation` | `Django Signal (post_save)` | `core.User` | When a user is deactivated, schedule cleanup of all their Keycloak memberships. |
+| `delete_keycloak_group_from_backend` | `Django Signal (post_delete)` | `waldur_keycloak.OfferingKeycloakGroup` | Delete a Keycloak group from the backend when the local model is deleted. |
+| `delete_keycloak_membership_from_backend` | `Django Signal (post_delete)` | `waldur_keycloak.OfferingKeycloakMembership` | Remove a user from a Keycloak group when membership is deleted. |
+| `delete_keycloak_membership_on_resource_user_delete` | `Django Signal (post_delete)` | `marketplace.ResourceUser` | When a ResourceUser is deleted, delete corresponding Keycloak membership. |
+| `mark_keycloak_group_deleting` | `Django Signal (pre_delete)` | `waldur_keycloak.OfferingKeycloakGroup` | Mark a group as being deleted so cascade membership handlers skip re-deletion. |
+| `sync_resource_user_to_keycloak_membership` | `Django Signal (post_save)` | `marketplace.ResourceUser` | When a ResourceUser is created, auto-create a Keycloak membership |
 
 ## Application: `waldur_lexis`
 
@@ -811,12 +811,13 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 718
+Total unique handlers found: 727
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 365 handlers
 - **waldur_freeipa**: 12 handlers
+- **waldur_keycloak**: 9 handlers
 - **waldur_lexis**: 1 handlers
 - **waldur_mastermind**: 295 handlers
 - **waldur_openportal**: 10 handlers

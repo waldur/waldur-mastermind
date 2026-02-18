@@ -969,11 +969,6 @@ Please follow the link below to see {{ customer }}'s accounting information for 
     </style>
   </head>
   <body>
-      {% if deployment_logo %}
-      <div id="logo">
-        <img src="data:image/png;base64,{{ deployment_logo }}">
-      </div>
-      {% endif %}
       <h1>{% trans "Invoice No." %} {{ invoice.number|upper }}</h1>
       <br>
       <div class="text-right">
