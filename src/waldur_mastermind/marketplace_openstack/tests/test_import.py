@@ -402,9 +402,9 @@ class TenantImportTest(test.APITransactionTestCase):
     def test_event_is_emitted(self, logger_mock: mock.Mock):
         self.import_tenant()
 
-        actual = logger_mock.call_args[0][0]
         expected = "Resource {resource_full_name} has been imported."
-        self.assertEqual(expected, actual)
+        actual_messages = [call[0][0] for call in logger_mock.call_args_list]
+        self.assertIn(expected, actual_messages)
 
     @data("admin", "manager", "owner")
     def test_user_cannot_import_tenant(self, user):

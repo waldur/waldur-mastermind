@@ -981,9 +981,13 @@ class OpenStackServerGroupSerializer(
 
     @extend_schema_field(OpenStackNestedInstanceSerializer(many=True))
     def get_instances(self, server_group):
-        filtered_instances = models.Instance.objects.filter(
-            server_group__backend_id=server_group.backend_id
-        ).values("backend_id", "name", "uuid")
+        filtered_instances = (
+            models.Instance.objects.filter(
+                server_group__backend_id=server_group.backend_id
+            )
+            .values("backend_id", "name", "uuid")
+            .order_by("name")
+        )
         return filtered_instances
 
     def validate(self, attrs):
