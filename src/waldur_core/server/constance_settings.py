@@ -253,7 +253,6 @@ CONSTANCE_CONFIG = {
         "dark",
         "Style of sidebar. Possible values: dark, light, accent.",
     ),
-    "SITE_LOGO": ("", "The image used in marketplace order header.", "image_field"),
     "LOGIN_LOGO": ("", "A custom .png image file for login page", "image_field"),
     "LOGIN_LOGO_MULTILINGUAL": (
         {},
@@ -1085,7 +1084,6 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "LOGIN_PAGE_NEWS",
     ),
     "Images": (
-        "SITE_LOGO",
         "SIDEBAR_LOGO",
         "SIDEBAR_LOGO_MOBILE",
         "SIDEBAR_LOGO_DARK",
@@ -1328,7 +1326,6 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "HERO_LINK_LABEL",
     "HERO_LINK_URL",
     "SUPPORT_PORTAL_URL",
-    "SITE_LOGO",
     "SIDEBAR_LOGO",
     "SIDEBAR_LOGO_MOBILE",
     "SIDEBAR_LOGO_DARK",

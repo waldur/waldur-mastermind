@@ -1,4 +1,3 @@
-import base64
 import datetime
 import logging
 import re
@@ -158,18 +157,10 @@ def filter_invoice_items(
 
 def create_invoice_html(invoice):
     all_items = filter_invoice_items(invoice.items.all())
-    logo_path = config.SITE_LOGO
-    if logo_path:
-        with open(logo_path, "rb") as image_file:
-            deployment_logo = base64.b64encode(image_file.read()).decode("utf-8")
-    else:
-        deployment_logo = None
-
     context = dict(
         invoice=invoice,
         issuer_details=settings.WALDUR_INVOICES["ISSUER_DETAILS"],
         currency=config.CURRENCY_NAME,
-        deployment_logo=deployment_logo,
         items=all_items,
     )
     return render_to_string("invoices/invoice.html", context)

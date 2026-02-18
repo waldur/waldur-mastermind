@@ -85,7 +85,6 @@ END $$;
 
 
 ICONS = (
-    "SITE_LOGO",
     "SIDEBAR_LOGO",
     "SIDEBAR_LOGO_MOBILE",
     "SIDEBAR_LOGO_DARK",

@@ -1538,12 +1538,6 @@ News items displayed in the News login page layout. List of objects with 'date',
 
 ### Images
 
-#### SITE_LOGO
-
-**Type:** image_field
-
-The image used in marketplace order header.
-
 #### SIDEBAR_LOGO
 
 **Type:** image_field
