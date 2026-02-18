@@ -294,20 +294,17 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
         done = self.send_request(user)
 
         if done:
-            with transaction.atomic():
-                if self.order.resource.plan != self.order.plan:
-                    logger.info(
-                        f"Changing plan of a resource {self.order.resource.name} "
-                        f"from {self.order.resource.plan} to {self.order.plan}. "
-                        f"Order ID: {self.order.pk}"
-                    )
-                    self.order.resource.plan = self.order.plan
-                    self.order.resource.save(update_fields=["plan"])
-
-                self.order.complete()
-                self.order.save(update_fields=["state"])
-        else:
-            pass
+            try:
+                resource_update_succeeded(self.order.resource)
+            except Exception as e:
+                self.order.error_message = str(e)
+                self.order.save(update_fields=["error_message"])
+                resource_update_failed(self.order.resource)
+                logger.error(
+                    f"Error switching plan for resource {self.order.resource.name}. "
+                    f"Order ID: {self.order.pk}. "
+                    f"Exception: {e}."
+                )
 
     def _process_options_update(self, user):
         """

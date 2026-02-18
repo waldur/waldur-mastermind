@@ -5,7 +5,7 @@ from constance import config
 from constance.test.unittest import override_config
 from django.core import mail
 from django.template import Context, Template
-from django.test import TestCase, TransactionTestCase, override_settings
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
@@ -19,7 +19,7 @@ from waldur_mastermind.support.tests import factories
     WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE="basic",
 )
 @override_settings(task_always_eager=True)
-class IssueUpdatedHandlerTest(TransactionTestCase):
+class IssueUpdatedHandlerTest(TestCase):
     def setUp(self):
         self.notification1 = structure_factories.NotificationFactory(
             key="support.notification_comment_added", enabled=True
@@ -241,7 +241,7 @@ class IssueUpdatedHandlerTest(TransactionTestCase):
 
 @override_config(WALDUR_SUPPORT_ENABLED=True)
 @override_settings(task_always_eager=True)
-class CommentCreatedHandlerTest(TransactionTestCase):
+class CommentCreatedHandlerTest(TestCase):
     def setUp(self):
         self.notification1 = structure_factories.NotificationFactory(
             key="support.notification_comment_added", enabled=True
@@ -257,28 +257,35 @@ class CommentCreatedHandlerTest(TransactionTestCase):
         )
 
     def test_email_is_sent_when_public_comment_is_created(self):
-        factories.CommentFactory(is_public=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            factories.CommentFactory(is_public=True)
 
         self.assertEqual(len(mail.outbox), 1)
 
     def test_email_is_not_sent_for_private_comment(self):
-        factories.CommentFactory()
+        with self.captureOnCommitCallbacks(execute=True):
+            factories.CommentFactory()
 
         self.assertEqual(len(mail.outbox), 0)
 
     def test_email_is_not_sent_when_public_comment_is_updated(self):
-        comment = factories.CommentFactory(is_public=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            comment = factories.CommentFactory(is_public=True)
         self.assertEqual(len(mail.outbox), 1)
 
-        comment.description = "new_description"
-        comment.save()
+        with self.captureOnCommitCallbacks(execute=True):
+            comment.description = "new_description"
+            comment.save()
 
         # First mail is for creation, second mail is for update
         self.assertEqual(len(mail.outbox), 2)
 
     def test_email_is_not_sent_for_own_comments(self):
         issue = factories.IssueFactory()
-        factories.CommentFactory(issue=issue, is_public=True, author__user=issue.caller)
+        with self.captureOnCommitCallbacks(execute=True):
+            factories.CommentFactory(
+                issue=issue, is_public=True, author__user=issue.caller
+            )
         self.assertEqual(len(mail.outbox), 0)
 
     @unittest.skip
@@ -287,12 +294,13 @@ class CommentCreatedHandlerTest(TransactionTestCase):
         self.notification2.enabled = False
         self.notification3.enabled = False
         self.notification4.enabled = False
-        factories.CommentFactory(is_public=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            factories.CommentFactory(is_public=True)
 
         self.assertEqual(len(mail.outbox), 0)
 
 
-class CustomerDeletionHandlerTest(TransactionTestCase):
+class CustomerDeletionHandlerTest(TestCase):
     def test_customer_deletion_with_issue_attachments_does_not_fail(self):
         """Test that deleting a customer with related issues and attachments doesn't raise AttributeError."""
         # Create a customer with a project
