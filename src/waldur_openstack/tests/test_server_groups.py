@@ -32,6 +32,30 @@ class ServerGroupCreateTest(BaseServerGroupTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         self.assertEqual(models.ServerGroup.objects.count(), 1)
 
+    @data(
+        models.ServerGroup.AFFINITY,
+        models.ServerGroup.ANTI_AFFINITY,
+        models.ServerGroup.SOFT_AFFINITY,
+        models.ServerGroup.SOFT_ANTI_AFFINITY,
+    )
+    def test_server_group_can_be_created_with_any_valid_policy(self, policy):
+        self.client.force_authenticate(self.fixture.admin)
+        payload = {"name": f"sg-{policy}", "policy": policy}
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        server_group = models.ServerGroup.objects.get(name=payload["name"])
+        self.assertEqual(server_group.policy, policy)
+
+    def test_server_group_cannot_be_created_with_invalid_policy(self):
+        self.client.force_authenticate(self.fixture.admin)
+        payload = {"name": "invalid-policy-sg", "policy": "invalid-policy"}
+
+        response = self.client.post(self.url, data=payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_server_group_name_should_be_unique(self):
         self.client.force_authenticate(self.fixture.admin)
         payload = self.valid_data

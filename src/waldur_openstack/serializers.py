@@ -963,6 +963,14 @@ class OpenStackServerGroupSerializer(
                 "view_name": "openstack-tenant-detail",
                 "read_only": True,
             },
+            "policy": {
+                "help_text": _(
+                    "affinity — all instances are placed on the same hypervisor. "
+                    "anti-affinity — all instances are placed on different hypervisors. "
+                    "soft-affinity — instances are placed on the same hypervisor if possible, but not enforced. "
+                    "soft-anti-affinity — instances are placed on different hypervisors if possible, but not enforced."
+                ),
+            },
         }
 
     display_name = serializers.SerializerMethodField()
