@@ -2856,6 +2856,25 @@ class OfferingUserRole(core_models.UuidMixin, core_models.NameMixin):
     offering = models.ForeignKey(
         on_delete=models.CASCADE, to=Offering, related_name="roles"
     )
+    scope_type = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text=_(
+            "Level this role applies at, e.g. 'cluster', 'project'. "
+            "Empty means offering-wide."
+        ),
+    )
+    scope_type_label = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        help_text=_(
+            "Human-readable label for scope_type shown to end users, "
+            "e.g. 'Rancher Project', 'Cluster Namespace'. "
+            "Falls back to capitalized scope_type if empty."
+        ),
+    )
 
     class Meta:
         ordering = ["name"]

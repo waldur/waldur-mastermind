@@ -139,6 +139,7 @@ waldur_autoprovisioning = "waldur_autoprovisioning.extension:AutoprovisioningExt
 waldur_firecrest = "waldur_firecrest.extension:FirecrestExtension"
 waldur_lexis = "waldur_lexis.extension:LexisExtension"
 waldur_marketplace_reppu = "waldur_mastermind.marketplace_reppu.extension:MarketplaceReppuExtension"
+waldur_keycloak = "waldur_keycloak.extension:KeycloakExtension"
 waldur_kubernetes = "waldur_kubernetes.extension:KubernetesExtension"
 waldur_arrow = "waldur_mastermind.waldur_arrow.extension:ArrowExtension"
 
@@ -163,6 +164,7 @@ packages = [
   "src/waldur_firecrest",
   "src/waldur_freeipa",
   "src/waldur_hpc",
+  "src/waldur_keycloak",
   "src/waldur_kubernetes",
   "src/waldur_lexis",
   "src/waldur_mastermind",
