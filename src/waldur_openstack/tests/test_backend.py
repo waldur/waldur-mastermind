@@ -1415,6 +1415,38 @@ class EnhancedImageDetectionTest(BaseBackendTest):
         self.assertEqual(instance.backend_id, self.backend_id)
         self.assertEqual(instance.image_name, "")  # No image name available
 
+    def test_image_detection_falls_back_to_volume_image_fk(self):
+        """Test that image is detected from volume.image FK when image_metadata is empty"""
+        self.mocked_nova.servers.get.return_value = self.backend_instance_no_image
+        self.mocked_nova.volumes.get_server_volumes.return_value = [self.volume_ref]
+        self.mocked_cinder.volumes.get.return_value = self.bootable_volume
+
+        # Create Image in Waldur database
+        image = ImageFactory(
+            settings=self.openstack_settings,
+            backend_id=self.image_id_in_volume,
+            name=self.image_name_in_volume,
+        )
+
+        # Create Volume with empty image_metadata but with image FK set
+        factories.VolumeFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            backend_id=self.volume_backend_id,
+            bootable=True,
+            device="/dev/vda",
+            image_metadata="",
+            image=image,
+        )
+
+        # Act
+        instance = self.backend.import_instance(
+            self.tenant, self.backend_id, self.fixture.project
+        )
+
+        # Assert - should resolve image name via volume.image FK
+        self.assertEqual(instance.image_name, self.image_name_in_volume)
+
     def test_pull_tenant_instances_uses_enhanced_detection(self):
         """Test that pull_tenant_instances now uses enhanced image detection via pull_instance"""
         # Create instance in Waldur database
