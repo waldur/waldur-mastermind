@@ -994,6 +994,11 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         self.resource.save()
         self.resource.offering.type = "TEST_TYPE"
         self.resource.offering.save()
+        factories.OfferingComponentFactory(
+            offering=self.resource.offering,
+            type="vcpu",
+            billing_type=BillingTypes.LIMIT,
+        )
 
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_RESOURCE_LIMITS)
 
@@ -1112,6 +1117,28 @@ class ResourceUpdateLimitsTest(test.APITransactionTestCase):
         self.resource.offering.save()
         response = self.update_limits(self.fixture.owner, self.resource)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_update_limits_validates_max_value(self):
+        component = self.resource.offering.components.get(type="vcpu")
+        component.max_value = 10
+        component.save()
+        response = self.update_limits(self.fixture.owner, self.resource, {"vcpu": 15})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_update_limits_validates_min_value(self):
+        component = self.resource.offering.components.get(type="vcpu")
+        component.min_value = 2
+        component.save()
+        response = self.update_limits(self.fixture.owner, self.resource, {"vcpu": 0})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_update_limits_succeeds_within_bounds(self):
+        component = self.resource.offering.components.get(type="vcpu")
+        component.min_value = 1
+        component.max_value = 20
+        component.save()
+        response = self.update_limits(self.fixture.owner, self.resource, {"vcpu": 10})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
 class ResourceReallocateLimitsTest(test.APITestCase):
