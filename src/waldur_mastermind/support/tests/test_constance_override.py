@@ -101,13 +101,13 @@ class OverrideConstanceSettingsTest(TestCase):
         Test that the command returns an error when the logo file does not exist.
         """
         # Set invalid logo file
-        settings = {"SITE_LOGO": "/not/a/valid/path/to/logo.png"}
+        settings = {"SIDEBAR_LOGO": "/not/a/valid/path/to/logo.png"}
         settings_file = self.create_settings_file(settings)
 
         output = StringIO()
         call_command("override_constance_settings", settings_file, stdout=output)
 
-        self.assertIn("SITE_LOGO file does not exist", output.getvalue())
+        self.assertIn("SIDEBAR_LOGO file does not exist", output.getvalue())
 
     def test_dict_field_validation_success(self):
         """
