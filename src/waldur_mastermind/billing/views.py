@@ -1,7 +1,7 @@
 import uuid
 
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import OpenApiParameter, extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
 from rest_framework import exceptions, generics, response, status
 from rest_framework import filters as rf_filters
 
@@ -61,6 +61,19 @@ class TotalCustomerCostView(generics.GenericAPIView):
         )
 
 
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "customer_uuid",
+                uuid.UUID,
+                OpenApiParameter.QUERY,
+                description="Filter by customer UUID.",
+                extensions={"x-waldur-operation-id": "customers_list"},
+            ),
+        ]
+    )
+)
 class FinancialReportView(core_views.ReadOnlyActionsViewSet):
     queryset = structure_models.Customer.objects.all()
     serializer_class = serializers.FinancialReportSerializer
