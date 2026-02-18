@@ -895,6 +895,171 @@ class QuarterlyLimitChangeInNonQuarterlyMonthTest(test.APITestCase):
             )
 
 
+@freeze_time("2020-01-01")
+class QuarterlyLimitChangeQuantityProrationTest(test.APITestCase):
+    """Test that changing limits mid-quarter prorates the invoice item quantity
+    correctly instead of naively summing the old and new limit values.
+
+    Bug scenario: With PER_MONTH unit and quarterly limit period, when a limit
+    changes from 2 to 4 mid-quarter, the quantity should be prorated based on
+    the fraction of the quarter each limit was active. Instead, the code sums
+    the raw limits (2 + 4 = 6), effectively charging for both the old AND new
+    limits simultaneously.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+        self.quarterly_component = self.fixture.offering.components.first()
+        self.quarterly_component.billing_type = BillingTypes.LIMIT
+        self.quarterly_component.limit_period = LimitPeriods.QUARTERLY
+        self.quarterly_component.save()
+
+        self.plan_component = self.fixture.plan.components.first()
+        self.plan_component.component = self.quarterly_component
+        self.plan_component.price = 10
+        self.plan_component.save()
+
+        self.resource = self.fixture.resource
+        self.resource.limits = {"cpu": 10}
+        self.resource.save()
+        self.resource.set_state_ok()
+        self.resource.save()
+
+    def test_initial_quarterly_quantity_equals_limit(self):
+        """Before any changes, the invoice quantity should equal the limit value."""
+        invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2020, month=1
+        )
+        item = invoice.items.get(resource_id=self.resource.id)
+        self.assertEqual(item.quantity, 10)
+        # Total cost = 10 * 10 = 100
+        self.assertEqual(item.total, 100)
+
+    def test_limit_change_mid_quarter_should_not_sum_old_and_new_limits(self):
+        """When limit changes from 10 to 20 mid-quarter, the new quantity
+        should NOT be 10 + 20 = 30 (the naive sum). It should be prorated
+        so the total is between the old cost (10 * price) and new cost (20 * price).
+
+        With Q1 being Jan 1 - Mar 31 (91 days), and the change happening on Feb 15
+        (day 46 of the quarter):
+        - Old limit (10) applies for 45 days (Jan 1 - Feb 14)
+        - New limit (20) applies for 46 days (Feb 15 - Mar 31)
+        - Prorated quantity = 10 * (45/91) + 20 * (46/91) ≈ 4.95 + 10.11 ≈ 15.05
+        - The quantity must be less than 20 (the new full-quarter amount)
+        """
+        with freeze_time("2020-02-15"):
+            self.resource.limits = {"cpu": 20}
+            self.resource.save()
+
+        invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2020, month=1
+        )
+        item = invoice.items.get(resource_id=self.resource.id)
+
+        # BUG: The current implementation gives quantity = 10 + 20 = 30
+        # which means the customer pays 30 * 10 = 300 instead of ~150
+        # The quantity should be at most 20 (the new limit for the full quarter)
+        self.assertLessEqual(
+            item.quantity,
+            20,
+            f"Quantity {item.quantity} exceeds the new limit of 20. "
+            "The old and new limits are being summed instead of prorated. "
+            f"Expected a value between 10 and 20, got {item.quantity}.",
+        )
+
+    def test_limit_increase_total_cost_is_between_old_and_new_full_quarter_costs(self):
+        """When increasing the limit mid-quarter, the total cost should be
+        between the cost of the old limit for a full quarter and the cost
+        of the new limit for a full quarter."""
+        old_limit = 10
+        new_limit = 20
+        unit_price = self.plan_component.price  # 10
+
+        with freeze_time("2020-02-15"):
+            self.resource.limits = {"cpu": new_limit}
+            self.resource.save()
+
+        invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2020, month=1
+        )
+        item = invoice.items.get(resource_id=self.resource.id)
+
+        old_full_quarter_cost = old_limit * unit_price  # 100
+        new_full_quarter_cost = new_limit * unit_price  # 200
+
+        self.assertGreaterEqual(
+            item.total,
+            old_full_quarter_cost,
+            f"Total {item.total} is less than old full-quarter cost {old_full_quarter_cost}",
+        )
+        self.assertLessEqual(
+            item.total,
+            new_full_quarter_cost,
+            f"Total {item.total} exceeds new full-quarter cost {new_full_quarter_cost}. "
+            f"Bug: old + new limits are summed, not prorated.",
+        )
+
+    def test_limit_decrease_mid_quarter_should_not_sum_limits(self):
+        """When limit DECREASES from 20 to 5 mid-quarter, the quantity should
+        be prorated, not summed to 25."""
+        # Start with limit 20
+        self.resource.limits = {"cpu": 20}
+        self.resource.save()
+
+        invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2020, month=1
+        )
+        item = invoice.items.get(resource_id=self.resource.id)
+        self.assertEqual(item.quantity, 20)
+
+        with freeze_time("2020-02-15"):
+            self.resource.limits = {"cpu": 5}
+            self.resource.save()
+
+        item.refresh_from_db()
+
+        # BUG: Current implementation gives 20 + 5 = 25
+        # Expected: prorated value between 5 and 20
+        self.assertLessEqual(
+            item.quantity,
+            20,
+            f"Quantity {item.quantity} exceeds the original limit of 20. "
+            "Limits are being summed instead of prorated.",
+        )
+        self.assertGreaterEqual(
+            item.quantity,
+            5,
+            f"Quantity {item.quantity} is less than the new limit of 5.",
+        )
+
+    def test_multiple_limit_changes_should_prorate_all_periods(self):
+        """Multiple limit changes within the same quarter should each be
+        prorated based on their active duration, not summed."""
+        with freeze_time("2020-02-01"):
+            self.resource.limits = {"cpu": 20}
+            self.resource.save()
+
+        with freeze_time("2020-03-01"):
+            self.resource.limits = {"cpu": 30}
+            self.resource.save()
+
+        invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer, year=2020, month=1
+        )
+        item = invoice.items.get(resource_id=self.resource.id)
+
+        # BUG: Current implementation gives 10 + 20 + 30 = 60
+        # Expected: prorated value ≤ 30 (the maximum limit)
+        self.assertLessEqual(
+            item.quantity,
+            30,
+            f"Quantity {item.quantity} exceeds the maximum limit of 30. "
+            "Multiple limit values are being summed instead of prorated. "
+            f"With 3 period changes, the naive sum would be 10+20+30=60.",
+        )
+
+
 @ddt
 class AnnualBillingMonthDetectionTest(test.APITestCase):
     """Test anniversary-based annual billing month detection logic."""
@@ -1551,21 +1716,28 @@ class LimitBillingDuplicateInvoiceTest(test.APITestCase):
             price=2.0,
         )
 
+        # Create resource in CREATING state to avoid auto-billing,
+        # then switch to OK so _update_invoice_item can work.
         test_resource = marketplace_factories.ResourceFactory(
             project=self.fixture.project,
             offering=self.fixture.offering,
             plan=old_plan,
             limits={offering_component.type: 100},
+            state=marketplace_models.ResourceStates.CREATING,
+        )
+        marketplace_models.Resource.objects.filter(pk=test_resource.pk).update(
             state=marketplace_models.ResourceStates.OK,
         )
+        test_resource.refresh_from_db()
 
-        october_invoice = invoices_models.Invoice.objects.create(
-            customer=test_resource.project.customer, year=2025, month=10
+        # Use dates consistent with the frozen time (2024-10-03)
+        october_invoice, _ = invoices_models.Invoice.objects.get_or_create(
+            customer=test_resource.project.customer, year=2024, month=10
         )
 
-        october_1st = timezone.datetime(2025, 10, 1, tzinfo=UTC)
-        october_15th = timezone.datetime(2025, 10, 15, tzinfo=UTC)
-        october_31st = timezone.datetime(2025, 10, 31, tzinfo=UTC)
+        october_1st = timezone.datetime(2024, 10, 1, tzinfo=UTC)
+        october_15th = timezone.datetime(2024, 10, 15, tzinfo=UTC)
+        october_31st = timezone.datetime(2024, 10, 31, tzinfo=UTC)
 
         LimitPeriodProcessor._create_invoice_item(
             source=test_resource,
@@ -1575,8 +1747,11 @@ class LimitBillingDuplicateInvoiceTest(test.APITestCase):
             end=october_15th,
         )
 
-        test_resource.plan = new_plan
-        test_resource.save()
+        # Use raw update to avoid triggering plan change billing handlers
+        marketplace_models.Resource.objects.filter(pk=test_resource.pk).update(
+            plan=new_plan,
+        )
+        test_resource.refresh_from_db()
 
         LimitPeriodProcessor._create_invoice_item(
             source=test_resource,

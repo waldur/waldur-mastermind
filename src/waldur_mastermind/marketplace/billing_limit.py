@@ -391,15 +391,40 @@ class LimitPeriodProcessor:
         )
         resource_limit_periods.extend([old_period, new_period])
         plan_component = resource.plan.components.get(component__type=component_type)
-        invoice_item.quantity = sum(
-            cls._get_total_quantity(
-                plan_component.plan.unit,
-                period["quantity"],
-                parse_datetime(period["start"]),
-                parse_datetime(period["end"]),
+
+        unit = plan_component.plan.unit
+        if unit == invoice_models.InvoiceItem.Units.PER_DAY:
+            # For PER_DAY, _get_total_quantity correctly returns value * days,
+            # so summing sub-periods naturally preserves proration.
+            invoice_item.quantity = sum(
+                cls._get_total_quantity(
+                    unit,
+                    period["quantity"],
+                    parse_datetime(period["start"]),
+                    parse_datetime(period["end"]),
+                )
+                for period in resource_limit_periods
             )
-            for period in resource_limit_periods
-        )
+        else:
+            # For non-day units (PER_MONTH, PER_QUARTER, etc.),
+            # _get_total_quantity returns the raw value regardless of period
+            # length. Summing raw values across sub-periods would add old + new
+            # limits together instead of prorating. We must weight each
+            # sub-period's quantity by its fraction of the total billing period.
+            total_days = get_full_days(invoice_item.start, invoice_item.end)
+            if total_days > 0:
+                invoice_item.quantity = sum(
+                    period["quantity"]
+                    * get_full_days(
+                        parse_datetime(period["start"]),
+                        parse_datetime(period["end"]),
+                    )
+                    / total_days
+                    for period in resource_limit_periods
+                )
+            else:
+                invoice_item.quantity = 0
+
         invoice_item.save(update_fields=["details", "quantity"])
 
     @classmethod
