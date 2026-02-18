@@ -3,7 +3,12 @@ from rest_framework import serializers
 
 from waldur_core.logging import enums as logging_enums
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
+from waldur_mastermind.marketplace.enums import (
+    BASIC_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
+    SCRIPT_OFFERING,
+    SITE_AGENT_OFFERING,
+)
 from waldur_mastermind.marketplace_site_agent import enums, models
 
 
@@ -139,9 +144,15 @@ class AgentServiceStatisticsSerializer(serializers.Serializer):
 class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
     offering = serializers.SlugRelatedField(
         slug_field="uuid",
-        queryset=marketplace_models.Offering.objects.filter(type=SITE_AGENT_OFFERING),
-        help_text="UUID of an offering with type 'Marketplace.Slurm'. "
-        "Only site-agent offerings are accepted.",
+        queryset=marketplace_models.Offering.objects.filter(
+            type__in=[
+                SITE_AGENT_OFFERING,
+                SCRIPT_OFFERING,
+                OPENSTACK_TENANT_OFFERING,
+                BASIC_OFFERING,
+            ]
+        ),
+        help_text="UUID of an offering with a site-agent compatible type.",
     )
     services = NestedAgentServiceSerializer(
         many=True, read_only=True, source="agentservice_set"
