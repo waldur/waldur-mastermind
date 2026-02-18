@@ -7161,6 +7161,8 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
                 "Impossible to create update orders with limits set to exactly the same."
             )
 
+        utils.validate_limits(limits, resource.offering, resource)
+
         return self.create_resource_order(
             request=request,
             resource=resource,
