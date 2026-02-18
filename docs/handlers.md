@@ -416,6 +416,20 @@ td:nth-child(4) {
 | `schedule_sync_on_quota_change` | `Django Signal (post_save)` | `quotas.QuotaLimit` | Schedule a synchronization task when a quota is changed. |
 | `update_user` | `Django Signal (post_save)` | `core.User` | Update a user's FreeIPA profile when their user account is updated. |
 
+## Application: `waldur_keycloak`
+
+| Handler Name | Signal Type | Sender | Description |
+|--------------|-------------|--------|-------------|
+| `mark_keycloak_group_deleting` | `Django Signal (pre_delete)` | `waldur_keycloak.OfferingKeycloakGroup` | Mark group PK in thread-local set to prevent cascade re-deletion. |
+| `delete_keycloak_group_from_backend` | `Django Signal (post_delete)` | `waldur_keycloak.OfferingKeycloakGroup` | Delete a Keycloak group from the backend and emit `keycloak_group_deleting` signal. |
+| `delete_keycloak_membership_from_backend` | `Django Signal (post_delete)` | `waldur_keycloak.OfferingKeycloakMembership` | Remove user from Keycloak group; delete group if it was the last membership. |
+| `sync_resource_user_to_keycloak_membership` | `Django Signal (post_save)` | `marketplace.ResourceUser` | Auto-create Keycloak membership when a ResourceUser is created for a keycloak-enabled offering. |
+| `delete_keycloak_membership_on_resource_user_delete` | `Django Signal (post_delete)` | `marketplace.ResourceUser` | Delete corresponding Keycloak membership when a ResourceUser is deleted. |
+| `cleanup_keycloak_groups_on_resource_delete` | `Django Signal (post_delete)` | `marketplace.Resource` | Delete all Keycloak groups for a deleted resource. |
+| `cleanup_keycloak_groups_on_offering_delete` | `Django Signal (post_delete)` | `marketplace.Offering` | Delete all Keycloak groups for a deleted offering. |
+| `cleanup_keycloak_on_user_deactivation` | `Django Signal (post_save)` | `core.User` | Schedule cleanup task when a user is deactivated (is_active set to False). |
+| `cleanup_keycloak_on_role_revoked` | `Django Signal (post_delete)` | `permissions.UserRole` | Schedule cleanup task when a project role is revoked. |
+
 ## Application: `waldur_lexis`
 
 | Handler Name | Signal Type | Sender | Description |
