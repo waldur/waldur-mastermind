@@ -365,8 +365,16 @@ class ExternalSubnet(
 
 class ServerGroup(structure_models.BaseResource):
     AFFINITY = "affinity"
+    ANTI_AFFINITY = "anti-affinity"
+    SOFT_AFFINITY = "soft-affinity"
+    SOFT_ANTI_AFFINITY = "soft-anti-affinity"
 
-    POLICIES = ((AFFINITY, "Affinity"),)
+    POLICIES = (
+        (AFFINITY, "Affinity"),
+        (ANTI_AFFINITY, "Anti-affinity"),
+        (SOFT_AFFINITY, "Soft affinity"),
+        (SOFT_ANTI_AFFINITY, "Soft anti-affinity"),
+    )
 
     policy = models.CharField(
         max_length=40,

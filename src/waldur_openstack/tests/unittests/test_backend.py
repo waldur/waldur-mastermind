@@ -2,7 +2,7 @@ import pickle  # noqa: S403
 from unittest import TestCase, mock
 
 from cinderclient import exceptions as cinder_exceptions
-from ddt import ddt
+from ddt import data, ddt
 from django.urls import reverse
 from glanceclient import exc as glance_exceptions
 from keystoneclient import exceptions as keystone_exceptions
@@ -852,6 +852,26 @@ class PullServerGroupsTest(BaseBackendTestCase):
                 name=mock_server_group.name,
             ).exists()
         )
+
+    @data(
+        models.ServerGroup.AFFINITY,
+        models.ServerGroup.ANTI_AFFINITY,
+        models.ServerGroup.SOFT_AFFINITY,
+        models.ServerGroup.SOFT_ANTI_AFFINITY,
+    )
+    def test_server_group_policy_is_imported_correctly(self, policy):
+        mock_server_group = mock.Mock()
+        mock_server_group.name = f"sg-{policy}"
+        mock_server_group.policies = [policy]
+        mock_server_group.id = "backend-sg-id"
+        mock_server_group.project_id = self.tenant.backend_id
+
+        self.mocked_nova.server_groups.list.return_value = [mock_server_group]
+
+        self.call_backend()
+
+        server_group = models.ServerGroup.objects.get(backend_id="backend-sg-id")
+        self.assertEqual(server_group.policy, policy)
 
     def test_stale_server_groups_are_deleted(self):
         server_group = self.fixture.server_group
