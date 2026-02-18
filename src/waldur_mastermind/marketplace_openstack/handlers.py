@@ -472,16 +472,9 @@ def import_instances_and_volumes_if_tenant_has_been_imported(
 ):
     tenant = instance
 
-    if not (
-        marketplace_models.Category.objects.filter(default_vm_category=True).exists()
-        and marketplace_models.Category.objects.filter(
-            default_volume_category=True
-        ).exists()
-    ):
-        logger.info(
-            "An import of instances and volumes is impossible because categories for them are not setted."
-        )
-        return
+    # Ensure default categories exist before importing
+    utils.get_offering_category_for_instance()
+    utils.get_offering_category_for_volume()
 
     serialized_resource = core_utils.serialize_instance(tenant)
     transaction.on_commit(

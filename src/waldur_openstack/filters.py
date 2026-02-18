@@ -55,7 +55,10 @@ class SharedTenantFilterSet(django_filters.FilterSet):
             return queryset.none()
 
         tenants = models.Tenant.objects.filter(service_settings=offering.scope)
-        return queryset.filter(tenants__in=tenants).distinct()
+        if tenants.exists():
+            return queryset.filter(tenants__in=tenants).distinct()
+        # Fall back to service settings level when no tenants exist yet
+        return queryset.filter(settings=offering.scope)
 
 
 class SecurityGroupFilter(TenantFilterSet, structure_filters.BaseResourceFilter):

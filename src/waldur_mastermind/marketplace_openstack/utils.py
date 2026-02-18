@@ -54,7 +54,13 @@ def get_offering_name_for_instance(tenant):
 
 
 def get_offering_category_for_instance():
-    return marketplace_models.Category.objects.get(default_vm_category=True)
+    category, created = marketplace_models.Category.objects.get_or_create(
+        default_vm_category=True,
+        defaults={"title": "Virtual machines"},
+    )
+    if created:
+        logger.info("Created default VM category: %s", category)
+    return category
 
 
 def get_offering_name_for_volume(tenant):
@@ -62,7 +68,13 @@ def get_offering_name_for_volume(tenant):
 
 
 def get_offering_category_for_volume():
-    return marketplace_models.Category.objects.get(default_volume_category=True)
+    category, created = marketplace_models.Category.objects.get_or_create(
+        default_volume_category=True,
+        defaults={"title": "Volumes"},
+    )
+    if created:
+        logger.info("Created default Volume category: %s", category)
+    return category
 
 
 def get_category_and_name_for_offering_type(offering_type, tenant):
@@ -378,16 +390,9 @@ def create_offerings_for_volume_and_instance(tenant: openstack_models.Tenant):
 
     parent_offering = resource.offering
     for offering_type in (OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING):
-        try:
-            category, offering_name = get_category_and_name_for_offering_type(
-                offering_type, tenant
-            )
-        except ObjectDoesNotExist:
-            logger.warning(
-                "Skipping offering creation for tenant because category "
-                "for instances and volumes is not yet defined."
-            )
-            continue
+        category, offering_name = get_category_and_name_for_offering_type(
+            offering_type, tenant
+        )
         actual_customer = tenant.project.customer
         payload = dict(
             type=offering_type,
