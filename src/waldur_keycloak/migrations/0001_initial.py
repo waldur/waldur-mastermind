@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("marketplace", "0209_offeringuserrole_scope_type"),
+        ("marketplace", "0208_order_rejection_comments"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
