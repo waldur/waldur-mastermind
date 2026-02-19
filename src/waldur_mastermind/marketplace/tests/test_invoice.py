@@ -1,4 +1,5 @@
 from datetime import UTC, timedelta
+from decimal import Decimal
 
 from ddt import data, ddt
 from django.utils import timezone
@@ -970,14 +971,16 @@ class QuarterlyLimitChangeQuantityProrationTest(test.APITestCase):
 
     def test_limit_increase_total_cost_is_between_old_and_new_full_quarter_costs(self):
         """When increasing the limit mid-quarter, the total cost should be
-        between the cost of the old limit for a full quarter and the cost
-        of the new limit for a full quarter."""
-        old_limit = 10
-        new_limit = 20
-        unit_price = self.plan_component.price  # 10
+        prorated based on how long each limit was active.
 
+        Q1 2020 = 91 days (Jan 31 + Feb 29 [leap year] + Mar 31).
+        Old limit (10) active for 45 days (Jan 1 – Feb 14).
+        New limit (20) active for 46 days (Feb 15 – Mar 31).
+        Prorated quantity = 10*45/91 + 20*46/91 = 1370/91 ≈ 15.055.
+        Total = quantize_price(15.055 * 10) = 150.55.
+        """
         with freeze_time("2020-02-15"):
-            self.resource.limits = {"cpu": new_limit}
+            self.resource.limits = {"cpu": 20}
             self.resource.save()
 
         invoice = invoices_models.Invoice.objects.get(
@@ -985,20 +988,7 @@ class QuarterlyLimitChangeQuantityProrationTest(test.APITestCase):
         )
         item = invoice.items.get(resource_id=self.resource.id)
 
-        old_full_quarter_cost = old_limit * unit_price  # 100
-        new_full_quarter_cost = new_limit * unit_price  # 200
-
-        self.assertGreaterEqual(
-            item.total,
-            old_full_quarter_cost,
-            f"Total {item.total} is less than old full-quarter cost {old_full_quarter_cost}",
-        )
-        self.assertLessEqual(
-            item.total,
-            new_full_quarter_cost,
-            f"Total {item.total} exceeds new full-quarter cost {new_full_quarter_cost}. "
-            f"Bug: old + new limits are summed, not prorated.",
-        )
+        self.assertEqual(item.total, Decimal("150.55"))
 
     def test_limit_decrease_mid_quarter_should_not_sum_limits(self):
         """When limit DECREASES from 20 to 5 mid-quarter, the quantity should
