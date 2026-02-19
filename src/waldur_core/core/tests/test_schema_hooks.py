@@ -1,11 +1,13 @@
 import unittest
 
 from waldur_core.core.schema_hooks import (
+    _to_pascal_case,
     add_result_count_header,
     inject_waldur_operation_ids,
     make_fields_optional,
     remove_waldur_cookie_auth,
     transform_paginated_arrays,
+    validate_go_sdk_naming_collisions,
     validate_waldur_operation_ids,
 )
 
@@ -389,3 +391,91 @@ def test_inject_waldur_operation_ids():
 
     param = result["paths"]["/api/test/"]["get"]["parameters"][0]
     assert param["x-waldur-operation-id"] == "customers_list"
+
+
+def test_to_pascal_case():
+    assert _to_pascal_case("identity_bridge") == "IdentityBridge"
+    assert _to_pascal_case("identity_bridge_create") == "IdentityBridgeCreate"
+    assert _to_pascal_case("customers_list") == "CustomersList"
+    assert _to_pascal_case("simple") == "Simple"
+
+
+def test_validate_go_sdk_naming_collisions_detects_collision():
+    """Schema component 'IdentityBridgeResponse' collides with wrapper for operation 'identity_bridge'."""
+    import pytest
+
+    schema = {
+        "paths": {
+            "/api/identity-bridge/": {
+                "post": {
+                    "operationId": "identity_bridge",
+                }
+            }
+        },
+        "components": {
+            "schemas": {
+                "IdentityBridgeResponse": {
+                    "type": "object",
+                    "properties": {"uuid": {"type": "string"}},
+                }
+            }
+        },
+    }
+    with pytest.raises(ValueError, match="Go SDK naming collision"):
+        validate_go_sdk_naming_collisions(schema, None)
+
+
+def test_validate_go_sdk_naming_collisions_passes_for_safe_names():
+    """Schema component 'IdentityBridgeResult' does NOT collide with wrapper for 'identity_bridge'."""
+    schema = {
+        "paths": {
+            "/api/identity-bridge/": {
+                "post": {
+                    "operationId": "identity_bridge",
+                }
+            }
+        },
+        "components": {
+            "schemas": {
+                "IdentityBridgeResult": {
+                    "type": "object",
+                    "properties": {"uuid": {"type": "string"}},
+                }
+            }
+        },
+    }
+    # Should not raise
+    result = validate_go_sdk_naming_collisions(schema, None)
+    assert result is schema
+
+
+def test_validate_go_sdk_naming_collisions_empty_schema():
+    """Empty schemas and paths should pass without error."""
+    schema = {"paths": {}, "components": {"schemas": {}}}
+    result = validate_go_sdk_naming_collisions(schema, None)
+    assert result is schema
+
+
+def test_validate_go_sdk_naming_collisions_multiple_collisions():
+    """Multiple collisions should all be reported in a single error."""
+    import pytest
+
+    schema = {
+        "paths": {
+            "/api/identity-bridge/": {"post": {"operationId": "identity_bridge"}},
+            "/api/identity-bridge/remove/": {
+                "post": {"operationId": "identity_bridge_remove"}
+            },
+        },
+        "components": {
+            "schemas": {
+                "IdentityBridgeResponse": {"type": "object"},
+                "IdentityBridgeRemoveResponse": {"type": "object"},
+            }
+        },
+    }
+    with pytest.raises(ValueError, match="IdentityBridgeResponse") as exc_info:
+        validate_go_sdk_naming_collisions(schema, None)
+
+    # Both collisions should be in the error message
+    assert "IdentityBridgeRemoveResponse" in str(exc_info.value)

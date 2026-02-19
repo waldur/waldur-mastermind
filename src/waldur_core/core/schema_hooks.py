@@ -745,3 +745,57 @@ def validate_waldur_operation_ids(result, generator, **kwargs):
         raise ValueError("\n" + "\n".join(errors))
 
     return result
+
+
+def _to_pascal_case(operation_id: str) -> str:
+    """Convert an operation_id like 'identity_bridge_create' to 'IdentityBridgeCreate'."""
+    return "".join(word.capitalize() for word in operation_id.split("_"))
+
+
+def validate_go_sdk_naming_collisions(result, generator, **kwargs):
+    """
+    Detects naming collisions between OpenAPI schema component names and
+    oapi-codegen's auto-generated response wrapper types.
+
+    oapi-codegen generates a response wrapper struct for each operation named
+    ``PascalCase(operationId) + "Response"``. If a schema component has the
+    same name, the generated Go code will fail to compile due to duplicate
+    type declarations.
+
+    Example collision:
+      - Schema component: ``IdentityBridgeResponse`` (from IdentityBridgeResponseSerializer)
+      - Operation wrapper: ``IdentityBridgeResponse`` (from operationId ``identity_bridge``)
+
+    Fix: rename the serializer so its schema name doesn't end with ``Response``,
+    e.g. ``IdentityBridgeResultSerializer`` → ``IdentityBridgeResult``.
+    """
+    errors = []
+
+    component_names = set(result.get("components", {}).get("schemas", {}).keys())
+    if not component_names:
+        return result
+
+    for path_obj in result.get("paths", {}).values():
+        for operation in path_obj.values():
+            if not isinstance(operation, dict):
+                continue
+
+            operation_id = operation.get("operationId")
+            if not operation_id:
+                continue
+
+            # oapi-codegen wrapper name: PascalCase(operationId) + "Response"
+            wrapper_name = _to_pascal_case(operation_id) + "Response"
+
+            if wrapper_name in component_names:
+                errors.append(
+                    f"Go SDK naming collision: schema component '{wrapper_name}' "
+                    f"collides with oapi-codegen response wrapper for operation "
+                    f"'{operation_id}'. Rename the serializer to avoid the "
+                    f"'*Response' suffix (e.g. use '*Result' instead)."
+                )
+
+    if errors:
+        raise ValueError("\n" + "\n".join(errors))
+
+    return result
