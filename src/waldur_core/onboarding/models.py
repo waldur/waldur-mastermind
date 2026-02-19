@@ -450,9 +450,12 @@ class OnboardingVerification(
                 or self.legal_name  # Third priority: stored legal_name
                 or f"Company {self.legal_person_identifier}"  # Fallback: generated name
             ),
-            "country": self.country or extracted["customer_data"].get("country"),
             "registration_code": self.legal_person_identifier,
         }
+
+        country = self.country or extracted["customer_data"].get("country")
+        if country:
+            customer_data["country"] = country
 
         # Add address and postal from API if available
         if address_from_api:
