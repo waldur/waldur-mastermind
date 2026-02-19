@@ -8140,20 +8140,28 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
             date_to_use = validated_data["date"]
             local_date = timezone.localtime(date_to_use)
             billing_period = core_utils.month_start(local_date)
+            resource = component_usage.resource
+            component = component_usage.component
 
-            # Find or create ComponentUsage for the specified date
-            component_usage, created = models.ComponentUsage.objects.get_or_create(
-                resource=component_usage.resource,
-                component=component_usage.component,
+            # Find existing ComponentUsage for the billing period, or create one.
+            # Use filter().first() because multiple records may exist when
+            # set_usage was called with different plan_periods.
+            component_usage = models.ComponentUsage.objects.filter(
+                resource=resource,
+                component=component,
                 billing_period=billing_period,
-                defaults={
-                    "usage": 0,
-                    "date": date_to_use,
-                    "description": "Created for user usage backfill",
-                    "recurring": False,
-                    "modified_by": request.user,
-                },
-            )
+            ).first()
+            if component_usage is None:
+                component_usage = models.ComponentUsage.objects.create(
+                    resource=resource,
+                    component=component,
+                    billing_period=billing_period,
+                    usage=0,
+                    date=date_to_use,
+                    description="Created for user usage backfill",
+                    recurring=False,
+                    modified_by=request.user,
+                )
 
         existing_user_usage = models.ComponentUserUsage.objects.filter(
             component_usage=component_usage, username=validated_data["username"]

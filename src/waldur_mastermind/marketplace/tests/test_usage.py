@@ -855,6 +855,95 @@ class UsageDateBackfillTest(test.APITestCase):
         )
 
 
+class SetUserUsageDuplicateComponentTest(test.APITestCase):
+    """Test that set_user_usage handles duplicate ComponentUsage records.
+
+    When set_usage is called with different plan_periods for the same
+    (resource, component, billing_period), multiple ComponentUsage records
+    are created. set_user_usage must not crash with MultipleObjectsReturned.
+    """
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.plan = factories.PlanFactory(offering=self.offering)
+        self.offering_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.USAGE,
+            type="cpu",
+        )
+        factories.PlanComponentFactory(
+            plan=self.plan, component=self.offering_component
+        )
+        self.resource = models.Resource.objects.create(
+            offering=self.offering,
+            plan=self.plan,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+        self.plan_period = models.ResourcePlanPeriod.objects.create(
+            resource=self.resource, plan=self.plan
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_USAGE)
+
+    def test_set_user_usage_with_duplicate_component_usages(self):
+        """set_user_usage should succeed even when multiple ComponentUsage
+        records exist for the same resource+component+billing_period."""
+        self.client.force_authenticate(self.fixture.staff)
+
+        billing_period = datetime.date(2023, 12, 1)
+        backfill_date = datetime.datetime(2023, 12, 15, 10, 0, 0, tzinfo=datetime.UTC)
+
+        # Create two ComponentUsage records with the same resource, component,
+        # and billing_period but different plan_periods (simulates what happens
+        # when set_usage is called with different plan_periods).
+        component_usage_1 = models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.offering_component,
+            usage=100,
+            date=backfill_date,
+            billing_period=billing_period,
+        )
+        plan_period_2 = models.ResourcePlanPeriod.objects.create(
+            resource=self.resource, plan=self.plan
+        )
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=plan_period_2,
+            component=self.offering_component,
+            usage=50,
+            date=backfill_date,
+            billing_period=billing_period,
+        )
+
+        # Verify there are indeed 2 records
+        self.assertEqual(
+            models.ComponentUsage.objects.filter(
+                resource=self.resource,
+                component=self.offering_component,
+                billing_period=billing_period,
+            ).count(),
+            2,
+        )
+
+        payload = {
+            "username": "user123",
+            "usage": 25,
+            "date": backfill_date.isoformat(),
+        }
+
+        response = self.client.post(
+            f"/api/marketplace-component-usages/{component_usage_1.uuid.hex}/set_user_usage/",
+            payload,
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify the user usage was created
+        user_usage = models.ComponentUserUsage.objects.get(username="user123")
+        self.assertEqual(user_usage.usage, 25)
+
+
 @freeze_time("2024-02-15")  # Current time: February 2024
 class UsageBackfillInvoiceTest(test.APITestCase):
     def setUp(self):
