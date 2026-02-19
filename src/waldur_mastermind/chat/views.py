@@ -27,11 +27,11 @@ from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure import permissions
 from waldur_mastermind.chat import models, serializers
+from waldur_mastermind.chat.context_assembler import build_context
 from waldur_mastermind.chat.models import TokenQuota
 from waldur_mastermind.chat.parsers import StreamParser, parse_tool_call
-from waldur_mastermind.chat.prompts import SYSTEM_PROMPT
 from waldur_mastermind.chat.tool_executor import ToolExecutor
-from waldur_mastermind.chat.tools import TOOL_REGISTRY, get_tools_prompt
+from waldur_mastermind.chat.tools import TOOL_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,10 @@ class LLMStreamer:
         original_input="",
         update_thread_name=None,
         mode=None,
+        user_msg=None,
     ):
+        self.url = url
+        self.payload = {"input": input_text}
         self.headers = {
             "Content-Type": "application/json",
             "Authorization": f"Token {token}",
@@ -117,26 +120,9 @@ class LLMStreamer:
         self.original_input = original_input
         self.update_thread_name = update_thread_name
         self.mode = mode
+        self.user_msg = user_msg
         self._persisted_message_meta = None
         self._messages_persisted = False
-        self.url = url
-        # Inject tool definitions and UI capabilities into the system prompt (system prompt is currently in external service, will be migrated fully to Waldur, once ready).
-        system_prompt = SYSTEM_PROMPT.format(tools=get_tools_prompt())
-
-        system_marker = "This is the system prompt:"
-
-        if system_marker in input_text:
-            # Inject immediately after the system prompt marker to make it part of the system instructions
-            full_input = input_text.replace(
-                system_marker,
-                f"{system_marker}\n{system_prompt}\n",
-                1,  # Replace only the first occurrence
-            )
-        else:
-            # Fallback: Prepend to the very beginning if no system prompt marker found
-            full_input = f"{system_prompt}\n\n{input_text}"
-
-        self.payload = {"input": full_input}
 
     def _format_ndjson(self, data: dict) -> str:
         """
@@ -146,7 +132,10 @@ class LLMStreamer:
 
     def __iter__(self):
         if self.storage_enabled and self.thread:
-            yield self._format_ndjson({"m": {"thread_uuid": str(self.thread.uuid)}})
+            meta = {"thread_uuid": str(self.thread.uuid)}
+            if self.user_msg:
+                meta["user_message_uuid"] = str(self.user_msg.uuid)
+            yield self._format_ndjson({"m": meta})
 
         self._messages_persisted = False
 
@@ -286,8 +275,8 @@ class LLMStreamer:
                     pk=self.thread.pk
                 )
 
-                user_msg = None
-                assistant_msg = None
+                persisted_user_msg = None
+                persisted_assistant_msg = None
 
                 if self.mode == models.ChatMode.RELOAD:
                     # Find last active assistant message to replace
@@ -302,7 +291,7 @@ class LLMStreamer:
 
                     if last_assistant:
                         # Create replacement with same sequence_index
-                        assistant_msg = models.Message.objects.create(
+                        persisted_assistant_msg = models.Message.objects.create(
                             thread=locked_thread,
                             role=models.Message.Role.ASSISTANT,
                             content=self.accumulated_content,
@@ -318,35 +307,39 @@ class LLMStreamer:
 
                 # Normal mode (or fallback from reload)
                 if self.mode != models.ChatMode.RELOAD:
-                    last_index = (
-                        locked_thread.messages.aggregate(Max("sequence_index"))[
-                            "sequence_index__max"
-                        ]
-                        or 0
-                    )
+                    if self.user_msg:
+                        # User message was pre-created in the view
+                        persisted_user_msg = self.user_msg
+                    else:
+                        last_index = (
+                            locked_thread.messages.aggregate(Max("sequence_index"))[
+                                "sequence_index__max"
+                            ]
+                            or 0
+                        )
+                        persisted_user_msg = models.Message.objects.create(
+                            thread=locked_thread,
+                            role=models.Message.Role.USER,
+                            content=self.original_input,
+                            sequence_index=last_index + 1,
+                        )
 
-                    user_msg = models.Message.objects.create(
-                        thread=locked_thread,
-                        role=models.Message.Role.USER,
-                        content=self.original_input,
-                        sequence_index=last_index + 1,
-                    )
-                    assistant_msg = models.Message.objects.create(
+                    persisted_assistant_msg = models.Message.objects.create(
                         thread=locked_thread,
                         role=models.Message.Role.ASSISTANT,
                         content=self.accumulated_content,
-                        sequence_index=last_index + 2,
+                        sequence_index=persisted_user_msg.sequence_index + 1,
                     )
 
                 # Store UUIDs for metadata response
                 self._persisted_message_meta = {}
-                if user_msg:
+                if persisted_user_msg:
                     self._persisted_message_meta["user_message_uuid"] = str(
-                        user_msg.uuid
+                        persisted_user_msg.uuid
                     )
-                if assistant_msg:
+                if persisted_assistant_msg:
                     self._persisted_message_meta["assistant_message_uuid"] = str(
-                        assistant_msg.uuid
+                        persisted_assistant_msg.uuid
                     )
 
                 # Update thread's modified timestamp to reflect latest message
@@ -493,16 +486,46 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
                 session, _ = models.ChatSession.objects.get_or_create(user=user)
                 thread = models.ThreadSession.objects.create(chat_session=session)
 
+        raw_message = serializer.validated_data["input"]
+        assembled_context = build_context(
+            user=user,
+            user_input=raw_message,
+            thread=thread,
+            include_history=not bool(update_thread_name),
+        )
+
+        # Pre-create user message so it persists even if the client disconnects
+        user_msg = None
+        mode = serializer.validated_data.get("mode")
+        if storage_enabled and thread and mode != models.ChatMode.RELOAD:
+            with transaction.atomic():
+                locked_thread = models.ThreadSession.objects.select_for_update().get(
+                    pk=thread.pk
+                )
+                last_index = (
+                    locked_thread.messages.aggregate(Max("sequence_index"))[
+                        "sequence_index__max"
+                    ]
+                    or 0
+                )
+                user_msg = models.Message.objects.create(
+                    thread=locked_thread,
+                    role=models.Message.Role.USER,
+                    content=raw_message,
+                    sequence_index=last_index + 1,
+                )
+
         streamer = LLMStreamer(
-            input_text=serializer.validated_data["input"],
+            input_text=assembled_context,
             url=config.LLM_INFERENCES_API_URL,
             token=config.LLM_INFERENCES_API_TOKEN,
             user=user,
             thread=thread,
             storage_enabled=storage_enabled,
-            original_input=serializer.validated_data["input"],
+            original_input=raw_message,
             update_thread_name=update_thread_name,
-            mode=serializer.validated_data.get("mode"),
+            mode=mode,
+            user_msg=user_msg,
         )
 
         return StreamingHttpResponse(

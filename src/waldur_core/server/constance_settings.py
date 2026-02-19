@@ -843,6 +843,10 @@ CONSTANCE_CONFIG = {
         False,
         "Enable persistent storage of chat messages. When disabled, messages are streamed but not saved.",
     ),
+    "LLM_CHAT_HISTORY_LIMIT": (
+        50,
+        "Maximum number of past messages included in the LLM context window.",
+    ),
     # Software catalog settings
     "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED": (
         False,
@@ -1261,6 +1265,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "LLM_TOKEN_LIMIT_MONTHLY",
         "LLM_CHAT_SESSION_RETENTION_DAYS",
         "LLM_CHAT_STORAGE_ENABLED",
+        "LLM_CHAT_HISTORY_LIMIT",
     ),
     "Software catalog settings": (
         "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED",
