@@ -6275,6 +6275,9 @@ class OfferingUserSerializer(
         source="user.organization_country"
     )
     user_organization_type = serializers.ReadOnlyField(source="user.organization_type")
+    user_organization_registry_code = serializers.ReadOnlyField(
+        source="user.organization_registry_code"
+    )
     user_eduperson_assurance = serializers.ReadOnlyField(
         source="user.eduperson_assurance"
     )
@@ -6363,6 +6366,7 @@ class OfferingUserSerializer(
             "user_nationalities",
             "user_organization_country",
             "user_organization_type",
+            "user_organization_registry_code",
             "user_eduperson_assurance",
             # Legal and identity attributes
             "user_civil_number",
@@ -7781,8 +7785,23 @@ class MarketplaceServiceProviderUserSerializer(
         "email": "email",
         "phone_number": "phone_number",
         "organization": "organization",
+        "job_title": "job_title",
         "affiliations": "affiliations",
         "registration_method": "registration_method",
+        "gender": "gender",
+        "personal_title": "personal_title",
+        "place_of_birth": "place_of_birth",
+        "country_of_residence": "country_of_residence",
+        "nationality": "nationality",
+        "nationalities": "nationalities",
+        "organization_country": "organization_country",
+        "organization_type": "organization_type",
+        "organization_registry_code": "organization_registry_code",
+        "eduperson_assurance": "eduperson_assurance",
+        "civil_number": "civil_number",
+        "birth_date": "birth_date",
+        "identity_source": "identity_source",
+        "active_isds": "active_isds",
     }
 
     class Meta:
@@ -7800,6 +7819,24 @@ class MarketplaceServiceProviderUserSerializer(
             "registration_method",
             "affiliations",
             "is_active",
+            # User profile attributes
+            "job_title",
+            "gender",
+            "personal_title",
+            "place_of_birth",
+            "country_of_residence",
+            "nationality",
+            "nationalities",
+            "organization_country",
+            "organization_type",
+            "organization_registry_code",
+            "eduperson_assurance",
+            # Legal and identity attributes
+            "civil_number",
+            "birth_date",
+            "identity_source",
+            # Identity Bridge attributes
+            "active_isds",
         )
 
     projects_count = serializers.SerializerMethodField()
@@ -9486,11 +9523,14 @@ class OfferingUserAttributeConfigSerializer(serializers.ModelSerializer):
             "expose_nationalities",
             "expose_organization_country",
             "expose_organization_type",
+            "expose_organization_registry_code",
             "expose_eduperson_assurance",
             # Legal and identity attributes
             "expose_civil_number",
             "expose_birth_date",
             "expose_identity_source",
+            # Identity Bridge attributes
+            "expose_active_isds",
             # Computed
             "exposed_fields",
             "is_default",
