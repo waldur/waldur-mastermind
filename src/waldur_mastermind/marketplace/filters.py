@@ -601,6 +601,12 @@ class SoftwarePackageFilter(django_filters.FilterSet):
         label="Package name",
         help_text="Filter packages by name (case-insensitive partial match)",
     )
+    name_exact = django_filters.CharFilter(
+        field_name="name",
+        lookup_expr="iexact",
+        label="Package name (exact)",
+        help_text="Filter packages by exact name (case-insensitive)",
+    )
     description = django_filters.CharFilter(
         lookup_expr="icontains",
         label="Description",
