@@ -1488,6 +1488,14 @@ Link URL to support portal. Rendered as a shortcut on dashboard
 
 Style of sidebar. Possible values: dark, light, accent.
 
+#### FONT_FAMILY
+
+**Type:** str
+
+**Default value:** Inter
+
+Font family used in the UI. Possible values: Inter, Maven Pro.
+
 #### BRAND_COLOR
 
 **Type:** color_field
@@ -2567,6 +2575,14 @@ Number of days to retain chat sessions before automatic deletion. Set to -1 to d
 **Type:** bool
 
 Enable persistent storage of chat messages. When disabled, messages are streamed but not saved.
+
+#### LLM_CHAT_HISTORY_LIMIT
+
+**Type:** int
+
+**Default value:** 50
+
+Maximum number of past messages included in the LLM context window.
 
 ### Software catalog settings
 
