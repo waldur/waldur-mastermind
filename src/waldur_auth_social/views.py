@@ -46,10 +46,10 @@ from .serializers import (
     AuthSerializer,
     DiscoverMetadataRequestSerializer,
     DiscoverMetadataResponseSerializer,
-    IdentityBridgeRemoveResponseSerializer,
+    IdentityBridgeRemoveResultSerializer,
     IdentityBridgeRemoveSerializer,
     IdentityBridgeRequestSerializer,
-    IdentityBridgeResponseSerializer,
+    IdentityBridgeResultSerializer,
     IdentityProviderSerializer,
     RemoteEduteamsRequestSerializer,
     RemoteEduteamsUUIDSerializer,
@@ -546,7 +546,7 @@ class IdentityBridgeView(generics.GenericAPIView):
             "Caller must be staff or an identity manager with the declared source in managed_isds."
         ),
         request=IdentityBridgeRequestSerializer,
-        responses={200: IdentityBridgeResponseSerializer},
+        responses={200: IdentityBridgeResultSerializer},
     )
     def post(self, request, *args, **kwargs):
         # 1. Check feature flag
@@ -620,7 +620,7 @@ class IdentityBridgeRemoveView(generics.GenericAPIView):
             "Caller must be staff or an identity manager with the declared source in managed_isds."
         ),
         request=IdentityBridgeRemoveSerializer,
-        responses={200: IdentityBridgeRemoveResponseSerializer},
+        responses={200: IdentityBridgeRemoveResultSerializer},
     )
     def post(self, request, *args, **kwargs):
         # 1. Check feature flag

@@ -345,7 +345,7 @@ class IdentityBridgeRequestSerializer(serializers.Serializer):
         return attrs
 
 
-class IdentityBridgeResponseSerializer(serializers.Serializer):
+class IdentityBridgeResultSerializer(serializers.Serializer):
     uuid = serializers.UUIDField()
     created = serializers.BooleanField()
     updated_fields = serializers.ListField(child=serializers.CharField())
@@ -369,6 +369,6 @@ class IdentityBridgeRemoveSerializer(serializers.Serializer):
         return value
 
 
-class IdentityBridgeRemoveResponseSerializer(serializers.Serializer):
+class IdentityBridgeRemoveResultSerializer(serializers.Serializer):
     uuid = serializers.UUIDField()
     deactivated = serializers.BooleanField()
