@@ -3,6 +3,7 @@ import uuid
 from unittest.mock import Mock, patch
 
 import requests
+from django.db.models import Max
 from django.urls import reverse
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -41,8 +42,26 @@ class LLMStreamerPersistenceTest(test.APITestCase):
             ),
         ]
 
-    def _run_streamer(self, user, thread, storage_enabled, original_input, lines):
+    def _pre_create_user_msg(self, thread, content):
+        """Simulate what ChatViewSet.stream() does: pre-create the user message."""
+        last_index = (
+            thread.messages.aggregate(Max("sequence_index"))["sequence_index__max"] or 0
+        )
+        return Message.objects.create(
+            thread=thread,
+            role=Message.Role.USER,
+            content=content,
+            sequence_index=last_index + 1,
+        )
+
+    def _run_streamer(
+        self, user, thread, storage_enabled, original_input, lines, mode=None
+    ):
         resp = self._fake_response(lines)
+        # Pre-create user message like the view does (for non-reload, storage-enabled)
+        user_msg = None
+        if storage_enabled and thread and mode != ChatMode.RELOAD:
+            user_msg = self._pre_create_user_msg(thread, original_input)
         with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
             mock_post.return_value.__enter__.return_value = resp
             streamer = LLMStreamer(
@@ -53,6 +72,8 @@ class LLMStreamerPersistenceTest(test.APITestCase):
                 thread=thread,
                 storage_enabled=storage_enabled,
                 original_input=original_input,
+                mode=mode,
+                user_msg=user_msg,
             )
             list(streamer)  # generator must be fully consumed for finally block
 
@@ -123,6 +144,8 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         resp.iter_lines.return_value = failing_lines()
         resp.raise_for_status = Mock()
 
+        user_msg = self._pre_create_user_msg(thread, "Q")
+
         with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
             mock_post.return_value.__enter__.return_value = resp
             streamer = LLMStreamer(
@@ -133,6 +156,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
                 thread=thread,
                 storage_enabled=True,
                 original_input="Q",
+                user_msg=user_msg,
             )
             list(streamer)
 
@@ -181,21 +205,15 @@ class LLMStreamerPersistenceTest(test.APITestCase):
             sequence_index=2,
         )
 
-        # Run streamer in reload mode
-        resp = self._fake_response(self._content_and_usage_lines("New answer"))
-        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
-            mock_post.return_value.__enter__.return_value = resp
-            streamer = LLMStreamer(
-                "Ignored input",
-                "https://llm/stream",
-                "tok",
-                user=user,
-                thread=thread,
-                storage_enabled=True,
-                original_input="Ignored input",
-                mode=ChatMode.RELOAD,
-            )
-            list(streamer)
+        # Run streamer in reload mode (no user_msg pre-created for reload)
+        self._run_streamer(
+            user,
+            thread,
+            True,
+            "Ignored input",
+            self._content_and_usage_lines("New answer"),
+            mode=ChatMode.RELOAD,
+        )
 
         # Should have 1 user message (original) and 2 assistant messages (original + replacement)
         self.assertEqual(
@@ -219,21 +237,15 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         user = structure_factories.UserFactory()
         thread = self._make_thread(user)
 
-        # Thread is empty, no assistant to replace
-        resp = self._fake_response(self._content_and_usage_lines("Answer"))
-        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
-            mock_post.return_value.__enter__.return_value = resp
-            streamer = LLMStreamer(
-                "Question",
-                "https://llm/stream",
-                "tok",
-                user=user,
-                thread=thread,
-                storage_enabled=True,
-                original_input="Question",
-                mode=ChatMode.RELOAD,
-            )
-            list(streamer)
+        # Thread is empty, no assistant to replace -- reload falls back to normal
+        self._run_streamer(
+            user,
+            thread,
+            True,
+            "Question",
+            self._content_and_usage_lines("Answer"),
+            mode=ChatMode.RELOAD,
+        )
 
         # Should create normal pair (fallback behavior)
         self.assertEqual(
@@ -255,6 +267,8 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         user = structure_factories.UserFactory()
         thread = self._make_thread(user)
 
+        user_msg = self._pre_create_user_msg(thread, "Question")
+
         resp = self._fake_response(self._content_and_usage_lines("Answer"))
         with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
             mock_post.return_value.__enter__.return_value = resp
@@ -266,28 +280,34 @@ class LLMStreamerPersistenceTest(test.APITestCase):
                 thread=thread,
                 storage_enabled=True,
                 original_input="Question",
+                user_msg=user_msg,
             )
             output = list(streamer)
 
-        # Parse all NDJSON lines
-        messages_metadata = None
+        # Parse all NDJSON lines -- user_message_uuid now in initial metadata
+        initial_metadata = None
+        persist_metadata = None
         for line in output:
             if line.strip():
                 obj = json.loads(line)
-                if "m" in obj and "user_message_uuid" in obj["m"]:
-                    messages_metadata = obj["m"]
-                    break
+                if "m" in obj:
+                    meta = obj["m"]
+                    if "thread_uuid" in meta and "user_message_uuid" in meta:
+                        initial_metadata = meta
+                    if "assistant_message_uuid" in meta:
+                        persist_metadata = meta
 
-        self.assertIsNotNone(messages_metadata)
-        self.assertIn("user_message_uuid", messages_metadata)
-        self.assertIn("assistant_message_uuid", messages_metadata)
+        self.assertIsNotNone(initial_metadata)
+        self.assertIn("user_message_uuid", initial_metadata)
+        self.assertIsNotNone(persist_metadata)
+        self.assertIn("assistant_message_uuid", persist_metadata)
 
         # Verify UUIDs match actual messages
-        user_msg = Message.objects.get(thread=thread, role=Message.Role.USER)
+        user_msg_db = Message.objects.get(thread=thread, role=Message.Role.USER)
         assistant_msg = Message.objects.get(thread=thread, role=Message.Role.ASSISTANT)
-        self.assertEqual(messages_metadata["user_message_uuid"], str(user_msg.uuid))
+        self.assertEqual(initial_metadata["user_message_uuid"], str(user_msg_db.uuid))
         self.assertEqual(
-            messages_metadata["assistant_message_uuid"], str(assistant_msg.uuid)
+            persist_metadata["assistant_message_uuid"], str(assistant_msg.uuid)
         )
 
     def test_default_mode_unchanged(self):
@@ -306,6 +326,83 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         self.assertEqual(assistant_msg.content, "Hello")
         self.assertIsNone(user_msg.replaces)
         self.assertIsNone(assistant_msg.replaces)
+
+    def test_user_message_persisted_before_streaming(self):
+        """User message exists in DB before the generator is consumed."""
+        user = structure_factories.UserFactory()
+        thread = self._make_thread(user)
+
+        resp = self._fake_response(self._content_and_usage_lines("Answer"))
+        user_msg = self._pre_create_user_msg(thread, "My question")
+
+        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
+            mock_post.return_value.__enter__.return_value = resp
+            streamer = LLMStreamer(
+                "My question",
+                "https://llm/stream",
+                "tok",
+                user=user,
+                thread=thread,
+                storage_enabled=True,
+                original_input="My question",
+                user_msg=user_msg,
+            )
+            # Do NOT consume the generator -- the user message should already exist
+            self.assertEqual(
+                Message.objects.filter(thread=thread, role=Message.Role.USER).count(),
+                1,
+            )
+            db_msg = Message.objects.get(thread=thread, role=Message.Role.USER)
+            self.assertEqual(db_msg.content, "My question")
+            self.assertEqual(db_msg.sequence_index, 1)
+
+            # No assistant message yet (generator not consumed)
+            self.assertEqual(
+                Message.objects.filter(
+                    thread=thread, role=Message.Role.ASSISTANT
+                ).count(),
+                0,
+            )
+
+            # Now consume -- assistant message should appear
+            list(streamer)
+
+        self.assertEqual(
+            Message.objects.filter(thread=thread, role=Message.Role.ASSISTANT).count(),
+            1,
+        )
+        assistant_msg = Message.objects.get(thread=thread, role=Message.Role.ASSISTANT)
+        self.assertEqual(assistant_msg.content, "Answer")
+        self.assertEqual(assistant_msg.sequence_index, 2)
+
+    def test_user_message_uuid_in_initial_metadata(self):
+        """Initial metadata line includes user_message_uuid when pre-created."""
+        user = structure_factories.UserFactory()
+        thread = self._make_thread(user)
+
+        user_msg = self._pre_create_user_msg(thread, "Q")
+
+        resp = self._fake_response(self._content_and_usage_lines("A"))
+        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
+            mock_post.return_value.__enter__.return_value = resp
+            streamer = LLMStreamer(
+                "Q",
+                "https://llm/stream",
+                "tok",
+                user=user,
+                thread=thread,
+                storage_enabled=True,
+                original_input="Q",
+                user_msg=user_msg,
+            )
+            output = list(streamer)
+
+        # First line should be metadata with both thread_uuid and user_message_uuid
+        first_obj = json.loads(output[0])
+        self.assertIn("m", first_obj)
+        self.assertIn("thread_uuid", first_obj["m"])
+        self.assertIn("user_message_uuid", first_obj["m"])
+        self.assertEqual(first_obj["m"]["user_message_uuid"], str(user_msg.uuid))
 
     @freeze_time("2025-01-01 12:00:00", as_kwarg="frozen_time")
     def test_thread_modified_updated_on_message_persist(self, frozen_time):

@@ -105,12 +105,8 @@ class SystemPromptTest(TestCase):
     def test_system_prompt_is_string(self):
         self.assertIsInstance(prompts.SYSTEM_PROMPT, str)
 
-    def test_system_prompt_includes_ui_capabilities(self):
-        # UI_CAPABILITIES should be part of SYSTEM_PROMPT
-        self.assertIn("UI RENDERING CAPABILITIES", prompts.SYSTEM_PROMPT)
-        self.assertIn("mermaid", prompts.SYSTEM_PROMPT.lower())
+    def test_system_prompt_has_persona(self):
+        self.assertIn(prompts.PERSONA, prompts.SYSTEM_PROMPT)
 
-    def test_system_prompt_includes_tool_instructions(self):
-        # TOOL_INSTRUCTIONS content should be in SYSTEM_PROMPT
-        self.assertIn("TOOLS ARE EXTREMELY RARE", prompts.SYSTEM_PROMPT)
+    def test_system_prompt_has_placeholders(self):
         self.assertIn("{tools}", prompts.SYSTEM_PROMPT)
