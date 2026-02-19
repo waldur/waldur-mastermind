@@ -255,6 +255,19 @@ class SoftwarePackageViewSetTest(test.APITestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["name"], "Python")
 
+    def test_filter_by_exact_name(self):
+        """Test that name_exact filter returns only exact name matches."""
+        factories.SoftwarePackageFactory(catalog=self.catalog, name="R")
+        factories.SoftwarePackageFactory(catalog=self.catalog, name="Ruby")
+        factories.SoftwarePackageFactory(catalog=self.catalog, name="Rust")
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?name_exact=R")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["name"], "R")
+
     def test_filter_by_offering_uuid(self):
         # Create offering with software catalog
         offering = factories.OfferingFactory()
