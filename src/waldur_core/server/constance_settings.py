@@ -253,6 +253,10 @@ CONSTANCE_CONFIG = {
         "dark",
         "Style of sidebar. Possible values: dark, light, accent.",
     ),
+    "FONT_FAMILY": (
+        "Inter",
+        "Font family used in the UI. Possible values: Inter, Maven Pro.",
+    ),
     "LOGIN_LOGO": ("", "A custom .png image file for login page", "image_field"),
     "LOGIN_LOGO_MULTILINGUAL": (
         {},
@@ -1073,6 +1077,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     ),
     "Theme": (
         "SIDEBAR_STYLE",
+        "FONT_FAMILY",
         "BRAND_COLOR",
         "DISABLE_DARK_THEME",
     ),
@@ -1330,6 +1335,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "SIDEBAR_LOGO_MOBILE",
     "SIDEBAR_LOGO_DARK",
     "SIDEBAR_STYLE",
+    "FONT_FAMILY",
     "POWERED_BY_LOGO",
     "HERO_IMAGE",
     "MARKETPLACE_HERO_IMAGE",
