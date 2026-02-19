@@ -1080,3 +1080,97 @@ class ServiceProviderUsersGDPRFilteringTest(test.APITestCase):
             self.assertIn("username", user_data)
             self.assertIn("email", user_data)
             self.assertNotIn("phone_number", user_data)
+
+    def test_active_isds_exposed_when_enabled(self):
+        """active_isds field is exposed when expose_active_isds=True in config."""
+        self.user.active_isds = ["isd:puhuri", "isd:fenix"]
+        self.user.save()
+
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_active_isds=True,
+        )
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+        self.assertIn("active_isds", user_data)
+        self.assertEqual(user_data["active_isds"], ["isd:puhuri", "isd:fenix"])
+
+    def test_active_isds_hidden_when_not_enabled(self):
+        """active_isds field is hidden when expose_active_isds=False."""
+        self.user.active_isds = ["isd:puhuri"]
+        self.user.save()
+
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_active_isds=False,
+        )
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+        self.assertNotIn("active_isds", user_data)
+
+    def test_organization_registry_code_exposed_when_enabled(self):
+        """organization_registry_code is exposed when enabled in config."""
+        self.user.organization_registry_code = "12345678"
+        self.user.save()
+
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_organization_registry_code=True,
+        )
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+        self.assertIn("organization_registry_code", user_data)
+        self.assertEqual(user_data["organization_registry_code"], "12345678")
+
+    def test_organization_registry_code_hidden_when_not_enabled(self):
+        """organization_registry_code is hidden when not enabled in config."""
+        self.user.organization_registry_code = "12345678"
+        self.user.save()
+
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_organization_registry_code=False,
+        )
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user_data = next(
+            (u for u in response.data if u["uuid"] == str(self.user.uuid)), None
+        )
+        self.assertIsNotNone(user_data)
+        self.assertNotIn("organization_registry_code", user_data)

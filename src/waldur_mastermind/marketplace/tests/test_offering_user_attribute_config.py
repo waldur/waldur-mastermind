@@ -485,6 +485,74 @@ class OfferingUserSerializerAttributeFilteringTest(test.APITestCase):
         self.assertIn("user_birth_date", response.data)
         self.assertIn("user_identity_source", response.data)
 
+    def test_active_isds_exposed_when_enabled(self):
+        """Test that active_isds is exposed when expose_active_isds=True."""
+        self.fixture.user.active_isds = ["isd:puhuri"]
+        self.fixture.user.save()
+
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_active_isds=True,
+        )
+        offering_user = self._create_offering_user()
+
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(f"{self.url}{offering_user.uuid}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("user_active_isds", response.data)
+        self.assertEqual(response.data["user_active_isds"], ["isd:puhuri"])
+
+    def test_active_isds_hidden_by_default(self):
+        """Test that active_isds is hidden by default."""
+        self.fixture.user.active_isds = ["isd:puhuri"]
+        self.fixture.user.save()
+
+        offering_user = self._create_offering_user()
+
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(f"{self.url}{offering_user.uuid}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("user_active_isds", response.data)
+
+    def test_organization_registry_code_exposed_when_enabled(self):
+        """Test that organization_registry_code is exposed when enabled."""
+        self.fixture.user.organization_registry_code = "12345678"
+        self.fixture.user.save()
+
+        models.OfferingUserAttributeConfig.objects.create(
+            offering=self.offering,
+            expose_username=True,
+            expose_full_name=True,
+            expose_email=True,
+            expose_organization_registry_code=True,
+        )
+        offering_user = self._create_offering_user()
+
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(f"{self.url}{offering_user.uuid}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("user_organization_registry_code", response.data)
+        self.assertEqual(response.data["user_organization_registry_code"], "12345678")
+
+    def test_organization_registry_code_hidden_by_default(self):
+        """Test that organization_registry_code is hidden by default."""
+        self.fixture.user.organization_registry_code = "12345678"
+        self.fixture.user.save()
+
+        offering_user = self._create_offering_user()
+
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(f"{self.url}{offering_user.uuid}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("user_organization_registry_code", response.data)
+
 
 class OfferingUserListViewAttributeFilteringTest(test.APITestCase):
     """Test that OfferingUserSerializer filters attributes consistently in list views.

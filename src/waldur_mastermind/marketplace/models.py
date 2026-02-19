@@ -943,10 +943,16 @@ class OfferingUserAttributeConfig(TimeStampedModel, core_models.UuidMixin):
     expose_organization_type = models.BooleanField(default=False)
     expose_eduperson_assurance = models.BooleanField(default=False)
 
+    # Organization extended attributes
+    expose_organization_registry_code = models.BooleanField(default=False)
+
     # Legal and identity attributes (require explicit enabling)
     expose_civil_number = models.BooleanField(default=False)
     expose_birth_date = models.BooleanField(default=False)
     expose_identity_source = models.BooleanField(default=False)
+
+    # Identity Bridge attributes
+    expose_active_isds = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = _("Offering user attribute config")
