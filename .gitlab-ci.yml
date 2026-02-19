@@ -662,6 +662,15 @@ Generate Go SDK:
     go install github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@latest
     oapi-codegen --package client --generate types,client -o client.go waldur-openapi-schema.yaml
     ls -l client.go
+
+    # Verify the generated Go client compiles successfully
+    mkdir -p /tmp/go-sdk-test
+    cp client.go /tmp/go-sdk-test/
+    cd /tmp/go-sdk-test
+    go mod init github.com/waldur/go-client
+    go mod tidy
+    go build ./...
+    echo "Go SDK compilation check passed"
   artifacts:
     paths:
       - client.go
