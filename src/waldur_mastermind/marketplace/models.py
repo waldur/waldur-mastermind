@@ -737,6 +737,10 @@ class Offering(
 
     @cached_property
     def is_usage_based(self) -> bool:
+        """
+        Returns True if the offering has at least one component with USAGE billing type.
+        Usage-based components are reported periodically and charged based on consumption.
+        """
         return self.components.filter(
             billing_type=BillingTypes.USAGE,
         ).exists()
@@ -747,6 +751,11 @@ class Offering(
 
     @cached_property
     def is_limit_based(self) -> bool:
+        """
+        Returns True if the offering has at least one component with LIMIT billing type
+        and the plugin supports updating limits. Limit-based components define a maximum
+        quota that can be dynamically adjusted by the user.
+        """
         if not plugins.manager.can_update_limits(self.type):
             return False
         if not self.components.filter(billing_type=BillingTypes.LIMIT).exists():
@@ -1517,7 +1526,15 @@ class Resource(
     )
     report = models.JSONField(blank=True, null=True)
     options = models.JSONField(blank=True, null=True)
-    current_usages = models.JSONField(blank=True, default=dict)
+    current_usages = models.JSONField(
+        blank=True,
+        default=dict,
+        help_text=_(
+            "Dictionary mapping component types to their current usage amounts. "
+            "For usage-based and limit-based components, it stores the most recent reported amounts or consumed quotas. "
+            "Populated by backend synchronization tasks or explicit usage reports."
+        ),
+    )
     tracker = cast(FieldInstanceTracker, FieldTracker())
     objects = managers.ResourceManager()
     # Effective ID is used when resource is provisioned through remote Waldur

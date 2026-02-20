@@ -4861,17 +4861,28 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     parent_name = serializers.ReadOnlyField(source="parent.name")
     parent_offering_slug = serializers.ReadOnlyField(source="parent.slug")
     # If resource is usage-based, frontend would render button to show and report usage
-    is_usage_based = serializers.ReadOnlyField(source="offering.is_usage_based")
-    is_limit_based = serializers.ReadOnlyField(source="offering.is_limit_based")
+    is_usage_based = serializers.ReadOnlyField(
+        source="offering.is_usage_based",
+        help_text="Returns True if the resource has usage-based components that track variable consumption.",
+    )
+    is_limit_based = serializers.ReadOnlyField(
+        source="offering.is_limit_based",
+        help_text="Returns True if the resource has limit-based components with user-adjustable quotas.",
+    )
     can_terminate = serializers.SerializerMethodField()
     report = ResourceReportField(read_only=True)
     username = serializers.SerializerMethodField()
-    limit_usage = serializers.SerializerMethodField()
+    limit_usage = serializers.SerializerMethodField(
+        help_text="Dictionary mapping limit-based component types to their consumed usage. "
+        "For monthly periods, maps from current_usages; for longer periods, aggregates historical usage."
+    )
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
     available_actions = serializers.SerializerMethodField()
     limits = serializers.SerializerMethodField()
     attributes = serializers.SerializerMethodField()
-    current_usages = serializers.SerializerMethodField()
+    current_usages = serializers.SerializerMethodField(
+        help_text="Dictionary mapping component types to their latest reported usage amounts."
+    )
     order_in_progress = serializers.SerializerMethodField(allow_null=True)
     creation_order = serializers.SerializerMethodField(allow_null=True)
     backend_metadata = serializers.SerializerMethodField()
@@ -4908,7 +4919,20 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         if offering_user:
             return offering_user.username
 
+    @extend_schema_field(
+        serializers.DictField(
+            child=serializers.FloatField(),
+            help_text="Dictionary mapping limit-based component types to their consumed usage. "
+            "For monthly periods, maps from current_usages; for longer periods, aggregates historical usage.",
+        )
+    )
     def get_limit_usage(self, resource: models.Resource) -> dict[str, float]:
+        """
+        Calculates and returns the consumption of limit-based components.
+        For components with a monthly (or unspecified) limit period, it attempts to
+        fetch the value directly from the resource's `current_usages` JSONField.
+        For other periods (like annual), it calculates the sum from `ComponentUsage` tracking data.
+        """
         if not resource.offering.is_limit_based or not resource.plan:
             return {}
 
@@ -4945,6 +4969,12 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     def get_attributes(self, resource: models.Resource) -> dict:
         return resource.safe_attributes
 
+    @extend_schema_field(
+        serializers.DictField(
+            child=serializers.FloatField(),
+            help_text="Dictionary mapping component types to their latest reported usage amounts.",
+        )
+    )
     def get_current_usages(self, resource: models.Resource) -> dict[str, int]:
         return resource.current_usages
 
