@@ -1,5 +1,6 @@
 import uuid
 from datetime import date
+from decimal import Decimal
 from unittest import mock
 
 import ddt
@@ -7,6 +8,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.common.utils import parse_date
 from waldur_mastermind.invoices.models import PeriodMixin
 from waldur_mastermind.invoices.tests import factories, fixtures
@@ -475,6 +477,65 @@ class InvoiceItemCostsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["price"], "100.00")
+
+    def test_costs_includes_items_for_current_month(self):
+        """Current month cost entry should include individual invoice items."""
+        factories.InvoiceItemFactory(
+            invoice=self.invoice,
+            project=self.project,
+            unit_price=Decimal("1.00"),
+            quantity=Decimal("10"),
+            unit=UnitPriceMixin.Units.PER_DAY,
+            name="CPU-Hours / My CPU Service",
+            measured_unit="CPU-Hours",
+        )
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url + f"?project_uuid={self.project.uuid.hex}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        current = response.data[0]
+        self.assertIn("items", current)
+        self.assertEqual(len(current["items"]), 1)
+        item = current["items"][0]
+        self.assertEqual(item["name"], "CPU-Hours / My CPU Service")
+        self.assertEqual(float(item["unit_price"]), 1.00)
+        self.assertEqual(item["unit"], UnitPriceMixin.Units.PER_DAY)
+        self.assertEqual(float(item["quantity"]), 10.0)
+        self.assertEqual(item["measured_unit"], "CPU-Hours")
+
+    def test_costs_excludes_items_for_past_months(self):
+        """Past month cost entries should NOT include individual items."""
+        old_invoice = factories.InvoiceFactory(year=2023, month=1)
+        factories.InvoiceItemFactory(
+            invoice=old_invoice, project=self.project, unit_price=100, quantity=1
+        )
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url + f"?project_uuid={self.project.uuid.hex}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("items", response.data[0])
+
+    def test_costs_excludes_zero_price_items(self):
+        """Zero-price items should be excluded from the breakdown."""
+        factories.InvoiceItemFactory(
+            invoice=self.invoice,
+            project=self.project,
+            unit_price=Decimal("0"),
+            quantity=10,
+            name="Free item",
+            measured_unit="units",
+        )
+        factories.InvoiceItemFactory(
+            invoice=self.invoice,
+            project=self.project,
+            unit_price=Decimal("5.00"),
+            quantity=1,
+            name="Paid item",
+            measured_unit="units",
+        )
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url + f"?project_uuid={self.project.uuid.hex}")
+        items = response.data[0].get("items", [])
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["name"], "Paid item")
 
 
 class InvoiceItemDetailSerializerTest(test.APITestCase):

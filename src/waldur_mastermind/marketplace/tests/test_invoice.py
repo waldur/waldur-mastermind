@@ -382,6 +382,61 @@ class TotalLimitTest(test.APITransactionTestCase):
         )
 
 
+@freeze_time("2020-11-01")
+class TotalLimitDailyPlanTest(test.APITestCase):
+    """Test that limit_period=TOTAL with plan.unit=day does NOT multiply quantity by days."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.component = self.fixture.offering_component
+        self.component.billing_type = BillingTypes.LIMIT
+        self.component.limit_period = LimitPeriods.TOTAL
+        self.component.save()
+        # Override plan unit to PER_DAY
+        self.fixture.plan.unit = marketplace_models.Plan.Units.PER_DAY
+        self.fixture.plan.save()
+        self.resource = ResourceFactory(
+            offering=self.fixture.offering,
+            plan=self.fixture.plan,
+            project=self.fixture.project,
+            limits={self.component.type: 10},
+        )
+        self.resource.set_state_ok()
+        self.resource.save()
+
+    def get_invoice_items(self):
+        invoice = invoices_models.Invoice.objects.get(
+            customer=self.resource.project.customer,
+            year=2020,
+            month=11,
+        )
+        return invoice.items.filter(
+            details__offering_component_type=self.component.type,
+            resource_id=self.resource.id,
+        )
+
+    def test_total_limit_with_daily_plan_does_not_multiply_by_days(self):
+        """TOTAL limit period should produce quantity=limit, not quantity=limit*days."""
+        items = self.get_invoice_items()
+        self.assertEqual(items.count(), 1)
+        item = items.first()
+        # Quantity should be the raw limit (10), NOT 10 * 30 days
+        self.assertEqual(item.quantity, 10)
+        self.assertEqual(item.unit, invoices_models.InvoiceItem.Units.QUANTITY)
+
+    def test_total_limit_with_daily_plan_termination_preserves_quantity(self):
+        """Terminating a TOTAL+daily resource should NOT recalculate quantity by days."""
+        items = self.get_invoice_items()
+        item = items.first()
+        original_quantity = item.quantity
+
+        with freeze_time("2020-11-15"):
+            item.terminate()
+            item.refresh_from_db()
+
+        self.assertEqual(item.quantity, original_quantity)
+
+
 @ddt
 @freeze_time("2020-11-01")
 class InvoiceItemsTest(test.APITestCase):

@@ -645,7 +645,28 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
-    def _get_costs_data(self, paginated_invoices):
+    def _get_current_month_items(self, project_uuid):
+        now = datetime.date.today()
+        items = InvoiceItem.objects.filter(
+            project_uuid=project_uuid,
+            invoice__year=now.year,
+            invoice__month=now.month,
+            unit_price__gt=0,
+        ).values("name", "unit_price", "unit", "quantity", "measured_unit")
+        return [
+            {
+                "name": item["name"],
+                "unit_price": float(item["unit_price"]),
+                "unit": item["unit"],
+                "quantity": float(item["quantity"]),
+                "measured_unit": item["measured_unit"],
+                "price": float(item["unit_price"] * item["quantity"]),
+            }
+            for item in items
+        ]
+
+    def _get_costs_data(self, paginated_invoices, current_month_items=None):
+        now = datetime.date.today()
         result_list = []
         for invoice in paginated_invoices:
             data = {
@@ -655,6 +676,12 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
                 "year": invoice["invoice__year"],
                 "month": invoice["invoice__month"],
             }
+            if (
+                current_month_items is not None
+                and invoice["invoice__year"] == now.year
+                and invoice["invoice__month"] == now.month
+            ):
+                data["items"] = current_month_items
             result_list.append(data)
         return result_list
 
@@ -676,6 +703,7 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         project_uuid = request.GET.get("project_uuid", "")
         if not is_uuid_like(project_uuid):
             raise exceptions.ValidationError("project_uuid is not a valid UUID.")
+        current_month_items = self._get_current_month_items(project_uuid)
         invoices = (
             InvoiceItem.objects.filter(project_uuid=project_uuid)
             .values("invoice__year", "invoice__month")
@@ -699,9 +727,9 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         )
         page = self.paginate_queryset(invoices)
         if page is not None:
-            data = self._get_costs_data(page)
+            data = self._get_costs_data(page, current_month_items)
             return self.get_paginated_response(data)
-        data = self._get_costs_data(invoices)
+        data = self._get_costs_data(invoices, current_month_items)
         return Response(data)
 
     def _get_costs_for_periods_data(

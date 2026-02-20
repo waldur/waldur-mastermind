@@ -1529,11 +1529,9 @@ class Resource(
     current_usages = models.JSONField(
         blank=True,
         default=dict,
-        help_text=_(
-            "Dictionary mapping component types to their current usage amounts. "
-            "For usage-based and limit-based components, it stores the most recent reported amounts or consumed quotas. "
-            "Populated by backend synchronization tasks or explicit usage reports."
-        ),
+        help_text="Dictionary mapping component types to their current usage amounts. "
+        "For usage-based and limit-based components, it stores the most recent reported amounts or consumed quotas. "
+        "Populated by backend synchronization tasks or explicit usage reports.",
     )
     tracker = cast(FieldInstanceTracker, FieldTracker())
     objects = managers.ResourceManager()
