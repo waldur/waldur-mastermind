@@ -3,7 +3,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("waldur_keycloak", "0001_initial"),
+        ("waldur_keycloak", "0002_initial"),
     ]
 
     operations = [
