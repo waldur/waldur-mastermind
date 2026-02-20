@@ -491,16 +491,20 @@ class LimitPeriodProcessor:
         details["resource_limit_periods"] = [
             utils.serialize_resource_limit_period(start, end, quantity)
         ]
-        total_quantity = cls._get_total_quantity(
-            plan_component.plan.unit, quantity, start, end
-        )
 
         unit = plan_component.plan.unit
         if (
             offering_component.billing_type == BillingTypes.LIMIT
             and offering_component.limit_period == LimitPeriods.TOTAL
         ):
+            # TOTAL is a one-time charge: use the raw limit, no day multiplication
+            total_quantity = quantity
             unit = invoice_models.Units.QUANTITY
+            details["limit_period"] = LimitPeriods.TOTAL
+        else:
+            total_quantity = cls._get_total_quantity(
+                plan_component.plan.unit, quantity, start, end
+            )
 
         invoice_models.InvoiceItem.objects.create(
             name=f"{get_invoice_item_name(source)} / {get_component_name(plan_component)}",

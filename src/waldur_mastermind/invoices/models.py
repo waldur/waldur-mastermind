@@ -492,6 +492,10 @@ class InvoiceItem(
 
         resource_limit_periods = self.details.get("resource_limit_periods")
         if resource_limit_periods:
+            # TOTAL limit period is a one-time charge — no day-based proration
+            if self.details.get("limit_period") == "total":
+                return
+
             last_period = resource_limit_periods[-1]
             last_period["end"] = self.end.isoformat()
             last_period["billing_periods"] = utils.get_full_days(

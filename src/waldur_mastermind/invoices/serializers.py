@@ -1387,10 +1387,24 @@ class InvoiceGrowthSerializer(serializers.Serializer):
     customer_periods = InvoiceGrowthCustomerPeriodSerializer(many=True)
 
 
+class InvoiceCostItemSerializer(serializers.Serializer):
+    name = serializers.CharField(read_only=True)
+    unit_price = serializers.DecimalField(
+        read_only=True, max_digits=20, decimal_places=10
+    )
+    unit = serializers.CharField(read_only=True)
+    quantity = serializers.DecimalField(
+        read_only=True, max_digits=20, decimal_places=10
+    )
+    measured_unit = serializers.CharField(read_only=True)
+    price = serializers.FloatField(read_only=True)
+
+
 class InvoiceCostSerializer(serializers.Serializer):
     price = serializers.FloatField(read_only=True)
     year = serializers.IntegerField(read_only=True)
     month = serializers.IntegerField(read_only=True)
+    items = InvoiceCostItemSerializer(many=True, required=False)
 
 
 class CostsForPeriodSerializer(serializers.Serializer):
