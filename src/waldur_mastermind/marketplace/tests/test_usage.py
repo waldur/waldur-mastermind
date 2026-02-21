@@ -1708,3 +1708,240 @@ class ServiceProviderUsageDateBackfillTest(test.APITestCase):
         self.assertEqual(
             models.ComponentUsage.objects.filter(resource=self.resource).count(), 2
         )
+
+
+@ddt
+@freeze_time("2019-06-19")
+class BulkSetUserUsageTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.plan = factories.PlanFactory(offering=self.offering)
+        self.offering_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.USAGE,
+            type="cpu",
+        )
+        factories.PlanComponentFactory(
+            plan=self.plan, component=self.offering_component
+        )
+        self.resource = models.Resource.objects.create(
+            offering=self.offering,
+            plan=self.plan,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+        self.plan_period = models.ResourcePlanPeriod.objects.create(
+            resource=self.resource, plan=self.plan
+        )
+        self.component_usage = models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.offering_component,
+            usage=200,
+            date=parse_datetime("2019-06-21"),
+            billing_period=parse_datetime("2019-06-01"),
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_USAGE)
+
+    def get_url(self):
+        return f"/api/marketplace-component-usages/{self.component_usage.uuid.hex}/set_user_usages/"
+
+    @data("staff", "owner")
+    def test_can_submit_multiple_user_usages(self, role):
+        self.client.force_authenticate(getattr(self.fixture, role))
+        payload = {
+            "usages": [
+                {"username": "user1", "usage": 50.0},
+                {"username": "user2", "usage": 75.5},
+            ]
+        }
+        response = self.client.post(self.get_url(), payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            models.ComponentUserUsage.objects.filter(
+                component_usage=self.component_usage
+            ).count(),
+            2,
+        )
+        user1 = models.ComponentUserUsage.objects.get(
+            component_usage=self.component_usage, username="user1"
+        )
+        self.assertEqual(float(user1.usage), 50.0)
+        user2 = models.ComponentUserUsage.objects.get(
+            component_usage=self.component_usage, username="user2"
+        )
+        self.assertEqual(float(user2.usage), 75.5)
+
+    def test_existing_user_usages_are_updated(self):
+        self.client.force_authenticate(self.fixture.staff)
+        models.ComponentUserUsage.objects.create(
+            component_usage=self.component_usage,
+            username="user1",
+            usage=10,
+        )
+        payload = {
+            "usages": [
+                {"username": "user1", "usage": 99.0},
+                {"username": "user2", "usage": 50.0},
+            ]
+        }
+        response = self.client.post(self.get_url(), payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(
+            models.ComponentUserUsage.objects.filter(
+                component_usage=self.component_usage
+            ).count(),
+            2,
+        )
+        user1 = models.ComponentUserUsage.objects.get(
+            component_usage=self.component_usage, username="user1"
+        )
+        self.assertEqual(float(user1.usage), 99.0)
+
+    def test_empty_usages_returns_400(self):
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {"usages": []}
+        response = self.client.post(self.get_url(), payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @data("admin", "manager", "user")
+    def test_unauthorized_roles_cannot_submit(self, role):
+        self.client.force_authenticate(getattr(self.fixture, role))
+        payload = {
+            "usages": [
+                {"username": "user1", "usage": 50.0},
+            ]
+        }
+        response = self.client.post(self.get_url(), payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_usage_limit_validation_works_per_item(self):
+        self.client.force_authenticate(self.fixture.staff)
+        offering_user = models.OfferingUser.objects.create(
+            offering=self.offering, user=self.fixture.user, username="limited_user"
+        )
+        models.ComponentUserUsage.objects.create(
+            user=offering_user,
+            username=offering_user.user.username,
+            component_usage=self.component_usage,
+            usage=100,
+        )
+        models.ComponentUserUsageLimit.objects.create(
+            resource=self.resource,
+            component=self.offering_component,
+            user=offering_user,
+            limit=150,
+        )
+        offering_user_url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": offering_user.uuid.hex},
+        )
+        payload = {
+            "usages": [
+                {
+                    "username": "ok_user",
+                    "usage": 10,
+                },
+                {
+                    "username": "limited_user",
+                    "user": offering_user_url,
+                    "usage": 90,
+                },
+            ]
+        }
+        response = self.client.post(self.get_url(), payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_atomicity_none_persisted_on_validation_failure(self):
+        self.client.force_authenticate(self.fixture.staff)
+        offering_user = models.OfferingUser.objects.create(
+            offering=self.offering, user=self.fixture.user, username="limited_user"
+        )
+        models.ComponentUserUsageLimit.objects.create(
+            resource=self.resource,
+            component=self.offering_component,
+            user=offering_user,
+            limit=10,
+        )
+        offering_user_url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": offering_user.uuid.hex},
+        )
+        payload = {
+            "usages": [
+                {"username": "good_user", "usage": 5},
+                {
+                    "username": "limited_user",
+                    "user": offering_user_url,
+                    "usage": 999,
+                },
+            ]
+        }
+        response = self.client.post(self.get_url(), payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        # Because validation failed, the first item should NOT have been persisted
+        self.assertEqual(
+            models.ComponentUserUsage.objects.filter(
+                component_usage=self.component_usage
+            ).count(),
+            0,
+        )
+
+    def test_staff_can_submit_with_date(self):
+        self.client.force_authenticate(self.fixture.staff)
+        backfill_date = datetime.datetime(2019, 5, 15, 10, 0, 0, tzinfo=datetime.UTC)
+        payload = {
+            "usages": [
+                {
+                    "username": "user1",
+                    "usage": 30,
+                    "date": backfill_date.isoformat(),
+                },
+                {
+                    "username": "user2",
+                    "usage": 40,
+                },
+            ]
+        }
+        response = self.client.post(self.get_url(), payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        # user1 should be in a different billing period (May)
+        may_usages = models.ComponentUserUsage.objects.filter(
+            component_usage__billing_period=parse_datetime("2019-05-01"),
+            username="user1",
+        )
+        self.assertEqual(may_usages.count(), 1)
+        self.assertEqual(float(may_usages.first().usage), 30)
+        # user2 should be in the original component_usage (June)
+        june_usages = models.ComponentUserUsage.objects.filter(
+            component_usage=self.component_usage,
+            username="user2",
+        )
+        self.assertEqual(june_usages.count(), 1)
+        self.assertEqual(float(june_usages.first().usage), 40)
+
+    def test_with_offering_user(self):
+        self.client.force_authenticate(self.fixture.staff)
+        offering_user = models.OfferingUser.objects.create(
+            offering=self.offering, user=self.fixture.user, username="ou1"
+        )
+        offering_user_url = "http://testserver" + reverse(
+            "marketplace-offering-user-detail",
+            kwargs={"uuid": offering_user.uuid.hex},
+        )
+        payload = {
+            "usages": [
+                {
+                    "username": "test_user",
+                    "usage": 25,
+                    "user": offering_user_url,
+                },
+            ]
+        }
+        response = self.client.post(self.get_url(), payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        user_usage = models.ComponentUserUsage.objects.get(
+            component_usage=self.component_usage, username="test_user"
+        )
+        self.assertEqual(user_usage.user, offering_user)

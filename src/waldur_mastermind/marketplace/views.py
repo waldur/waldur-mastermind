@@ -8188,6 +8188,98 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
         )
     ]
 
+    @extend_schema(
+        summary="Bulk set user-specific component usages",
+        description="""
+        Allows a service provider to report usage for multiple users associated with a resource's component
+        in a single request. This avoids the need for one API call per user.
+
+        - All usages are processed atomically: if any item fails validation, none are persisted.
+        - If a user-specific usage record already exists for the given component usage, it will be updated.
+        - Otherwise, a new record is created.
+        """,
+        request=serializers.ComponentUserUsageBulkCreateSerializer,
+        responses={status.HTTP_201_CREATED: None},
+        examples=[
+            OpenApiExample(
+                "Report usage for multiple users",
+                summary="Example of reporting usage for multiple users in a single request.",
+                value={
+                    "usages": [
+                        {
+                            "username": "user1",
+                            "usage": 50.0,
+                        },
+                        {
+                            "username": "user2",
+                            "usage": 75.5,
+                        },
+                    ]
+                },
+            )
+        ],
+    )
+    @transaction.atomic
+    @action(detail=True, methods=["post"])
+    def set_user_usages(self, request, *args, **kwargs):
+        component_usage: models.ComponentUsage = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        for item in serializer.validated_data["usages"]:
+            target_component_usage = component_usage
+
+            # If date is provided, find or create ComponentUsage for that billing period
+            if item.get("date"):
+                date_to_use = item["date"]
+                local_date = timezone.localtime(date_to_use)
+                billing_period = core_utils.month_start(local_date)
+                resource = component_usage.resource
+                component = component_usage.component
+
+                target_component_usage = models.ComponentUsage.objects.filter(
+                    resource=resource,
+                    component=component,
+                    billing_period=billing_period,
+                ).first()
+                if target_component_usage is None:
+                    target_component_usage = models.ComponentUsage.objects.create(
+                        resource=resource,
+                        component=component,
+                        billing_period=billing_period,
+                        usage=0,
+                        date=date_to_use,
+                        description="Created for user usage backfill",
+                        recurring=False,
+                        modified_by=request.user,
+                    )
+
+            existing_user_usage = models.ComponentUserUsage.objects.filter(
+                component_usage=target_component_usage, username=item["username"]
+            ).first()
+
+            if existing_user_usage is None:
+                item_copy = item.copy()
+                item_copy.pop("date", None)
+                item_copy["component_usage"] = target_component_usage
+                models.ComponentUserUsage.objects.create(**item_copy)
+            else:
+                existing_user_usage.usage = item["usage"]
+                existing_user_usage.save()
+
+        return Response(status=status.HTTP_201_CREATED)
+
+    set_user_usages_serializer_class = (
+        serializers.ComponentUserUsageBulkCreateSerializer
+    )
+
+    set_user_usages_permissions = [
+        permission_factory(
+            PermissionEnum.SET_RESOURCE_USAGE,
+            ["resource.offering", "resource.offering.customer"],
+        )
+    ]
+
 
 @extend_schema_view(
     list=extend_schema(
