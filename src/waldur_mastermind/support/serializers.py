@@ -1,6 +1,7 @@
 import logging
 import os
 from datetime import timedelta
+from functools import cached_property
 
 from constance import config
 from django.conf import settings
@@ -568,11 +569,15 @@ class CommentSerializer(
         )
         protected_fields = ("remote_id",)
 
+    @cached_property
+    def _active_backend(self):
+        return backend.get_active_backend()
+
     def get_update_is_available(self, obj) -> bool:
-        return backend.get_active_backend().comment_update_is_available(obj)
+        return self._active_backend.comment_update_is_available(obj)
 
     def get_destroy_is_available(self, obj) -> bool:
-        return backend.get_active_backend().comment_destroy_is_available(obj)
+        return self._active_backend.comment_destroy_is_available(obj)
 
     def validate_description(self, description):
         impersonator = getattr(self.context["request"].user, "impersonator", None)

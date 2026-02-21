@@ -13075,7 +13075,9 @@ class PublicMaintenanceAnnouncementViewSet(
     ),
 )
 class CourseAccountViewSet(core_views.ActionsViewSet):
-    queryset = models.CourseAccount.objects.all()
+    queryset = models.CourseAccount.objects.select_related(
+        "project__customer", "user"
+    ).all()
     serializer_class = serializers.CourseAccountSerializer
     filterset_class = filters.CourseAccountFilter
     filter_backends = (DjangoFilterBackend,)

@@ -246,7 +246,7 @@ class CommentViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         filters.CommentIssueResourceFilterBackend,
     )
     filterset_class = filters.CommentFilter
-    queryset = models.Comment.objects.all()
+    queryset = models.Comment.objects.select_related("author__user", "issue").all()
     disabled_actions = ["create"]
 
     @transaction.atomic()
