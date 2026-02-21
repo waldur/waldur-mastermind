@@ -95,7 +95,6 @@ class LLMStreamer:
         token,
         user=None,
         thread=None,
-        storage_enabled=False,
         original_input="",
         update_thread_name=None,
         mode=None,
@@ -116,7 +115,6 @@ class LLMStreamer:
         self.is_tool_call = False  # Track if response looks like a tool call
         self.might_be_tool_call = False  # Track if we're buffering potential tool call
         self.thread = thread
-        self.storage_enabled = storage_enabled
         self.original_input = original_input
         self.update_thread_name = update_thread_name
         self.mode = mode
@@ -131,7 +129,7 @@ class LLMStreamer:
         return f"{json.dumps(data, separators=(',', ':'))}\n"
 
     def __iter__(self):
-        if self.storage_enabled and self.thread:
+        if self.thread:
             meta = {"thread_uuid": str(self.thread.uuid)}
             if self.user_msg:
                 meta["user_message_uuid"] = str(self.user_msg.uuid)
@@ -263,10 +261,10 @@ class LLMStreamer:
 
     def _persist_messages(self):
         """
-        Save user and assistant messages to the thread if storage is enabled.
+        Save user and assistant messages to the thread.
         In reload mode, only replace the last assistant message.
         """
-        if not self.storage_enabled or not self.thread:
+        if not self.thread:
             return
 
         try:
@@ -463,7 +461,6 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
         self._validate_quota(user)
 
         thread = None
-        storage_enabled = config.LLM_CHAT_STORAGE_ENABLED
         update_thread_name = serializer.validated_data.get("update_thread_name")
 
         if update_thread_name:
@@ -472,8 +469,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
                 uuid=update_thread_name, chat_session__user=user
             ).exists():
                 raise rf_exceptions.NotFound("Thread not found.")
-            storage_enabled = False
-        elif storage_enabled:
+        else:
             thread_uuid = serializer.validated_data.get("thread_uuid")
             if thread_uuid:
                 try:
@@ -497,7 +493,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
         # Pre-create user message so it persists even if the client disconnects
         user_msg = None
         mode = serializer.validated_data.get("mode")
-        if storage_enabled and thread and mode != models.ChatMode.RELOAD:
+        if thread and mode != models.ChatMode.RELOAD:
             with transaction.atomic():
                 locked_thread = models.ThreadSession.objects.select_for_update().get(
                     pk=thread.pk
@@ -521,7 +517,6 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             token=config.LLM_INFERENCES_API_TOKEN,
             user=user,
             thread=thread,
-            storage_enabled=storage_enabled,
             original_input=raw_message,
             update_thread_name=update_thread_name,
             mode=mode,

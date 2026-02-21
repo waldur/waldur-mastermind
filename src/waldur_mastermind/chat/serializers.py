@@ -14,7 +14,7 @@ class ChatRequestSerializer(serializers.Serializer):
     thread_uuid = serializers.UUIDField(
         required=False,
         allow_null=True,
-        help_text="Existing thread UUID. If omitted, a new thread is created when storage is enabled.",
+        help_text="Existing thread UUID. If omitted, a new thread is created.",
     )
     update_thread_name = serializers.UUIDField(
         required=False,

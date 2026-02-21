@@ -54,13 +54,11 @@ class LLMStreamerPersistenceTest(test.APITestCase):
             sequence_index=last_index + 1,
         )
 
-    def _run_streamer(
-        self, user, thread, storage_enabled, original_input, lines, mode=None
-    ):
+    def _run_streamer(self, user, thread, original_input, lines, mode=None):
         resp = self._fake_response(lines)
-        # Pre-create user message like the view does (for non-reload, storage-enabled)
+        # Pre-create user message like the view does (for non-reload, with thread)
         user_msg = None
-        if storage_enabled and thread and mode != ChatMode.RELOAD:
+        if thread and mode != ChatMode.RELOAD:
             user_msg = self._pre_create_user_msg(thread, original_input)
         with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
             mock_post.return_value.__enter__.return_value = resp
@@ -70,20 +68,19 @@ class LLMStreamerPersistenceTest(test.APITestCase):
                 "tok",
                 user=user,
                 thread=thread,
-                storage_enabled=storage_enabled,
                 original_input=original_input,
                 mode=mode,
                 user_msg=user_msg,
             )
             list(streamer)  # generator must be fully consumed for finally block
 
-    def test_messages_persisted_when_storage_enabled(self):
+    def test_messages_persisted(self):
         """Both user and assistant messages appear with correct indices."""
         user = structure_factories.UserFactory()
         thread = self._make_thread(user)
 
         self._run_streamer(
-            user, thread, True, "User question", self._content_and_usage_lines()
+            user, thread, "User question", self._content_and_usage_lines()
         )
 
         user_msg = Message.objects.get(thread=thread, role=Message.Role.USER)
@@ -94,18 +91,10 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         self.assertEqual(user_msg.sequence_index, 1)
         self.assertEqual(assistant_msg.sequence_index, 2)
 
-    def test_messages_not_persisted_when_storage_disabled(self):
-        user = structure_factories.UserFactory()
-        thread = self._make_thread(user)
-
-        self._run_streamer(user, thread, False, "Q", self._content_and_usage_lines())
-
-        self.assertEqual(Message.objects.filter(thread=thread).count(), 0)
-
     def test_messages_not_persisted_when_thread_is_none(self):
         user = structure_factories.UserFactory()
 
-        self._run_streamer(user, None, True, "Q", self._content_and_usage_lines())
+        self._run_streamer(user, None, "Q", self._content_and_usage_lines())
 
         self.assertEqual(Message.objects.count(), 0)
 
@@ -124,7 +113,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
             sequence_index=2,
         )
 
-        self._run_streamer(user, thread, True, "New Q", self._content_and_usage_lines())
+        self._run_streamer(user, thread, "New Q", self._content_and_usage_lines())
 
         new_user = Message.objects.get(thread=thread, content="New Q")
         new_asst = Message.objects.get(thread=thread, content="Hello")
@@ -154,7 +143,6 @@ class LLMStreamerPersistenceTest(test.APITestCase):
                 "tok",
                 user=user,
                 thread=thread,
-                storage_enabled=True,
                 original_input="Q",
                 user_msg=user_msg,
             )
@@ -184,7 +172,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
             ),
         ]
 
-        self._run_streamer(user, thread, True, "Hi", metadata_only)
+        self._run_streamer(user, thread, "Hi", metadata_only)
 
         assistant_msg = Message.objects.get(thread=thread, role=Message.Role.ASSISTANT)
         self.assertEqual(assistant_msg.content, "")
@@ -209,7 +197,6 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         self._run_streamer(
             user,
             thread,
-            True,
             "Ignored input",
             self._content_and_usage_lines("New answer"),
             mode=ChatMode.RELOAD,
@@ -241,7 +228,6 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         self._run_streamer(
             user,
             thread,
-            True,
             "Question",
             self._content_and_usage_lines("Answer"),
             mode=ChatMode.RELOAD,
@@ -278,7 +264,6 @@ class LLMStreamerPersistenceTest(test.APITestCase):
                 "tok",
                 user=user,
                 thread=thread,
-                storage_enabled=True,
                 original_input="Question",
                 user_msg=user_msg,
             )
@@ -316,7 +301,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         thread = self._make_thread(user)
 
         self._run_streamer(
-            user, thread, True, "User question", self._content_and_usage_lines()
+            user, thread, "User question", self._content_and_usage_lines()
         )
 
         user_msg = Message.objects.get(thread=thread, role=Message.Role.USER)
@@ -343,7 +328,6 @@ class LLMStreamerPersistenceTest(test.APITestCase):
                 "tok",
                 user=user,
                 thread=thread,
-                storage_enabled=True,
                 original_input="My question",
                 user_msg=user_msg,
             )
@@ -391,7 +375,6 @@ class LLMStreamerPersistenceTest(test.APITestCase):
                 "tok",
                 user=user,
                 thread=thread,
-                storage_enabled=True,
                 original_input="Q",
                 user_msg=user_msg,
             )
@@ -413,9 +396,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
 
         frozen_time.tick()
 
-        self._run_streamer(
-            user, thread, True, "New message", self._content_and_usage_lines()
-        )
+        self._run_streamer(user, thread, "New message", self._content_and_usage_lines())
 
         thread.refresh_from_db()
         self.assertGreater(thread.modified, initial_modified)
@@ -603,13 +584,13 @@ class ChatRequestSerializerTest(test.APITestCase):
     """Test ChatRequestSerializer validation."""
 
     def test_mode_requires_thread_uuid(self):
-        """mode='reload' requires thread_uuid to be provided."""
-        # Invalid: mode without thread_uuid
+        """mode='reload' requires thread_uuid."""
+        # mode without thread_uuid is invalid
         serializer = ChatRequestSerializer(data={"input": "test", "mode": "reload"})
         self.assertFalse(serializer.is_valid())
         self.assertIn("mode", serializer.errors)
 
-        # Valid: mode with thread_uuid
+        # mode with thread_uuid is valid
         thread_uuid = str(uuid.uuid4())
         serializer = ChatRequestSerializer(
             data={"input": "test", "mode": "reload", "thread_uuid": thread_uuid}
