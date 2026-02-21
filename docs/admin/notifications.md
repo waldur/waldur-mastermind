@@ -2054,6 +2054,83 @@ Notifies users about a completed project update request, detailing the changes.
 
 ```
 
+### marketplace_remote.resource_end_date_pulled_from_remote
+
+Notification sent when a resource's end date is automatically updated from the remote allocation system because the local date was in the past.
+
+#### Templates
+
+=== "marketplace_remote/resource_end_date_pulled_from_remote_subject.txt"
+
+```txt
+
+    Resource {{ resource.name }} end date updated automatically.
+
+```
+
+=== "marketplace_remote/resource_end_date_pulled_from_remote_message.txt"
+
+```txt
+
+    Hello!
+
+    The end date of resource {{ resource.name }} in project {{ resource.project.name }} has been updated automatically.
+
+    Previous end date: {{ old_end_date }}
+    New end date: {{ new_end_date }}
+
+    Reason: The local end date was in the past and has been synced from the central allocation system.
+
+    You can view the resource here: {{ resource_url }}
+    {% if remote_events %}
+    Recent related events from the central system:
+    {% for event in remote_events %}  - {{ event.message }}
+    {% endfor %}{% endif %}
+    Thank you!
+
+```
+
+=== "marketplace_remote/resource_end_date_pulled_from_remote_message.html"
+
+```txt
+
+    <html>
+    <head lang="en">
+        <meta charset="UTF-8">
+        <title>Resource {{ resource.name }} end date updated automatically.</title>
+    </head>
+    <body>
+    <p>
+        Hello!
+    </p>
+    <p>
+        The end date of resource <a href="{{ resource_url }}">{{ resource.name }}</a>
+        in project <strong>{{ resource.project.name }}</strong> has been updated automatically.
+    </p>
+    <ul>
+        <li>Previous end date: {{ old_end_date }}</li>
+        <li>New end date: {{ new_end_date }}</li>
+    </ul>
+    <p>
+        <strong>Reason:</strong> The local end date was in the past and has been synced
+        from the central allocation system.
+    </p>
+    {% if remote_events %}
+    <p>Recent related events from the central system:</p>
+    <ul>
+        {% for event in remote_events %}
+        <li>{{ event.message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    <p>
+        Thank you!
+    </p>
+    </body>
+    </html>
+
+```
+
 ### marketplace_policy.notification_about_project_cost_exceeded_limit
 
 Notification about project cost exceeded limit. The recipients are all customer owners of the project.

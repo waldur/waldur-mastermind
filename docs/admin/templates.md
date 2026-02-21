@@ -2287,6 +2287,69 @@ Resource {{ resource_name }} has been deleted.
 
 ## waldur_mastermind.marketplace_remote
 
+### resource_end_date_pulled_from_remote_message.html (waldur_mastermind.marketplace_remote)
+
+```html
+
+<html>
+<head lang="en">
+    <meta charset="UTF-8">
+    <title>Resource {{ resource.name }} end date updated automatically.</title>
+</head>
+<body>
+<p>
+    Hello!
+</p>
+<p>
+    The end date of resource <a href="{{ resource_url }}">{{ resource.name }}</a>
+    in project <strong>{{ resource.project.name }}</strong> has been updated automatically.
+</p>
+<ul>
+    <li>Previous end date: {{ old_end_date }}</li>
+    <li>New end date: {{ new_end_date }}</li>
+</ul>
+<p>
+    <strong>Reason:</strong> The local end date was in the past and has been synced
+    from the central allocation system.
+</p>
+{% if remote_events %}
+<p>Recent related events from the central system:</p>
+<ul>
+    {% for event in remote_events %}
+    <li>{{ event.message }}</li>
+    {% endfor %}
+</ul>
+{% endif %}
+<p>
+    Thank you!
+</p>
+</body>
+</html>
+
+```
+
+### resource_end_date_pulled_from_remote_message.txt (waldur_mastermind.marketplace_remote)
+
+```txt
+
+Hello!
+
+The end date of resource {{ resource.name }} in project {{ resource.project.name }} has been updated automatically.
+
+Previous end date: {{ old_end_date }}
+New end date: {{ new_end_date }}
+
+Reason: The local end date was in the past and has been synced from the central allocation system.
+
+You can view the resource here: {{ resource_url }}
+{% if remote_events %}
+Recent related events from the central system:
+{% for event in remote_events %}  - {{ event.message }}
+{% endfor %}{% endif %}
+Thank you!
+
+```
+
 ### notification_about_project_details_update_subject.txt (waldur_mastermind.marketplace_remote)
 
 ```txt
@@ -2380,6 +2443,14 @@ A notification about project details update.
 </p>
 </body>
 </html>
+
+```
+
+### resource_end_date_pulled_from_remote_subject.txt (waldur_mastermind.marketplace_remote)
+
+```txt
+
+Resource {{ resource.name }} end date updated automatically.
 
 ```
 
