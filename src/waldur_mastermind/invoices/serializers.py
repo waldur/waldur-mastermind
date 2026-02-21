@@ -1197,7 +1197,7 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
 
 def get_project_credit(serializer, project) -> float | None:
     try:
-        return models.ProjectCredit.objects.get(project=project).value
+        return project.projectcredit.value
     except models.ProjectCredit.DoesNotExist:
         return None
 

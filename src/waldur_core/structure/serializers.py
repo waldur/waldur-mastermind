@@ -428,7 +428,7 @@ class ProjectSerializer(
 
     @staticmethod
     def eager_load(queryset, request=None):
-        return queryset.select_related("customer", "type")
+        return queryset.select_related("customer", "type", "projectcredit")
 
     def get_filtered_field_names(self):
         return ("customer",)
