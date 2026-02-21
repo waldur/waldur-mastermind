@@ -5904,6 +5904,15 @@ class ComponentUserUsageCreateSerializer(serializers.ModelSerializer):
         )
 
 
+class ComponentUserUsageBulkCreateSerializer(serializers.Serializer):
+    usages = ComponentUserUsageCreateSerializer(many=True)
+
+    def validate_usages(self, value):
+        if not value:
+            raise serializers.ValidationError(_("At least one usage item is required."))
+        return value
+
+
 class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.ResourcePlanPeriod
