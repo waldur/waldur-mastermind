@@ -616,6 +616,21 @@ class ProjectCostLimitContext(BaseModel):
     limit: float = Field(description="The cost limit that was exceeded.")
 
 
+class ResourceEndDatePulledContext(BaseModel):
+    resource: Any = Field(
+        description="The Resource model instance whose end date was updated."
+    )
+    old_end_date: str = Field(description="The previous end date (as string).")
+    new_end_date: str = Field(
+        description="The new end date pulled from remote (as string)."
+    )
+    resource_url: str = Field(description="A URL to the resource's detail page.")
+    remote_events: list = Field(
+        default_factory=list,
+        description="List of recent related events from the remote system.",
+    )
+
+
 class MarketplaceRemoteSection(NotificationSection):
     class Meta:
         key = "marketplace_remote"
@@ -629,6 +644,11 @@ class MarketplaceRemoteSection(NotificationSection):
         key="notification_about_project_details_update",
         description="Notifies users about a completed project update request, detailing the changes.",
         context_model=ProjectDetailsUpdateContext,
+    )
+    resource_end_date_pulled_from_remote = Notification(
+        key="resource_end_date_pulled_from_remote",
+        description="Notification sent when a resource's end date is automatically updated from the remote allocation system because the local date was in the past.",
+        context_model=ResourceEndDatePulledContext,
     )
 
 

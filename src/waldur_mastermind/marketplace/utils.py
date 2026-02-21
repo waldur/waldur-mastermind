@@ -838,6 +838,18 @@ def terminate_resource(resource, user, termination_comment=None, scheduled=False
         )
         return
 
+    if models.Order.objects.filter(
+        resource=resource,
+        state=OrderStates.ERRED,
+        type=OrderTypes.TERMINATE,
+        modified__gte=timezone.now() - datetime.timedelta(days=1),
+    ).exists():
+        logger.info(
+            "Skipping terminate for resource %s — recent ERRED terminate order exists.",
+            resource,
+        )
+        return
+
     return create_request(view, user, {}, uuid=resource.uuid.hex)
 
 

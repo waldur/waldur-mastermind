@@ -82,6 +82,9 @@ from waldur_core.core.utils import (
     month_start,
     serialize_instance,
 )
+from waldur_core.logging.enums import EventType
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.utils import get_users_with_permission
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
@@ -600,10 +603,86 @@ def reconcile_resource_end_dates():
     resources = (
         models.Resource.objects.filter(offering__type=REMOTE_OFFERING)
         .exclude(backend_id="")
-        .exclude(state__in=[ResourceStates.CREATING, ResourceStates.TERMINATING])
+        .exclude(
+            state__in=[
+                ResourceStates.CREATING,
+                ResourceStates.TERMINATING,
+                ResourceStates.TERMINATED,
+            ]
+        )
     )
     for resource in resources:
         utils.reconcile_resource_end_date(resource)
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace_remote.notify_resource_end_date_pulled_from_remote"
+)
+def notify_resource_end_date_pulled_from_remote(
+    resource_uuid, old_end_date, new_end_date, remote_events=None
+):
+    """Send notification when a resource's end date is pulled from remote.
+
+    This happens when the local end_date was in the past and the remote
+    has a valid future date, so we sync from remote instead of pushing.
+    """
+    from waldur_core.logging import event_logger
+
+    try:
+        resource = models.Resource.objects.get(uuid=resource_uuid)
+    except models.Resource.DoesNotExist:
+        logger.warning("Resource %s not found for end date notification", resource_uuid)
+        return
+
+    # Emit audit log event
+    event_logger.emit(
+        "End date of marketplace resource %(resource_name)s has been automatically "
+        "updated from %(old_end_date)s to %(new_end_date)s "
+        "(synced from remote allocation)."
+        % {
+            "resource_name": resource.name,
+            "old_end_date": old_end_date,
+            "new_end_date": new_end_date,
+        },
+        event_type=EventType.MARKETPLACE_RESOURCE_UPDATE_END_DATE_SUCCEEDED,
+        event_context={"resource": resource},
+        scopes=[resource, resource.project, resource.project.customer],
+    )
+
+    # Determine recipients: users with APPROVE_ORDER permission on the project/customer
+    recipients = set()
+    for scope in [resource.project, resource.project.customer]:
+        users = get_users_with_permission(scope, PermissionEnum.APPROVE_ORDER)
+        for user in users.exclude(email="").exclude(notifications_enabled=False):
+            recipients.add(user.email)
+
+    if not recipients:
+        logger.info(
+            "No recipients found for end date sync notification for resource %s",
+            resource,
+        )
+        return
+
+    resource_url = format_homeport_link(
+        "project-resource-details/{resource_uuid}/",
+        project_uuid=resource.project.uuid.hex,
+        resource_uuid=resource.uuid.hex,
+    )
+
+    context = {
+        "resource": resource,
+        "old_end_date": old_end_date,
+        "new_end_date": new_end_date,
+        "resource_url": resource_url,
+        "remote_events": remote_events or [],
+    }
+
+    broadcast_mail(
+        "marketplace_remote",
+        "resource_end_date_pulled_from_remote",
+        context,
+        list(recipients),
+    )
 
 
 @shared_task

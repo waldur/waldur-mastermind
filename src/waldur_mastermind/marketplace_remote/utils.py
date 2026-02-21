@@ -697,6 +697,16 @@ def push_resource_options(local_resource: marketplace_models.Resource):
 
 def push_resource_end_date(local_resource: marketplace_models.Resource):
     offering = local_resource.offering
+    if (
+        local_resource.end_date
+        and local_resource.end_date < timezone.datetime.today().date()
+    ):
+        logger.warning(
+            "Skipping push of past end date %s for resource %s",
+            local_resource.end_date,
+            local_resource,
+        )
+        return
     client = get_client_for_offering(offering)
     try:
         logger.info(
@@ -716,12 +726,21 @@ def push_resource_end_date(local_resource: marketplace_models.Resource):
 
 def reconcile_resource_end_date(local_resource: marketplace_models.Resource):
     """
-    Compare local and remote resource end_date and push local value if they differ.
+    Compare local and remote resource end_date and reconcile.
+
+    If the local end_date is in the past and the remote has a valid future date,
+    pull the remote date instead of pushing the stale local one.
+    Otherwise, push the local value to the remote if they differ.
     """
     if (
         local_resource.offering.type != REMOTE_OFFERING
         or not local_resource.backend_id
-        or local_resource.state in (ResourceStates.CREATING, ResourceStates.TERMINATING)
+        or local_resource.state
+        in (
+            ResourceStates.CREATING,
+            ResourceStates.TERMINATING,
+            ResourceStates.TERMINATED,
+        )
     ):
         return
     client = get_client_for_offering(local_resource.offering)
@@ -746,6 +765,40 @@ def reconcile_resource_end_date(local_resource: marketplace_models.Resource):
         )
         return
 
+    today = timezone.datetime.today().date()
+
+    # If local end_date is in the past, do not push it to remote
+    if local_resource.end_date and local_resource.end_date < today:
+        if remote_end_date and remote_end_date >= today:
+            # Pull the valid remote date instead
+            old_end_date = local_resource.end_date
+            local_resource.end_date = remote_end_date
+            local_resource.save(update_fields=["end_date"])
+            logger.info(
+                "Pulled remote end date %s for resource %s (was %s)",
+                remote_end_date,
+                local_resource,
+                old_end_date,
+            )
+            from waldur_mastermind.marketplace_remote import tasks as remote_tasks
+
+            remote_events = fetch_resource_events_from_remote(local_resource)
+            remote_tasks.notify_resource_end_date_pulled_from_remote.delay(
+                local_resource.uuid.hex,
+                str(old_end_date),
+                str(remote_end_date),
+                remote_events,
+            )
+        else:
+            logger.warning(
+                "Skipping push of past end date %s for resource %s "
+                "(remote end_date: %s)",
+                local_resource.end_date,
+                local_resource,
+                remote_end_date,
+            )
+        return
+
     try:
         logger.info(
             "Pushing local resource end date %s for resource %s to remote",
@@ -766,6 +819,33 @@ def reconcile_resource_end_date(local_resource: marketplace_models.Resource):
             exc,
         )
         return
+
+
+def fetch_resource_events_from_remote(resource):
+    """Fetch recent end_date-related events from remote Waldur for context."""
+    try:
+        client = get_client_for_offering(resource.offering)
+        backend_uuid = str(uuid.UUID(resource.backend_id))
+        scope_url = f"{client._base_url}/api/marketplace-resources/{backend_uuid}/"
+        response = client.get_httpx_client().request(
+            method="GET",
+            url="/api/events/",
+            params={
+                "scope": scope_url,
+                "event_type": "marketplace_resource_update_end_date_succeeded",
+                "page_size": 10,
+                "o": "-created",
+            },
+        )
+        if response.status_code == 200:
+            return response.json()
+    except Exception as exc:
+        logger.warning(
+            "Unable to fetch remote events for resource %s: %s",
+            resource,
+            exc,
+        )
+    return []
 
 
 def get_remote_offerings(

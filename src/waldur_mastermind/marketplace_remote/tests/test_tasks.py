@@ -26,6 +26,8 @@ from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import (
     REMOTE_OFFERING,
     OfferingStates,
+    OrderStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories, fixtures
@@ -823,6 +825,7 @@ class ResourceEndDatePushTest(testcases.TransactionTestCase):
         mock.patch.stopall()
 
     @respx.mock
+    @freeze_time("2025-01-01")
     def test_resource_end_date_is_pushed_to_remote(self):
         end_date = datetime.date(2025, 1, 15)
         canonical_uuid = str(uuid.UUID(self.resource.backend_id))
@@ -840,6 +843,7 @@ class ResourceEndDatePushTest(testcases.TransactionTestCase):
         self.assertEqual(request_json["end_date"], end_date.isoformat())
 
     @respx.mock
+    @freeze_time("2025-01-15")
     def test_reconcile_task_updates_remote_when_end_date_differs(self):
         local_end_date = datetime.date(2025, 2, 1)
         with mock.patch(
@@ -877,6 +881,7 @@ class ResourceEndDatePushTest(testcases.TransactionTestCase):
         self.assertEqual(request_json["end_date"], local_end_date.isoformat())
 
     @respx.mock
+    @freeze_time("2025-01-15")
     def test_reconcile_task_does_not_update_when_end_date_is_same(self):
         local_end_date = datetime.date(2025, 2, 1)
         with mock.patch(
@@ -912,6 +917,217 @@ class ResourceEndDatePushTest(testcases.TransactionTestCase):
         tasks.reconcile_resource_end_dates()
 
         self.assertFalse(patch_request.called)
+
+    @respx.mock
+    @freeze_time("2025-03-01")
+    def test_push_resource_end_date_skips_past_date(self):
+        """push_resource_end_date should not push a date that is in the past."""
+        past_date = datetime.date(2025, 2, 15)
+        canonical_uuid = str(uuid.UUID(self.resource.backend_id))
+        patch_request = respx.patch(
+            f"{self.api_url}/api/marketplace-resources/{canonical_uuid}/"
+        ).respond(200, json={"uuid": canonical_uuid, "name": "resource"})
+
+        with mock.patch(
+            "waldur_mastermind.marketplace_remote.utils.push_resource_end_date",
+            wraps=utils.push_resource_end_date,
+        ):
+            self.resource.end_date = past_date
+            self.resource.save()
+
+        utils.push_resource_end_date(self.resource)
+
+        self.assertFalse(patch_request.called)
+
+    @respx.mock
+    @freeze_time("2025-03-01")
+    def test_reconcile_pulls_remote_date_when_local_is_past(self):
+        """When local end_date is past and remote has a valid future date, pull it."""
+        past_local_date = datetime.date(2025, 2, 15)
+        future_remote_date = "2025-06-01"
+        with mock.patch(
+            "waldur_mastermind.marketplace_remote.utils.push_resource_end_date"
+        ):
+            self.resource.end_date = past_local_date
+            self.resource.state = ResourceStates.OK
+            self.resource.save()
+
+        resource_uuid = str(uuid.UUID(self.resource.backend_id))
+
+        respx.get(f"{self.api_url}/api/marketplace-resources/{resource_uuid}/").respond(
+            200,
+            json={
+                "uuid": resource_uuid,
+                "name": "resource",
+                "end_date": future_remote_date,
+            },
+        )
+        # Mock the events endpoint
+        respx.get(f"{self.api_url}/api/events/").respond(200, json=[])
+
+        # Mock push to avoid signal handler side effects
+        with mock.patch(
+            "waldur_mastermind.marketplace_remote.utils.push_resource_end_date"
+        ):
+            tasks.reconcile_resource_end_dates()
+
+        # Should update local resource with remote date
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.end_date, datetime.date(2025, 6, 1))
+
+    @respx.mock
+    @freeze_time("2025-03-01")
+    def test_reconcile_skips_push_when_local_past_and_remote_also_past(self):
+        """When both local and remote dates are past, skip entirely."""
+        past_local_date = datetime.date(2025, 2, 15)
+        past_remote_date = "2025-02-10"
+        with mock.patch(
+            "waldur_mastermind.marketplace_remote.utils.push_resource_end_date"
+        ):
+            self.resource.end_date = past_local_date
+            self.resource.state = ResourceStates.OK
+            self.resource.save()
+
+        resource_uuid = str(uuid.UUID(self.resource.backend_id))
+
+        respx.get(f"{self.api_url}/api/marketplace-resources/{resource_uuid}/").respond(
+            200,
+            json={
+                "uuid": resource_uuid,
+                "name": "resource",
+                "end_date": past_remote_date,
+            },
+        )
+        patch_request = respx.patch(
+            f"{self.api_url}/api/marketplace-resources/{resource_uuid}/"
+        ).respond(200, json={})
+
+        tasks.reconcile_resource_end_dates()
+
+        # Should NOT push to remote
+        self.assertFalse(patch_request.called)
+        # Should NOT update local resource
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.end_date, past_local_date)
+
+    @respx.mock
+    def test_reconcile_skips_terminated_resources(self):
+        """TERMINATED resources should be excluded from reconciliation."""
+        with mock.patch(
+            "waldur_mastermind.marketplace_remote.utils.push_resource_end_date"
+        ):
+            self.resource.end_date = datetime.date(2025, 6, 1)
+            self.resource.state = ResourceStates.TERMINATED
+            self.resource.save()
+
+        resource_uuid = str(uuid.UUID(self.resource.backend_id))
+        get_request = respx.get(
+            f"{self.api_url}/api/marketplace-resources/{resource_uuid}/"
+        ).respond(200, json={})
+
+        tasks.reconcile_resource_end_dates()
+
+        # Should not even fetch the remote resource
+        self.assertFalse(get_request.called)
+
+    @respx.mock
+    @freeze_time("2025-03-01")
+    @override_settings(task_always_eager=True)
+    def test_reconcile_sends_notification_when_pulling_remote_date(self):
+        """Notification email should be sent when pulling remote date."""
+        past_local_date = datetime.date(2025, 2, 15)
+        future_remote_date = "2025-06-01"
+        with mock.patch(
+            "waldur_mastermind.marketplace_remote.utils.push_resource_end_date"
+        ):
+            self.resource.end_date = past_local_date
+            self.resource.state = ResourceStates.OK
+            self.resource.save()
+
+        resource_uuid = str(uuid.UUID(self.resource.backend_id))
+
+        respx.get(f"{self.api_url}/api/marketplace-resources/{resource_uuid}/").respond(
+            200,
+            json={
+                "uuid": resource_uuid,
+                "name": "resource",
+                "end_date": future_remote_date,
+            },
+        )
+        respx.get(f"{self.api_url}/api/events/").respond(200, json=[])
+
+        event_type = "resource_end_date_pulled_from_remote"
+        NotificationFactory(key=f"marketplace_remote.{event_type}")
+
+        # Grant APPROVE_ORDER permission to a role and assign user
+        from waldur_core.permissions.enums import PermissionEnum
+        from waldur_core.permissions.fixtures import ProjectRole
+
+        ProjectRole.ADMIN.add_permission(PermissionEnum.APPROVE_ORDER)
+        self.resource.project.add_user(self.fixture.owner, ProjectRole.ADMIN)
+
+        # Mock push to avoid signal handler side effects
+        with mock.patch(
+            "waldur_mastermind.marketplace_remote.utils.push_resource_end_date"
+        ):
+            tasks.reconcile_resource_end_dates()
+
+        self.assertTrue(len(mail.outbox) > 0)
+
+
+class ResourceEndDateTerminationGapTest(testcases.TransactionTestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.backend_id = uuid.uuid4().hex
+        self.resource.state = ResourceStates.OK
+        self.resource.end_date = datetime.date(2025, 1, 1)
+        self.resource.save()
+
+    @freeze_time("2025-01-02")
+    def test_terminate_resource_skips_when_recent_erred_terminate_order_exists(self):
+        """Should not create duplicate TERMINATE orders when a recent one is ERRED."""
+        from waldur_mastermind.marketplace import utils as marketplace_utils
+
+        # Create a recent ERRED TERMINATE order
+        factories.OrderFactory(
+            resource=self.resource,
+            project=self.resource.project,
+            offering=self.resource.offering,
+            type=OrderTypes.TERMINATE,
+            state=OrderStates.ERRED,
+        )
+
+        user = self.fixture.staff
+
+        result = marketplace_utils.terminate_resource(self.resource, user)
+
+        self.assertIsNone(result)
+
+    @freeze_time("2025-01-04")
+    def test_terminate_resource_retries_after_old_erred_terminate_order(self):
+        """Should allow retry when the ERRED TERMINATE order is older than 1 day."""
+        from waldur_mastermind.marketplace import utils as marketplace_utils
+
+        # Create an old ERRED TERMINATE order (more than 1 day ago)
+        old_order = factories.OrderFactory(
+            resource=self.resource,
+            project=self.resource.project,
+            offering=self.resource.offering,
+            type=OrderTypes.TERMINATE,
+            state=OrderStates.ERRED,
+        )
+        # Backdate the modified field
+        models.Order.objects.filter(pk=old_order.pk).update(
+            modified=timezone.now() - datetime.timedelta(days=2)
+        )
+
+        user = self.fixture.staff
+
+        result = marketplace_utils.terminate_resource(self.resource, user)
+
+        # Should have created a new order (returns Response)
+        self.assertIsNotNone(result)
 
 
 class NotificationAboutPendingProjectUpdatesTest(testcases.TransactionTestCase):

@@ -731,6 +731,7 @@ class OfferingRemoteVersionTest(test.APITestCase):
         respx.post(f"{self.api_url}/api/projects/").respond(
             201, json={"uuid": uuid4().hex}
         )
+        respx.get(f"{self.api_url}/api/marketplace-resources/").respond(200, json=[])
         respx.post(f"{self.api_url}/api/marketplace-orders/").respond(
             201, json=serialized_order
         )
