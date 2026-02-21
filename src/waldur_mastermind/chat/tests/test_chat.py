@@ -62,7 +62,6 @@ class StreamResponseTest(ChatBaseTest):
         LLM_CHAT_ENABLED=True,
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_CHAT_STORAGE_ENABLED=True,
     )
     def test_stream_proxies_ndjson_and_minifies(self, post_mock):
         upstream_payload = {
@@ -118,7 +117,6 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_TOKEN_LIMIT_MONTHLY=100,
-        LLM_CHAT_STORAGE_ENABLED=True,
     )
     def test_stream_rejected_when_quota_exceeded(self):
         """User cannot stream if already at or over quota limit."""
@@ -143,7 +141,6 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_TOKEN_LIMIT_MONTHLY=-1,  # Unlimited
-        LLM_CHAT_STORAGE_ENABLED=True,
     )
     @mock.patch("waldur_mastermind.chat.views.requests.post")
     def test_stream_allowed_with_unlimited_quota(self, post_mock):
@@ -173,7 +170,6 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_TOKEN_LIMIT_MONTHLY=100,
-        LLM_CHAT_STORAGE_ENABLED=True,
     )
     @mock.patch("waldur_mastermind.chat.views.requests.post")
     def test_usage_recorded_after_stream(self, post_mock):
@@ -221,7 +217,6 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_TOKEN_LIMIT_MONTHLY=100,
-        LLM_CHAT_STORAGE_ENABLED=True,
     )
     @mock.patch("waldur_mastermind.chat.views.requests.post")
     def test_stream_allowed_near_limit_may_exceed_after(self, post_mock):
@@ -268,7 +263,6 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_TOKEN_LIMIT_MONTHLY="invalid_value",
-        LLM_CHAT_STORAGE_ENABLED=True,
     )
     def test_stream_fails_with_invalid_constance_config(self):
         """Stream request fails when constance config has invalid value."""
@@ -286,7 +280,6 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_TOKEN_LIMIT_DAILY=-10,  # Invalid: below -1
-        LLM_CHAT_STORAGE_ENABLED=True,
     )
     def test_stream_fails_with_invalid_negative_limit(self):
         """Stream request fails when constance has limit below -1."""

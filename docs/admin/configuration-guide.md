@@ -2570,12 +2570,6 @@ Default monthly token limit (integer). -1 means unlimited.
 
 Number of days to retain chat sessions before automatic deletion. Set to -1 to disable automatic cleanup.
 
-#### LLM_CHAT_STORAGE_ENABLED
-
-**Type:** bool
-
-Enable persistent storage of chat messages. When disabled, messages are streamed but not saved.
-
 #### LLM_CHAT_HISTORY_LIMIT
 
 **Type:** int

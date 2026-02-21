@@ -28,8 +28,7 @@ def build_context(user, user_input, thread=None, include_history=True):
 
     parts = [system_prompt]
 
-    if include_history and thread and config.LLM_CHAT_STORAGE_ENABLED:
-        # Only include history if we're configured to store it and a thread is provided
+    if include_history and thread:
         history = _get_conversation_history(thread)
         if history:
             parts.append(f"=== CONVERSATION HISTORY ===\n{history}")

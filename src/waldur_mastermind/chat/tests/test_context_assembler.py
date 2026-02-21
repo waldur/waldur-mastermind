@@ -19,7 +19,6 @@ class BuildContextTest(TestCase):
         session = ChatSession.objects.create(user=self.user)
         self.thread = ThreadSession.objects.create(chat_session=session)
 
-    @override_constance_config(LLM_CHAT_STORAGE_ENABLED=True)
     def test_builds_context_with_system_prompt_and_history(self):
         Message.objects.create(
             thread=self.thread, role="user", content="Hello", sequence_index=1
@@ -44,7 +43,6 @@ class BuildContextTest(TestCase):
         # Current message present
         self.assertIn("user: What resources?", context)
 
-    @override_constance_config(LLM_CHAT_STORAGE_ENABLED=True)
     def test_no_thread_skips_history(self):
         context = build_context(self.user, "Hello", thread=None)
 
@@ -53,7 +51,6 @@ class BuildContextTest(TestCase):
         # No history section
         self.assertNotIn("assistant:", context)
 
-    @override_constance_config(LLM_CHAT_STORAGE_ENABLED=True)
     def test_conversation_history_chronological_order(self):
         Message.objects.create(
             thread=self.thread, role="user", content="First", sequence_index=1
@@ -79,7 +76,6 @@ class BuildContextTest(TestCase):
         self.assertLess(second_pos, third_pos)
         self.assertLess(third_pos, fourth_pos)
 
-    @override_constance_config(LLM_CHAT_STORAGE_ENABLED=True)
     def test_excludes_replaced_messages(self):
         original = Message.objects.create(
             thread=self.thread, role="user", content="Original", sequence_index=1
@@ -98,7 +94,7 @@ class BuildContextTest(TestCase):
         self.assertIn("user: Edited", context)
         self.assertNotIn("user: Original", context)
 
-    @override_constance_config(LLM_CHAT_STORAGE_ENABLED=True, LLM_CHAT_HISTORY_LIMIT=50)
+    @override_constance_config(LLM_CHAT_HISTORY_LIMIT=50)
     def test_caps_at_history_limit(self):
         for i in range(60):
             Message.objects.create(
@@ -118,7 +114,6 @@ class BuildContextTest(TestCase):
         for i in range(50, 60):
             self.assertNotIn(f"Message {i}", context)
 
-    @override_constance_config(LLM_CHAT_STORAGE_ENABLED=True)
     def test_title_generation_skips_history(self):
         Message.objects.create(
             thread=self.thread, role="user", content="Hello", sequence_index=1
@@ -131,21 +126,12 @@ class BuildContextTest(TestCase):
         self.assertIn("user: Generate title", context)
         self.assertNotIn("user: Hello", context)
 
-    @override_constance_config(LLM_CHAT_STORAGE_ENABLED=False)
-    def test_storage_disabled_skips_history(self):
-        Message.objects.create(
-            thread=self.thread, role="user", content="Old msg", sequence_index=1
-        )
-        context = build_context(self.user, "Hello", thread=self.thread)
-        self.assertIn("user: Hello", context)
-        self.assertNotIn("Old msg", context)
-
     def test_raises_permission_denied_for_other_users_thread(self):
         other_user = structure_factories.UserFactory()
         with self.assertRaises(PermissionDenied):
             build_context(other_user, "Hello", thread=self.thread)
 
-    @override_constance_config(LLM_CHAT_STORAGE_ENABLED=True, LLM_CHAT_HISTORY_LIMIT=-1)
+    @override_constance_config(LLM_CHAT_HISTORY_LIMIT=-1)
     def test_invalid_history_limit_skips_history(self):
         Message.objects.create(
             thread=self.thread, role="user", content="Old msg", sequence_index=1
@@ -153,11 +139,6 @@ class BuildContextTest(TestCase):
         context = build_context(self.user, "Hello", thread=self.thread)
         self.assertIn("user: Hello", context)
         self.assertNotIn("Old msg", context)
-
-    @override_constance_config(LLM_CHAT_STORAGE_ENABLED=False)
-    def test_no_thread_works_without_storage(self):
-        context = build_context(self.user, "Hello", thread=None)
-        self.assertIn("user: Hello", context)
 
 
 class ChatStreamIntegrationTest(test.APITestCase):
@@ -172,7 +153,6 @@ class ChatStreamIntegrationTest(test.APITestCase):
         LLM_CHAT_ENABLED=True,
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_CHAT_STORAGE_ENABLED=True,
     )
     @mock.patch("waldur_mastermind.chat.views.requests.post")
     def test_stream_response(self, post_mock):
@@ -205,7 +185,6 @@ class ChatStreamIntegrationTest(test.APITestCase):
         LLM_CHAT_ENABLED=True,
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_CHAT_STORAGE_ENABLED=True,
     )
     @mock.patch("waldur_mastermind.chat.views.requests.post")
     def test_sends_assembled_context_to_llm(self, post_mock):
@@ -231,7 +210,6 @@ class ChatStreamIntegrationTest(test.APITestCase):
         LLM_CHAT_ENABLED=True,
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_CHAT_STORAGE_ENABLED=True,
     )
     @mock.patch("waldur_mastermind.chat.views.requests.post")
     def test_persists_raw_input_not_context(self, post_mock):
