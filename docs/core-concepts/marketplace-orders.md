@@ -409,6 +409,7 @@ Different service types implement update processing differently:
 #### Remote Marketplace Updates (`RemoteUpdateResourceProcessor`)
 
 - Forwards update requests to remote Waldur instances
+- Checks if remote limits already match before sending an update
 - Handles API client authentication and error handling
 - Supports cross-instance resource management
 
@@ -514,6 +515,145 @@ When `notify_about_provider_consumer_messages` is enabled on the offering:
 - **Consumer responds** → email sent to all users with `APPROVE_ORDER` permission on the offering's organization
 
 Email subjects include the offering and resource name to prevent grouping by email clients.
+
+## Remote Marketplace Processors
+
+The remote marketplace processors handle resource lifecycle operations across federated Waldur instances (Waldur A consuming offerings from Waldur B). These processors manage the complexity of cross-instance communication, including network failures, state synchronization, and duplicate prevention.
+
+### Create Processor (`RemoteCreateResourceProcessor`)
+
+The create processor provisions resources on a remote Waldur instance by forwarding orders through the API client.
+
+#### Duplicate Resource Prevention
+
+When Waldur B returns a transient error (e.g., HTTP 500) during resource creation, the resource may be created on Waldur B while Waldur A never receives the `backend_id`. If the failed local resource is then terminated (with an empty `backend_id`), the remote resource is never cleaned up. A subsequent retry creates a duplicate.
+
+To prevent this, the create processor performs two levels of duplicate checking:
+
+##### Local duplicate check in validate\_order
+
+At order submission time, the processor queries the local database for an active resource with the same offering, project, and name. This is a synchronous, cheap DB query that catches obvious retries before any remote call is made.
+
+Active states checked: `CREATING`, `OK`, `UPDATING`, `TERMINATING`.
+
+Resources in `TERMINATED` or `ERRED` state are excluded, allowing legitimate re-creation after cleanup.
+
+##### Remote duplicate check in process\_order
+
+At order processing time (async Celery task), the processor queries the remote Waldur instance's `marketplace-resources` API for existing active resources matching the same offering, project, and name. If a match is found, the order is moved to erred state with a message including the remote resource UUID for operator investigation.
+
+If Waldur B is unreachable, the API call fails and the order moves to erred state, which is the correct behavior since creating resources on an unreachable instance would fail anyway.
+
+#### Normal create flow (happy path)
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant WaldurA as Waldur A (consumer)
+    participant CeleryA as Celery Worker (A)
+    participant WaldurB as Waldur B (provider)
+
+    User->>WaldurA: POST /marketplace-orders/ (create)
+    WaldurA->>WaldurA: validate_order: query local DB<br/>No active resource with same name+offering+project
+    WaldurA-->>User: 201 Order created (PENDING)
+    WaldurA->>CeleryA: process_order task
+    CeleryA->>WaldurB: GET /marketplace-resources/?name_exact=...&state=...
+    WaldurB-->>CeleryA: 200 [] (no duplicates)
+    CeleryA->>WaldurB: POST /marketplace-orders/
+    WaldurB-->>CeleryA: 201 {uuid: remote_order_uuid}
+    CeleryA->>CeleryA: Save backend_id, start polling
+    CeleryA->>WaldurB: GET /marketplace-orders/{uuid}/
+    WaldurB-->>CeleryA: 200 {state: done, marketplace_resource_uuid: ...}
+    CeleryA->>WaldurA: Resource → OK, backend_id set
+```
+
+#### Failure scenario: transient 500 creates orphan
+
+This is the scenario that duplicate prevention guards against.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant WaldurA as Waldur A (consumer)
+    participant CeleryA as Celery Worker (A)
+    participant WaldurB as Waldur B (provider)
+
+    User->>WaldurA: POST /marketplace-orders/ (create "my-vm")
+    WaldurA-->>User: 201 Order created
+    WaldurA->>CeleryA: process_order task
+
+    Note over WaldurB: Resource IS created<br/>on Waldur B
+    CeleryA->>WaldurB: POST /marketplace-orders/
+    WaldurB-->>CeleryA: 500 Internal Server Error
+
+    Note over CeleryA: No backend_id received
+    CeleryA->>WaldurA: Order → ERRED, Resource → ERRED
+
+    Note over User: User terminates the erred resource
+    User->>WaldurA: Terminate resource
+    WaldurA->>WaldurA: backend_id is empty<br/>⚠️ WARNING logged:<br/>"remote orphan may exist"
+    WaldurA->>WaldurA: Resource → TERMINATED locally<br/>(no remote cleanup possible)
+
+    Note over WaldurB: Orphan resource remains on Waldur B
+
+    Note over User: User retries by creating a new order
+    User->>WaldurA: POST /marketplace-orders/ (create "my-vm")
+    WaldurA->>WaldurA: validate_order: local resource "my-vm"<br/>is TERMINATED → passes
+    WaldurA-->>User: 201 Order created
+    WaldurA->>CeleryA: process_order task
+    CeleryA->>WaldurB: GET /marketplace-resources/?name_exact=my-vm&state=...
+    WaldurB-->>CeleryA: 200 [{uuid: orphan_uuid, name: "my-vm", state: "OK"}]
+
+    Note over CeleryA: Duplicate detected!
+    CeleryA->>WaldurA: Order → ERRED:<br/>"Resource 'my-vm' already exists.<br/>Remote UUID: orphan_uuid"
+```
+
+#### Failure scenario: local duplicate caught at submission
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant WaldurA as Waldur A (consumer)
+
+    Note over WaldurA: Active resource "my-vm" exists<br/>(state: OK)
+    User->>WaldurA: POST /marketplace-orders/ (create "my-vm")
+    WaldurA->>WaldurA: validate_order: query local DB<br/>Found active resource with same<br/>name + offering + project
+    WaldurA-->>User: 400 ValidationError:<br/>"Active resource with name 'my-vm'<br/>already exists in this project"
+    Note over User: No remote call made,<br/>no Celery task queued
+```
+
+### Delete Processor (`RemoteDeleteResourceProcessor`)
+
+The delete processor terminates resources on the remote instance. When a resource has an empty `backend_id` (e.g., due to a failed creation where the response was lost), the processor:
+
+- Logs a warning identifying the resource, offering, and project
+- Returns immediately without attempting remote cleanup
+- Terminates the resource locally
+
+The warning log helps operators identify potential orphaned resources on the remote instance that may need manual cleanup.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant WaldurA as Waldur A (consumer)
+    participant WaldurB as Waldur B (provider)
+
+    User->>WaldurA: Terminate resource
+    alt backend_id is empty
+        WaldurA->>WaldurA: ⚠️ LOG WARNING:<br/>"backend_id is empty,<br/>remote orphan may exist"
+        WaldurA->>WaldurA: Resource → TERMINATED locally
+        Note over WaldurB: No request sent.<br/>Potential orphan remains.
+    else backend_id is set
+        WaldurA->>WaldurB: POST /marketplace-resources/{uuid}/terminate/
+        WaldurB-->>WaldurA: 200 {order_uuid: ...}
+        WaldurA->>WaldurA: Poll until remote order completes
+        WaldurA->>WaldurA: Resource → TERMINATED
+    end
+```
+
+### Update Processor (`RemoteUpdateResourceProcessor`)
+
+The update processor forwards limit changes to the remote instance. Before sending an update, it checks whether the remote limits already match the requested limits to avoid unnecessary API calls. It also handles the case where the remote API returns HTTP 400 because the limits are already identical.
 
 ## Best Practices for Processor Implementation
 

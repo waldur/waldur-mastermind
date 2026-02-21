@@ -5,13 +5,19 @@ from uuid import UUID
 from django.conf import settings
 from django.db import transaction
 from django.urls import reverse
+from django.utils.translation import gettext_lazy as _
+from rest_framework.exceptions import ValidationError
 from waldur_api_client.api.marketplace_orders import marketplace_orders_create
 from waldur_api_client.api.marketplace_resources import (
+    marketplace_resources_list,
     marketplace_resources_retrieve,
     marketplace_resources_terminate,
     marketplace_resources_update_limits,
 )
 from waldur_api_client.errors import UnexpectedStatus
+from waldur_api_client.models.marketplace_resources_list_state_item import (
+    MarketplaceResourcesListStateItem,
+)
 from waldur_api_client.models.order_create_request import OrderCreateRequest
 from waldur_api_client.models.order_create_request_limits import (
     OrderCreateRequestLimits,
@@ -45,8 +51,28 @@ def build_callback_url(order: models.Order):
 
 class RemoteCreateResourceProcessor(processors.BaseOrderProcessor):
     def validate_order(self, request):
-        # TODO: Implement validation
-        pass
+        name = self.order.attributes.get("name", "")
+        if (
+            name
+            and models.Resource.objects.filter(
+                project=self.order.project,
+                offering=self.order.offering,
+                name=name,
+                state__in=(
+                    models.Resource.States.CREATING,
+                    models.Resource.States.OK,
+                    models.Resource.States.UPDATING,
+                    models.Resource.States.TERMINATING,
+                ),
+            ).exists()
+        ):
+            raise ValidationError(
+                _(
+                    "Active resource with name '%(name)s' already exists "
+                    "in this project for this offering."
+                )
+                % {"name": name}
+            )
 
     def process_order(self, user: User):
         client = utils.get_client_for_offering(self.order.offering)
@@ -54,6 +80,29 @@ class RemoteCreateResourceProcessor(processors.BaseOrderProcessor):
             self.order.offering, self.order.project, client
         )
         remote_project_uuid = cast(UUID, remote_project.uuid).hex
+
+        # Check for existing resource on the remote side to prevent duplicates
+        name = self.order.attributes.get("name", "")
+        if name:
+            remote_resources = marketplace_resources_list.sync(
+                client=client,
+                project_uuid=UUID(remote_project_uuid),
+                offering_uuid=[UUID(self.order.offering.backend_id)],
+                name_exact=name,
+                state=[
+                    MarketplaceResourcesListStateItem.CREATING,
+                    MarketplaceResourcesListStateItem.OK,
+                    MarketplaceResourcesListStateItem.UPDATING,
+                    MarketplaceResourcesListStateItem.TERMINATING,
+                ],
+            )
+            if remote_resources:
+                raise Exception(
+                    f"Resource with name '{name}' already exists in remote project. "
+                    f"Remote resource UUID: {remote_resources[0].uuid}. "
+                    f"This may be an orphan from a previously failed order."
+                )
+
         # To bypass the api check we convert the attributes to a generic object with to_dict method
         converted_attributes = utils.GenericOrderAttribute(self.order.attributes)
         response = marketplace_orders_create.sync(
@@ -156,6 +205,14 @@ class RemoteDeleteResourceProcessor(processors.BasicDeleteResourceProcessor):
     def send_request(self, user, resource: models.Resource):
         # Resource is switched to terminated state by caller method
         if not resource.backend_id:
+            logger.warning(
+                "Terminating resource %s locally without remote cleanup — "
+                "backend_id is empty. A remote orphan may exist for "
+                "offering %s in project %s.",
+                resource.uuid,
+                resource.offering,
+                resource.project,
+            )
             return True
 
         # If terminate order already exists in the remote side,
@@ -170,11 +227,23 @@ class RemoteDeleteResourceProcessor(processors.BasicDeleteResourceProcessor):
             return False
 
         client = utils.get_client_for_offering(self.order.offering)
-        response = marketplace_resources_terminate.sync(
-            client=client,
-            uuid=UUID(self.order.resource.backend_id),
-            body=ResourceTerminateRequest(),
-        )
+        try:
+            response = marketplace_resources_terminate.sync(
+                client=client,
+                uuid=UUID(self.order.resource.backend_id),
+                body=ResourceTerminateRequest(),
+            )
+        except (UnexpectedStatus, Exception) as exc:
+            logger.error(
+                "Failed to terminate remote resource %s: %s",
+                self.order.resource.backend_id,
+                exc,
+            )
+            self.order.set_state_erred()
+            self.order.error_message = str(exc)[:255]
+            self.order.save()
+            return False
+
         if response:
             self.order.backend_id = response.order_uuid.hex
             self.order.save(update_fields=["backend_id"])

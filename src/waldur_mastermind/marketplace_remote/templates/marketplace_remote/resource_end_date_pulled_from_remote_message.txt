@@ -1,0 +1,15 @@
+Hello!
+
+The end date of resource {{ resource.name }} in project {{ resource.project.name }} has been updated automatically.
+
+Previous end date: {{ old_end_date }}
+New end date: {{ new_end_date }}
+
+Reason: The local end date was in the past and has been synced from the central allocation system.
+
+You can view the resource here: {{ resource_url }}
+{% if remote_events %}
+Recent related events from the central system:
+{% for event in remote_events %}  - {{ event.message }}
+{% endfor %}{% endif %}
+Thank you!
