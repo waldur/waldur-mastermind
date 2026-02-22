@@ -21,6 +21,7 @@
 
 ## Chat
 
+- chat_injection_detected
 - chat_session_accessed
 - chat_thread_accessed
 

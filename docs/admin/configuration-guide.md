@@ -2578,6 +2578,12 @@ Number of days to retain chat sessions before automatic deletion. Set to -1 to d
 
 Maximum number of past messages included in the LLM context window.
 
+#### LLM_INJECTION_ALLOWLIST
+
+**Type:** str
+
+Comma-separated allowlist phrases that bypass injection detection.
+
 ### Software catalog settings
 
 #### SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED
