@@ -5,8 +5,8 @@ from django.utils import timezone
 from httpx import TimeoutException
 from waldur_api_client.api.marketplace_categories import marketplace_categories_list
 from waldur_api_client.errors import UnexpectedStatus
-from waldur_api_client.models.marketplace_categories_list_field_item import (
-    MarketplaceCategoriesListFieldItem,
+from waldur_api_client.models.marketplace_category_field_enum import (
+    MarketplaceCategoryFieldEnum,
 )
 from waldur_api_client.models.public_offering_details import PublicOfferingDetails
 
@@ -54,8 +54,8 @@ class RemoteSynchronisationRunner:
         remote_categories = marketplace_categories_list.sync_all(
             client=client,
             field=[
-                MarketplaceCategoriesListFieldItem.UUID,
-                MarketplaceCategoriesListFieldItem.TITLE,
+                MarketplaceCategoryFieldEnum.UUID,
+                MarketplaceCategoryFieldEnum.TITLE,
             ],
         )
 

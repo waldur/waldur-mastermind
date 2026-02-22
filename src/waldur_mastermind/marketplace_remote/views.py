@@ -19,9 +19,9 @@ from waldur_api_client.api.marketplace_public_offerings import (
     marketplace_public_offerings_retrieve,
 )
 from waldur_api_client.errors import UnexpectedStatus
-from waldur_api_client.models.customers_list_field_item import CustomersListFieldItem
-from waldur_api_client.models.marketplace_public_offerings_list_field_item import (
-    MarketplacePublicOfferingsListFieldItem,
+from waldur_api_client.models.customer_field_enum import CustomerFieldEnum
+from waldur_api_client.models.public_offering_details_field_enum import (
+    PublicOfferingDetailsFieldEnum,
 )
 
 from waldur_core.core import permissions as core_permissions
@@ -117,11 +117,11 @@ class CustomersView(RemoteView):
                 client=client,
                 owned_by_current_user=True,
                 field=[
-                    CustomersListFieldItem.UUID,
-                    CustomersListFieldItem.NAME,
-                    CustomersListFieldItem.ABBREVIATION,
-                    CustomersListFieldItem.PHONE_NUMBER,
-                    CustomersListFieldItem.EMAIL,
+                    CustomerFieldEnum.UUID,
+                    CustomerFieldEnum.NAME,
+                    CustomerFieldEnum.ABBREVIATION,
+                    CustomerFieldEnum.PHONE_NUMBER,
+                    CustomerFieldEnum.EMAIL,
                 ],
             )
         except (UnexpectedStatus, TimeoutException) as e:
@@ -168,11 +168,11 @@ class OfferingsListView(RemoteView):
                 client,
                 remote_customer_uuid,
                 fields=[
-                    MarketplacePublicOfferingsListFieldItem.UUID,
-                    MarketplacePublicOfferingsListFieldItem.NAME,
-                    MarketplacePublicOfferingsListFieldItem.TYPE,
-                    MarketplacePublicOfferingsListFieldItem.STATE,
-                    MarketplacePublicOfferingsListFieldItem.CATEGORY_TITLE,
+                    PublicOfferingDetailsFieldEnum.UUID,
+                    PublicOfferingDetailsFieldEnum.NAME,
+                    PublicOfferingDetailsFieldEnum.TYPE,
+                    PublicOfferingDetailsFieldEnum.STATE,
+                    PublicOfferingDetailsFieldEnum.CATEGORY_TITLE,
                 ],
             )
         except (UnexpectedStatus, TimeoutException) as e:

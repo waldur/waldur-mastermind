@@ -58,8 +58,8 @@ from waldur_api_client.models.base_public_plan import BasePublicPlan
 from waldur_api_client.models.maintenance_announcement import (
     MaintenanceAnnouncement as RemoteMaintenanceAnnouncement,
 )
-from waldur_api_client.models.maintenance_announcements_list_state_item import (
-    MaintenanceAnnouncementsListStateItem,
+from waldur_api_client.models.maintenance_announcement_state_enum import (
+    MaintenanceAnnouncementStateEnum,
 )
 from waldur_api_client.models.offering_component import OfferingComponent
 from waldur_api_client.models.public_offering_details import PublicOfferingDetails
@@ -1905,8 +1905,8 @@ class MaintenanceAnnouncementPullTask(BackgroundPullTask):
             remote_maintenance_list = maintenance_announcements_list.sync_all(
                 client=client,
                 state=[
-                    MaintenanceAnnouncementsListStateItem.SCHEDULED,
-                    MaintenanceAnnouncementsListStateItem.IN_PROGRESS,
+                    MaintenanceAnnouncementStateEnum.SCHEDULED,
+                    MaintenanceAnnouncementStateEnum.IN_PROGRESS,
                 ],
             )
 

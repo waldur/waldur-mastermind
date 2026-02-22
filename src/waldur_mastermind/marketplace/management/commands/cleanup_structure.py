@@ -12,7 +12,12 @@ from waldur_core.core.middleware import skip_side_effects
 from waldur_core.core.models import User
 from waldur_core.logging.models import Event, Feed
 from waldur_core.permissions.models import Role, RolePermission, UserRole
-from waldur_core.structure.models import Customer, Project, UserAgreement
+from waldur_core.structure.models import (
+    Customer,
+    Project,
+    ServiceSettings,
+    UserAgreement,
+)
 from waldur_core.users.models import GroupInvitation, Invitation, PermissionRequest
 from waldur_mastermind.invoices import handlers as invoice_handlers
 from waldur_mastermind.invoices.models import (
@@ -55,6 +60,7 @@ from waldur_mastermind.proposal.models import (
     Review,
     Round,
 )
+from waldur_openstack.models import Flavor, Image, Instance, Tenant, Volume
 
 
 class Command(BaseCommand):
@@ -139,6 +145,13 @@ class Command(BaseCommand):
             "software_versions": {"deleted": 0, "errors": 0},
             "software_packages": {"deleted": 0, "errors": 0},
             "software_catalogs": {"deleted": 0, "errors": 0},
+            # OpenStack backend model stats
+            "openstack_volumes": {"deleted": 0, "errors": 0},
+            "openstack_instances": {"deleted": 0, "errors": 0},
+            "openstack_tenants": {"deleted": 0, "errors": 0},
+            "openstack_images": {"deleted": 0, "errors": 0},
+            "openstack_flavors": {"deleted": 0, "errors": 0},
+            "openstack_service_settings": {"deleted": 0, "errors": 0},
         }
         self.dry_run = False
 
@@ -281,6 +294,14 @@ class Command(BaseCommand):
             # Delete component usages (depends on resources and components)
             self.cleanup_component_usages()
 
+            # Delete OpenStack backend models (before resources, reverse dependency order)
+            self.cleanup_openstack_volumes()
+            self.cleanup_openstack_instances()
+            self.cleanup_openstack_tenants()
+            self.cleanup_openstack_images()
+            self.cleanup_openstack_flavors()
+            self.cleanup_openstack_service_settings()
+
             # Delete resources (depends on offerings, plans, projects)
             self.cleanup_resources()
 
@@ -366,6 +387,12 @@ class Command(BaseCommand):
             ("orders", "marketplace_order"),
             # Component usages
             ("component_usages", "marketplace_componentusage"),
+            # OpenStack backend models (before resources, reverse dependency order)
+            ("openstack_volumes", "openstack_volume"),
+            ("openstack_instances", "openstack_instance"),
+            ("openstack_tenants", "openstack_tenant"),
+            ("openstack_images", "openstack_image"),
+            ("openstack_flavors", "openstack_flavor"),
             # Resources
             ("resources", "marketplace_resource"),
             # Marketplace components and plans
@@ -1260,6 +1287,105 @@ class Command(BaseCommand):
                 self.style.WARNING(f"Failed to delete software catalogs: {e}")
             )
             self.stats["software_catalogs"]["errors"] += 1
+
+    def cleanup_openstack_volumes(self):
+        """Delete all OpenStack volume data."""
+        self.stdout.write("Deleting OpenStack volumes...")
+        try:
+            if not self.dry_run:
+                count = Volume.objects.count()
+                Volume.objects.all().delete()
+                self.stats["openstack_volumes"]["deleted"] = count
+            else:
+                self.stats["openstack_volumes"]["deleted"] = Volume.objects.count()
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete OpenStack volumes: {e}")
+            )
+            self.stats["openstack_volumes"]["errors"] += 1
+
+    def cleanup_openstack_instances(self):
+        """Delete all OpenStack instance data."""
+        self.stdout.write("Deleting OpenStack instances...")
+        try:
+            if not self.dry_run:
+                count = Instance.objects.count()
+                Instance.objects.all().delete()
+                self.stats["openstack_instances"]["deleted"] = count
+            else:
+                self.stats["openstack_instances"]["deleted"] = Instance.objects.count()
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete OpenStack instances: {e}")
+            )
+            self.stats["openstack_instances"]["errors"] += 1
+
+    def cleanup_openstack_tenants(self):
+        """Delete all OpenStack tenant data."""
+        self.stdout.write("Deleting OpenStack tenants...")
+        try:
+            if not self.dry_run:
+                count = Tenant.objects.count()
+                Tenant.objects.all().delete()
+                self.stats["openstack_tenants"]["deleted"] = count
+            else:
+                self.stats["openstack_tenants"]["deleted"] = Tenant.objects.count()
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete OpenStack tenants: {e}")
+            )
+            self.stats["openstack_tenants"]["errors"] += 1
+
+    def cleanup_openstack_images(self):
+        """Delete all OpenStack image data."""
+        self.stdout.write("Deleting OpenStack images...")
+        try:
+            if not self.dry_run:
+                count = Image.all_objects.count()
+                Image.all_objects.all().delete()
+                self.stats["openstack_images"]["deleted"] = count
+            else:
+                self.stats["openstack_images"]["deleted"] = Image.all_objects.count()
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete OpenStack images: {e}")
+            )
+            self.stats["openstack_images"]["errors"] += 1
+
+    def cleanup_openstack_flavors(self):
+        """Delete all OpenStack flavor data."""
+        self.stdout.write("Deleting OpenStack flavors...")
+        try:
+            if not self.dry_run:
+                count = Flavor.objects.count()
+                Flavor.objects.all().delete()
+                self.stats["openstack_flavors"]["deleted"] = count
+            else:
+                self.stats["openstack_flavors"]["deleted"] = Flavor.objects.count()
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete OpenStack flavors: {e}")
+            )
+            self.stats["openstack_flavors"]["errors"] += 1
+
+    def cleanup_openstack_service_settings(self):
+        """Delete OpenStack service settings (type='OpenStack' only)."""
+        self.stdout.write("Deleting OpenStack service settings...")
+        try:
+            if not self.dry_run:
+                qs = ServiceSettings.objects.filter(type="OpenStack")
+                count = qs.count()
+                qs.delete()
+                self.stats["openstack_service_settings"]["deleted"] = count
+            else:
+                self.stats["openstack_service_settings"]["deleted"] = (
+                    ServiceSettings.objects.filter(type="OpenStack").count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete OpenStack service settings: {e}")
+            )
+            self.stats["openstack_service_settings"]["errors"] += 1
 
     def print_summary(self):
         """Print cleanup summary statistics."""
