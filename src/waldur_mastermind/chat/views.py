@@ -27,13 +27,59 @@ from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure import permissions
 from waldur_mastermind.chat import models, serializers
-from waldur_mastermind.chat.context_assembler import build_context
+from waldur_mastermind.chat.context_assembler import (
+    build_context,
+    build_rejection_input,
+)
+from waldur_mastermind.chat.injection_detection import (
+    DetectionAction,
+    DetectionResult,
+    SeverityLevel,
+    get_injection_service,
+)
 from waldur_mastermind.chat.models import TokenQuota
 from waldur_mastermind.chat.parsers import StreamParser, parse_tool_call
+from waldur_mastermind.chat.prompts import CANNED_REJECTION_MESSAGE
 from waldur_mastermind.chat.tool_executor import ToolExecutor
 from waldur_mastermind.chat.tools import TOOL_REGISTRY
 
 logger = logging.getLogger(__name__)
+
+
+def _check_injection_for_message(user, text):
+    """Shared injection check for any user message content.
+
+    Fail-closed: if anything goes wrong (including reading Constance config),
+    the request is blocked with a synthetic CRITICAL result.
+    """
+    try:
+        service = get_injection_service()
+        result = service.check_user_input(text)
+    except Exception:
+        logger.exception("Injection detection failed — failing closed")
+        return DetectionResult(
+            is_injection=True,
+            score=1.0,
+            severity=SeverityLevel.CRITICAL,
+            action=DetectionAction.BLOCK,
+            detection_method="error_failsafe",
+            details={"error": "detection_failed"},
+        )
+
+    # Emit audit event for HIGH/CRITICAL (outside try — let propagation happen)
+    if result.severity in (SeverityLevel.HIGH, SeverityLevel.CRITICAL):
+        event_logger.emit(
+            "Prompt injection detected in chat from {user_username}: severity={severity}, score={score}.",
+            event_type=EventType.CHAT_INJECTION_DETECTED,
+            event_context={
+                "user": user,
+                "severity": result.severity.value,
+                "score": f"{result.score:.2f}",
+            },
+            scopes=[user],
+        )
+
+    return result
 
 
 class LLMConfigurationMixin(ConstanceCheckExtensionMixin):
@@ -71,7 +117,10 @@ def validate_tool_call(tool_name, user):
 
     if tool_name not in TOOL_REGISTRY:
         raise rf_exceptions.ValidationError(
-            {"tool": _("Tool '%s' is not recognized." % tool_name)}
+            {
+                "tool": _("Tool '%(tool_name)s' is not recognized.")
+                % {"tool_name": tool_name}
+            }
         )
 
 
@@ -90,7 +139,7 @@ class LLMStreamer:
 
     def __init__(
         self,
-        input_text,
+        llm_prompt,
         url,
         token,
         user=None,
@@ -99,9 +148,10 @@ class LLMStreamer:
         update_thread_name=None,
         mode=None,
         user_msg=None,
+        canned_response=None,
     ):
         self.url = url
-        self.payload = {"input": input_text}
+        self.payload = {"input": llm_prompt}
         self.headers = {
             "Content-Type": "application/json",
             "Authorization": f"Token {token}",
@@ -121,6 +171,7 @@ class LLMStreamer:
         self.user_msg = user_msg
         self._persisted_message_meta = None
         self._messages_persisted = False
+        self.canned_response = canned_response
 
     def _format_ndjson(self, data: dict) -> str:
         """
@@ -130,14 +181,23 @@ class LLMStreamer:
 
     def __iter__(self):
         if self.thread:
-            meta = {"thread_uuid": str(self.thread.uuid)}
-            if self.user_msg:
-                meta["user_message_uuid"] = str(self.user_msg.uuid)
-            yield self._format_ndjson({"m": meta})
+            yield self._format_ndjson({"m": {"thread_uuid": str(self.thread.uuid)}})
 
         self._messages_persisted = False
 
         try:
+            # Blocked input: stream canned rejection, persist, and skip the LLM call
+            if self.canned_response:
+                self.accumulated_content = self.canned_response
+                for block in self.parser.parse(self.canned_response):
+                    yield self._format_ndjson(block)
+                for block in self.parser.flush():
+                    yield self._format_ndjson(block)
+                self._persist_messages()
+                if self._persisted_message_meta:
+                    yield self._format_ndjson({"m": self._persisted_message_meta})
+                return
+
             with requests.post(
                 self.url,
                 json=self.payload,
@@ -209,6 +269,10 @@ class LLMStreamer:
                 for block in self.parser.flush():
                     yield self._format_ndjson(block)
 
+                # Send buffered content that wasn't a confirmed tool call
+                if self.might_be_tool_call and not self.is_tool_call:
+                    yield self._format_ndjson({"c": self.accumulated_content})
+
                 # Handle tool call or regular content
                 if self.is_tool_call and self.user:
                     tool_call = parse_tool_call(self.accumulated_content)
@@ -262,7 +326,8 @@ class LLMStreamer:
     def _persist_messages(self):
         """
         Save user and assistant messages to the thread.
-        In reload mode, only replace the last assistant message.
+        In reload/edit mode, replace the last assistant message.
+        In edit mode, user message was pre-created in stream().
         """
         if not self.thread:
             return
@@ -275,8 +340,13 @@ class LLMStreamer:
 
                 persisted_user_msg = None
                 persisted_assistant_msg = None
+                effective_mode = self.mode
 
-                if self.mode == models.ChatMode.RELOAD:
+                if effective_mode in (models.ChatMode.RELOAD, models.ChatMode.EDIT):
+                    # For EDIT mode, user message was pre-created in stream()
+                    if effective_mode == models.ChatMode.EDIT and self.user_msg:
+                        persisted_user_msg = self.user_msg
+
                     # Find last active assistant message to replace
                     last_assistant = (
                         locked_thread.messages.filter(
@@ -299,12 +369,14 @@ class LLMStreamer:
                     else:
                         # Fallback to normal mode if no assistant message found
                         logger.warning(
-                            f"reload mode requested but no assistant message found in thread {self.thread.uuid}, falling back to normal mode"
+                            "%s mode requested but no assistant message found in thread %s, falling back to normal mode",
+                            effective_mode,
+                            self.thread.uuid,
                         )
-                        self.mode = None
+                        effective_mode = None
 
-                # Normal mode (or fallback from reload)
-                if self.mode != models.ChatMode.RELOAD:
+                # Normal mode (or fallback from reload/edit)
+                if effective_mode not in (models.ChatMode.RELOAD, models.ChatMode.EDIT):
                     if self.user_msg:
                         # User message was pre-created in the view
                         persisted_user_msg = self.user_msg
@@ -347,7 +419,9 @@ class LLMStreamer:
 
         except Exception as e:
             logger.error(
-                f"Failed to persist messages for thread {self.thread.uuid}: {e}",
+                "Failed to persist messages for thread %s: %s",
+                self.thread.uuid,
+                e,
                 exc_info=True,
             )
 
@@ -370,7 +444,9 @@ class LLMStreamer:
             )
         except Exception as e:
             logger.error(
-                f"Failed to update thread name for {self.update_thread_name}: {e}",
+                "Failed to update thread name for %s: %s",
+                self.update_thread_name,
+                e,
                 exc_info=True,
             )
 
@@ -382,9 +458,10 @@ class LLMStreamer:
         if not self.user:
             return
 
-        if self.input_tokens == 0 and self.output_tokens == 0:
-            if not self.error:
-                return
+        # Skip recording if no tokens were exchanged and no error occurred.
+        # On error, we still record a zero-usage entry for audit visibility.
+        if self.input_tokens == 0 and self.output_tokens == 0 and not self.error:
+            return
 
         try:
             with transaction.atomic():
@@ -394,14 +471,18 @@ class LLMStreamer:
                 quota.add_usage(total_tokens)
 
                 logger.info(
-                    f"Recorded AI usage for {self.user.username}: "
-                    f"input={self.input_tokens}, output={self.output_tokens}, "
-                    f"daily usage={quota.daily_usage}"
+                    "Recorded AI usage for %s: input=%d, output=%d, daily usage=%d",
+                    self.user.username,
+                    self.input_tokens,
+                    self.output_tokens,
+                    quota.daily_usage,
                 )
 
         except Exception as e:
             logger.error(
-                f"Failed to record AI usage for {self.user.username}: {e}",
+                "Failed to record AI usage for %s: %s",
+                self.user.username,
+                e,
                 exc_info=True,
             )
 
@@ -419,6 +500,10 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
     """
 
     permission_classes = [IsAuthenticated]
+
+    def _check_injection(self, user, input_text):
+        """Check user input for prompt injection. Returns DetectionResult."""
+        return _check_injection_for_message(user, input_text)
 
     def _validate_quota(self, user: User):
         """
@@ -439,7 +524,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
                         exc.status_code = status.HTTP_409_CONFLICT
                         raise exc
         except ValueError as e:
-            logger.error(f"Token quota configuration error: {e}")
+            logger.error("Token quota configuration error: %s", e)
             exc = rf_exceptions.APIException(
                 _("AI Token quota system is misconfigured. Please contact support.")
             )
@@ -460,6 +545,17 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
         user = request.user
         self._validate_quota(user)
 
+        mode = serializer.validated_data.get("mode")
+        edit_message_uuid = serializer.validated_data.get("edit_message_uuid")
+
+        # Prompt injection detection (between quota check and streaming)
+        detection_result = self._check_injection(
+            user, serializer.validated_data["input"]
+        )
+        is_blocked = (
+            detection_result and detection_result.action == DetectionAction.BLOCK
+        )
+
         thread = None
         update_thread_name = serializer.validated_data.get("update_thread_name")
 
@@ -479,40 +575,106 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
                 except models.ThreadSession.DoesNotExist:
                     raise rf_exceptions.NotFound("Thread not found.")
             else:
-                session, _ = models.ChatSession.objects.get_or_create(user=user)
+                session, _created = models.ChatSession.objects.get_or_create(user=user)
                 thread = models.ThreadSession.objects.create(chat_session=session)
 
+        # For blocked input, try context-aware LLM rejection first, fall back to static
         raw_message = serializer.validated_data["input"]
-        assembled_context = build_context(
-            user=user,
-            user_input=raw_message,
-            thread=thread,
-            include_history=not bool(update_thread_name),
-        )
+        canned_response = None
+
+        if is_blocked:
+            rejection_prompt = build_rejection_input(thread)
+            if rejection_prompt:
+                llm_prompt = rejection_prompt
+            else:
+                llm_prompt = ""
+                canned_response = CANNED_REJECTION_MESSAGE
+        else:
+            llm_prompt = build_context(
+                user=user,
+                user_input=raw_message,
+                thread=thread,
+                include_history=not bool(update_thread_name),
+            )
 
         # Pre-create user message so it persists even if the client disconnects
         user_msg = None
-        mode = serializer.validated_data.get("mode")
         if thread and mode != models.ChatMode.RELOAD:
             with transaction.atomic():
                 locked_thread = models.ThreadSession.objects.select_for_update().get(
                     pk=thread.pk
                 )
-                last_index = (
-                    locked_thread.messages.aggregate(Max("sequence_index"))[
-                        "sequence_index__max"
-                    ]
-                    or 0
-                )
-                user_msg = models.Message.objects.create(
-                    thread=locked_thread,
-                    role=models.Message.Role.USER,
-                    content=raw_message,
-                    sequence_index=last_index + 1,
-                )
+
+                if mode == models.ChatMode.EDIT:
+                    # Lock and validate the target message
+                    try:
+                        original_msg = models.Message.objects.select_for_update().get(
+                            uuid=edit_message_uuid,
+                            thread=locked_thread,
+                            thread__chat_session__user=user,
+                        )
+                    except models.Message.DoesNotExist:
+                        logger.warning(
+                            "Edit mode: message %s not found in thread %s for user %s",
+                            edit_message_uuid,
+                            locked_thread.uuid,
+                            user.username,
+                        )
+                        raise rf_exceptions.NotFound("Message not found.")
+
+                    if original_msg.role != models.Message.Role.USER:
+                        logger.warning(
+                            "Edit mode: attempted to edit non-user message %s (role=%s)",
+                            edit_message_uuid,
+                            original_msg.role,
+                        )
+                        raise ValidationError(_("Can only edit user messages."))
+
+                    last_user_msg = (
+                        locked_thread.messages.filter(
+                            role=models.Message.Role.USER,
+                            replaced_by__isnull=True,
+                        )
+                        .order_by("-sequence_index")
+                        .first()
+                    )
+                    if original_msg != last_user_msg:
+                        logger.warning(
+                            "Edit mode: attempted to edit non-last user message %s in thread %s",
+                            edit_message_uuid,
+                            locked_thread.uuid,
+                        )
+                        raise ValidationError(_("Can only edit the last user message."))
+
+                    # Create replacement at same sequence_index
+                    user_msg = models.Message.objects.create(
+                        thread=locked_thread,
+                        role=models.Message.Role.USER,
+                        content=raw_message,
+                        sequence_index=original_msg.sequence_index,
+                        replaces=original_msg,
+                    )
+                else:
+                    # Normal mode: create new user message at next index
+                    last_index = (
+                        locked_thread.messages.aggregate(Max("sequence_index"))[
+                            "sequence_index__max"
+                        ]
+                        or 0
+                    )
+                    user_msg = models.Message.objects.create(
+                        thread=locked_thread,
+                        role=models.Message.Role.USER,
+                        content=raw_message,
+                        sequence_index=last_index + 1,
+                    )
+
+                if detection_result and detection_result.is_injection:
+                    user_msg.apply_detection_result(detection_result)
+                    locked_thread.update_injection_flags()
 
         streamer = LLMStreamer(
-            input_text=assembled_context,
+            llm_prompt=llm_prompt,
             url=config.LLM_INFERENCES_API_URL,
             token=config.LLM_INFERENCES_API_TOKEN,
             user=user,
@@ -521,6 +683,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             update_thread_name=update_thread_name,
             mode=mode,
             user_msg=user_msg,
+            canned_response=canned_response,
         )
 
         return StreamingHttpResponse(
@@ -659,6 +822,13 @@ class ToolViewSet(viewsets.ViewSet):
         tool_executor = ToolExecutor(request.user)
         result = tool_executor.execute_tool(tool_name, arguments)
 
+        # ToolExecutor returns {"type": "error", ...} for injection blocks and other errors
+        if result.get("type") == "error":
+            return Response(
+                {"detail": result.get("error", "Unable to process this request.")},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+
         return Response(result, status=status.HTTP_200_OK)
 
 
@@ -684,11 +854,34 @@ class ThreadSessionFilter(django_filters.FilterSet):
     created = django_filters.DateFilter(field_name="created", lookup_expr="date")
     modified = django_filters.DateFilter(field_name="modified", lookup_expr="date")
     query = django_filters.CharFilter(method="filter_by_query")
+    is_flagged = django_filters.BooleanFilter(method="filter_is_flagged")
+    max_severity = django_filters.ChoiceFilter(
+        choices=[(s.value, s.value.title()) for s in SeverityLevel],
+        method="filter_max_severity",
+    )
     o = django_filters.OrderingFilter(fields=("created", "modified"))
 
     class Meta:
         model = models.ThreadSession
         fields = ["is_archived", "user"]
+
+    def filter_is_flagged(self, queryset, name, value):
+        if value:
+            return queryset.filter(flags__contains={"is_flagged": True})
+        return queryset.exclude(flags__contains={"is_flagged": True})
+
+    def filter_max_severity(self, queryset, name, value):
+        severity = SeverityLevel(value)
+        if severity == SeverityLevel.NONE:
+            return queryset.exclude(flags__contains={"is_flagged": True})
+
+        low, high = severity.get_score_range()
+        qs = queryset.filter(flags__contains={"is_flagged": True})
+        if low is not None:
+            qs = qs.filter(flags__max_injection_score__gte=low)
+        if high is not None:
+            qs = qs.filter(flags__max_injection_score__lt=high)
+        return qs
 
     def filter_by_query(self, queryset, name, value):
         """Full-text search across thread name and user details."""
@@ -706,6 +899,7 @@ class MessageFilter(django_filters.FilterSet):
         view_name="chat-thread-detail", field_name="thread__uuid"
     )
     include_history = django_filters.BooleanFilter(method="filter_include_history")
+    is_flagged = django_filters.BooleanFilter()
 
     def filter_include_history(self, queryset, name, value):
         if not value:
@@ -722,7 +916,7 @@ class MessageFilter(django_filters.FilterSet):
 
     class Meta:
         model = models.Message
-        fields = ["thread"]
+        fields = ["thread", "is_flagged"]
 
 
 class ChatSessionViewSet(ActionsViewSet):
@@ -754,7 +948,7 @@ class ChatSessionViewSet(ActionsViewSet):
     @decorators.action(detail=False, methods=["get"])
     def current(self, request):
         """Get or create current user's chat session."""
-        session, _ = models.ChatSession.objects.get_or_create(user=request.user)
+        session, _created = models.ChatSession.objects.get_or_create(user=request.user)
         return Response(serializers.ChatSessionSerializer(session).data)
 
 
@@ -825,7 +1019,7 @@ class ThreadSessionViewSet(ActionsViewSet):
 class MessageViewSet(ActionsViewSet):
     """
     ViewSet for Message model.
-    Provides read-only list access and message editing for chat messages.
+    Provides read-only list access for chat messages.
     Staff and support users can view all messages; regular users see only their own.
     """
 
@@ -833,6 +1027,7 @@ class MessageViewSet(ActionsViewSet):
     serializer_class = serializers.MessageSerializer
     filterset_class = MessageFilter
     lookup_field = "uuid"
+    pagination_class = None  # Messages are thread-scoped; return all in one response
     http_method_names = ["get", "post", "options"]
     permission_classes = [IsAuthenticated, core_permissions.ActionsPermission]
     disabled_actions = ["create", "destroy", "update", "partial_update", "retrieve"]
@@ -846,54 +1041,3 @@ class MessageViewSet(ActionsViewSet):
                 thread__chat_session__user=self.request.user
             )
         return qs.select_related("thread", "replaces")
-
-    @extend_schema(
-        summary="Edit message",
-        description="Edit a message (creates a new message with replaces reference). Only allows editing the last user message in a thread.",
-        request={
-            "application/json": {
-                "type": "object",
-                "properties": {"content": {"type": "string"}},
-            }
-        },
-        responses={200: serializers.MessageSerializer},
-    )
-    @decorators.action(detail=True, methods=["post"])
-    def edit(self, request, uuid=None):
-        """Edit message (creates replacement)."""
-        if "content" not in request.data:
-            raise ValidationError({"content": "This field is required."})
-
-        with transaction.atomic():
-            # Lock the message to prevent concurrent edits
-            try:
-                original = models.Message.objects.select_for_update().get(
-                    uuid=uuid, thread__chat_session__user=request.user
-                )
-            except models.Message.DoesNotExist:
-                raise rf_exceptions.NotFound("Message not found.")
-
-            # Only allow editing user messages
-            if original.role != models.Message.Role.USER:
-                raise ValidationError("Can only edit user messages")
-
-            # Only allow editing the last user message
-            last_user_msg = (
-                original.thread.messages.filter(
-                    role=models.Message.Role.USER, replaced_by__isnull=True
-                )
-                .order_by("-sequence_index")
-                .first()
-            )
-            if original != last_user_msg:
-                raise ValidationError("Can only edit the last user message")
-
-            # Create replacement
-            new_msg = models.Message.objects.create(
-                thread=original.thread,
-                role=original.role,
-                content=request.data["content"],
-                sequence_index=original.sequence_index,
-                replaces=original,
-            )
-            return Response(serializers.MessageSerializer(new_msg).data)

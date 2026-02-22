@@ -3,8 +3,9 @@ from datetime import timedelta
 from enum import IntEnum
 
 from constance import config
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import connection, models
+from django.db.models import Max
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from model_utils.models import TimeStampedModel
@@ -16,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 class ChatMode(models.TextChoices):
     RELOAD = "reload", _("Reload")
+    EDIT = "edit", _("Edit")
 
 
 class TokenLimit(IntEnum):
@@ -318,6 +320,20 @@ class ThreadSession(UuidMixin, TimeStampedModel):
     def __str__(self):
         return f"ThreadSession({self.name})"
 
+    def update_injection_flags(self):
+        max_score = (
+            self.messages.filter(is_flagged=True).aggregate(
+                max_score=Max("injection_score")
+            )["max_score"]
+            or 0.0
+        )
+        self.flags = {
+            **self.flags,
+            "is_flagged": max_score > 0.0,
+            "max_injection_score": max_score,
+        }
+        self.save(update_fields=["flags"])
+
 
 class Message(UuidMixin, TimeStampedModel):
     class Role(models.TextChoices):
@@ -338,6 +354,14 @@ class Message(UuidMixin, TimeStampedModel):
         related_name="replaced_by",
     )
 
+    # Prompt injection detection fields
+    is_flagged = models.BooleanField(default=False, db_index=True)
+    injection_score = models.FloatField(
+        default=0.0,
+        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+    )
+    injection_categories = models.JSONField(default=list, blank=True)
+
     class Meta:
         ordering = ["sequence_index"]
         verbose_name = _("Message")
@@ -355,3 +379,15 @@ class Message(UuidMixin, TimeStampedModel):
 
     def __str__(self):
         return f"Message({self.role}, seq={self.sequence_index})"
+
+    def apply_detection_result(self, result):
+        self.is_flagged = result.is_injection
+        self.injection_score = result.score
+        self.injection_categories = [p["category"] for p in result.matched_patterns]
+        self.save(
+            update_fields=[
+                "is_flagged",
+                "injection_score",
+                "injection_categories",
+            ]
+        )

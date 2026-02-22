@@ -847,6 +847,10 @@ CONSTANCE_CONFIG = {
         50,
         "Maximum number of past messages included in the LLM context window.",
     ),
+    "LLM_INJECTION_ALLOWLIST": (
+        "",
+        "Comma-separated allowlist phrases that bypass injection detection.",
+    ),
     # Software catalog settings
     "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED": (
         False,
@@ -1266,6 +1270,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "LLM_TOKEN_LIMIT_MONTHLY",
         "LLM_CHAT_SESSION_RETENTION_DAYS",
         "LLM_CHAT_HISTORY_LIMIT",
+        "LLM_INJECTION_ALLOWLIST",
     ),
     "Software catalog settings": (
         "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED",

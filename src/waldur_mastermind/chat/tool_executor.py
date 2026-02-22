@@ -2,13 +2,21 @@ import logging
 
 from django.core.exceptions import PermissionDenied
 
+from waldur_core.logging import event_logger
+from waldur_core.logging.enums import EventType
 from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_mastermind.chat.injection_detection import (
+    DetectionAction,
+    SeverityLevel,
+    get_injection_service,
+)
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import Resource
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_RESOURCE_LIMIT = 10
+_INJECTION_BLOCK_MESSAGE = "Unable to process this request. Please try rephrasing."
 
 
 class ToolExecutor:
@@ -21,7 +29,8 @@ class ToolExecutor:
         """Route tool calls to appropriate handlers."""
 
         logger.debug(
-            f"Tool execution: {tool_name}",
+            "Tool execution: %s",
+            tool_name,
             extra={
                 "user_id": self.user.id,
                 "username": self.user.username,
@@ -29,6 +38,49 @@ class ToolExecutor:
                 "arguments": arguments,
             },
         )
+
+        # Check tool arguments for injection (fail-closed: block on any error)
+        try:
+            service = get_injection_service()
+            result = service.check_tool_arguments(tool_name, arguments)
+
+            if result.is_injection:
+                logger.warning(
+                    "Injection detected in tool arguments [%s] tool=%s score=%.2f",
+                    result.severity.value,
+                    tool_name,
+                    result.score,
+                )
+                if result.severity in (
+                    SeverityLevel.HIGH,
+                    SeverityLevel.CRITICAL,
+                ):
+                    event_logger.emit(
+                        "Prompt injection detected in tool arguments from {user_username}: severity={severity}, score={score}, tool={tool_name}.",
+                        event_type=EventType.CHAT_INJECTION_DETECTED,
+                        event_context={
+                            "user": self.user,
+                            "severity": result.severity.value,
+                            "score": f"{result.score:.2f}",
+                            "tool_name": tool_name,
+                        },
+                        scopes=[self.user],
+                    )
+                if result.action == DetectionAction.BLOCK:
+                    return {
+                        "type": "error",
+                        "error": _INJECTION_BLOCK_MESSAGE,
+                        "summary": _INJECTION_BLOCK_MESSAGE,
+                    }
+        except Exception:
+            logger.exception(
+                "Injection detection failed in tool executor — failing closed"
+            )
+            return {
+                "type": "error",
+                "error": _INJECTION_BLOCK_MESSAGE,
+                "summary": _INJECTION_BLOCK_MESSAGE,
+            }
 
         try:
             if tool_name == "show_user_resources":
@@ -45,7 +97,8 @@ class ToolExecutor:
 
         except PermissionDenied:
             logger.warning(
-                f"Permission denied for tool: {tool_name}",
+                "Permission denied for tool: %s",
+                tool_name,
                 extra={"user_id": self.user.id},
             )
             return {
@@ -56,7 +109,8 @@ class ToolExecutor:
 
         except Exception:
             logger.exception(
-                f"Tool execution failed: {tool_name}",
+                "Tool execution failed: %s",
+                tool_name,
                 extra={"user_id": self.user.id},
             )
             return {

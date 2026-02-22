@@ -269,7 +269,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
             )
             output = list(streamer)
 
-        # Parse all NDJSON lines -- user_message_uuid now in initial metadata
+        # Parse all NDJSON lines
         initial_metadata = None
         persist_metadata = None
         for line in output:
@@ -277,20 +277,21 @@ class LLMStreamerPersistenceTest(test.APITestCase):
                 obj = json.loads(line)
                 if "m" in obj:
                     meta = obj["m"]
-                    if "thread_uuid" in meta and "user_message_uuid" in meta:
+                    if "thread_uuid" in meta:
                         initial_metadata = meta
                     if "assistant_message_uuid" in meta:
                         persist_metadata = meta
 
         self.assertIsNotNone(initial_metadata)
-        self.assertIn("user_message_uuid", initial_metadata)
+        self.assertIn("thread_uuid", initial_metadata)
         self.assertIsNotNone(persist_metadata)
+        self.assertIn("user_message_uuid", persist_metadata)
         self.assertIn("assistant_message_uuid", persist_metadata)
 
         # Verify UUIDs match actual messages
         user_msg_db = Message.objects.get(thread=thread, role=Message.Role.USER)
         assistant_msg = Message.objects.get(thread=thread, role=Message.Role.ASSISTANT)
-        self.assertEqual(initial_metadata["user_message_uuid"], str(user_msg_db.uuid))
+        self.assertEqual(persist_metadata["user_message_uuid"], str(user_msg_db.uuid))
         self.assertEqual(
             persist_metadata["assistant_message_uuid"], str(assistant_msg.uuid)
         )
@@ -359,8 +360,8 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         self.assertEqual(assistant_msg.content, "Answer")
         self.assertEqual(assistant_msg.sequence_index, 2)
 
-    def test_user_message_uuid_in_initial_metadata(self):
-        """Initial metadata line includes user_message_uuid when pre-created."""
+    def test_user_message_uuid_in_persist_metadata(self):
+        """Persist metadata includes user_message_uuid when pre-created."""
         user = structure_factories.UserFactory()
         thread = self._make_thread(user)
 
@@ -380,12 +381,16 @@ class LLMStreamerPersistenceTest(test.APITestCase):
             )
             output = list(streamer)
 
-        # First line should be metadata with both thread_uuid and user_message_uuid
-        first_obj = json.loads(output[0])
-        self.assertIn("m", first_obj)
-        self.assertIn("thread_uuid", first_obj["m"])
-        self.assertIn("user_message_uuid", first_obj["m"])
-        self.assertEqual(first_obj["m"]["user_message_uuid"], str(user_msg.uuid))
+        # Find persist metadata line (emitted after messages are saved)
+        persist_meta = None
+        for line in output:
+            if line.strip():
+                obj = json.loads(line)
+                if "m" in obj and "user_message_uuid" in obj["m"]:
+                    persist_meta = obj["m"]
+
+        self.assertIsNotNone(persist_meta)
+        self.assertEqual(persist_meta["user_message_uuid"], str(user_msg.uuid))
 
     @freeze_time("2025-01-01 12:00:00", as_kwarg="frozen_time")
     def test_thread_modified_updated_on_message_persist(self, frozen_time):
@@ -613,6 +618,43 @@ class ChatRequestSerializerTest(test.APITestCase):
         serializer = ChatRequestSerializer(data={"input": "test"})
         self.assertTrue(serializer.is_valid())
         self.assertIsNone(serializer.validated_data.get("mode"))
+
+    def test_edit_mode_requires_edit_message_uuid(self):
+        """mode='edit' without edit_message_uuid should fail validation."""
+        thread_uuid = str(uuid.uuid4())
+        serializer = ChatRequestSerializer(
+            data={"input": "test", "mode": "edit", "thread_uuid": thread_uuid}
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("edit_message_uuid", serializer.errors)
+
+    def test_edit_mode_with_edit_message_uuid_valid(self):
+        """mode='edit' with edit_message_uuid and thread_uuid should pass."""
+        thread_uuid = str(uuid.uuid4())
+        msg_uuid = str(uuid.uuid4())
+        serializer = ChatRequestSerializer(
+            data={
+                "input": "edited text",
+                "mode": "edit",
+                "thread_uuid": thread_uuid,
+                "edit_message_uuid": msg_uuid,
+            }
+        )
+        self.assertTrue(serializer.is_valid())
+
+    def test_edit_message_uuid_rejected_without_edit_mode(self):
+        """edit_message_uuid without mode='edit' should fail validation."""
+        thread_uuid = str(uuid.uuid4())
+        msg_uuid = str(uuid.uuid4())
+        serializer = ChatRequestSerializer(
+            data={
+                "input": "test",
+                "thread_uuid": thread_uuid,
+                "edit_message_uuid": msg_uuid,
+            }
+        )
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("edit_message_uuid", serializer.errors)
 
 
 class MessageRBACTest(test.APITestCase):
