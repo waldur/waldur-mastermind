@@ -24,7 +24,12 @@ from waldur_core.core.serializers import ConstanceSettingsSerializer
 from waldur_core.logging.models import Event
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.permissions.tasks import sync_user_deactivation_status
-from waldur_core.structure.models import Customer, Project, UserAgreement
+from waldur_core.structure.models import (
+    Customer,
+    Project,
+    ServiceSettings,
+    UserAgreement,
+)
 from waldur_core.users.models import GroupInvitation, Invitation, PermissionRequest
 from waldur_mastermind.invoices.models import (
     CustomerCredit,
@@ -86,6 +91,7 @@ from waldur_mastermind.proposal.models import (
     ReviewerStats,
     Round,
 )
+from waldur_openstack.models import Flavor, Image, Instance, Tenant, Volume
 
 
 class Command(BaseCommand):
@@ -376,6 +382,42 @@ class Command(BaseCommand):
                 "skipped": 0,
                 "errors": 0,
             },
+            "openstack_service_settings": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "openstack_flavors": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "openstack_images": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "openstack_tenants": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "openstack_instances": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "openstack_volumes": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
         }
         self.dry_run = False
         self.update_existing = False
@@ -555,6 +597,27 @@ class Command(BaseCommand):
         self._safe_import(
             "categories", lambda: self.import_categories(data.get("categories", []))
         )
+
+        # Import OpenStack backend models (before offerings, so offering scope linking works)
+        self._safe_import(
+            "openstack_service_settings",
+            lambda: self.import_openstack_service_settings(
+                data.get("openstack_service_settings", [])
+            ),
+        )
+        self._safe_import(
+            "openstack_flavors",
+            lambda: self.import_openstack_flavors(data.get("openstack_flavors", [])),
+        )
+        self._safe_import(
+            "openstack_images",
+            lambda: self.import_openstack_images(data.get("openstack_images", [])),
+        )
+        self._safe_import(
+            "openstack_tenants",
+            lambda: self.import_openstack_tenants(data.get("openstack_tenants", [])),
+        )
+
         self._safe_import(
             "offerings", lambda: self.import_offerings(data.get("offerings", []))
         )
@@ -619,6 +682,18 @@ class Command(BaseCommand):
         self._safe_import(
             "plan_components",
             lambda: self.import_plan_components(data.get("plan_components", [])),
+        )
+
+        # Import OpenStack instances and volumes (before resources, so resource scope linking works)
+        self._safe_import(
+            "openstack_instances",
+            lambda: self.import_openstack_instances(
+                data.get("openstack_instances", [])
+            ),
+        )
+        self._safe_import(
+            "openstack_volumes",
+            lambda: self.import_openstack_volumes(data.get("openstack_volumes", [])),
         )
 
         # Import resources (depends on offerings, plans, projects)
@@ -2337,6 +2412,28 @@ class Command(BaseCommand):
                     "compliance_checklist": compliance_checklist,
                 }
 
+                # Resolve scope (for offerings linked to backend objects)
+                scope_type = offering_data.get("scope_type")
+                scope_uuid = offering_data.get("scope_uuid")
+                if scope_type and scope_uuid:
+                    try:
+                        app_label, model_name = scope_type.split(".")
+                        ct = ContentType.objects.get(
+                            app_label=app_label, model=model_name
+                        )
+                        scope_obj = (
+                            ct.model_class().objects.filter(uuid=scope_uuid).first()
+                        )
+                        if scope_obj:
+                            defaults["content_type"] = ct
+                            defaults["object_id"] = scope_obj.id
+                    except Exception as e:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Could not resolve scope for offering {uuid}: {e}"
+                            )
+                        )
+
                 if category:
                     defaults["category"] = category
 
@@ -3497,6 +3594,36 @@ class Command(BaseCommand):
                     except (ValueError, TypeError):
                         pass
 
+                # Resolve scope (generic FK to backend object)
+                scope_content_type = None
+                scope_object_id = None
+                scope_type = resource_data.get("scope_type")
+                scope_uuid = resource_data.get("scope_uuid")
+                if scope_type and scope_uuid:
+                    try:
+                        app_label, model_name = scope_type.split(".")
+                        ct = ContentType.objects.get(
+                            app_label=app_label, model=model_name
+                        )
+                        scope_obj = (
+                            ct.model_class().objects.filter(uuid=scope_uuid).first()
+                        )
+                        if scope_obj:
+                            scope_content_type = ct
+                            scope_object_id = scope_obj.id
+                        else:
+                            self.stdout.write(
+                                self.style.WARNING(
+                                    f"Resource {uuid}: scope {scope_type}:{scope_uuid} not found"
+                                )
+                            )
+                    except (ValueError, ContentType.DoesNotExist):
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Resource {uuid}: invalid scope_type '{scope_type}'"
+                            )
+                        )
+
                 defaults = {
                     "name": resource_data.get("name", ""),
                     "state": resource_data.get("state", 1),
@@ -3513,6 +3640,10 @@ class Command(BaseCommand):
                     "end_date": end_date,
                 }
 
+                if scope_content_type and scope_object_id:
+                    defaults["content_type"] = scope_content_type
+                    defaults["object_id"] = scope_object_id
+
                 if not self.dry_run:
                     existing_resource = Resource.objects.filter(uuid=uuid).first()
 
@@ -3528,6 +3659,23 @@ class Command(BaseCommand):
                         else:
                             self.stats["resources"]["skipped"] += 1
                     else:
+                        # Check if a resource with same scope was auto-created by signals
+                        if scope_content_type and scope_object_id:
+                            existing_by_scope = Resource.objects.filter(
+                                content_type=scope_content_type,
+                                object_id=scope_object_id,
+                            ).first()
+                            if existing_by_scope:
+                                Resource.objects.filter(pk=existing_by_scope.pk).update(
+                                    uuid=uuid, **defaults
+                                )
+                                if created:
+                                    Resource.objects.filter(uuid=uuid).update(
+                                        created=created
+                                    )
+                                self.stats["resources"]["updated"] += 1
+                                continue
+
                         Resource.objects.create(uuid=uuid, **defaults)
                         # Update created date if provided (auto_now_add prevents setting during create)
                         if created:
@@ -8096,6 +8244,420 @@ class Command(BaseCommand):
             self.stdout.write(
                 self.style.WARNING(f"⚠ Failed to sync user activation status: {e}")
             )
+
+    def import_openstack_service_settings(self, settings_data):
+        """Import OpenStack service settings."""
+        self.stdout.write("Importing OpenStack service settings...")
+
+        for item in settings_data:
+            try:
+                uuid = item.get("uuid")
+                if not uuid:
+                    self.stats["openstack_service_settings"]["errors"] += 1
+                    continue
+
+                customer_uuid = item.get("customer_uuid")
+                customer = None
+                if customer_uuid:
+                    customer = Customer.objects.filter(uuid=customer_uuid).first()
+                    if not customer:
+                        self.stdout.write(
+                            self.style.WARNING(
+                                f"Skipping service settings {uuid}: customer {customer_uuid} not found"
+                            )
+                        )
+                        self.stats["openstack_service_settings"]["errors"] += 1
+                        continue
+
+                defaults = {
+                    "name": item.get("name", ""),
+                    "type": item.get("type", "OpenStack"),
+                    "backend_url": item.get("backend_url", ""),
+                    "username": item.get("username", ""),
+                    "password": item.get("password", ""),
+                    "domain": item.get("domain", ""),
+                    "token": item.get("token", ""),
+                    "shared": item.get("shared", False),
+                    "options": item.get("options", {}),
+                    "is_active": item.get("is_active", True),
+                    "state": item.get("state", 2),
+                    "customer": customer,
+                }
+
+                if not self.dry_run:
+                    existing = ServiceSettings.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            ServiceSettings.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["openstack_service_settings"]["updated"] += 1
+                        else:
+                            self.stats["openstack_service_settings"]["skipped"] += 1
+                    else:
+                        ServiceSettings.objects.create(uuid=uuid, **defaults)
+                        self.stats["openstack_service_settings"]["created"] += 1
+                else:
+                    existing = ServiceSettings.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["openstack_service_settings"]["updated"] += 1
+                        else:
+                            self.stats["openstack_service_settings"]["skipped"] += 1
+                    else:
+                        self.stats["openstack_service_settings"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import service settings {item.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["openstack_service_settings"]["errors"] += 1
+
+    def import_openstack_flavors(self, flavors_data):
+        """Import OpenStack flavors."""
+        self.stdout.write("Importing OpenStack flavors...")
+
+        for item in flavors_data:
+            try:
+                settings_uuid = item.get("settings_uuid")
+                settings = ServiceSettings.objects.filter(uuid=settings_uuid).first()
+                if not settings:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping flavor: settings {settings_uuid} not found"
+                        )
+                    )
+                    self.stats["openstack_flavors"]["errors"] += 1
+                    continue
+
+                backend_id = item.get("backend_id", "")
+                defaults = {
+                    "name": item.get("name", ""),
+                    "cores": item.get("cores", 0),
+                    "ram": item.get("ram", 0),
+                    "disk": item.get("disk", 0),
+                }
+
+                if not self.dry_run:
+                    existing = Flavor.objects.filter(
+                        settings=settings, backend_id=backend_id
+                    ).first()
+                    if existing:
+                        if self.update_existing:
+                            Flavor.objects.filter(
+                                settings=settings, backend_id=backend_id
+                            ).update(**defaults)
+                            self.stats["openstack_flavors"]["updated"] += 1
+                        else:
+                            self.stats["openstack_flavors"]["skipped"] += 1
+                    else:
+                        Flavor.objects.create(
+                            settings=settings, backend_id=backend_id, **defaults
+                        )
+                        self.stats["openstack_flavors"]["created"] += 1
+                else:
+                    existing = Flavor.objects.filter(
+                        settings=settings, backend_id=backend_id
+                    ).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["openstack_flavors"]["updated"] += 1
+                        else:
+                            self.stats["openstack_flavors"]["skipped"] += 1
+                    else:
+                        self.stats["openstack_flavors"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import flavor {item.get('name')}: {e}"
+                    )
+                )
+                self.stats["openstack_flavors"]["errors"] += 1
+
+    def import_openstack_images(self, images_data):
+        """Import OpenStack images."""
+        self.stdout.write("Importing OpenStack images...")
+
+        for item in images_data:
+            try:
+                settings_uuid = item.get("settings_uuid")
+                settings = ServiceSettings.objects.filter(uuid=settings_uuid).first()
+                if not settings:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping image: settings {settings_uuid} not found"
+                        )
+                    )
+                    self.stats["openstack_images"]["errors"] += 1
+                    continue
+
+                backend_id = item.get("backend_id", "")
+                defaults = {
+                    "name": item.get("name", ""),
+                    "min_disk": item.get("min_disk", 0),
+                    "min_ram": item.get("min_ram", 0),
+                }
+
+                if not self.dry_run:
+                    # Use all_objects to bypass custom manager filtering
+                    existing = Image.all_objects.filter(
+                        settings=settings, backend_id=backend_id
+                    ).first()
+                    if existing:
+                        if self.update_existing:
+                            Image.all_objects.filter(
+                                settings=settings, backend_id=backend_id
+                            ).update(**defaults)
+                            self.stats["openstack_images"]["updated"] += 1
+                        else:
+                            self.stats["openstack_images"]["skipped"] += 1
+                    else:
+                        Image(
+                            settings=settings, backend_id=backend_id, **defaults
+                        ).save()
+                        self.stats["openstack_images"]["created"] += 1
+                else:
+                    existing = Image.all_objects.filter(
+                        settings=settings, backend_id=backend_id
+                    ).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["openstack_images"]["updated"] += 1
+                        else:
+                            self.stats["openstack_images"]["skipped"] += 1
+                    else:
+                        self.stats["openstack_images"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import image {item.get('name')}: {e}"
+                    )
+                )
+                self.stats["openstack_images"]["errors"] += 1
+
+    def import_openstack_tenants(self, tenants_data):
+        """Import OpenStack tenants."""
+        self.stdout.write("Importing OpenStack tenants...")
+
+        for item in tenants_data:
+            try:
+                uuid = item.get("uuid")
+                if not uuid:
+                    self.stats["openstack_tenants"]["errors"] += 1
+                    continue
+
+                settings_uuid = item.get("service_settings_uuid")
+                settings = ServiceSettings.objects.filter(uuid=settings_uuid).first()
+                if not settings:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping tenant {uuid}: settings {settings_uuid} not found"
+                        )
+                    )
+                    self.stats["openstack_tenants"]["errors"] += 1
+                    continue
+
+                project_uuid = item.get("project_uuid")
+                project = Project.available_objects.filter(uuid=project_uuid).first()
+                if not project:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping tenant {uuid}: project {project_uuid} not found"
+                        )
+                    )
+                    self.stats["openstack_tenants"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "name": item.get("name", ""),
+                    "description": item.get("description", ""),
+                    "backend_id": item.get("backend_id", ""),
+                    "state": item.get("state", 2),
+                    "runtime_state": item.get("runtime_state", ""),
+                    "service_settings": settings,
+                    "project": project,
+                    "internal_network_id": item.get("internal_network_id", ""),
+                    "external_network_id": item.get("external_network_id", ""),
+                    "availability_zone": item.get("availability_zone", ""),
+                    "user_username": item.get("user_username", ""),
+                    "user_password": item.get("user_password", ""),
+                }
+
+                if not self.dry_run:
+                    existing = Tenant.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            Tenant.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["openstack_tenants"]["updated"] += 1
+                        else:
+                            self.stats["openstack_tenants"]["skipped"] += 1
+                    else:
+                        Tenant.objects.create(uuid=uuid, **defaults)
+                        self.stats["openstack_tenants"]["created"] += 1
+                else:
+                    existing = Tenant.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["openstack_tenants"]["updated"] += 1
+                        else:
+                            self.stats["openstack_tenants"]["skipped"] += 1
+                    else:
+                        self.stats["openstack_tenants"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import tenant {item.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["openstack_tenants"]["errors"] += 1
+
+    def import_openstack_instances(self, instances_data):
+        """Import OpenStack instances."""
+        self.stdout.write("Importing OpenStack instances...")
+
+        for item in instances_data:
+            try:
+                uuid = item.get("uuid")
+                if not uuid:
+                    self.stats["openstack_instances"]["errors"] += 1
+                    continue
+
+                tenant_uuid = item.get("tenant_uuid")
+                tenant = Tenant.objects.filter(uuid=tenant_uuid).first()
+                if not tenant:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping instance {uuid}: tenant {tenant_uuid} not found"
+                        )
+                    )
+                    self.stats["openstack_instances"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "name": item.get("name", ""),
+                    "description": item.get("description", ""),
+                    "backend_id": item.get("backend_id", ""),
+                    "state": item.get("state", 2),
+                    "runtime_state": item.get("runtime_state", ""),
+                    "tenant": tenant,
+                    "service_settings": tenant.service_settings,
+                    "project": tenant.project,
+                    "cores": item.get("cores", 0),
+                    "ram": item.get("ram", 0),
+                    "disk": item.get("disk", 0),
+                    "image_name": item.get("image_name", ""),
+                    "flavor_name": item.get("flavor_name", ""),
+                    "flavor_disk": item.get("flavor_disk", 0),
+                    "hypervisor_hostname": item.get("hypervisor_hostname", ""),
+                    "key_name": item.get("key_name", ""),
+                    "key_fingerprint": item.get("key_fingerprint", ""),
+                    "directly_connected_ips": item.get("directly_connected_ips", ""),
+                }
+
+                if not self.dry_run:
+                    existing = Instance.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            Instance.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["openstack_instances"]["updated"] += 1
+                        else:
+                            self.stats["openstack_instances"]["skipped"] += 1
+                    else:
+                        Instance.objects.create(uuid=uuid, **defaults)
+                        self.stats["openstack_instances"]["created"] += 1
+                else:
+                    existing = Instance.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["openstack_instances"]["updated"] += 1
+                        else:
+                            self.stats["openstack_instances"]["skipped"] += 1
+                    else:
+                        self.stats["openstack_instances"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import instance {item.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["openstack_instances"]["errors"] += 1
+
+    def import_openstack_volumes(self, volumes_data):
+        """Import OpenStack volumes."""
+        self.stdout.write("Importing OpenStack volumes...")
+
+        for item in volumes_data:
+            try:
+                uuid = item.get("uuid")
+                if not uuid:
+                    self.stats["openstack_volumes"]["errors"] += 1
+                    continue
+
+                tenant_uuid = item.get("tenant_uuid")
+                tenant = Tenant.objects.filter(uuid=tenant_uuid).first()
+                if not tenant:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping volume {uuid}: tenant {tenant_uuid} not found"
+                        )
+                    )
+                    self.stats["openstack_volumes"]["errors"] += 1
+                    continue
+
+                # Resolve optional instance FK
+                instance = None
+                instance_uuid = item.get("instance_uuid")
+                if instance_uuid:
+                    instance = Instance.objects.filter(uuid=instance_uuid).first()
+
+                defaults = {
+                    "name": item.get("name", ""),
+                    "description": item.get("description", ""),
+                    "backend_id": item.get("backend_id", ""),
+                    "state": item.get("state", 2),
+                    "runtime_state": item.get("runtime_state", ""),
+                    "tenant": tenant,
+                    "service_settings": tenant.service_settings,
+                    "project": tenant.project,
+                    "instance": instance,
+                    "size": item.get("size", 0),
+                    "bootable": item.get("bootable", False),
+                    "device": item.get("device", ""),
+                    "image_name": item.get("image_name", ""),
+                }
+
+                if not self.dry_run:
+                    existing = Volume.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            Volume.objects.filter(uuid=uuid).update(**defaults)
+                            self.stats["openstack_volumes"]["updated"] += 1
+                        else:
+                            self.stats["openstack_volumes"]["skipped"] += 1
+                    else:
+                        Volume.objects.create(uuid=uuid, **defaults)
+                        self.stats["openstack_volumes"]["created"] += 1
+                else:
+                    existing = Volume.objects.filter(uuid=uuid).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["openstack_volumes"]["updated"] += 1
+                        else:
+                            self.stats["openstack_volumes"]["skipped"] += 1
+                    else:
+                        self.stats["openstack_volumes"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import volume {item.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["openstack_volumes"]["errors"] += 1
 
     def print_summary(self):
         """Print import summary statistics."""

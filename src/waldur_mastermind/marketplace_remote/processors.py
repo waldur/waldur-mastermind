@@ -15,12 +15,12 @@ from waldur_api_client.api.marketplace_resources import (
     marketplace_resources_update_limits,
 )
 from waldur_api_client.errors import UnexpectedStatus
-from waldur_api_client.models.marketplace_resources_list_state_item import (
-    MarketplaceResourcesListStateItem,
-)
 from waldur_api_client.models.order_create_request import OrderCreateRequest
 from waldur_api_client.models.order_create_request_limits import (
     OrderCreateRequestLimits,
+)
+from waldur_api_client.models.resource_state import (
+    ResourceState,
 )
 from waldur_api_client.models.resource_terminate_request import ResourceTerminateRequest
 from waldur_api_client.models.resource_update_limits_request import (
@@ -90,10 +90,10 @@ class RemoteCreateResourceProcessor(processors.BaseOrderProcessor):
                 offering_uuid=[UUID(self.order.offering.backend_id)],
                 name_exact=name,
                 state=[
-                    MarketplaceResourcesListStateItem.CREATING,
-                    MarketplaceResourcesListStateItem.OK,
-                    MarketplaceResourcesListStateItem.UPDATING,
-                    MarketplaceResourcesListStateItem.TERMINATING,
+                    ResourceState.CREATING,
+                    ResourceState.OK,
+                    ResourceState.UPDATING,
+                    ResourceState.TERMINATING,
                 ],
             )
             if remote_resources:

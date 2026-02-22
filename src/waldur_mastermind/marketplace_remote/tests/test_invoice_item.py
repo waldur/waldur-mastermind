@@ -24,6 +24,17 @@ from waldur_mastermind.marketplace_remote.tests.dns_utils import (
     create_selective_dns_mock,
 )
 
+# Fields required by InvoiceItemDetail.from_dict() but not valid
+# for the Django InvoiceItem model (computed properties or non-existent fields).
+API_ONLY_FIELDS = {
+    "price",
+    "offering_name",
+    "project_uuid",
+    "project_name",
+    "customer_uuid",
+    "customer_name",
+}
+
 
 class InvoiceItemPullTest(test.APITestCase):
     def setUp(self) -> None:
@@ -71,7 +82,17 @@ class InvoiceItemPullTest(test.APITestCase):
             "start": start.isoformat(),
             "end": end.isoformat(),
             "uuid": uuid.uuid4().hex,
+            "price": float(2.0 * quantity),
+            "offering_name": "Test offering",
+            "project_uuid": None,
+            "project_name": "",
+            "customer_uuid": uuid.uuid4().hex,
+            "customer_name": "Test customer",
         }
+
+    def get_factory_data(self, data):
+        """Return data suitable for Django InvoiceItemFactory (without API-only fields)."""
+        return {k: v for k, v in data.items() if k not in API_ONLY_FIELDS}
 
     def mock_invoice_items(self, json):
         respx.get(
@@ -138,11 +159,12 @@ class InvoiceItemPullTest(test.APITestCase):
         item_data = self.get_common_data()
         self.mock_invoice_items([])
         invoice = InvoiceFactory(customer=self.customer)
-        item_data.pop("invoice")
+        factory_data = self.get_factory_data(item_data)
+        factory_data.pop("invoice")
         InvoiceItemFactory(
             invoice=invoice,
             resource=self.resource,
-            **item_data,
+            **factory_data,
         )
         ResourceInvoicePullTask().run(serialize_instance(self.resource))
         self.assertEqual(
@@ -157,7 +179,8 @@ class InvoiceItemPullTest(test.APITestCase):
         new_month_end = month_end(timezone.now() + datetime.timedelta(weeks=5))
         new_item_data = self.get_common_data(quantity=new_quantity, end=new_month_end)
         old_item_data = self.get_common_data()
-        old_item_data.pop("invoice")
+        old_factory_data = self.get_factory_data(old_item_data)
+        old_factory_data.pop("invoice")
 
         self.mock_invoice_items(
             [
@@ -174,7 +197,7 @@ class InvoiceItemPullTest(test.APITestCase):
         item = InvoiceItemFactory(
             invoice=invoice,
             resource=self.resource,
-            **old_item_data,
+            **old_factory_data,
             backend_uuid=new_item_data["uuid"],
         )
 

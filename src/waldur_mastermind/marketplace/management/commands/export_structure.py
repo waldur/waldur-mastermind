@@ -16,7 +16,12 @@ from waldur_core.checklist.models import (
 )
 from waldur_core.core.models import User
 from waldur_core.permissions.models import Role, RolePermission, UserRole
-from waldur_core.structure.models import Customer, Project, UserAgreement
+from waldur_core.structure.models import (
+    Customer,
+    Project,
+    ServiceSettings,
+    UserAgreement,
+)
 from waldur_core.users.models import GroupInvitation, Invitation, PermissionRequest
 from waldur_mastermind.invoices.models import (
     CustomerCredit,
@@ -58,6 +63,7 @@ from waldur_mastermind.proposal.models import (
     Review,
     Round,
 )
+from waldur_openstack.models import Flavor, Image, Instance, Tenant, Volume
 
 
 class Command(BaseCommand):
@@ -270,6 +276,25 @@ class Command(BaseCommand):
             ),
             "offering_software_catalogs": self.log_export_step(
                 "offering_software_catalogs", self.export_offering_software_catalogs
+            ),
+            # OpenStack backend model exports
+            "openstack_service_settings": self.log_export_step(
+                "openstack_service_settings", self.export_openstack_service_settings
+            ),
+            "openstack_flavors": self.log_export_step(
+                "openstack_flavors", self.export_openstack_flavors
+            ),
+            "openstack_images": self.log_export_step(
+                "openstack_images", self.export_openstack_images
+            ),
+            "openstack_tenants": self.log_export_step(
+                "openstack_tenants", self.export_openstack_tenants
+            ),
+            "openstack_instances": self.log_export_step(
+                "openstack_instances", self.export_openstack_instances
+            ),
+            "openstack_volumes": self.log_export_step(
+                "openstack_volumes", self.export_openstack_volumes
             ),
         }
 
@@ -630,6 +655,14 @@ class Command(BaseCommand):
                     offering.compliance_checklist.uuid.hex
                 )
 
+            # Add scope reference if it exists
+            if offering.content_type and offering.object_id:
+                offering_data["scope_type"] = (
+                    f"{offering.content_type.app_label}.{offering.content_type.model}"
+                )
+                if hasattr(offering.scope, "uuid"):
+                    offering_data["scope_uuid"] = offering.scope.uuid.hex
+
             offerings.append(offering_data)
         return offerings
 
@@ -845,7 +878,7 @@ class Command(BaseCommand):
         """Export marketplace resource data."""
         resources = []
         for resource in Resource.objects.select_related(
-            "offering", "plan", "project", "project__customer"
+            "offering", "plan", "project", "project__customer", "content_type"
         ).order_by("created"):
             resources.append(
                 {
@@ -885,6 +918,12 @@ class Command(BaseCommand):
                     "current_usages": resource.current_usages,
                     "error_message": resource.error_message,
                     "error_traceback": resource.error_traceback,
+                    "scope_type": f"{resource.content_type.app_label}.{resource.content_type.model}"
+                    if resource.content_type
+                    else None,
+                    "scope_uuid": resource.scope.uuid.hex
+                    if resource.content_type and resource.scope
+                    else None,
                 }
             )
         return resources
@@ -1989,3 +2028,143 @@ class Command(BaseCommand):
                 link_data["partition_uuid"] = link.partition.uuid.hex
             links.append(link_data)
         return links
+
+    def export_openstack_service_settings(self):
+        """Export OpenStack service settings."""
+        settings_list = []
+        for ss in ServiceSettings.objects.filter(type="OpenStack").select_related(
+            "customer"
+        ):
+            settings_list.append(
+                {
+                    "uuid": ss.uuid.hex,
+                    "name": ss.name,
+                    "type": ss.type,
+                    "backend_url": ss.backend_url or "",
+                    "username": ss.username or "",
+                    "password": ss.password or "",
+                    "domain": ss.domain or "",
+                    "token": ss.token or "",
+                    "shared": ss.shared,
+                    "options": ss.options,
+                    "is_active": ss.is_active,
+                    "state": ss.state,
+                    "customer_uuid": ss.customer.uuid.hex if ss.customer else None,
+                    "customer_name": ss.customer.name if ss.customer else None,
+                }
+            )
+        return settings_list
+
+    def export_openstack_flavors(self):
+        """Export OpenStack flavors."""
+        flavors = []
+        for flavor in Flavor.objects.select_related("settings"):
+            flavors.append(
+                {
+                    "uuid": flavor.uuid.hex,
+                    "name": flavor.name,
+                    "backend_id": flavor.backend_id,
+                    "cores": flavor.cores,
+                    "ram": flavor.ram,
+                    "disk": flavor.disk,
+                    "settings_uuid": flavor.settings.uuid.hex,
+                    "settings_name": flavor.settings.name,
+                }
+            )
+        return flavors
+
+    def export_openstack_images(self):
+        """Export OpenStack images."""
+        images = []
+        for image in Image.all_objects.select_related("settings"):
+            images.append(
+                {
+                    "uuid": image.uuid.hex,
+                    "name": image.name,
+                    "backend_id": image.backend_id,
+                    "min_disk": image.min_disk,
+                    "min_ram": image.min_ram,
+                    "settings_uuid": image.settings.uuid.hex,
+                    "settings_name": image.settings.name,
+                }
+            )
+        return images
+
+    def export_openstack_tenants(self):
+        """Export OpenStack tenants."""
+        tenants = []
+        for tenant in Tenant.objects.select_related("service_settings", "project"):
+            tenants.append(
+                {
+                    "uuid": tenant.uuid.hex,
+                    "name": tenant.name,
+                    "description": tenant.description,
+                    "backend_id": tenant.backend_id,
+                    "state": tenant.state,
+                    "runtime_state": tenant.runtime_state,
+                    "service_settings_uuid": tenant.service_settings.uuid.hex,
+                    "project_uuid": tenant.project.uuid.hex,
+                    "project_name": tenant.project.name,
+                    "internal_network_id": tenant.internal_network_id,
+                    "external_network_id": tenant.external_network_id,
+                    "availability_zone": tenant.availability_zone,
+                    "user_username": tenant.user_username,
+                    "user_password": tenant.user_password,
+                }
+            )
+        return tenants
+
+    def export_openstack_instances(self):
+        """Export OpenStack instances."""
+        instances = []
+        for instance in Instance.objects.select_related(
+            "tenant", "service_settings", "project"
+        ):
+            instances.append(
+                {
+                    "uuid": instance.uuid.hex,
+                    "name": instance.name,
+                    "description": instance.description,
+                    "backend_id": instance.backend_id,
+                    "state": instance.state,
+                    "runtime_state": instance.runtime_state,
+                    "tenant_uuid": instance.tenant.uuid.hex,
+                    "cores": instance.cores,
+                    "ram": instance.ram,
+                    "disk": instance.disk,
+                    "image_name": instance.image_name,
+                    "flavor_name": instance.flavor_name,
+                    "flavor_disk": instance.flavor_disk,
+                    "hypervisor_hostname": instance.hypervisor_hostname,
+                    "key_name": instance.key_name,
+                    "key_fingerprint": instance.key_fingerprint,
+                    "directly_connected_ips": instance.directly_connected_ips,
+                }
+            )
+        return instances
+
+    def export_openstack_volumes(self):
+        """Export OpenStack volumes."""
+        volumes = []
+        for volume in Volume.objects.select_related(
+            "tenant", "instance", "service_settings", "project"
+        ):
+            volumes.append(
+                {
+                    "uuid": volume.uuid.hex,
+                    "name": volume.name,
+                    "description": volume.description,
+                    "backend_id": volume.backend_id,
+                    "state": volume.state,
+                    "runtime_state": volume.runtime_state,
+                    "tenant_uuid": volume.tenant.uuid.hex,
+                    "instance_uuid": volume.instance.uuid.hex
+                    if volume.instance
+                    else None,
+                    "size": volume.size,
+                    "bootable": volume.bootable,
+                    "device": volume.device,
+                    "image_name": volume.image_name,
+                }
+            )
+        return volumes

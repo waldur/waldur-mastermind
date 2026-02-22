@@ -41,12 +41,12 @@ from waldur_api_client.api.remote_eduteams import (
 )
 from waldur_api_client.errors import UnexpectedStatus
 from waldur_api_client.models.base_public_plan import BasePublicPlan
-from waldur_api_client.models.marketplace_orders_list_field_item import (
-    MarketplaceOrdersListFieldItem,
-)
 from waldur_api_client.models.offering_component import OfferingComponent
 from waldur_api_client.models.order_details import (
     OrderDetails,
+)
+from waldur_api_client.models.order_details_field_enum import (
+    OrderDetailsFieldEnum,
 )
 from waldur_api_client.models.patched_project_request import (
     PatchedProjectRequest,
@@ -555,7 +555,7 @@ def get_new_order_ids(client, backend_id):
     remote_orders = marketplace_orders_list.sync_all(
         client=client,
         resource_uuid=backend_id,
-        field=[MarketplaceOrdersListFieldItem.UUID],
+        field=[OrderDetailsFieldEnum.UUID],
     )
     local_order_ids = set(
         marketplace_models.Order.objects.filter(
