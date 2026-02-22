@@ -11,6 +11,10 @@ class SeverityLevel(Enum):
     CRITICAL = "critical"
 
     @classmethod
+    def choices(cls):
+        return [(s.value, s.value) for s in cls]
+
+    @classmethod
     def from_score(cls, score: float) -> "SeverityLevel":
         if score >= 0.9:
             return cls.CRITICAL

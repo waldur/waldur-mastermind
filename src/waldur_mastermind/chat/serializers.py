@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from constance import config
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
@@ -252,6 +253,7 @@ class MessageSerializer(serializers.ModelSerializer):
             "injection_categories",
         )
 
+    @extend_schema_field(serializers.ChoiceField(choices=SeverityLevel.choices()))
     def get_injection_severity(self, obj) -> str:
         return SeverityLevel.from_score(obj.injection_score).value
 
@@ -317,6 +319,7 @@ class ThreadSessionSerializer(
     def get_is_flagged(self, obj) -> bool:
         return obj.flags.get("is_flagged", False)
 
+    @extend_schema_field(serializers.ChoiceField(choices=SeverityLevel.choices()))
     def get_max_severity(self, obj) -> str:
         score = obj.flags.get("max_injection_score", 0.0)
         return SeverityLevel.from_score(score).value

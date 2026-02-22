@@ -4,6 +4,7 @@ from waldur_core.logging.enums import ObservableObjectType
 from waldur_core.onboarding.enums import VerificationStatus
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.users.enums import InvitationState
+from waldur_mastermind.chat.injection_detection.base import SeverityLevel
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.marketplace.enums import (
     OfferingStates,
@@ -96,6 +97,7 @@ SPECTACULAR_SETTINGS = {
         "IssueStatusType": ISSUE_STATUS_TYPE_CHOICES,
         "ObservableObjectTypeEnum": ObservableObjectType.choices(),
         "GenderEnum": GENDER_CHOICES,
+        "InjectionSeverityEnum": SeverityLevel.choices(),
         "GrowthPeriodEnum": ["weekly", "monthly"],
         "PolicyPeriodEnum": (
             (1, "Total"),
