@@ -5,11 +5,14 @@ from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_mastermind.chat import models
+from waldur_mastermind.chat.injection_detection import SeverityLevel
 
 
 class ChatRequestSerializer(serializers.Serializer):
     input = serializers.CharField(
-        required=True, help_text="User input text for the chat model."
+        required=True,
+        max_length=50000,
+        help_text="User input text for the chat model.",
     )
     thread_uuid = serializers.UUIDField(
         required=False,
@@ -26,14 +29,33 @@ class ChatRequestSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
         default=None,
-        help_text="'reload': replace the last assistant response. Omit for normal new-message behavior.",
+        help_text="'reload': replace the last assistant response. 'edit': edit a user message and re-stream. Omit for normal new-message behavior.",
+    )
+    edit_message_uuid = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        default=None,
+        help_text="UUID of the user message to edit. Required when mode='edit'.",
     )
 
     def validate(self, attrs):
-        """Validate that mode requires thread_uuid."""
-        if attrs.get("mode") and not attrs.get("thread_uuid"):
+        """Validate mode-specific requirements."""
+        mode = attrs.get("mode")
+        edit_message_uuid = attrs.get("edit_message_uuid")
+
+        if mode and not attrs.get("thread_uuid"):
             raise serializers.ValidationError(
                 {"mode": "mode requires thread_uuid to be provided."}
+            )
+        if mode == models.ChatMode.EDIT and not edit_message_uuid:
+            raise serializers.ValidationError(
+                {"edit_message_uuid": "edit_message_uuid is required when mode='edit'."}
+            )
+        if edit_message_uuid and mode != models.ChatMode.EDIT:
+            raise serializers.ValidationError(
+                {
+                    "edit_message_uuid": "edit_message_uuid is only valid with mode='edit'."
+                }
             )
         return attrs
 
@@ -201,6 +223,7 @@ class MessageSerializer(serializers.ModelSerializer):
         slug_field="uuid",
         read_only=True,
     )
+    injection_severity = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Message
@@ -212,8 +235,41 @@ class MessageSerializer(serializers.ModelSerializer):
             "sequence_index",
             "replaces",
             "created",
+            "is_flagged",
+            "injection_score",
+            "injection_severity",
+            "injection_categories",
         )
-        read_only_fields = ("uuid", "created", "sequence_index", "role", "replaces")
+        read_only_fields = (
+            "uuid",
+            "created",
+            "sequence_index",
+            "role",
+            "replaces",
+            "is_flagged",
+            "injection_score",
+            "injection_severity",
+            "injection_categories",
+        )
+
+    def get_injection_severity(self, obj) -> str:
+        return SeverityLevel.from_score(obj.injection_score).value
+
+    def get_fields(self):
+        fields = super().get_fields()
+        # Schema generation: show all fields for OpenAPI docs
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
+            return fields
+        request = self.context.get("request")
+        if request and not (request.user.is_staff or request.user.is_support):
+            for field_name in (
+                "is_flagged",
+                "injection_score",
+                "injection_severity",
+                "injection_categories",
+            ):
+                fields.pop(field_name, None)
+        return fields
 
 
 class ThreadSessionSerializer(
@@ -228,6 +284,8 @@ class ThreadSessionSerializer(
     user_full_name = serializers.CharField(
         source="chat_session.user.full_name", read_only=True
     )
+    is_flagged = serializers.SerializerMethodField()
+    max_severity = serializers.SerializerMethodField()
 
     class Meta:
         model = models.ThreadSession
@@ -238,6 +296,8 @@ class ThreadSessionSerializer(
             "flags",
             "is_archived",
             "message_count",
+            "is_flagged",
+            "max_severity",
             "user_username",
             "user_full_name",
             "created",
@@ -253,6 +313,13 @@ class ThreadSessionSerializer(
             "user_username",
             "user_full_name",
         )
+
+    def get_is_flagged(self, obj) -> bool:
+        return obj.flags.get("is_flagged", False)
+
+    def get_max_severity(self, obj) -> str:
+        score = obj.flags.get("max_injection_score", 0.0)
+        return SeverityLevel.from_score(score).value
 
 
 class ChatSessionSerializer(

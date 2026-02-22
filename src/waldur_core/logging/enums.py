@@ -311,6 +311,7 @@ class EventType(str, Enum):
     TERMS_OF_SERVICE_CONSENT_REVOKED = "terms_of_service_consent_revoked"
     CHAT_SESSION_ACCESSED = "chat_session_accessed"
     CHAT_THREAD_ACCESSED = "chat_thread_accessed"
+    CHAT_INJECTION_DETECTED = "chat_injection_detected"
     ONBOARDING_VERIFICATION_DELETED = "onboarding_verification_deleted"
     ONBOARDING_VERIFICATION_DELETED_BY_TASK = "onboarding_verification_deleted_by_task"
 
@@ -646,6 +647,7 @@ EVENT_GROUP_MAPPING = {
     EventGroup.CHAT: [
         EventType.CHAT_SESSION_ACCESSED,
         EventType.CHAT_THREAD_ACCESSED,
+        EventType.CHAT_INJECTION_DETECTED,
     ],
 }
 
