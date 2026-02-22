@@ -799,3 +799,99 @@ def validate_go_sdk_naming_collisions(result, generator, **kwargs):
         raise ValueError("\n" + "\n".join(errors))
 
     return result
+
+
+def extract_query_enums(result, generator, **kwargs):
+    """
+    Extracts inline enum definitions from query parameters into reusable components.
+    Naming logic: [ResponseModelName][ParameterName]Enum
+    """
+    schemas = result.setdefault("components", {}).setdefault("schemas", {})
+
+    def get_response_model_name(operation):
+        """Finds the name of the main model returned by a 200 OK response."""
+        try:
+            # Check 200 or 201 responses
+            for code in ["200", "201"]:
+                res = operation.get("responses", {}).get(code, {})
+                content = res.get("content", {}).get("application/json", {})
+                schema = content.get("schema", {})
+
+                # If it's a direct reference
+                if "$ref" in schema:
+                    return schema["$ref"].split("/")[-1]
+
+                # If it's a paginated list or array
+                if schema.get("type") == "array" and "$ref" in schema.get("items", {}):
+                    return schema["items"]["$ref"].split("/")[-1]
+        except (KeyError, AttributeError, IndexError):
+            pass
+        return None
+
+    def find_existing_enum_name(enum_values):
+        """Returns the name of an existing schema that matches these enum values."""
+        sorted_values = sorted([str(v) for v in enum_values])
+        for name, schema in schemas.items():
+            if "enum" in schema:
+                if sorted([str(v) for v in schema["enum"]]) == sorted_values:
+                    return name
+        return None
+
+    for path in result.get("paths", {}).values():
+        for operation in path.values():
+            if not isinstance(operation, dict) or "parameters" not in operation:
+                continue
+
+            model_name = get_response_model_name(operation)
+
+            for param in operation["parameters"]:
+                if param.get("in") != "query":
+                    continue
+
+                schema = param.get("schema", {})
+                # Handle both direct enum and array items enum
+                is_array = schema.get("type") == "array"
+                target = schema.get("items", {}) if is_array else schema
+
+                if "enum" in target:
+                    enum_values = target["enum"]
+
+                    # 1. Try to find an existing identical enum to reuse
+                    existing_name = find_existing_enum_name(enum_values)
+
+                    if existing_name:
+                        target_ref_name = existing_name
+                    else:
+                        # 2. Generate a new name: Model + Field + Enum
+                        field_name = (
+                            param["name"].replace("_", " ").title().replace(" ", "")
+                        )
+                        prefix = model_name if model_name else "Query"
+                        target_ref_name = f"{prefix}{field_name}Enum"
+
+                        # Handle name collisions with different values
+                        counter = 1
+                        base_name = target_ref_name
+                        while (
+                            target_ref_name in schemas
+                            and schemas[target_ref_name].get("enum") != enum_values
+                        ):
+                            target_ref_name = f"{base_name}{counter}"
+                            counter += 1
+
+                        # 3. Register the new component
+                        schemas[target_ref_name] = {
+                            "type": "string",
+                            "enum": enum_values,
+                            "description": "",
+                        }
+
+                    # 4. Replace inline definition with $ref
+                    # Remove keys that would conflict with $ref (OpenAPI 3.0 rules)
+                    for key in ["type", "enum", "items"]:
+                        if key in target:
+                            del target[key]
+
+                    target["$ref"] = f"#/components/schemas/{target_ref_name}"
+
+    return result
