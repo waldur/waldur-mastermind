@@ -143,7 +143,7 @@ class ResourceGetTest(test.APITestCase):
             },
             format="json",
         )
-        plan_name_sanitized = re.sub(r"[^A-Za-z0-9._-]", "-", self.plan.name)
+        plan_name_sanitized = re.sub(r"[^A-Za-z0-9.-]", "-", self.plan.name)
         expected = f"{self.project.slug}-{plan_name_sanitized}-2"
         self.assertEqual(response.data["name"], expected)
 
@@ -191,6 +191,35 @@ class ResourceGetTest(test.APITestCase):
             response.data["name"],
             f"{self.project.customer.slug}-{self.project.slug}-{self.offering.slug}-2",
         )
+
+    def test_suggest_name_replaces_underscores_with_hyphens(self):
+        self.project.customer.slug = "my_customer"
+        self.project.customer.save()
+        self.project.slug = "my_project"
+        self.project.save()
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.ResourceFactory.get_list_url("suggest_name")
+        response = self.client.post(
+            url, {"project": self.project.uuid.hex, "offering": self.offering.uuid.hex}
+        )
+        self.assertNotIn("_", response.data["name"])
+        self.assertTrue(response.data["name"].startswith("my-customer-my-project-"))
+
+    def test_suggest_name_with_pattern_replaces_underscores(self):
+        self.offering.plugin_options = {
+            "resource_name_pattern": "{customer_name}-{project_name}"
+        }
+        self.offering.save()
+        self.project.customer.name = "My_Customer"
+        self.project.customer.save()
+        self.project.name = "My_Project"
+        self.project.save()
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.ResourceFactory.get_list_url("suggest_name")
+        response = self.client.post(
+            url, {"project": self.project.uuid.hex, "offering": self.offering.uuid.hex}
+        )
+        self.assertNotIn("_", response.data["name"])
 
     def test_resource_is_usage_based(self):
         factories.OfferingComponentFactory(
