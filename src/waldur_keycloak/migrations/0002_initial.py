@@ -9,6 +9,22 @@ import waldur_core.core.fields
 import waldur_core.core.validators
 
 
+class CreateModelIfTableNotExists(migrations.CreateModel):
+    """CreateModel variant that skips DB table creation when the table already exists.
+
+    This handles the case where tables were created by a prior deployment
+    but the migration was not recorded in django_migrations.
+    Django state is always updated so the migration graph stays consistent.
+    """
+
+    def database_forwards(self, app_label, schema_editor, from_state, to_state):
+        model = to_state.apps.get_model(app_label, self.name)
+        table_name = model._meta.db_table
+        if table_name in schema_editor.connection.introspection.table_names():
+            return
+        super().database_forwards(app_label, schema_editor, from_state, to_state)
+
+
 class Migration(migrations.Migration):
     initial = True
 
@@ -19,7 +35,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
+        CreateModelIfTableNotExists(
             name="OfferingKeycloakGroup",
             fields=[
                 (
@@ -95,7 +111,7 @@ class Migration(migrations.Migration):
                 "unique_together": {("offering", "role", "resource", "scope_id")},
             },
         ),
-        migrations.CreateModel(
+        CreateModelIfTableNotExists(
             name="OfferingKeycloakMembership",
             fields=[
                 (
