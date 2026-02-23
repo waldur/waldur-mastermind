@@ -3,12 +3,14 @@ from unittest import mock
 from rest_framework import test
 
 from waldur_core.logging import handlers, models
+from waldur_core.logging.enums import EventType
+from waldur_core.logging.event_logger import emit
 from waldur_core.logging.tests import factories
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 
 
-class ProcessHookHandlerTest(test.APITransactionTestCase):
+class ProcessHookHandlerTest(test.APITestCase):
     """Test the process_hook signal handler that triggers event processing."""
 
     def setUp(self):
@@ -32,8 +34,10 @@ class ProcessHookHandlerTest(test.APITransactionTestCase):
             is_active=True,
         )
 
-        # Trigger the signal handler
-        handlers.process_hook(sender=models.Event, instance=event, created=True)
+        # Trigger the signal handler; captureOnCommitCallbacks flushes
+        # the transaction.on_commit callback used inside process_hook
+        with self.captureOnCommitCallbacks(execute=True):
+            handlers.process_hook(sender=models.Event, instance=event)
 
         # Should trigger event processing
         mock_process_event.assert_called_once_with(event.pk)
@@ -53,7 +57,8 @@ class ProcessHookHandlerTest(test.APITransactionTestCase):
         )
 
         # Trigger the signal handler
-        handlers.process_hook(sender=models.Event, instance=event, created=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            handlers.process_hook(sender=models.Event, instance=event)
 
         # Should trigger event processing
         mock_process_event.assert_called_once_with(event.pk)
@@ -79,7 +84,8 @@ class ProcessHookHandlerTest(test.APITransactionTestCase):
         )
 
         # Trigger the signal handler
-        handlers.process_hook(sender=models.Event, instance=event, created=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            handlers.process_hook(sender=models.Event, instance=event)
 
         # Should trigger event processing once
         mock_process_event.assert_called_once_with(event.pk)
@@ -107,7 +113,8 @@ class ProcessHookHandlerTest(test.APITransactionTestCase):
         )
 
         # Trigger the signal handler
-        handlers.process_hook(sender=models.Event, instance=event, created=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            handlers.process_hook(sender=models.Event, instance=event)
 
         # Should NOT trigger event processing
         mock_process_event.assert_not_called()
@@ -127,7 +134,8 @@ class ProcessHookHandlerTest(test.APITransactionTestCase):
         )
 
         # Trigger the signal handler
-        handlers.process_hook(sender=models.Event, instance=event, created=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            handlers.process_hook(sender=models.Event, instance=event)
 
         # Should NOT trigger event processing
         mock_process_event.assert_not_called()
@@ -155,7 +163,8 @@ class ProcessHookHandlerTest(test.APITransactionTestCase):
         )
 
         # Trigger the signal handler
-        handlers.process_hook(sender=models.Event, instance=event, created=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            handlers.process_hook(sender=models.Event, instance=event)
 
         # Should trigger event processing because of system notification
         mock_process_event.assert_called_once_with(event.pk)
@@ -173,7 +182,8 @@ class ProcessHookHandlerTest(test.APITransactionTestCase):
         )
 
         # Trigger the signal handler
-        handlers.process_hook(sender=models.Event, instance=event, created=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            handlers.process_hook(sender=models.Event, instance=event)
 
         # Should trigger event processing
         mock_process_event.assert_called_once_with(event.pk)
@@ -195,7 +205,8 @@ class ProcessHookHandlerTest(test.APITransactionTestCase):
         )
 
         # Trigger the signal handler
-        handlers.process_hook(sender=models.Event, instance=event, created=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            handlers.process_hook(sender=models.Event, instance=event)
 
         # Should trigger event processing
         mock_process_event.assert_called_once_with(event.pk)
@@ -216,7 +227,8 @@ class ProcessHookHandlerTest(test.APITransactionTestCase):
         )
 
         # Trigger the signal handler
-        handlers.process_hook(sender=models.Event, instance=event, created=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            handlers.process_hook(sender=models.Event, instance=event)
 
         # Should NOT trigger event processing (no matching hooks with permissions)
         mock_process_event.assert_not_called()
@@ -236,7 +248,131 @@ class ProcessHookHandlerTest(test.APITransactionTestCase):
         mock_process_event.assert_not_called()
 
         # Trigger the signal handler
-        handlers.process_hook(sender=models.Event, instance=event, created=True)
+        with self.captureOnCommitCallbacks(execute=True):
+            handlers.process_hook(sender=models.Event, instance=event)
 
-        # The mock is called, but in real scenario it would be delayed until transaction commit
+        # The mock is called after on_commit callbacks are flushed
+        mock_process_event.assert_called_once_with(event.pk)
+
+
+class EmitWebhookDispatchRaceConditionTest(test.APITestCase):
+    """Regression test for webhook dispatch race condition.
+
+    The emit() function creates the Event first (which fires the post_save
+    signal and calls process_hook), and only then creates Feed objects that
+    link the event to its scopes (project, customer). Because process_hook
+    runs during Event creation, get_matching_hooks() finds no Feed records
+    yet, so check_event() always returns False. Without a SystemNotification
+    fallback, the Celery task is never enqueued and webhooks never fire.
+    """
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.admin = self.fixture.admin
+
+    @mock.patch("waldur_core.logging.handlers.tasks.process_event.delay")
+    def test_webhook_task_is_enqueued_when_event_emitted_with_matching_hook(
+        self, mock_process_event
+    ):
+        """Webhook task should be enqueued when emit() is called with matching hook.
+
+        This tests the REAL emit() flow rather than calling process_hook()
+        directly with pre-existing Feed objects (which masks the race condition).
+        """
+        # Create a webhook matching the event type, owned by a user with project access
+        models.WebHook.objects.create(
+            user=self.admin,
+            destination_url="https://example.com/webhook",
+            event_types=["project_creation_succeeded"],
+            is_active=True,
+        )
+
+        # Record event count before the test emit
+        event_count_before = models.Event.objects.filter(
+            event_type="project_creation_succeeded"
+        ).count()
+
+        # Emit an event through the real flow; captureOnCommitCallbacks
+        # ensures the transaction.on_commit callback in process_hook fires
+        with self.captureOnCommitCallbacks(execute=True):
+            emit(
+                "Project {project_name} has been created.",
+                event_type=EventType.PROJECT_CREATION_SUCCEEDED,
+                event_context={"project": self.project},
+                scopes=[self.project, self.project.customer],
+            )
+
+        # Verify the event and feed objects were created
+        event_count_after = models.Event.objects.filter(
+            event_type="project_creation_succeeded"
+        ).count()
+        self.assertEqual(event_count_after, event_count_before + 1)
+        event = (
+            models.Event.objects.filter(event_type="project_creation_succeeded")
+            .order_by("-id")
+            .first()
+        )
+        self.assertTrue(models.Feed.objects.filter(event=event).exists())
+
+        # The Celery task should have been enqueued
+        mock_process_event.assert_called_once_with(event.pk)
+
+    @mock.patch("waldur_core.logging.handlers.tasks.process_event.delay")
+    def test_existing_tests_mask_the_race_condition(self, mock_process_event):
+        """Demonstrates that calling process_hook() after Feed creation works,
+        which is why existing tests pass despite the bug in emit().
+        """
+        # Create the hook
+        models.WebHook.objects.create(
+            user=self.admin,
+            destination_url="https://example.com/webhook",
+            event_types=["project_creation_succeeded"],
+            is_active=True,
+        )
+
+        # Create event and feed objects FIRST (like existing tests do)
+        event = factories.EventFactory(event_type="project_creation_succeeded")
+        factories.FeedFactory(event=event, scope=self.project)
+
+        # Then call process_hook — Feed objects already exist, so it works
+        with self.captureOnCommitCallbacks(execute=True):
+            handlers.process_hook(sender=models.Event, instance=event)
+        mock_process_event.assert_called_once_with(event.pk)
+
+    @mock.patch("waldur_core.logging.handlers.tasks.process_event.delay")
+    def test_system_notification_workaround_bypasses_race_condition(
+        self, mock_process_event
+    ):
+        """SystemNotification check doesn't depend on Feed objects, so it
+        can trigger task dispatch even when the webhook-only path fails.
+        """
+        # Create a webhook (would fail due to race condition alone)
+        models.WebHook.objects.create(
+            user=self.admin,
+            destination_url="https://example.com/webhook",
+            event_types=["project_creation_succeeded"],
+            is_active=True,
+        )
+
+        # Also create a SystemNotification (bypasses the Feed race condition)
+        factories.SystemNotificationFactory(
+            event_types=["project_creation_succeeded"],
+            roles=["admin"],
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            emit(
+                "Project {project_name} has been created.",
+                event_type=EventType.PROJECT_CREATION_SUCCEEDED,
+                event_context={"project": self.project},
+                scopes=[self.project, self.project.customer],
+            )
+
+        event = (
+            models.Event.objects.filter(event_type="project_creation_succeeded")
+            .order_by("-id")
+            .first()
+        )
+        # Task IS enqueued because SystemNotification condition is True
         mock_process_event.assert_called_once_with(event.pk)

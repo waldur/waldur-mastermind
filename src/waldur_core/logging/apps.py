@@ -11,11 +11,11 @@ class EventsConfig(AppConfig):
         from rest_framework.authtoken.models import Token
 
         from waldur_core.logging import handlers, models
+        from waldur_core.logging.event_logger import event_emitted
 
         autodiscover_modules("log")
-        signals.post_save.connect(
+        event_emitted.connect(
             handlers.process_hook,
-            sender=models.Event,
             dispatch_uid="waldur_core.logging.handlers.process_hook",
         )
 
