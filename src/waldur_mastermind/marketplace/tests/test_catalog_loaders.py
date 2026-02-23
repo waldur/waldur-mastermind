@@ -682,3 +682,200 @@ class CatalogLoaderErrorHandlingTest(TestCase):
             ):
                 with self.assertRaises(CatalogLoadError):
                     loader.load_catalog(dry_run=False)
+
+
+class EESSIVersionFilteringTest(BaseLoaderTestCase):
+    """Test that EESSI loader correctly filters versions by EESSI version."""
+
+    def setUp(self):
+        self.eessi_software_data = self.load_test_fixture("eessi_software_test.json")
+
+    def _make_mock_get(self):
+        """Create a mock requests.get that returns the test fixture data."""
+
+        def mock_requests_side_effect(url, **kwargs):
+            mock_response = Mock()
+            if "software.json" in url:
+                mock_response.json.return_value = self.eessi_software_data
+            else:
+                mock_response.json.return_value = {}
+            mock_response.raise_for_status.return_value = None
+            return mock_response
+
+        return mock_requests_side_effect
+
+    @patch("requests.get")
+    def test_loader_2023_06_only_includes_2023_06_versions(self, mock_get):
+        """Test that loader with catalog_version=2023.06 only includes EESSI 2023.06 versions."""
+        mock_get.side_effect = self._make_mock_get()
+
+        loader = EESSICatalogLoader(catalog_version="2023.06", include_extensions=False)
+        catalog_data = loader.fetch_catalog_data()
+
+        # ALL, AOFlagger, ASE are 2023.06 only — should be present
+        self.assertIn("ALL", catalog_data.packages)
+        self.assertIn("AOFlagger", catalog_data.packages)
+        self.assertIn("ASE", catalog_data.packages)
+
+        # JupyterLab has versions in both — only 4.0.5 is 2023.06
+        self.assertIn("JupyterLab", catalog_data.packages)
+        jupyterlab = catalog_data.packages["JupyterLab"]
+        self.assertIn("4.0.5", jupyterlab.versions)
+        self.assertNotIn("4.2.5", jupyterlab.versions)
+
+        # NewTool2025 is 2025.06 only — should NOT be present
+        self.assertNotIn("NewTool2025", catalog_data.packages)
+
+    @patch("requests.get")
+    def test_loader_2025_06_only_includes_2025_06_versions(self, mock_get):
+        """Test that loader with catalog_version=2025.06 only includes EESSI 2025.06 versions."""
+        mock_get.side_effect = self._make_mock_get()
+
+        loader = EESSICatalogLoader(catalog_version="2025.06", include_extensions=False)
+        catalog_data = loader.fetch_catalog_data()
+
+        # ALL, AOFlagger, ASE are 2023.06 only — should NOT be present
+        self.assertNotIn("ALL", catalog_data.packages)
+        self.assertNotIn("AOFlagger", catalog_data.packages)
+        self.assertNotIn("ASE", catalog_data.packages)
+
+        # JupyterLab has versions in both — only 4.2.5 is 2025.06
+        self.assertIn("JupyterLab", catalog_data.packages)
+        jupyterlab = catalog_data.packages["JupyterLab"]
+        self.assertNotIn("4.0.5", jupyterlab.versions)
+        self.assertIn("4.2.5", jupyterlab.versions)
+
+        # NewTool2025 is 2025.06 only — should be present
+        self.assertIn("NewTool2025", catalog_data.packages)
+
+    @patch("requests.get")
+    def test_packages_with_zero_matching_versions_excluded(self, mock_get):
+        """Test that packages with no matching versions are excluded entirely."""
+        mock_get.side_effect = self._make_mock_get()
+
+        loader = EESSICatalogLoader(catalog_version="2025.06", include_extensions=False)
+        catalog_data = loader.fetch_catalog_data()
+
+        # ALL only has a 2023.06 version, so should be excluded from 2025.06 catalog
+        self.assertNotIn("ALL", catalog_data.packages)
+
+    @patch("requests.get")
+    def test_new_format_version_filtering(self, mock_get):
+        """Test version filtering with new dict-based required_modules format."""
+        new_format_data = self.load_test_fixture("eessi_new_format_test.json")
+
+        def mock_requests_side_effect(url, **kwargs):
+            mock_response = Mock()
+            if "software.json" in url:
+                mock_response.json.return_value = new_format_data
+            else:
+                mock_response.json.return_value = {}
+            mock_response.raise_for_status.return_value = None
+            return mock_response
+
+        mock_get.side_effect = mock_requests_side_effect
+
+        # All packages in new_format_test.json are 2023.06
+        loader = EESSICatalogLoader(catalog_version="2023.06", include_extensions=False)
+        catalog_data = loader.fetch_catalog_data()
+        self.assertIn("NewFormatPackage", catalog_data.packages)
+        self.assertIn("PackageWithExtensions", catalog_data.packages)
+
+        # None should appear under 2025.06
+        loader_2025 = EESSICatalogLoader(
+            catalog_version="2025.06", include_extensions=False
+        )
+        catalog_data_2025 = loader_2025.fetch_catalog_data()
+        self.assertEqual(len(catalog_data_2025.packages), 0)
+
+    @patch("requests.get")
+    def test_sync_removes_stale_versions_from_database(self, mock_get):
+        """Test that sync=True removes stale versions wrongly in the DB."""
+        mock_get.side_effect = self._make_mock_get()
+
+        # First load with no filtering (simulate the old buggy behavior)
+        # by loading all data as 2023.06
+        loader = EESSICatalogLoader(catalog_version="2023.06", include_extensions=False)
+        stats = loader.load_catalog(update_existing=True, dry_run=False)
+        self.assertGreater(stats["packages_created"], 0)
+
+        catalog = SoftwareCatalog.objects.get(name="EESSI")
+
+        # JupyterLab should have only version 4.0.5 (2023.06)
+        jupyterlab_pkg = SoftwarePackage.objects.get(catalog=catalog, name="JupyterLab")
+        self.assertEqual(
+            SoftwareVersion.objects.filter(package=jupyterlab_pkg).count(), 1
+        )
+        self.assertTrue(
+            SoftwareVersion.objects.filter(
+                package=jupyterlab_pkg, version="4.0.5"
+            ).exists()
+        )
+
+        # Manually create a stale version (simulating old buggy load)
+        SoftwareVersion.objects.create(
+            package=jupyterlab_pkg,
+            version="4.2.5",
+            dependencies=[],
+            metadata={},
+        )
+        self.assertEqual(
+            SoftwareVersion.objects.filter(package=jupyterlab_pkg).count(), 2
+        )
+
+        # Re-load with sync=True to clean up
+        loader2 = EESSICatalogLoader(
+            catalog_version="2023.06", include_extensions=False
+        )
+        stats2 = loader2.load_catalog(
+            update_existing=True, dry_run=False, catalog=catalog, sync=True
+        )
+
+        # Stale version should be deleted
+        self.assertGreater(stats2["versions_deleted"], 0)
+        self.assertEqual(
+            SoftwareVersion.objects.filter(package=jupyterlab_pkg).count(), 1
+        )
+        self.assertTrue(
+            SoftwareVersion.objects.filter(
+                package=jupyterlab_pkg, version="4.0.5"
+            ).exists()
+        )
+        self.assertFalse(
+            SoftwareVersion.objects.filter(
+                package=jupyterlab_pkg, version="4.2.5"
+            ).exists()
+        )
+
+    @patch("requests.get")
+    def test_sync_removes_stale_packages_from_database(self, mock_get):
+        """Test that sync=True removes packages not in incoming data."""
+        mock_get.side_effect = self._make_mock_get()
+
+        # Load with 2023.06 version
+        loader = EESSICatalogLoader(catalog_version="2023.06", include_extensions=False)
+        loader.load_catalog(update_existing=True, dry_run=False)
+
+        catalog = SoftwareCatalog.objects.get(name="EESSI")
+
+        # Manually create a stale package (simulating old buggy load)
+        SoftwarePackage.objects.create(
+            catalog=catalog,
+            name="StalePackage",
+            description="Should not be here",
+        )
+
+        # Re-load with sync=True to clean up
+        loader2 = EESSICatalogLoader(
+            catalog_version="2023.06", include_extensions=False
+        )
+        stats2 = loader2.load_catalog(
+            update_existing=True, dry_run=False, catalog=catalog, sync=True
+        )
+
+        self.assertGreater(stats2["packages_deleted"], 0)
+        self.assertFalse(
+            SoftwarePackage.objects.filter(
+                catalog=catalog, name="StalePackage"
+            ).exists()
+        )

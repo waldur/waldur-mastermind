@@ -22,6 +22,33 @@ from .base import (
 )
 
 
+def _get_eessi_version(version_info: dict) -> str | None:
+    """Extract the EESSI version from a version entry's required_modules.
+
+    Handles both old format (string list) and new format (dict list):
+    - Old: ["EESSI/2023.06", ...] → "2023.06"
+    - New: [{"module_name": "EESSI", "module_version": "2023.06"}, ...] → "2023.06"
+
+    Returns None if no EESSI module is found.
+    """
+    required_modules = version_info.get("required_modules", [])
+    if not required_modules:
+        return None
+
+    first_module = required_modules[0]
+
+    if isinstance(first_module, str):
+        # Old format: "EESSI/2023.06"
+        if first_module.startswith("EESSI/"):
+            return first_module.split("/", 1)[1]
+    elif isinstance(first_module, dict):
+        # New format: {"module_name": "EESSI", "module_version": "2023.06"}
+        if first_module.get("module_name") == "EESSI":
+            return first_module.get("module_version")
+
+    return None
+
+
 class EESSICatalogLoader(BaseCatalogLoader):
     """
     Loader for EESSI software catalogs.
@@ -158,7 +185,8 @@ class EESSICatalogLoader(BaseCatalogLoader):
             package_with_versions = self._process_eessi_package(
                 package_name, package_info, False
             )
-            catalog_data.packages[package_name] = package_with_versions
+            if package_with_versions is not None:
+                catalog_data.packages[package_name] = package_with_versions
 
         self._log_memory_usage("after main package processing")
 
@@ -189,10 +217,11 @@ class EESSICatalogLoader(BaseCatalogLoader):
                 package_with_versions = self._process_eessi_package(
                     package_name, package_info, True
                 )
-                # Use unique key to avoid conflicts
-                catalog_data.packages[f"{ext_type}:{package_name}"] = (
-                    package_with_versions
-                )
+                if package_with_versions is not None:
+                    # Use unique key to avoid conflicts
+                    catalog_data.packages[f"{ext_type}:{package_name}"] = (
+                        package_with_versions
+                    )
 
         self.logger.info(
             f"Completed processing all packages: {len(catalog_data.packages)} total packages"
@@ -201,23 +230,32 @@ class EESSICatalogLoader(BaseCatalogLoader):
 
     def _process_eessi_package(
         self, package_name: str, package_info: dict, is_extension: bool
-    ) -> PackageWithVersions:
-        """Process a single EESSI package."""
+    ) -> PackageWithVersions | None:
+        """Process a single EESSI package.
+
+        Returns None if no versions match the catalog's EESSI version.
+        """
 
         # Extract package metadata
         description = package_info.get("description", "")
         homepage = package_info.get("homepage", "")
         categories = package_info.get("categories", [])
 
+        # Filter versions to only those matching this catalog's EESSI version
+        versions_list = package_info.get("versions", [])
+        filtered_versions = [
+            v for v in versions_list if _get_eessi_version(v) == self.catalog_version
+        ]
+
+        if not filtered_versions:
+            return None
+
         # Determine parent software for extensions
         parent_software_name = ""
-        if is_extension and package_info.get("versions"):
-            # versions is a list in EESSI data, get parent from first version
-            versions_list = package_info["versions"]
-            if versions_list and isinstance(versions_list, list):
-                first_version_info = versions_list[0]
-                parent_info = first_version_info.get("parent_software", {})
-                parent_software_name = parent_info.get("name", "")
+        if is_extension and filtered_versions:
+            first_version_info = filtered_versions[0]
+            parent_info = first_version_info.get("parent_software", {})
+            parent_software_name = parent_info.get("name", "")
 
         package_data = PackageData(
             name=package_name,
@@ -229,19 +267,18 @@ class EESSICatalogLoader(BaseCatalogLoader):
             parent_software_name=parent_software_name,
         )
 
-        # Process versions
-        versions_list = package_info.get("versions", [])
-        if len(versions_list) > 50:  # Log packages with many versions
+        # Process filtered versions
+        if len(filtered_versions) > 50:  # Log packages with many versions
             self.logger.debug(
-                f"Processing package {package_name} with {len(versions_list)} versions"
+                f"Processing package {package_name} with {len(filtered_versions)} versions"
             )
 
         versions = {}
-        for i, version_info in enumerate(versions_list):
+        for i, version_info in enumerate(filtered_versions):
             # Log progress for packages with many versions
-            if len(versions_list) > 100 and (i + 1) % 50 == 0:
+            if len(filtered_versions) > 100 and (i + 1) % 50 == 0:
                 self.logger.debug(
-                    f"Package {package_name}: processed {i + 1}/{len(versions_list)} versions"
+                    f"Package {package_name}: processed {i + 1}/{len(filtered_versions)} versions"
                 )
 
             version_with_targets = self._process_eessi_version(version_info)

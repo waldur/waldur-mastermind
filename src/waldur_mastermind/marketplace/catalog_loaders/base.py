@@ -166,6 +166,7 @@ class BaseCatalogLoader(ABC):
         update_existing: bool = True,
         dry_run: bool = False,
         catalog: "SoftwareCatalog | None" = None,
+        sync: bool = False,
     ) -> dict[str, int]:
         """
         Load catalog data into database.
@@ -176,6 +177,8 @@ class BaseCatalogLoader(ABC):
             catalog: Optional pre-fetched SoftwareCatalog instance.
                      When provided (task path), used directly — no DB lookup.
                      When None (management command path), looked up or created.
+            sync: If True, delete DB records not present in the incoming data.
+                  Useful for cleaning up stale versions/packages after filtering.
 
         Returns:
             Dict with statistics (packages_created, versions_created, etc.)
@@ -190,7 +193,7 @@ class BaseCatalogLoader(ABC):
 
             # Load into database
             stats = self._load_to_database(
-                catalog_data, update_existing, dry_run, catalog=catalog
+                catalog_data, update_existing, dry_run, catalog=catalog, sync=sync
             )
             self._log_memory_usage("after database load")
 
@@ -211,6 +214,7 @@ class BaseCatalogLoader(ABC):
         update_existing: bool,
         dry_run: bool,
         catalog: "SoftwareCatalog | None" = None,
+        sync: bool = False,
     ) -> dict[str, int]:
         """Load catalog data to database models.
 
@@ -221,6 +225,7 @@ class BaseCatalogLoader(ABC):
             catalog: Optional pre-fetched SoftwareCatalog instance.
                      When provided (task path), used directly.
                      When None (management command path), looked up or created.
+            sync: If True, delete stale DB records not in incoming data.
         """
         stats = {
             "packages_created": 0,
@@ -290,7 +295,9 @@ class BaseCatalogLoader(ABC):
 
             # Process packages
             stats.update(
-                self._process_packages(catalog, catalog_data.packages, update_existing)
+                self._process_packages(
+                    catalog, catalog_data.packages, update_existing, sync=sync
+                )
             )
 
         return stats
@@ -300,13 +307,17 @@ class BaseCatalogLoader(ABC):
         catalog: SoftwareCatalog,
         packages_data: dict[str, PackageWithVersions],
         update_existing: bool,
+        sync: bool = False,
     ) -> dict[str, int]:
         """Process packages and their versions/targets."""
         stats = {
             "packages_created": 0,
             "packages_updated": 0,
             "versions_created": 0,
+            "versions_deleted": 0,
             "targets_created": 0,
+            "targets_deleted": 0,
+            "packages_deleted": 0,
         }
 
         # Track parent packages for extensions
@@ -330,13 +341,15 @@ class BaseCatalogLoader(ABC):
         # First pass: create main packages in batches
         self.logger.info("Processing main packages...")
         main_stats = self._process_main_packages_bulk(
-            catalog, packages_data, update_existing, total_main
+            catalog, packages_data, update_existing, total_main, sync=sync
         )
         parent_packages.update(main_stats["parent_packages"])
         stats["packages_created"] += main_stats["packages_created"]
         stats["packages_updated"] += main_stats["packages_updated"]
         stats["versions_created"] += main_stats["versions_created"]
+        stats["versions_deleted"] += main_stats.get("versions_deleted", 0)
         stats["targets_created"] += main_stats["targets_created"]
+        stats["targets_deleted"] += main_stats.get("targets_deleted", 0)
 
         self.logger.info(
             f"Completed main packages. Created {stats['packages_created']} packages, {stats['versions_created']} versions, {stats['targets_created']} targets"
@@ -353,12 +366,31 @@ class BaseCatalogLoader(ABC):
                 parent_packages,
                 update_existing,
                 total_extensions,
+                sync=sync,
             )
             stats["packages_created"] += extension_stats["packages_created"]
             stats["packages_updated"] += extension_stats["packages_updated"]
             stats["versions_created"] += extension_stats["versions_created"]
+            stats["versions_deleted"] += extension_stats.get("versions_deleted", 0)
             stats["targets_created"] += extension_stats["targets_created"]
+            stats["targets_deleted"] += extension_stats.get("targets_deleted", 0)
             self._log_memory_usage("after extensions")
+
+        # Sync: delete packages not in incoming data
+        if sync:
+            incoming_package_names = {
+                pkg.package_data.name for pkg in packages_data.values()
+            }
+            stale_packages = SoftwarePackage.objects.filter(catalog=catalog).exclude(
+                name__in=incoming_package_names
+            )
+            stale_count = stale_packages.count()
+            if stale_count > 0:
+                self.logger.info(
+                    f"Sync: deleting {stale_count} stale packages from catalog"
+                )
+                stale_packages.delete()
+                stats["packages_deleted"] += stale_count
 
         return stats
 
@@ -368,13 +400,16 @@ class BaseCatalogLoader(ABC):
         packages_data: dict[str, PackageWithVersions],
         update_existing: bool,
         total_main: int,
+        sync: bool = False,
     ) -> dict[str, any]:
         """Process main packages in optimized batches."""
         stats = {
             "packages_created": 0,
             "packages_updated": 0,
             "versions_created": 0,
+            "versions_deleted": 0,
             "targets_created": 0,
+            "targets_deleted": 0,
             "parent_packages": {},
         }
 
@@ -394,12 +429,14 @@ class BaseCatalogLoader(ABC):
             # Process batch when full or at end
             if len(main_batch) >= batch_size or processed_main == total_main:
                 batch_stats = self._process_main_batch(
-                    catalog, main_batch, update_existing
+                    catalog, main_batch, update_existing, sync=sync
                 )
                 stats["packages_created"] += batch_stats["packages_created"]
                 stats["packages_updated"] += batch_stats["packages_updated"]
                 stats["versions_created"] += batch_stats["versions_created"]
+                stats["versions_deleted"] += batch_stats.get("versions_deleted", 0)
                 stats["targets_created"] += batch_stats["targets_created"]
+                stats["targets_deleted"] += batch_stats.get("targets_deleted", 0)
                 stats["parent_packages"].update(batch_stats["parent_packages"])
 
                 self.logger.info(
@@ -414,13 +451,16 @@ class BaseCatalogLoader(ABC):
         catalog: SoftwareCatalog,
         main_batch: list,
         update_existing: bool,
+        sync: bool = False,
     ) -> dict[str, any]:
         """Process a batch of main packages efficiently."""
         stats = {
             "packages_created": 0,
             "packages_updated": 0,
             "versions_created": 0,
+            "versions_deleted": 0,
             "targets_created": 0,
+            "targets_deleted": 0,
             "parent_packages": {},
         }
 
@@ -479,10 +519,12 @@ class BaseCatalogLoader(ABC):
             if package:
                 stats["parent_packages"][package_name] = package
                 version_stats = self._process_versions_bulk(
-                    package, package_with_versions.versions
+                    package, package_with_versions.versions, sync=sync
                 )
                 stats["versions_created"] += version_stats["versions_created"]
+                stats["versions_deleted"] += version_stats.get("versions_deleted", 0)
                 stats["targets_created"] += version_stats["targets_created"]
+                stats["targets_deleted"] += version_stats.get("targets_deleted", 0)
 
         return stats
 
@@ -493,13 +535,16 @@ class BaseCatalogLoader(ABC):
         parent_packages: dict[str, SoftwarePackage],
         update_existing: bool,
         total_extensions: int,
+        sync: bool = False,
     ) -> dict[str, int]:
         """Process extension packages in optimized batches."""
         stats = {
             "packages_created": 0,
             "packages_updated": 0,
             "versions_created": 0,
+            "versions_deleted": 0,
             "targets_created": 0,
+            "targets_deleted": 0,
         }
 
         batch_size = 50  # Process extensions in batches
@@ -521,12 +566,18 @@ class BaseCatalogLoader(ABC):
                 or processed_extensions == total_extensions
             ):
                 batch_stats = self._process_extension_batch(
-                    catalog, extension_batch, parent_packages, update_existing
+                    catalog,
+                    extension_batch,
+                    parent_packages,
+                    update_existing,
+                    sync=sync,
                 )
                 stats["packages_created"] += batch_stats["packages_created"]
                 stats["packages_updated"] += batch_stats["packages_updated"]
                 stats["versions_created"] += batch_stats["versions_created"]
+                stats["versions_deleted"] += batch_stats.get("versions_deleted", 0)
                 stats["targets_created"] += batch_stats["targets_created"]
+                stats["targets_deleted"] += batch_stats.get("targets_deleted", 0)
 
                 self.logger.info(
                     f"Database: processed {processed_extensions}/{total_extensions} extension packages"
@@ -541,13 +592,16 @@ class BaseCatalogLoader(ABC):
         extension_batch: list,
         parent_packages: dict[str, SoftwarePackage],
         update_existing: bool,
+        sync: bool = False,
     ) -> dict[str, int]:
         """Process a batch of extension packages efficiently."""
         stats = {
             "packages_created": 0,
             "packages_updated": 0,
             "versions_created": 0,
+            "versions_deleted": 0,
             "targets_created": 0,
+            "targets_deleted": 0,
         }
 
         # Prepare bulk data with validation
@@ -641,18 +695,28 @@ class BaseCatalogLoader(ABC):
             package = all_packages.get(package_name)
             if package:
                 version_stats = self._process_versions_bulk(
-                    package, package_with_versions.versions
+                    package, package_with_versions.versions, sync=sync
                 )
                 stats["versions_created"] += version_stats["versions_created"]
+                stats["versions_deleted"] += version_stats.get("versions_deleted", 0)
                 stats["targets_created"] += version_stats["targets_created"]
+                stats["targets_deleted"] += version_stats.get("targets_deleted", 0)
 
         return stats
 
     def _process_versions_bulk(
-        self, package: SoftwarePackage, versions_data: dict[str, VersionWithTargets]
+        self,
+        package: SoftwarePackage,
+        versions_data: dict[str, VersionWithTargets],
+        sync: bool = False,
     ) -> dict[str, int]:
         """Process versions and targets with bulk operations."""
-        stats = {"versions_created": 0, "targets_created": 0}
+        stats = {
+            "versions_created": 0,
+            "versions_deleted": 0,
+            "targets_created": 0,
+            "targets_deleted": 0,
+        }
 
         if not versions_data:
             return stats
@@ -723,6 +787,17 @@ class BaseCatalogLoader(ABC):
                 targets_to_create, ignore_conflicts=True
             )
             stats["targets_created"] += len(created_targets)
+
+        # Sync: delete versions not in incoming data
+        if sync:
+            stale_versions = SoftwareVersion.objects.filter(package=package).exclude(
+                version__in=version_names
+            )
+            stale_count = stale_versions.count()
+            if stale_count > 0:
+                # Deleting versions cascades to their targets
+                stale_versions.delete()
+                stats["versions_deleted"] += stale_count
 
         return stats
 
