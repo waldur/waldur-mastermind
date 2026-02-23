@@ -605,10 +605,10 @@ class ConstanceSettingsSerializer(serializers.Serializer):
         fields = OrderedDict()
         for name, options in settings.CONFIG.items():
             default = options[0]
-            if len(options) == 3:
+            if len(options) >= 3:
                 config_type = options[2]
                 if config_type not in settings.ADDITIONAL_FIELDS and not isinstance(
-                    default, config_type
+                    default, config_type if isinstance(config_type, type) else str
                 ):
                     raise ImproperlyConfigured(
                         _(
@@ -641,6 +641,10 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 field_class = StringListSerializer
             if config_type == "json_list_field":
                 field_class = JsonListSerializerField
+            if config_type == "choice_field":
+                field_class = serializers.ChoiceField
+            if config_type == "multiple_choice_field":
+                field_class = serializers.MultipleChoiceField
             if config_type == "country_list_field":
                 field_class = StringListSerializer
             if config_type in (
@@ -665,6 +669,15 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                 kwargs["allow_blank"] = True
             if config_type == "url_field":
                 kwargs["validators"] = [URLValidator()]
+                kwargs["allow_blank"] = True
+            if config_type == "choice_field":
+                kwargs["choices"] = getattr(
+                    django_settings, "CONSTANCE_CONFIG_CHOICES", {}
+                ).get(name, [])
+            if config_type == "multiple_choice_field":
+                kwargs["choices"] = getattr(
+                    django_settings, "CONSTANCE_CONFIG_CHOICES", {}
+                ).get(name, [])
                 kwargs["allow_blank"] = True
             fields[name] = field_class(**kwargs)
         return fields
@@ -691,6 +704,8 @@ class ConstanceSettingsSerializer(serializers.Serializer):
                             # It's already a path string
                             processed[key] = value
                     new = processed
+                if isinstance(new, set):
+                    new = list(new)
                 setattr(config, name, new)
 
 

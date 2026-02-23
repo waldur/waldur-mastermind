@@ -15,6 +15,142 @@ LANGUAGE_CHOICES = [
     "cs",
 ]
 
+SCRIPT_RUN_MODE_CHOICES = [
+    ("docker", "Docker"),
+    ("k8s", "Kubernetes"),
+]
+
+SIDEBAR_STYLE_CHOICES = [
+    ("primary", "Primary"),
+    ("accent", "Dark primary"),
+    ("accent-light", "Light primary"),
+    ("dark", "Dark"),
+    ("light", "Light"),
+    ("auto", "Match theme"),
+]
+
+FONT_FAMILY_CHOICES = [
+    ("Inter", "Inter"),
+    ("Maven Pro", "Maven Pro"),
+]
+
+LOGIN_PAGE_LAYOUT_CHOICES = [
+    ("split-screen", "Split-screen"),
+    ("centered-card", "Centered-card"),
+    ("minimal", "Minimal"),
+    ("full-hero", "Full-hero"),
+    ("gradient", "Gradient"),
+    ("stacked", "Stacked"),
+    ("right-split", "Right-split"),
+    ("glassmorphism", "Glassmorphism"),
+    ("neumorphism", "Neumorphism"),
+    ("animated-gradient", "Animated-gradient"),
+    ("video-background", "Video-background"),
+    ("bottom-sheet", "Bottom-sheet"),
+    ("tabbed", "Tabbed"),
+    ("wizard", "Wizard"),
+    ("stats", "Stats"),
+    ("news", "News"),
+    ("carousel", "Carousel"),
+    ("logo-watermark", "Logo-watermark"),
+    ("brand-pattern", "Brand-pattern"),
+    ("duotone", "Duotone"),
+    ("diagonal", "Diagonal"),
+    ("time-based", "Time-based"),
+    ("seasonal", "Seasonal"),
+    ("weather", "Weather"),
+]
+
+SUPPORT_BACKEND_CHOICES = [
+    ("atlassian", "Atlassian"),
+    ("zammad", "Zammad"),
+    ("smax", "SMAX"),
+]
+
+ZAMMAD_ARTICLE_TYPE_CHOICES = [
+    ("email", "email"),
+    ("phone", "phone"),
+    ("web", "web"),
+    ("note", "note"),
+    ("sms", "sms"),
+    ("chat", "chat"),
+    ("fax", "fax"),
+    ("twitter status", "twitter status"),
+    ("twitter direct-message", "twitter direct-message"),
+    ("facebook feed post", "facebook feed post"),
+    ("facebook feed comment", "facebook feed comment"),
+    ("telegram personal-message", "telegram personal-message"),
+]
+
+OFFERING_VISIBILITY_CHOICES = [
+    ("show_all", "Show all shared offerings"),
+    ("show_restricted_disabled", "Show all but mark inaccessible as disabled"),
+    ("hide_inaccessible", "Hide offerings user cannot access"),
+    ("require_membership", "Hide all unless user belongs to an organization/project"),
+]
+
+NOTIFY_SYSTEM_CHOICES = [
+    ("AdminAnnouncement", "AdminAnnouncement"),
+    ("BroadcastMessage", "BroadcastMessage"),
+]
+
+ONBOARDING_VALIDATION_CHOICES = [
+    ("ariregister", "ariregister"),
+    ("wirtschaftscompass", "wirtschaftscompass"),
+    ("bolagsverket", "bolagsverket"),
+]
+
+DEACTIVATION_POLICY_CHOICES = [
+    ("all_isds_removed", "All ISDs removed"),
+    ("any_isd_removed", "Any ISD removal"),
+]
+
+PROVIDER_CHOICES = [
+    ("", "Not configured"),
+    ("tara", "TARA"),
+    ("eduteams", "eduTEAMS"),
+    ("keycloak", "Keycloak"),
+]
+
+# Note: These should ideally be imported from marketplace, but for now we define common ones.
+OFFERING_TYPE_CHOICES = [
+    ("Support.OfferingTemplate", "Support"),
+    ("Marketplace.Booking", "Booking"),
+    ("Marketplace.Basic", "Basic"),
+    ("OpenStack.Tenant", "OpenStack Tenant"),
+    ("OpenStack.Instance", "OpenStack Instance"),
+    ("OpenStack.Volume", "OpenStack Volume"),
+    ("Marketplace.Rancher", "Rancher"),
+    ("VMware.VirtualMachine", "VMware Virtual Machine"),
+    ("Waldur.RemoteOffering", "Remote Offering"),
+    ("Marketplace.Script", "Script"),
+    ("SlurmInvoices.SlurmPackage", "SLURM Package"),
+    ("Marketplace.Slurm", "Site Agent"),
+]
+
+USER_ATTRIBUTE_CHOICES = [
+    ("username", "Username"),
+    ("full_name", "Full name"),
+    ("email", "Email"),
+    ("phone_number", "Phone number"),
+    ("organization", "Organization"),
+    ("job_title", "Job title"),
+    ("affiliations", "Affiliations"),
+    ("gender", "Gender"),
+    ("personal_title", "Personal title"),
+    ("birth_date", "Birth date"),
+    ("place_of_birth", "Place of birth"),
+    ("country_of_residence", "Country of residence"),
+    ("nationality", "Nationality"),
+    ("nationalities", "Nationalities"),
+    ("organization_country", "Organization country"),
+    ("organization_type", "Organization type"),
+    ("organization_registry_code", "Organization registry code"),
+    ("eduperson_assurance", "Eduperson assurance"),
+    ("civil_number", "Civil number"),
+    ("identity_source", "Identity source"),
+]
+
 CONSTANCE_BACKEND = "constance.backends.database.DatabaseBackend"
 CONSTANCE_DBS = "default"
 CONSTANCE_SUPERUSER_ONLY = False
@@ -29,6 +165,10 @@ CONSTANCE_ADDITIONAL_FIELDS = {
     "secret_field": ["django.forms.CharField", {"required": False}],
     "dict_field": ["waldur_core.core.serializers.DictField", {"required": False}],
     "list_field": ["waldur_core.core.serializers.ListField", {"required": False}],
+    "multiple_choice_field": [
+        "waldur_core.core.serializers.ListField",
+        {"required": False},
+    ],
     "json_list_field": [
         "waldur_core.core.serializers.JsonListField",
         {"required": False},
@@ -43,6 +183,27 @@ CONSTANCE_ADDITIONAL_FIELDS = {
         {"required": False},
     ],
 }
+
+CONSTANCE_CONFIG_CHOICES = {
+    "SCRIPT_RUN_MODE": SCRIPT_RUN_MODE_CHOICES,
+    "DEFAULT_IDP": PROVIDER_CHOICES,
+    "SIDEBAR_STYLE": SIDEBAR_STYLE_CHOICES,
+    "FONT_FAMILY": FONT_FAMILY_CHOICES,
+    "LOGIN_PAGE_LAYOUT": LOGIN_PAGE_LAYOUT_CHOICES,
+    "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE": SUPPORT_BACKEND_CHOICES,
+    "ZAMMAD_ARTICLE_TYPE": ZAMMAD_ARTICLE_TYPE_CHOICES,
+    "DEFAULT_OFFERING_USER_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
+    "INVITATION_ALLOWED_FIELDS": USER_ATTRIBUTE_CHOICES,
+    "ENABLED_USER_PROFILE_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
+    "MANDATORY_USER_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
+    "MAINTENANCE_ANNOUNCEMENT_NOTIFY_SYSTEM": NOTIFY_SYSTEM_CHOICES,
+    "DISABLED_OFFERING_TYPES": OFFERING_TYPE_CHOICES,
+    "ONBOARDING_VALIDATION_METHODS": ONBOARDING_VALIDATION_CHOICES,
+    "FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
+    "FEDERATED_IDENTITY_DEACTIVATION_POLICY": DEACTIVATION_POLICY_CHOICES,
+    "RESTRICTED_OFFERING_VISIBILITY_MODE": OFFERING_VISIBILITY_CHOICES,
+}
+
 CONSTANCE_CONFIG = {
     "SITE_NAME": ("Waldur", "Human-friendly name of the Waldur deployment."),
     "SITE_DESCRIPTION": (
@@ -85,6 +246,7 @@ CONSTANCE_CONFIG = {
         "'show_restricted_disabled': Show all but mark inaccessible as disabled. "
         "'hide_inaccessible': Hide offerings user cannot access. "
         "'require_membership': Hide all unless user belongs to an organization/project.",
+        "choice_field",
     ),
     "ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT": (
         False,
@@ -118,6 +280,7 @@ CONSTANCE_CONFIG = {
     "SCRIPT_RUN_MODE": (
         "docker",
         'Type of jobs deployment. Valid values: "docker" for simple docker deployment, "k8s" for Kubernetes-based one',
+        "choice_field",
     ),
     "DOCKER_CLIENT": (
         {"base_url": "unix:///var/run/docker.sock"},
@@ -164,7 +327,11 @@ CONSTANCE_CONFIG = {
         False,
         "Do not allow user to accept multiple roles within the same scope (project or organization) using invitation. When enabled, users can still accept invitations to different scopes but cannot have multiple roles in the same scope.",
     ),
-    "DEFAULT_IDP": ("", "Triggers authentication flow at once."),
+    "DEFAULT_IDP": (
+        "",
+        "Triggers authentication flow at once.",
+        "choice_field",
+    ),
     "DOCS_URL": ("", "Renders link to docs in header", "url_field"),
     "SHORT_PAGE_TITLE": ("Waldur", "It is used as prefix for page title."),
     "FULL_PAGE_TITLE": (
@@ -251,11 +418,13 @@ CONSTANCE_CONFIG = {
     ),
     "SIDEBAR_STYLE": (
         "dark",
-        "Style of sidebar. Possible values: dark, light, accent.",
+        "Style of sidebar.",
+        "choice_field",
     ),
     "FONT_FAMILY": (
         "Inter",
-        "Font family used in the UI. Possible values: Inter, Maven Pro.",
+        "Font family used in the UI.",
+        "choice_field",
     ),
     "LOGIN_LOGO": ("", "A custom .png image file for login page", "image_field"),
     "LOGIN_LOGO_MULTILINGUAL": (
@@ -267,10 +436,8 @@ CONSTANCE_CONFIG = {
     ),
     "LOGIN_PAGE_LAYOUT": (
         "split-screen",
-        "Login page layout style. Options: split-screen, centered-card, minimal, full-hero, "
-        "gradient, stacked, right-split, glassmorphism, neumorphism, animated-gradient, "
-        "video-background, bottom-sheet, tabbed, wizard, stats, news, carousel, "
-        "logo-watermark, brand-pattern, duotone, diagonal, time-based, seasonal, weather.",
+        "Login page layout style.",
+        "choice_field",
     ),
     "LOGIN_PAGE_VIDEO_URL": (
         "",
@@ -314,7 +481,8 @@ CONSTANCE_CONFIG = {
     ),
     "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE": (
         "atlassian",
-        "Type of support backend. Possible values: atlassian, zammad, smax.",
+        "Type of support backend.",
+        "choice_field",
     ),
     "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE": (
         True,
@@ -405,9 +573,8 @@ CONSTANCE_CONFIG = {
     ),
     "ZAMMAD_ARTICLE_TYPE": (
         "email",
-        "Type of a comment. "
-        "Default is email because it allows support to reply to tickets directly in Zammad"
-        "<https://docs.zammad.org/en/latest/api/ticket/articles.html#articles/>",
+        "Type of a comment.",
+        "choice_field",
     ),
     "ZAMMAD_COMMENT_MARKER": (
         "Created by Waldur",
@@ -687,37 +854,23 @@ CONSTANCE_CONFIG = {
     ),
     "DEFAULT_OFFERING_USER_ATTRIBUTES": (
         ["username", "full_name", "email"],
-        "Default user attributes exposed to service providers (OfferingUser API) when no explicit config exists. "
-        "Available options: username, full_name, email, phone_number, organization, job_title, affiliations, "
-        "gender, personal_title, birth_date, place_of_birth, "
-        "country_of_residence, nationality, nationalities, "
-        "organization_country, organization_type, organization_registry_code, eduperson_assurance, "
-        "civil_number, identity_source.",
-        "list_field",
+        "Default user attributes exposed to service providers (OfferingUser API) when no explicit config exists.",
+        "multiple_choice_field",
     ),
     "INVITATION_ALLOWED_FIELDS": (
         ["full_name", "organization", "job_title"],
         "Fields that can be provided in invitations for email personalization. These are NOT copied to user profile.",
-        "list_field",
+        "multiple_choice_field",
     ),
     "ENABLED_USER_PROFILE_ATTRIBUTES": (
         ["phone_number", "organization", "job_title", "affiliations"],
-        "List of enabled user profile attributes. Controls IdP sync and UI display. "
-        "Core attributes (username, email, first_name, last_name, full_name) are always enabled. "
-        "Available options: phone_number, organization, job_title, affiliations, "
-        "gender, personal_title, birth_date, place_of_birth, "
-        "country_of_residence, nationality, nationalities, "
-        "organization_country, organization_type, organization_registry_code, eduperson_assurance, "
-        "civil_number, identity_source.",
-        "list_field",
+        "List of enabled user profile attributes. Controls IdP sync and UI display.",
+        "multiple_choice_field",
     ),
     "MANDATORY_USER_ATTRIBUTES": (
         [],
-        "List of user profile attributes that are mandatory. Users with missing mandatory "
-        "attributes will have limited API access until their profile is complete. "
-        "Available: phone_number, organization, job_title, affiliations, civil_number, "
-        "first_name, last_name, email, etc.",
-        "list_field",
+        "List of user profile attributes that are mandatory.",
+        "multiple_choice_field",
     ),
     "ENFORCE_MANDATORY_USER_ATTRIBUTES": (
         False,
@@ -730,8 +883,8 @@ CONSTANCE_CONFIG = {
     ),
     "MAINTENANCE_ANNOUNCEMENT_NOTIFY_SYSTEM": (
         ["AdminAnnouncement"],
-        "How maintenance notifications are delivered. Choices: AdminAnnouncement or BroadcastMessage.",
-        "list_field",
+        "How maintenance notifications are delivered.",
+        "multiple_choice_field",
     ),
     "ENFORCE_USER_CONSENT_FOR_OFFERINGS": (
         False,
@@ -745,12 +898,12 @@ CONSTANCE_CONFIG = {
     "DISABLED_OFFERING_TYPES": (
         [],
         "List of offering types disabled for creation and selection.",
-        "list_field",
+        "multiple_choice_field",
     ),
     "ONBOARDING_VALIDATION_METHODS": (
         [],
-        "List of automatic validation methods available for this portal (e.g., ariregister, wirtschaftscompass, bolagsverket). Must match backend method names.",
-        "list_field",
+        "List of automatic validation methods available for this portal.",
+        "multiple_choice_field",
     ),
     "ONBOARDING_VERIFICATION_EXPIRY_HOURS": (
         48,
@@ -994,13 +1147,13 @@ CONSTANCE_CONFIG = {
     ),
     "FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES": (
         ["first_name", "last_name", "email", "organization", "affiliations"],
-        "User attributes settable via Identity Bridge. Must be a subset of WRITABLE_USER_FIELDS.",
-        "list_field",
+        "User attributes settable via Identity Bridge.",
+        "multiple_choice_field",
     ),
     "FEDERATED_IDENTITY_DEACTIVATION_POLICY": (
         "any_isd_removed",
-        "When to deactivate a federated user: 'all_isds_removed' (only when removed from all ISDs) "
-        "or 'any_isd_removed' (on first ISD removal, backward compatible).",
+        "When to deactivate a federated user.",
+        "choice_field",
     ),
     # Project Digest settings
     "ENABLE_PROJECT_DIGEST": (
