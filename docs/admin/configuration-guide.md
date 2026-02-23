@@ -1226,7 +1226,7 @@ Allow anonymous users to see plans
 
 #### RESTRICTED_OFFERING_VISIBILITY_MODE
 
-**Type:** str
+**Type:** choice_field
 
 **Default value:** show_all
 
@@ -1292,7 +1292,7 @@ Size of the thumbnail to generate when screenshot is uploaded for an offering.
 
 #### DISABLED_OFFERING_TYPES
 
-**Type:** list_field
+**Type:** multiple_choice_field
 
 List of offering types disabled for creation and selection.
 
@@ -1346,7 +1346,7 @@ Telemetry service version.
 
 #### SCRIPT_RUN_MODE
 
-**Type:** str
+**Type:** choice_field
 
 **Default value:** docker
 
@@ -1446,11 +1446,11 @@ How many minutes before scheduled maintenance users should be notified.
 
 #### MAINTENANCE_ANNOUNCEMENT_NOTIFY_SYSTEM
 
-**Type:** list_field
+**Type:** multiple_choice_field
 
 **Default value:** ['AdminAnnouncement']
 
-How maintenance notifications are delivered. Choices: AdminAnnouncement or BroadcastMessage.
+How maintenance notifications are delivered.
 
 ### Links
 
@@ -1482,19 +1482,19 @@ Link URL to support portal. Rendered as a shortcut on dashboard
 
 #### SIDEBAR_STYLE
 
-**Type:** str
+**Type:** choice_field
 
 **Default value:** dark
 
-Style of sidebar. Possible values: dark, light, accent.
+Style of sidebar.
 
 #### FONT_FAMILY
 
-**Type:** str
+**Type:** choice_field
 
 **Default value:** Inter
 
-Font family used in the UI. Possible values: Inter, Maven Pro.
+Font family used in the UI.
 
 #### BRAND_COLOR
 
@@ -1514,11 +1514,11 @@ Toggler to disable dark theme.
 
 #### LOGIN_PAGE_LAYOUT
 
-**Type:** str
+**Type:** choice_field
 
 **Default value:** split-screen
 
-Login page layout style. Options: split-screen, centered-card, minimal, full-hero, gradient, stacked, right-split, glassmorphism, neumorphism, animated-gradient, video-background, bottom-sheet, tabbed, wizard, stats, news, carousel, logo-watermark, brand-pattern, duotone, diagonal, time-based, seasonal, weather.
+Login page layout style.
 
 #### LOGIN_PAGE_VIDEO_URL
 
@@ -1636,11 +1636,11 @@ Toggler for support plugin.
 
 #### WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE
 
-**Type:** str
+**Type:** choice_field
 
 **Default value:** atlassian
 
-Type of support backend. Possible values: atlassian, zammad, smax.
+Type of support backend.
 
 #### WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE
 
@@ -1896,11 +1896,11 @@ The name of the group to which the ticket will be added. If not specified, the f
 
 #### ZAMMAD_ARTICLE_TYPE
 
-**Type:** str
+**Type:** choice_field
 
 **Default value:** email
 
-Type of a comment. Default is email because it allows support to reply to tickets directly in Zammad<https://docs.zammad.org/en/latest/api/ticket/articles.html#articles/>
+Type of a comment.
 
 #### ZAMMAD_COMMENT_MARKER
 
@@ -2154,7 +2154,7 @@ Mark terms of services as approved for new users.
 
 #### DEFAULT_IDP
 
-**Type:** str
+**Type:** choice_field
 
 Triggers authentication flow at once.
 
@@ -2204,7 +2204,7 @@ Do not allow user to accept multiple roles within the same scope (project or org
 
 #### INVITATION_ALLOWED_FIELDS
 
-**Type:** list_field
+**Type:** multiple_choice_field
 
 **Default value:** ['full_name', 'organization', 'job_title']
 
@@ -2214,25 +2214,25 @@ Fields that can be provided in invitations for email personalization. These are 
 
 #### DEFAULT_OFFERING_USER_ATTRIBUTES
 
-**Type:** list_field
+**Type:** multiple_choice_field
 
 **Default value:** ['username', 'full_name', 'email']
 
-Default user attributes exposed to service providers (OfferingUser API) when no explicit config exists. Available options: username, full_name, email, phone_number, organization, job_title, affiliations, gender, personal_title, birth_date, place_of_birth, country_of_residence, nationality, nationalities, organization_country, organization_type, organization_registry_code, eduperson_assurance, civil_number, identity_source.
+Default user attributes exposed to service providers (OfferingUser API) when no explicit config exists.
 
 #### ENABLED_USER_PROFILE_ATTRIBUTES
 
-**Type:** list_field
+**Type:** multiple_choice_field
 
 **Default value:** ['phone_number', 'organization', 'job_title', 'affiliations']
 
-List of enabled user profile attributes. Controls IdP sync and UI display. Core attributes (username, email, first_name, last_name, full_name) are always enabled. Available options: phone_number, organization, job_title, affiliations, gender, personal_title, birth_date, place_of_birth, country_of_residence, nationality, nationalities, organization_country, organization_type, organization_registry_code, eduperson_assurance, civil_number, identity_source.
+List of enabled user profile attributes. Controls IdP sync and UI display.
 
 #### MANDATORY_USER_ATTRIBUTES
 
-**Type:** list_field
+**Type:** multiple_choice_field
 
-List of user profile attributes that are mandatory. Users with missing mandatory attributes will have limited API access until their profile is complete. Available: phone_number, organization, job_title, affiliations, civil_number, first_name, last_name, email, etc.
+List of user profile attributes that are mandatory.
 
 #### ENFORCE_MANDATORY_USER_ATTRIBUTES
 
@@ -2412,9 +2412,9 @@ OAuth/OIDC token claim name containing user roles for automatic staff/support as
 
 #### ONBOARDING_VALIDATION_METHODS
 
-**Type:** list_field
+**Type:** multiple_choice_field
 
-List of automatic validation methods available for this portal (e.g., ariregister, wirtschaftscompass, bolagsverket). Must match backend method names.
+List of automatic validation methods available for this portal.
 
 #### ONBOARDING_VERIFICATION_EXPIRY_HOURS
 
@@ -2822,19 +2822,19 @@ Enable the Identity Bridge API for push-based ISD user attribute synchronization
 
 #### FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES
 
-**Type:** list_field
+**Type:** multiple_choice_field
 
 **Default value:** ['first_name', 'last_name', 'email', 'organization', 'affiliations']
 
-User attributes settable via Identity Bridge. Must be a subset of WRITABLE_USER_FIELDS.
+User attributes settable via Identity Bridge.
 
 #### FEDERATED_IDENTITY_DEACTIVATION_POLICY
 
-**Type:** str
+**Type:** choice_field
 
 **Default value:** any_isd_removed
 
-When to deactivate a federated user: 'all_isds_removed' (only when removed from all ISDs) or 'any_isd_removed' (on first ISD removal, backward compatible).
+When to deactivate a federated user.
 
 ### Project Digest
 
