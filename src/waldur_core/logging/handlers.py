@@ -10,7 +10,7 @@ from waldur_core.logging.tasks import get_matching_hooks
 logger = logging.getLogger(__name__)
 
 
-def process_hook(sender, instance: Event, created=False, **kwargs):
+def process_hook(sender, instance: Event, **kwargs):
     """Process a hook for a given event."""
     if get_matching_hooks(instance) or SystemNotification.objects.filter(
         event_types__contains=instance.event_type

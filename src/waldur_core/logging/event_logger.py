@@ -4,6 +4,7 @@ import logging
 from decimal import Decimal
 
 from constance import config
+from django.dispatch import Signal
 
 from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.logging import models
@@ -18,6 +19,8 @@ from waldur_core.logging.middleware import get_event_context
 from waldur_core.logging.mixins import LoggableMixin
 
 logger = logging.getLogger(__name__)
+
+event_emitted = Signal()
 
 event_logger = EventLoggerAdapter(logger)
 
@@ -79,6 +82,8 @@ def emit(
         for scope in scopes or []:
             if scope and scope.id:
                 models.Feed.objects.create(scope=scope, event=event)
+
+    event_emitted.send(sender=type(event), instance=event)
 
 
 def get_valid_events():
