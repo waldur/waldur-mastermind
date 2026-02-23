@@ -209,6 +209,12 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="If set to True, offering cannot be deleted while it has non-terminated resources.",
     )
+    resource_name_pattern = serializers.CharField(
+        required=False,
+        help_text="Python format string for generating resource names. "
+        "Available variables: {customer_name}, {customer_slug}, {project_name}, {project_slug}, "
+        "{offering_name}, {offering_slug}, {plan_name}, {counter}, {attributes[KEY]}.",
+    )
 
     def validate_latest_date_for_resource_termination(self, value):
         try:
@@ -4704,10 +4710,17 @@ class ResourceSuggestNameSerializer(serializers.ModelSerializer):
     offering = serializers.SlugRelatedField(
         queryset=models.Offering.objects.all(), slug_field="uuid"
     )
+    plan = serializers.SlugRelatedField(
+        queryset=models.Plan.objects.all(),
+        slug_field="uuid",
+        required=False,
+        allow_null=True,
+    )
+    attributes = serializers.JSONField(required=False, default=dict)
 
     class Meta:
         model = models.Resource
-        fields = ("project", "offering")
+        fields = ("project", "offering", "plan", "attributes")
 
     def get_fields(self):
         fields = super().get_fields()

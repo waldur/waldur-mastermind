@@ -285,6 +285,50 @@ With this configuration:
 | `enable_provider_consumer_messaging` | boolean | `false` | Allow providers and consumers to exchange messages with attachments on pending orders |
 | `notify_about_provider_consumer_messages` | boolean | `false` | Send email notifications when providers or consumers exchange messages on pending orders. Requires `enable_provider_consumer_messaging` |
 
+### Resource Naming
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `resource_name_pattern` | string | none | Python format string for generating suggested resource names |
+
+When set, the `suggest_name` endpoint uses this pattern instead of the default `{customer_slug}-{project_slug}-{offering_slug}[-counter]` format.
+
+**Available variables:**
+
+| Variable | Description |
+|----------|-------------|
+| `{customer_name}` | Customer organization name |
+| `{customer_slug}` | Customer slug |
+| `{project_name}` | Project name |
+| `{project_slug}` | Project slug |
+| `{offering_name}` | Offering name |
+| `{offering_slug}` | Offering slug |
+| `{plan_name}` | Selected plan name (empty if no plan provided) |
+| `{counter}` | Incremental counter (empty for first resource, `2` for second, etc.) |
+| `{attributes[KEY]}` | Any order form attribute value (empty if the key is missing) |
+
+**Examples:**
+
+```json
+{
+  "plugin_options": {
+    "resource_name_pattern": "{project_slug}-{offering_slug}-{counter}"
+  }
+}
+```
+
+With attributes from the order form:
+
+```json
+{
+  "plugin_options": {
+    "resource_name_pattern": "{project_slug}-{attributes[environment]}-{counter}"
+  }
+}
+```
+
+Non-alphanumeric characters (except `-`, `_`, `.`) are replaced with hyphens; duplicate hyphens are collapsed; leading/trailing hyphens are stripped. If the pattern is malformed, the endpoint falls back to the default naming behavior.
+
 ### Display and UI
 
 | Option | Type | Default | Description |
