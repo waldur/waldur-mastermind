@@ -1,4 +1,5 @@
 import datetime
+import re
 import uuid
 from decimal import Decimal
 from unittest import mock
@@ -62,6 +63,125 @@ class ResourceGetTest(test.APITestCase):
         return self.client.get(url)
 
     def test_suggest_name(self):
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.ResourceFactory.get_list_url("suggest_name")
+        response = self.client.post(
+            url, {"project": self.project.uuid.hex, "offering": self.offering.uuid.hex}
+        )
+        self.assertEqual(
+            response.data["name"],
+            f"{self.project.customer.slug}-{self.project.slug}-{self.offering.slug}-2",
+        )
+
+    def test_suggest_name_with_pattern_core_variables(self):
+        self.offering.plugin_options = {
+            "resource_name_pattern": "{project_slug}-{offering_slug}-{counter}"
+        }
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.ResourceFactory.get_list_url("suggest_name")
+        response = self.client.post(
+            url, {"project": self.project.uuid.hex, "offering": self.offering.uuid.hex}
+        )
+        # There is 1 existing resource, so counter = 2
+        self.assertEqual(
+            response.data["name"],
+            f"{self.project.slug}-{self.offering.slug}-2",
+        )
+
+    def test_suggest_name_with_pattern_counter_omitted_for_first(self):
+        self.resource.delete()
+        self.offering.plugin_options = {
+            "resource_name_pattern": "{project_slug}-{offering_slug}-{counter}"
+        }
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.ResourceFactory.get_list_url("suggest_name")
+        response = self.client.post(
+            url, {"project": self.project.uuid.hex, "offering": self.offering.uuid.hex}
+        )
+        # No existing resources, so counter renders as empty and trailing hyphen is stripped
+        self.assertEqual(
+            response.data["name"],
+            f"{self.project.slug}-{self.offering.slug}",
+        )
+
+    def test_suggest_name_with_pattern_and_attributes(self):
+        self.offering.plugin_options = {
+            "resource_name_pattern": "{project_slug}-{attributes[environment]}-{counter}"
+        }
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.ResourceFactory.get_list_url("suggest_name")
+        response = self.client.post(
+            url,
+            {
+                "project": self.project.uuid.hex,
+                "offering": self.offering.uuid.hex,
+                "attributes": {"environment": "prod"},
+            },
+            format="json",
+        )
+        self.assertEqual(
+            response.data["name"],
+            f"{self.project.slug}-prod-2",
+        )
+
+    def test_suggest_name_with_pattern_and_plan_name(self):
+        self.offering.plugin_options = {
+            "resource_name_pattern": "{project_slug}-{plan_name}-{counter}"
+        }
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.ResourceFactory.get_list_url("suggest_name")
+        response = self.client.post(
+            url,
+            {
+                "project": self.project.uuid.hex,
+                "offering": self.offering.uuid.hex,
+                "plan": self.plan.uuid.hex,
+            },
+            format="json",
+        )
+        plan_name_sanitized = re.sub(r"[^A-Za-z0-9._-]", "-", self.plan.name)
+        expected = f"{self.project.slug}-{plan_name_sanitized}-2"
+        self.assertEqual(response.data["name"], expected)
+
+    def test_suggest_name_with_missing_attribute_renders_empty(self):
+        self.offering.plugin_options = {
+            "resource_name_pattern": "{project_slug}-{attributes[missing_key]}-{offering_slug}"
+        }
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.ResourceFactory.get_list_url("suggest_name")
+        response = self.client.post(
+            url, {"project": self.project.uuid.hex, "offering": self.offering.uuid.hex}
+        )
+        # Missing attribute renders as empty, duplicate hyphens collapsed and stripped
+        self.assertEqual(
+            response.data["name"],
+            f"{self.project.slug}-{self.offering.slug}",
+        )
+
+    def test_suggest_name_with_invalid_pattern_falls_back_to_default(self):
+        self.offering.plugin_options = {
+            "resource_name_pattern": "{project_slug}-{!invalid}"
+        }
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.ResourceFactory.get_list_url("suggest_name")
+        response = self.client.post(
+            url, {"project": self.project.uuid.hex, "offering": self.offering.uuid.hex}
+        )
+        # Fallback to default behavior
+        self.assertEqual(
+            response.data["name"],
+            f"{self.project.customer.slug}-{self.project.slug}-{self.offering.slug}-2",
+        )
+
+    def test_suggest_name_without_pattern_preserves_default(self):
+        self.offering.plugin_options = {}
+        self.offering.save()
         self.client.force_authenticate(self.fixture.owner)
         url = factories.ResourceFactory.get_list_url("suggest_name")
         response = self.client.post(

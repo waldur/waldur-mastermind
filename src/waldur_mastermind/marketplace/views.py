@@ -7080,7 +7080,14 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
 
     @extend_schema(
         summary="Suggest a resource name",
-        description="Generates a suggested name for a new resource based on the project and offering.",
+        description=(
+            "Generates a suggested name for a new resource based on the project and offering. "
+            "If the offering has a `resource_name_pattern` in `plugin_options`, "
+            "it is used as a Python format string with variables: "
+            "`{customer_name}`, `{customer_slug}`, `{project_name}`, `{project_slug}`, "
+            "`{offering_name}`, `{offering_slug}`, `{plan_name}`, `{counter}`, "
+            "and `{attributes[KEY]}` for any order form value."
+        ),
         request=serializers.ResourceSuggestNameSerializer,
         responses={200: {"type": "object", "properties": {"name": {"type": "string"}}}},
         examples=[
@@ -7107,7 +7114,15 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
         serializer.is_valid(raise_exception=True)
         project: structure_models.Project = serializer.validated_data["project"]
         offering: models.Offering = serializer.validated_data["offering"]
-        return Response({"name": utils.generate_resource_name(project, offering)})
+        plan = serializer.validated_data.get("plan")
+        attributes = serializer.validated_data.get("attributes") or {}
+        return Response(
+            {
+                "name": utils.generate_resource_name(
+                    project, offering, plan=plan, attributes=attributes
+                )
+            }
+        )
 
     suggest_name_serializer_class = serializers.ResourceSuggestNameSerializer
 

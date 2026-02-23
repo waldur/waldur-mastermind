@@ -1725,9 +1725,54 @@ def sync_component_user_usage(allocation_user_usage, plugin_name):
             logger.info("%s has been updated, new usage: %s", component_usage, usage)
 
 
-def generate_resource_name(
-    project: structure_models.Project, offering: models.Offering
+class SafeFormatDict(dict):
+    """A dict subclass that returns empty string for missing keys during str.format_map()."""
+
+    def __missing__(self, key):
+        return ""
+
+
+def render_resource_name_pattern(
+    pattern, project, offering, plan=None, attributes=None
 ):
+    resource_count = models.Resource.objects.filter(
+        project=project, offering=offering
+    ).count()
+    context = SafeFormatDict(
+        customer_name=project.customer.name,
+        customer_slug=project.customer.slug,
+        project_name=project.name,
+        project_slug=project.slug,
+        offering_name=offering.name,
+        offering_slug=offering.slug,
+        plan_name=plan.name if plan else "",
+        counter=str(resource_count + 1) if resource_count else "",
+        attributes=SafeFormatDict(attributes or {}),
+    )
+    result = pattern.format_map(context)
+    result = re.sub(r"[^A-Za-z0-9._-]", "-", result)
+    return core_utils.remove_duplicate_hyphens(result).strip("-")
+
+
+def generate_resource_name(
+    project: structure_models.Project,
+    offering: models.Offering,
+    plan=None,
+    attributes=None,
+):
+    pattern = (offering.plugin_options or {}).get("resource_name_pattern")
+    if pattern:
+        try:
+            return render_resource_name_pattern(
+                pattern, project, offering, plan=plan, attributes=attributes
+            )
+        except (KeyError, ValueError, IndexError):
+            logger.warning(
+                "Failed to render resource_name_pattern %r for offering %s, falling back to default.",
+                pattern,
+                offering.uuid,
+            )
+
     resource_count = models.Resource.objects.filter(
         project=project, offering=offering
     ).count()
