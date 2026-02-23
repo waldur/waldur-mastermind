@@ -1797,46 +1797,110 @@ def update_software_catalogs():
 
             logger.info(f"Updating {catalog_name} catalog")
 
-            # Create loader instance with error handling
-            try:
-                loader_class = catalog_config["loader_class"]
-                loader_kwargs = catalog_config["loader_kwargs"]
-                loader = loader_class(**loader_kwargs)
-            except Exception as loader_error:
-                raise Exception(
-                    f"Failed to initialize {catalog_name} loader: {loader_error}"
-                ) from loader_error
-
-            # Update catalog with full error isolation
-            try:
-                catalog = _update_catalog_with_error_handling(
-                    loader=loader,
-                    catalog_name=catalog_name,
-                    catalog_type=catalog_config["catalog_type"],
+            if catalog_name == "EESSI":
+                # EESSI: update ALL existing catalogs, each with its own version
+                eessi_catalogs = list(
+                    models.SoftwareCatalog.objects.filter(
+                        name="EESSI",
+                        catalog_type=catalog_config["catalog_type"],
+                    )
                 )
-            except Exception as update_error:
-                raise Exception(
-                    f"Failed to update {catalog_name} catalog: {update_error}"
-                ) from update_error
+                if not eessi_catalogs:
+                    results[catalog_name.lower()] = {
+                        "status": "skipped",
+                        "reason": "no_existing_catalog",
+                    }
+                    continue
 
-            if catalog is None:
+                updated_catalogs = []
+                for eessi_catalog in eessi_catalogs:
+                    try:
+                        loader_kwargs = dict(catalog_config["loader_kwargs"])
+                        loader_kwargs["catalog_version"] = eessi_catalog.version
+                        loader = catalog_config["loader_class"](**loader_kwargs)
+                    except Exception as loader_error:
+                        raise Exception(
+                            f"Failed to initialize {catalog_name} loader for version {eessi_catalog.version}: {loader_error}"
+                        ) from loader_error
+
+                    try:
+                        update_existing = (
+                            config.SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES
+                        )
+                        eessi_catalog.last_update_attempt = timezone.now()
+                        eessi_catalog.save(update_fields=["last_update_attempt"])
+
+                        loader.load_catalog(
+                            update_existing=update_existing,
+                            dry_run=False,
+                            catalog=eessi_catalog,
+                            sync=True,
+                        )
+
+                        eessi_catalog.last_successful_update = timezone.now()
+                        eessi_catalog.update_errors = ""
+                        eessi_catalog.save(
+                            update_fields=["last_successful_update", "update_errors"]
+                        )
+                        updated_catalogs.append(eessi_catalog)
+                    except Exception as update_error:
+                        eessi_catalog.update_errors = (
+                            f"Catalog update failed: {update_error}"
+                        )
+                        eessi_catalog.save(update_fields=["update_errors"])
+                        raise Exception(
+                            f"Failed to update {catalog_name} catalog version {eessi_catalog.version}: {update_error}"
+                        ) from update_error
+
+                # Record success for all EESSI catalogs
                 results[catalog_name.lower()] = {
-                    "status": "skipped",
-                    "reason": "no_existing_catalog",
+                    "status": "success",
+                    "catalogs_updated": len(updated_catalogs),
+                    "catalog_versions": [c.version for c in updated_catalogs],
                 }
-                continue
+                logger.info(
+                    f"{catalog_name} catalog update completed for {len(updated_catalogs)} catalog(s)"
+                )
+            else:
+                # Non-EESSI catalogs: use standard single-catalog update
+                try:
+                    loader_class = catalog_config["loader_class"]
+                    loader_kwargs = catalog_config["loader_kwargs"]
+                    loader = loader_class(**loader_kwargs)
+                except Exception as loader_error:
+                    raise Exception(
+                        f"Failed to initialize {catalog_name} loader: {loader_error}"
+                    ) from loader_error
 
-            # Record success
-            results[catalog_name.lower()] = {
-                "status": "success",
-                "catalog_uuid": str(catalog.uuid),
-                "catalog_name": catalog.name,
-                "catalog_version": catalog.version,
-                "last_update": catalog.last_successful_update.isoformat()
-                if catalog.last_successful_update
-                else None,
-            }
-            logger.info(f"{catalog_name} catalog update completed successfully")
+                try:
+                    catalog = _update_catalog_with_error_handling(
+                        loader=loader,
+                        catalog_name=catalog_name,
+                        catalog_type=catalog_config["catalog_type"],
+                    )
+                except Exception as update_error:
+                    raise Exception(
+                        f"Failed to update {catalog_name} catalog: {update_error}"
+                    ) from update_error
+
+                if catalog is None:
+                    results[catalog_name.lower()] = {
+                        "status": "skipped",
+                        "reason": "no_existing_catalog",
+                    }
+                    continue
+
+                # Record success
+                results[catalog_name.lower()] = {
+                    "status": "success",
+                    "catalog_uuid": str(catalog.uuid),
+                    "catalog_name": catalog.name,
+                    "catalog_version": catalog.version,
+                    "last_update": catalog.last_successful_update.isoformat()
+                    if catalog.last_successful_update
+                    else None,
+                }
+                logger.info(f"{catalog_name} catalog update completed successfully")
 
         except Exception as e:
             # Log error but continue with next catalog

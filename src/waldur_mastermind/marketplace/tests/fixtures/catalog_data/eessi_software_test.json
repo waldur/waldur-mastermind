@@ -321,6 +321,97 @@
       "categories": [],
       "identifier": "",
       "description": "ASE is a python package providing an open source Atomic Simulation Environment\n in the Python scripting language.\n\nFrom version 3.20.1 we also include the ase-ext package, it contains optional reimplementations\nin C of functions in ASE.  ASE uses it automatically when installed."
+    },
+    "JupyterLab": {
+      "versions": [
+        {
+          "homepage": "https://jupyter.org/",
+          "license": ["BSD-3-Clause"],
+          "image": "",
+          "categories": ["tools"],
+          "identifier": "",
+          "toolchain": {
+            "name": "GCCcore",
+            "version": "12.3.0"
+          },
+          "toolchain_families_compatibility": ["foss_2023a"],
+          "modulename": "JupyterLab/4.0.5-GCCcore-12.3.0",
+          "required_modules": [
+            "EESSI/2023.06",
+            "GCCcore/12.3.0",
+            "Python/3.11.3-GCCcore-12.3.0",
+            "JupyterLab/4.0.5-GCCcore-12.3.0"
+          ],
+          "cpu_arch": ["x86_64/generic", "aarch64/generic"],
+          "gpu_arch": {},
+          "description": "JupyterLab is the next-generation user interface for Project Jupyter.",
+          "version": "4.0.5",
+          "versionsuffix": ""
+        },
+        {
+          "homepage": "https://jupyter.org/",
+          "license": ["BSD-3-Clause"],
+          "image": "",
+          "categories": ["tools"],
+          "identifier": "",
+          "toolchain": {
+            "name": "GCCcore",
+            "version": "13.3.0"
+          },
+          "toolchain_families_compatibility": ["foss_2024a"],
+          "modulename": "JupyterLab/4.2.5-GCCcore-13.3.0",
+          "required_modules": [
+            "EESSI/2025.06",
+            "GCCcore/13.3.0",
+            "Python/3.12.3-GCCcore-13.3.0",
+            "JupyterLab/4.2.5-GCCcore-13.3.0"
+          ],
+          "cpu_arch": ["x86_64/generic", "aarch64/generic"],
+          "gpu_arch": {},
+          "description": "JupyterLab is the next-generation user interface for Project Jupyter.",
+          "version": "4.2.5",
+          "versionsuffix": ""
+        }
+      ],
+      "homepage": "https://jupyter.org/",
+      "license": ["BSD-3-Clause"],
+      "image": "",
+      "categories": ["tools"],
+      "identifier": "",
+      "description": "JupyterLab is the next-generation user interface for Project Jupyter."
+    },
+    "NewTool2025": {
+      "versions": [
+        {
+          "homepage": "https://example.com/newtool",
+          "license": [],
+          "image": "",
+          "categories": [],
+          "identifier": "",
+          "toolchain": {
+            "name": "foss",
+            "version": "2024a"
+          },
+          "toolchain_families_compatibility": ["foss_2024a"],
+          "modulename": "NewTool2025/1.0.0-foss-2024a",
+          "required_modules": [
+            "EESSI/2025.06",
+            "GCCcore/13.3.0",
+            "NewTool2025/1.0.0-foss-2024a"
+          ],
+          "cpu_arch": ["x86_64/generic"],
+          "gpu_arch": {},
+          "description": "A tool that only exists in EESSI 2025.06.",
+          "version": "1.0.0",
+          "versionsuffix": ""
+        }
+      ],
+      "homepage": "https://example.com/newtool",
+      "license": [],
+      "image": "",
+      "categories": [],
+      "identifier": "",
+      "description": "A tool that only exists in EESSI 2025.06."
     }
   }
 }
