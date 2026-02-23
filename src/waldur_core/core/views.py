@@ -1930,7 +1930,7 @@ class SettingsMetadataView(APIView):
                     default = settings.CONSTANCE_CONFIG[key][0]
                     description = settings.CONSTANCE_CONFIG[key][1].replace("'", "\\'")
                     value_type = (
-                        len(settings.CONSTANCE_CONFIG[key]) == 3
+                        len(settings.CONSTANCE_CONFIG[key]) >= 3
                         and settings.CONSTANCE_CONFIG[key][2]
                         or None
                     )
@@ -1955,14 +1955,23 @@ class SettingsMetadataView(APIView):
                     else:
                         formatted_type = "string"
 
-                    section["items"].append(
-                        {
-                            "key": key,
-                            "description": description,
-                            "default": formatted_default,
-                            "type": formatted_type,
-                        }
-                    )
+                    item_data = {
+                        "key": key,
+                        "description": description,
+                        "default": formatted_default,
+                        "type": formatted_type,
+                    }
+
+                    if (
+                        hasattr(settings, "CONSTANCE_CONFIG_CHOICES")
+                        and key in settings.CONSTANCE_CONFIG_CHOICES
+                    ):
+                        choices = settings.CONSTANCE_CONFIG_CHOICES[key]
+                        item_data["options"] = [
+                            {"value": c[0], "label": c[1]} for c in choices
+                        ]
+
+                    section["items"].append(item_data)
 
             settings_data.append(section)
 

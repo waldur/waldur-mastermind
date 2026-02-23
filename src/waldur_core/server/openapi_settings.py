@@ -3,6 +3,12 @@ from waldur_core.core.enums import GENDER_CHOICES, CoreStates
 from waldur_core.logging.enums import ObservableObjectType
 from waldur_core.onboarding.enums import VerificationStatus
 from waldur_core.permissions.enums import TYPE_MAP
+from waldur_core.server.constance_settings import (
+    NOTIFY_SYSTEM_CHOICES,
+    OFFERING_TYPE_CHOICES,
+    ONBOARDING_VALIDATION_CHOICES,
+    USER_ATTRIBUTE_CHOICES,
+)
 from waldur_core.users.enums import InvitationState
 from waldur_mastermind.chat.injection_detection.base import SeverityLevel
 from waldur_mastermind.common.enums import Units
@@ -105,6 +111,10 @@ SPECTACULAR_SETTINGS = {
             (3, "3 month"),
             (4, "12 month"),
         ),
+        "UserAttributeEnum": USER_ATTRIBUTE_CHOICES,
+        "OfferingTypeEnum": OFFERING_TYPE_CHOICES,
+        "OnboardingValidationEnum": ONBOARDING_VALIDATION_CHOICES,
+        "NotifySystemEnum": NOTIFY_SYSTEM_CHOICES,
     },
     "VERSION": None,
 }

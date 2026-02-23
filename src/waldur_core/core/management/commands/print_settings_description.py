@@ -21,7 +21,7 @@ class Command(BaseCommand):
                 default = settings.CONSTANCE_CONFIG[key][0]
                 description = settings.CONSTANCE_CONFIG[key][1].replace("'", "\\'")
                 value_type = (
-                    len(settings.CONSTANCE_CONFIG[key]) == 3
+                    len(settings.CONSTANCE_CONFIG[key]) >= 3
                     and f"'{settings.CONSTANCE_CONFIG[key][2]}'"
                     or None
                 )
@@ -43,11 +43,24 @@ class Command(BaseCommand):
                     or isinstance(default, int)
                     and "'integer'"
                 )
+                options_metadata = ""
+                if (
+                    hasattr(settings, "CONSTANCE_CONFIG_CHOICES")
+                    and key in settings.CONSTANCE_CONFIG_CHOICES
+                ):
+                    choices = settings.CONSTANCE_CONFIG_CHOICES[key]
+                    formatted_choices = ", ".join(
+                        [f"{{ value: '{c[0]}', label: '{c[1]}' }}" for c in choices]
+                    )
+                    options_metadata = f"        options: [{formatted_choices}],\n"
+
                 print("      {")
                 print(f"        key: '{key}',")
                 print(f"        description: translate('{description}'),")
                 print(f"        default: {formatted_default},")
                 print(f"        type: {formatted_type},")
+                if options_metadata:
+                    print(options_metadata, end="")
                 print("      },")
             print("    ],")
             print("  },")
