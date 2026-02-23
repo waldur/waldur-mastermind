@@ -306,7 +306,7 @@ td:nth-child(4) {
 | `log_verification_deleted` | `Django Signal (pre_delete)` | `onboarding.OnboardingVerification` | Log when an onboarding verification is deleted. |
 | `permissions_request_approved` | `Custom Signal (permissions_request_approved)` | `users.PermissionRequest` | Send a notification when a permission request has been approved. |
 | `preserve_fields_before_update` | `Django Signal (pre_save)` | `core.User` | Preserve fields of a user instance before it is updated. |
-| `process_hook` | `Django Signal (post_save)` | `logging.Event` | Process a hook for a given event. |
+| `process_hook` | `Unknown Signal` | `—` | Process a hook for a given event. |
 | `projects_customer_has_been_changed` | `Custom Signal (project_moved)` | `structure.Project` | Recalculate quotas when a project's customer has been changed. |
 | `reactivate_user_if_gaining_roles` | `Custom Signal (role_granted)` | `—` | Reactivate a user if they were previously deactivated and are now gaining roles. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `structure.Project` | Recalculate count quota when an instance is created or deleted. |
