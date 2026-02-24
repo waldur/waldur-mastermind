@@ -246,13 +246,12 @@ STORAGES = {
     },
 }
 
-# Disable excessive xmlschema and django-axes logging
+# Disable excessive xmlschema logging
 import logging
 
 import structlog
 
 logging.getLogger("xmlschema").propagate = False
-logging.getLogger("axes").propagate = False
 
 # Disable excessive Celery task registration logging
 logging.getLogger("celery.utils.imports").setLevel(logging.WARNING)
@@ -306,8 +305,32 @@ LOGGING = {
         "handlers": ["console", "database"],
     },
     "loggers": {
+        # Override Django's DEFAULT_LOGGING to use structlog formatter.
+        # Without this, DEFAULT_LOGGING creates a plain StreamHandler on
+        # the "django" logger, causing duplicate unstructured output for
+        # django.request and other django.* loggers.
+        "django": {
+            "level": "INFO",
+            "handlers": ["console", "database"],
+            "propagate": False,
+        },
+        # Django's dev server logger. DEFAULT_LOGGING gives it a
+        # ServerFormatter handler producing "[timestamp] GET /..." lines.
+        # Override to use structlog instead.
+        "django.server": {
+            "level": "INFO",
+            "handlers": ["console"],
+            "propagate": False,
+        },
         "django_structlog": {
             "level": "WARNING",
+        },
+        # django-axes logs login attempts with an "AXES:" prefix.
+        # Route through structlog for consistent JSON output.
+        "axes": {
+            "level": "WARNING",
+            "handlers": ["console"],
+            "propagate": False,
         },
     },
 }

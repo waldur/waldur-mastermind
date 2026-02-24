@@ -234,106 +234,120 @@ class Command(BaseCommand):
         # Print summary
         self.print_summary()
 
+    def _safe_cleanup(self, cleanup_func):
+        """Run a cleanup function within a savepoint.
+
+        If the cleanup fails (e.g. due to permission errors on leftover
+        test tables), the savepoint is rolled back so the rest of the
+        transaction can continue.
+        """
+        sid = transaction.savepoint()
+        try:
+            cleanup_func()
+            transaction.savepoint_commit(sid)
+        except Exception:
+            transaction.savepoint_rollback(sid)
+
     def _perform_cleanup(self, skip_users, skip_roles):
         """Perform the actual cleanup operations."""
         with transaction.atomic():
             # Delete in reverse dependency order (opposite of import)
 
             # Delete feeds and events first (logging)
-            self.cleanup_feeds()
-            self.cleanup_events()
+            self._safe_cleanup(self.cleanup_feeds)
+            self._safe_cleanup(self.cleanup_events)
 
             # Delete offering users
-            self.cleanup_offering_users()
+            self._safe_cleanup(self.cleanup_offering_users)
 
             # Delete checklist data (answers -> completions -> questions -> checklists)
-            self.cleanup_answers()
-            self.cleanup_checklist_completions()
-            self.cleanup_questions()
-            self.cleanup_checklists()
+            self._safe_cleanup(self.cleanup_answers)
+            self._safe_cleanup(self.cleanup_checklist_completions)
+            self._safe_cleanup(self.cleanup_questions)
+            self._safe_cleanup(self.cleanup_checklists)
 
             # Delete proposal/call management data (reverse dependency order)
             # reviews -> requested_resources -> proposals -> call_resource_templates -> rounds -> requested_offerings -> calls -> call_managing_organisations
-            self.cleanup_reviews()
-            self.cleanup_requested_resources()
-            self.cleanup_proposals()
-            self.cleanup_call_resource_templates()
-            self.cleanup_rounds()
-            self.cleanup_requested_offerings()
-            self.cleanup_calls()
-            self.cleanup_call_managing_organisations()
+            self._safe_cleanup(self.cleanup_reviews)
+            self._safe_cleanup(self.cleanup_requested_resources)
+            self._safe_cleanup(self.cleanup_proposals)
+            self._safe_cleanup(self.cleanup_call_resource_templates)
+            self._safe_cleanup(self.cleanup_rounds)
+            self._safe_cleanup(self.cleanup_requested_offerings)
+            self._safe_cleanup(self.cleanup_calls)
+            self._safe_cleanup(self.cleanup_call_managing_organisations)
 
             # Delete credits (depends on customers, projects)
-            self.cleanup_project_credits()
-            self.cleanup_customer_credits()
+            self._safe_cleanup(self.cleanup_project_credits)
+            self._safe_cleanup(self.cleanup_customer_credits)
             # Delete invoicing (depends on customers, resources, projects)
-            self.cleanup_invoice_items()
-            self.cleanup_invoices()
+            self._safe_cleanup(self.cleanup_invoice_items)
+            self._safe_cleanup(self.cleanup_invoices)
 
             # Delete account types
-            self.cleanup_course_accounts()
-            self.cleanup_customer_service_accounts()
-            self.cleanup_project_service_accounts()
+            self._safe_cleanup(self.cleanup_course_accounts)
+            self._safe_cleanup(self.cleanup_customer_service_accounts)
+            self._safe_cleanup(self.cleanup_project_service_accounts)
 
             # Delete user roles
-            self.cleanup_user_roles()
+            self._safe_cleanup(self.cleanup_user_roles)
 
             # Delete user management data (depends on users, customers, roles)
-            self.cleanup_permission_requests()
-            self.cleanup_invitations()
-            self.cleanup_group_invitations()
+            self._safe_cleanup(self.cleanup_permission_requests)
+            self._safe_cleanup(self.cleanup_invitations)
+            self._safe_cleanup(self.cleanup_group_invitations)
 
             # Delete roles and permissions
             if not skip_roles:
-                self.cleanup_role_permissions()
-                self.cleanup_roles()
+                self._safe_cleanup(self.cleanup_role_permissions)
+                self._safe_cleanup(self.cleanup_roles)
 
             # Delete orders (depends on resources, projects, users, plans)
-            self.cleanup_orders()
+            self._safe_cleanup(self.cleanup_orders)
 
             # Delete component usages (depends on resources and components)
-            self.cleanup_component_usages()
+            self._safe_cleanup(self.cleanup_component_usages)
 
             # Delete OpenStack backend models (before resources, reverse dependency order)
-            self.cleanup_openstack_volumes()
-            self.cleanup_openstack_instances()
-            self.cleanup_openstack_tenants()
-            self.cleanup_openstack_images()
-            self.cleanup_openstack_flavors()
-            self.cleanup_openstack_service_settings()
+            self._safe_cleanup(self.cleanup_openstack_volumes)
+            self._safe_cleanup(self.cleanup_openstack_instances)
+            self._safe_cleanup(self.cleanup_openstack_tenants)
+            self._safe_cleanup(self.cleanup_openstack_images)
+            self._safe_cleanup(self.cleanup_openstack_flavors)
+            self._safe_cleanup(self.cleanup_openstack_service_settings)
 
             # Delete resources (depends on offerings, plans, projects)
-            self.cleanup_resources()
+            self._safe_cleanup(self.cleanup_resources)
 
             # Delete marketplace components and plans
-            self.cleanup_plan_components()
-            self.cleanup_offering_components()
-            self.cleanup_plans()
+            self._safe_cleanup(self.cleanup_plan_components)
+            self._safe_cleanup(self.cleanup_offering_components)
+            self._safe_cleanup(self.cleanup_plans)
 
             # Delete maintenance announcements (depends on service_providers, offerings)
-            self.cleanup_maintenance_announcement_offerings()
-            self.cleanup_maintenance_announcements()
+            self._safe_cleanup(self.cleanup_maintenance_announcement_offerings)
+            self._safe_cleanup(self.cleanup_maintenance_announcements)
 
             # Delete software catalog links and content (reverse dependency order)
-            self.cleanup_offering_software_catalogs()
-            self.cleanup_offering_partitions()
-            self.cleanup_software_targets()
-            self.cleanup_software_versions()
-            self.cleanup_software_packages()
-            self.cleanup_software_catalogs()
+            self._safe_cleanup(self.cleanup_offering_software_catalogs)
+            self._safe_cleanup(self.cleanup_offering_partitions)
+            self._safe_cleanup(self.cleanup_software_targets)
+            self._safe_cleanup(self.cleanup_software_versions)
+            self._safe_cleanup(self.cleanup_software_packages)
+            self._safe_cleanup(self.cleanup_software_catalogs)
 
             # Delete offerings, service providers, projects, customers, categories
-            self.cleanup_offerings()
-            self.cleanup_service_providers()
-            self.cleanup_projects()
-            self.cleanup_categories()
-            self.cleanup_category_groups()
-            self.cleanup_user_agreements()
-            self.cleanup_customers()
+            self._safe_cleanup(self.cleanup_offerings)
+            self._safe_cleanup(self.cleanup_service_providers)
+            self._safe_cleanup(self.cleanup_projects)
+            self._safe_cleanup(self.cleanup_categories)
+            self._safe_cleanup(self.cleanup_category_groups)
+            self._safe_cleanup(self.cleanup_user_agreements)
+            self._safe_cleanup(self.cleanup_customers)
 
             # Delete users last
             if not skip_users:
-                self.cleanup_users()
+                self._safe_cleanup(self.cleanup_users)
 
             if self.dry_run:
                 # Rollback transaction in dry-run mode
@@ -437,6 +451,9 @@ class Command(BaseCommand):
             for stat_key, table_name in tables:
                 self.stdout.write(f"Deleting {stat_key}...")
                 try:
+                    # Use a savepoint so a failure on one table
+                    # does not abort the entire transaction
+                    sid = transaction.savepoint()
                     # Get count first
                     cursor.execute(f"SELECT COUNT(*) FROM {table_name}")  # noqa: S608
                     count = cursor.fetchone()[0]
@@ -447,8 +464,10 @@ class Command(BaseCommand):
                             f"TRUNCATE TABLE {table_name} CASCADE"  # noqa: S608
                         )
 
+                    transaction.savepoint_commit(sid)
                     self.stats[stat_key]["deleted"] = count
                 except Exception as e:
+                    transaction.savepoint_rollback(sid)
                     self.stdout.write(
                         self.style.WARNING(f"Failed to delete {stat_key}: {e}")
                     )
