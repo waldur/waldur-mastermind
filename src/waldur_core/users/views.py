@@ -591,14 +591,15 @@ class GroupInvitationViewSet(ActionsViewSet):
 
         # Authentication is required for submitting requests (handled by permission classes)
 
-        if (
-            models.PermissionRequest.objects.filter(
-                invitation=invitation, created_by=user
+        if models.PermissionRequest.objects.filter(
+            invitation__content_type=invitation.content_type,
+            invitation__object_id=invitation.object_id,
+            created_by=user,
+            state=ReviewStates.PENDING,
+        ).exists():
+            raise ValidationError(
+                _("Pending permission request already exists for this scope.")
             )
-            .exclude(state__in=(ReviewStates.REJECTED, ReviewStates.CANCELED))
-            .exists()
-        ):
-            raise ValidationError(_("Request has been created already."))
 
         allowed = invitation in models.GroupInvitation.get_objects_by_user_patterns(
             user, required=False
@@ -666,6 +667,10 @@ class GroupInvitationViewSet(ActionsViewSet):
     retrieve=extend_schema(
         summary="Retrieve permission request",
         description="Retrieve details of a specific permission request.",
+    ),
+    destroy=extend_schema(
+        summary="Delete a permission request (staff only)",
+        description="Deletes a permission request. This action is restricted to staff users.",
     ),
 )
 class PermissionRequestViewSet(ReadOnlyActionsViewSet):
@@ -760,6 +765,22 @@ class PermissionRequestViewSet(ReadOnlyActionsViewSet):
             response_serializer.data,
             status=status.HTTP_200_OK,
         )
+
+    disabled_actions = ["create", "update", "partial_update"]
+
+    @extend_schema(
+        summary="Delete a permission request (staff only)",
+        description="Deletes a permission request. This action is restricted to staff users.",
+        responses={204: None},
+    )
+    def destroy(self, request, uuid=None):
+        permission_request = self.get_object()
+
+        if not request.user.is_staff:
+            raise PermissionDenied()
+
+        permission_request.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     approve_serializer_class = reject_serializer_class = (
         core_serializers.ReviewCommentSerializer
