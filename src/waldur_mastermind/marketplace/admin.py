@@ -1,5 +1,6 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.forms.models import ModelForm
 from django.shortcuts import redirect
 from django.urls import resolve, reverse
@@ -694,7 +695,31 @@ class ResourceAdmin(core_admin.ExtraActionsMixin, VersionAdmin):
                 raise ValidationError(_("Resource has to be in OK state."))
 
     restore_limits = RestoreLimits()
-    actions = ["terminate_resources", "restore_limits"]
+
+    @transaction.atomic
+    def hard_delete_terminated(self, request, queryset):
+        terminated = queryset.filter(state=ResourceStates.TERMINATED)
+        count = terminated.count()
+        if count == 0:
+            self.message_user(
+                request,
+                _("No terminated resources in the selection."),
+                messages.WARNING,
+            )
+            return
+        terminated.delete()
+        message = ngettext(
+            "%(count)d terminated resource has been permanently removed.",
+            "%(count)d terminated resources have been permanently removed.",
+            count,
+        )
+        self.message_user(request, message % {"count": count}, messages.SUCCESS)
+
+    hard_delete_terminated.short_description = _(
+        "Hard delete selected terminated resources"
+    )
+
+    actions = ["terminate_resources", "restore_limits", "hard_delete_terminated"]
 
     def get_extra_actions(self):
         return [
