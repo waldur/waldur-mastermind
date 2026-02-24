@@ -943,6 +943,585 @@ class SoftwarePackageIsExtensionFilterTest(test.APITestCase):
         self.assertEqual(package_names, {"ParentPackage", "ExtensionPackage"})
 
 
+class SoftwarePackageToolchainFamiliesFilterTest(test.APITestCase):
+    """Test toolchain_families_compatibility filtering for software packages."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog = factories.SoftwareCatalogFactory(name="EESSI", version="2023.06")
+
+        # Package with foss_2022b compatibility
+        self.pkg_foss = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="PackageFoss",
+        )
+        factories.SoftwareVersionFactory(
+            package=self.pkg_foss,
+            version="1.0.0",
+            metadata={
+                "toolchain_families_compatibility": ["foss_2022b"],
+            },
+        )
+
+        # Package with intel_2023a compatibility
+        self.pkg_intel = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="PackageIntel",
+        )
+        factories.SoftwareVersionFactory(
+            package=self.pkg_intel,
+            version="2.0.0",
+            metadata={
+                "toolchain_families_compatibility": ["intel_2023a", "foss_2023a"],
+            },
+        )
+
+        # Package without toolchain compatibility
+        self.pkg_no_toolchain = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="PackageNoToolchain",
+        )
+        factories.SoftwareVersionFactory(
+            package=self.pkg_no_toolchain,
+            version="1.0.0",
+            metadata={
+                "toolchain_families_compatibility": [],
+            },
+        )
+
+        self.url = factories.SoftwarePackageFactory.get_list_url()
+
+    def test_filter_by_toolchain_family(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url + "?toolchain_families_compatibility=foss_2022b"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        package_names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(package_names, {"PackageFoss"})
+
+    def test_filter_by_toolchain_family_multiple_matches(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url + "?toolchain_families_compatibility=foss_2023a"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        package_names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(package_names, {"PackageIntel"})
+
+    def test_filter_by_nonexistent_toolchain_family(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url + "?toolchain_families_compatibility=nonexistent"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+
+class SoftwareVersionToolchainFamiliesFilterTest(test.APITestCase):
+    """Test toolchain_families_compatibility filtering for software versions."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog = factories.SoftwareCatalogFactory(name="EESSI", version="2023.06")
+        self.package = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="TestPackage",
+        )
+
+        self.version_foss = factories.SoftwareVersionFactory(
+            package=self.package,
+            version="1.0.0",
+            metadata={
+                "toolchain_families_compatibility": ["foss_2022b"],
+            },
+        )
+        self.version_intel = factories.SoftwareVersionFactory(
+            package=self.package,
+            version="2.0.0",
+            metadata={
+                "toolchain_families_compatibility": ["intel_2023a", "foss_2023a"],
+            },
+        )
+        self.version_no_toolchain = factories.SoftwareVersionFactory(
+            package=self.package,
+            version="3.0.0",
+            metadata={
+                "toolchain_families_compatibility": [],
+            },
+        )
+
+        self.url = factories.SoftwareVersionFactory.get_list_url()
+
+    def test_filter_by_toolchain_family(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url + "?toolchain_families_compatibility=foss_2022b"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        versions = {v["version"] for v in response.data}
+        self.assertEqual(versions, {"1.0.0"})
+
+    def test_filter_by_toolchain_family_with_multiple_compat(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url + "?toolchain_families_compatibility=intel_2023a"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        versions = {v["version"] for v in response.data}
+        self.assertEqual(versions, {"2.0.0"})
+
+    def test_filter_by_nonexistent_toolchain_family(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url + "?toolchain_families_compatibility=nonexistent"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+
+class SoftwareCatalogFilterTest(test.APITestCase):
+    """Test filtering and ordering for software catalogs."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog_binary = factories.SoftwareCatalogFactory(
+            name="EESSI",
+            version="2023.06",
+            catalog_type="binary_runtime",
+            description="Binary runtime catalog",
+            auto_update_enabled=True,
+        )
+        self.catalog_source = factories.SoftwareCatalogFactory(
+            name="Spack",
+            version="0.21.0",
+            catalog_type="source_package",
+            description="Source package manager",
+            auto_update_enabled=False,
+        )
+        self.url = factories.SoftwareCatalogFactory.get_list_url()
+
+    def test_filter_by_catalog_type(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?catalog_type=binary_runtime")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {c["name"] for c in response.data}
+        self.assertEqual(names, {"EESSI"})
+
+    def test_filter_by_description(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?description=source")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {c["name"] for c in response.data}
+        self.assertEqual(names, {"Spack"})
+
+    def test_filter_by_auto_update_enabled(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?auto_update_enabled=true")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {c["name"] for c in response.data}
+        self.assertEqual(names, {"EESSI"})
+
+    def test_order_by_catalog_type(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?o=catalog_type")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        types = [c["catalog_type"] for c in response.data]
+        self.assertEqual(types, ["binary_runtime", "source_package"])
+
+
+class SoftwarePackageCategoryFilterTest(test.APITestCase):
+    """Test category and license filtering for software packages."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog = factories.SoftwareCatalogFactory(
+            name="EESSI",
+            version="2023.06",
+            catalog_type="binary_runtime",
+        )
+
+        self.pkg_bio = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="GROMACS",
+            categories=["bio", "chemistry"],
+            licenses=["GPL-3.0"],
+        )
+        self.pkg_hpc = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="OpenMPI",
+            categories=["hpc", "mpi"],
+            licenses=["BSD-3-Clause"],
+        )
+        self.pkg_no_category = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="GenericTool",
+            categories=[],
+            licenses=[],
+        )
+        self.url = factories.SoftwarePackageFactory.get_list_url()
+
+    def test_filter_by_category(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?category=bio")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(names, {"GROMACS"})
+
+    def test_filter_by_category_shared(self):
+        """Both packages can match if they share a category."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?category=hpc")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(names, {"OpenMPI"})
+
+    def test_filter_by_nonexistent_category(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?category=nonexistent")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_filter_by_license(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?license=GPL-3.0")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(names, {"GROMACS"})
+
+    def test_filter_by_license_bsd(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?license=BSD-3-Clause")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(names, {"OpenMPI"})
+
+    def test_filter_by_nonexistent_license(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?license=nonexistent")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+
+class SoftwarePackageParentFilterTest(test.APITestCase):
+    """Test parent_software_uuid and catalog_type filtering for packages."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog = factories.SoftwareCatalogFactory(
+            name="EESSI",
+            version="2023.06",
+            catalog_type="binary_runtime",
+        )
+        self.source_catalog = factories.SoftwareCatalogFactory(
+            name="Spack",
+            version="0.21.0",
+            catalog_type="source_package",
+        )
+
+        self.parent = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="Python",
+            is_extension=False,
+        )
+        self.extension1 = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="numpy",
+            is_extension=True,
+            parent_software=self.parent,
+        )
+        self.extension2 = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="scipy",
+            is_extension=True,
+            parent_software=self.parent,
+        )
+        self.other_pkg = factories.SoftwarePackageFactory(
+            catalog=self.source_catalog,
+            name="cmake",
+            is_extension=False,
+        )
+        self.url = factories.SoftwarePackageFactory.get_list_url()
+
+    def test_filter_by_parent_software_uuid(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url + f"?parent_software_uuid={self.parent.uuid.hex}"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(names, {"numpy", "scipy"})
+
+    def test_filter_by_catalog_type(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?catalog_type=source_package")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(names, {"cmake"})
+
+
+class SoftwarePackageToolchainNameFilterTest(test.APITestCase):
+    """Test toolchain_name filtering for software packages."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog = factories.SoftwareCatalogFactory(name="EESSI", version="2023.06")
+
+        self.pkg_foss = factories.SoftwarePackageFactory(
+            catalog=self.catalog, name="FossPackage"
+        )
+        factories.SoftwareVersionFactory(
+            package=self.pkg_foss,
+            version="1.0.0",
+            metadata={"toolchain": {"name": "foss", "version": "2023b"}},
+        )
+
+        self.pkg_gfbf = factories.SoftwarePackageFactory(
+            catalog=self.catalog, name="GfbfPackage"
+        )
+        factories.SoftwareVersionFactory(
+            package=self.pkg_gfbf,
+            version="2.0.0",
+            metadata={"toolchain": {"name": "gfbf", "version": "2022b"}},
+        )
+
+        self.pkg_no_toolchain = factories.SoftwarePackageFactory(
+            catalog=self.catalog, name="NoToolchainPackage"
+        )
+        factories.SoftwareVersionFactory(
+            package=self.pkg_no_toolchain,
+            version="1.0.0",
+            metadata={},
+        )
+
+        self.url = factories.SoftwarePackageFactory.get_list_url()
+
+    def test_filter_by_toolchain_name(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?toolchain_name=foss")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(names, {"FossPackage"})
+
+    def test_filter_by_toolchain_name_gfbf(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?toolchain_name=gfbf")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(names, {"GfbfPackage"})
+
+    def test_filter_by_nonexistent_toolchain_name(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?toolchain_name=nonexistent")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+
+class SoftwareVersionExtraFiltersTest(test.APITestCase):
+    """Test additional filters for software versions."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog = factories.SoftwareCatalogFactory(
+            name="EESSI",
+            version="2023.06",
+            catalog_type="binary_runtime",
+        )
+        self.source_catalog = factories.SoftwareCatalogFactory(
+            name="Spack",
+            version="0.21.0",
+            catalog_type="source_package",
+        )
+
+        self.package = factories.SoftwarePackageFactory(
+            catalog=self.catalog, name="TestPkg"
+        )
+        self.source_package = factories.SoftwarePackageFactory(
+            catalog=self.source_catalog, name="SourcePkg"
+        )
+
+        self.v1 = factories.SoftwareVersionFactory(
+            package=self.package,
+            version="1.0.0",
+            release_date="2023-06-01",
+            metadata={
+                "toolchain": {"name": "foss", "version": "2023b"},
+            },
+        )
+        self.v2 = factories.SoftwareVersionFactory(
+            package=self.package,
+            version="1.0.0-beta",
+            release_date="2024-01-15",
+            metadata={
+                "toolchain": {"name": "gfbf", "version": "2022b"},
+            },
+        )
+        self.v3 = factories.SoftwareVersionFactory(
+            package=self.source_package,
+            version="2.0.0",
+            release_date="2024-06-01",
+            metadata={},
+        )
+
+        self.url = factories.SoftwareVersionFactory.get_list_url()
+
+    def test_filter_by_version_exact(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?version_exact=1.0.0")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        versions = {v["version"] for v in response.data}
+        self.assertEqual(versions, {"1.0.0"})
+
+    def test_filter_by_version_icontains(self):
+        """The default version filter is icontains, matching both '1.0.0' and '1.0.0-beta'."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?version=1.0.0")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        versions = {v["version"] for v in response.data}
+        self.assertEqual(versions, {"1.0.0", "1.0.0-beta"})
+
+    def test_filter_by_toolchain_name(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?toolchain_name=foss")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        versions = {v["version"] for v in response.data}
+        self.assertEqual(versions, {"1.0.0"})
+
+    def test_filter_by_toolchain_version(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?toolchain_version=2022b")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        versions = {v["version"] for v in response.data}
+        self.assertEqual(versions, {"1.0.0-beta"})
+
+    def test_filter_by_release_date_range(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url + "?release_date_after=2024-01-01&release_date_before=2024-02-01"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        versions = {v["version"] for v in response.data}
+        self.assertEqual(versions, {"1.0.0-beta"})
+
+    def test_filter_by_release_date_after_only(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?release_date_after=2024-01-01")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        versions = {v["version"] for v in response.data}
+        self.assertEqual(versions, {"1.0.0-beta", "2.0.0"})
+
+    def test_filter_by_catalog_type(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?catalog_type=source_package")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        versions = {v["version"] for v in response.data}
+        self.assertEqual(versions, {"2.0.0"})
+
+
+class SoftwareTargetExtraFiltersTest(test.APITestCase):
+    """Test target_type, target_name, target_subtype filtering for software targets."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog = factories.SoftwareCatalogFactory(name="EESSI", version="2023.06")
+        self.package = factories.SoftwarePackageFactory(
+            catalog=self.catalog, name="TestPkg"
+        )
+        self.version = factories.SoftwareVersionFactory(
+            package=self.package, version="1.0.0"
+        )
+
+        self.target_arch = factories.SoftwareTargetFactory(
+            version=self.version,
+            target_type="cpu_architecture",
+            target_name="x86_64",
+            target_subtype="zen2",
+        )
+        self.target_platform = factories.SoftwareTargetFactory(
+            version=self.version,
+            target_type="platform",
+            target_name="linux",
+            target_subtype="ubuntu22",
+        )
+
+        self.url = factories.SoftwareTargetFactory.get_list_url()
+
+    def test_filter_by_target_type(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?target_type=cpu_architecture")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {t["target_name"] for t in response.data}
+        self.assertEqual(names, {"x86_64"})
+
+    def test_filter_by_target_name(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?target_name=linux")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        types = {t["target_type"] for t in response.data}
+        self.assertEqual(types, {"platform"})
+
+    def test_filter_by_target_subtype(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?target_subtype=zen2")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {t["target_name"] for t in response.data}
+        self.assertEqual(names, {"x86_64"})
+
+    def test_filter_by_nonexistent_target_type(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?target_type=nonexistent")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_order_by_target_type(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?o=target_type")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        types = [t["target_type"] for t in response.data]
+        self.assertEqual(types, ["cpu_architecture", "platform"])
+
+    def test_order_by_target_name(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url + "?o=target_name")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = [t["target_name"] for t in response.data]
+        self.assertEqual(names, ["linux", "x86_64"])
+
+
 @ddt
 class SoftwareCatalogDiscoverTest(test.APITestCase):
     """Tests for the discover endpoint on SoftwareCatalogViewSet."""

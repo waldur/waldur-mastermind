@@ -543,17 +543,34 @@ class SoftwareCatalogFilter(django_filters.FilterSet):
 
     name = django_filters.CharFilter(lookup_expr="icontains")
     version = django_filters.CharFilter(lookup_expr="icontains")
+    catalog_type = django_filters.ChoiceFilter(
+        choices=models.SoftwareCatalog.CATALOG_TYPE_CHOICES,
+        label="Catalog type",
+        help_text="Filter by catalog type (binary_runtime, source_package, package_manager)",
+    )
+    description = django_filters.CharFilter(
+        lookup_expr="icontains",
+        label="Description",
+        help_text="Filter catalogs by description (case-insensitive partial match)",
+    )
+    auto_update_enabled = django_filters.BooleanFilter(
+        widget=BooleanWidget,
+        label="Auto-update enabled",
+        help_text="Filter catalogs by auto-update status",
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
             ("name", "name"),
             ("version", "version"),
+            ("catalog_type", "catalog_type"),
             ("created", "created"),
             ("modified", "modified"),
         ),
         field_labels={
             "name": "Catalog name",
             "version": "Version",
+            "catalog_type": "Catalog type",
             "created": "Created date",
             "modified": "Modified date",
         },
@@ -561,7 +578,7 @@ class SoftwareCatalogFilter(django_filters.FilterSet):
 
     class Meta:
         model = models.SoftwareCatalog
-        fields = ["name", "version"]
+        fields = ["name", "version", "catalog_type"]
 
 
 class SoftwarePackageFilter(django_filters.FilterSet):
@@ -642,6 +659,38 @@ class SoftwarePackageFilter(django_filters.FilterSet):
         label="Is extension",
         help_text="Filter packages that are extensions of other packages",
     )
+    parent_software_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-software-package-detail",
+        field_name="parent_software__uuid",
+        label="Parent software UUID",
+        help_text="Filter extension packages belonging to a specific parent package",
+    )
+    category = django_filters.CharFilter(
+        method="filter_category",
+        label="Category",
+        help_text="Filter packages by category (e.g., bio, hpc, chemistry)",
+    )
+    license = django_filters.CharFilter(
+        method="filter_license",
+        label="License",
+        help_text="Filter packages by license (e.g., GPL-3.0, MIT)",
+    )
+    catalog_type = django_filters.ChoiceFilter(
+        choices=models.SoftwareCatalog.CATALOG_TYPE_CHOICES,
+        field_name="catalog__catalog_type",
+        label="Catalog type",
+        help_text="Filter packages by catalog type (binary_runtime, source_package, package_manager)",
+    )
+    toolchain_families_compatibility = django_filters.CharFilter(
+        method="filter_toolchain_families_compatibility",
+        label="Toolchain families compatibility",
+        help_text="Filter packages compatible with a specific toolchain family (e.g., foss_2022b)",
+    )
+    toolchain_name = django_filters.CharFilter(
+        method="filter_toolchain_name",
+        label="Toolchain name",
+        help_text="Filter packages by toolchain name (e.g., foss, gfbf)",
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -705,6 +754,24 @@ class SoftwarePackageFilter(django_filters.FilterSet):
             versions__metadata__extensions__contains=[{"name": value}]
         ).distinct()
 
+    def filter_toolchain_families_compatibility(self, queryset, name, value):
+        """Filter packages with versions compatible with a specific toolchain family."""
+        return queryset.filter(
+            versions__metadata__toolchain_families_compatibility__contains=[value]
+        ).distinct()
+
+    def filter_category(self, queryset, name, value):
+        """Filter packages by category."""
+        return queryset.filter(categories__contains=[value]).distinct()
+
+    def filter_license(self, queryset, name, value):
+        """Filter packages by license."""
+        return queryset.filter(licenses__contains=[value]).distinct()
+
+    def filter_toolchain_name(self, queryset, name, value):
+        """Filter packages by toolchain name (via version metadata)."""
+        return queryset.filter(versions__metadata__toolchain__name=value).distinct()
+
 
 class SoftwareVersionFilter(django_filters.FilterSet):
     """Filter for SoftwareVersion model."""
@@ -723,9 +790,40 @@ class SoftwareVersionFilter(django_filters.FilterSet):
         field_name="package__name", lookup_expr="icontains"
     )
     version = django_filters.CharFilter(lookup_expr="icontains")
+    version_exact = django_filters.CharFilter(
+        field_name="version",
+        lookup_expr="exact",
+        label="Version (exact)",
+        help_text="Filter versions by exact version string",
+    )
     cpu_family = django_filters.CharFilter(field_name="targets__cpu_family")
     cpu_microarchitecture = django_filters.CharFilter(
         field_name="targets__cpu_microarchitecture"
+    )
+    toolchain_families_compatibility = django_filters.CharFilter(
+        method="filter_toolchain_families_compatibility",
+        label="Toolchain families compatibility",
+        help_text="Filter versions compatible with a specific toolchain family (e.g., foss_2022b)",
+    )
+    toolchain_name = django_filters.CharFilter(
+        method="filter_toolchain_name",
+        label="Toolchain name",
+        help_text="Filter versions by toolchain name (e.g., foss, gfbf)",
+    )
+    toolchain_version = django_filters.CharFilter(
+        method="filter_toolchain_version",
+        label="Toolchain version",
+        help_text="Filter versions by toolchain version (e.g., 2023b)",
+    )
+    release_date = DateFromToRangeFilter(
+        label="Release date range",
+        help_text="Filter versions by release date range (release_date_after, release_date_before)",
+    )
+    catalog_type = django_filters.ChoiceFilter(
+        choices=models.SoftwareCatalog.CATALOG_TYPE_CHOICES,
+        field_name="package__catalog__catalog_type",
+        label="Catalog type",
+        help_text="Filter versions by catalog type (binary_runtime, source_package, package_manager)",
     )
 
     o = django_filters.OrderingFilter(
@@ -752,6 +850,20 @@ class SoftwareVersionFilter(django_filters.FilterSet):
             package__catalog__offerings__offering__uuid=value
         ).distinct()
 
+    def filter_toolchain_families_compatibility(self, queryset, name, value):
+        """Filter versions compatible with a specific toolchain family."""
+        return queryset.filter(
+            metadata__toolchain_families_compatibility__contains=[value]
+        )
+
+    def filter_toolchain_name(self, queryset, name, value):
+        """Filter versions by toolchain name."""
+        return queryset.filter(metadata__toolchain__name=value)
+
+    def filter_toolchain_version(self, queryset, name, value):
+        """Filter versions by toolchain version."""
+        return queryset.filter(metadata__toolchain__version=value)
+
 
 class SoftwareTargetFilter(django_filters.FilterSet):
     """Filter for SoftwareTarget model."""
@@ -773,25 +885,44 @@ class SoftwareTargetFilter(django_filters.FilterSet):
     cpu_family = django_filters.CharFilter(lookup_expr="icontains")
     cpu_microarchitecture = django_filters.CharFilter(lookup_expr="icontains")
     path = django_filters.CharFilter(lookup_expr="icontains")
+    target_type = django_filters.CharFilter(
+        lookup_expr="iexact",
+        label="Target type",
+        help_text="Filter targets by type (e.g., architecture, platform, variant)",
+    )
+    target_name = django_filters.CharFilter(
+        lookup_expr="icontains",
+        label="Target name",
+        help_text="Filter targets by name (e.g., x86_64, aarch64)",
+    )
+    target_subtype = django_filters.CharFilter(
+        lookup_expr="icontains",
+        label="Target subtype",
+        help_text="Filter targets by subtype (e.g., microarchitecture, distribution)",
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
             ("cpu_family", "cpu_family"),
             ("cpu_microarchitecture", "cpu_microarchitecture"),
             ("version__package__name", "package_name"),
+            ("target_type", "target_type"),
+            ("target_name", "target_name"),
             ("created", "created"),
         ),
         field_labels={
             "cpu_family": "CPU Family",
             "cpu_microarchitecture": "CPU Microarchitecture",
             "package_name": "Package name",
+            "target_type": "Target type",
+            "target_name": "Target name",
             "created": "Created date",
         },
     )
 
     class Meta:
         model = models.SoftwareTarget
-        fields = ["cpu_family", "cpu_microarchitecture"]
+        fields = ["cpu_family", "cpu_microarchitecture", "target_type", "target_name"]
 
     def filter_offering_uuid(self, queryset, name, value):
         return queryset.filter(
