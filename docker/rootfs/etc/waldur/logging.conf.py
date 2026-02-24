@@ -1,47 +1,48 @@
-# Logging
+# Logging with structlog
 # See also: https://docs.djangoproject.com/en/4.2/ref/settings/#logging
+import logging
 import sys
+
+import structlog
+
+# Processors for stdlib loggers (foreign_pre_chain)
+_FOREIGN_PRE_CHAIN = [
+    structlog.contextvars.merge_contextvars,
+    structlog.stdlib.ExtraAdder(),
+    structlog.processors.TimeStamper(fmt="iso"),
+    structlog.stdlib.add_logger_name,
+    structlog.stdlib.add_log_level,
+    structlog.stdlib.PositionalArgumentsFormatter(),
+]
 
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,  # fixes Celery beat logging
-    # Formatters
-    # Formatter describes the exact format of the log entry.
-    # See also: https://docs.djangoproject.com/en/4.2/topics/logging/#formatters
     "formatters": {
-        "simple": {
-            "format": "%(asctime)s %(levelname)s %(message)s",
+        "structlog_json": {
+            "()": structlog.stdlib.ProcessorFormatter,
+            "processor": structlog.processors.JSONRenderer(),
+            "foreign_pre_chain": _FOREIGN_PRE_CHAIN,
         },
     },
-    # Handlers
-    # Handler determines what happens to each message in a logger.
-    # See also: https://docs.djangoproject.com/en/4.2/topics/logging/#handlers
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "simple",
+            "formatter": "structlog_json",
             "level": "DEBUG",
             "stream": sys.stdout,
         },
         "database": {
             "class": "waldur_core.logging.log.DatabaseLogHandler",
             "level": "INFO",
+            "formatter": "structlog_json",
         },
     },
-    # Loggers
-    # A logger is the entry point into the logging system.
-    # Each logger is a named bucket to which messages can be written for processing.
-    # See also: https://docs.djangoproject.com/en/4.2/topics/logging/#loggers
-    #
-    # Default logger configuration
     "root": {
         "level": "DEBUG",
         "handlers": ["console", "database"],
     },
-    # Default empty dict.
-    # An extension can set up its own logger, e.g. 'djangosaml2' for SAML2
     "loggers": {
-        # Suppress excessive Celery task registration logging
         "celery": {
             "level": "INFO",
             "handlers": ["console", "database"],
