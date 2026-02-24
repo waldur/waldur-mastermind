@@ -922,6 +922,54 @@ class RequestRejectTest(BaseInvitationTest):
 
 
 @ddt
+class RequestDestroyTest(BaseInvitationTest):
+    def setUp(self):
+        super().setUp()
+        self.customer_group_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer
+        )
+        self.permission_request = factories.PermissionRequestFactory(
+            invitation=self.customer_group_invitation,
+        )
+        self.url = factories.PermissionRequestFactory.get_url(self.permission_request)
+
+    def test_staff_can_delete_permission_request(self):
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(
+            models.PermissionRequest.objects.filter(
+                pk=self.permission_request.pk
+            ).exists()
+        )
+
+    def test_customer_owner_cannot_delete_permission_request(self):
+        self.client.force_authenticate(user=self.customer_owner)
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(
+            models.PermissionRequest.objects.filter(
+                pk=self.permission_request.pk
+            ).exists()
+        )
+
+    @data("project_admin", "project_manager", "user")
+    def test_user_without_scope_access_cannot_delete_permission_request(self, user):
+        self.client.force_authenticate(user=getattr(self, user))
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertTrue(
+            models.PermissionRequest.objects.filter(
+                pk=self.permission_request.pk
+            ).exists()
+        )
+
+    def test_anonymous_cannot_delete_permission_request(self):
+        response = self.client.delete(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@ddt
 class PermissionRequestProjectCreationTest(BaseInvitationTest):
     def setUp(self):
         super().setUp()
