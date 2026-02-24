@@ -38,10 +38,10 @@ class InvitationFieldValidationTest(test.APITestCase):
         CustomerRole.OWNER.add_permission(PermissionEnum.LIST_INVITATIONS)
 
     def test_extra_invitation_text_within_limit(self):
-        """Test that extra_invitation_text with 1000 characters or less is valid"""
+        """Test that extra_invitation_text with 2000 characters or less is valid"""
         self.client.force_authenticate(user=self.staff)
 
-        valid_text = "a" * 1000  # Exactly 1000 characters
+        valid_text = "a" * 2000  # Exactly 2000 characters
         payload = {
             "email": "test@example.com",
             "scope": structure_factories.CustomerFactory.get_url(self.customer),
@@ -59,10 +59,10 @@ class InvitationFieldValidationTest(test.APITestCase):
         self.assertEqual(invitation.extra_invitation_text, valid_text)
 
     def test_extra_invitation_text_exceeds_limit(self):
-        """Test that extra_invitation_text with more than 1000 characters is invalid"""
+        """Test that extra_invitation_text with more than 2000 characters is invalid"""
         self.client.force_authenticate(user=self.staff)
 
-        invalid_text = "a" * 1001  # 1001 characters - exceeds limit
+        invalid_text = "a" * 2001  # 2001 characters - exceeds limit
         payload = {
             "email": "test@example.com",
             "scope": structure_factories.CustomerFactory.get_url(self.customer),
