@@ -173,6 +173,53 @@ class DetailViewVisibilityTest(CustomerVisibilityBaseTest):
         self.assertEqual(data["projects_count"], 3)
 
 
+class TerminatedProjectCustomerVisibilityTest(test.APITestCase):
+    """Test that a user with a role only in a terminated project cannot see the customer."""
+
+    def setUp(self):
+        self.customer = factories.CustomerFactory()
+        self.project = factories.ProjectFactory(customer=self.customer)
+        self.user = factories.UserFactory()
+        self.project.add_user(self.user, ProjectRole.ADMIN)
+
+    def test_user_cannot_see_customer_after_only_project_is_terminated(self):
+        # Terminate the project (soft delete)
+        self.project.delete()
+
+        self.client.force_authenticate(user=self.user)
+        url = factories.CustomerFactory.get_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        customer_uuids = [item["uuid"] for item in response.data]
+        self.assertNotIn(self.customer.uuid.hex, customer_uuids)
+
+    def test_user_can_see_customer_when_project_is_active(self):
+        self.client.force_authenticate(user=self.user)
+        url = factories.CustomerFactory.get_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        customer_uuids = [item["uuid"] for item in response.data]
+        self.assertIn(self.customer.uuid.hex, customer_uuids)
+
+    def test_user_sees_customer_if_another_active_project_exists(self):
+        # User has roles in two projects under the same customer
+        project2 = factories.ProjectFactory(customer=self.customer)
+        project2.add_user(self.user, ProjectRole.ADMIN)
+
+        # Terminate only the first project
+        self.project.delete()
+
+        self.client.force_authenticate(user=self.user)
+        url = factories.CustomerFactory.get_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        customer_uuids = [item["uuid"] for item in response.data]
+        self.assertIn(self.customer.uuid.hex, customer_uuids)
+
+
 class MixedRolesVisibilityTest(test.APITestCase):
     """Test user with customer-level role on one org and project-level role on another."""
 
