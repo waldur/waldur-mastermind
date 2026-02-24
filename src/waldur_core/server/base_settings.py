@@ -66,6 +66,7 @@ INSTALLED_APPS = (
     "rest_framework.authtoken",
     "django_filters",
     "axes",
+    "django_structlog",
     "django_fsm",
     "reversion",
     "jsoneditor",
@@ -94,6 +95,7 @@ MIDDLEWARE = (
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "waldur_core.logging.middleware.CaptureEventContextMiddleware",
+    "django_structlog.middlewares.RequestMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "waldur_core.server.middleware.ImpersonationMiddleware",
@@ -247,6 +249,8 @@ STORAGES = {
 # Disable excessive xmlschema and django-axes logging
 import logging
 
+import structlog
+
 logging.getLogger("xmlschema").propagate = False
 logging.getLogger("axes").propagate = False
 
@@ -254,29 +258,78 @@ logging.getLogger("axes").propagate = False
 logging.getLogger("celery.utils.imports").setLevel(logging.WARNING)
 logging.getLogger("celery.app.autodiscover").setLevel(logging.WARNING)
 
+# Processors for stdlib loggers (foreign_pre_chain) - ExtraAdder merges record.extra
+_FOREIGN_PRE_CHAIN = [
+    structlog.contextvars.merge_contextvars,
+    structlog.stdlib.ExtraAdder(),
+    structlog.processors.TimeStamper(fmt="iso"),
+    structlog.stdlib.add_logger_name,
+    structlog.stdlib.add_log_level,
+    structlog.stdlib.PositionalArgumentsFormatter(),
+]
+
+# Use JSON in production, readable console in development
+_USE_JSON_LOGS = not os.environ.get("WALDUR_DEV_LOGS", "").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "simple": {
-            "format": "%(asctime)s %(levelname)s %(message)s",
+        "structlog_console": {
+            "()": structlog.stdlib.ProcessorFormatter,
+            "processor": structlog.dev.ConsoleRenderer(),
+            "foreign_pre_chain": _FOREIGN_PRE_CHAIN,
+        },
+        "structlog_json": {
+            "()": structlog.stdlib.ProcessorFormatter,
+            "processor": structlog.processors.JSONRenderer(),
+            "foreign_pre_chain": _FOREIGN_PRE_CHAIN,
         },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "simple",
+            "formatter": "structlog_json" if _USE_JSON_LOGS else "structlog_console",
         },
         "database": {
             "class": "waldur_core.logging.log.DatabaseLogHandler",
             "level": "INFO",
+            "formatter": "structlog_json",
         },
     },
     "root": {
         "level": "INFO",
         "handlers": ["console", "database"],
     },
+    "loggers": {
+        "django_structlog": {
+            "level": "WARNING",
+        },
+    },
 }
+
+structlog.configure(
+    processors=[
+        structlog.contextvars.merge_contextvars,
+        structlog.stdlib.filter_by_level,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.stdlib.add_logger_name,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.PositionalArgumentsFormatter(),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        structlog.processors.UnicodeDecoder(),
+        structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
+    ],
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    cache_logger_on_first_use=True,
+)
+
+DJANGO_STRUCTLOG_CELERY_ENABLED = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
