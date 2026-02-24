@@ -232,7 +232,7 @@ def count_customer_users(customer):
 def get_visible_customers(user):
     direct_projects = get_connected_projects(user)
     direct_customers = get_connected_customers(user)
-    indirect_customers = structure_models.Project.objects.filter(
+    indirect_customers = structure_models.Project.available_objects.filter(
         id__in=direct_projects
     ).values_list("customer_id", flat=True)
 
@@ -258,7 +258,7 @@ def get_visible_customers(user):
 def get_visible_projects(user):
     direct_customers = get_connected_customers(user)
     direct_projects = get_connected_projects(user)
-    indirect_projects = structure_models.Project.objects.filter(
+    indirect_projects = structure_models.Project.available_objects.filter(
         customer_id__in=direct_customers
     ).values_list("id", flat=True)
     return direct_projects.union(indirect_projects)

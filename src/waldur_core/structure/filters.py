@@ -125,7 +125,7 @@ class GenericRoleFilter(BaseFilterBackend):
 
         # Handle project-level access (customers via projects)
         if project_ids:
-            project_customer_ids = models.Project.objects.filter(
+            project_customer_ids = models.Project.available_objects.filter(
                 id__in=project_ids
             ).values_list("customer_id", flat=True)
             accessible_customer_ids.update(project_customer_ids)
