@@ -283,11 +283,12 @@ class ProjectAdmin(
         "customer",
         "created",
         "get_type_name",
+        "is_removed",
     ]
-    list_filter = ["customer"]
+    list_filter = ["customer", "is_removed"]
     search_fields = ["name", "uuid"]
     change_readonly_fields = ["customer"]
-    actions = ("cleanup", "sync_remote")
+    actions = ("cleanup", "sync_remote", "hard_delete_soft_deleted")
 
     def get_readonly_fields(self, request, obj=None):
         readonly_fields = super().get_readonly_fields(request, obj)
@@ -341,8 +342,32 @@ class ProjectAdmin(
         self.message_user(request, _("Cleaning up remote projects has been scheduled."))
         return redirect(reverse("admin:structure_project_changelist"))
 
+    @transaction.atomic
+    def hard_delete_soft_deleted(self, request, queryset):
+        soft_deleted = queryset.filter(is_removed=True)
+        count = soft_deleted.count()
+        if count == 0:
+            self.message_user(
+                request,
+                _("No soft-deleted projects in the selection."),
+                messages.WARNING,
+            )
+            return
+        for project in soft_deleted:
+            project.delete(soft=False)
+        message = ngettext(
+            "%(count)d soft-deleted project has been permanently removed.",
+            "%(count)d soft-deleted projects have been permanently removed.",
+            count,
+        )
+        self.message_user(request, message % {"count": count}, messages.SUCCESS)
+
+    hard_delete_soft_deleted.short_description = _(
+        "Hard delete selected soft-deleted projects"
+    )
+
     def get_queryset(self, request):
-        return models.Project.available_objects.all()
+        return models.Project.objects.all()
 
 
 class ServiceSettingsAdminForm(ModelForm):
