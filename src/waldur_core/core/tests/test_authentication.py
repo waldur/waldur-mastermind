@@ -11,7 +11,7 @@ from freezegun import freeze_time
 from rest_framework import status, test
 from rest_framework.authtoken.models import Token
 
-from waldur_core.core.authentication import refresh_token
+from waldur_core.core.authentication import DEFAULT_TOKEN_UPDATE_INTERVAL, refresh_token
 from waldur_core.core.models import User
 
 from . import helpers
@@ -124,6 +124,76 @@ class TokenAuthenticationTest(test.APITestCase):
         with freeze_time(next_time):
             token = refresh_token(self.user)
         self.assertLess(token.created, timezone.now())
+
+    def test_token_not_refreshed_within_half_lifetime(self):
+        """When user has token_lifetime set, the debounce interval is
+        token_lifetime / 2. Token created timestamp should NOT be updated
+        if less than half the lifetime has elapsed."""
+        self.user.token_lifetime = 3600
+        self.user.save()
+        token = Token.objects.get(user=self.user)
+        original_created = token.created
+
+        # 1799 seconds is less than 3600 / 2 = 1800 debounce interval
+        frozen_time = original_created + timezone.timedelta(seconds=1799)
+        with freeze_time(frozen_time):
+            refresh_token(self.user)
+
+        token.refresh_from_db()
+        self.assertEqual(token.created, original_created)
+
+    def test_token_refreshed_after_half_lifetime(self):
+        """When user has token_lifetime set, the debounce interval is
+        token_lifetime / 2. Token created timestamp SHOULD be updated
+        if more than half the lifetime has elapsed."""
+        self.user.token_lifetime = 3600
+        self.user.save()
+        token = Token.objects.get(user=self.user)
+        original_created = token.created
+
+        # 1801 seconds is more than 3600 / 2 = 1800 debounce interval
+        frozen_time = original_created + timezone.timedelta(seconds=1801)
+        with freeze_time(frozen_time):
+            refresh_token(self.user)
+
+        token.refresh_from_db()
+        self.assertGreater(token.created, original_created)
+
+    def test_token_not_refreshed_within_default_interval_when_no_lifetime(self):
+        """When user has no token_lifetime, the debounce interval falls back
+        to DEFAULT_TOKEN_UPDATE_INTERVAL (600s). Token created timestamp
+        should NOT be updated if less than 600 seconds have elapsed."""
+        self.user.token_lifetime = None
+        self.user.save()
+        token = Token.objects.get(user=self.user)
+        original_created = token.created
+
+        # 599 seconds is less than the 600s default interval
+        frozen_time = original_created + timezone.timedelta(seconds=599)
+        with freeze_time(frozen_time):
+            refresh_token(self.user)
+
+        token.refresh_from_db()
+        self.assertEqual(token.created, original_created)
+
+    def test_token_refreshed_after_default_interval_when_no_lifetime(self):
+        """When user has no token_lifetime, the debounce interval falls back
+        to DEFAULT_TOKEN_UPDATE_INTERVAL (600s). Token created timestamp
+        SHOULD be updated if more than 600 seconds have elapsed."""
+        self.user.token_lifetime = None
+        self.user.save()
+        token = Token.objects.get(user=self.user)
+        original_created = token.created
+
+        # 601 seconds is more than the 600s default interval
+        frozen_time = original_created + timezone.timedelta(
+            seconds=DEFAULT_TOKEN_UPDATE_INTERVAL.total_seconds() + 1
+        )
+        with freeze_time(frozen_time):
+            refresh_token(self.user)
+
+        token.refresh_from_db()
+        self.assertGreater(token.created, original_created)
 
     def test_token_never_expires_if_token_lifetime_is_none(self):
         user = User.objects.get(username=self.username)

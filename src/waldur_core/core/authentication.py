@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 IMPERSONATED_USER_HEADER = settings.WALDUR_CORE.get(
     "REQUEST_HEADER_IMPERSONATED_USER_UUID"
 )
-MIN_TOKEN_UPDATE_INTERVAL = timezone.timedelta(seconds=60)
+DEFAULT_TOKEN_UPDATE_INTERVAL = timezone.timedelta(seconds=600)
 
 
 def refresh_token(user: models.User) -> Token:
@@ -55,9 +55,13 @@ def refresh_token(user: models.User) -> Token:
 
     if not created:
         # Token is updated for each request therefore it may become bottleneck.
-        # To avoid race-conditions if token is updated simulteneously,
+        # To avoid race-conditions if token is updated simultaneously,
         # and to reduce DB load, we use debouncing.
-        if token.created < timezone.now() - MIN_TOKEN_UPDATE_INTERVAL:
+        if user.token_lifetime:
+            interval = timezone.timedelta(seconds=user.token_lifetime / 2)
+        else:
+            interval = DEFAULT_TOKEN_UPDATE_INTERVAL
+        if token.created < timezone.now() - interval:
             Token.objects.filter(key=token.key).update(created=Now())
     return token
 
