@@ -12,6 +12,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name="invitation",
             name="extra_invitation_text",
-            field=models.TextField(blank=True, max_length=1000),
+            field=models.TextField(blank=True, max_length=2000),
         ),
     ]

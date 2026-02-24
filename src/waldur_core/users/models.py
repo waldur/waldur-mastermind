@@ -159,7 +159,7 @@ class Invitation(
         ),
     )
     full_name = models.CharField(_("full name"), max_length=100, blank=True)
-    extra_invitation_text = models.TextField(blank=True, max_length=1000)
+    extra_invitation_text = models.TextField(blank=True, max_length=2000)
 
     def get_expiration_base_datetime(self):
         if not self.scope:
