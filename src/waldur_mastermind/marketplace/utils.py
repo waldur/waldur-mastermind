@@ -2408,6 +2408,34 @@ def move_offering(
     logger.info("Offering %s has been moved to provider %s", offering, target_customer)
 
 
+def _identity_manager_matches_offering_user(
+    subscriber: User,
+    message_payload: dict,
+) -> bool:
+    """Check if an identity manager should receive this OFFERING_USER event.
+
+    Returns True when the subscriber is an identity manager whose managed_isds
+    overlap with the offering user's linked user's active_isds.
+    """
+    if not subscriber.is_identity_manager:
+        return False
+
+    managed_isds = subscriber.managed_isds or []
+    if not managed_isds:
+        return False
+
+    target_user_uuid = message_payload.get("user_uuid")
+    if not target_user_uuid:
+        return False
+
+    target_user = User.objects.filter(uuid=target_user_uuid).first()
+    if not target_user:
+        return False
+
+    active_isds = target_user.active_isds or []
+    return bool(set(managed_isds) & set(active_isds))
+
+
 def prepare_messages(
     offering: models.Offering,
     message_payload: dict,
@@ -2417,6 +2445,10 @@ def prepare_messages(
 
     Generates event messages for users who have subscribed to events related to marketplace
     offerings they have access to. Each message includes a vhost, topic and payload.
+
+    For OFFERING_USER events, identity managers whose managed_isds overlap with
+    the linked user's active_isds also receive the event, even without direct
+    offering access.
 
     Args:
         offering: Marketplace offering instance to generate messages for
@@ -2467,10 +2499,18 @@ def prepare_messages(
         # Check if user has access to offering
         linked_offerings = models.Offering.objects.all().filter_for_user(user)
         if not linked_offerings.filter(id=offering.id).exists():
-            logger.debug(
-                "The user %s does not have access to the offering %s", user, offering
-            )
-            continue
+            # Identity managers can receive OFFERING_USER events for users
+            # whose active_isds overlap with the manager's managed_isds.
+            if not (
+                affected_object == ObservableObjectType.OFFERING_USER
+                and _identity_manager_matches_offering_user(user, message_payload)
+            ):
+                logger.debug(
+                    "The user %s does not have access to the offering %s",
+                    user,
+                    offering,
+                )
+                continue
 
         # Check if queue is registered (receiver must request queue creation first)
         queue_exists = logging_models.EventSubscriptionQueue.objects.filter(

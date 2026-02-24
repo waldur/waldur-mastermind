@@ -7,7 +7,9 @@ from unittest import mock
 from django.test import TestCase
 
 from waldur_core.logging import enums as logging_enums
+from waldur_core.logging import models as logging_models
 from waldur_core.logging.tests import factories as logging_factories
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.handlers import (
@@ -18,6 +20,7 @@ from waldur_mastermind.marketplace.tests.factories import (
     OfferingFactory,
     OfferingUserFactory,
 )
+from waldur_mastermind.marketplace.utils import prepare_messages
 
 
 class TestSerializeUserField(TestCase):
@@ -285,3 +288,132 @@ class TestOfferingUserCreateIncludesAttributes(TestCase):
         self.assertNotIn("first_name", payload["attributes"])
         self.assertNotIn("last_name", payload["attributes"])
         self.assertIn("email", payload["attributes"])
+
+
+class TestIdentityManagerReceivesOfferingUserEvents(TestCase):
+    """Identity managers receive OFFERING_USER events for users whose
+    active_isds overlap with the manager's managed_isds, even when the
+    manager has no direct offering access."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        # Offering owned by a customer the identity manager is NOT part of
+        self.offering = OfferingFactory(customer=self.fixture.customer)
+
+        # The offering user's linked user has active_isds
+        self.target_user = structure_factories.UserFactory(
+            active_isds=["isd:efp", "isd:puhuri"],
+        )
+        self.offering_user = OfferingUserFactory(
+            offering=self.offering,
+            user=self.target_user,
+            username="test-user",
+        )
+
+        # Identity manager with matching managed_isds but no offering access
+        self.identity_manager = structure_factories.UserFactory(
+            is_identity_manager=True,
+            managed_isds=["isd:efp"],
+        )
+        _setup_event_subscription(self.identity_manager, self.offering)
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_identity_manager_receives_offering_user_update(self, mock_publish):
+        """Username update on offering user triggers event to identity manager."""
+        self.offering_user.username = "new-username"
+        self.offering_user.save()
+
+        mock_publish.assert_called_once()
+        message = mock_publish.call_args[0][0][0]
+        payload = json.loads(message["payload"])
+
+        self.assertEqual(payload["action"], "update")
+        self.assertEqual(payload["username"], "new-username")
+        self.assertEqual(payload["user_uuid"], self.target_user.uuid.hex)
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_identity_manager_receives_offering_user_create(self, mock_publish):
+        """New offering user triggers create event to identity manager."""
+        target_user2 = structure_factories.UserFactory(
+            active_isds=["isd:efp"],
+        )
+        offering_user2 = OfferingUserFactory(
+            offering=self.offering,
+            user=target_user2,
+            username="user-2",
+        )
+
+        mock_publish.assert_called_once()
+        message = mock_publish.call_args[0][0][0]
+        payload = json.loads(message["payload"])
+
+        self.assertEqual(payload["action"], "create")
+        self.assertEqual(payload["offering_user_uuid"], offering_user2.uuid.hex)
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_identity_manager_skipped_when_isds_dont_overlap(self, mock_publish):
+        """No event when linked user's active_isds don't match managed_isds."""
+        non_matching_user = structure_factories.UserFactory(
+            active_isds=["isd:fenix"],
+        )
+        OfferingUserFactory(
+            offering=self.offering,
+            user=non_matching_user,
+            username="fenix-user",
+        )
+
+        mock_publish.assert_not_called()
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_non_identity_manager_without_access_skipped(self, mock_publish):
+        """Regular user without offering access does not receive events."""
+        # Replace subscription with a regular user (not identity manager)
+        regular_user = structure_factories.UserFactory()
+        # Clear existing subscriptions and create one for the regular user
+        logging_models.EventSubscription.objects.filter(
+            user=self.identity_manager
+        ).delete()
+        _setup_event_subscription(regular_user, self.offering)
+
+        self.offering_user.username = "changed"
+        self.offering_user.save()
+
+        mock_publish.assert_not_called()
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_identity_manager_without_managed_isds_skipped(self, mock_publish):
+        """Identity manager with empty managed_isds does not receive events."""
+        self.identity_manager.managed_isds = []
+        self.identity_manager.save()
+
+        self.offering_user.username = "changed"
+        self.offering_user.save()
+
+        mock_publish.assert_not_called()
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_identity_manager_bypass_does_not_affect_order_events(self, mock_publish):
+        """ORDER events are not delivered to identity managers without access."""
+        # Replace the OFFERING_USER subscription with an ORDER subscription
+        logging_models.EventSubscription.objects.filter(
+            user=self.identity_manager
+        ).delete()
+        order_sub = logging_factories.EventSubscriptionFactory(
+            user=self.identity_manager,
+            observable_objects=[
+                {"object_type": logging_enums.ObservableObjectType.ORDER.value}
+            ],
+        )
+        logging_factories.EventSubscriptionQueueFactory(
+            event_subscription=order_sub,
+            offering_uuid=self.offering.uuid,
+            object_type=logging_enums.ObservableObjectType.ORDER.value,
+        )
+
+        messages = prepare_messages(
+            self.offering,
+            {"order_uuid": "fake-uuid", "order_state": "done"},
+            logging_enums.ObservableObjectType.ORDER,
+        )
+
+        self.assertEqual(messages, [])
