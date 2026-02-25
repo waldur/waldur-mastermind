@@ -3,11 +3,14 @@ from unittest import mock
 
 import respx
 from django.test import TestCase
+from rest_framework import status, test
 from rest_framework.exceptions import ValidationError
 
 from waldur_core.structure.tests.fixtures import ProjectFixture
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     REMOTE_OFFERING,
+    OfferingStates,
     OrderStates,
     OrderTypes,
     ResourceStates,
@@ -15,6 +18,7 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.tests.factories import (
     OfferingFactory,
     OrderFactory,
+    PlanFactory,
     ResourceFactory,
 )
 from waldur_mastermind.marketplace_remote.processors import (
@@ -248,3 +252,51 @@ class DeleteProcessorEmptyBackendIdTest(TestCase):
         self.assertTrue(
             any("backend_id is empty" in msg for msg in cm.output),
         )
+
+
+class OrderCreateValidationTest(test.APITransactionTestCase):
+    """
+    Test API order creation order validation for duplicate resources.
+
+    """
+
+    def setUp(self):
+        self.fixture = ProjectFixture()
+        self.project = self.fixture.project
+        self.user = self.fixture.owner
+        self.offering = OfferingFactory(
+            type=REMOTE_OFFERING,
+            state=OfferingStates.ACTIVE,
+            secret_options={
+                "api_url": "https://remote-waldur.com",
+                "token": "valid_token",
+            },
+        )
+        self.plan = PlanFactory(offering=self.offering)
+
+    def test_order_creation_succeeds_with_fix(self):
+        """
+        Test that order creation succeeds when a resource is created first.
+        """
+        self.client.force_authenticate(self.user)
+        url = OrderFactory.get_list_url()
+
+        resource_name = "test4all-1-ahti-tes-1-lumi-eta-1-44"
+        payload = {
+            "project": f"http://testserver/api/projects/{self.project.uuid.hex}/",
+            "offering": f"http://testserver/api/marketplace-public-offerings/{self.offering.uuid.hex}/",
+            "plan": f"http://testserver/api/marketplace-public-offerings/{self.offering.uuid.hex}/plans/{self.plan.uuid.hex}/",
+            "attributes": {"name": resource_name},
+            "limits": {},
+            "accepting_terms_of_service": True,
+        }
+
+        response = self.client.post(url, payload)
+
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_201_CREATED,
+            f"Expected 201 but got {response.status_code}. Response: {response.data}",
+        )
+        order = marketplace_models.Order.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(order.resource.name, resource_name)

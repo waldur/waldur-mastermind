@@ -52,9 +52,8 @@ def build_callback_url(order: models.Order):
 class RemoteCreateResourceProcessor(processors.BaseOrderProcessor):
     def validate_order(self, request):
         name = self.order.attributes.get("name", "")
-        if (
-            name
-            and models.Resource.objects.filter(
+        if name:
+            queryset = models.Resource.objects.filter(
                 project=self.order.project,
                 offering=self.order.offering,
                 name=name,
@@ -64,15 +63,18 @@ class RemoteCreateResourceProcessor(processors.BaseOrderProcessor):
                     models.Resource.States.UPDATING,
                     models.Resource.States.TERMINATING,
                 ),
-            ).exists()
-        ):
-            raise ValidationError(
-                _(
-                    "Active resource with name '%(name)s' already exists "
-                    "in this project for this offering."
-                )
-                % {"name": name}
             )
+            if self.order.resource and self.order.resource.uuid:
+                queryset = queryset.exclude(uuid=self.order.resource.uuid)
+
+            if queryset.exists():
+                raise ValidationError(
+                    _(
+                        "Active resource with name '%(name)s' already exists "
+                        "in this project for this offering."
+                    )
+                    % {"name": name}
+                )
 
     def process_order(self, user: User):
         client = utils.get_client_for_offering(self.order.offering)
