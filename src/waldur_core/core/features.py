@@ -167,11 +167,19 @@ class MarketplaceSection(FeatureSection):
         "Enable display of offering partitions in UI."
     )
 
+    conceal_resource_metadata = Feature(
+        "Conceal resource metadata from non-staff users in resource detail view."
+    )
+
     hide_marketplace_from_end_users = Feature(
         "Hide marketplace functionality from end users but allow staff access."
     )
     hide_organization_information_from_project_members = Feature(
         "Hide organization information from project-level users. Organization owners, managers, and staff retain full access."
+    )
+
+    marketplace_staff_only = Feature(
+        "Make marketplace visible only to staff users. Non-staff users will not see marketplace section."
     )
 
 
