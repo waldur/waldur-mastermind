@@ -1167,6 +1167,7 @@ class UserSerializer(
     identity_provider_management_url = serializers.SerializerMethodField()
     identity_provider_fields = serializers.SerializerMethodField()
     has_active_session = serializers.SerializerMethodField()
+    has_usable_password = serializers.SerializerMethodField()
     ip_address = serializers.CharField(read_only=True, required=False, allow_null=True)
     birth_date = serializers.DateField(required=False, allow_null=True)
 
@@ -1202,6 +1203,9 @@ class UserSerializer(
 
     def get_has_active_session(self, user: core_models.User) -> bool:
         return hasattr(user, "auth_token") and user.auth_token is not None
+
+    def get_has_usable_password(self, user: core_models.User) -> bool:
+        return user.has_usable_password()
 
     def get_token_expires_at(self, user: core_models.User) -> None | datetime:
         if hasattr(user, "auth_token") and user.auth_token and user.token_lifetime:
@@ -1249,6 +1253,7 @@ class UserSerializer(
             "image",
             "identity_source",
             "has_active_session",
+            "has_usable_password",
             "ip_address",
             # User profile attributes
             "gender",
@@ -1276,6 +1281,7 @@ class UserSerializer(
             "affiliations",
             "identity_source",
             "has_active_session",
+            "has_usable_password",
             "attribute_sources",
             "active_isds",
         )
@@ -1315,6 +1321,7 @@ class UserSerializer(
                 "managed_isds",
                 "active_isds",
                 "is_identity_manager",
+                "has_usable_password",
             )
             for field in staff_only_fields:
                 if field in fields:

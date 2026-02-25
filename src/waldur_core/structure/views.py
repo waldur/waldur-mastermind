@@ -1817,6 +1817,33 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
     change_password_permissions = [permissions.is_staff]
 
     @extend_schema(
+        summary="Remove user password",
+        request=None,
+        responses=None,
+        description="Allows staff user to remove password for any user, making it unusable.",
+    )
+    @action(detail=True, methods=["post"])
+    def remove_password(self, request, uuid=None):
+        user = self.get_object()
+        user.set_unusable_password()
+        user.save(update_fields=["password"])
+
+        event_logger.emit(
+            "Password has been removed for user {affected_user_username} by %s."
+            % self.request.user,
+            event_type=EventType.USER_PASSWORD_REMOVED_BY_STAFF,
+            event_context={"affected_user": user},
+            scopes=[user],
+        )
+        logger.info(
+            f"Password has been removed for user {user} by {self.request.user}."
+        )
+
+        return Response({"status": "password removed"}, status=status.HTTP_200_OK)
+
+    remove_password_permissions = [permissions.is_staff]
+
+    @extend_schema(
         summary="Get user auth token",
         request=serializers.UserAuthTokenSerializer,
         responses=serializers.UserAuthTokenSerializer,

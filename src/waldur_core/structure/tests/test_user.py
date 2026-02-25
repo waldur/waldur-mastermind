@@ -880,6 +880,64 @@ class UserCreateTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
 
+@ddt
+class UserPasswordManagementTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.staff = self.fixture.staff
+
+    def test_staff_can_see_has_usable_password(self):
+        url = factories.UserFactory.get_url(self.fixture.user)
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("has_usable_password", response.data)
+        self.assertTrue(response.data["has_usable_password"])
+
+    @data("global_support", "user")
+    def test_non_staff_cannot_see_has_usable_password(self, user):
+        url = factories.UserFactory.get_url(self.fixture.user)
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("has_usable_password", response.data)
+
+    def test_has_usable_password_false_after_removal(self):
+        self.fixture.user.set_unusable_password()
+        self.fixture.user.save()
+
+        url = factories.UserFactory.get_url(self.fixture.user)
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["has_usable_password"])
+
+    def test_staff_can_remove_password(self):
+        self.fixture.user.set_password("some_password")
+        self.fixture.user.save()
+        self.assertTrue(self.fixture.user.has_usable_password())
+
+        url = factories.UserFactory.get_url(self.fixture.user, "remove_password")
+        self.client.force_authenticate(self.staff)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.fixture.user.refresh_from_db()
+        self.assertFalse(self.fixture.user.has_usable_password())
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="user_password_removed_by_staff",
+                message__icontains=self.fixture.user.username,
+            ).exists()
+        )
+
+    @data("global_support", "user")
+    def test_non_staff_cannot_remove_password(self, user):
+        url = factories.UserFactory.get_url(self.fixture.user, "remove_password")
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
 class UserNotificationsEnabledTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.UserFixture()
