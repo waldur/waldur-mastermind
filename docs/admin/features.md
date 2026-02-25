@@ -72,6 +72,10 @@ Conceal offering pricing tab in the offering's public view.
 
 Do not render prices in order details.
 
+## marketplace.conceal_resource_metadata
+
+Conceal resource metadata from non-staff users in resource detail view.
+
 ## marketplace.display_offering_partitions
 
 Enable display of offering partitions in UI.
@@ -99,6 +103,10 @@ Allow to import resources from service provider to project.
 ## marketplace.lexis_links
 
 Enabled LEXIS link integrations for offerings.
+
+## marketplace.marketplace_staff_only
+
+Make marketplace visible only to staff users. Non-staff users will not see marketplace section.
 
 ## marketplace.show_call_management_functionality
 
