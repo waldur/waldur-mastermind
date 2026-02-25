@@ -221,6 +221,26 @@ class ResourceGetTest(test.APITestCase):
         )
         self.assertNotIn("_", response.data["name"])
 
+    def test_suggest_name_is_lowercased(self):
+        self.offering.plugin_options = {
+            "resource_name_pattern": "{customer_name}-{attributes[environment]}"
+        }
+        self.offering.save()
+        self.project.customer.name = "MyCustomer"
+        self.project.customer.save()
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.ResourceFactory.get_list_url("suggest_name")
+        response = self.client.post(
+            url,
+            {
+                "project": self.project.uuid.hex,
+                "offering": self.offering.uuid.hex,
+                "attributes": {"environment": "Production"},
+            },
+            format="json",
+        )
+        self.assertEqual(response.data["name"], "mycustomer-production")
+
     def test_resource_is_usage_based(self):
         factories.OfferingComponentFactory(
             offering=self.offering, billing_type=BillingTypes.USAGE
