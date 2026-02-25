@@ -178,10 +178,6 @@ class MarketplaceSection(FeatureSection):
         "Hide organization information from project-level users. Organization owners, managers, and staff retain full access."
     )
 
-    marketplace_staff_only = Feature(
-        "Make marketplace visible only to staff users. Non-staff users will not see marketplace section."
-    )
-
 
 class SupportSection(FeatureSection):
     class Meta:

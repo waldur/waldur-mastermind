@@ -104,10 +104,6 @@ Allow to import resources from service provider to project.
 
 Enabled LEXIS link integrations for offerings.
 
-## marketplace.marketplace_staff_only
-
-Make marketplace visible only to staff users. Non-staff users will not see marketplace section.
-
 ## marketplace.show_call_management_functionality
 
 Enabled display of call management functionality.
