@@ -810,6 +810,7 @@ CONSTANCE_CONFIG = {
         "",
         "Client secret for HTTP Basic authentication when calling the token introspection endpoint. "
         "Required together with OIDC_CLIENT_ID and OIDC_INTROSPECTION_URL.",
+        "secret_field",
     ),
     "OIDC_USER_FIELD": (
         "username",
