@@ -828,13 +828,14 @@ def extract_query_enums(result, generator, **kwargs):
             pass
         return None
 
-    def find_existing_enum_name(enum_values):
-        """Returns the name of an existing schema that matches these enum values."""
+    def find_existing_enum_name(enum_values, enum_descriptions=None):
+        """Returns the name of an existing schema that matches these enum values and descriptions."""
         sorted_values = sorted([str(v) for v in enum_values])
         for name, schema in schemas.items():
             if "enum" in schema:
                 if sorted([str(v) for v in schema["enum"]]) == sorted_values:
-                    return name
+                    if schema.get("x-enum-descriptions") == enum_descriptions:
+                        return name
         return None
 
     for path in result.get("paths", {}).values():
@@ -855,9 +856,12 @@ def extract_query_enums(result, generator, **kwargs):
 
                 if "enum" in target:
                     enum_values = target["enum"]
+                    enum_descriptions = param.get("x-enum-descriptions")
 
                     # 1. Try to find an existing identical enum to reuse
-                    existing_name = find_existing_enum_name(enum_values)
+                    existing_name = find_existing_enum_name(
+                        enum_values, enum_descriptions
+                    )
 
                     if existing_name:
                         target_ref_name = existing_name
@@ -872,9 +876,10 @@ def extract_query_enums(result, generator, **kwargs):
                         # Handle name collisions with different values
                         counter = 1
                         base_name = target_ref_name
-                        while (
-                            target_ref_name in schemas
-                            and schemas[target_ref_name].get("enum") != enum_values
+                        while target_ref_name in schemas and (
+                            schemas[target_ref_name].get("enum") != enum_values
+                            or schemas[target_ref_name].get("x-enum-descriptions")
+                            != enum_descriptions
                         ):
                             target_ref_name = f"{base_name}{counter}"
                             counter += 1
@@ -885,6 +890,10 @@ def extract_query_enums(result, generator, **kwargs):
                             "enum": enum_values,
                             "description": "",
                         }
+                        if enum_descriptions:
+                            schemas[target_ref_name]["x-enum-descriptions"] = (
+                                enum_descriptions
+                            )
 
                     # 4. Replace inline definition with $ref
                     # Remove keys that would conflict with $ref (OpenAPI 3.0 rules)
@@ -893,5 +902,8 @@ def extract_query_enums(result, generator, **kwargs):
                             del target[key]
 
                     target["$ref"] = f"#/components/schemas/{target_ref_name}"
+
+                    if "x-enum-descriptions" in param:
+                        del param["x-enum-descriptions"]
 
     return result
