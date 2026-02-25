@@ -1750,6 +1750,7 @@ def render_resource_name_pattern(
         attributes=SafeFormatDict(attributes or {}),
     )
     result = pattern.format_map(context)
+    result = result.lower()
     result = re.sub(r"[^A-Za-z0-9.-]", "-", result)
     return core_utils.remove_duplicate_hyphens(result).strip("-")
 
@@ -1782,6 +1783,7 @@ def generate_resource_name(
         offering.slug,
     ]
     result = "-".join(parts)
+    result = result.lower()
     result = result.replace("_", "-")
 
     if resource_count:
