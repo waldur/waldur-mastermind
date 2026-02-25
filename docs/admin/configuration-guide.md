@@ -2382,7 +2382,7 @@ Client ID for HTTP Basic authentication when calling the token introspection end
 
 #### OIDC_CLIENT_SECRET
 
-**Type:** str
+**Type:** secret_field
 
 Client secret for HTTP Basic authentication when calling the token introspection endpoint. Required together with OIDC_CLIENT_ID and OIDC_INTROSPECTION_URL.
 
