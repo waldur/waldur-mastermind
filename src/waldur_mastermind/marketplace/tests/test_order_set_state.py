@@ -4,7 +4,7 @@ from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_core.structure.tests.fixtures import ProjectRole
 from waldur_mastermind.marketplace.enums import (
@@ -29,6 +29,8 @@ class BaseOrderSetStateTest(test.APITestCase):
         self.order = self.fixture.order
 
         CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.APPROVE_ORDER)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.LIST_ORDERS)
 
 
 @ddt
@@ -38,6 +40,8 @@ class OrderSetStateExecutingTest(BaseOrderSetStateTest):
         ("staff", OrderStates.ERRED),
         ("offering_owner", OrderStates.PENDING_CONSUMER),
         ("offering_owner", OrderStates.ERRED),
+        ("offering_manager", OrderStates.PENDING_CONSUMER),
+        ("offering_manager", OrderStates.ERRED),
     )
     def test_authorized_user_can_set_executing_state(self, user_and_state):
         user, state = user_and_state
@@ -63,7 +67,7 @@ class OrderSetStateExecutingTest(BaseOrderSetStateTest):
 
 @ddt
 class OrderSetStateDoneTest(BaseOrderSetStateTest):
-    @data("staff", "offering_owner")
+    @data("staff", "offering_owner", "offering_manager")
     def test_authorized_user_can_set_done_state(self, user):
         self.order.state = OrderStates.EXECUTING
         self.order.save()
@@ -209,7 +213,7 @@ class OrderSetStateDoneOptionsUpdateTest(test.APITestCase):
 
 @ddt
 class OrderSetStateErredTest(BaseOrderSetStateTest):
-    @data("staff", "offering_owner", "service_manager")
+    @data("staff", "offering_owner", "service_manager", "offering_manager")
     def test_authorized_user_can_set_erred_state(self, user):
         self.order.state = OrderStates.EXECUTING
         self.order.save()

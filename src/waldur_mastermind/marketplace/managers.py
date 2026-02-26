@@ -273,6 +273,22 @@ def get_connected_offerings(user, role=None):
     return get_scope_ids(user, content_type, role)
 
 
+def get_connected_offerings_by_permission(user, permission):
+    from waldur_core.permissions.models import Role
+
+    content_type = ContentType.objects.get_for_model(models.Offering)
+    roles = list(
+        Role.objects.filter(
+            content_type=content_type,
+            is_active=True,
+            permissions__permission=permission,
+        ).values_list("name", flat=True)
+    )
+    if not roles:
+        return models.Offering.objects.none().values_list("id", flat=True)
+    return get_connected_offerings(user, roles)
+
+
 def get_connected_serviceproviders(user, role=None):
     content_type = ContentType.objects.get_for_model(models.ServiceProvider)
     return get_scope_ids(user, content_type, role)
