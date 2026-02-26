@@ -20,11 +20,6 @@ class ChatRequestSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Existing thread UUID. If omitted, a new thread is created.",
     )
-    update_thread_name = serializers.UUIDField(
-        required=False,
-        allow_null=True,
-        help_text="Thread UUID whose name should be set to the assistant's response. Skips message persistence for this call.",
-    )
     mode = serializers.ChoiceField(
         choices=models.ChatMode.choices,
         required=False,

@@ -54,7 +54,7 @@ def _get_thread_messages(thread):
     return filtered
 
 
-def build_context(user, user_input, thread=None, include_history=True):
+def build_context(user, user_input, thread=None):
     """
     Build the complete prompt string for the LLM.
 
@@ -72,7 +72,7 @@ def build_context(user, user_input, thread=None, include_history=True):
 
     parts = [system_prompt]
 
-    if include_history and thread:
+    if thread:
         history = _get_conversation_history(thread)
         if history:
             parts.append(f"=== CONVERSATION HISTORY ===\n{history}")

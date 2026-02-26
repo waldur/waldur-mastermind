@@ -6,7 +6,7 @@ from django.urls import reverse
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.chat.models import TokenQuota
+from waldur_mastermind.chat.models import ChatSession, ThreadSession, TokenQuota
 
 
 class ChatBaseTest(test.APITestCase):
@@ -180,6 +180,10 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         quota.save()
         initial_usage = quota.monthly_usage
 
+        # Use existing thread to avoid title-generation LLM call
+        session, _ = ChatSession.objects.get_or_create(user=self.user)
+        thread = ThreadSession.objects.create(chat_session=session)
+
         upstream_payload = {
             "content": "Hello world response",
             "additional_kwargs": {
@@ -198,7 +202,7 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
 
         response = self.client.post(
             self.stream_url,
-            data={"input": "test"},
+            data={"input": "test", "thread_uuid": str(thread.uuid)},
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -227,6 +231,10 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         quota.monthly_usage = 95  # Near limit but not at/over
         quota.save()
 
+        # Use existing thread to avoid title-generation LLM call
+        session, _ = ChatSession.objects.get_or_create(user=self.user)
+        thread = ThreadSession.objects.create(chat_session=session)
+
         upstream_payload = {
             "content": "Response",
             "additional_kwargs": {
@@ -246,7 +254,7 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         # Should be allowed because not yet at limit
         response = self.client.post(
             self.stream_url,
-            data={"input": "test"},
+            data={"input": "test", "thread_uuid": str(thread.uuid)},
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)

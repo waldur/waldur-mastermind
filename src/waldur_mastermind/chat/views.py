@@ -39,7 +39,10 @@ from waldur_mastermind.chat.injection_detection import (
 )
 from waldur_mastermind.chat.models import TokenQuota
 from waldur_mastermind.chat.parsers import StreamParser, parse_tool_call
-from waldur_mastermind.chat.prompts import CANNED_REJECTION_MESSAGE
+from waldur_mastermind.chat.prompts import (
+    CANNED_REJECTION_MESSAGE,
+    TITLE_GENERATION_PROMPT,
+)
 from waldur_mastermind.chat.tool_executor import ToolExecutor
 from waldur_mastermind.chat.tools import TOOL_REGISTRY
 
@@ -145,7 +148,7 @@ class LLMStreamer:
         user=None,
         thread=None,
         original_input="",
-        update_thread_name=None,
+        is_new_thread=False,
         mode=None,
         user_msg=None,
         canned_response=None,
@@ -166,7 +169,7 @@ class LLMStreamer:
         self.might_be_tool_call = False  # Track if we're buffering potential tool call
         self.thread = thread
         self.original_input = original_input
-        self.update_thread_name = update_thread_name
+        self.is_new_thread = is_new_thread
         self.mode = mode
         self.user_msg = user_msg
         self._persisted_message_meta = None
@@ -178,6 +181,23 @@ class LLMStreamer:
         Helper to format a dict as a Newline Delimited JSON line.
         """
         return f"{json.dumps(data, separators=(',', ':'))}\n"
+
+    @staticmethod
+    def _iter_sse_events(response):
+        """Yield (content, metadata) tuples from an upstream SSE response."""
+        for raw_line in response.iter_lines(decode_unicode=True):
+            if not raw_line:
+                continue
+            line = raw_line.strip()
+            if not line.startswith("data: "):
+                logger.debug("Dropping upstream SSE line: %s", raw_line)
+                continue
+            try:
+                obj = json.loads(line[len("data: ") :])
+            except json.JSONDecodeError:
+                logger.error("Failed to decode LLM SSE payload.", exc_info=True)
+                continue
+            yield obj.get("content"), obj.get("additional_kwargs")
 
     def __iter__(self):
         if self.thread:
@@ -196,6 +216,7 @@ class LLMStreamer:
                 self._persist_messages()
                 if self._persisted_message_meta:
                     yield self._format_ndjson({"m": self._persisted_message_meta})
+                self._generate_thread_name()
                 return
 
             with requests.post(
@@ -207,26 +228,7 @@ class LLMStreamer:
             ) as response:
                 response.raise_for_status()
 
-                for raw_line in response.iter_lines(decode_unicode=True):
-                    if not raw_line:
-                        continue
-
-                    line = raw_line.strip()
-                    if not line.startswith("data: "):
-                        logger.debug("Dropping upstream SSE line: %s", raw_line)
-                        continue
-
-                    payload_str = line[len("data: ") :]
-
-                    try:
-                        obj = json.loads(payload_str)
-                    except json.JSONDecodeError:
-                        logger.error("Failed to decode LLM SSE payload.", exc_info=True)
-                        continue
-
-                    content = obj.get("content")
-                    metadata = obj.get("additional_kwargs")
-
+                for content, metadata in self._iter_sse_events(response):
                     if content:
                         self.accumulated_content += content
 
@@ -260,7 +262,6 @@ class LLMStreamer:
                                 yield self._format_ndjson(block)
 
                     if metadata:
-                        # Extract token counts from metadata for internal tracking
                         usage = metadata.get("usage_metadata", {})
                         self.input_tokens = usage.get("input_tokens", 0)
                         self.output_tokens = usage.get("output_tokens", 0)
@@ -303,6 +304,7 @@ class LLMStreamer:
             self._persist_messages()
             if self._persisted_message_meta:
                 yield self._format_ndjson({"m": self._persisted_message_meta})
+            self._generate_thread_name()
 
         except requests.RequestException as e:
             logger.error("Upstream LLM request failed.", exc_info=True)
@@ -321,7 +323,6 @@ class LLMStreamer:
             # Safety net for GeneratorExit - can't yield here
             if not self._messages_persisted:
                 self._persist_messages()
-            self._apply_thread_name()
 
     def _persist_messages(self):
         """
@@ -425,30 +426,49 @@ class LLMStreamer:
                 exc_info=True,
             )
 
-    def _apply_thread_name(self):
+    def _generate_thread_name(self):
         """
-        Update the target thread's name with the accumulated response.
-        Used for title-generation calls: the frontend passes the main thread's
-        UUID as update_thread_name, and the LLM response becomes the thread title.
+        Generate a short title for a new thread via a second LLM call.
+        Updates the thread name in DB. Failures are logged but never break
+        the main response.
         """
-        if not self.update_thread_name:
-            return
-
-        title = self.accumulated_content.strip()
-        if not title:
+        if not self.is_new_thread or not self.thread or not self.original_input:
             return
 
         try:
-            models.ThreadSession.objects.filter(uuid=self.update_thread_name).update(
-                name=title[:150]
-            )
-        except Exception as e:
-            logger.error(
-                "Failed to update thread name for %s: %s",
-                self.update_thread_name,
-                e,
-                exc_info=True,
-            )
+            prompt = TITLE_GENERATION_PROMPT + self.original_input[:500]
+            title_parts = []
+            title_input_tokens = 0
+            title_output_tokens = 0
+
+            with requests.post(
+                self.url,
+                json={"input": prompt},
+                headers=self.headers,
+                stream=True,
+                timeout=(5, 30),
+            ) as resp:
+                resp.raise_for_status()
+
+                for content, metadata in self._iter_sse_events(resp):
+                    if content:
+                        title_parts.append(content)
+                    if metadata:
+                        usage = metadata.get("usage_metadata", {})
+                        title_input_tokens = usage.get("input_tokens", 0)
+                        title_output_tokens = usage.get("output_tokens", 0)
+
+            self.input_tokens += title_input_tokens
+            self.output_tokens += title_output_tokens
+
+            title = "".join(title_parts).strip().strip("\"'")
+            if title:
+                models.ThreadSession.objects.filter(pk=self.thread.pk).update(
+                    name=title[:150]
+                )
+
+        except Exception:
+            logger.exception("Failed to generate thread title for %s", self.thread.uuid)
 
     def _record_usage(self):
         """
@@ -556,27 +576,19 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             detection_result and detection_result.action == DetectionAction.BLOCK
         )
 
-        thread = None
-        update_thread_name = serializer.validated_data.get("update_thread_name")
-
-        if update_thread_name:
-            # Title-generation call: validate ownership, skip thread creation and persistence
-            if not models.ThreadSession.objects.filter(
-                uuid=update_thread_name, chat_session__user=user
-            ).exists():
+        is_new_thread = False
+        thread_uuid = serializer.validated_data.get("thread_uuid")
+        if thread_uuid:
+            try:
+                thread = models.ThreadSession.objects.get(
+                    uuid=thread_uuid, chat_session__user=user
+                )
+            except models.ThreadSession.DoesNotExist:
                 raise rf_exceptions.NotFound("Thread not found.")
         else:
-            thread_uuid = serializer.validated_data.get("thread_uuid")
-            if thread_uuid:
-                try:
-                    thread = models.ThreadSession.objects.get(
-                        uuid=thread_uuid, chat_session__user=user
-                    )
-                except models.ThreadSession.DoesNotExist:
-                    raise rf_exceptions.NotFound("Thread not found.")
-            else:
-                session, _created = models.ChatSession.objects.get_or_create(user=user)
-                thread = models.ThreadSession.objects.create(chat_session=session)
+            session, _created = models.ChatSession.objects.get_or_create(user=user)
+            thread = models.ThreadSession.objects.create(chat_session=session)
+            is_new_thread = True
 
         # For blocked input, try context-aware LLM rejection first, fall back to static
         raw_message = serializer.validated_data["input"]
@@ -594,7 +606,6 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
                 user=user,
                 user_input=raw_message,
                 thread=thread,
-                include_history=not bool(update_thread_name),
             )
 
         # Pre-create user message so it persists even if the client disconnects
@@ -680,7 +691,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             user=user,
             thread=thread,
             original_input=raw_message,
-            update_thread_name=update_thread_name,
+            is_new_thread=is_new_thread,
             mode=mode,
             user_msg=user_msg,
             canned_response=canned_response,
