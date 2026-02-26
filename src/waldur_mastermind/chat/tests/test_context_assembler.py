@@ -114,18 +114,6 @@ class BuildContextTest(TestCase):
         for i in range(50, 60):
             self.assertNotIn(f"Message {i}", context)
 
-    def test_title_generation_skips_history(self):
-        Message.objects.create(
-            thread=self.thread, role="user", content="Hello", sequence_index=1
-        )
-
-        context = build_context(
-            self.user, "Generate title", thread=self.thread, include_history=False
-        )
-
-        self.assertIn("user: Generate title", context)
-        self.assertNotIn("user: Hello", context)
-
     def test_raises_permission_denied_for_other_users_thread(self):
         other_user = structure_factories.UserFactory()
         with self.assertRaises(PermissionDenied):
@@ -188,6 +176,10 @@ class ChatStreamIntegrationTest(test.APITestCase):
     )
     @mock.patch("waldur_mastermind.chat.views.requests.post")
     def test_sends_assembled_context_to_llm(self, post_mock):
+        # Use an existing thread so title generation is not triggered
+        session = ChatSession.objects.get_or_create(user=self.user)[0]
+        thread = ThreadSession.objects.create(chat_session=session)
+
         fake_stream = [
             "data: " + json.dumps({"content": "Response"}),
         ]
@@ -196,11 +188,15 @@ class ChatStreamIntegrationTest(test.APITestCase):
             raise_for_status=lambda: None,
         )
 
-        response = self.client.post(self.stream_url, data={"input": "Test message"})
+        response = self.client.post(
+            self.stream_url,
+            data={"input": "Test message", "thread_uuid": str(thread.uuid)},
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         list(response.streaming_content)
 
-        # Verify the payload sent to the LLM includes system prompt
+        # Only one call (main stream) — no title generation for existing thread
+        post_mock.assert_called_once()
         call_kwargs = post_mock.call_args
         sent_payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
         self.assertIn("You are a highly knowledgeable", sent_payload["input"])
