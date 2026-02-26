@@ -1015,7 +1015,7 @@ def generate_uidnumber_and_primary_group(offering):
 
     offering_user_last_uidnumber = (
         models.OfferingUser.objects.exclude(backend_metadata=None)
-        .filter(backend_metadata__has_key="uidnumber")
+        .filter(offering=offering, backend_metadata__has_key="uidnumber")
         .order_by("backend_metadata__uidnumber")
         .values_list("backend_metadata__uidnumber", flat=True)
         .last()
@@ -1023,7 +1023,7 @@ def generate_uidnumber_and_primary_group(offering):
 
     robot_account_last_uidnumber = (
         models.RobotAccount.objects.exclude(backend_metadata=None)
-        .filter(backend_metadata__has_key="uidnumber")
+        .filter(resource__offering=offering, backend_metadata__has_key="uidnumber")
         .order_by("backend_metadata__uidnumber")
         .values_list("backend_metadata__uidnumber", flat=True)
         .last()

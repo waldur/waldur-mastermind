@@ -445,6 +445,118 @@ class OfferingUserGlauthConfigQueryCountTest(test.APITestCase):
         )
 
 
+class UidNumberPerOfferingScopeTest(test.APITestCase):
+    """Test that uidnumber generation is scoped per offering, not global."""
+
+    def test_uidnumbers_are_sequential_per_offering(self):
+        """
+        When two offerings exist, creating users in offering A should not
+        create gaps in uidnumber sequence of offering B.
+        """
+        fixture = marketplace_fixtures.MarketplaceFixture()
+
+        offering_a = marketplace_factories.OfferingFactory(
+            type=SITE_AGENT_OFFERING,
+            customer=fixture.offering_customer,
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+                "username_generation_policy": "anonymized",
+                "username_anonymized_prefix": "user_a_",
+                "initial_uidnumber": 10000,
+                "initial_primarygroup_number": 1000,
+                "homedir_prefix": "/home/",
+            },
+        )
+        offering_b = marketplace_factories.OfferingFactory(
+            type=SITE_AGENT_OFFERING,
+            customer=fixture.offering_customer,
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+                "username_generation_policy": "anonymized",
+                "username_anonymized_prefix": "user_b_",
+                "initial_uidnumber": 10000,
+                "initial_primarygroup_number": 1000,
+                "homedir_prefix": "/home/",
+            },
+        )
+
+        # Create 3 users in offering A
+        for i in range(3):
+            user = structure_factories.UserFactory()
+            ou = marketplace_models.OfferingUser.objects.create(
+                offering=offering_a,
+                user=user,
+                username=f"user_a_{str(i).zfill(5)}",
+            )
+            marketplace_utils.setup_linux_related_data(ou, offering_a)
+            ou.save()
+
+        # Create 2 users in offering B
+        offering_b_users = []
+        for i in range(2):
+            user = structure_factories.UserFactory()
+            ou = marketplace_models.OfferingUser.objects.create(
+                offering=offering_b,
+                user=user,
+                username=f"user_b_{str(i).zfill(5)}",
+            )
+            marketplace_utils.setup_linux_related_data(ou, offering_b)
+            ou.save()
+            offering_b_users.append(ou)
+
+        # Offering B's first user should get uidnumber 10001, not 10004
+        self.assertEqual(offering_b_users[0].backend_metadata["uidnumber"], 10001)
+        self.assertEqual(offering_b_users[0].backend_metadata["primarygroup"], 1001)
+
+        # Offering B's second user should get uidnumber 10002, not 10005
+        self.assertEqual(offering_b_users[1].backend_metadata["uidnumber"], 10002)
+        self.assertEqual(offering_b_users[1].backend_metadata["primarygroup"], 1002)
+
+    def test_uidnumbers_are_sequential_within_single_offering(self):
+        """
+        Verify that uidnumbers increment sequentially within one offering.
+        """
+        fixture = marketplace_fixtures.MarketplaceFixture()
+
+        offering = marketplace_factories.OfferingFactory(
+            type=SITE_AGENT_OFFERING,
+            customer=fixture.offering_customer,
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+                "username_generation_policy": "waldur_username",
+                "initial_uidnumber": 5000,
+                "initial_primarygroup_number": 6000,
+                "homedir_prefix": "/home/",
+            },
+        )
+
+        users = []
+        for i in range(4):
+            user = structure_factories.UserFactory()
+            ou = marketplace_models.OfferingUser.objects.create(
+                offering=offering,
+                user=user,
+                username=user.username,
+            )
+            marketplace_utils.setup_linux_related_data(ou, offering)
+            ou.save()
+            users.append(ou)
+
+        for i, ou in enumerate(users):
+            expected_uid = 5001 + i
+            expected_group = 6001 + i
+            self.assertEqual(
+                ou.backend_metadata["uidnumber"],
+                expected_uid,
+                f"User {i} expected uidnumber {expected_uid}, got {ou.backend_metadata['uidnumber']}",
+            )
+            self.assertEqual(
+                ou.backend_metadata["primarygroup"],
+                expected_group,
+                f"User {i} expected primarygroup {expected_group}, got {ou.backend_metadata['primarygroup']}",
+            )
+
+
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
 class UserOfferingsMappingTest(test.APITestCase):
     def setUp(self):
