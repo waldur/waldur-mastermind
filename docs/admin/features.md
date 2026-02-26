@@ -64,6 +64,10 @@ Allow marketplace to serve only as aggregator of call info.
 
 Allow marketplace to function as a catalogue only.
 
+## marketplace.conceal_audit_log_from_end_users
+
+Hide audit log tab from non-staff and non-support users.
+
 ## marketplace.conceal_offering_pricing_tab_in_public_view
 
 Conceal offering pricing tab in the offering's public view.
