@@ -148,6 +148,7 @@ from waldur_mastermind.marketplace.managers import (
     ResourceQuerySet,
     filter_offering_permissions,
     get_connected_offerings,
+    get_connected_offerings_by_permission,
 )
 from waldur_mastermind.marketplace.utils import (
     get_model_serializer,
@@ -5642,11 +5643,15 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
         connected_customers = get_connected_customers_by_permission(
             user, PermissionEnum.LIST_ORDERS
         )
+        connected_offerings = get_connected_offerings_by_permission(
+            user, PermissionEnum.LIST_ORDERS
+        )
 
         return self.queryset.filter(
             Q(project__in=connected_projects)
             | Q(project__customer__in=connected_customers)
             | Q(offering__customer__in=connected_customers)
+            | Q(offering__in=connected_offerings)
         ).distinct()
 
     approve_by_consumer_validators = [
@@ -6056,7 +6061,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     set_state_executing_permissions = [
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
-            ["offering.customer"],
+            ["offering.customer", "offering"],
         )
     ]
 
@@ -6084,7 +6089,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     set_state_done_permissions = [
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
-            ["offering.customer"],
+            ["offering.customer", "offering"],
         )
     ]
 
@@ -6107,7 +6112,7 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
     set_state_erred_permissions = [
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
-            ["offering.customer", "offering.customer.serviceprovider"],
+            ["offering.customer", "offering.customer.serviceprovider", "offering"],
         )
     ]
 
