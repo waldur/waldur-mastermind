@@ -6805,6 +6805,8 @@ class OfferingUserSerializer(
 
         if not has_permission(
             request, PermissionEnum.UPDATE_OFFERING_USER, offering.customer
+        ) and not has_permission(
+            request, PermissionEnum.UPDATE_OFFERING_USER, offering
         ):
             raise rf_exceptions.PermissionDenied()
 
@@ -6824,6 +6826,8 @@ class OfferingUserUpdateRestrictionSerializer(serializers.Serializer):
         offering = offering_user.offering
         if not has_permission(
             request, PermissionEnum.UPDATE_OFFERING_USER, offering.customer
+        ) and not has_permission(
+            request, PermissionEnum.UPDATE_OFFERING_USER, offering
         ):
             raise rf_exceptions.PermissionDenied()
         return attrs
@@ -6848,6 +6852,8 @@ class OfferingUserStateTransitionSerializer(serializers.Serializer):
 
         if not has_permission(
             request, PermissionEnum.UPDATE_OFFERING_USER, offering.customer
+        ) and not has_permission(
+            request, PermissionEnum.UPDATE_OFFERING_USER, offering
         ):
             raise rf_exceptions.PermissionDenied()
 

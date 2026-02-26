@@ -7,9 +7,11 @@ from rest_framework import status, test
 from waldur_core.logging import enums as logging_enums
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
+from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import enums
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
+from waldur_mastermind.marketplace.tests.factories import OfferingUserFactory
 from waldur_mastermind.marketplace_site_agent import models
 from waldur_mastermind.marketplace_site_agent.tests import factories
 
@@ -52,8 +54,9 @@ class AgentIdentityCreateTest(test.APITestCase):
         }
 
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
 
-    @data("staff", "offering_owner")
+    @data("staff", "offering_owner", "offering_manager")
     def test_agent_identity_create_allowed(self, user_role):
         user = getattr(self.fixture, user_role)
         self.client.force_login(user)
@@ -68,7 +71,7 @@ class AgentIdentityCreateTest(test.APITestCase):
             ).exists()
         )
 
-    @data("offering_manager", "offering_admin", "admin", "manager", "global_support")
+    @data("offering_admin", "admin", "manager", "global_support")
     def test_agent_identity_create_forbidden(self, user_role):
         user = getattr(self.fixture, user_role)
         self.client.force_login(user)
@@ -141,6 +144,7 @@ class AgentIdentityEventSubscriptionTest(test.APITestCase):
         self.offering.save()
 
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
 
     def _create_agent_identity(self):
         """Helper method to create an AgentIdentity instance for testing."""
@@ -154,7 +158,7 @@ class AgentIdentityEventSubscriptionTest(test.APITestCase):
             agent_identity, action="register_event_subscription"
         )
 
-    @data("staff", "offering_owner")
+    @data("staff", "offering_owner", "offering_manager")
     def test_register_event_subscription_success(
         self,
         user_role,
@@ -338,7 +342,7 @@ class AgentIdentityEventSubscriptionTest(test.APITestCase):
         mock_create_rabbitmq_user.assert_called_once()
         mock_assign_rabbitmq_vhost_permissions.assert_called_once()
 
-    @data("offering_manager", "offering_admin", "admin", "manager", "global_support")
+    @data("offering_admin", "admin", "manager", "global_support")
     def test_register_event_subscription_forbidden(
         self,
         user_role,
@@ -462,6 +466,7 @@ class AgentIdentityRegisterServiceTest(test.APITestCase):
         self.offering.save()
 
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_OFFERING)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING)
 
         self.agent_identity = factories.AgentIdentityFactory(
             offering=self.offering, name="Test Agent Identity"
@@ -473,7 +478,7 @@ class AgentIdentityRegisterServiceTest(test.APITestCase):
             self.agent_identity, action="register_service"
         )
 
-    @data("staff", "offering_owner")
+    @data("staff", "offering_owner", "offering_manager")
     def test_register_service_success(self, user_role):
         """Test successful registration of a new service."""
         user = getattr(self.fixture, user_role)
@@ -566,7 +571,7 @@ class AgentIdentityRegisterServiceTest(test.APITestCase):
         self.assertEqual(response1.json()["uuid"], response2.json()["uuid"])
         self.assertEqual(response2.json()["mode"], payload["mode"])
 
-    @data("staff", "offering_owner")
+    @data("staff", "offering_owner", "offering_manager")
     def test_register_multiple_services(self, user_role):
         """Test registering multiple services for the same identity."""
         user = getattr(self.fixture, user_role)
@@ -596,7 +601,7 @@ class AgentIdentityRegisterServiceTest(test.APITestCase):
         self.assertIn(payload1["name"], service_names)
         self.assertIn(payload2["name"], service_names)
 
-    @data("offering_manager", "offering_admin", "admin", "manager", "global_support")
+    @data("offering_admin", "admin", "manager", "global_support")
     def test_register_service_forbidden(self, user_role):
         """Test that forbidden roles cannot register services."""
         user = getattr(self.fixture, user_role)
@@ -672,3 +677,59 @@ class AgentIdentityRegisterServiceTest(test.APITestCase):
 
         response = self.client.post(url, payload, format="json")
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class IdentityManagerAgentIdentityCreateTest(test.APITestCase):
+    """Identity managers with ISD overlap can create and manage agent identities."""
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.type = enums.SITE_AGENT_OFFERING
+        self.offering.save()
+
+        # Create an offering user with active_isds on this offering
+        self.target_user = UserFactory(active_isds=["isd:efp"])
+        OfferingUserFactory(
+            offering=self.offering,
+            user=self.target_user,
+            username="target-user",
+        )
+
+        # Identity manager whose managed_isds overlap
+        self.identity_manager = UserFactory(
+            is_identity_manager=True,
+            managed_isds=["isd:efp"],
+        )
+
+        # Identity manager with non-overlapping ISDs
+        self.non_matching_manager = UserFactory(
+            is_identity_manager=True,
+            managed_isds=["isd:fenix"],
+        )
+
+        self.payload = {
+            "name": "Agent from IdM",
+            "offering": self.offering.uuid.hex,
+        }
+
+    def test_identity_manager_with_isd_overlap_can_create(self):
+        self.client.force_authenticate(user=self.identity_manager)
+        url = factories.AgentIdentityFactory.get_list_url()
+        response = self.client.post(url, self.payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_identity_manager_without_isd_overlap_cannot_create(self):
+        self.client.force_authenticate(user=self.non_matching_manager)
+        url = factories.AgentIdentityFactory.get_list_url()
+        response = self.client.post(url, self.payload)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_identity_manager_can_destroy_agent_identity(self):
+        agent_identity = factories.AgentIdentityFactory(
+            offering=self.offering, name="To Delete"
+        )
+        self.client.force_authenticate(user=self.identity_manager)
+        url = factories.AgentIdentityFactory.get_url(agent_identity)
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
