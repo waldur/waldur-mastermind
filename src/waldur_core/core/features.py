@@ -177,6 +177,9 @@ class MarketplaceSection(FeatureSection):
     hide_organization_information_from_project_members = Feature(
         "Hide organization information from project-level users. Organization owners, managers, and staff retain full access."
     )
+    conceal_audit_log_from_end_users = Feature(
+        "Hide audit log tab from non-staff and non-support users."
+    )
 
 
 class SupportSection(FeatureSection):
