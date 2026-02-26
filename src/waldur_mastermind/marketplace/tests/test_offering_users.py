@@ -11,6 +11,7 @@ from waldur_core.logging.models import Event
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
     CustomerRole,
+    OfferingRole,
     ProjectRole,
     ServiceProviderRole,
 )
@@ -3008,3 +3009,190 @@ class OfferingUserProfileCompletenessTest(test.APITestCase):
         )
         self.assertFalse(record["is_profile_complete"])
         self.assertIn("email", record["missing_profile_attributes"])
+
+
+class IdentityManagerOfferingUserVisibilityTest(test.APITestCase):
+    """Identity managers can list OfferingUsers whose linked user's active_isds
+    overlap with the manager's managed_isds, even without direct offering access."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = OfferingFactory(
+            customer=self.fixture.customer,
+            shared=True,
+        )
+        self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True,
+        }
+        self.offering.save()
+
+        # A user with active_isds linked to an offering user
+        self.target_user = UserFactory(active_isds=["isd:efp", "isd:puhuri"])
+        self.offering_user = OfferingUser.objects.create(
+            offering=self.offering,
+            user=self.target_user,
+            username="target-user",
+        )
+
+        # Identity manager with matching managed_isds but no offering access
+        self.identity_manager = UserFactory(
+            is_identity_manager=True,
+            managed_isds=["isd:efp"],
+        )
+
+    def _list_offering_users(self, user):
+        self.client.force_authenticate(user=user)
+        return self.client.get(OfferingUserFactory.get_list_url())
+
+    def test_identity_manager_can_list_offering_users_with_overlapping_isds(self):
+        response = self._list_offering_users(self.identity_manager)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["username"], "target-user")
+
+    def test_identity_manager_cannot_see_users_without_isd_overlap(self):
+        non_matching_user = UserFactory(active_isds=["isd:fenix"])
+        OfferingUser.objects.create(
+            offering=self.offering,
+            user=non_matching_user,
+            username="fenix-user",
+        )
+        response = self._list_offering_users(self.identity_manager)
+        usernames = [item["username"] for item in response.data]
+        self.assertIn("target-user", usernames)
+        self.assertNotIn("fenix-user", usernames)
+
+    def test_non_identity_manager_without_access_cannot_list(self):
+        regular_user = UserFactory()
+        response = self._list_offering_users(regular_user)
+        self.assertEqual(len(response.data), 0)
+
+    def test_identity_manager_without_managed_isds_cannot_list(self):
+        manager_no_isds = UserFactory(
+            is_identity_manager=True,
+            managed_isds=[],
+        )
+        response = self._list_offering_users(manager_no_isds)
+        self.assertEqual(len(response.data), 0)
+
+
+class OfferingManagerOfferingUserVisibilityTest(test.APITestCase):
+    """Offering managers can list and manage OfferingUsers on offerings they manage."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = OfferingFactory(
+            customer=self.fixture.customer,
+            shared=True,
+        )
+        self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True,
+        }
+        self.offering.save()
+
+        # A regular user linked to this offering
+        self.target_user = UserFactory()
+        self.offering_user = OfferingUser.objects.create(
+            offering=self.offering,
+            user=self.target_user,
+            username="target-user",
+        )
+
+        # An offering manager with ONLY offering-scoped role (no customer role)
+        self.offering_manager = UserFactory()
+        self.offering.add_user(self.offering_manager, OfferingRole.MANAGER)
+
+    def _list_offering_users(self, user):
+        self.client.force_authenticate(user=user)
+        return self.client.get(OfferingUserFactory.get_list_url())
+
+    def test_offering_manager_can_list_offering_users(self):
+        response = self._list_offering_users(self.offering_manager)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["username"], "target-user")
+
+    def test_offering_manager_cannot_see_users_on_other_offerings(self):
+        other_offering = OfferingFactory(shared=True)
+        other_offering.plugin_options = {
+            "service_provider_can_create_offering_user": True,
+        }
+        other_offering.save()
+        other_user = UserFactory()
+        OfferingUser.objects.create(
+            offering=other_offering,
+            user=other_user,
+            username="other-user",
+        )
+
+        response = self._list_offering_users(self.offering_manager)
+        usernames = [item["username"] for item in response.data]
+        self.assertIn("target-user", usernames)
+        self.assertNotIn("other-user", usernames)
+
+
+class OfferingUserPartialUpdatePermissionTest(test.APITestCase):
+    """partial_update must enforce permission checks, not just queryset visibility."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = OfferingFactory(
+            customer=self.fixture.customer,
+            shared=True,
+        )
+        self.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True,
+        }
+        self.offering.save()
+
+        self.target_user = UserFactory(active_isds=["isd:efp"])
+        self.offering_user = OfferingUser.objects.create(
+            offering=self.offering,
+            user=self.target_user,
+            username="target-user",
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+
+    def _patch_offering_user(self, user, offering_user, data):
+        self.client.force_authenticate(user=user)
+        url = OfferingUserFactory.get_url(offering_user)
+        return self.client.patch(url, data)
+
+    def test_identity_manager_cannot_patch_offering_user(self):
+        identity_manager = UserFactory(
+            is_identity_manager=True,
+            managed_isds=["isd:efp"],
+        )
+        response = self._patch_offering_user(
+            identity_manager, self.offering_user, {"username": "hacked"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.username, "target-user")
+
+    def test_customer_owner_can_patch_offering_user(self):
+        response = self._patch_offering_user(
+            self.fixture.owner, self.offering_user, {"username": "updated"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.username, "updated")
+
+    def test_offering_user_cannot_patch_own_record(self):
+        response = self._patch_offering_user(
+            self.target_user, self.offering_user, {"username": "self-updated"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.username, "target-user")
+
+    def test_offering_manager_can_patch_offering_user(self):
+        offering_manager = UserFactory()
+        self.offering.add_user(offering_manager, OfferingRole.MANAGER)
+        response = self._patch_offering_user(
+            offering_manager, self.offering_user, {"username": "mgr-updated"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.username, "mgr-updated")

@@ -147,6 +147,7 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.managers import (
     ResourceQuerySet,
     filter_offering_permissions,
+    get_connected_offerings,
 )
 from waldur_mastermind.marketplace.utils import (
     get_model_serializer,
@@ -194,29 +195,41 @@ def get_allowed_offering_users_for_user(
         id__in=visible_customers
     ).values_list("organization_groups__id", flat=True)
 
+    # Build base visibility conditions
+    managed_offerings = get_connected_offerings(request_user)
+
+    base_visibility_q = (
+        Q(user=request_user)
+        | (
+            # service provider can see all records related to managed offerings
+            # but only for users with active consent
+            (Q(offering__customer__in=managed_customers) | Q(user__in=visible_users))
+            & (
+                # only offerings managed by customer where the current user has a role
+                Q(offering__customer__id__in=visible_customers)
+                |
+                # only offerings from organization_groups including the current user's customers
+                Q(offering__organization_groups__in=visible_organization_groups)
+            )
+        )
+        | (
+            # offering managers can see all offering users on offerings they manage
+            Q(offering__id__in=managed_offerings)
+        )
+    )
+
+    # Identity managers can see OfferingUsers whose linked user's active_isds
+    # overlap with the manager's managed_isds (mirrors event delivery logic)
+    if request_user.is_identity_manager and request_user.managed_isds:
+        identity_manager_q = Q()
+        for isd in request_user.managed_isds:
+            identity_manager_q |= Q(user__active_isds__contains=[isd])
+        base_visibility_q = base_visibility_q | identity_manager_q
+
     queryset = queryset.filter(
         # Exclude offerings with disabled OfferingUsers feature
         Q(offering__plugin_options__service_provider_can_create_offering_user=True)
-        &
-        # user can see own remote offering user
-        (
-            Q(user=request_user)
-            | (
-                # service provider can see all records related to managed offerings
-                # but only for users with active consent
-                (
-                    Q(offering__customer__in=managed_customers)
-                    | Q(user__in=visible_users)
-                )
-                & (
-                    # only offerings managed by customer where the current user has a role
-                    Q(offering__customer__id__in=visible_customers)
-                    |
-                    # only offerings from organization_groups including the current user's customers
-                    Q(offering__organization_groups__in=visible_organization_groups)
-                )
-            )
-        )
+        & base_visibility_q
     ).distinct()
 
     if (
@@ -8504,10 +8517,10 @@ class OfferingUsersViewSet(
         if request.user == obj.user:
             return
 
-        # Check if user has service provider permission
+        # Check if user has service provider permission (customer or offering scope)
         if has_permission(
             request, PermissionEnum.UPDATE_OFFERING_USER, obj.offering.customer
-        ):
+        ) or has_permission(request, PermissionEnum.UPDATE_OFFERING_USER, obj.offering):
             return
 
         raise rf_exceptions.PermissionDenied()
@@ -8519,10 +8532,16 @@ class OfferingUsersViewSet(
 
     # Reviewer checklist permissions (for service providers reviewing compliance)
     checklist_review_permissions = [
-        permission_factory(PermissionEnum.UPDATE_OFFERING_USER, ["offering.customer"])
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_USER,
+            ["offering.customer", "offering"],
+        )
     ]
     completion_review_status_permissions = [
-        permission_factory(PermissionEnum.UPDATE_OFFERING_USER, ["offering.customer"])
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_USER,
+            ["offering.customer", "offering"],
+        )
     ]
 
     def get_checklist_completion(self, obj):
@@ -8619,7 +8638,7 @@ class OfferingUsersViewSet(
     ) = set_pending_account_linking_permissions = begin_creating_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_USER,
-            ["offering.customer"],
+            ["offering.customer", "offering"],
         )
     ]
 
@@ -8912,7 +8931,7 @@ class OfferingUsersViewSet(
     set_deleted_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_USER,
-            ["offering.customer"],
+            ["offering.customer", "offering"],
         )
     ]
 
@@ -8948,7 +8967,7 @@ class OfferingUsersViewSet(
     request_deletion_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_USER,
-            ["offering.customer"],
+            ["offering.customer", "offering"],
         )
     ]
 
@@ -8988,7 +9007,7 @@ class OfferingUsersViewSet(
     set_deleting_permissions = [
         permission_factory(
             PermissionEnum.UPDATE_OFFERING_USER,
-            ["offering.customer"],
+            ["offering.customer", "offering"],
         )
     ]
 
