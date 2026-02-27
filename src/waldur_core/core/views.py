@@ -7,6 +7,10 @@ from urllib.parse import urlencode
 import requests
 import reversion
 from constance import config
+from constance import settings as constance_settings
+from constance.codecs import loads as constance_loads
+from constance.models import Constance
+from constance.utils import get_values as constance_get_values
 from django.conf import settings
 from django.contrib import auth
 from django.contrib.contenttypes.models import ContentType
@@ -416,6 +420,39 @@ def get_feature_values():
     }
 
 
+def _safe_get_constance_values():
+    """Get constance values, handling corrupt NULL entries gracefully.
+
+    When a constance setting has a NULL value in the database,
+    constance raises a TypeError during JSON deserialization.
+    This wrapper catches the error, logs the corrupt keys,
+    and returns None for those settings.
+    """
+    try:
+        return constance_get_values()
+    except TypeError:
+        prefix = constance_settings.DATABASE_PREFIX
+        values = {}
+        for key, options in constance_settings.CONFIG.items():
+            default_value = options[0]
+            prefixed_key = f"{prefix}{key}"
+            try:
+                entry = Constance.objects.filter(key=prefixed_key).first()
+                if entry is not None:
+                    values[key] = constance_loads(entry.value)
+                else:
+                    values[key] = default_value
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Constance setting '%s' has a corrupt (NULL) value in the "
+                    "database, returning None. To fix, re-save this setting "
+                    "via the admin panel or API.",
+                    key,
+                )
+                values[key] = None
+        return values
+
+
 def get_constance_plugin_settings(request, plugin, fields):
     plugin_settings = {}
     if request:
@@ -477,15 +514,14 @@ def get_public_settings(request=None):
             for s, v in ext.get_dynamic_settings().items():
                 public_settings[settings_name][s] = v
 
-    from constance.admin import get_values
-
     constance_settings = {}
     if request:
-        for key in get_values():
+        all_constance_values = _safe_get_constance_values()
+        for key, value in all_constance_values.items():
             if key in settings.PUBLIC_CONSTANCE_SETTINGS and not key.startswith(
                 "WALDUR_"
             ):
-                constance_settings[key] = get_values()[key]
+                constance_settings[key] = value
     if public_settings.get("WALDUR_CORE"):
         if request:
             for key, val in LOGO_MAP.items():
@@ -612,9 +648,7 @@ def _parse_bracket_notation(data):
 @permission_classes((rf_permissions.IsAdminUser,))
 def override_db_settings(request):
     if request.method == "GET":
-        from constance.admin import get_values
-
-        return Response(get_values())
+        return Response(_safe_get_constance_values())
 
     # Parse bracket notation keys for nested dict fields (e.g., multilingual images)
     data = _parse_bracket_notation(request.data)
@@ -714,8 +748,6 @@ class ConstanceCheckExtensionMixin:
     extension_name = NotImplemented
 
     def initial(self, request, *args, **kwargs):
-        from constance import config
-
         conf = getattr(config, f"{self.extension_name}_ENABLED", None)
         if not conf:
             raise ExtensionDisabled()

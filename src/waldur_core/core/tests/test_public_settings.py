@@ -1,5 +1,9 @@
+import logging
 from unittest import mock
 
+from constance import settings as constance_settings
+from constance.models import Constance
+from constance.utils import get_values
 from django.test import TestCase
 
 from waldur_core.core import views
@@ -80,3 +84,33 @@ class TestPublicSettings(TestCase):
     def test_if_field_not_in_get_public_settings_it_value_not_to_be_in_response(self):
         response = views.get_public_settings()
         self.assertFalse("SECRET" in response["WALDUR_EXTENSION_3"])
+
+
+class TestSafeGetConstanceValues(TestCase):
+    def test_null_constance_value_returns_none_and_logs_warning(self):
+        """When a constance setting has a NULL value in the database,
+        _safe_get_constance_values should return None for that key
+        and log a warning instead of raising TypeError."""
+        # Pick the first constance config key to corrupt
+        key = next(iter(constance_settings.CONFIG))
+        prefix = constance_settings.DATABASE_PREFIX
+        prefixed_key = f"{prefix}{key}"
+
+        # Write a NULL value directly in the database
+        Constance.objects.update_or_create(key=prefixed_key, defaults={"value": None})
+
+        with self.assertLogs("waldur_core.core.views", level=logging.WARNING) as cm:
+            result = views._safe_get_constance_values()
+
+        self.assertIsNone(result[key])
+        self.assertTrue(
+            any(key in message for message in cm.output),
+            f"Expected warning mentioning '{key}' in logs, got: {cm.output}",
+        )
+
+    def test_valid_constance_values_returned_normally(self):
+        """When all constance values are valid,
+        _safe_get_constance_values returns the same result as get_values."""
+        result = views._safe_get_constance_values()
+        expected = get_values()
+        self.assertEqual(result, expected)
