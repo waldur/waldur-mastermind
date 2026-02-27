@@ -105,6 +105,16 @@ DEACTIVATION_POLICY_CHOICES = [
     ("any_isd_removed", "Any ISD removal"),
 ]
 
+SSH_KEY_TYPE_CHOICES = [
+    ("ssh-ed25519", "ssh-ed25519"),
+    ("ecdsa-sha2-nistp256", "ecdsa-sha2-nistp256"),
+    ("ecdsa-sha2-nistp384", "ecdsa-sha2-nistp384"),
+    ("ecdsa-sha2-nistp521", "ecdsa-sha2-nistp521"),
+    ("ssh-rsa", "ssh-rsa"),
+    ("sk-ssh-ed25519@openssh.com", "sk-ssh-ed25519@openssh.com"),
+    ("sk-ecdsa-sha2-nistp256@openssh.com", "sk-ecdsa-sha2-nistp256@openssh.com"),
+]
+
 PROVIDER_CHOICES = [
     ("", "Not configured"),
     ("tara", "TARA"),
@@ -202,6 +212,7 @@ CONSTANCE_CONFIG_CHOICES = {
     "FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
     "FEDERATED_IDENTITY_DEACTIVATION_POLICY": DEACTIVATION_POLICY_CHOICES,
     "RESTRICTED_OFFERING_VISIBILITY_MODE": OFFERING_VISIBILITY_CHOICES,
+    "SSH_KEY_ALLOWED_TYPES": SSH_KEY_TYPE_CHOICES,
 }
 
 CONSTANCE_CONFIG = {
@@ -1165,6 +1176,24 @@ CONSTANCE_CONFIG = {
         False,
         "Enable project digest email notifications for organizations.",
     ),
+    # SSH key settings
+    "SSH_KEY_ALLOWED_TYPES": (
+        [
+            "ssh-ed25519",
+            "ecdsa-sha2-nistp256",
+            "ecdsa-sha2-nistp384",
+            "ecdsa-sha2-nistp521",
+            "ssh-rsa",
+            "sk-ssh-ed25519@openssh.com",
+            "sk-ecdsa-sha2-nistp256@openssh.com",
+        ],
+        "List of allowed SSH key types. Empty list means all types are allowed.",
+        "multiple_choice_field",
+    ),
+    "SSH_KEY_MIN_RSA_KEY_SIZE": (
+        2048,
+        "Minimum allowed RSA key size in bits. Set to 0 to disable the check.",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -1475,6 +1504,10 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "FEDERATED_IDENTITY_DEACTIVATION_POLICY",
     ),
     "Project Digest": ("ENABLE_PROJECT_DIGEST",),
+    "SSH keys": (
+        "SSH_KEY_ALLOWED_TYPES",
+        "SSH_KEY_MIN_RSA_KEY_SIZE",
+    ),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (
@@ -1546,4 +1579,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS",
     # Project Digest
     "ENABLE_PROJECT_DIGEST",
+    # SSH keys
+    "SSH_KEY_ALLOWED_TYPES",
+    "SSH_KEY_MIN_RSA_KEY_SIZE",
 )
