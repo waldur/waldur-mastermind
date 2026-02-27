@@ -2843,3 +2843,21 @@ When to deactivate a federated user.
 **Type:** bool
 
 Enable project digest email notifications for organizations.
+
+### SSH keys
+
+#### SSH_KEY_ALLOWED_TYPES
+
+**Type:** multiple_choice_field
+
+**Default value:** ['ssh-ed25519', 'ecdsa-sha2-nistp256', 'ecdsa-sha2-nistp384', 'ecdsa-sha2-nistp521', 'ssh-rsa', 'sk-ssh-ed25519@openssh.com', 'sk-ecdsa-sha2-nistp256@openssh.com']
+
+List of allowed SSH key types. Empty list means all types are allowed.
+
+#### SSH_KEY_MIN_RSA_KEY_SIZE
+
+**Type:** int
+
+**Default value:** 2048
+
+Minimum allowed RSA key size in bits. Set to 0 to disable the check.

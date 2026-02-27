@@ -2579,6 +2579,27 @@ Email: {{order.created_by.email}}
 
 ```
 
+### ssh_key_change_issue.txt (waldur_mastermind.marketplace_support)
+
+```txt
+
+User: {{user.first_name}} {{user.last_name}} (e-mail: {{user.email}}, username: {{user.username}}).
+
+SSH key name: {{ssh_key.name}}
+Fingerprint MD5: {{ssh_key.fingerprint_md5}}
+Fingerprint SHA256: {{ssh_key.fingerprint_sha256}}
+Fingerprint SHA512: {{ssh_key.fingerprint_sha512}}
+Public key:
+{{ssh_key.public_key}}
+{% if resources %}
+Affected resources:
+{% for resource in resources %}- {{resource.name}} ({{resource.offering.name}}), project: {{resource.project.name}}, organization: {{resource.project.customer.name}}, backend ID: {{resource.backend_id}}, link: {{resource.get_homeport_link}}
+{% endfor %}{% else %}
+No active support resources found for this user.
+{% endif %}
+
+```
+
 ### update_limits_template.txt (waldur_mastermind.marketplace_support)
 
 ```txt
