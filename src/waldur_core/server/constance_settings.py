@@ -272,6 +272,10 @@ CONSTANCE_CONFIG = {
         False,
         "Enable reminders to owners about resources of shared offerings that have not generated any cost for the last 3 months.",
     ),
+    "ENABLE_ISSUES_FOR_USER_SSH_KEY_CHANGES": (
+        False,
+        "If true, a support ticket is created when a user adds or removes an SSH public key.",
+    ),
     "TELEMETRY_URL": (
         "https://telemetry.waldur.com/",
         "URL for sending telemetry data.",

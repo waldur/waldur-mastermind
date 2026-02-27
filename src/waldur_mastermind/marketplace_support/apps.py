@@ -8,6 +8,7 @@ class MarketplaceSupportConfig(AppConfig):
 
     def ready(self):
         from waldur_core.core import signals as core_signals
+        from waldur_core.core.models import SshPublicKey
         from waldur_core.permissions.models import UserRole
         from waldur_mastermind.marketplace import serializers as marketplace_serializers
         from waldur_mastermind.marketplace.enums import SUPPORT_OFFERING
@@ -49,4 +50,16 @@ class MarketplaceSupportConfig(AppConfig):
             handlers.create_issue_if_membership_changed,
             sender=UserRole,
             dispatch_uid="waldur_mastermind.marketplace_support.create_issue_if_membership_changed",
+        )
+
+        signals.post_save.connect(
+            handlers.create_issue_if_ssh_key_added,
+            sender=SshPublicKey,
+            dispatch_uid="waldur_mastermind.marketplace_support.create_issue_if_ssh_key_added",
+        )
+
+        signals.post_delete.connect(
+            handlers.create_issue_if_ssh_key_removed,
+            sender=SshPublicKey,
+            dispatch_uid="waldur_mastermind.marketplace_support.create_issue_if_ssh_key_removed",
         )
