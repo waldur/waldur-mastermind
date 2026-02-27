@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 
 from constance import config
+from cryptography.hazmat.primitives.serialization import load_ssh_public_key
 from dbtemplates import models as dbtemplate_models
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
@@ -1654,6 +1655,45 @@ class SshKeySerializer(
             raise serializers.ValidationError(
                 _("Key is not valid: cannot generate fingerprint_md5 from it.")
             )
+
+        # Validate key type against allowlist
+        key_type = value.split()[0]
+        allowed_types = config.SSH_KEY_ALLOWED_TYPES
+        if allowed_types and key_type not in allowed_types:
+            raise serializers.ValidationError(
+                _(
+                    "Key type '%(key_type)s' is not allowed. "
+                    "Allowed types: %(allowed_types)s."
+                )
+                % {
+                    "key_type": key_type,
+                    "allowed_types": ", ".join(allowed_types),
+                }
+            )
+
+        # Validate RSA key size
+        min_rsa_size = config.SSH_KEY_MIN_RSA_KEY_SIZE
+        if key_type == "ssh-rsa" and min_rsa_size > 0:
+            try:
+                parsed_key = load_ssh_public_key(value.encode("utf-8"))
+                if parsed_key.key_size < min_rsa_size:
+                    raise serializers.ValidationError(
+                        _(
+                            "RSA key size %(key_size)s bits is too small. "
+                            "Minimum required: %(min_size)s bits."
+                        )
+                        % {
+                            "key_size": parsed_key.key_size,
+                            "min_size": min_rsa_size,
+                        }
+                    )
+            except (ValueError, Exception) as e:
+                if isinstance(e, serializers.ValidationError):
+                    raise
+                raise serializers.ValidationError(
+                    _("Key is not valid: cannot parse RSA key.")
+                )
+
         return value
 
 

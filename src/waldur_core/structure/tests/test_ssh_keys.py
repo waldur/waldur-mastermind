@@ -1,3 +1,4 @@
+from constance.test import override_config
 from rest_framework import status, test
 
 from waldur_core.core import models as core_models
@@ -152,3 +153,74 @@ class SshKeyDeleteTest(BaseSshKeyTest):
 
         response = self.client.delete(factories.SshPublicKeyFactory.get_url(shared_key))
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+ED25519_PUBLIC_KEY = (
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHaD5EERMoDJvjH9p4wR19MFX6y"
+    "+VI6J6432cI5x4PjT test@example.com"
+)
+
+
+class SshKeyTypeRestrictionTest(BaseSshKeyTest):
+    @override_config(SSH_KEY_ALLOWED_TYPES=["ssh-ed25519"])
+    def test_user_cannot_upload_disallowed_key_type(self):
+        self.client.force_authenticate(self.user)
+        key = factories.SshPublicKeyFactory.build()
+        data = {"name": key.name, "public_key": key.public_key}
+        response = self.client.post(
+            factories.SshPublicKeyFactory.get_list_url(), data=data
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("ssh-rsa", response.data["public_key"][0])
+
+    @override_config(SSH_KEY_ALLOWED_TYPES=["ssh-rsa"])
+    def test_user_can_upload_allowed_key_type(self):
+        self.client.force_authenticate(self.user)
+        key = factories.SshPublicKeyFactory.build()
+        data = {"name": key.name, "public_key": key.public_key}
+        response = self.client.post(
+            factories.SshPublicKeyFactory.get_list_url(), data=data
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @override_config(SSH_KEY_ALLOWED_TYPES=[])
+    def test_all_key_types_allowed_when_setting_empty(self):
+        self.client.force_authenticate(self.user)
+        key = factories.SshPublicKeyFactory.build()
+        data = {"name": key.name, "public_key": key.public_key}
+        response = self.client.post(
+            factories.SshPublicKeyFactory.get_list_url(), data=data
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @override_config(SSH_KEY_MIN_RSA_KEY_SIZE=4096)
+    def test_rsa_key_rejected_if_too_short(self):
+        self.client.force_authenticate(self.user)
+        key = factories.SshPublicKeyFactory.build()
+        data = {"name": key.name, "public_key": key.public_key}
+        response = self.client.post(
+            factories.SshPublicKeyFactory.get_list_url(), data=data
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("2048", response.data["public_key"][0])
+        self.assertIn("4096", response.data["public_key"][0])
+
+    @override_config(SSH_KEY_MIN_RSA_KEY_SIZE=2048)
+    def test_rsa_key_accepted_if_long_enough(self):
+        self.client.force_authenticate(self.user)
+        key = factories.SshPublicKeyFactory.build()
+        data = {"name": key.name, "public_key": key.public_key}
+        response = self.client.post(
+            factories.SshPublicKeyFactory.get_list_url(), data=data
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @override_config(SSH_KEY_MIN_RSA_KEY_SIZE=0)
+    def test_rsa_key_size_check_disabled_when_zero(self):
+        self.client.force_authenticate(self.user)
+        key = factories.SshPublicKeyFactory.build()
+        data = {"name": key.name, "public_key": key.public_key}
+        response = self.client.post(
+            factories.SshPublicKeyFactory.get_list_url(), data=data
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
