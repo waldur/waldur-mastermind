@@ -5,6 +5,7 @@ from rest_framework import status, test
 
 from waldur_core.logging import models, tasks
 from waldur_core.logging.tests import factories
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 
 
@@ -533,6 +534,183 @@ class EventSubscriptionCreateQueueActionTest(test.APITestCase):
                 "object_type": "resource",
             },
         )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("offering_uuid", response.data)
+
+
+class ISDManagerEventSubscriptionQueueTest(test.APITestCase):
+    """Tests for ISD identity manager access to event subscription queue creation."""
+
+    def setUp(self):
+        from waldur_mastermind.marketplace import enums as marketplace_enums
+        from waldur_mastermind.marketplace.tests import (
+            factories as marketplace_factories,
+        )
+
+        self.marketplace_enums = marketplace_enums
+        self.marketplace_factories = marketplace_factories
+
+        self.isd_manager = structure_factories.UserFactory(
+            is_identity_manager=True,
+            managed_isds=["isd:efp"],
+        )
+        self.event_subscription = factories.EventSubscriptionFactory(
+            user=self.isd_manager,
+            observable_objects=[{"object_type": "resource"}],
+        )
+        self.url = factories.EventSubscriptionFactory.get_url(
+            self.event_subscription, action="create_queue"
+        )
+
+    @patch("waldur_core.logging.backend.RabbitMQManagementBackend")
+    def test_isd_manager_can_create_queue_for_active_offering(self, mock_backend_class):
+        mock_backend = mock_backend_class.return_value
+        mock_backend.create_queue.return_value = True
+
+        offering = self.marketplace_factories.OfferingFactory(
+            state=self.marketplace_enums.OfferingStates.ACTIVE,
+        )
+
+        self.client.force_authenticate(self.isd_manager)
+        response = self.client.post(
+            self.url,
+            {
+                "offering_uuid": str(offering.uuid),
+                "object_type": "resource",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(models.EventSubscriptionQueue.objects.count(), 1)
+
+    @patch("waldur_core.logging.backend.RabbitMQManagementBackend")
+    def test_isd_manager_can_create_queue_for_paused_offering(self, mock_backend_class):
+        mock_backend = mock_backend_class.return_value
+        mock_backend.create_queue.return_value = True
+
+        offering = self.marketplace_factories.OfferingFactory(
+            state=self.marketplace_enums.OfferingStates.PAUSED,
+        )
+
+        self.client.force_authenticate(self.isd_manager)
+        response = self.client.post(
+            self.url,
+            {
+                "offering_uuid": str(offering.uuid),
+                "object_type": "resource",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    @patch("waldur_core.logging.backend.RabbitMQManagementBackend")
+    def test_isd_manager_can_create_queue_for_unavailable_offering(
+        self, mock_backend_class
+    ):
+        mock_backend = mock_backend_class.return_value
+        mock_backend.create_queue.return_value = True
+
+        offering = self.marketplace_factories.OfferingFactory(
+            state=self.marketplace_enums.OfferingStates.UNAVAILABLE,
+        )
+
+        self.client.force_authenticate(self.isd_manager)
+        response = self.client.post(
+            self.url,
+            {
+                "offering_uuid": str(offering.uuid),
+                "object_type": "resource",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_isd_manager_cannot_create_queue_for_draft_offering(self):
+        offering = self.marketplace_factories.OfferingFactory(
+            state=self.marketplace_enums.OfferingStates.DRAFT,
+        )
+
+        self.client.force_authenticate(self.isd_manager)
+        response = self.client.post(
+            self.url,
+            {
+                "offering_uuid": str(offering.uuid),
+                "object_type": "resource",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("offering_uuid", response.data)
+
+    def test_isd_manager_cannot_create_queue_for_archived_offering(self):
+        offering = self.marketplace_factories.OfferingFactory(
+            state=self.marketplace_enums.OfferingStates.ARCHIVED,
+        )
+
+        self.client.force_authenticate(self.isd_manager)
+        response = self.client.post(
+            self.url,
+            {
+                "offering_uuid": str(offering.uuid),
+                "object_type": "resource",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("offering_uuid", response.data)
+
+    def test_identity_manager_without_managed_isds_is_rejected(self):
+        user = structure_factories.UserFactory(
+            is_identity_manager=True,
+            managed_isds=[],
+        )
+        subscription = factories.EventSubscriptionFactory(
+            user=user,
+            observable_objects=[{"object_type": "resource"}],
+        )
+        url = factories.EventSubscriptionFactory.get_url(
+            subscription, action="create_queue"
+        )
+        offering = self.marketplace_factories.OfferingFactory(
+            state=self.marketplace_enums.OfferingStates.ACTIVE,
+        )
+
+        self.client.force_authenticate(user)
+        response = self.client.post(
+            url,
+            {
+                "offering_uuid": str(offering.uuid),
+                "object_type": "resource",
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("offering_uuid", response.data)
+
+    def test_non_identity_manager_without_offering_access_is_rejected(self):
+        user = structure_factories.UserFactory(
+            is_identity_manager=False,
+        )
+        subscription = factories.EventSubscriptionFactory(
+            user=user,
+            observable_objects=[{"object_type": "resource"}],
+        )
+        url = factories.EventSubscriptionFactory.get_url(
+            subscription, action="create_queue"
+        )
+        offering = self.marketplace_factories.OfferingFactory(
+            state=self.marketplace_enums.OfferingStates.ACTIVE,
+        )
+
+        self.client.force_authenticate(user)
+        response = self.client.post(
+            url,
+            {
+                "offering_uuid": str(offering.uuid),
+                "object_type": "resource",
+            },
+        )
+
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("offering_uuid", response.data)
 

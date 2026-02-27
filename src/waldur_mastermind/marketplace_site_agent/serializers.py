@@ -154,6 +154,10 @@ class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
         ),
         help_text="UUID of an offering with a site-agent compatible type.",
     )
+    created_by = serializers.SlugRelatedField(
+        slug_field="uuid",
+        read_only=True,
+    )
     services = NestedAgentServiceSerializer(
         many=True, read_only=True, source="agentservice_set"
     )
@@ -164,6 +168,7 @@ class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
             "uuid",
             "url",
             "offering",
+            "created_by",
             "name",
             "version",
             "dependencies",

@@ -584,8 +584,28 @@ flowchart LR
 | "Did an ISD lose all its users?" | `users_per_isd` — compare counts over time | `/api/identity-bridge/stats/` |
 | "Is this user federated at all?" | `is_federated` + `active_isds` | `/api/users/{uuid}/identity_bridge_status/` |
 
+## Agent Identity and Event Queue Access
+
+ISD identity managers can also register agent identities and create STOMP event subscription queues for offerings, enabling federated site agents to operate without requiring pre-existing offering users.
+
+### Agent Identity Management
+
+ISD identity managers with non-empty `managed_isds` can create agent identities for offerings in Active, Paused, or Unavailable states. Each agent identity tracks its creator via the `created_by` field, and ISD managers can only update, delete, or list their own agent identities.
+
+This solves the bootstrapping problem: agents create offering users, so requiring offering users to register agents would be circular.
+
+See [STOMP-Based Event Notification System — Agent Identity Permissions](core-concepts/event-based-order-processing.md#agent-identity-permissions) for the full permission model.
+
+### Event Subscription Queues
+
+ISD identity managers can create STOMP event subscription queues for offerings in the same allowed states (Active, Paused, Unavailable). Draft and Archived offerings are rejected.
+
+See [Event Subscription Queues — Access Control](guides/event-subscription-queues.md#create-queue) for details.
+
 ## See Also
 
 - [User Profile Attributes](user-profile-attributes.md) — attribute reference and configuration
 - [Multi-Client OIDC](multi-client-oidc.md) — OIDC authentication and claim mapping
 - [Offering Users](core-concepts/offering-users.md) — exposing user attributes to services
+- [STOMP Event Notification System](core-concepts/event-based-order-processing.md) — agent identity and event system
+- [Event Subscription Queues](guides/event-subscription-queues.md) — queue lifecycle and API

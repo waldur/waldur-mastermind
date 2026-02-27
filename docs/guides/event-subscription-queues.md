@@ -232,6 +232,13 @@ POST /api/event-subscriptions/{uuid}/create_queue/
 
 **Response (200 OK):** Same format, returned when queue already exists.
 
+**Access control:** The `offering_uuid` is validated against the user's permissions:
+
+1. Users with standard offering access (customer owner, offering manager, etc.) can create queues for their offerings
+2. ISD identity managers (`is_identity_manager=True` with non-empty `managed_isds`) can create queues for offerings in Active, Paused, or Unavailable states — Draft and Archived offerings are rejected with HTTP 400
+
+This ISD manager access path enables federated agents to subscribe to events without requiring pre-existing offering users. See [Identity Bridge](../identity-bridge.md) for details on ISD identity managers.
+
 **Valid object_type values:**
 - `resource`
 - `order`
