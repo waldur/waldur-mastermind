@@ -5748,6 +5748,21 @@ class Command(BaseCommand):
                         end_date = datetime.fromisoformat(
                             credit_data["end_date"]
                         ).date()
+                        if end_date.day != 1:
+                            original = end_date
+                            if end_date.month == 12:
+                                end_date = end_date.replace(
+                                    year=end_date.year + 1, month=1, day=1
+                                )
+                            else:
+                                end_date = end_date.replace(
+                                    month=end_date.month + 1, day=1
+                                )
+                            self.stdout.write(
+                                self.style.WARNING(
+                                    f"Customer credit {uuid}: end_date adjusted from {original} to {end_date} (must be first day of month)"
+                                )
+                            )
                     except (ValueError, TypeError):
                         self.stdout.write(
                             self.style.WARNING(
@@ -5875,6 +5890,21 @@ class Command(BaseCommand):
                         end_date = datetime.fromisoformat(
                             credit_data["end_date"]
                         ).date()
+                        if end_date.day != 1:
+                            original = end_date
+                            if end_date.month == 12:
+                                end_date = end_date.replace(
+                                    year=end_date.year + 1, month=1, day=1
+                                )
+                            else:
+                                end_date = end_date.replace(
+                                    month=end_date.month + 1, day=1
+                                )
+                            self.stdout.write(
+                                self.style.WARNING(
+                                    f"Project credit {uuid}: end_date adjusted from {original} to {end_date} (must be first day of month)"
+                                )
+                            )
                     except (ValueError, TypeError):
                         self.stdout.write(
                             self.style.WARNING(
@@ -5949,9 +5979,14 @@ class Command(BaseCommand):
                     else:
                         self.stats["project_credits"]["created"] += 1
             except Exception as e:
+                customer_name = project.customer.name if project else "N/A"
                 self.stdout.write(
                     self.style.WARNING(
                         f"Failed to import project credit {credit_data.get('uuid')}: {e}"
+                        f" | customer: {customer_name}"
+                        f" | project: {project.name if project else 'N/A'}"
+                        f" | value: {credit_data.get('value')}"
+                        f" | end_date: {credit_data.get('end_date')}"
                     )
                 )
                 self.stats["project_credits"]["errors"] += 1
