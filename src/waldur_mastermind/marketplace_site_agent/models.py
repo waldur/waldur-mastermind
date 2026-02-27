@@ -19,6 +19,13 @@ class AgentIdentity(
     """Identity created for each running Waldur Site Agent."""
 
     offering = models.ForeignKey(marketplace_models.Offering, on_delete=models.CASCADE)
+    created_by = models.ForeignKey(
+        core_models.User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
     version = models.CharField(max_length=100, blank=True, null=True)
     dependencies = models.JSONField(default=list)
     config_file_path = models.CharField(

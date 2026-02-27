@@ -70,6 +70,8 @@ class OfferingStates:
         (UNAVAILABLE, "Unavailable"),
     )
 
+    ISD_ALLOWED_STATES = (ACTIVE, PAUSED, UNAVAILABLE)
+
     VALUES = [val for (_, val) in CHOICES]
 
 

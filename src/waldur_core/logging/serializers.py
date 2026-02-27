@@ -281,6 +281,7 @@ class EventSubscriptionQueueCreateSerializer(serializers.Serializer):
 
     def validate_offering_uuid(self, value):
         """Verify user has access to this offering."""
+        from waldur_mastermind.marketplace import enums as marketplace_enums
         from waldur_mastermind.marketplace import models as marketplace_models
 
         request = self.context.get("request")
@@ -295,14 +296,23 @@ class EventSubscriptionQueueCreateSerializer(serializers.Serializer):
                 f"Offering with UUID {value} does not exist"
             )
 
-        # Check user has access to the offering
+        # Check user has access to the offering via standard permissions
         user_offerings = marketplace_models.Offering.objects.all().filter_for_user(
             request.user
         )
-        if not user_offerings.filter(uuid=value).exists():
-            raise serializers.ValidationError("You do not have access to this offering")
+        if user_offerings.filter(uuid=value).exists():
+            return value
 
-        return value
+        # ISD identity managers can access non-archived/draft offerings
+        # for STOMP event subscription queue creation
+        if request.user.is_identity_manager and request.user.managed_isds:
+            if marketplace_models.Offering.objects.filter(
+                uuid=value,
+                state__in=marketplace_enums.OfferingStates.ISD_ALLOWED_STATES,
+            ).exists():
+                return value
+
+        raise serializers.ValidationError("You do not have access to this offering")
 
     @transaction.atomic
     def create(self, validated_data):

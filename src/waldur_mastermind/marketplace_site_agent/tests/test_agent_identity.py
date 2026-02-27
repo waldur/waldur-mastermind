@@ -11,7 +11,6 @@ from waldur_core.permissions.fixtures import CustomerRole, OfferingRole
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import enums
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.marketplace.tests.factories import OfferingUserFactory
 from waldur_mastermind.marketplace_site_agent import models
 from waldur_mastermind.marketplace_site_agent.tests import factories
 
@@ -679,8 +678,9 @@ class AgentIdentityRegisterServiceTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
-class IdentityManagerAgentIdentityCreateTest(test.APITestCase):
-    """Identity managers with ISD overlap can create and manage agent identities."""
+class IdentityManagerAgentIdentityTest(test.APITestCase):
+    """Identity managers can create agent identities for non-archived/draft offerings
+    and manage only their own."""
 
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
@@ -688,22 +688,12 @@ class IdentityManagerAgentIdentityCreateTest(test.APITestCase):
         self.offering.type = enums.SITE_AGENT_OFFERING
         self.offering.save()
 
-        # Create an offering user with active_isds on this offering
-        self.target_user = UserFactory(active_isds=["isd:efp"])
-        OfferingUserFactory(
-            offering=self.offering,
-            user=self.target_user,
-            username="target-user",
-        )
-
-        # Identity manager whose managed_isds overlap
         self.identity_manager = UserFactory(
             is_identity_manager=True,
             managed_isds=["isd:efp"],
         )
 
-        # Identity manager with non-overlapping ISDs
-        self.non_matching_manager = UserFactory(
+        self.other_identity_manager = UserFactory(
             is_identity_manager=True,
             managed_isds=["isd:fenix"],
         )
@@ -713,23 +703,77 @@ class IdentityManagerAgentIdentityCreateTest(test.APITestCase):
             "offering": self.offering.uuid.hex,
         }
 
-    def test_identity_manager_with_isd_overlap_can_create(self):
+    def test_identity_manager_can_create_without_offering_users(self):
+        """ISD manager can create agent identity even without any offering users."""
         self.client.force_authenticate(user=self.identity_manager)
         url = factories.AgentIdentityFactory.get_list_url()
         response = self.client.post(url, self.payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        agent = models.AgentIdentity.objects.get(name="Agent from IdM")
+        self.assertEqual(agent.created_by, self.identity_manager)
 
-    def test_identity_manager_without_isd_overlap_cannot_create(self):
-        self.client.force_authenticate(user=self.non_matching_manager)
+    def test_other_identity_manager_can_also_create(self):
+        """Any ISD manager with managed_isds can create, regardless of ISD values."""
+        self.client.force_authenticate(user=self.other_identity_manager)
+        url = factories.AgentIdentityFactory.get_list_url()
+        response = self.client.post(url, self.payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_identity_manager_cannot_create_for_archived_offering(self):
+        self.offering.state = enums.OfferingStates.ARCHIVED
+        self.offering.save()
+        self.client.force_authenticate(user=self.identity_manager)
         url = factories.AgentIdentityFactory.get_list_url()
         response = self.client.post(url, self.payload)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    def test_identity_manager_can_destroy_agent_identity(self):
+    def test_identity_manager_cannot_create_for_draft_offering(self):
+        self.offering.state = enums.OfferingStates.DRAFT
+        self.offering.save()
+        self.client.force_authenticate(user=self.identity_manager)
+        url = factories.AgentIdentityFactory.get_list_url()
+        response = self.client.post(url, self.payload)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_identity_manager_can_destroy_own_agent_identity(self):
         agent_identity = factories.AgentIdentityFactory(
-            offering=self.offering, name="To Delete"
+            offering=self.offering,
+            name="My Agent",
+            created_by=self.identity_manager,
         )
         self.client.force_authenticate(user=self.identity_manager)
         url = factories.AgentIdentityFactory.get_url(agent_identity)
         response = self.client.delete(url)
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+
+    def test_identity_manager_cannot_destroy_others_agent_identity(self):
+        agent_identity = factories.AgentIdentityFactory(
+            offering=self.offering,
+            name="Other's Agent",
+            created_by=self.other_identity_manager,
+        )
+        self.client.force_authenticate(user=self.identity_manager)
+        url = factories.AgentIdentityFactory.get_url(agent_identity)
+        response = self.client.delete(url)
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND],
+        )
+
+    def test_identity_manager_can_list_own_agent_identities(self):
+        factories.AgentIdentityFactory(
+            offering=self.offering,
+            name="My Agent",
+            created_by=self.identity_manager,
+        )
+        factories.AgentIdentityFactory(
+            offering=self.offering,
+            name="Other's Agent",
+            created_by=self.other_identity_manager,
+        )
+        self.client.force_authenticate(user=self.identity_manager)
+        url = factories.AgentIdentityFactory.get_list_url()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["name"], "My Agent")

@@ -21,6 +21,7 @@ from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.models import Project
+from waldur_mastermind.marketplace import enums as marketplace_enums
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace_site_agent import filters, models, serializers
 from waldur_mastermind.marketplace_site_agent.enums import AgentServiceState
@@ -29,14 +30,15 @@ from waldur_mastermind.marketplace_site_agent.utils import push_user_role_sync_m
 logger = logging.getLogger(__name__)
 
 
-def _can_manage_offering_agent(request, offering):
+def _can_manage_offering_agent(request, offering, agent_identity=None):
     """Check if user can manage agent identities/services for the given offering.
 
     Allowed for:
     1. Staff
     2. Customer-level permission (owner, service provider manager)
     3. Offering managers (offering-scoped role)
-    4. Identity managers whose managed_isds overlap with offering users' active_isds
+    4. Identity managers with managed_isds — can create for non-archived/draft
+       offerings and manage only their own agent identities
     """
     user = request.user
     if user.is_staff:
@@ -46,13 +48,11 @@ def _can_manage_offering_agent(request, offering):
     if has_permission(request, PermissionEnum.UPDATE_OFFERING, offering):
         return True
     if user.is_identity_manager and user.managed_isds:
-        isd_q = Q()
-        for isd in user.managed_isds:
-            isd_q |= Q(user__active_isds__contains=[isd])
-        if marketplace_models.OfferingUser.objects.filter(
-            isd_q, offering=offering
-        ).exists():
-            return True
+        if offering.state not in marketplace_enums.OfferingStates.ISD_ALLOWED_STATES:
+            return False
+        if agent_identity is not None:
+            return agent_identity.created_by == user
+        return True
     return False
 
 
@@ -103,10 +103,10 @@ class AgentIdentityViewSet(ActionsViewSet):
         base_q = Q(offering__in=offerings)
 
         if user.is_identity_manager and user.managed_isds:
-            isd_q = Q()
-            for isd in user.managed_isds:
-                isd_q |= Q(offering__offeringuser__user__active_isds__contains=[isd])
-            base_q = base_q | isd_q
+            base_q = base_q | Q(
+                offering__state__in=marketplace_enums.OfferingStates.ISD_ALLOWED_STATES,
+                created_by=user,
+            )
 
         return models.AgentIdentity.objects.filter(base_q).distinct()
 
@@ -146,12 +146,15 @@ class AgentIdentityViewSet(ActionsViewSet):
 
     create_permissions = [check_create_permissions]
 
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
     def _check_agent_identity_permission(request, view, obj=None):
         if not obj:
             if not request.user.is_authenticated:
                 raise PermissionDenied("Authentication required")
             return
-        if not _can_manage_offering_agent(request, obj.offering):
+        if not _can_manage_offering_agent(request, obj.offering, agent_identity=obj):
             raise PermissionDenied()
 
     partial_update_permissions = destroy_permissions = (
@@ -375,12 +378,10 @@ class AgentServiceViewSet(ActionsViewSet):
         base_q = Q(identity__offering__in=offerings)
 
         if user.is_identity_manager and user.managed_isds:
-            isd_q = Q()
-            for isd in user.managed_isds:
-                isd_q |= Q(
-                    identity__offering__offeringuser__user__active_isds__contains=[isd]
-                )
-            base_q = base_q | isd_q
+            base_q = base_q | Q(
+                identity__offering__state__in=marketplace_enums.OfferingStates.ISD_ALLOWED_STATES,
+                identity__created_by=user,
+            )
 
         return models.AgentService.objects.filter(base_q).distinct()
 
@@ -389,7 +390,9 @@ class AgentServiceViewSet(ActionsViewSet):
             if not request.user.is_authenticated:
                 raise PermissionDenied("Authentication required")
             return
-        if not _can_manage_offering_agent(request, obj.identity.offering):
+        if not _can_manage_offering_agent(
+            request, obj.identity.offering, agent_identity=obj.identity
+        ):
             raise PermissionDenied()
 
     destroy_permissions = set_statistics_permissions = (
@@ -532,14 +535,10 @@ class AgentProcessorViewSet(ActionsViewSet):
         base_q = Q(service__identity__offering__in=offerings)
 
         if user.is_identity_manager and user.managed_isds:
-            isd_q = Q()
-            for isd in user.managed_isds:
-                isd_q |= Q(
-                    service__identity__offering__offeringuser__user__active_isds__contains=[
-                        isd
-                    ]
-                )
-            base_q = base_q | isd_q
+            base_q = base_q | Q(
+                service__identity__offering__state__in=marketplace_enums.OfferingStates.ISD_ALLOWED_STATES,
+                service__identity__created_by=user,
+            )
 
         return models.AgentProcessor.objects.filter(base_q).distinct()
 
@@ -548,7 +547,11 @@ class AgentProcessorViewSet(ActionsViewSet):
             if not request.user.is_authenticated:
                 raise PermissionDenied("Authentication required")
             return
-        if not _can_manage_offering_agent(request, obj.service.identity.offering):
+        if not _can_manage_offering_agent(
+            request,
+            obj.service.identity.offering,
+            agent_identity=obj.service.identity,
+        ):
             raise PermissionDenied()
 
     destroy_permissions = [_check_agent_processor_permission]

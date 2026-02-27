@@ -329,6 +329,29 @@ The event notification system provides REST API endpoints for managing event-bas
 - **POST /api/marketplace-site-agent-identities/{uuid}/register_service/** - Register service within agent
 - **POST /api/marketplace-site-agent-identities/{uuid}/register_event_subscription/** - Register event subscription for agent
 
+#### Agent Identity Permissions
+
+Agent identity management uses a four-tier permission model checked by `_can_manage_offering_agent()`:
+
+| Tier | Who | Scope |
+|------|-----|-------|
+| 1. Staff | `user.is_staff` | All offerings, all identities |
+| 2. Customer owner | `CREATE_OFFERING` permission on offering's customer | All identities for customer's offerings |
+| 3. Offering manager | `UPDATE_OFFERING` permission on the offering | All identities for that offering |
+| 4. ISD identity manager | `is_identity_manager=True` + non-empty `managed_isds` | Own identities only, non-archived/draft offerings |
+
+ISD identity managers can create agent identities for offerings in Active, Paused, or Unavailable states without requiring pre-existing offering users. This enables bootstrapping: agents create offering users, so requiring offering users to register agents would be a chicken-and-egg problem.
+
+#### Agent Identity Ownership
+
+Each `AgentIdentity` has a `created_by` field tracking the user who created it. This field is used to scope ISD identity manager access:
+
+- **Create**: Any ISD identity manager can create an agent identity for an allowed offering
+- **Update/Delete**: ISD identity managers can only modify or delete their own agent identities (`created_by == request.user`)
+- **List**: ISD identity managers only see their own agent identities in query results
+
+Staff, customer owners, and offering managers are not restricted by `created_by` — they can manage all agent identities within their scope.
+
 ### Agent Services
 
 - **GET /api/marketplace-site-agent-services/** - List agent services
