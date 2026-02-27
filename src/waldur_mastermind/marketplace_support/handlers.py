@@ -1,12 +1,15 @@
 import logging
 from datetime import datetime
 
+from constance import config
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.template import Context, Template
 from django.template.loader import get_template
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
+from waldur_core.core.models import SshPublicKey
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import callbacks
@@ -17,6 +20,8 @@ from waldur_mastermind.marketplace.enums import (
     ResourceStates,
 )
 from waldur_mastermind.marketplace_support import utils as marketplace_support_utils
+from waldur_mastermind.support import backend as support_backend
+from waldur_mastermind.support import models as support_models
 from waldur_mastermind.support.models import Issue
 
 from . import tasks
@@ -502,3 +507,88 @@ def create_issue_if_membership_changed(
             instance,
             "{organization}: User {user} has been removed from project {project}.",
         )
+
+
+def _create_issue_for_ssh_key_change(ssh_key, summary):
+    user = ssh_key.user
+    active_backend = support_backend.get_active_backend()
+    issue_details = active_backend.get_issue_details()
+
+    project_ct = ContentType.objects.get_for_model(structure_models.Project)
+    user_project_ids = UserRole.objects.filter(
+        user=user,
+        is_active=True,
+        content_type=project_ct,
+    ).values_list("object_id", flat=True)
+
+    resources = (
+        marketplace_models.Resource.objects.exclude(state=ResourceStates.TERMINATED)
+        .filter(
+            offering__type=SUPPORT_OFFERING,
+            project_id__in=user_project_ids,
+        )
+        .select_related(
+            "project",
+            "project__customer",
+            "offering",
+        )
+    )
+
+    template = get_template("marketplace_support/ssh_key_change_issue.txt").template
+    description = template.render(
+        Context(
+            {
+                "user": user,
+                "ssh_key": ssh_key,
+                "resources": resources,
+            },
+            autoescape=False,
+        )
+    )
+
+    if active_backend.message_format == support_backend.SupportedFormat.HTML:
+        description = core_utils.text2html(description)
+
+    issue_details.update(
+        dict(
+            caller=user,
+            description=description,
+            summary=summary,
+        )
+    )
+
+    issue = support_models.Issue.objects.create(**issue_details)
+    active_backend.create_issue(issue)
+    issue.refresh_from_db()
+    return issue
+
+
+def create_issue_if_ssh_key_added(
+    sender, instance: SshPublicKey, created=False, **kwargs
+):
+    if not created:
+        return
+
+    if not config.WALDUR_SUPPORT_ENABLED:
+        return
+
+    if not config.ENABLE_ISSUES_FOR_USER_SSH_KEY_CHANGES:
+        return
+
+    _create_issue_for_ssh_key_change(
+        instance,
+        f"SSH key {instance.name} has been added by user {instance.user.full_name or instance.user.username}.",
+    )
+
+
+def create_issue_if_ssh_key_removed(sender, instance: SshPublicKey, **kwargs):
+    if not config.WALDUR_SUPPORT_ENABLED:
+        return
+
+    if not config.ENABLE_ISSUES_FOR_USER_SSH_KEY_CHANGES:
+        return
+
+    _create_issue_for_ssh_key_change(
+        instance,
+        f"SSH key {instance.name} has been removed by user {instance.user.full_name or instance.user.username}.",
+    )
