@@ -2861,3 +2861,9 @@ List of allowed SSH key types. Empty list means all types are allowed.
 **Default value:** 2048
 
 Minimum allowed RSA key size in bits. Set to 0 to disable the check.
+
+#### ENABLE_ISSUES_FOR_USER_SSH_KEY_CHANGES
+
+**Type:** bool
+
+If true, a support ticket is created when a user adds or removes an SSH public key.
