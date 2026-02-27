@@ -2828,114 +2828,14 @@ class ReviewerProfileViewSet(ActionsViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    # Nested affiliations management
-    @extend_schema(
-        methods=["get"],
-        operation_id="reviewer_profiles_affiliations_list",
-        responses=serializers.ReviewerAffiliationSerializer(many=True),
-        description="List affiliations for a reviewer profile.",
-        filters=False,
-    )
-    @extend_schema(
-        methods=["post"],
-        operation_id="reviewer_profiles_affiliations_create",
-        request=serializers.ReviewerAffiliationSerializer,
-        responses=serializers.ReviewerAffiliationSerializer,
-        description="Create affiliation for a reviewer profile.",
-    )
-    @decorators.action(detail=True, methods=["get", "post"])
-    def affiliations(self, request, uuid=None):
-        profile = self.get_object()
-
-        if request.method == "GET":
-            serializer = serializers.ReviewerAffiliationSerializer(
-                profile.affiliations.all(),
-                many=True,
-                context=self.get_serializer_context(),
-            )
-            return response.Response(serializer.data)
-
-        # POST - create new affiliation
-        serializer = serializers.ReviewerAffiliationSerializer(
-            data=request.data, context=self.get_serializer_context()
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save(reviewer_profile=profile)
-        return response.Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    affiliations_serializer_class = serializers.ReviewerAffiliationSerializer
-
-    # Nested expertise management
-    @extend_schema(
-        methods=["get"],
-        operation_id="reviewer_profiles_expertise_list",
-        responses=serializers.ReviewerExpertiseSerializer(many=True),
-        description="List expertise keywords for a reviewer profile.",
-        filters=False,
-    )
-    @extend_schema(
-        methods=["post"],
-        operation_id="reviewer_profiles_expertise_create",
-        request=serializers.ReviewerExpertiseSerializer,
-        responses=serializers.ReviewerExpertiseSerializer,
-        description="Create expertise entry for a reviewer profile.",
-    )
-    @decorators.action(detail=True, methods=["get", "post"])
-    def expertise(self, request, uuid=None):
-        profile = self.get_object()
-
-        if request.method == "GET":
-            serializer = serializers.ReviewerExpertiseSerializer(
-                profile.expertise_set.all(),
-                many=True,
-                context=self.get_serializer_context(),
-            )
-            return response.Response(serializer.data)
-
-        serializer = serializers.ReviewerExpertiseSerializer(
-            data=request.data, context=self.get_serializer_context()
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save(reviewer_profile=profile)
-        return response.Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    expertise_serializer_class = serializers.ReviewerExpertiseSerializer
-
-    # Nested publications management
-    @extend_schema(
-        methods=["get"],
-        operation_id="reviewer_profiles_publications_list",
-        responses=serializers.ReviewerPublicationSerializer(many=True),
-        description="List publications for a reviewer profile.",
-        filters=False,
-    )
-    @extend_schema(
-        methods=["post"],
-        operation_id="reviewer_profiles_publications_create",
-        request=serializers.ReviewerPublicationSerializer,
-        responses=serializers.ReviewerPublicationSerializer,
-        description="Create publication for a reviewer profile.",
-    )
-    @decorators.action(detail=True, methods=["get", "post"])
-    def publications(self, request, uuid=None):
-        profile = self.get_object()
-
-        if request.method == "GET":
-            serializer = serializers.ReviewerPublicationSerializer(
-                profile.publications.all(),
-                many=True,
-                context=self.get_serializer_context(),
-            )
-            return response.Response(serializer.data)
-
-        serializer = serializers.ReviewerPublicationSerializer(
-            data=request.data, context=self.get_serializer_context()
-        )
-        serializer.is_valid(raise_exception=True)
-        serializer.save(reviewer_profile=profile)
-        return response.Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    publications_serializer_class = serializers.ReviewerPublicationSerializer
+    # Note: Nested affiliations, expertise, and publications management
+    # are handled by dedicated ViewSets (ReviewerProfileAffiliationViewSet,
+    # ReviewerProfileExpertiseViewSet, ReviewerProfilePublicationViewSet)
+    # registered in waldur_core/server/urls.py using NestedSimpleRouter.
+    # These provide full CRUD operations at endpoints like:
+    # /api/reviewer-profiles/{uuid}/affiliations/
+    # /api/reviewer-profiles/{uuid}/expertise/
+    # /api/reviewer-profiles/{uuid}/publications/
 
     # ORCID Integration
     @extend_schema(

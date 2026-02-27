@@ -741,17 +741,17 @@ Generate OpenAPI schema diff:
     - npm install -g markdownlint-cli
   script:
     - ls -la
-    - echo "Cloning docs repository"
-    - git clone --depth 1 "https://github.com/waldur/waldur-docs.git"
-    - ls waldur-docs
+    - echo "Cloning api-docs repository"
+    - git clone --depth 1 "https://github.com/waldur/api-docs.git"
+    - ls api-docs
     - |
-      # First try to find the previous version if current tag exists
-      if [ -f "waldur-docs/docs/API/waldur-openapi-schema-${CI_COMMIT_TAG}.yaml" ]; then
+      # Find previous schema from api-docs repository
+      if [ -f "api-docs/docs/API/waldur-openapi-schema-${CI_COMMIT_TAG}.yaml" ]; then
         echo "Current tag file exists, finding previous version"
-        PREV_SCHEMA=$(ls waldur-docs/docs/API/waldur-openapi-schema-*.yaml | sort -V | grep -B1 "waldur-openapi-schema-${CI_COMMIT_TAG}.yaml" | head -n1)
+        PREV_SCHEMA=$(ls api-docs/docs/API/waldur-openapi-schema-*.yaml | sort -V | grep -B1 "waldur-openapi-schema-${CI_COMMIT_TAG}.yaml" | head -n1)
       else
         echo "Current tag file does not exist, getting latest version"
-        PREV_SCHEMA=$(ls waldur-docs/docs/API/waldur-openapi-schema-*.yaml | sort -V | tail -n1 || echo "")
+        PREV_SCHEMA=$(ls api-docs/docs/API/waldur-openapi-schema-*.yaml | sort -V | tail -n1 || echo "")
       fi
 
     - echo "Previous schema $PREV_SCHEMA"
@@ -787,11 +787,10 @@ Upload OpenAPI schema and schema diff to docs:
     entrypoint: [""]
   script:
     - cd /tmp/
-    - git clone --depth 1 "https://gitlab-ci-token:$GITLAB_TOKEN@$CI_SERVER_HOST/waldur/waldur-docs.git"
+    - git clone --depth 1 "git@github.com:waldur/api-docs.git"
     - git config --global user.name "$GITLAB_USER_NAME"
     - git config --global user.email "$GITLAB_USER_EMAIL"
-    - cd waldur-docs
-    # Upload OpenAPI schema
+    - cd api-docs
     - mkdir -p docs/API
     - cp $CI_PROJECT_DIR/waldur-openapi-schema.yaml docs/API/waldur-openapi-schema-${CI_COMMIT_TAG}.yaml
     - ls -la docs/API
@@ -807,8 +806,8 @@ Upload OpenAPI schema and schema diff to docs:
     # Commit and push changes
     - git add docs/API docs/integrator-guide/APIs/api-changes
     - git commit -m "Add Waldur OpenAPI schema and diff for ${CI_COMMIT_TAG}" || exit 0
-    - git branch new-api-schema-${CI_COMMIT_TAG}
-    - git push --set-upstream origin new-api-schema-${CI_COMMIT_TAG}:master
+    - git pull --rebase origin main
+    - git push origin HEAD:main
   before_script: []
 
 Upload HomePort enums:
