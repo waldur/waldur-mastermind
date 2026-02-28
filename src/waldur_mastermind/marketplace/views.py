@@ -12,6 +12,7 @@ import yaml
 from constance import config
 from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.contenttypes.prefetch import GenericPrefetch
 from django.core.files.base import ContentFile
 from django.db import connection, transaction
 from django.db.models import (
@@ -986,7 +987,7 @@ class ServiceProviderProjectPermissionsViewSet(
     mixins.ListModelMixin, rf_viewsets.GenericViewSet
 ):
     serializer_class = structure_serializers.ProjectPermissionLogSerializer
-    queryset = UserRole.objects.all()
+    queryset = UserRole.objects.all().select_related("user", "role", "created_by")
     filter_backends = (DjangoFilterBackend,)
     filterset_class = UserPermissionFilter
 
@@ -1012,6 +1013,11 @@ class ServiceProviderProjectPermissionsViewSet(
             object_id__in=project_ids,
             is_active=True,
             user__is_active=True,
+        ).prefetch_related(
+            GenericPrefetch(
+                "scope",
+                [structure_models.Project.available_objects.select_related("customer")],
+            ),
         )
 
 
