@@ -5653,12 +5653,17 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
             user, PermissionEnum.LIST_ORDERS
         )
 
-        return self.queryset.filter(
-            Q(project__in=connected_projects)
-            | Q(project__customer__in=connected_customers)
-            | Q(offering__customer__in=connected_customers)
-            | Q(offering__in=connected_offerings)
-        ).distinct()
+        # Use a subquery to find matching order IDs to avoid
+        # SELECT DISTINCT across all select_related columns (Fixes PUHURI-PORTALS-ETK)
+        order_ids = Subquery(
+            models.Order.objects.filter(
+                Q(project__in=connected_projects)
+                | Q(project__customer__in=connected_customers)
+                | Q(offering__customer__in=connected_customers)
+                | Q(offering__in=connected_offerings)
+            ).values("id")
+        )
+        return self.queryset.filter(id__in=order_ids)
 
     approve_by_consumer_validators = [
         structure_utils.check_customer_blocked_or_archived,

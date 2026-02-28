@@ -1196,6 +1196,90 @@ class OrderFilterTest(test.APITestCase):
         self.assertEqual(response.data[0]["uuid"], self.order.uuid.hex)
 
 
+class OrderListNoDuplicatesTest(test.APITestCase):
+    """Test that orders are not duplicated when a user has access
+    through multiple permission paths (Fixes PUHURI-PORTALS-ETK)."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        CustomerRole.OWNER.add_permission(PermissionEnum.LIST_ORDERS)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_ORDERS)
+
+    def test_order_not_duplicated_when_user_is_both_consumer_and_provider(self):
+        # Arrange: offering belongs to the same customer as the project,
+        # so the owner matches both project__customer and offering__customer filters.
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+        )
+        factories.OrderFactory(
+            project=self.project,
+            offering=offering,
+            created_by=self.fixture.manager,
+        )
+
+        # Act
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.OrderFactory.get_list_url()
+        response = self.client.get(url)
+
+        # Assert: order should appear exactly once, not duplicated
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    def test_order_not_duplicated_when_user_has_project_and_customer_roles(self):
+        # Arrange: user is both project manager and customer owner,
+        # matching both project__in and project__customer__in filters.
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        factories.OrderFactory(
+            project=self.project,
+            offering=offering,
+            created_by=self.fixture.manager,
+        )
+
+        # The owner has access via project__customer (as customer owner)
+        # The manager has access via project (as project manager)
+        # But the owner also has access via project__customer, so just one path.
+        # Let's make a user who is both manager and customer owner.
+        user = self.fixture.manager
+        self.fixture.customer.add_user(user, CustomerRole.OWNER)
+
+        # Act
+        self.client.force_authenticate(user)
+        url = factories.OrderFactory.get_list_url()
+        response = self.client.get(url)
+
+        # Assert: order should appear exactly once
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    def test_order_not_duplicated_when_user_has_offering_role_and_customer_role(self):
+        # Arrange: user is offering manager and also offering's customer owner,
+        # matching both offering__in and offering__customer__in filters.
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer,
+            state=OfferingStates.ACTIVE,
+        )
+        OfferingRole.MANAGER.add_permission(PermissionEnum.LIST_ORDERS)
+        offering.add_user(self.fixture.owner, OfferingRole.MANAGER)
+
+        factories.OrderFactory(
+            project=structure_factories.ProjectFactory(),
+            offering=offering,
+            created_by=structure_factories.UserFactory(),
+        )
+
+        # Act: owner matches via offering__customer__in AND offering__in
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.OrderFactory.get_list_url()
+        response = self.client.get(url)
+
+        # Assert: order should appear exactly once
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+
 @ddt
 class OrderSetBackendIdTest(test.APITestCase):
     def setUp(self):
