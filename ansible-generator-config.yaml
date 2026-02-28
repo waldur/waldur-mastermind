@@ -340,6 +340,9 @@ collections:
             base: "openstack_subnets"
             filter_by: *filter_by_offering_tenant
           ssh_public_key: "keys"
+          server_group:
+            base: "openstack_server_groups"
+            filter_by: *filter_by_offering_tenant
 
       # --- CRUD Modules (Directly Managed Resources) ---
       - name: security_group
