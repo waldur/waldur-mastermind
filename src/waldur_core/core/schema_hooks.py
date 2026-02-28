@@ -570,6 +570,7 @@ def create_offering_attributes_schema(processor_class, generator):
             for field in fields
             if field in schema["properties"]
         }
+    return schema
 
 
 def inject_waldur_operation_ids(result, generator, **kwargs):
