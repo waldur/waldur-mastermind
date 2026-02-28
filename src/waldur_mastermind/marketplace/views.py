@@ -8073,7 +8073,13 @@ class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     ),
 )
 class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
-    queryset = models.ComponentUsage.objects.all().order_by("-date", "component__type")
+    queryset = (
+        models.ComponentUsage.objects.all()
+        .select_related(
+            "resource__offering__customer",
+        )
+        .order_by("-date", "component__type")
+    )
     lookup_field = "uuid"
     filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
     filterset_class = filters.ComponentUsageFilter
