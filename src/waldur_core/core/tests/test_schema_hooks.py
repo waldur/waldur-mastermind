@@ -1,8 +1,15 @@
 import unittest
+from unittest import mock
+
+import pytest
+from drf_spectacular.generators import SchemaGenerator
+from rest_framework import serializers, viewsets
 
 from waldur_core.core.schema_hooks import (
     _to_pascal_case,
+    add_polymorphic_attributes_schema,
     add_result_count_header,
+    create_offering_attributes_schema,
     inject_waldur_operation_ids,
     make_fields_optional,
     remove_waldur_cookie_auth,
@@ -479,3 +486,126 @@ def test_validate_go_sdk_naming_collisions_multiple_collisions():
 
     # Both collisions should be in the error message
     assert "IdentityBridgeRemoveResponse" in str(exc_info.value)
+
+
+class _DummySerializer(serializers.Serializer):
+    name = serializers.CharField()
+    flavor = serializers.CharField()
+    image = serializers.CharField()
+
+
+class _DummyViewSet(viewsets.ViewSet):
+    serializer_class = _DummySerializer
+
+
+def _make_generator():
+    from drf_spectacular.plumbing import ComponentRegistry
+
+    generator = mock.Mock(spec=SchemaGenerator)
+    generator.registry = ComponentRegistry()
+    return generator
+
+
+class TestCreateOfferingAttributesSchema:
+    """Tests for create_offering_attributes_schema to prevent missing return value regression."""
+
+    def test_returns_schema_for_processor_with_viewset(self):
+        """create_offering_attributes_schema must return a dict, not None."""
+
+        class FakeProcessor:
+            viewset = _DummyViewSet
+            fields = ("name", "flavor", "image")
+
+        generator = _make_generator()
+        result = create_offering_attributes_schema(FakeProcessor, generator)
+
+        assert result is not None, (
+            "create_offering_attributes_schema returned None — "
+            "likely missing 'return schema' statement"
+        )
+        assert isinstance(result, dict)
+        assert "properties" in result
+        assert "flavor" in result["properties"]
+        assert "image" in result["properties"]
+
+    def test_returns_schema_for_processor_with_create_serializer_class(self):
+        class FakeProcessor:
+            create_serializer_class = _DummySerializer
+
+        generator = _make_generator()
+        result = create_offering_attributes_schema(FakeProcessor, generator)
+
+        assert result is not None
+        assert isinstance(result, dict)
+        assert "properties" in result
+
+    def test_filters_fields_when_specified(self):
+        class FakeProcessor:
+            viewset = _DummyViewSet
+            fields = ("flavor",)
+
+        generator = _make_generator()
+        result = create_offering_attributes_schema(FakeProcessor, generator)
+
+        assert result is not None
+        assert "flavor" in result["properties"]
+        assert "image" not in result["properties"]
+
+    def test_returns_none_for_processor_without_viewset(self):
+        class FakeProcessor:
+            pass
+
+        generator = _make_generator()
+        result = create_offering_attributes_schema(FakeProcessor, generator)
+        assert result is None
+
+
+@pytest.mark.django_db
+def test_polymorphic_schema_includes_offering_specific_attributes():
+    """
+    Integration test: add_polymorphic_attributes_schema must produce
+    at least one offering-specific schema in the oneOf array, not just
+    the generic fallback. Catches regression where
+    create_offering_attributes_schema silently returns None.
+    """
+    generator = _make_generator()
+
+    result = {
+        "components": {
+            "schemas": {
+                "OrderCreateRequest": {
+                    "type": "object",
+                    "properties": {
+                        "attributes": {"type": "object"},
+                    },
+                },
+            }
+        }
+    }
+
+    add_polymorphic_attributes_schema(result, generator)
+
+    schemas = result["components"]["schemas"]
+    attributes = schemas["OrderCreateRequest"]["properties"]["attributes"]
+    one_of = attributes["oneOf"]
+
+    # Must have more than just GenericOrderAttributes
+    non_generic = [
+        ref
+        for ref in one_of
+        if ref.get("$ref", "").split("/")[-1] != "GenericOrderAttributes"
+    ]
+    assert len(non_generic) > 0, (
+        "No offering-specific attribute schemas in oneOf — "
+        "create_offering_attributes_schema likely returns None"
+    )
+
+    # Verify at least one offering-type schema was actually added to components
+    offering_schema_names = [
+        name
+        for name in schemas
+        if name.endswith("CreateOrderAttributes") and name != "GenericOrderAttributes"
+    ]
+    assert len(offering_schema_names) > 0, (
+        "No offering-type schemas in components/schemas"
+    )
