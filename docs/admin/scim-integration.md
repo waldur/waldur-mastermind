@@ -310,9 +310,3 @@ Entitlements use `OfferingUser.username` (not Waldur usernames).
 ### Error Handling
 
 SCIM operations use graceful error handling: errors are logged as warnings, failed operations don't block other users, missing configuration causes tasks to skip silently.
-
-## Related Documentation
-
-- [Configuration Guide](../admin/configuration-guide.md#scim-settings) - SCIM configuration settings
-- [Scheduled Tasks](../admin/scheduled.md) - Background job schedules
-- [Marketplace Documentation](../core-concepts/marketplace.md) - Marketplace resources and offerings
