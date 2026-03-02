@@ -75,6 +75,9 @@ def get_credentials(settings, tenant=None):
     else:
         credentials["project_domain_name"] = domain_name
         credentials["project_name"] = settings.get_option("tenant_name")
+
+    auth_type = settings.get_option("auth_type") or "password"
+    credentials["auth_type"] = auth_type
     return credentials
 
 
@@ -91,8 +94,22 @@ def create_session(credentials: dict[str, str], verify_ssl=False):
         http_session = QuietSession()
         http_session.verify = False
 
+    credentials = dict(credentials)
+    auth_type = credentials.pop("auth_type", "password")
+
+    if auth_type == "v3applicationcredential":
+        auth = v3.ApplicationCredential(
+            auth_url=credentials["auth_url"],
+            application_credential_id=credentials["username"],
+            application_credential_secret=credentials["password"],
+        )
+    elif auth_type == "password":
+        auth = v3.Password(**credentials)
+    else:
+        raise OpenStackBackendError(f"Unsupported auth_type: {auth_type}")
+
     ks_session = keystone_session.Session(
-        auth=v3.Password(**credentials),
+        auth=auth,
         verify=verify_ssl,
         session=http_session,
     )

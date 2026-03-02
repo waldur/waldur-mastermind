@@ -24,6 +24,15 @@ class OpenStackCredentialsSerializer(serializers.Serializer):
         default="admin",
         help_text="Keystone project (tenant) name",
     )
+    auth_type = serializers.ChoiceField(
+        choices=[
+            ("password", "Password"),
+            ("v3applicationcredential", "Application Credential"),
+        ],
+        default="password",
+        required=False,
+        help_text="Authentication method: password or v3applicationcredential",
+    )
     verify_ssl = serializers.BooleanField(default=False)
     certificate = serializers.CharField(
         required=False,

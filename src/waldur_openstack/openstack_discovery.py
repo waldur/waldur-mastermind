@@ -43,6 +43,7 @@ class OpenStackTemporaryCredentials:
     project_name: str = "admin"
     verify_ssl: bool = False
     certificate: str | None = None
+    auth_type: str = "password"
 
 
 class OpenStackDiscoveryService:
@@ -81,6 +82,7 @@ class OpenStackDiscoveryService:
             "user_domain_name": self.credentials.user_domain_name,
             "project_domain_name": self.credentials.project_domain_name,
             "project_name": self.credentials.project_name,
+            "auth_type": self.credentials.auth_type,
         }
         verify_ssl = self._get_verify_ssl()
         return create_session(credentials, verify_ssl)
