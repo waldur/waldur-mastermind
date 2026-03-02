@@ -1945,3 +1945,76 @@ class BulkSetUserUsageTest(test.APITestCase):
             component_usage=self.component_usage, username="test_user"
         )
         self.assertEqual(user_usage.user, offering_user)
+
+
+@freeze_time("2024-02-15")
+class QuarterlyLimitUsageTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.plan = factories.PlanFactory(offering=self.offering)
+        self.offering_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.LIMIT,
+            type="cpu",
+            limit_period=LimitPeriods.QUARTERLY,
+            limit_amount=100,
+        )
+        self.component = factories.PlanComponentFactory(
+            plan=self.plan, component=self.offering_component
+        )
+        self.resource = models.Resource.objects.create(
+            offering=self.offering,
+            plan=self.plan,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+        factories.OrderFactory(
+            resource=self.resource,
+            type=OrderTypes.CREATE,
+            state=OrderStates.EXECUTING,
+            plan=self.plan,
+        )
+        callbacks.resource_creation_succeeded(self.resource)
+        self.plan_period = models.ResourcePlanPeriod.objects.create(
+            resource=self.resource, plan=self.plan
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_USAGE)
+
+    def test_quarterly_limit_aggregation(self):
+        # Create usage in current quarter (Q1: Jan-March 2024)
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.offering_component,
+            usage=10,
+            date=datetime.datetime(2024, 1, 10, tzinfo=datetime.UTC),
+            billing_period=datetime.date(2024, 1, 1),
+        )
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.offering_component,
+            usage=20,
+            date=datetime.datetime(2024, 2, 10, tzinfo=datetime.UTC),
+            billing_period=datetime.date(2024, 2, 1),
+        )
+
+        # Create usage in previous quarter (Q4: Oct-Dec 2023)
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.offering_component,
+            usage=50,
+            date=datetime.datetime(2023, 12, 10, tzinfo=datetime.UTC),
+            billing_period=datetime.date(2023, 12, 1),
+        )
+
+        from waldur_mastermind.marketplace.serializers import ResourceSerializer
+
+        # Test the ResourceSerializer's get_limit_usage method
+        limit_usage = ResourceSerializer().get_limit_usage(self.resource)
+
+        # Total usage = January (10) + February (20) = 30
+        # Should ignore the December (50) usage because it's not in the current quarter
+        self.assertEqual(limit_usage.get("cpu"), 30)
