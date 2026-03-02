@@ -4974,6 +4974,8 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
                 usages = usages.filter(date__gte=quarter_start, date__lte=quarter_end)
             elif component.limit_period == LimitPeriods.ANNUAL:
                 usages = usages.filter(date__year__gte=datetime.date.today().year)
+            elif component.limit_period == LimitPeriods.TOTAL:
+                pass  # We sum all usages
 
             limit_usage[component.type] = (
                 usages.aggregate(total=Sum("usage"))["total"] or 0
