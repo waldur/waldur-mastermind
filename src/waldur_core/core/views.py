@@ -453,12 +453,14 @@ def _safe_get_constance_values():
         return values
 
 
-def get_constance_plugin_settings(request, plugin, fields):
+def get_constance_plugin_settings(all_constance_values, plugin, fields):
     plugin_settings = {}
-    if request:
-        for field in fields:
-            if f"{plugin}_{field}" in settings.PUBLIC_CONSTANCE_SETTINGS:
-                plugin_settings[field] = getattr(config, f"{plugin}_{field}")
+    if not all_constance_values:
+        return plugin_settings
+    for field in fields:
+        key = f"{plugin}_{field}"
+        if key in settings.PUBLIC_CONSTANCE_SETTINGS:
+            plugin_settings[field] = all_constance_values.get(key)
     return plugin_settings
 
 
@@ -515,8 +517,8 @@ def get_public_settings(request=None):
                 public_settings[settings_name][s] = v
 
     constance_settings = {}
+    all_constance_values = _safe_get_constance_values() if request else {}
     if request:
-        all_constance_values = _safe_get_constance_values()
         for key, value in all_constance_values.items():
             if key in settings.PUBLIC_CONSTANCE_SETTINGS and not key.startswith(
                 "WALDUR_"
@@ -543,7 +545,7 @@ def get_public_settings(request=None):
                     "auth_url": provider.auth_url,
                 }
     public_settings["WALDUR_SUPPORT"] = get_constance_plugin_settings(
-        request,
+        all_constance_values,
         "WALDUR_SUPPORT",
         ["ENABLED", "DISPLAY_REQUEST_TYPE", "ACTIVE_BACKEND_TYPE"],
     )
