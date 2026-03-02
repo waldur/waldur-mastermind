@@ -4967,9 +4967,17 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             usages = models.ComponentUsage.objects.filter(
                 resource=resource, component=component
             ).exclude(plan_period=None)
-            if component.limit_period == LimitPeriods.ANNUAL:
+
+            if component.limit_period == LimitPeriods.QUARTERLY:
+                quarter_start = core_utils.get_current_quarter_start()
+                quarter_end = core_utils.get_current_quarter_end()
+                usages = usages.filter(date__gte=quarter_start, date__lte=quarter_end)
+            elif component.limit_period == LimitPeriods.ANNUAL:
                 usages = usages.filter(date__year__gte=datetime.date.today().year)
-            limit_usage[component.type] = usages.aggregate(total=Sum("usage"))["total"]
+
+            limit_usage[component.type] = (
+                usages.aggregate(total=Sum("usage"))["total"] or 0
+            )
 
         return limit_usage
 
