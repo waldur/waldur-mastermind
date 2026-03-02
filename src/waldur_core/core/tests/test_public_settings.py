@@ -114,3 +114,46 @@ class TestSafeGetConstanceValues(TestCase):
         result = views._safe_get_constance_values()
         expected = get_values()
         self.assertEqual(result, expected)
+
+
+class TestGetConstancePluginSettings(TestCase):
+    def test_returns_empty_dict_when_constance_values_empty(self):
+        result = views.get_constance_plugin_settings({}, "WALDUR_SUPPORT", ["ENABLED"])
+        self.assertEqual(result, {})
+
+    def test_returns_values_for_public_constance_keys(self):
+        all_values = {
+            "WALDUR_SUPPORT_ENABLED": True,
+            "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE": False,
+            "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE": "zammad",
+        }
+        result = views.get_constance_plugin_settings(
+            all_values,
+            "WALDUR_SUPPORT",
+            ["ENABLED", "DISPLAY_REQUEST_TYPE", "ACTIVE_BACKEND_TYPE"],
+        )
+        self.assertEqual(result["ENABLED"], True)
+        self.assertEqual(result["DISPLAY_REQUEST_TYPE"], False)
+        self.assertEqual(result["ACTIVE_BACKEND_TYPE"], "zammad")
+
+    def test_null_value_returned_as_none(self):
+        """When a constance value was NULL in DB, _safe_get_constance_values
+        stores None. get_constance_plugin_settings should pass it through
+        without crashing."""
+        all_values = {
+            "WALDUR_SUPPORT_ENABLED": None,
+        }
+        result = views.get_constance_plugin_settings(
+            all_values, "WALDUR_SUPPORT", ["ENABLED"]
+        )
+        self.assertIsNone(result["ENABLED"])
+
+    def test_missing_key_not_included(self):
+        """Fields not present in all_constance_values get None from dict.get."""
+        result = views.get_constance_plugin_settings(
+            {"WALDUR_SUPPORT_ENABLED": True},
+            "WALDUR_SUPPORT",
+            ["ENABLED", "DISPLAY_REQUEST_TYPE"],
+        )
+        self.assertEqual(result["ENABLED"], True)
+        self.assertIsNone(result["DISPLAY_REQUEST_TYPE"])
