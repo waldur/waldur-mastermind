@@ -313,6 +313,7 @@ class EventType(str, Enum):
     CHAT_SESSION_ACCESSED = "chat_session_accessed"
     CHAT_THREAD_ACCESSED = "chat_thread_accessed"
     CHAT_INJECTION_DETECTED = "chat_injection_detected"
+    CHAT_PII_DETECTED = "chat_pii_detected"
     ONBOARDING_VERIFICATION_DELETED = "onboarding_verification_deleted"
     ONBOARDING_VERIFICATION_DELETED_BY_TASK = "onboarding_verification_deleted_by_task"
 
@@ -650,6 +651,7 @@ EVENT_GROUP_MAPPING = {
         EventType.CHAT_SESSION_ACCESSED,
         EventType.CHAT_THREAD_ACCESSED,
         EventType.CHAT_INJECTION_DETECTED,
+        EventType.CHAT_PII_DETECTED,
     ],
 }
 

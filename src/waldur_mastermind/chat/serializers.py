@@ -6,7 +6,7 @@ from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_mastermind.chat import models
-from waldur_mastermind.chat.injection_detection import SeverityLevel
+from waldur_mastermind.chat.input_guards import SeverityLevel
 
 
 class ChatRequestSerializer(serializers.Serializer):
@@ -77,6 +77,7 @@ class ChatResponseSerializer(serializers.Serializer):
     - r: Table rows (array of arrays)
     - n: Row count (number)
     - e: Error message (string)
+    - w: Warning message (PII detected, content redacted, etc.)
 
     Examples:
         {"k":"markdown","c":"Hello!"}
@@ -98,6 +99,9 @@ class ChatResponseSerializer(serializers.Serializer):
     r = serializers.ListField(required=False, help_text="Table rows.")
     n = serializers.IntegerField(required=False, help_text="Total row count.")
     m = serializers.DictField(required=False, help_text="System metadata.")
+    w = serializers.CharField(
+        required=False, help_text="PII detection warning message."
+    )
 
 
 class TokenQuotaUsageResponseSerializer(serializers.ModelSerializer):
@@ -219,7 +223,6 @@ class MessageSerializer(serializers.ModelSerializer):
         slug_field="uuid",
         read_only=True,
     )
-    injection_severity = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Message
@@ -232,9 +235,10 @@ class MessageSerializer(serializers.ModelSerializer):
             "replaces",
             "created",
             "is_flagged",
-            "injection_score",
-            "injection_severity",
+            "severity",
             "injection_categories",
+            "pii_categories",
+            "action_taken",
         )
         read_only_fields = (
             "uuid",
@@ -243,14 +247,11 @@ class MessageSerializer(serializers.ModelSerializer):
             "role",
             "replaces",
             "is_flagged",
-            "injection_score",
-            "injection_severity",
+            "severity",
             "injection_categories",
+            "pii_categories",
+            "action_taken",
         )
-
-    @extend_schema_field(serializers.ChoiceField(choices=SeverityLevel.choices()))
-    def get_injection_severity(self, obj) -> str:
-        return SeverityLevel.from_score(obj.injection_score).value
 
     def get_fields(self):
         fields = super().get_fields()
@@ -261,9 +262,10 @@ class MessageSerializer(serializers.ModelSerializer):
         if request and not (request.user.is_staff or request.user.is_support):
             for field_name in (
                 "is_flagged",
-                "injection_score",
-                "injection_severity",
+                "severity",
                 "injection_categories",
+                "pii_categories",
+                "action_taken",
             ):
                 fields.pop(field_name, None)
         return fields
@@ -316,8 +318,7 @@ class ThreadSessionSerializer(
 
     @extend_schema_field(serializers.ChoiceField(choices=SeverityLevel.choices()))
     def get_max_severity(self, obj) -> str:
-        score = obj.flags.get("max_injection_score", 0.0)
-        return SeverityLevel.from_score(score).value
+        return obj.flags.get("max_severity", SeverityLevel.NONE.value)
 
 
 class ChatSessionSerializer(

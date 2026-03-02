@@ -229,7 +229,7 @@ class ToolExecutorInjectionDetectionTest(ToolExecutorBaseTest):
         self.assertEqual(result["type"], "error")
         self.assertIn("Unable to process this request", result["error"])
 
-    @mock.patch("waldur_mastermind.chat.tools.executor.get_injection_service")
+    @mock.patch("waldur_mastermind.chat.tools.executor.get_detection_service")
     @override_constance_config(
         LLM_INJECTION_ALLOWLIST="",
     )

@@ -4,24 +4,16 @@ import unicodedata
 
 from constance import config
 
-from waldur_mastermind.chat.injection_detection.base import (
+from waldur_mastermind.chat.input_guards.base import (
     BaseDetector,
     DetectionAction,
-    DetectionResult,
+    InjectionResult,
     SeverityLevel,
 )
-from waldur_mastermind.chat.injection_detection.patterns import ALL_PATTERNS
+from waldur_mastermind.chat.input_guards.injection_patterns import ALL_PATTERNS
 
 logger = logging.getLogger(__name__)
 
-
-SEVERITY_ACTION_MAP = {
-    SeverityLevel.NONE: DetectionAction.ALLOW,
-    SeverityLevel.LOW: DetectionAction.FLAG,
-    SeverityLevel.MEDIUM: DetectionAction.FLAG,
-    SeverityLevel.HIGH: DetectionAction.BLOCK,
-    SeverityLevel.CRITICAL: DetectionAction.BLOCK,
-}
 
 # Mapping of common confusable Unicode chars to Latin ASCII equivalents.
 # Covers Cyrillic, Greek, and Armenian homoglyphs that NFKC normalization does NOT handle.
@@ -110,7 +102,7 @@ class RegexDetector(BaseDetector):
 
     @property
     def name(self) -> str:
-        return "regex"
+        return "injection"
 
     @staticmethod
     def _strip_invisible(text: str) -> str:
@@ -135,15 +127,11 @@ class RegexDetector(BaseDetector):
         text = _PUNCT_SEPARATOR_RE.sub(" ", text)
         return text
 
-    def detect(self, text: str) -> DetectionResult:
+    def detect(self, text: str) -> InjectionResult:
         normalized = self._normalize_text(text)
 
         if self._is_allowlisted(normalized):
-            return DetectionResult(
-                is_injection=False,
-                score=0.0,
-                severity=SeverityLevel.NONE,
-                action=DetectionAction.ALLOW,
+            return InjectionResult(
                 detection_method=self.name,
             )
 
@@ -195,21 +183,16 @@ class RegexDetector(BaseDetector):
         elif n_cats >= 2:
             max_score = min(1.0, max_score + 0.10)  # 2 categories → mild boost
 
-        severity = self._score_to_severity(max_score)
-        action = SEVERITY_ACTION_MAP[severity]
+        severity = SeverityLevel.from_score(max_score)
+        action = DetectionAction.from_injection_severity(severity)
 
-        return DetectionResult(
-            is_injection=max_score >= 0.3,
+        return InjectionResult(
             score=max_score,
             severity=severity,
             action=action,
             matched_patterns=matches,
             detection_method=self.name,
         )
-
-    @staticmethod
-    def _score_to_severity(score: float) -> SeverityLevel:
-        return SeverityLevel.from_score(score)
 
     def _is_allowlisted(self, text: str) -> bool:
         try:
