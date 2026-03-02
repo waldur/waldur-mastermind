@@ -406,6 +406,12 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
 
     is_removed = django_filters.BooleanFilter(widget=BooleanWidget, label="Is removed")
 
+    user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail",
+        method="filter_by_user_uuid",
+        label="Filter projects where the given user has a role.",
+    )
+
     o = django_filters.OrderingFilter(
         fields=(
             ("name", "name"),
@@ -433,6 +439,7 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
             "modified",
             "query",
             "backend_id",
+            "user_uuid",
         ]
 
     def filter_can_manage(self, queryset, name, value):
@@ -453,6 +460,19 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
             connected_projects = get_connected_projects(user, RoleEnum.PROJECT_ADMIN)
             queryset = queryset.filter(id__in=connected_projects)
         return queryset
+
+    def filter_by_user_uuid(self, queryset, name, value):
+        try:
+            user = core_models.User.objects.get(uuid=value)
+        except core_models.User.DoesNotExist:
+            return queryset.none()
+        project_ct = ContentType.objects.get_for_model(models.Project)
+        project_ids = UserRole.objects.filter(
+            user=user,
+            is_active=True,
+            content_type=project_ct,
+        ).values_list("object_id", flat=True)
+        return queryset.filter(id__in=project_ids)
 
     def filter_query(self, queryset, name, value):
         if is_uuid_like(value):
