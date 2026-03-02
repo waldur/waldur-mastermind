@@ -6,7 +6,8 @@ from django.urls import reverse
 from rest_framework import status, test
 
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.chat import tool_executor
+from waldur_mastermind.chat.tools.executor import ToolExecutor
+from waldur_mastermind.chat.tools.show_user_resources import ShowUserResourcesTool
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
@@ -16,7 +17,7 @@ class ToolExecutorBaseTest(test.APITestCase):
         self.fixture = structure_fixtures.ProjectFixture()
         self.user = self.fixture.admin
         self.client.force_authenticate(user=self.user)
-        self.tool_executor = tool_executor.ToolExecutor(self.user)
+        self.tool_executor = ToolExecutor(self.user)
         self.execute_url = reverse("chat-tools-execute-tool")
 
 
@@ -190,8 +191,8 @@ class ToolExecutorUnknownToolTest(ToolExecutorBaseTest):
 class ToolExecutorErrorHandlingTest(ToolExecutorBaseTest):
     def test_handles_permission_denied(self):
         with mock.patch.object(
-            self.tool_executor,
-            "_show_user_resources",
+            ShowUserResourcesTool,
+            "execute",
             side_effect=PermissionDenied("Access denied"),
         ):
             result = self.tool_executor.execute_tool("show_user_resources", {})
@@ -202,8 +203,8 @@ class ToolExecutorErrorHandlingTest(ToolExecutorBaseTest):
 
     def test_handles_internal_error(self):
         with mock.patch.object(
-            self.tool_executor,
-            "_show_user_resources",
+            ShowUserResourcesTool,
+            "execute",
             side_effect=Exception("Something went wrong"),
         ):
             result = self.tool_executor.execute_tool("show_user_resources", {})
@@ -228,7 +229,7 @@ class ToolExecutorInjectionDetectionTest(ToolExecutorBaseTest):
         self.assertEqual(result["type"], "error")
         self.assertIn("Unable to process this request", result["error"])
 
-    @mock.patch("waldur_mastermind.chat.tool_executor.get_injection_service")
+    @mock.patch("waldur_mastermind.chat.tools.executor.get_injection_service")
     @override_constance_config(
         LLM_INJECTION_ALLOWLIST="",
     )
