@@ -365,8 +365,10 @@ def test_inject_waldur_operation_ids():
     mock_view.cls.filterset_class.base_filters = {"customer": mock_filter}
 
     generator = mock.Mock()
+    mock_view_no_cls = mock.Mock()
+    mock_view_no_cls.cls = None
     generator.endpoints = [
-        ("/api/customers/", None, "GET", mock.Mock(cls=None)),
+        ("/api/customers/", None, "GET", mock_view_no_cls),
         ("/api/test/", None, "GET", mock_view),
     ]
 

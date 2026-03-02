@@ -25,7 +25,9 @@ def build_filter(path, ids):
 T = TypeVar("T", bound=Model)
 
 
-def filter_queryset_for_user(queryset: QuerySet[T], user: User) -> QuerySet[T]:
+def filter_queryset_for_user[T: Model](
+    queryset: QuerySet[T], user: User
+) -> QuerySet[T]:
     def get_customer_subquery(path):
         if list_permission:
             connected_customers = get_connected_customers_by_permission(

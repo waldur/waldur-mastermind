@@ -59,9 +59,8 @@ class SshKeyCreateTest(BaseSshKeyTest):
             factories.SshPublicKeyFactory.get_list_url(), data=data
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertDictContainsSubset(
-            {"name": ["This field must be unique."]}, response.data
-        )
+        self.assertIn("name", response.data)
+        self.assertEqual(response.data["name"], ["This field must be unique."])
 
     def test_valid_key_creation(self):
         self.client.force_authenticate(self.user)

@@ -25,26 +25,28 @@ class GroupTest(TestCase):
         customer.set_quota_limit(QUOTA_NAME, 100)
         mock_client().group_find.return_value = {"result": []}
         FreeIPABackend().synchronize_groups()
-        mock_client().group_add.has_calls(
+        mock_client().group_add.assert_has_calls(
             [
                 mock.call(
                     "waldur_org_%s" % customer.uuid.hex,
                     description="customer,100",
                 )
-            ]
+            ],
+            any_order=True,
         )
 
     def test_missing_group_for_project_is_created(self, mock_client):
         project = structure_factories.ProjectFactory(name="project")
         mock_client().group_find.return_value = {"result": []}
         FreeIPABackend().synchronize_groups()
-        mock_client().group_add.has_calls(
+        mock_client().group_add.assert_has_calls(
             [
                 mock.call(
                     "waldur_project_%s" % project.uuid.hex,
                     description="project,-1.0",
                 )
-            ]
+            ],
+            any_order=True,
         )
 
     def test_project_quota_is_serialized_as_group_description(self, mock_client):
@@ -52,13 +54,14 @@ class GroupTest(TestCase):
         project.set_quota_limit(QUOTA_NAME, 100)
         mock_client().group_find.return_value = {"result": []}
         FreeIPABackend().synchronize_groups()
-        mock_client().group_add.has_calls(
+        mock_client().group_add.assert_has_calls(
             [
                 mock.call(
                     "waldur_project_%s" % project.uuid.hex,
                     description="project,100",
                 )
-            ]
+            ],
+            any_order=True,
         )
 
     def test_group_description_is_updated_from_customer_name(self, mock_client):

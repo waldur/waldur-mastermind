@@ -1,4 +1,4 @@
-from typing import Any, Generic, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -15,7 +15,7 @@ class NotificationTemplate(BaseModel):
 ContextType = TypeVar("ContextType", bound=BaseModel)
 
 
-class Notification(BaseModel, Generic[ContextType]):
+class Notification[ContextType: BaseModel](BaseModel):
     """
     Represents a single notification type, including its key, description,
     and a strongly-typed schema for its context variables.

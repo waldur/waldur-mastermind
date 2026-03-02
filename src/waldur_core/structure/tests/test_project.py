@@ -489,9 +489,10 @@ class ProjectApiPermissionTest(test.APITestCase):
             reverse("project-list"), self._get_valid_payload(project)
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertDictContainsSubset(
-            {"detail": "You do not have permission to perform this action."},
-            response.data,
+        self.assertIn("detail", response.data)
+        self.assertEqual(
+            response.data["detail"],
+            "You do not have permission to perform this action.",
         )
 
     def test_user_cannot_create_project_within_customer_he_doesnt_own_but_manages_its_project(
@@ -506,9 +507,10 @@ class ProjectApiPermissionTest(test.APITestCase):
             reverse("project-list"), self._get_valid_payload(project)
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertDictContainsSubset(
-            {"detail": "You do not have permission to perform this action."},
-            response.data,
+        self.assertIn("detail", response.data)
+        self.assertEqual(
+            response.data["detail"],
+            "You do not have permission to perform this action.",
         )
 
     def test_user_cannot_create_project_within_customer_he_is_not_affiliated_with(self):
@@ -519,8 +521,9 @@ class ProjectApiPermissionTest(test.APITestCase):
             reverse("project-list"), self._get_valid_payload(project)
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertDictContainsSubset(
-            {"customer": ["Invalid hyperlink - Object does not exist."]}, response.data
+        self.assertIn("customer", response.data)
+        self.assertEqual(
+            response.data["customer"], ["Invalid hyperlink - Object does not exist."]
         )
 
     def test_user_can_create_project_within_customer_he_owns(self):

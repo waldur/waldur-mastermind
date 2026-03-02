@@ -51,6 +51,7 @@ INSTALLED_APPS = (
     "django.contrib.humanize",
     "django.contrib.staticfiles",
     "django.contrib.sites",
+    "django.contrib.postgres",
     "waldur_core.landing",
     "waldur_core.core",
     "waldur_core.permissions",
@@ -117,7 +118,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
     "DEFAULT_RENDERER_CLASSES": (
-        "drf_orjson_renderer.renderers.ORJSONRenderer",
+        "waldur_core.core.renderers.WaldurORJSONRenderer",
         "waldur_core.core.renderers.BrowsableAPIRenderer",
     ),
     "DEFAULT_THROTTLE_CLASSES": [
