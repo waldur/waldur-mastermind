@@ -1386,7 +1386,7 @@ Remove Docker container after script execution
 
 **Type:** dict_field
 
-**Default value:** {'python': {'image': 'python:3.11-alpine', 'command': 'python'}, 'shell': {'image': 'alpine:3', 'command': 'sh'}, 'ansible': {'image': 'alpine/ansible:2.18.6', 'command': 'ansible-playbook'}}
+**Default value:** {'python': {'image': 'python:3.12-alpine', 'command': 'python'}, 'shell': {'image': 'alpine:3', 'command': 'sh'}, 'ansible': {'image': 'alpine/ansible:2.18.6', 'command': 'ansible-playbook'}}
 
 Key is command to execute script, value is a dictionary of image name and command.
 
