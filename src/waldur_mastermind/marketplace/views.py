@@ -11663,7 +11663,11 @@ class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
     ),
 )
 class RobotAccountViewSet(core_views.ActionsViewSet):
-    queryset = models.RobotAccount.objects.all()
+    queryset = models.RobotAccount.objects.select_related(
+        "responsible_user",
+        "resource__project__customer",
+        "resource__offering__customer",
+    ).prefetch_related("users")
     lookup_field = "uuid"
     create_serializer_class = serializers.RobotAccountSerializer
     update_serializer_class = partial_update_serializer_class = (
