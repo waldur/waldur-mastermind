@@ -9954,33 +9954,24 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
     def _projects_limits_grouped_by_field(self, field_name):
         results = {}
 
-        for project in structure_models.Project.objects.all():
-            field_value = str(getattr(project, field_name))
-            if field_value in results:
-                results[field_value]["projects_ids"].append(project.id)
-            else:
-                results[field_value] = {
-                    "projects_ids": [project.id],
-                }
+        # Single query: join Resource → Project to avoid consecutive DB queries
+        resources = (
+            models.Resource.objects.filter(state=ResourceStates.OK)
+            .exclude(limits={})
+            .values(f"project__{field_name}", "limits")
+        )
 
-        for key, result in results.items():
-            ids = result.pop("projects_ids")
+        for resource in resources:
+            field_value = str(resource[f"project__{field_name}"])
+            if field_value not in results:
+                results[field_value] = {}
 
-            for resource in (
-                models.Resource.objects.filter(
-                    state=ResourceStates.OK, project__id__in=ids
-                )
-                .exclude(limits={})
-                .values("offering__uuid", "limits")
-            ):
-                limits = resource["limits"]
-
-                for name, value in limits.items():
-                    if value > 0:
-                        if name in result:
-                            result[name] += value
-                        else:
-                            result[name] = value
+            for name, value in resource["limits"].items():
+                if value > 0:
+                    if name in results[field_value]:
+                        results[field_value][name] += value
+                    else:
+                        results[field_value][name] = value
 
         return results
 

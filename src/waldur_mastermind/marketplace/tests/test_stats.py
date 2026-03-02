@@ -2271,3 +2271,117 @@ class ResourceUsageByOrganizationTypeTest(test.APITestCase):
         # Usage should be attributed to project member (university), not service account (empty)
         org_types = {r["organization_type"] for r in response.data}
         self.assertIn("urn:schac:homeOrganizationType:int:university", org_types)
+
+
+@ddt
+class ProjectsLimitsGroupedByIndustryFlagTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = "/api/marketplace-stats/projects_limits_grouped_by_industry_flag/"
+
+    @data("staff", "global_support")
+    def test_user_can_get_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("limits", response.data)
+
+    @data("owner", "user", "customer_support", "admin", "manager")
+    def test_user_cannot_get_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_limits_are_grouped_by_industry_flag(self):
+        # Set up an industry project with an active resource
+        self.fixture.project.is_industry = True
+        self.fixture.project.save()
+        self.fixture.resource.state = ResourceStates.OK
+        self.fixture.resource.limits = {"cpu": 10, "ram": 20}
+        self.fixture.resource.save()
+
+        # Set up a non-industry project with an active resource
+        non_industry_project = structure_factories.ProjectFactory(
+            customer=self.fixture.customer, is_industry=False
+        )
+        factories.ResourceFactory(
+            offering=self.fixture.offering,
+            project=non_industry_project,
+            state=ResourceStates.OK,
+            limits={"cpu": 5, "ram": 8},
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        limits = response.data["limits"]
+        self.assertIn("True", limits)
+        self.assertIn("False", limits)
+        self.assertEqual(limits["True"]["cpu"], 10)
+        self.assertEqual(limits["True"]["ram"], 20)
+        self.assertEqual(limits["False"]["cpu"], 5)
+        self.assertEqual(limits["False"]["ram"], 8)
+
+    def test_resources_with_empty_limits_are_excluded(self):
+        self.fixture.resource.state = ResourceStates.OK
+        self.fixture.resource.limits = {}
+        self.fixture.resource.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["limits"], {})
+
+    def test_non_ok_resources_are_excluded(self):
+        self.fixture.resource.state = ResourceStates.CREATING
+        self.fixture.resource.limits = {"cpu": 10}
+        self.fixture.resource.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["limits"], {})
+
+    def test_limits_are_summed_across_resources(self):
+        self.fixture.resource.state = ResourceStates.OK
+        self.fixture.resource.limits = {"cpu": 10}
+        self.fixture.resource.save()
+
+        factories.ResourceFactory(
+            offering=self.fixture.offering,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+            limits={"cpu": 5, "ram": 8},
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        limits = response.data["limits"]
+        field_value = str(self.fixture.project.is_industry)
+        self.assertEqual(limits[field_value]["cpu"], 15)
+        self.assertEqual(limits[field_value]["ram"], 8)
+
+
+@ddt
+class ProjectsLimitsGroupedByOecdTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.url = "/api/marketplace-stats/projects_limits_grouped_by_oecd/"
+
+    @data("staff", "global_support")
+    def test_user_can_get_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("limits", response.data)
+
+    @data("owner", "user", "customer_support", "admin", "manager")
+    def test_user_cannot_get_stats(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
