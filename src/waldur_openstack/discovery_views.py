@@ -49,6 +49,7 @@ class OpenStackDiscoveryViewSet(ActionsViewSet):
             project_name=credentials_data.get("project_name", "admin"),
             verify_ssl=credentials_data.get("verify_ssl", False),
             certificate=credentials_data.get("certificate"),
+            auth_type=credentials_data.get("auth_type", "password"),
         )
         return OpenStackDiscoveryService(creds)
 

@@ -88,6 +88,17 @@ class OpenStackServiceSerializer(structure_serializers.ServiceOptionsSerializer)
         allow_null=True,
     )
 
+    auth_type = serializers.ChoiceField(
+        source="options.auth_type",
+        choices=[
+            ("password", "Password"),
+            ("v3applicationcredential", "Application Credential"),
+        ],
+        default="password",
+        required=False,
+        help_text=_("Authentication method: password or v3applicationcredential"),
+    )
+
     availability_zone = serializers.CharField(
         source="options.availability_zone",
         help_text=_("Default availability zone for provisioned instances"),

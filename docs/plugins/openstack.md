@@ -492,8 +492,8 @@ To set up an OpenStack provider, create a Marketplace offering of type `OpenStac
 | Parameter | Location | Description | Example |
 |-----------|----------|-------------|---------|
 | `backend_url` | secret_options | Keystone API endpoint URL | `https://keystone.example.com:5000/v3` |
-| `username` | secret_options | Admin account username | `admin` |
-| `password` | secret_options | Admin account password | `secure_password` |
+| `username` | secret_options | Admin account username or application credential ID | `admin` |
+| `password` | secret_options | Admin account password or application credential secret | `secure_password` |
 | `tenant_name` | secret_options | Admin tenant/project name | `admin` |
 | `domain` | secret_options | Keystone domain (v3 only) | `default` |
 
@@ -509,10 +509,38 @@ To set up an OpenStack provider, create a Marketplace offering of type `OpenStac
 
 | Parameter | Location | Description | Default |
 |-----------|----------|-------------|---------|
+| `auth_type` | options | Authentication method: `password` or `v3applicationcredential` | `password` |
 | `access_url` | options | Horizon dashboard URL for user links | Generated from backend_url |
 | `verify_ssl` | options | Verify SSL certificates | `true` |
 | `availability_zone` | options | Default availability zone | `nova` |
 | `storage_mode` | plugin_options | Storage quota mode (`fixed` or `dynamic`) | `fixed` |
+
+#### Using Application Credentials
+
+OpenStack [application credentials](https://docs.openstack.org/keystone/latest/user/application_credentials.html)
+provide a way to authenticate without exposing your primary username and password. This is
+recommended for production deployments as application credentials can be scoped and revoked
+independently.
+
+To use application credentials:
+
+1. Create an application credential in OpenStack:
+
+    ```bash
+    openstack application credential create waldur --unrestricted
+    ```
+
+2. Configure the offering with the returned values:
+
+    | Parameter | Value |
+    |-----------|-------|
+    | `auth_type` | `v3applicationcredential` |
+    | `username` | Application credential **ID** (not name) |
+    | `password` | Application credential **secret** |
+
+3. The `tenant_name` and `domain` fields are still required but are not used for authentication
+   when `auth_type` is `v3applicationcredential` — the project scope is determined by the
+   application credential itself.
 
 ### Storage Modes
 
@@ -833,7 +861,7 @@ In addition to the global settings above, each OpenStack offering has three conf
 |---------|-----------|---------|----------|
 | `secret_options` | Admin only | Sensitive credentials and connection details | `backend_url`, `username`, `password`, `tenant_name`, `domain`, `external_network_id` |
 | `plugin_options` | Admin only | Plugin-specific behavior settings | `storage_mode`, `default_internal_network_mtu` |
-| `options` | Visible to users | Non-sensitive offering metadata | `access_url`, `verify_ssl`, `availability_zone` |
+| `options` | Visible to users | Non-sensitive offering metadata | `access_url`, `verify_ssl`, `availability_zone`, `auth_type` |
 
 ## API Reference
 
