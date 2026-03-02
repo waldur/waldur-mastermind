@@ -43,8 +43,8 @@ from waldur_mastermind.chat.prompts import (
     CANNED_REJECTION_MESSAGE,
     TITLE_GENERATION_PROMPT,
 )
-from waldur_mastermind.chat.tool_executor import ToolExecutor
-from waldur_mastermind.chat.tools import TOOL_REGISTRY
+from waldur_mastermind.chat.tools.executor import ToolExecutor
+from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +118,7 @@ def validate_tool_call(tool_name, user):
     if not user or not user.is_authenticated:
         raise rf_exceptions.NotAuthenticated()
 
-    if tool_name not in TOOL_REGISTRY:
+    if tool_name not in tool_registry:
         raise rf_exceptions.ValidationError(
             {
                 "tool": _("Tool '%(tool_name)s' is not recognized.")

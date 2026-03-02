@@ -20,7 +20,7 @@ from waldur_mastermind.chat.injection_detection import (
 from waldur_mastermind.chat.injection_detection.service import _reset_for_testing
 from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession
 from waldur_mastermind.chat.serializers import ChatRequestSerializer
-from waldur_mastermind.chat.tool_executor import ToolExecutor
+from waldur_mastermind.chat.tools.executor import ToolExecutor
 
 
 class InjectionIntegrationBaseTest(test.APITestCase):
@@ -1287,7 +1287,7 @@ class AuditEventInjectionTest(InjectionIntegrationBaseTest):
             call_kwargs[1]["event_type"], EventType.CHAT_INJECTION_DETECTED
         )
 
-    @mock.patch("waldur_mastermind.chat.tool_executor.event_logger")
+    @mock.patch("waldur_mastermind.chat.tools.executor.event_logger")
     @override_constance_config(
         LLM_INJECTION_ALLOWLIST="",
     )

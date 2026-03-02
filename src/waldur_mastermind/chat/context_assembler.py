@@ -8,9 +8,8 @@ from waldur_mastermind.chat.models import Message
 from waldur_mastermind.chat.prompts import (
     REJECTION_SYSTEM_PROMPT,
     SYSTEM_PROMPT,
-    TOOL_INSTRUCTIONS,
 )
-from waldur_mastermind.chat.tools import get_tools_prompt
+from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
 
@@ -66,9 +65,8 @@ def build_context(user, user_input, thread=None):
     if thread and thread.chat_session.user != user:
         raise PermissionDenied("Thread does not belong to the requesting user.")
 
-    tools_prompt = get_tools_prompt()
-    tool_instructions = TOOL_INSTRUCTIONS.format(tools=tools_prompt)
-    system_prompt = SYSTEM_PROMPT.format(tools=tool_instructions)
+    tools_prompt = tool_registry.get_tools_prompt()
+    system_prompt = SYSTEM_PROMPT.format(tools=tools_prompt)
 
     parts = [system_prompt]
 
