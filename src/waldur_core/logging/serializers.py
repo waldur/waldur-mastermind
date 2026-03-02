@@ -699,7 +699,7 @@ class RmqClientPropertiesSerializer(serializers.Serializer):
     platform = serializers.CharField(
         read_only=True,
         allow_null=True,
-        help_text="Client platform (e.g., 'Python 3.11')",
+        help_text="Client platform (e.g., 'Python 3.12')",
     )
 
 

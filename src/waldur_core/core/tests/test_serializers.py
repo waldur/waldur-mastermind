@@ -65,10 +65,10 @@ class DictFieldTestSerializer(serializers.Serializer):
 
 class DictSerializerFieldTest(unittest.TestCase):
     def setUp(self):
-        self.python_dict = {"python": {"image": "python:3.11-alpine"}}
+        self.python_dict = {"python": {"image": "python:3.12-alpine"}}
         self.python_json = """{
     "python": {
-        "image": "python:3.11-alpine"
+        "image": "python:3.12-alpine"
     }
     }"""
 

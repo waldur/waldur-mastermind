@@ -793,7 +793,12 @@ class SshPublicKey(TimeStampedModel, LoggableMixin, UuidMixin, models.Model):
                 "fingerprint_md5", "fingerprint_sha256", "fingerprint_sha512"
             )
 
-        super().save(force_insert, force_update, using, update_fields)
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
 
     def __str__(self):
         return f"{self.name} - {self.fingerprint_sha512}, user: {self.user.username}, {self.user.full_name}"

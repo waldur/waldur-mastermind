@@ -136,7 +136,7 @@ CONSTANCE_CONFIG = {
     "DOCKER_REMOVE_CONTAINER": (True, "Remove Docker container after script execution"),
     "DOCKER_IMAGES": (
         {
-            "python": {"image": "python:3.11-alpine", "command": "python"},
+            "python": {"image": "python:3.12-alpine", "command": "python"},
             "shell": {"image": "alpine:3", "command": "sh"},
             "ansible": {
                 "image": "alpine/ansible:2.18.6",

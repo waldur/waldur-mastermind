@@ -2147,7 +2147,7 @@ class Migration(migrations.Migration):
         migrations.AddConstraint(
             model_name="callreviewerpool",
             constraint=models.CheckConstraint(
-                check=models.Q(
+                condition=models.Q(
                     ("reviewer__isnull", False),
                     ("invited_email__gt", ""),
                     _connector="OR",
