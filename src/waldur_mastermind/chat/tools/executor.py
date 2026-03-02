@@ -4,10 +4,10 @@ from django.core.exceptions import PermissionDenied
 
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
-from waldur_mastermind.chat.injection_detection import (
+from waldur_mastermind.chat.input_guards import (
     DetectionAction,
     SeverityLevel,
-    get_injection_service,
+    get_detection_service,
 )
 from waldur_mastermind.chat.tools.registry import tool_registry
 
@@ -84,32 +84,38 @@ class ToolExecutor:
             }
 
     def _check_injection(self, tool_name: str, arguments: dict) -> dict | None:
-        """Check tool arguments for prompt injection. Returns error dict or None."""
+        """Check tool arguments for injection and PII. Returns error dict or None."""
         try:
-            service = get_injection_service()
+            service = get_detection_service()
             result = service.check_tool_arguments(tool_name, arguments)
 
-            if result.is_injection:
+            detections = [
+                ("Injection", result.injection, EventType.CHAT_INJECTION_DETECTED),
+                ("PII", result.pii, EventType.CHAT_PII_DETECTED),
+            ]
+            for label, detection, event_type in detections:
+                if not detection.is_detected:
+                    continue
                 logger.warning(
-                    "Injection detected in tool arguments [%s] tool=%s score=%.2f",
-                    result.severity.value,
+                    "%s detected in tool arguments [%s] tool=%s score=%.2f",
+                    label,
+                    detection.severity.value,
                     tool_name,
-                    result.score,
+                    detection.score,
                 )
-                if result.severity in (SeverityLevel.HIGH, SeverityLevel.CRITICAL):
+                if detection.severity >= SeverityLevel.HIGH:
                     event_logger.emit(
-                        "Prompt injection detected in tool arguments from "
-                        "{user_username}: severity={severity}, score={score}, tool={tool_name}.",
-                        event_type=EventType.CHAT_INJECTION_DETECTED,
+                        f"{label} detected in tool arguments from {{user_username}}: severity={{severity}}, score={{score}}, tool={{tool_name}}.",
+                        event_type=event_type,
                         event_context={
                             "user": self.user,
-                            "severity": result.severity.value,
-                            "score": f"{result.score:.2f}",
+                            "severity": detection.severity.value,
+                            "score": f"{detection.score:.2f}",
                             "tool_name": tool_name,
                         },
                         scopes=[self.user],
                     )
-                if result.action == DetectionAction.BLOCK:
+                if detection.action == DetectionAction.BLOCK:
                     return {
                         "type": "error",
                         "error": _INJECTION_BLOCK_MESSAGE,

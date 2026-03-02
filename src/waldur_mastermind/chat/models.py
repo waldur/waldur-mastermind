@@ -3,14 +3,18 @@ from datetime import timedelta
 from enum import IntEnum
 
 from constance import config
-from django.core.validators import MaxValueValidator, MinValueValidator
+from django.core.validators import MinValueValidator
 from django.db import connection, models
-from django.db.models import Max
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core.models import User, UuidMixin
+from waldur_mastermind.chat.input_guards import (
+    DetectionAction,
+    InputGuardResult,
+    SeverityLevel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -320,17 +324,18 @@ class ThreadSession(UuidMixin, TimeStampedModel):
     def __str__(self):
         return f"ThreadSession({self.name})"
 
-    def update_injection_flags(self):
-        max_score = (
-            self.messages.filter(is_flagged=True).aggregate(
-                max_score=Max("injection_score")
-            )["max_score"]
-            or 0.0
-        )
+    def update_detection_flags(self):
+        flagged = self.messages.filter(is_flagged=True)
+        severities = list(flagged.values_list("severity", flat=True))
+        if severities:
+            max_sev = max(SeverityLevel(s) for s in severities).value
+        else:
+            max_sev = SeverityLevel.NONE.value
+
         self.flags = {
             **self.flags,
-            "is_flagged": max_score > 0.0,
-            "max_injection_score": max_score,
+            "is_flagged": bool(severities),
+            "max_severity": max_sev,
         }
         self.save(update_fields=["flags"])
 
@@ -356,11 +361,21 @@ class Message(UuidMixin, TimeStampedModel):
 
     # Prompt injection detection fields
     is_flagged = models.BooleanField(default=False, db_index=True)
-    injection_score = models.FloatField(
-        default=0.0,
-        validators=[MinValueValidator(0.0), MaxValueValidator(1.0)],
+    severity = models.CharField(
+        max_length=10,
+        choices=SeverityLevel.choices(),
+        default=SeverityLevel.NONE.value,
+        db_index=True,
     )
     injection_categories = models.JSONField(default=list, blank=True)
+    pii_categories = models.JSONField(default=list, blank=True)
+    action_taken = models.CharField(
+        max_length=10,
+        choices=DetectionAction.choices(),
+        default=DetectionAction.ALLOW.value,
+        blank=True,
+        db_index=True,
+    )
 
     class Meta:
         ordering = ["sequence_index"]
@@ -380,14 +395,20 @@ class Message(UuidMixin, TimeStampedModel):
     def __str__(self):
         return f"Message({self.role}, seq={self.sequence_index})"
 
-    def apply_detection_result(self, result):
-        self.is_flagged = result.is_injection
-        self.injection_score = result.score
-        self.injection_categories = [p["category"] for p in result.matched_patterns]
+    def apply_detection_result(self, result: InputGuardResult):
+        self.is_flagged = result.is_flagged
+        self.severity = result.severity.value
+        self.injection_categories = [
+            p["category"] for p in result.injection.matched_patterns
+        ]
+        self.action_taken = result.action.value
+        self.pii_categories = [d["entity_type"] for d in result.pii.pii_detections]
         self.save(
             update_fields=[
                 "is_flagged",
-                "injection_score",
+                "severity",
                 "injection_categories",
+                "pii_categories",
+                "action_taken",
             ]
         )

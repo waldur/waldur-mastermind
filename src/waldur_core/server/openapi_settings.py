@@ -10,7 +10,7 @@ from waldur_core.server.constance_settings import (
     USER_ATTRIBUTE_CHOICES,
 )
 from waldur_core.users.enums import InvitationState
-from waldur_mastermind.chat.injection_detection.base import SeverityLevel
+from waldur_mastermind.chat.input_guards.base import SeverityLevel
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.marketplace.enums import (
     OfferingStates,

@@ -1,9 +1,10 @@
 import logging
 
 from constance import config
+from django.db.models import Q
 from rest_framework.exceptions import PermissionDenied
 
-from waldur_mastermind.chat.injection_detection import SeverityLevel
+from waldur_mastermind.chat.input_guards import SeverityLevel
 from waldur_mastermind.chat.models import Message
 from waldur_mastermind.chat.prompts import (
     REJECTION_SYSTEM_PROMPT,
@@ -13,16 +14,23 @@ from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
 
-# Messages at or above MEDIUM severity are excluded from LLM context history.
-# This threshold is derived from SeverityLevel.MEDIUM's score range lower bound.
-INJECTION_HISTORY_EXCLUSION_THRESHOLD = SeverityLevel.MEDIUM.get_score_range()[0]
+# Messages with injection at MEDIUM severity or above are excluded from LLM context history.
+# LOW severity messages are kept since they only indicate possible, not confirmed, injections.
+# PII-only messages (no injection categories) are kept because their content is already redacted.
+EXCLUDED_SEVERITIES = [
+    SeverityLevel.MEDIUM.value,
+    SeverityLevel.HIGH.value,
+    SeverityLevel.CRITICAL.value,
+]
 
 
 def _get_thread_messages(thread):
-    """Return active, non-injection messages queryset for a thread, respecting history limit.
+    """Return active, non-blocked messages queryset for a thread, respecting history limit.
 
-    Excludes messages with injection score >= 0.5 (MEDIUM or higher severity).
+    Excludes messages with injection severity >= MEDIUM (medium, high, critical).
     LOW severity messages are kept since they only indicate possible, not confirmed, injections.
+    PII-only messages (no injection categories) are always kept because their content
+    is already redacted and safe to include in LLM context.
 
     Returns None if history limit is invalid, empty queryset if no messages.
     """
@@ -35,18 +43,26 @@ def _get_thread_messages(thread):
         return None
 
     all_messages = Message.objects.filter(thread=thread, replaced_by__isnull=True)
-    filtered = all_messages.exclude(
-        injection_score__gte=INJECTION_HISTORY_EXCLUSION_THRESHOLD
-    ).order_by("sequence_index")[:limit]
+
+    # Exclude injection messages (MEDIUM+ severity with injection categories).
+    # PII-only messages are always kept: redacted/warned messages have safe content,
+    # and blocked messages store a placeholder (not the original sensitive content).
+    # __gt=[] uses PostgreSQL JSONB array comparison (non-empty array > empty array).
+    # This filters for messages that have at least one injection category.
+    injection_exclusion = Q(
+        severity__in=EXCLUDED_SEVERITIES,
+        injection_categories__gt=[],
+    )
+    filtered = all_messages.exclude(injection_exclusion).order_by("sequence_index")[
+        :limit
+    ]
 
     if logger.isEnabledFor(logging.DEBUG):
-        excluded_count = all_messages.filter(
-            injection_score__gte=INJECTION_HISTORY_EXCLUSION_THRESHOLD
-        ).count()
-        if excluded_count:
+        total_excluded = all_messages.filter(injection_exclusion).count()
+        if total_excluded:
             logger.debug(
-                "Excluded %d flagged message(s) from history for thread %s",
-                excluded_count,
+                "Excluded %d message(s) from history for thread %s",
+                total_excluded,
                 thread.uuid,
             )
 

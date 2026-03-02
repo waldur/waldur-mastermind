@@ -31,11 +31,13 @@ from waldur_mastermind.chat.context_assembler import (
     build_context,
     build_rejection_input,
 )
-from waldur_mastermind.chat.injection_detection import (
+from waldur_mastermind.chat.input_guards import (
     DetectionAction,
-    DetectionResult,
+    InjectionResult,
+    InputGuardResult,
+    PIIResult,
     SeverityLevel,
-    get_injection_service,
+    get_detection_service,
 )
 from waldur_mastermind.chat.models import TokenQuota
 from waldur_mastermind.chat.parsers import StreamParser, parse_tool_call
@@ -47,42 +49,6 @@ from waldur_mastermind.chat.tools.executor import ToolExecutor
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
-
-
-def _check_injection_for_message(user, text):
-    """Shared injection check for any user message content.
-
-    Fail-closed: if anything goes wrong (including reading Constance config),
-    the request is blocked with a synthetic CRITICAL result.
-    """
-    try:
-        service = get_injection_service()
-        result = service.check_user_input(text)
-    except Exception:
-        logger.exception("Injection detection failed — failing closed")
-        return DetectionResult(
-            is_injection=True,
-            score=1.0,
-            severity=SeverityLevel.CRITICAL,
-            action=DetectionAction.BLOCK,
-            detection_method="error_failsafe",
-            details={"error": "detection_failed"},
-        )
-
-    # Emit audit event for HIGH/CRITICAL (outside try — let propagation happen)
-    if result.severity in (SeverityLevel.HIGH, SeverityLevel.CRITICAL):
-        event_logger.emit(
-            "Prompt injection detected in chat from {user_username}: severity={severity}, score={score}.",
-            event_type=EventType.CHAT_INJECTION_DETECTED,
-            event_context={
-                "user": user,
-                "severity": result.severity.value,
-                "score": f"{result.score:.2f}",
-            },
-            scopes=[user],
-        )
-
-    return result
 
 
 class LLMConfigurationMixin(ConstanceCheckExtensionMixin):
@@ -152,6 +118,7 @@ class LLMStreamer:
         mode=None,
         user_msg=None,
         canned_response=None,
+        pii_warning=None,
     ):
         self.url = url
         self.payload = {"input": llm_prompt}
@@ -175,6 +142,7 @@ class LLMStreamer:
         self._persisted_message_meta = None
         self._messages_persisted = False
         self.canned_response = canned_response
+        self.pii_warning = pii_warning
 
     def _format_ndjson(self, data: dict) -> str:
         """
@@ -202,6 +170,10 @@ class LLMStreamer:
     def __iter__(self):
         if self.thread:
             yield self._format_ndjson({"m": {"thread_uuid": str(self.thread.uuid)}})
+
+        # Yield PII warning as first content event (before LLM content)
+        if self.pii_warning:
+            yield self._format_ndjson({"w": self.pii_warning})
 
         self._messages_persisted = False
 
@@ -521,9 +493,48 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
 
     permission_classes = [IsAuthenticated]
 
-    def _check_injection(self, user, input_text):
-        """Check user input for prompt injection. Returns DetectionResult."""
-        return _check_injection_for_message(user, input_text)
+    def _check_input(self, user, input_text) -> InputGuardResult:
+        """Check user input for threats (injection + PII). Returns InputGuardResult.
+
+        Fail-closed: if anything goes wrong (including reading Constance config),
+        the request is blocked with a synthetic CRITICAL result.
+        """
+        try:
+            service = get_detection_service()
+            result = service.check_user_input(input_text)
+        except Exception:
+            logger.exception("Input guard check failed — failing closed")
+            return InputGuardResult(
+                injection=InjectionResult(
+                    score=1.0,
+                    severity=SeverityLevel.CRITICAL,
+                    action=DetectionAction.BLOCK,
+                    detection_method="error_failsafe",
+                ),
+                # Empty PIIResult (action=ALLOW) — we don't claim PII was found,
+                # only that the check failed, and we're blocking out of caution.
+                pii=PIIResult(),
+            )
+
+        # Emit audit events for HIGH/CRITICAL detections
+        detections = [
+            ("Injection", result.injection, EventType.CHAT_INJECTION_DETECTED),
+            ("PII", result.pii, EventType.CHAT_PII_DETECTED),
+        ]
+        for label, detection, event_type in detections:
+            if detection.severity >= SeverityLevel.HIGH:
+                event_logger.emit(
+                    f"{label} detected in chat from {{user_username}}: severity={{severity}}, action={{action}}.",
+                    event_type=event_type,
+                    event_context={
+                        "user": user,
+                        "severity": detection.severity.value,
+                        "action": detection.action.value,
+                    },
+                    scopes=[user],
+                )
+
+        return result
 
     def _validate_quota(self, user: User):
         """
@@ -569,12 +580,10 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
         edit_message_uuid = serializer.validated_data.get("edit_message_uuid")
 
         # Prompt injection detection (between quota check and streaming)
-        detection_result = self._check_injection(
-            user, serializer.validated_data["input"]
-        )
-        is_blocked = (
-            detection_result and detection_result.action == DetectionAction.BLOCK
-        )
+        detection_result = self._check_input(user, serializer.validated_data["input"])
+        is_blocked = detection_result.action == DetectionAction.BLOCK
+        is_redacted = detection_result.action == DetectionAction.REDACT
+        is_warned = detection_result.action == DetectionAction.WARN
 
         is_new_thread = False
         thread_uuid = serializer.validated_data.get("thread_uuid")
@@ -593,6 +602,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
         # For blocked input, try context-aware LLM rejection first, fall back to static
         raw_message = serializer.validated_data["input"]
         canned_response = None
+        pii_warning = None
 
         if is_blocked:
             rejection_prompt = build_rejection_input(thread)
@@ -601,15 +611,26 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             else:
                 llm_prompt = ""
                 canned_response = CANNED_REJECTION_MESSAGE
+            # Send PII-specific warning to frontend if the block involves PII
+            if detection_result.pii.pii_detections:
+                pii_warning = detection_result.pii.user_message
         else:
+            # Use redacted text when PII was redacted, original text otherwise
+            user_input = (
+                detection_result.pii.redacted_text if is_redacted else raw_message
+            )
             llm_prompt = build_context(
                 user=user,
-                user_input=raw_message,
+                user_input=user_input,
                 thread=thread,
             )
+            if is_redacted or is_warned:
+                pii_warning = detection_result.pii.user_message
 
         # Pre-create user message so it persists even if the client disconnects
         user_msg = None
+        # Use redacted/blocked text from PII result if available, else raw
+        stored_content = detection_result.pii.redacted_text or raw_message
         if thread and mode != models.ChatMode.RELOAD:
             with transaction.atomic():
                 locked_thread = models.ThreadSession.objects.select_for_update().get(
@@ -661,7 +682,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
                     user_msg = models.Message.objects.create(
                         thread=locked_thread,
                         role=models.Message.Role.USER,
-                        content=raw_message,
+                        content=stored_content,
                         sequence_index=original_msg.sequence_index,
                         replaces=original_msg,
                     )
@@ -676,13 +697,13 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
                     user_msg = models.Message.objects.create(
                         thread=locked_thread,
                         role=models.Message.Role.USER,
-                        content=raw_message,
+                        content=stored_content,
                         sequence_index=last_index + 1,
                     )
 
-                if detection_result and detection_result.is_injection:
+                if detection_result.is_flagged:
                     user_msg.apply_detection_result(detection_result)
-                    locked_thread.update_injection_flags()
+                    locked_thread.update_detection_flags()
 
         streamer = LLMStreamer(
             llm_prompt=llm_prompt,
@@ -690,11 +711,12 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             token=config.LLM_INFERENCES_API_TOKEN,
             user=user,
             thread=thread,
-            original_input=raw_message,
+            original_input=stored_content,
             is_new_thread=is_new_thread,
             mode=mode,
             user_msg=user_msg,
             canned_response=canned_response,
+            pii_warning=pii_warning,
         )
 
         return StreamingHttpResponse(
@@ -885,14 +907,7 @@ class ThreadSessionFilter(django_filters.FilterSet):
         severity = SeverityLevel(value)
         if severity == SeverityLevel.NONE:
             return queryset.exclude(flags__contains={"is_flagged": True})
-
-        low, high = severity.get_score_range()
-        qs = queryset.filter(flags__contains={"is_flagged": True})
-        if low is not None:
-            qs = qs.filter(flags__max_injection_score__gte=low)
-        if high is not None:
-            qs = qs.filter(flags__max_injection_score__lt=high)
-        return qs
+        return queryset.filter(flags__max_severity=value)
 
     def filter_by_query(self, queryset, name, value):
         """Full-text search across thread name and user details."""
