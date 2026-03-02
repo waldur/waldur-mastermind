@@ -1690,14 +1690,22 @@ def get_latest_github_tag(timeout=5):
         logger.error("Failed to decode JSON response from GitHub")
         return None
 
-    # Get the last tag (most recent one)
-    try:
-        tags.sort(key=lambda x: version.Version(x["ref"].split("/")[-1]))
-        latest_tag = tags[-1]["ref"].replace("refs/tags/", "")
+    # Filter to tags with valid PEP 440 version strings and sort them
+    valid_tags = []
+    for tag in tags:
+        try:
+            tag_name = tag["ref"].split("/")[-1]
+            tag_version = version.Version(tag_name)
+            valid_tags.append((tag_version, tag_name))
+        except (TypeError, KeyError, version.InvalidVersion):
+            continue
 
-    except (TypeError, KeyError, version.InvalidVersion) as e:
-        logger.error("Error processing GitHub tags: %s", str(e))
+    if not valid_tags:
+        logger.warning("No valid version tags found among GitHub tags")
         return None
+
+    valid_tags.sort(key=lambda x: x[0])
+    latest_tag = valid_tags[-1][1]
 
     # Cache for 1 hour
     cache.set(cache_key, latest_tag, timeout=3600)
