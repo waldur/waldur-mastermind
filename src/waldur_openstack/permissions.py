@@ -42,6 +42,10 @@ can_manage_openstack_instance = _check_permissions(
     PermissionEnum.CAN_MANAGE_OPENSTACK_INSTANCE
 )
 
+can_manage_openstack_router_gateway = _check_permissions(
+    PermissionEnum.CAN_MANAGE_OPENSTACK_ROUTER_GATEWAY
+)
+
 
 def has_permissions_for_console(request, view, instance=None):
     permission = PermissionEnum.HAS_OPENSTACK_INSTANCE_CONSOLE_ACCESS
