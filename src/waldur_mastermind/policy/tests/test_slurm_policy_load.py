@@ -4,7 +4,7 @@ These tests validate that the policy evaluation pipeline (including persistent
 logging) handles large-scale deployments correctly. They measure disk space,
 computational load, and query performance.
 
-Run with: pytest -s test_slurm_policy_load.py (use -s for print output)
+Run with: pytest -s -m slow test_slurm_policy_load.py (use -s for print output)
 """
 
 import time
@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
 from unittest.mock import patch
 
+import pytest
 from django.db import connection
 from django.test import TransactionTestCase
 from django.utils import timezone
@@ -21,6 +22,7 @@ from waldur_mastermind.policy import models, tasks
 from waldur_mastermind.policy.tests import factories
 
 
+@pytest.mark.slow
 class TestSlurmPolicyLargeScale(TransactionTestCase):
     """Large-scale tests for SLURM policy evaluation with 10,000+ resources."""
 
