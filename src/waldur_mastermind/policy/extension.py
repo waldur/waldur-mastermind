@@ -31,4 +31,9 @@ class PolicyExtension(WaldurExtension):
                 "schedule": crontab(hour=3, minute=0),
                 "args": (),
             },
+            "reset-slurm-policy-periods": {
+                "task": "waldur_mastermind.policy.reset_slurm_policies_on_period_boundary",
+                "schedule": crontab(hour=1, minute=0),
+                "args": (),
+            },
         }

@@ -402,3 +402,68 @@ def cleanup_slurm_evaluation_logs():
     )
 
     return {"deleted_count": deleted_count, "retention_days": retention_days}
+
+
+@shared_task(name="waldur_mastermind.policy.reset_slurm_policies_on_period_boundary")
+def reset_slurm_policies_on_period_boundary():
+    """Re-evaluate paused/downscaled SLURM resources whose current period has no usage.
+
+    Runs daily (idempotent). For each SlurmPeriodicUsagePolicy, checks whether any
+    active resources are still paused or downscaled while having 0% usage in the
+    current period — which means the pause carried over from a previous period and
+    should be cleared.
+
+    This is safe to re-run: if the resource is already unpaused, re-evaluation
+    with 0% usage is a no-op. If Celery beat was down or the queue was flushed,
+    the next successful run catches up automatically.
+    """
+    policies = models.SlurmPeriodicUsagePolicy.objects.all()
+    total_evaluated = 0
+
+    for policy in policies:
+        current_period = policy._get_current_period()
+        if current_period == "total":
+            continue
+
+        # Find active resources that are still paused or downscaled
+        resources = (
+            marketplace_models.Resource.objects.filter(
+                offering=policy.scope,
+            )
+            .exclude(
+                state__in=(
+                    marketplace_models.ResourceStates.TERMINATED,
+                    marketplace_models.ResourceStates.TERMINATING,
+                ),
+            )
+            .filter(
+                Q(paused=True) | Q(downscaled=True),
+            )
+        )
+
+        if not resources.exists():
+            continue
+
+        # Check if any of these resources have 0% usage in the current period.
+        # If so, the pause is stale (from a previous period) and needs re-evaluation.
+        policy_evaluated = 0
+        for resource in resources:
+            usage_pct = policy.get_resource_usage_percentage(resource, current_period)
+            if usage_pct < 100:
+                evaluate_resource_against_policy.delay(
+                    str(resource.uuid), str(policy.uuid)
+                )
+                policy_evaluated += 1
+
+        total_evaluated += policy_evaluated
+        logger.info(
+            "Period reset check: queued %d evaluations for policy %s (period=%s)",
+            policy_evaluated,
+            policy.uuid,
+            current_period,
+        )
+
+    logger.info(
+        "Period reset check complete: queued %d total evaluations", total_evaluated
+    )
+    return {"evaluated": total_evaluated}

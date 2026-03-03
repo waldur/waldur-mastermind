@@ -4,9 +4,10 @@
 
 The `SlurmPeriodicUsagePolicy` enables automatic management of SLURM resource allocations with:
 
-- Periodic (quarterly) usage tracking
+- Periodic usage tracking (monthly, quarterly, annual, or total)
 - Automatic QoS adjustments based on usage thresholds
-- Carryover of unused allocations with decay
+- Automatic period boundary reset (daily Celery beat task clears stale pauses/downscales when a new period starts)
+- Carryover of unused allocations with configurable cap
 - Grace periods for temporary overconsumption
 - Integration with site agent for SLURM account management
 
@@ -151,12 +152,14 @@ offerings:
 
 ### SLURM-Specific Parameters
 
+- **`period`**: Billing period length — `MONTH_1` (monthly), `MONTH_3` (quarterly, default), `MONTH_12` (annual), or `TOTAL` (cumulative, never resets). Controls how `_get_current_period()` computes the billing window for usage calculations and carryover.
 - **`limit_type`**: `"GrpTRESMins"`, `"MaxTRESMins"`, or `"GrpTRES"`
 - **`tres_billing_enabled`**: Use TRES billing units vs raw values
 - **`tres_billing_weights`**: Weight configuration for billing units
 - **`fairshare_decay_half_life`**: Days for fairshare decay (default: 15)
-- **`grace_ratio`**: Grace period ratio (0.2 = 20% overconsumption)
-- **`carryover_enabled`**: Allow unused allocation carryover
+- **`grace_ratio`**: Grace period ratio (0.2 = 20% overconsumption). The pause threshold is `(1 + grace_ratio) * 100`%. For example, `grace_ratio=0.2` means resources are paused at 120% usage.
+- **`carryover_enabled`**: Allow unused allocation carryover between periods
+- **`carryover_factor`**: Maximum carryover as a fraction of the base allocation (e.g., 0.3 = up to 30% of the base limit can be carried over). Unused allocation from the previous period is `max(0, base - prev_usage)`, capped at `carryover_factor * base`.
 - **`raw_usage_reset`**: Reset SLURM raw usage at period transitions
 - **`qos_strategy`**: `"threshold"` or `"progressive"`
 
@@ -246,7 +249,7 @@ curl https://waldur.example.com/api/marketplace-slurm-periodic-usage-policies/PO
 
 ### Staff-Only API Actions
 
-Two staff-only API actions allow testing policy evaluation directly from the frontend or API without waiting for automatic triggers.
+Three staff-only API actions allow testing and managing policy evaluation directly from the frontend or API without waiting for automatic triggers.
 
 #### Dry Run
 
@@ -279,6 +282,31 @@ curl -X POST https://waldur.example.com/api/marketplace-slurm-periodic-usage-pol
   -H "Authorization: Token STAFF_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{}'
+```
+
+Response includes per-resource: `usage_percentage`, `actions_taken`, `previous_state`, and `new_state`.
+
+#### Force Period Reset (Staff-Only)
+
+Force-trigger a period boundary reset for a specific policy. This is useful after a Celery beat outage, or to immediately unblock resources that are still paused/downscaled from a previous period.
+
+The action finds all active resources under the policy's offering that are currently paused or downscaled and have usage below 100% in the current period, then re-evaluates them synchronously — which removes the stale pause/downscale flags and sends STOMP messages to the site agent.
+
+```bash
+# Reset all stale paused/downscaled resources for a policy
+curl -X POST https://waldur.example.com/api/marketplace-slurm-periodic-usage-policies/POLICY_UUID/force-period-reset/ \
+  -H "Authorization: Token STAFF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
+
+Optionally scope to a single resource:
+
+```bash
+curl -X POST .../POLICY_UUID/force-period-reset/ \
+  -H "Authorization: Token STAFF_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"resource_uuid": "RESOURCE_UUID"}'
 ```
 
 Response includes per-resource: `usage_percentage`, `actions_taken`, `previous_state`, and `new_state`.
@@ -379,6 +407,18 @@ The SLURM policy panel includes:
 
 Policy evaluations emit a `SLURM_POLICY_EVALUATION` event type, visible in the Waldur events system.
 
+### Automatic Period Boundary Reset
+
+A daily Celery beat task (`reset-slurm-policy-periods`, runs at 01:00) ensures that resources paused or downscaled in a previous period are automatically unblocked when the new period starts with zero usage.
+
+For each `SlurmPeriodicUsagePolicy` (except those with `period=TOTAL`), the task:
+
+1. Finds active resources that are still `paused=True` or `downscaled=True`
+2. Checks if their usage in the **current** period is below 100%
+3. If so, queues `evaluate_resource_against_policy` which clears the stale flags and sends STOMP messages to the site agent
+
+This is idempotent — safe to re-run and catches up automatically after Celery beat outages. For immediate manual intervention, use the staff-only `force-period-reset` API action.
+
 ### Log Retention
 
 Evaluation logs are automatically cleaned up by a daily Celery beat task (`cleanup-slurm-evaluation-logs`, runs at 03:00). The retention period is configurable via:
@@ -397,6 +437,22 @@ print(f"Current usage: {usage_percentage:.1f}%")
 ```
 
 ### Debug Carryover Calculations
+
+Carryover allows unused allocation from the previous period to increase the current period's effective limit. The formula is:
+
+1. `unused = max(0, base_limit - previous_period_usage)`
+2. `cap = carryover_factor * base_limit`
+3. `carryover = min(unused, cap)`
+4. `effective_limit = base_limit + carryover`
+
+Example: base limit 1000, previous usage 400, carryover_factor 0.5:
+
+- `unused = max(0, 1000 - 400) = 600`
+- `cap = 0.5 * 1000 = 500`
+- `carryover = min(600, 500) = 500`
+- `effective_limit = 1000 + 500 = 1500`
+
+If the previous period was fully used (e.g., usage 1200), carryover is 0.
 
 ```python
 settings = policy.calculate_slurm_settings(resource)
@@ -443,9 +499,15 @@ The STOMP message payload includes `policy_uuid` so the site agent knows which p
 
 ### Incorrect Usage Calculations
 
-- Review carryover settings and decay factor
-- Check billing period alignment (quarterly boundaries)
+- Review carryover settings and carryover factor
+- Check billing period alignment — the `period` field controls boundaries: `MONTH_1` (monthly), `MONTH_3` (quarterly), `MONTH_12` (annual), `TOTAL` (cumulative)
 - Verify component type matches between policy and usage data
+
+### Resources Still Paused After New Period Starts
+
+- The `reset-slurm-policy-periods` task runs at 01:00 daily and should clear stale pauses. Check Celery worker logs for errors.
+- Use the staff `force-period-reset` endpoint to manually trigger a reset: `POST /api/marketplace-slurm-periodic-usage-policies/POLICY_UUID/force-period-reset/`
+- Verify that the policy's `period` is not set to `TOTAL` (total-period policies never auto-reset)
 
 ### No Evaluation Logs Appearing
 

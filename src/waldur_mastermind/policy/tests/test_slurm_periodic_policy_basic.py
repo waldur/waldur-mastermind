@@ -6,8 +6,12 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.invoices.models import PeriodMixin
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
-from waldur_mastermind.policy.models import SlurmPeriodicUsagePolicy
+from waldur_mastermind.policy.models import (
+    OfferingUsagePolicy,
+    SlurmPeriodicUsagePolicy,
+)
 
 
 class TestSlurmPeriodicUsagePolicyBasic(TestCase):
@@ -244,20 +248,44 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
         """Test period calculation methods."""
         policy = SlurmPeriodicUsagePolicy()
 
-        # Test previous period calculation
+        # Test previous period calculation for quarterly
         prev_q2 = policy._get_previous_period("2024-Q2")
         self.assertEqual(prev_q2, "2024-Q1")
 
         prev_q1 = policy._get_previous_period("2024-Q1")
         self.assertEqual(prev_q1, "2023-Q4")
 
+        # Test previous period calculation for monthly
+        prev_mar = policy._get_previous_period("2026-03")
+        self.assertEqual(prev_mar, "2026-02")
+
+        prev_jan = policy._get_previous_period("2026-01")
+        self.assertEqual(prev_jan, "2025-12")
+
+        # Test previous period calculation for annual
+        prev_year = policy._get_previous_period("2026")
+        self.assertEqual(prev_year, "2025")
+
         print("✅ Period calculation methods working")
 
-        # Test current period calculation (without mocking - just verify method works)
+        # Test current period - default period is MONTH_1 (monthly)
         current = policy._get_current_period()
-        self.assertRegex(current, r"^\d{4}-Q[1-4]$")  # Should match YYYY-Q# format
+        self.assertRegex(current, r"^\d{4}-\d{2}$")  # Should match YYYY-MM format
 
-        print(f"✅ Current period calculation working: {current}")
+        # Test current period with quarterly policy
+        quarterly_policy = SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.offering,
+            apply_to_all=True,
+            period=PeriodMixin.Periods.MONTH_3,
+        )
+        current_quarterly = quarterly_policy._get_current_period()
+        self.assertRegex(
+            current_quarterly, r"^\d{4}-Q[1-4]$"
+        )  # Should match YYYY-Q# format
+
+        print(
+            f"✅ Current period calculation working: monthly={current}, quarterly={current_quarterly}"
+        )
 
     def test_fairshare_calculation(self):
         """Test fairshare calculation method with dict and scalar."""
@@ -284,8 +312,6 @@ class TestSlurmPeriodicUsagePolicyCore(TestCase):
 
     def test_policy_inheritance(self):
         """Test that policy correctly inherits from OfferingUsagePolicy."""
-        from waldur_mastermind.policy.models import OfferingUsagePolicy
-
         # Check inheritance
         self.assertTrue(issubclass(SlurmPeriodicUsagePolicy, OfferingUsagePolicy))
 
