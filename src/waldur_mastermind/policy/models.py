@@ -641,10 +641,28 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         }
 
     def _get_current_period(self):
-        """Get current period (quarterly by default)."""
+        """Get current period based on policy's period field from PeriodMixin.
+
+        Returns:
+            str: Period string in format appropriate for the period type:
+                - MONTH_1: "YYYY-MM" (e.g. "2026-03")
+                - MONTH_3: "YYYY-Q#" (e.g. "2026-Q1")
+                - MONTH_12: "YYYY" (e.g. "2026")
+                - TOTAL: "total"
+        """
         now = core_utils.datetime.date.today()
-        quarter = (now.month - 1) // 3 + 1
-        return f"{now.year}-Q{quarter}"
+        Periods = invoices_models.PeriodMixin.Periods
+
+        if self.period == Periods.MONTH_1:
+            return f"{now.year}-{now.month:02d}"
+        elif self.period == Periods.MONTH_12:
+            return f"{now.year}"
+        elif self.period == Periods.TOTAL:
+            return "total"
+        else:
+            # MONTH_3 (quarterly) - existing behavior
+            quarter = (now.month - 1) // 3 + 1
+            return f"{now.year}-Q{quarter}"
 
     def _get_base_allocation(self, resource):
         """Get base allocation for resource from resource.limits.
@@ -724,48 +742,106 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         return total_allocation, carryover_details
 
     def _get_previous_period(self, current_period):
-        """Get the previous quarter for a given quarter."""
+        """Get the previous period for a given period string.
+
+        Detects period format from the string:
+        - "YYYY-MM" (monthly): go back one month
+        - "YYYY-Q#" (quarterly): go back one quarter
+        - "YYYY" (annual): go back one year
+        - "total": no previous period
+        """
         try:
-            # Parse "2024-Q2" format
-            year_str, q_str = current_period.split("-Q")
-            year = int(year_str)
-            quarter = int(q_str)
+            if current_period == "total":
+                return None
 
-            if quarter == 1:
-                # Q1 -> previous year Q4
-                prev_quarter = 4
-                prev_year = year - 1
+            if "-Q" in current_period:
+                # Quarterly: "2024-Q2" format
+                year_str, q_str = current_period.split("-Q")
+                year = int(year_str)
+                quarter = int(q_str)
+
+                if quarter == 1:
+                    return f"{year - 1}-Q4"
+                else:
+                    return f"{year}-Q{quarter - 1}"
+
+            elif "-" in current_period:
+                # Monthly: "2026-03" format
+                year_str, month_str = current_period.split("-")
+                year = int(year_str)
+                month = int(month_str)
+
+                if month == 1:
+                    return f"{year - 1}-12"
+                else:
+                    return f"{year}-{month - 1:02d}"
+
             else:
-                # Q2->Q1, Q3->Q2, Q4->Q3
-                prev_quarter = quarter - 1
-                prev_year = year
+                # Annual: "2026" format
+                year = int(current_period)
+                return f"{year - 1}"
 
-            return f"{prev_year}-Q{prev_quarter}"
         except (ValueError, AttributeError):
             logger.error(f"Failed to parse period: {current_period}")
             return None
 
     def _get_period_date_range(self, period):
-        """Parse a period string (e.g. '2024-Q2') into (start_date, end_date).
+        """Parse a period string into (start_date, end_date).
+
+        Supports formats:
+        - "YYYY-MM" (monthly): e.g. "2026-03" → (2026-03-01, 2026-03-31)
+        - "YYYY-Q#" (quarterly): e.g. "2026-Q1" → (2026-01-01, 2026-03-31)
+        - "YYYY" (annual): e.g. "2026" → (2026-01-01, 2026-12-31)
+        - "total": returns None (no date range)
 
         Returns:
             tuple[datetime.date, datetime.date] or None on parse error
         """
         try:
-            year_str, q_str = period.split("-Q")
-            year = int(year_str)
-            quarter = int(q_str)
+            if period == "total":
+                return None
 
-            start_month = (quarter - 1) * 3 + 1
-            start_date = datetime.date(year, start_month, 1)
+            if "-Q" in period:
+                # Quarterly: "2024-Q2" format
+                year_str, q_str = period.split("-Q")
+                year = int(year_str)
+                quarter = int(q_str)
 
-            if quarter == 4:
-                end_date = datetime.date(year, 12, 31)
+                start_month = (quarter - 1) * 3 + 1
+                start_date = datetime.date(year, start_month, 1)
+
+                if quarter == 4:
+                    end_date = datetime.date(year, 12, 31)
+                else:
+                    next_quarter_start = datetime.date(year, start_month + 3, 1)
+                    end_date = next_quarter_start - datetime.timedelta(days=1)
+
+                return start_date, end_date
+
+            elif "-" in period:
+                # Monthly: "2026-03" format
+                year_str, month_str = period.split("-")
+                year = int(year_str)
+                month = int(month_str)
+
+                start_date = datetime.date(year, month, 1)
+                # Last day of the month
+                if month == 12:
+                    end_date = datetime.date(year, 12, 31)
+                else:
+                    end_date = datetime.date(year, month + 1, 1) - datetime.timedelta(
+                        days=1
+                    )
+
+                return start_date, end_date
+
             else:
-                next_quarter_start = datetime.date(year, start_month + 3, 1)
-                end_date = next_quarter_start - relativedelta(days=1)
+                # Annual: "2026" format
+                year = int(period)
+                start_date = datetime.date(year, 1, 1)
+                end_date = datetime.date(year, 12, 31)
+                return start_date, end_date
 
-            return start_date, end_date
         except (ValueError, AttributeError):
             logger.error(f"Failed to parse period: {period}")
             return None

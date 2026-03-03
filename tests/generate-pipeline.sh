@@ -40,6 +40,11 @@ APP_SPLITTING_THRESHOLD=5
 # to prevent creating an excessive number of jobs even for a very large test suite.
 MAX_PARALLEL_JOBS=15
 
+# Known heavy apps and their weight multipliers (based on test file counts).
+# Matched against the LAST path component (e.g. "marketplace" from
+# "src/waldur_mastermind/marketplace"). Default weight for unlisted apps is 1.
+HEAVY_APP_WEIGHTS="marketplace:8 openstack:4 structure:4 core:3 proposal:2"
+
 # The filename for the generated child pipeline configuration. This artifact is
 # used by the `trigger` keyword in the main CI configuration.
 PIPELINE_OUTPUT_FILE="generated-pipeline.yml"
@@ -48,6 +53,31 @@ PIPELINE_OUTPUT_FILE="generated-pipeline.yml"
 # to the downstream "execution" stage (the child pipeline).
 VARS_OUTPUT_FILE="generated_vars.env"
 
+
+# --- FUNCTIONS ---
+
+# Calculate a weighted score for the given space-separated list of app paths.
+# Heavy apps (listed in HEAVY_APP_WEIGHTS) contribute more than 1 to the total,
+# so a small number of heavy apps can still trigger parallelization.
+calculate_weighted_score() {
+  local paths="$1"
+  local total=0
+  for p in $paths; do
+    local app_name
+    app_name=$(basename "$p")
+    local weight=1
+    for entry in $HEAVY_APP_WEIGHTS; do
+      local key="${entry%%:*}"
+      local val="${entry##*:}"
+      if [ "$app_name" = "$key" ]; then
+        weight=$val
+        break
+      fi
+    done
+    total=$((total + weight))
+  done
+  echo "$total"
+}
 
 echo "--- Dynamic Pipeline Generator ---"
 
@@ -110,15 +140,17 @@ else
   echo "[+] STEP 2/4: Partial run detected."
 
   PATH_COUNT=$(echo "${SELECTED_PATHS}" | wc -w | tr -d ' ')
-  echo "[+] Number of affected app paths: ${PATH_COUNT}"
+  WEIGHTED_SCORE=$(calculate_weighted_score "${SELECTED_PATHS}")
+  echo "[+] Number of affected app paths: ${PATH_COUNT} (weighted score: ${WEIGHTED_SCORE})"
 
-  if [ "${PATH_COUNT}" -ge "${APP_SPLITTING_THRESHOLD}" ]; then
-    echo "[+] App count (${PATH_COUNT}) >= threshold (${APP_SPLITTING_THRESHOLD}). Enabling parallelization."
+  if [ "${WEIGHTED_SCORE}" -ge "${APP_SPLITTING_THRESHOLD}" ]; then
+    echo "[+] Weighted score (${WEIGHTED_SCORE}) >= threshold (${APP_SPLITTING_THRESHOLD}). Enabling parallelization."
     ENABLE_SPLITTING_VAR="true"
 
-    # Scale parallel jobs with the number of affected apps.
-    # Use roughly 2 apps per job as a heuristic, capped at the maximum.
-    PARALLEL_COUNT=$(( (PATH_COUNT + 1) / 2 ))
+    # Use the weighted score directly as parallel count (1 weight-unit ≈ 1 job).
+    # This gives enough parallelism for heavy apps like marketplace to spread
+    # their slow tests across more runners.
+    PARALLEL_COUNT=${WEIGHTED_SCORE}
 
     if [ "${PARALLEL_COUNT}" -gt "${MAX_PARALLEL_JOBS}" ]; then
       echo "[+] Calculated parallel count (${PARALLEL_COUNT}) exceeds maximum (${MAX_PARALLEL_JOBS}). Capping at ${MAX_PARALLEL_JOBS}."
@@ -128,7 +160,7 @@ else
 
     PARALLEL_BLOCK="parallel: ${PARALLEL_COUNT}"
   else
-    echo "[+] App count (${PATH_COUNT}) < threshold (${APP_SPLITTING_THRESHOLD}). Running as single job."
+    echo "[+] Weighted score (${WEIGHTED_SCORE}) < threshold (${APP_SPLITTING_THRESHOLD}). Running as single job."
     ENABLE_SPLITTING_VAR="false"
     PARALLEL_BLOCK=""
   fi

@@ -1,7 +1,7 @@
 import datetime
 import logging
 
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
@@ -16,7 +16,16 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import filters, models, serializers, slurm_commands, slurm_preview
+from . import (
+    filters,
+    models,
+    serializers,
+    slurm_commands,
+    slurm_preview,
+)
+from . import (
+    tasks as policy_tasks,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -594,7 +603,6 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
     @action(detail=True, methods=["post"], url_path="evaluate")
     def evaluate(self, request, uuid=None):
         """Run synchronous policy evaluation — applies actions and creates logs."""
-        from . import tasks as policy_tasks
 
         policy = self.get_object()
         serializer = serializers.SlurmPolicyEvaluateRequestSerializer(data=request.data)
@@ -632,6 +640,85 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
                         "new_state": log.new_state,
                     }
                 )
+
+        response_data = {
+            "policy_uuid": policy.uuid,
+            "billing_period": current_period,
+            "resources": results,
+        }
+        return Response(
+            serializers.SlurmPolicyEvaluateResponseSerializer(response_data).data,
+            status=status.HTTP_200_OK,
+        )
+
+    force_period_reset_permissions = [structure_permissions.is_staff]
+
+    @extend_schema(
+        request=serializers.SlurmPolicyEvaluateRequestSerializer,
+        responses={200: serializers.SlurmPolicyEvaluateResponseSerializer},
+        description="Staff-only. Force-trigger period reset: re-evaluates paused/downscaled "
+        "resources whose usage in the current period is below thresholds. "
+        "Useful after a Celery beat outage or to immediately unblock resources.",
+    )
+    @action(detail=True, methods=["post"], url_path="force-period-reset")
+    def force_period_reset(self, request, uuid=None):
+        """Force-trigger period reset for paused/downscaled resources."""
+
+        policy = self.get_object()
+        serializer = serializers.SlurmPolicyEvaluateRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        resource_uuid = serializer.validated_data.get("resource_uuid")
+
+        current_period = policy._get_current_period()
+
+        # Get paused/downscaled resources under this policy's offering
+        resources_qs = (
+            marketplace_models.Resource.objects.filter(
+                offering=policy.scope,
+            )
+            .exclude(
+                state__in=(
+                    marketplace_models.ResourceStates.TERMINATED,
+                    marketplace_models.ResourceStates.TERMINATING,
+                ),
+            )
+            .filter(
+                Q(paused=True) | Q(downscaled=True),
+            )
+        )
+        if resource_uuid:
+            resources_qs = resources_qs.filter(uuid=resource_uuid)
+
+        resources = list(resources_qs)
+
+        results = []
+        for resource in resources:
+            usage_pct = policy.get_resource_usage_percentage(resource, current_period)
+            if usage_pct < 100:
+                policy_tasks.evaluate_resource_against_policy(
+                    str(resource.uuid), str(policy.uuid)
+                )
+
+                log = (
+                    models.SlurmPolicyEvaluationLog.objects.filter(
+                        policy=policy,
+                        resource=resource,
+                    )
+                    .order_by("-evaluated_at")
+                    .first()
+                )
+
+                if log:
+                    results.append(
+                        {
+                            "resource_uuid": resource.uuid,
+                            "resource_name": resource.name,
+                            "usage_percentage": log.usage_percentage,
+                            "actions_taken": log.actions_taken,
+                            "previous_state": log.previous_state,
+                            "new_state": log.new_state,
+                        }
+                    )
 
         response_data = {
             "policy_uuid": policy.uuid,

@@ -13,6 +13,7 @@ from django.test import TestCase
 from freezegun import freeze_time
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.invoices.models import PeriodMixin
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures
@@ -50,13 +51,14 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
     @freeze_time("2024-02-15")  # Q1 2024
     def test_policy_triggers_notification_at_80_percent_usage(self):
         """Test that notification action triggers at 80% usage."""
-        # Create policy with notification action
+        # Create policy with notification action (quarterly period to match Q1 dates)
         policy = models.SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
             actions="notify_organization_owners",
             apply_to_all=True,
             grace_ratio=0.2,
             carryover_enabled=False,  # Simplify test
+            period=PeriodMixin.Periods.MONTH_3,
         )
 
         # Create component limit
@@ -84,13 +86,14 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
     @freeze_time("2024-02-15")  # Q1 2024
     def test_policy_triggers_downscaling_at_100_percent_usage(self):
         """Test that request_slurm_resource_downscaling action triggers at 100% usage."""
-        # Create policy with downscaling action
+        # Create policy with downscaling action (quarterly period to match Q1 dates)
         policy = models.SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
             actions="request_slurm_resource_downscaling",
             apply_to_all=True,
             grace_ratio=0.2,
             carryover_enabled=False,
+            period=PeriodMixin.Periods.MONTH_3,
         )
 
         # Create component limit
@@ -118,13 +121,21 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
     @freeze_time("2024-02-15")  # Q1 2024
     def test_policy_triggers_pausing_at_grace_limit(self):
         """Test that request_pausing action triggers at grace limit (120%)."""
-        # Create policy with pausing action
+        # Create policy with pausing action (quarterly period to match Q1 dates)
         policy = models.SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
             actions="request_pausing",
             apply_to_all=True,
             grace_ratio=0.2,  # 20% grace = 120% total
             carryover_enabled=False,
+            period=PeriodMixin.Periods.MONTH_3,
+        )
+
+        # Create component limit
+        models.OfferingComponentLimit.objects.create(
+            policy=policy,
+            component=self.component,
+            limit=1000,
         )
 
         # Create usage at 120% (1200 node-hours)
@@ -145,13 +156,21 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
     @freeze_time("2024-02-15")  # Q1 2024
     def test_policy_does_not_trigger_below_threshold(self):
         """Test that policy doesn't trigger when usage is below threshold."""
-        # Create policy with downscaling at 100%
+        # Create policy with downscaling at 100% (quarterly period to match Q1 dates)
         policy = models.SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
             actions="request_slurm_resource_downscaling",
             apply_to_all=True,
             grace_ratio=0.2,
             carryover_enabled=False,
+            period=PeriodMixin.Periods.MONTH_3,
+        )
+
+        # Create component limit
+        models.OfferingComponentLimit.objects.create(
+            policy=policy,
+            component=self.component,
+            limit=1000,
         )
 
         # Create usage at 50% (500 node-hours)
@@ -172,13 +191,21 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
     @freeze_time("2024-02-15")  # Q1 2024
     def test_multiple_actions_at_different_thresholds(self):
         """Test policy with multiple actions that trigger at different thresholds."""
-        # Create policy with notification and downscaling
+        # Create policy with notification and downscaling (quarterly period to match Q1 dates)
         policy = models.SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
             actions="notify_organization_owners,request_slurm_resource_downscaling",
             apply_to_all=True,
             grace_ratio=0.2,
             carryover_enabled=False,
+            period=PeriodMixin.Periods.MONTH_3,
+        )
+
+        # Create component limit
+        models.OfferingComponentLimit.objects.create(
+            policy=policy,
+            component=self.component,
+            limit=1000,
         )
 
         # Test at 85% - should trigger notification
@@ -207,7 +234,7 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
     @freeze_time("2024-05-15")  # Q2 2024
     def test_carryover_affects_threshold_calculation(self):
         """Test that carryover logic affects when thresholds are triggered."""
-        # Create policy with carryover enabled
+        # Create policy with carryover enabled (quarterly period to match Q dates)
         policy = models.SlurmPeriodicUsagePolicy.objects.create(
             scope=self.offering,
             actions="request_slurm_resource_downscaling",
@@ -215,6 +242,7 @@ class SlurmPeriodicUsagePolicyActionsTest(TestCase):
             grace_ratio=0.2,
             carryover_enabled=True,
             carryover_factor=60,
+            period=PeriodMixin.Periods.MONTH_3,
         )
 
         # Create Q1 usage at 50% (500 node-hours)
