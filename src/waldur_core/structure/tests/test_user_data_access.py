@@ -259,6 +259,86 @@ class UserDataAccessServiceProviderTest(test.APITestCase):
         self.assertEqual(len(provider_access), 0)
 
 
+class GetClientIpTest(test.APITestCase):
+    """Test IP address extraction and validation."""
+
+    def test_valid_ipv4_is_returned(self):
+        from waldur_core.structure.utils_data_access import get_client_ip
+
+        request = self.client.get("/").wsgi_request
+        request.META["REMOTE_ADDR"] = "192.168.1.1"
+        request.META.pop("HTTP_X_FORWARDED_FOR", None)
+        self.assertEqual(get_client_ip(request), "192.168.1.1")
+
+    def test_valid_ipv6_is_returned(self):
+        from waldur_core.structure.utils_data_access import get_client_ip
+
+        request = self.client.get("/").wsgi_request
+        request.META["HTTP_X_FORWARDED_FOR"] = "::1"
+        self.assertEqual(get_client_ip(request), "::1")
+
+    def test_hostname_in_x_forwarded_for_returns_none(self):
+        from waldur_core.structure.utils_data_access import get_client_ip
+
+        request = self.client.get("/").wsgi_request
+        request.META["HTTP_X_FORWARDED_FOR"] = "spoofed.example.com"
+        self.assertIsNone(get_client_ip(request))
+
+    def test_garbage_value_returns_none(self):
+        from waldur_core.structure.utils_data_access import get_client_ip
+
+        request = self.client.get("/").wsgi_request
+        request.META["HTTP_X_FORWARDED_FOR"] = "not-an-ip-at-all"
+        self.assertIsNone(get_client_ip(request))
+
+    def test_none_request_returns_none(self):
+        from waldur_core.structure.utils_data_access import get_client_ip
+
+        self.assertIsNone(get_client_ip(None))
+
+    def test_x_forwarded_for_takes_first_ip(self):
+        from waldur_core.structure.utils_data_access import get_client_ip
+
+        request = self.client.get("/").wsgi_request
+        request.META["HTTP_X_FORWARDED_FOR"] = "10.0.0.1, 192.168.1.1"
+        self.assertEqual(get_client_ip(request), "10.0.0.1")
+
+
+class LogUserDataAccessTransactionSafetyTest(test.APITestCase):
+    """Test that data access logging does not corrupt the outer DB transaction."""
+
+    def setUp(self):
+        self.user = factories.UserFactory()
+        self.staff = factories.UserFactory(is_staff=True)
+
+    @override_config(USER_DATA_ACCESS_LOGGING_ENABLED=True)
+    def test_spoofed_ip_does_not_cause_500_on_user_me(self):
+        """Spoofed X-Forwarded-For with a hostname should not crash /api/users/me/."""
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(
+            "/api/users/me/",
+            HTTP_X_FORWARDED_FOR="spoofed.example.com",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @override_config(USER_DATA_ACCESS_LOGGING_ENABLED=True)
+    def test_spoofed_ip_logs_none_ip_address(self):
+        """When IP is invalid, log entry should be created with ip_address=None."""
+        from waldur_core.logging.models import UserDataAccessLog
+
+        self.client.force_authenticate(self.staff)
+        self.client.get(
+            factories.UserFactory.get_url(self.user),
+            HTTP_X_FORWARDED_FOR="spoofed.example.com",
+        )
+        log_entry = UserDataAccessLog.objects.filter(
+            target_user=self.user,
+            accessor=self.staff,
+        ).first()
+        self.assertIsNotNone(log_entry)
+        self.assertIsNone(log_entry.ip_address)
+
+
 class UserDataAccessLoggingTest(test.APITestCase):
     """Test user data access logging functionality."""
 

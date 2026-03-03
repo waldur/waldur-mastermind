@@ -2,6 +2,7 @@
 Utility functions for user data access logging.
 """
 
+import ipaddress
 import logging
 
 from constance import config
@@ -24,6 +25,14 @@ def get_client_ip(request):
         ip = x_forwarded_for.split(",")[0].strip()
     else:
         ip = request.META.get("REMOTE_ADDR")
+
+    if ip:
+        try:
+            ipaddress.ip_address(ip)
+        except ValueError:
+            logger.warning("Invalid IP address in request: %s", ip)
+            return None
+
     return ip
 
 
@@ -105,16 +114,19 @@ def log_user_data_access_sync(
         log_context["method"] = request.method
 
     try:
-        UserDataAccessLog.objects.create(
-            target_user=target_user,
-            accessor=accessor,
-            accessor_type=accessor_type,
-            accessed_fields=accessed_fields,
-            ip_address=ip_address,
-            context=log_context,
-        )
+        with transaction.atomic():
+            UserDataAccessLog.objects.create(
+                target_user=target_user,
+                accessor=accessor,
+                accessor_type=accessor_type,
+                accessed_fields=accessed_fields,
+                ip_address=ip_address,
+                context=log_context,
+            )
     except Exception as e:
-        # Log error but don't fail the request
+        # Log error but don't fail the request.
+        # The savepoint (transaction.atomic) ensures a failed INSERT
+        # does not corrupt the outer transaction.
         logger.warning("Failed to log user data access: %s", e)
 
 
@@ -159,7 +171,8 @@ def bulk_log_user_data_access(entries, accessor, request):
 
     if logs:
         try:
-            UserDataAccessLog.objects.bulk_create(logs)
+            with transaction.atomic():
+                UserDataAccessLog.objects.bulk_create(logs)
         except Exception as e:
             logger.warning("Failed to bulk log user data access: %s", e)
 
