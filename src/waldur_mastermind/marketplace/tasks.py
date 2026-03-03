@@ -1552,6 +1552,7 @@ def request_offering_user_deletion_for_user(user_uuid: str):
     offering_users_to_request_deletion = (
         models.OfferingUser.objects.filter(
             user=user,
+            offering__plugin_options__offering_user_auto_deletion=True,
             state__in=[
                 OfferingUserStates.OK,
                 OfferingUserStates.CREATING,
@@ -1583,6 +1584,7 @@ def request_offering_user_deletion_for_user(user_uuid: str):
     offering_users_not_provisioned = (
         models.OfferingUser.objects.filter(
             user=user,
+            offering__plugin_options__offering_user_auto_deletion=True,
             state__in=[
                 OfferingUserStates.CREATION_REQUESTED,
             ],

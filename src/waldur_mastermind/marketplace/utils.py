@@ -1463,9 +1463,10 @@ def user_offerings_mapping(offerings):
                     user_offerings_set.add((user, offering))
 
     for user, offering in user_offerings_set:
-        if not models.OfferingUser.objects.filter(
+        offering_user = models.OfferingUser.objects.filter(
             user=user, offering=offering
-        ).exists():
+        ).first()
+        if offering_user is None:
             username = generate_username(user, offering)
             # Set state to OK when username is known at creation time
             state = (
@@ -1477,6 +1478,19 @@ def user_offerings_mapping(offerings):
                 user=user, offering=offering, username=username, state=state
             )
             logger.info("Offering user %s has been created.", offering_user)
+        elif offering_user.state == OfferingUserStates.DELETION_REQUESTED:
+            # Only restore from DELETION_REQUESTED — no backend action taken yet.
+            # DELETING/ERROR_DELETING/DELETED are left untouched since
+            # the service provider/site agent may have already started backend actions.
+            if offering_user.username:
+                offering_user.set_ok()
+            else:
+                offering_user.state = OfferingUserStates.CREATION_REQUESTED
+            offering_user.save(update_fields=["state"])
+            logger.info(
+                "Offering user %s has been restored from deletion request.",
+                offering_user,
+            )
 
 
 def order_should_not_be_reviewed_by_provider(order: models.Order):
