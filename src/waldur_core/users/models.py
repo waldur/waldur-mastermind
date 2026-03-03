@@ -16,7 +16,7 @@ from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core.mixins import ProjectNameTemplateMixin
 from waldur_core.permissions.models import Role
-from waldur_core.permissions.utils import add_user, validate_user_restrictions
+from waldur_core.permissions.utils import add_user, has_user, validate_user_restrictions
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.signals import permissions_request_approved
 from waldur_core.users.enums import InvitationState
@@ -251,14 +251,24 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
         if self.invitation.auto_create_project:
             # Create project and grant project permission instead of customer permission
             project = self._create_project_for_user(user)
+            role = self.invitation.project_role or self.invitation.role
+
+            # Defense-in-depth: skip if user already has the role
+            if has_user(project, self.created_by, role):
+                return
+
             permission = add_user(
                 project,
                 self.created_by,
-                self.invitation.project_role or self.invitation.role,
+                role,
                 created_by=user,
             )
             scope = project
         else:
+            # Defense-in-depth: skip if user already has the role
+            if has_user(self.invitation.scope, self.created_by, self.invitation.role):
+                return
+
             # Original behavior - grant customer/scope permission
             permission = add_user(
                 self.invitation.scope,
@@ -279,8 +289,8 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
 
         project_name = self._resolve_project_name()
 
-        # Use get_or_create to ensure only one project per user per customer
-        project, created = Project.objects.get_or_create(
+        # Use get_or_create with available_objects to exclude soft-deleted projects
+        project, created = Project.available_objects.get_or_create(
             name=project_name,
             customer=self.invitation.customer,
         )
