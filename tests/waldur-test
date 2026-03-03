@@ -58,12 +58,14 @@ DATABASES = {
 EOF
 
 # Base command with flags that are always used for unit tests.
+# -m "not slow" excludes load/performance tests that create 10K+ records.
 PYTEST_BASE_CMD="uv run pytest \
     --reuse-db \
     --junitxml=report.xml \
     --cov=src/ \
     --no-migrations \
     -ra \
+    -m 'not slow' \
     --ds=waldur_mastermind.test_settings"
 
 # This is the core logic for parallelization.
