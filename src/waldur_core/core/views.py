@@ -69,9 +69,11 @@ from waldur_core.core.serializers import (
     ObtainAuthTokenSerializer,
     QuerySerializer,
     TableGrowthStatsResponseSerializer,
+    TableGrowthTriggerResponseSerializer,
     VersionHistorySerializer,
     VersionSerializer,
 )
+from waldur_core.core.tasks import sample_table_sizes
 from waldur_core.core.utils import format_homeport_link
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
@@ -1466,6 +1468,11 @@ class TableGrowthStatsViewSet(APIView):
 
     permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
 
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return [rf_permissions.IsAuthenticated(), permissions.IsStaff()]
+        return super().get_permissions()
+
     @extend_schema(
         summary="Get table growth statistics",
         description="""Retrieves historical table growth statistics for detecting abnormal patterns.
@@ -1627,6 +1634,20 @@ Requires support user permissions.""",
         }
 
         return Response(response_data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Trigger table size sampling",
+        description="Triggers the sample_table_sizes Celery task to collect current table size data. "
+        "Requires staff permissions.",
+        request=None,
+        responses={status.HTTP_202_ACCEPTED: TableGrowthTriggerResponseSerializer},
+    )
+    def post(self, request, *args, **kwargs):
+        sample_table_sizes.delay()
+        return Response(
+            {"detail": "Table size sampling task has been scheduled."},
+            status=status.HTTP_202_ACCEPTED,
+        )
 
 
 @extend_schema(exclude=True)

@@ -496,6 +496,39 @@ class CheckTableGrowthAlertsTaskTest(TestCase):
         self.assertEqual(context["alerts"][0]["growth_percent"], 250.0)
 
 
+class TableGrowthTriggerAPITest(APITestCase):
+    """Tests for the table growth trigger (POST) endpoint."""
+
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.url = "/api/stats/table-growth/"
+
+    def test_anonymous_user_cannot_trigger(self):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_regular_user_cannot_trigger(self):
+        self.client.force_authenticate(user=self.fixture.user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_support_user_cannot_trigger(self):
+        support_user = self.fixture.user
+        support_user.is_support = True
+        support_user.save()
+        self.client.force_authenticate(user=support_user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @patch("waldur_core.core.tasks.sample_table_sizes.delay")
+    def test_staff_user_can_trigger(self, mock_delay):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.assertIn("detail", response.data)
+        mock_delay.assert_called_once()
+
+
 class LegacyEndpointTest(APITestCase):
     """Tests that legacy endpoints still work."""
 

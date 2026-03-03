@@ -667,10 +667,10 @@ def sample_table_sizes():
     # Query PostgreSQL for table sizes and row estimates
     sql = """
     SELECT
-        relname AS table_name,
-        pg_total_relation_size(relid) AS total_size,
-        pg_relation_size(relid) AS data_size,
-        n_live_tup AS row_estimate
+        pg_statio_user_tables.relname AS table_name,
+        pg_total_relation_size(pg_statio_user_tables.relid) AS total_size,
+        pg_relation_size(pg_statio_user_tables.relid) AS data_size,
+        pg_stat_user_tables.n_live_tup AS row_estimate
     FROM
         pg_catalog.pg_statio_user_tables
     LEFT JOIN

@@ -1390,3 +1390,9 @@ class TableGrowthStatsResponseSerializer(serializers.Serializer):
         many=True,
         help_text="List of tables that exceeded configured growth thresholds",
     )
+
+
+class TableGrowthTriggerResponseSerializer(serializers.Serializer):
+    """Response serializer for triggering table size sampling."""
+
+    detail = serializers.CharField(help_text="Status message about the triggered task")
