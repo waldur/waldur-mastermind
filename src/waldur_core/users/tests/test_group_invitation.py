@@ -1,5 +1,6 @@
 from unittest import mock
 
+from constance.test.unittest import override_config
 from ddt import data, ddt
 from rest_framework import status
 
@@ -7,8 +8,8 @@ from waldur_core.core.enums import ReviewStates
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
-from waldur_core.permissions.models import Role
-from waldur_core.permissions.utils import has_user
+from waldur_core.permissions.models import Role, UserRole
+from waldur_core.permissions.utils import add_user, has_user
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users import models
@@ -770,7 +771,7 @@ class RequestCreateTest(BaseInvitationTest):
             self.group_invitation, "submit_request"
         )
 
-    @data("staff", "customer_owner", "project_admin", "project_manager", "user")
+    @data("staff", "project_admin", "project_manager", "user")
     def test_create_request(self, user):
         self.client.force_authenticate(user=getattr(self, user))
         response = self.client.post(self.url)
@@ -781,6 +782,12 @@ class RequestCreateTest(BaseInvitationTest):
             ).exists()
         )
 
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_user_with_existing_role_cannot_create_request(self):
+        """customer_owner already has CUSTOMER.OWNER role, so should be rejected."""
+        self.client.force_authenticate(user=self.customer_owner)
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -1293,3 +1300,128 @@ class GroupInvitationAutoApprovalTest(BaseGroupInvitationTest):
             customer=self.customer, name=user.username
         )
         self.assertTrue(has_user(created_project, user, ProjectRole.ADMIN))
+
+
+class GroupInvitationDuplicateRolePreventionTest(BaseGroupInvitationTest):
+    def setUp(self):
+        super().setUp()
+        self.auto_approve_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_approve=True,
+            user_email_patterns=[".*@example.com"],
+        )
+        self.url = factories.CustomerGroupInvitationFactory.get_url(
+            self.auto_approve_invitation, "submit_request"
+        )
+
+    def test_auto_approved_user_cannot_submit_duplicate_request(self):
+        """Submit twice with auto_approve=True — second request should be rejected."""
+        user = structure_factories.UserFactory(email="user@example.com")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["auto_approved"])
+
+        # Second submission should be blocked
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Verify only one role was granted
+        role_count = UserRole.objects.filter(
+            user=user,
+            is_active=True,
+            role=self.auto_approve_invitation.role,
+        ).count()
+        self.assertEqual(role_count, 1)
+
+    def test_user_with_existing_role_cannot_submit_request(self):
+        """User who already has the role via other means gets rejected."""
+        user = structure_factories.UserFactory(email="user@example.com")
+        add_user(self.customer, user, self.auto_approve_invitation.role)
+
+        self.client.force_authenticate(user=user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_config(INVITATION_DISABLE_MULTIPLE_ROLES=True)
+    def test_multiple_roles_disabled_blocks_group_invitation_with_existing_role(self):
+        """INVITATION_DISABLE_MULTIPLE_ROLES blocks different role in same scope."""
+        user = structure_factories.UserFactory(email="user@example.com")
+        # Grant a different role in the same customer scope
+        add_user(self.customer, user, CustomerRole.SUPPORT)
+
+        self.client.force_authenticate(user=user)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_manual_approve_does_not_create_duplicate_role(self):
+        """Approve two requests for same scope — only one role should be created."""
+        manual_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_approve=False,
+            user_email_patterns=[".*@example.com"],
+        )
+
+        user = structure_factories.UserFactory(email="user@example.com")
+
+        # Create two pending permission requests (simulating overlapping group invitations)
+        pr1 = models.PermissionRequest.objects.create(
+            invitation=self.auto_approve_invitation,
+            created_by=user,
+        )
+        pr1.submit()
+
+        pr2 = models.PermissionRequest.objects.create(
+            invitation=manual_invitation,
+            created_by=user,
+        )
+        pr2.submit()
+
+        # Approve both — second should silently skip role creation
+        pr1.approve(self.staff)
+        pr2.approve(self.staff)
+
+        role_count = UserRole.objects.filter(
+            user=user,
+            is_active=True,
+            role=self.auto_approve_invitation.role,
+        ).count()
+        self.assertEqual(role_count, 1)
+
+    def test_soft_deleted_project_is_not_reused(self):
+        """When auto_create_project=True and project was soft-deleted, a new project is created."""
+        project_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_approve=True,
+            auto_create_project=True,
+            user_email_patterns=[".*@example.com"],
+            role=ProjectRole.ADMIN,
+            project_role=ProjectRole.ADMIN,
+        )
+        url = factories.CustomerGroupInvitationFactory.get_url(
+            project_invitation, "submit_request"
+        )
+
+        user = structure_factories.UserFactory(email="user@example.com")
+
+        # Pre-create a project with the expected name and soft-delete it
+        project_name = user.username
+        old_project = structure_models.Project.objects.create(
+            name=project_name,
+            customer=self.customer,
+        )
+        old_project.delete()  # soft delete
+        old_project.refresh_from_db()
+        self.assertTrue(old_project.is_removed)
+
+        self.client.force_authenticate(user=user)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # A new non-deleted project should exist
+        new_project = structure_models.Project.available_objects.get(
+            name=project_name,
+            customer=self.customer,
+        )
+        self.assertNotEqual(new_project.pk, old_project.pk)

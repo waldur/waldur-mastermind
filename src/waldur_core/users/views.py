@@ -589,16 +589,28 @@ class GroupInvitationViewSet(ActionsViewSet):
         if not invitation.is_active:
             raise ValidationError(_("Only pending invitation can be requested."))
 
-        # Authentication is required for submitting requests (handled by permission classes)
+        # Check if user already has the requested role in the scope
+        if has_user(invitation.scope, user, invitation.role):
+            raise ValidationError(_("User already has this role in the scope."))
+
+        # Check if multiple roles are disabled for this scope
+        if config.INVITATION_DISABLE_MULTIPLE_ROLES:
+            if UserRole.objects.filter(
+                user=user,
+                is_active=True,
+                content_type=invitation.content_type,
+                object_id=invitation.object_id,
+            ).exists():
+                raise ValidationError(_("User already has role within this scope."))
 
         if models.PermissionRequest.objects.filter(
             invitation__content_type=invitation.content_type,
             invitation__object_id=invitation.object_id,
             created_by=user,
-            state=ReviewStates.PENDING,
+            state__in=[ReviewStates.PENDING, ReviewStates.APPROVED],
         ).exists():
             raise ValidationError(
-                _("Pending permission request already exists for this scope.")
+                _("Permission request already exists for this scope.")
             )
 
         allowed = invitation in models.GroupInvitation.get_objects_by_user_patterns(
