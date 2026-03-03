@@ -107,6 +107,10 @@ class OAuthViewInit(BaseOAuthView):
         redirect_uri = reverse(f"auth_{provider}_complete", request=request)
         scope = f"openid {self.config.extra_scope or ''}".strip()
 
+        # Flush the old session before writing the new OIDC state.
+        # This creates a fresh session key so concurrent requests that already cannot overwrite the state.
+        request.session.flush()
+
         oidc_state = secrets.token_urlsafe(32)
         request.session[OIDC_STATE_KEY] = oidc_state
 
@@ -160,6 +164,14 @@ class OAuthViewComplete(BaseOAuthView):
         returned_state = request.query_params.get("state")
         if not stored_state or stored_state != returned_state:
             # Potential CSRF attack - reject the request
+            logger.warning(
+                "Invalid auth state for provider %s: "
+                "stored_state=%r, returned_state=%r, session_key=%r",
+                provider,
+                stored_state,
+                returned_state,
+                request.session.session_key,
+            )
             raise OAuthException(self.config.provider, "Invalid auth state.")
         redirect_uri = reverse(f"auth_{provider}_complete", request=request)
         serializer = AuthSerializer(
