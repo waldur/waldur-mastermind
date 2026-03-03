@@ -125,6 +125,14 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False, help_text="Service provider can create offering user"
     )
 
+    offering_user_auto_deletion = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="If set to True, offering users will be automatically marked "
+        "for deletion by the cleanup task when users lose project access. "
+        "If False (default), deletion must be triggered manually by the service provider.",
+    )
+
     max_resource_termination_offset_in_days = serializers.IntegerField(
         required=False,
         min_value=0,
