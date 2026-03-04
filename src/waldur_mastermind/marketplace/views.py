@@ -71,6 +71,7 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.core.models import User
+from waldur_core.core.pagination import LinkHeaderPagination
 from waldur_core.core.renderers import PlainTextRenderer
 from waldur_core.core.serializers import EmptySerializer, RestrictedSerializerMixin
 from waldur_core.core.utils import (
@@ -158,6 +159,7 @@ from waldur_mastermind.marketplace.utils import (
 from waldur_mastermind.policy.models import SlurmPeriodicUsagePolicy
 from waldur_mastermind.promotions import models as promotions_models
 from waldur_mastermind.support import models as support_models
+from waldur_openstack import models as openstack_models
 from waldur_pid import models as pid_models
 
 from . import filters, log, models, permissions, plugins, serializers, tasks, utils
@@ -11274,6 +11276,413 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
         ]
 
         serializer = serializers.AggregatedUsageTrendSerializer(result, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="List all OpenStack instances with infrastructure details.",
+        description="Returns a paginated flat list of all OpenStack instances across all clusters. "
+        "Staff and support users can filter by infrastructure properties.",
+        parameters=[
+            OpenApiParameter(
+                "name",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by instance name (case-insensitive partial match).",
+            ),
+            OpenApiParameter(
+                "flavor_name",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by flavor name (case-insensitive partial match).",
+            ),
+            OpenApiParameter(
+                "image_name",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by image name (case-insensitive partial match).",
+            ),
+            OpenApiParameter(
+                "hypervisor_hostname",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by hypervisor hostname (case-insensitive partial match).",
+            ),
+            OpenApiParameter(
+                "runtime_state",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by runtime state (e.g. ACTIVE, SHUTOFF).",
+            ),
+            OpenApiParameter(
+                "availability_zone_name",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by availability zone name.",
+            ),
+            OpenApiParameter(
+                "cores_min",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="Minimum number of vCPUs.",
+            ),
+            OpenApiParameter(
+                "cores_max",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="Maximum number of vCPUs.",
+            ),
+            OpenApiParameter(
+                "ram_min",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="Minimum RAM in MiB.",
+            ),
+            OpenApiParameter(
+                "ram_max",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="Maximum RAM in MiB.",
+            ),
+            OpenApiParameter(
+                "disk_min",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="Minimum disk in MiB.",
+            ),
+            OpenApiParameter(
+                "disk_max",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="Maximum disk in MiB.",
+            ),
+            OpenApiParameter(
+                "service_settings_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by cluster (service settings) UUID.",
+                extensions={"x-waldur-operation-id": "service_settings_retrieve"},
+            ),
+            OpenApiParameter(
+                "customer_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by customer UUID.",
+                extensions={"x-waldur-operation-id": "customers_retrieve"},
+            ),
+            OpenApiParameter(
+                "project_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by project UUID.",
+                extensions={"x-waldur-operation-id": "projects_retrieve"},
+            ),
+            OpenApiParameter(
+                "tenant_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by tenant UUID.",
+                extensions={"x-waldur-operation-id": "openstack_tenants_retrieve"},
+            ),
+            OpenApiParameter(
+                "state",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by provisioning state (e.g. OK, ERRED). Supports multiple values.",
+            ),
+            OpenApiParameter(
+                "o",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Ordering field. Prefix with - for descending. "
+                "Options: name, cores, ram, disk, created, runtime_state, "
+                "flavor_name, hypervisor_hostname, customer_name, project_name, "
+                "cluster_name, start_time.",
+            ),
+            OpenApiParameter(
+                "page",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="Page number.",
+            ),
+            OpenApiParameter(
+                "page_size",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="Number of results per page (max 300).",
+            ),
+        ],
+        responses={200: serializers.OpenStackInstanceReportSerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"])
+    def openstack_instances(self, request):
+        queryset = (
+            openstack_models.Instance.objects.all()
+            .select_related(
+                "service_settings",
+                "project__customer",
+                "tenant",
+                "availability_zone",
+            )
+            .prefetch_related("ports__floating_ips", "volumes")
+        )
+
+        filterset = filters.OpenStackInstanceReportFilter(
+            request.query_params, queryset=queryset
+        )
+        queryset = filterset.qs
+
+        paginator = LinkHeaderPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        instances = page if page is not None else queryset
+
+        data = []
+        for instance in instances:
+            volumes = instance.volumes.all()
+            ports = instance.ports.all()
+            floating_ips = []
+            internal_ips = set()
+            for port in ports:
+                for fip in port.floating_ips.all():
+                    floating_ips.append(fip)
+                if port.fixed_ips:
+                    for fixed_ip in port.fixed_ips:
+                        ip_address = (
+                            fixed_ip.get("ip_address")
+                            if isinstance(fixed_ip, dict)
+                            else None
+                        )
+                        if ip_address:
+                            internal_ips.add(ip_address)
+
+            data.append(
+                {
+                    "uuid": instance.uuid,
+                    "name": instance.name,
+                    "created": instance.created,
+                    "cores": instance.cores,
+                    "ram": instance.ram,
+                    "disk": instance.disk,
+                    "flavor_name": instance.flavor_name,
+                    "flavor_disk": instance.flavor_disk,
+                    "image_name": instance.image_name,
+                    "hypervisor_hostname": instance.hypervisor_hostname,
+                    "runtime_state": instance.runtime_state,
+                    "state": instance.get_state_display(),
+                    "availability_zone_name": (
+                        instance.availability_zone.name
+                        if instance.availability_zone
+                        else None
+                    ),
+                    "start_time": instance.start_time,
+                    "service_settings_uuid": instance.service_settings.uuid,
+                    "service_settings_name": instance.service_settings.name,
+                    "tenant_uuid": instance.tenant.uuid if instance.tenant else None,
+                    "tenant_name": instance.tenant.name if instance.tenant else "",
+                    "project_uuid": instance.project.uuid,
+                    "project_name": instance.project.name,
+                    "customer_uuid": instance.project.customer.uuid,
+                    "customer_name": instance.project.customer.name,
+                    "customer_abbreviation": instance.project.customer.abbreviation,
+                    "volume_count": len(volumes),
+                    "total_volume_size_mb": sum(v.size for v in volumes),
+                    "floating_ip_count": len(floating_ips),
+                    "port_count": len(ports),
+                    "internal_ips": sorted(internal_ips),
+                    "external_ips": sorted(
+                        {fip.address for fip in floating_ips if fip.address}
+                    ),
+                }
+            )
+
+        serializer = serializers.OpenStackInstanceReportSerializer(data, many=True)
+        if page is not None:
+            return paginator.get_paginated_response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    OPENSTACK_INSTANCE_GROUP_BY_MAPPING = {
+        "hypervisor_hostname": {
+            "key_field": "hypervisor_hostname",
+        },
+        "flavor_name": {
+            "key_field": "flavor_name",
+        },
+        "image_name": {
+            "key_field": "image_name",
+        },
+        "availability_zone": {
+            "key_field": "availability_zone__name",
+        },
+        "service_settings": {
+            "key_field": "service_settings__uuid",
+            "label_field": "service_settings__name",
+        },
+        "customer": {
+            "key_field": "project__customer__uuid",
+            "label_field": "project__customer__name",
+        },
+        "runtime_state": {
+            "key_field": "runtime_state",
+        },
+    }
+
+    @extend_schema(
+        summary="Aggregate OpenStack instances by a dimension.",
+        description="Returns aggregated metrics (count, cores, RAM, disk) grouped by the specified dimension.",
+        parameters=[
+            OpenApiParameter(
+                "group_by",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                enum=list(OPENSTACK_INSTANCE_GROUP_BY_MAPPING.keys()),
+                description="Dimension to group by.",
+            ),
+            OpenApiParameter(
+                "name",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by instance name (case-insensitive partial match).",
+            ),
+            OpenApiParameter(
+                "flavor_name",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by flavor name (case-insensitive partial match).",
+            ),
+            OpenApiParameter(
+                "image_name",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by image name (case-insensitive partial match).",
+            ),
+            OpenApiParameter(
+                "hypervisor_hostname",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by hypervisor hostname (case-insensitive partial match).",
+            ),
+            OpenApiParameter(
+                "runtime_state",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by runtime state (e.g. ACTIVE, SHUTOFF).",
+            ),
+            OpenApiParameter(
+                "service_settings_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by cluster (service settings) UUID.",
+                extensions={"x-waldur-operation-id": "service_settings_retrieve"},
+            ),
+            OpenApiParameter(
+                "customer_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by customer UUID.",
+                extensions={"x-waldur-operation-id": "customers_retrieve"},
+            ),
+            OpenApiParameter(
+                "project_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by project UUID.",
+                extensions={"x-waldur-operation-id": "projects_retrieve"},
+            ),
+            OpenApiParameter(
+                "tenant_uuid",
+                type=OpenApiTypes.UUID,
+                location=OpenApiParameter.QUERY,
+                description="Filter by tenant UUID.",
+                extensions={"x-waldur-operation-id": "openstack_tenants_retrieve"},
+            ),
+            OpenApiParameter(
+                "state",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Filter by provisioning state (e.g. OK, ERRED).",
+            ),
+        ],
+        responses={200: serializers.OpenStackInstanceAggregateSerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"])
+    def openstack_instances_aggregate(self, request):
+        group_by = request.query_params.get("group_by")
+        if not group_by or group_by not in self.OPENSTACK_INSTANCE_GROUP_BY_MAPPING:
+            raise ValidationError(
+                {
+                    "group_by": f"This parameter is required. Valid values: "
+                    f"{', '.join(sorted(self.OPENSTACK_INSTANCE_GROUP_BY_MAPPING.keys()))}"
+                }
+            )
+
+        mapping = self.OPENSTACK_INSTANCE_GROUP_BY_MAPPING[group_by]
+        key_field = mapping["key_field"]
+        label_field = mapping.get("label_field")
+
+        queryset = openstack_models.Instance.objects.all()
+        filterset = filters.OpenStackInstanceReportFilter(
+            request.query_params, queryset=queryset
+        )
+        queryset = filterset.qs
+
+        group_fields = [key_field]
+        if label_field:
+            group_fields.append(label_field)
+
+        # Use per-instance subqueries for volume size and floating IP count,
+        # then aggregate the subquery results per group. This avoids both
+        # cross-join inflation and the N+1 of per-group queries.
+        volume_size_subquery = (
+            openstack_models.Volume.objects.filter(instance=OuterRef("pk"))
+            .order_by()
+            .values("instance")
+            .annotate(total=Sum("size"))
+            .values("total")
+        )
+        floating_ip_subquery = (
+            openstack_models.FloatingIP.objects.filter(port__instance=OuterRef("pk"))
+            .order_by()
+            .values("port__instance")
+            .annotate(total=Count("id"))
+            .values("total")
+        )
+
+        annotated_qs = queryset.annotate(
+            _vol_size=Coalesce(Subquery(volume_size_subquery), 0),
+            _fip_count=Coalesce(Subquery(floating_ip_subquery), 0),
+        )
+
+        aggregated = (
+            annotated_qs.values(*group_fields)
+            .annotate(
+                instance_count=Count("id"),
+                total_cores=Sum("cores"),
+                total_ram_mb=Sum("ram"),
+                total_disk_mb=Sum("disk"),
+                total_volume_size_mb=Sum("_vol_size"),
+                total_floating_ips=Sum("_fip_count"),
+            )
+            .order_by("-instance_count")
+        )
+
+        data = []
+        for row in aggregated:
+            key = row[key_field]
+            label = row.get(label_field, key) if label_field else key
+            data.append(
+                {
+                    "group_key": str(key) if key is not None else "",
+                    "group_label": str(label) if label is not None else "",
+                    "instance_count": row["instance_count"],
+                    "total_cores": row["total_cores"],
+                    "total_ram_mb": row["total_ram_mb"],
+                    "total_disk_mb": row["total_disk_mb"],
+                    "total_volume_size_mb": row["total_volume_size_mb"],
+                    "total_floating_ips": row["total_floating_ips"],
+                }
+            )
+
+        serializer = serializers.OpenStackInstanceAggregateSerializer(data, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 

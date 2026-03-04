@@ -14,6 +14,7 @@ from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.checklist import models as checklist_models
 from waldur_core.core import filters as core_filters
+from waldur_core.core.enums import CoreStates
 from waldur_core.core.filters import (
     CharInFilter,
     LooseMultipleChoiceFilter,
@@ -52,6 +53,7 @@ from waldur_mastermind.marketplace.managers import (
 )
 from waldur_mastermind.proposal import models as proposal_models
 from waldur_mastermind.proposal.enums import CallStates, RequestedOfferingStates
+from waldur_openstack import models as openstack_models
 from waldur_pid import models as pid_models
 
 from . import models, utils
@@ -2546,3 +2548,60 @@ class OfferingPartitionFilter(django_filters.FilterSet):
             "exclusive_topo",
             "req_resv",
         ]
+
+
+class OpenStackInstanceReportFilter(django_filters.FilterSet):
+    name = django_filters.CharFilter(lookup_expr="icontains")
+    flavor_name = django_filters.CharFilter(lookup_expr="icontains")
+    image_name = django_filters.CharFilter(lookup_expr="icontains")
+    hypervisor_hostname = django_filters.CharFilter(lookup_expr="icontains")
+
+    runtime_state = django_filters.CharFilter()
+    availability_zone_name = django_filters.CharFilter(
+        field_name="availability_zone__name",
+    )
+
+    cores_min = django_filters.NumberFilter(field_name="cores", lookup_expr="gte")
+    cores_max = django_filters.NumberFilter(field_name="cores", lookup_expr="lte")
+    ram_min = django_filters.NumberFilter(field_name="ram", lookup_expr="gte")
+    ram_max = django_filters.NumberFilter(field_name="ram", lookup_expr="lte")
+    disk_min = django_filters.NumberFilter(field_name="disk", lookup_expr="gte")
+    disk_max = django_filters.NumberFilter(field_name="disk", lookup_expr="lte")
+
+    service_settings_uuid = django_filters.UUIDFilter(
+        field_name="service_settings__uuid",
+    )
+    customer_uuid = django_filters.UUIDFilter(
+        field_name="project__customer__uuid",
+    )
+    project_uuid = django_filters.UUIDFilter(
+        field_name="project__uuid",
+    )
+    tenant_uuid = django_filters.UUIDFilter(
+        field_name="tenant__uuid",
+    )
+
+    state = core_filters.MappedMultipleChoiceFilter(
+        choices=CoreStates.choices,
+    )
+
+    o = django_filters.OrderingFilter(
+        fields=(
+            ("name", "name"),
+            ("cores", "cores"),
+            ("ram", "ram"),
+            ("disk", "disk"),
+            ("created", "created"),
+            ("runtime_state", "runtime_state"),
+            ("flavor_name", "flavor_name"),
+            ("hypervisor_hostname", "hypervisor_hostname"),
+            ("project__customer__name", "customer_name"),
+            ("project__name", "project_name"),
+            ("service_settings__name", "cluster_name"),
+            ("start_time", "start_time"),
+        ),
+    )
+
+    class Meta:
+        model = openstack_models.Instance
+        fields = []
