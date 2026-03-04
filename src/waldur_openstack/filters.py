@@ -155,6 +155,116 @@ class RouterFilter(TenantFilterSet, structure_filters.NameFilterSet):
         fields = ("state",)
 
 
+class LoadBalancerFilter(TenantFilterSet, structure_filters.NameFilterSet):
+    state = core_filters.MappedMultipleChoiceFilter(CoreStates.choices, label="State")
+
+    class Meta:
+        model = models.LoadBalancer
+        fields = ("state",)
+
+
+class PoolFilter(structure_filters.NameFilterSet):
+    load_balancer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-loadbalancer-detail",
+        field_name="load_balancer__uuid",
+        label="Load balancer UUID",
+    )
+    load_balancer = core_filters.URLFilter(
+        view_name="openstack-loadbalancer-detail",
+        field_name="load_balancer__uuid",
+        label="Load balancer URL",
+    )
+    tenant_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-tenant-detail",
+        field_name="load_balancer__tenant__uuid",
+        label="Tenant UUID",
+    )
+    state = core_filters.MappedMultipleChoiceFilter(CoreStates.choices, label="State")
+
+    class Meta:
+        model = models.Pool
+        fields = ("state",)
+
+
+class ListenerFilter(structure_filters.NameFilterSet):
+    load_balancer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-loadbalancer-detail",
+        field_name="load_balancer__uuid",
+        label="Load balancer UUID",
+    )
+    load_balancer = core_filters.URLFilter(
+        view_name="openstack-loadbalancer-detail",
+        field_name="load_balancer__uuid",
+        label="Load balancer URL",
+    )
+    tenant_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-tenant-detail",
+        field_name="load_balancer__tenant__uuid",
+        label="Tenant UUID",
+    )
+    state = core_filters.MappedMultipleChoiceFilter(CoreStates.choices, label="State")
+
+    class Meta:
+        model = models.Listener
+        fields = ("state",)
+
+
+class PoolMemberFilter(structure_filters.NameFilterSet):
+    pool_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-pool-detail",
+        field_name="pool__uuid",
+        label="Pool UUID",
+    )
+    pool = core_filters.URLFilter(
+        view_name="openstack-pool-detail",
+        field_name="pool__uuid",
+        label="Pool URL",
+    )
+    load_balancer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-loadbalancer-detail",
+        field_name="pool__load_balancer__uuid",
+        label="Load balancer UUID",
+    )
+    tenant_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-tenant-detail",
+        field_name="pool__load_balancer__tenant__uuid",
+        label="Tenant UUID",
+    )
+    state = core_filters.MappedMultipleChoiceFilter(CoreStates.choices, label="State")
+
+    class Meta:
+        model = models.PoolMember
+        fields = ("state",)
+
+
+class HealthMonitorFilter(structure_filters.NameFilterSet):
+    pool_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-pool-detail",
+        field_name="pool__uuid",
+        label="Pool UUID",
+    )
+    pool = core_filters.URLFilter(
+        view_name="openstack-pool-detail",
+        field_name="pool__uuid",
+        label="Pool URL",
+    )
+    load_balancer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-loadbalancer-detail",
+        field_name="pool__load_balancer__uuid",
+        label="Load balancer UUID",
+    )
+    tenant_uuid = core_filters.RelatedUUIDFilter(
+        view_name="openstack-tenant-detail",
+        field_name="pool__load_balancer__tenant__uuid",
+        label="Tenant UUID",
+    )
+    state = core_filters.MappedMultipleChoiceFilter(CoreStates.choices, label="State")
+
+    class Meta:
+        model = models.HealthMonitor
+        fields = ("state",)
+
+
 class PortFilter(TenantFilterSet, structure_filters.NameFilterSet):
     o = django_filters.OrderingFilter(
         fields=(

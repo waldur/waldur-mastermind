@@ -424,6 +424,160 @@ class RouterFactory(
         return "http://testserver" + reverse("openstack-router-list")
 
 
+class LoadBalancerFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.LoadBalancer],
+):
+    class Meta:
+        model = models.LoadBalancer
+
+    service_settings = factory.LazyAttribute(lambda o: o.tenant.service_settings)
+    tenant = factory.SubFactory(TenantFactory)
+    project = factory.SubFactory(structure_factories.ProjectFactory)
+    name = factory.Sequence(lambda n: "loadbalancer%s" % n)
+    vip_subnet_id = factory.Sequence(lambda n: "subnet_%s" % n)
+    provider = "ovn"
+    backend_id = factory.Sequence(lambda n: "lb_backend_%s" % n)
+    state = CoreStates.OK
+
+    @classmethod
+    def get_url(cls, load_balancer=None, action=None):
+        if load_balancer is None:
+            load_balancer = LoadBalancerFactory()
+        url = "http://testserver" + reverse(
+            "openstack-loadbalancer-detail", kwargs={"uuid": load_balancer.uuid.hex}
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("openstack-loadbalancer-list")
+
+
+class PoolFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.Pool],
+):
+    class Meta:
+        model = models.Pool
+
+    load_balancer = factory.SubFactory(LoadBalancerFactory)
+    service_settings = factory.LazyAttribute(lambda o: o.load_balancer.service_settings)
+    project = factory.LazyAttribute(lambda o: o.load_balancer.project)
+    name = factory.Sequence(lambda n: "pool%s" % n)
+    protocol = "TCP"
+    lb_algorithm = "SOURCE_IP_PORT"
+    backend_id = factory.Sequence(lambda n: "pool_backend_%s" % n)
+    state = CoreStates.OK
+
+    @classmethod
+    def get_url(cls, pool=None, action=None):
+        if pool is None:
+            pool = PoolFactory()
+        url = "http://testserver" + reverse(
+            "openstack-pool-detail", kwargs={"uuid": pool.uuid.hex}
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("openstack-pool-list")
+
+
+class PoolMemberFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.PoolMember],
+):
+    class Meta:
+        model = models.PoolMember
+
+    pool = factory.SubFactory(PoolFactory)
+    service_settings = factory.LazyAttribute(lambda o: o.pool.service_settings)
+    project = factory.LazyAttribute(lambda o: o.pool.project)
+    name = factory.Sequence(lambda n: "member%s" % n)
+    address = factory.Sequence(lambda n: "192.168.1.%d" % (n % 255))
+    protocol_port = 80
+    subnet_id = factory.Sequence(lambda n: "subnet_%s" % n)
+    weight = 1
+    backend_id = factory.Sequence(lambda n: "member_backend_%s" % n)
+    state = CoreStates.OK
+
+    @classmethod
+    def get_url(cls, member=None, action=None):
+        if member is None:
+            member = PoolMemberFactory()
+        url = "http://testserver" + reverse(
+            "openstack-poolmember-detail", kwargs={"uuid": member.uuid.hex}
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("openstack-poolmember-list")
+
+
+class HealthMonitorFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.HealthMonitor],
+):
+    class Meta:
+        model = models.HealthMonitor
+
+    pool = factory.SubFactory(PoolFactory)
+    service_settings = factory.LazyAttribute(lambda o: o.pool.service_settings)
+    project = factory.LazyAttribute(lambda o: o.pool.project)
+    name = factory.Sequence(lambda n: "healthmonitor%s" % n)
+    monitor_type = "TCP"
+    delay = 10
+    timeout = 5
+    max_retries = 3
+    backend_id = factory.Sequence(lambda n: "hm_backend_%s" % n)
+    state = CoreStates.OK
+
+    @classmethod
+    def get_url(cls, hm=None, action=None):
+        if hm is None:
+            hm = HealthMonitorFactory()
+        url = "http://testserver" + reverse(
+            "openstack-healthmonitor-detail", kwargs={"uuid": hm.uuid.hex}
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("openstack-healthmonitor-list")
+
+
+class ListenerFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.Listener],
+):
+    class Meta:
+        model = models.Listener
+
+    load_balancer = factory.SubFactory(LoadBalancerFactory)
+    service_settings = factory.LazyAttribute(lambda o: o.load_balancer.service_settings)
+    project = factory.LazyAttribute(lambda o: o.load_balancer.project)
+    name = factory.Sequence(lambda n: "listener%s" % n)
+    protocol = "TCP"
+    protocol_port = 80
+    backend_id = factory.Sequence(lambda n: "listener_backend_%s" % n)
+    state = CoreStates.OK
+
+    @classmethod
+    def get_url(cls, listener=None, action=None):
+        if listener is None:
+            listener = ListenerFactory()
+        url = "http://testserver" + reverse(
+            "openstack-listener-detail", kwargs={"uuid": listener.uuid.hex}
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("openstack-listener-list")
+
+
 class VolumeFactory(
     factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Volume]
 ):

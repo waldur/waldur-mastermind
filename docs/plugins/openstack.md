@@ -84,6 +84,7 @@ ServiceSettings credentials
 | Cinder | `cinderclient` | v3 |
 | Glance | `glanceclient` | v2 |
 | Neutron | `neutronclient` | v2.0 |
+| Octavia (Load Balancer) | REST via keystoneauth session | v2 |
 
 Only the Keystone endpoint needs to be configured explicitly; all other service endpoints are discovered automatically from the Keystone service catalog.
 
@@ -167,6 +168,34 @@ Only the Keystone endpoint needs to be configured explicitly; all other service 
 | Add Interface | Connect subnet to router | `POST /api/openstack-routers/{uuid}/add_interface/` |
 | Remove Interface | Disconnect subnet from router | `POST /api/openstack-routers/{uuid}/remove_interface/` |
 | Set Gateway | Configure external gateway | `POST /api/openstack-routers/{uuid}/set_gateway/` |
+| **Load Balancers** (Octavia LBaaS) | | |
+| List Load Balancers | Get load balancers | `GET /api/openstack-loadbalancers/` |
+| Create Load Balancer | Create Octavia OVN LB | `POST /api/openstack-loadbalancers/` |
+| Update Load Balancer | Update load balancer name | `PATCH /api/openstack-loadbalancers/{uuid}/` |
+| Delete Load Balancer | Remove load balancer | `DELETE /api/openstack-loadbalancers/{uuid}/` |
+| Attach Floating IP | Attach floating IP to VIP port | `POST /api/openstack-loadbalancers/{uuid}/attach_floating_ip/` |
+| Detach Floating IP | Detach floating IP from VIP port | `POST /api/openstack-loadbalancers/{uuid}/detach_floating_ip/` |
+| Update VIP Security Groups | Set security groups on VIP port | `POST /api/openstack-loadbalancers/{uuid}/update_vip_security_groups/` |
+| **Pools** (LB backend pools) | | |
+| List Pools | Get load balancer pools | `GET /api/openstack-pools/` |
+| Create Pool | Create backend pool | `POST /api/openstack-pools/` |
+| Update Pool | Update pool name | `PATCH /api/openstack-pools/{uuid}/` |
+| Delete Pool | Remove pool | `DELETE /api/openstack-pools/{uuid}/` |
+| **Pool Members** | | |
+| List Pool Members | Get pool members | `GET /api/openstack-pool-members/` |
+| Create Pool Member | Add backend server to pool | `POST /api/openstack-pool-members/` |
+| Update Pool Member | Update member name or weight | `PATCH /api/openstack-pool-members/{uuid}/` |
+| Delete Pool Member | Remove member from pool | `DELETE /api/openstack-pool-members/{uuid}/` |
+| **Health Monitors** | | |
+| List Health Monitors | Get pool health monitors | `GET /api/openstack-health-monitors/` |
+| Create Health Monitor | Create health check for pool | `POST /api/openstack-health-monitors/` |
+| Update Health Monitor | Update delay, timeout, max_retries | `PATCH /api/openstack-health-monitors/{uuid}/` |
+| Delete Health Monitor | Remove health monitor | `DELETE /api/openstack-health-monitors/{uuid}/` |
+| **Listeners** (LB frontend) | | |
+| List Listeners | Get load balancer listeners | `GET /api/openstack-listeners/` |
+| Create Listener | Create frontend listener | `POST /api/openstack-listeners/` |
+| Update Listener | Update name or default pool | `PATCH /api/openstack-listeners/{uuid}/` |
+| Delete Listener | Remove listener | `DELETE /api/openstack-listeners/{uuid}/` |
 | **Common Resource Actions** | | |
 | Set Erred | Force resource to ERRED state (staff-only) | `POST /api/openstack-{resource}/{uuid}/set_erred/` |
 | Set OK | Force resource to OK state (staff-only) | `POST /api/openstack-{resource}/{uuid}/set_ok/` |
@@ -513,6 +542,7 @@ To set up an OpenStack provider, create a Marketplace offering of type `OpenStac
 | `access_url` | options | Horizon dashboard URL for user links | Generated from backend_url |
 | `verify_ssl` | options | Verify SSL certificates | `true` |
 | `availability_zone` | options | Default availability zone | `nova` |
+| `lbaas_enabled` | options | Enable Octavia LBaaS (load balancers) for this provider | `false` |
 | `storage_mode` | plugin_options | Storage quota mode (`fixed` or `dynamic`) | `fixed` |
 
 #### Using Application Credentials

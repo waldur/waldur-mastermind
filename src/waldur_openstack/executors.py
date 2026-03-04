@@ -1931,12 +1931,199 @@ class RouterDeleteExecutor(core_executors.DeleteExecutor):
         )
 
 
+class LoadBalancerCreateExecutor(core_executors.CreateExecutor):
+    @classmethod
+    def get_task_signature(cls, load_balancer, serialized_load_balancer, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_load_balancer,
+            "create_load_balancer",
+            state_transition="begin_creating",
+        )
+
+
+class LoadBalancerDeleteExecutor(core_executors.DeleteExecutor):
+    @classmethod
+    def get_task_signature(cls, load_balancer, serialized_load_balancer, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_load_balancer,
+            "delete_load_balancer",
+            state_transition="begin_deleting",
+        )
+
+
+class LoadBalancerUpdateExecutor(core_executors.UpdateExecutor):
+    @classmethod
+    def get_task_signature(cls, load_balancer, serialized_load_balancer, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_load_balancer,
+            "update_load_balancer",
+            state_transition="begin_updating",
+        )
+
+
+class LoadBalancerAttachFloatingIPExecutor(core_executors.ActionExecutor):
+    @classmethod
+    def get_task_signature(cls, load_balancer, serialized_load_balancer, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_load_balancer,
+            "attach_floating_ip_to_load_balancer_vip",
+            state_transition="begin_updating",
+            serialized_floating_ip=kwargs.get("floating_ip"),
+        )
+
+
+class LoadBalancerDetachFloatingIPExecutor(core_executors.ActionExecutor):
+    @classmethod
+    def get_task_signature(cls, load_balancer, serialized_load_balancer, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_load_balancer,
+            "detach_floating_ip_from_load_balancer_vip",
+            state_transition="begin_updating",
+        )
+
+
+class LoadBalancerUpdateVIPSecurityGroupsExecutor(core_executors.ActionExecutor):
+    @classmethod
+    def get_task_signature(cls, load_balancer, serialized_load_balancer, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_load_balancer,
+            "update_load_balancer_vip_security_groups",
+            state_transition="begin_updating",
+            security_group_uuids=kwargs.get("security_group_uuids"),
+        )
+
+
+class PoolCreateExecutor(core_executors.CreateExecutor):
+    @classmethod
+    def get_task_signature(cls, pool, serialized_pool, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_pool,
+            "create_pool",
+            state_transition="begin_creating",
+        )
+
+
+class PoolDeleteExecutor(core_executors.DeleteExecutor):
+    @classmethod
+    def get_task_signature(cls, pool, serialized_pool, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_pool,
+            "delete_pool",
+            state_transition="begin_deleting",
+        )
+
+
+class PoolUpdateExecutor(core_executors.UpdateExecutor):
+    @classmethod
+    def get_task_signature(cls, pool, serialized_pool, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_pool,
+            "update_pool",
+            state_transition="begin_updating",
+        )
+
+
+class ListenerCreateExecutor(core_executors.CreateExecutor):
+    @classmethod
+    def get_task_signature(cls, listener, serialized_listener, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_listener,
+            "create_listener",
+            state_transition="begin_creating",
+        )
+
+
+class ListenerDeleteExecutor(core_executors.DeleteExecutor):
+    @classmethod
+    def get_task_signature(cls, listener, serialized_listener, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_listener,
+            "delete_listener",
+            state_transition="begin_deleting",
+        )
+
+
+class ListenerUpdateExecutor(core_executors.UpdateExecutor):
+    @classmethod
+    def get_task_signature(cls, listener, serialized_listener, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_listener,
+            "update_listener",
+            state_transition="begin_updating",
+        )
+
+
+class PoolMemberCreateExecutor(core_executors.CreateExecutor):
+    @classmethod
+    def get_task_signature(cls, member, serialized_member, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_member,
+            "create_pool_member",
+            state_transition="begin_creating",
+        )
+
+
+class PoolMemberDeleteExecutor(core_executors.DeleteExecutor):
+    @classmethod
+    def get_task_signature(cls, member, serialized_member, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_member,
+            "delete_pool_member",
+            state_transition="begin_deleting",
+        )
+
+
+class PoolMemberUpdateExecutor(core_executors.UpdateExecutor):
+    @classmethod
+    def get_task_signature(cls, member, serialized_member, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_member,
+            "update_pool_member",
+            state_transition="begin_updating",
+        )
+
+
+class HealthMonitorCreateExecutor(core_executors.CreateExecutor):
+    @classmethod
+    def get_task_signature(cls, hm, serialized_hm, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_hm,
+            "create_health_monitor",
+            state_transition="begin_creating",
+        )
+
+
+class HealthMonitorDeleteExecutor(core_executors.DeleteExecutor):
+    @classmethod
+    def get_task_signature(cls, hm, serialized_hm, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_hm,
+            "delete_health_monitor",
+            state_transition="begin_deleting",
+        )
+
+
+class HealthMonitorUpdateExecutor(core_executors.UpdateExecutor):
+    @classmethod
+    def get_task_signature(cls, hm, serialized_hm, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_hm,
+            "update_health_monitor",
+            state_transition="begin_updating",
+        )
+
+
 class OpenStackCleanupExecutor(structure_executors.BaseCleanupExecutor):
     executors = (
         (models.SecurityGroup, SecurityGroupDeleteExecutor),
         (models.FloatingIP, FloatingIPDeleteExecutor),
         (models.SubNet, SubNetDeleteExecutor),
         (models.Network, NetworkDeleteExecutor),
+        (models.LoadBalancer, LoadBalancerDeleteExecutor),
+        (models.Pool, PoolDeleteExecutor),
+        (models.PoolMember, PoolMemberDeleteExecutor),
+        (models.HealthMonitor, HealthMonitorDeleteExecutor),
+        (models.Listener, ListenerDeleteExecutor),
         (models.Tenant, TenantDeleteExecutor),
         (models.ServerGroup, ServerGroupDeleteExecutor),
         (models.Snapshot, SnapshotDeleteExecutor),
