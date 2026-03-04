@@ -77,6 +77,11 @@ td:nth-child(4) {
 | `delete_error_message` | `Custom Signal (post_transition)` | `openstack.SecurityGroup` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `openstack.FloatingIP` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `openstack.Router` | Delete error message if instance state changed from erred |
+| `delete_error_message` | `Custom Signal (post_transition)` | `openstack.LoadBalancer` | Delete error message if instance state changed from erred |
+| `delete_error_message` | `Custom Signal (post_transition)` | `openstack.Pool` | Delete error message if instance state changed from erred |
+| `delete_error_message` | `Custom Signal (post_transition)` | `openstack.Listener` | Delete error message if instance state changed from erred |
+| `delete_error_message` | `Custom Signal (post_transition)` | `openstack.PoolMember` | Delete error message if instance state changed from erred |
+| `delete_error_message` | `Custom Signal (post_transition)` | `openstack.HealthMonitor` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `openstack.Network` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `openstack.SubNet` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `openstack.Port` | Delete error message if instance state changed from erred |
@@ -129,6 +134,11 @@ td:nth-child(4) {
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `openstack.SecurityGroup` | If VM that contains service settings were deleted - all settings |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `openstack.FloatingIP` | If VM that contains service settings were deleted - all settings |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `openstack.Router` | If VM that contains service settings were deleted - all settings |
+| `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `openstack.LoadBalancer` | If VM that contains service settings were deleted - all settings |
+| `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `openstack.Pool` | If VM that contains service settings were deleted - all settings |
+| `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `openstack.Listener` | If VM that contains service settings were deleted - all settings |
+| `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `openstack.PoolMember` | If VM that contains service settings were deleted - all settings |
+| `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `openstack.HealthMonitor` | If VM that contains service settings were deleted - all settings |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `openstack.Network` | If VM that contains service settings were deleted - all settings |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `openstack.SubNet` | If VM that contains service settings were deleted - all settings |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `openstack.Port` | If VM that contains service settings were deleted - all settings |
@@ -174,6 +184,11 @@ td:nth-child(4) {
 | `log_resource_action` | `Custom Signal (post_transition)` | `openstack.SecurityGroup` | Log resource state transitions. |
 | `log_resource_action` | `Custom Signal (post_transition)` | `openstack.FloatingIP` | Log resource state transitions. |
 | `log_resource_action` | `Custom Signal (post_transition)` | `openstack.Router` | Log resource state transitions. |
+| `log_resource_action` | `Custom Signal (post_transition)` | `openstack.LoadBalancer` | Log resource state transitions. |
+| `log_resource_action` | `Custom Signal (post_transition)` | `openstack.Pool` | Log resource state transitions. |
+| `log_resource_action` | `Custom Signal (post_transition)` | `openstack.Listener` | Log resource state transitions. |
+| `log_resource_action` | `Custom Signal (post_transition)` | `openstack.PoolMember` | Log resource state transitions. |
+| `log_resource_action` | `Custom Signal (post_transition)` | `openstack.HealthMonitor` | Log resource state transitions. |
 | `log_resource_action` | `Custom Signal (post_transition)` | `openstack.Network` | Log resource state transitions. |
 | `log_resource_action` | `Custom Signal (post_transition)` | `openstack.SubNet` | Log resource state transitions. |
 | `log_resource_action` | `Custom Signal (post_transition)` | `openstack.Port` | Log resource state transitions. |
@@ -210,6 +225,11 @@ td:nth-child(4) {
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `openstack.SecurityGroup` | Log scheduled resource creation. |
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `openstack.FloatingIP` | Log scheduled resource creation. |
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `openstack.Router` | Log scheduled resource creation. |
+| `log_resource_creation_scheduled` | `Django Signal (post_save)` | `openstack.LoadBalancer` | Log scheduled resource creation. |
+| `log_resource_creation_scheduled` | `Django Signal (post_save)` | `openstack.Pool` | Log scheduled resource creation. |
+| `log_resource_creation_scheduled` | `Django Signal (post_save)` | `openstack.Listener` | Log scheduled resource creation. |
+| `log_resource_creation_scheduled` | `Django Signal (post_save)` | `openstack.PoolMember` | Log scheduled resource creation. |
+| `log_resource_creation_scheduled` | `Django Signal (post_save)` | `openstack.HealthMonitor` | Log scheduled resource creation. |
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `openstack.Network` | Log scheduled resource creation. |
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `openstack.SubNet` | Log scheduled resource creation. |
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `openstack.Port` | Log scheduled resource creation. |
@@ -246,6 +266,11 @@ td:nth-child(4) {
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `openstack.SecurityGroup` | Log resource deletion. |
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `openstack.FloatingIP` | Log resource deletion. |
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `openstack.Router` | Log resource deletion. |
+| `log_resource_deleted` | `Django Signal (pre_delete)` | `openstack.LoadBalancer` | Log resource deletion. |
+| `log_resource_deleted` | `Django Signal (pre_delete)` | `openstack.Pool` | Log resource deletion. |
+| `log_resource_deleted` | `Django Signal (pre_delete)` | `openstack.Listener` | Log resource deletion. |
+| `log_resource_deleted` | `Django Signal (pre_delete)` | `openstack.PoolMember` | Log resource deletion. |
+| `log_resource_deleted` | `Django Signal (pre_delete)` | `openstack.HealthMonitor` | Log resource deletion. |
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `openstack.Network` | Log resource deletion. |
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `openstack.SubNet` | Log resource deletion. |
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `openstack.Port` | Log resource deletion. |
@@ -282,6 +307,11 @@ td:nth-child(4) {
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `openstack.SecurityGroup` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `openstack.FloatingIP` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `openstack.Router` | Log resource import. |
+| `log_resource_imported` | `Custom Signal (resource_imported)` | `openstack.LoadBalancer` | Log resource import. |
+| `log_resource_imported` | `Custom Signal (resource_imported)` | `openstack.Pool` | Log resource import. |
+| `log_resource_imported` | `Custom Signal (resource_imported)` | `openstack.Listener` | Log resource import. |
+| `log_resource_imported` | `Custom Signal (resource_imported)` | `openstack.PoolMember` | Log resource import. |
+| `log_resource_imported` | `Custom Signal (resource_imported)` | `openstack.HealthMonitor` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `openstack.Network` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `openstack.SubNet` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `openstack.Port` | Log resource import. |
@@ -333,6 +363,11 @@ td:nth-child(4) {
 | `recalculate_count_quota` | `Django Signal (post_save)` | `openstack.SecurityGroup` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `openstack.FloatingIP` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `openstack.Router` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_save)` | `openstack.LoadBalancer` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_save)` | `openstack.Pool` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_save)` | `openstack.Listener` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_save)` | `openstack.PoolMember` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_save)` | `openstack.HealthMonitor` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `openstack.Network` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `openstack.SubNet` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `openstack.Port` | Recalculate count quota when an instance is created or deleted. |
@@ -371,6 +406,11 @@ td:nth-child(4) {
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `openstack.SecurityGroup` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `openstack.FloatingIP` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `openstack.Router` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_delete)` | `openstack.LoadBalancer` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_delete)` | `openstack.Pool` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_delete)` | `openstack.Listener` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_delete)` | `openstack.PoolMember` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_delete)` | `openstack.HealthMonitor` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `openstack.Network` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `openstack.SubNet` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `openstack.Port` | Recalculate count quota when an instance is created or deleted. |
@@ -475,6 +515,11 @@ td:nth-child(4) {
 | `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `RemoteAllocationSerializer` | Add marketplace offering related fields to the serializer. |
 | `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `OpenStackTenantSerializer` | Add marketplace offering related fields to the serializer. |
 | `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `OpenStackRouterSerializer` | Add marketplace offering related fields to the serializer. |
+| `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `OpenStackLoadBalancerSerializer` | Add marketplace offering related fields to the serializer. |
+| `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `OpenStackPoolSerializer` | Add marketplace offering related fields to the serializer. |
+| `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `OpenStackListenerSerializer` | Add marketplace offering related fields to the serializer. |
+| `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `OpenStackPoolMemberSerializer` | Add marketplace offering related fields to the serializer. |
+| `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `OpenStackHealthMonitorSerializer` | Add marketplace offering related fields to the serializer. |
 | `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `OpenStackVolumeSerializer` | Add marketplace offering related fields to the serializer. |
 | `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `RancherClusterCreateSerializer` | Add marketplace offering related fields to the serializer. |
 | `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `RancherClusterSerializer` | Add marketplace offering related fields to the serializer. |
@@ -816,15 +861,15 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 732
+Total unique handlers found: 777
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 368 handlers
+- **waldur_core**: 408 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_keycloak**: 9 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 297 handlers
+- **waldur_mastermind**: 302 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
