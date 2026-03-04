@@ -1174,3 +1174,198 @@ class ServiceProviderUsersGDPRFilteringTest(test.APITestCase):
         )
         self.assertIsNotNone(user_data)
         self.assertNotIn("organization_registry_code", user_data)
+
+
+@ddt
+class ServiceProviderEndpointAllowedDomainsFieldTest(test.APITestCase):
+    """Tests that allowed_domains is staff-only writable."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.customer = self.fixture.customer
+        self.service_provider = factories.ServiceProviderFactory(customer=self.customer)
+
+    def _update(self, user, payload):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        url = factories.ServiceProviderFactory.get_url(self.service_provider)
+        response = self.client.patch(url, payload, format="json")
+        self.service_provider.refresh_from_db()
+        return response
+
+    @data("staff")
+    def test_authorized_user_can_set_allowed_domains(self, user):
+        response = self._update(
+            user, {"allowed_domains": ["example.com", "provider.org"]}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            self.service_provider.allowed_domains,
+            ["example.com", "provider.org"],
+        )
+
+    @data("staff")
+    def test_authorized_user_can_clear_allowed_domains(self, user):
+        self.service_provider.allowed_domains = ["example.com"]
+        self.service_provider.save()
+
+        response = self._update(user, {"allowed_domains": []})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(self.service_provider.allowed_domains, [])
+
+    @data("owner")
+    def test_non_staff_cannot_change_allowed_domains(self, user):
+        """Non-staff users can see the field but cant change (read_only)."""
+        self.service_provider.allowed_domains = ["original.com"]
+        self.service_provider.save()
+
+        response = self._update(user, {"allowed_domains": ["attacker.com"]})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(
+            self.service_provider.allowed_domains,
+            ["original.com"],
+        )
+
+    def test_allowed_domains_visible_in_response_for_owner(self):
+        self.service_provider.allowed_domains = ["example.com"]
+        self.service_provider.save()
+
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.ServiceProviderFactory.get_url(self.service_provider)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("allowed_domains", response.data)
+        self.assertEqual(response.data["allowed_domains"], ["example.com"])
+
+    @data(["api.example.com", "api.provider.org", "example.com", "provider.org"])
+    def test_staff_can_set_valid_subdomain(self, domain_list):
+        for domain in domain_list:
+            response = self._update("staff", {"allowed_domains": [domain]})
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+            self.assertEqual(self.service_provider.allowed_domains, [domain])
+
+    @data(
+        [
+            "localhost",
+            "127.0.0.1",
+            "localhost:8000",
+            "127.0.0.1",
+            "https://example.com/scim",
+        ]
+    )
+    def test_invalid_domain_is_rejected(self, domain_list):
+        for domain in domain_list:
+            response = self._update("staff", {"allowed_domains": [domain]})
+            self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class OfferingEndpointDomainValidationTest(test.APITestCase):
+    """Tests that OfferingAccessEndpoints can only be created under allowed domains."""
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        # Grant ADD_OFFERING_ENDPOINT permission to the offering owner role
+        CustomerRole.OWNER.add_permission(PermissionEnum.ADD_OFFERING_ENDPOINT)
+        self.url = factories.OfferingFactory.get_url(self.offering, "add_endpoint")
+
+    def _add_endpoint(self, user, endpoint_url):
+        self.client.force_authenticate(user)
+        return self.client.post(
+            self.url,
+            {"name": "Test Endpoint", "url": endpoint_url},
+            format="json",
+        )
+
+    def test_endpoint_can_be_added_when_no_domain_restriction_set(self):
+        """When allowed_domains is empty, any domain is allowed."""
+        self.fixture.service_provider.allowed_domains = []
+        self.fixture.service_provider.save()
+
+        response = self._add_endpoint(
+            self.fixture.service_owner,
+            "https://any-domain.example.com/api",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_endpoint_with_allowed_domain_is_accepted(self):
+        self.fixture.service_provider.allowed_domains = ["provider.org"]
+        self.fixture.service_provider.save()
+
+        response = self._add_endpoint(
+            self.fixture.service_owner,
+            "https://provider.org/scim",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_endpoint_with_allowed_subdomain_is_accepted(self):
+        """Subdomains of allowed domains should be permitted."""
+        self.fixture.service_provider.allowed_domains = ["provider.org"]
+        self.fixture.service_provider.save()
+
+        response = self._add_endpoint(
+            self.fixture.service_owner,
+            "https://api.provider.org/scim",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_endpoint_with_disallowed_domain_is_rejected(self):
+        self.fixture.service_provider.allowed_domains = ["provider.org"]
+        self.fixture.service_provider.save()
+
+        response = self._add_endpoint(
+            self.fixture.service_owner,
+            "https://attacker.com/steal-tokens",
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+
+    def test_endpoint_domain_rejection_includes_useful_message(self):
+        self.fixture.service_provider.allowed_domains = ["provider.org"]
+        self.fixture.service_provider.save()
+
+        response = self._add_endpoint(
+            self.fixture.service_owner,
+            "https://attacker.com/endpoint",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("attacker.com", str(response.data))
+        self.assertIn("provider.org", str(response.data))
+
+    def test_endpoint_with_multiple_allowed_domains(self):
+        self.fixture.service_provider.allowed_domains = [
+            "provider.org",
+            "secondary.net",
+        ]
+        self.fixture.service_provider.save()
+
+        response = self._add_endpoint(
+            self.fixture.service_owner,
+            "https://secondary.net/api",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_endpoint_with_nested_subdomain_is_accepted(self):
+        """Nested subdomains of allowed domains should be permitted."""
+        self.fixture.service_provider.allowed_domains = ["somedomain.test.com"]
+        self.fixture.service_provider.save()
+
+        response = self._add_endpoint(
+            self.fixture.service_owner,
+            "https://opentest.somedomain.test.com/api",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_partial_domain_match_is_rejected(self):
+        """'fakeprovider.org' must not match allowed domain 'provider.org'."""
+        self.fixture.service_provider.allowed_domains = ["provider.org"]
+        self.fixture.service_provider.save()
+
+        response = self._add_endpoint(
+            self.fixture.service_owner,
+            "https://fakeprovider.org",
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
