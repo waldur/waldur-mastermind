@@ -267,6 +267,9 @@ class LogoutView(generics.GenericAPIView):
                         "client_id": idp.client_id,
                     }
                     logout_url = f"{idp.logout_url}?{urlencode(params)}"
+                elif config.OIDC_DEFAULT_LOGOUT_URL:
+                    # Fallback to default logout URL if IdentityProvider doesn't support OIDC logout
+                    logout_url = config.OIDC_DEFAULT_LOGOUT_URL
         elif (
             authentication_method == AuthenticationMethod.SAML2
             and settings.WALDUR_AUTH_SAML2.get("ENABLE_SINGLE_LOGOUT")

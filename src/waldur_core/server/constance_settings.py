@@ -851,6 +851,12 @@ CONSTANCE_CONFIG = {
         "attempt a secondary lookup by email before creating a new user. "
         "On successful email match, the user's primary lookup field is updated to the OIDC claim value.",
     ),
+    "OIDC_DEFAULT_LOGOUT_URL": (
+        "",
+        "Default logout URL used as fallback when IdentityProvider does not have a logout_url set. "
+        "This allows configuring a global logout endpoint for OIDC providers that don't expose end_session_endpoint in their discovery document.",
+        "url_field",
+    ),
     "DEACTIVATE_USER_IF_NO_ROLES": (
         False,
         "Deactivate user if all roles are revoked (except staff/support)",
@@ -1429,6 +1435,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "OIDC_CLIENT_SECRET",
         "OIDC_USER_FIELD",
         "OIDC_CACHE_TIMEOUT",
+        "OIDC_DEFAULT_LOGOUT_URL",
         "WALDUR_AUTH_SOCIAL_ROLE_CLAIM",
     ),
     "Onboarding settings": (
