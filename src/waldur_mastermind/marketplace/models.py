@@ -3128,6 +3128,14 @@ class SoftwareTarget(core_models.UuidMixin, TimeStampedModel):
         ),
     )
 
+    gpu_architectures = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_(
+            "List of GPU architectures this target supports (e.g., ['nvidia/cc70', 'nvidia/cc90'])"
+        ),
+    )
+
     class Meta:
         unique_together = ("version", "target_type", "target_name", "target_subtype")
         indexes = [
@@ -3254,6 +3262,20 @@ class OfferingPartition(core_models.UuidMixin, TimeStampedModel):
     )
     exclusive_user = models.BooleanField(
         default=False, help_text=_("Exclusive user access required")
+    )
+
+    # Architecture
+    cpu_arch = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text=_("CPU architecture of the partition (e.g., x86_64/amd/zen3)"),
+    )
+    gpu_arch = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text=_(
+            "GPU architecture of the partition (e.g., nvidia/cc90, amd/gfx90a)"
+        ),
     )
 
     # Scheduling configuration

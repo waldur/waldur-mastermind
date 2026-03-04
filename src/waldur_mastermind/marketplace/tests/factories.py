@@ -1021,6 +1021,7 @@ class SoftwareTargetFactory(
         lambda obj: f"/cvmfs/software.eessi.io/versions/2023.06/software/linux/{obj.target_name}/{obj.target_subtype}"
     )
     metadata = factory.LazyAttribute(lambda obj: {"full_arch": obj.target_name})
+    gpu_architectures = factory.LazyAttribute(lambda obj: [])
 
     @classmethod
     def get_url(cls, target=None, action=None):
@@ -1077,6 +1078,10 @@ class OfferingPartitionFactory(factory.django.DjangoModelFactory):
 
     offering = factory.SubFactory(OfferingFactory)
     partition_name = factory.Sequence(lambda n: f"partition-{n}")
+
+    # Architecture
+    cpu_arch = ""
+    gpu_arch = ""
 
     # CPU configuration
     cpu_bind = 1

@@ -165,6 +165,8 @@ class OfferingPartitionSerializerTest(test.APITestCase):
             "offering",
             "offering_name",
             "partition_name",
+            "cpu_arch",
+            "gpu_arch",
             "cpu_bind",
             "def_cpu_per_gpu",
             "max_cpus_per_node",
@@ -342,3 +344,98 @@ class OfferingPartitionFilterTest(test.APITestCase):
         )
         ordered_qs = list(filter_instance.qs)
         self.assertEqual(ordered_qs[0], partition1)  # priority_tier 100 comes first
+
+    def test_filter_by_cpu_arch(self):
+        """Test filtering by CPU architecture."""
+        from waldur_mastermind.marketplace.filters import OfferingPartitionFilter
+
+        partition1 = factories.OfferingPartitionFactory(
+            offering=self.offering1, cpu_arch="x86_64/amd/zen3"
+        )
+        partition2 = factories.OfferingPartitionFactory(
+            offering=self.offering1, cpu_arch="aarch64/arm/neoverse_v1"
+        )
+
+        queryset = models.OfferingPartition.objects.all()
+        filter_instance = OfferingPartitionFilter(
+            data={"cpu_arch": "zen3"}, queryset=queryset
+        )
+
+        filtered_qs = filter_instance.qs
+        self.assertIn(partition1, filtered_qs)
+        self.assertNotIn(partition2, filtered_qs)
+
+    def test_filter_by_gpu_arch(self):
+        """Test filtering by GPU architecture."""
+        from waldur_mastermind.marketplace.filters import OfferingPartitionFilter
+
+        partition1 = factories.OfferingPartitionFactory(
+            offering=self.offering1, gpu_arch="nvidia/cc90"
+        )
+        partition2 = factories.OfferingPartitionFactory(
+            offering=self.offering1, gpu_arch="amd/gfx90a"
+        )
+
+        queryset = models.OfferingPartition.objects.all()
+        filter_instance = OfferingPartitionFilter(
+            data={"gpu_arch": "nvidia"}, queryset=queryset
+        )
+
+        filtered_qs = filter_instance.qs
+        self.assertIn(partition1, filtered_qs)
+        self.assertNotIn(partition2, filtered_qs)
+
+    def test_filter_has_gpu_true(self):
+        """Test filtering partitions that have GPU architecture."""
+        from waldur_mastermind.marketplace.filters import OfferingPartitionFilter
+
+        partition1 = factories.OfferingPartitionFactory(
+            offering=self.offering1, gpu_arch="nvidia/cc90"
+        )
+        partition2 = factories.OfferingPartitionFactory(
+            offering=self.offering1, gpu_arch=""
+        )
+
+        queryset = models.OfferingPartition.objects.all()
+        filter_instance = OfferingPartitionFilter(
+            data={"has_gpu": True}, queryset=queryset
+        )
+
+        filtered_qs = filter_instance.qs
+        self.assertIn(partition1, filtered_qs)
+        self.assertNotIn(partition2, filtered_qs)
+
+    def test_filter_has_gpu_false(self):
+        """Test filtering partitions without GPU architecture."""
+        from waldur_mastermind.marketplace.filters import OfferingPartitionFilter
+
+        partition1 = factories.OfferingPartitionFactory(
+            offering=self.offering1, gpu_arch="nvidia/cc90"
+        )
+        partition2 = factories.OfferingPartitionFactory(
+            offering=self.offering1, gpu_arch=""
+        )
+
+        queryset = models.OfferingPartition.objects.all()
+        filter_instance = OfferingPartitionFilter(
+            data={"has_gpu": False}, queryset=queryset
+        )
+
+        filtered_qs = filter_instance.qs
+        self.assertNotIn(partition1, filtered_qs)
+        self.assertIn(partition2, filtered_qs)
+
+    def test_serializer_includes_arch_fields(self):
+        """Test that cpu_arch and gpu_arch appear in serialized data."""
+        from waldur_mastermind.marketplace.serializers import (
+            OfferingPartitionSerializer,
+        )
+
+        partition = factories.OfferingPartitionFactory(
+            offering=self.offering1,
+            cpu_arch="x86_64/amd/zen3",
+            gpu_arch="nvidia/cc90",
+        )
+        serializer = OfferingPartitionSerializer(partition)
+        self.assertEqual(serializer.data["cpu_arch"], "x86_64/amd/zen3")
+        self.assertEqual(serializer.data["gpu_arch"], "nvidia/cc90")

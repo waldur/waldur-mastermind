@@ -1776,3 +1776,111 @@ class SoftwarePackageMultipleParentsTest(test.APITestCase):
         url = factories.SoftwarePackageFactory.get_url(self.parent_gtk4)
         response = self.client.get(url)
         self.assertEqual(response.data["extension_count"], 1)
+
+
+class SoftwarePackageGPUFilterTest(test.APITestCase):
+    """Test GPU-related filters for software packages, versions, and targets."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog = factories.SoftwareCatalogFactory(name="EESSI", version="2023.06")
+
+        # Package with GPU support
+        self.gpu_package = factories.SoftwarePackageFactory(
+            catalog=self.catalog, name="GROMACS"
+        )
+        gpu_version = factories.SoftwareVersionFactory(
+            package=self.gpu_package, version="2024.4"
+        )
+        factories.SoftwareTargetFactory(
+            version=gpu_version,
+            target_name="x86_64",
+            target_subtype="generic",
+            metadata={
+                "full_arch": "x86_64/generic",
+                "gpu_arch": {
+                    "x86_64/generic": ["nvidia/cc70", "nvidia/cc80", "nvidia/cc90"],
+                },
+            },
+            gpu_architectures=["nvidia/cc70", "nvidia/cc80", "nvidia/cc90"],
+        )
+
+        # Package without GPU support
+        self.cpu_package = factories.SoftwarePackageFactory(
+            catalog=self.catalog, name="OpenBLAS"
+        )
+        cpu_version = factories.SoftwareVersionFactory(
+            package=self.cpu_package, version="0.3.24"
+        )
+        factories.SoftwareTargetFactory(
+            version=cpu_version,
+            target_name="x86_64",
+            target_subtype="generic",
+            metadata={"full_arch": "x86_64/generic", "gpu_arch": {}},
+            gpu_architectures=[],
+        )
+
+        self.pkg_url = factories.SoftwarePackageFactory.get_list_url()
+        self.ver_url = factories.SoftwareVersionFactory.get_list_url()
+        self.tgt_url = factories.SoftwareTargetFactory.get_list_url()
+
+    def test_filter_packages_has_gpu_true(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.pkg_url + "?has_gpu=true")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(names, {"GROMACS"})
+
+    def test_filter_packages_has_gpu_false(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.pkg_url + "?has_gpu=false")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(names, {"OpenBLAS"})
+
+    def test_filter_packages_by_gpu_arch(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.pkg_url + "?gpu_arch=nvidia/cc90")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(names, {"GROMACS"})
+
+    def test_filter_packages_by_nonexistent_gpu_arch(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.pkg_url + "?gpu_arch=amd/gfx900")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_filter_versions_has_gpu_true(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.ver_url + "?has_gpu=true")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        versions = {v["version"] for v in response.data}
+        self.assertEqual(versions, {"2024.4"})
+
+    def test_filter_versions_by_gpu_arch(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.ver_url + "?gpu_arch=nvidia/cc70")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        versions = {v["version"] for v in response.data}
+        self.assertEqual(versions, {"2024.4"})
+
+    def test_filter_targets_has_gpu_true(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.tgt_url + "?has_gpu=true")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+
+    def test_filter_targets_by_gpu_arch(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.tgt_url + "?gpu_arch=nvidia/cc80")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)

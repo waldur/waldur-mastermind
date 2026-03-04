@@ -693,6 +693,17 @@ class SoftwarePackageFilter(django_filters.FilterSet):
         label="Toolchain name",
         help_text="Filter packages by toolchain name (e.g., foss, gfbf)",
     )
+    has_gpu = django_filters.BooleanFilter(
+        method="filter_has_gpu",
+        widget=BooleanWidget,
+        label="Has GPU support",
+        help_text="Filter packages that have GPU-enabled builds",
+    )
+    gpu_arch = django_filters.CharFilter(
+        method="filter_gpu_arch",
+        label="GPU architecture",
+        help_text="Filter packages by GPU architecture (e.g., nvidia/cc90)",
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -774,6 +785,23 @@ class SoftwarePackageFilter(django_filters.FilterSet):
         """Filter packages by toolchain name (via version metadata)."""
         return queryset.filter(versions__metadata__toolchain__name=value).distinct()
 
+    def filter_has_gpu(self, queryset, name, value):
+        """Filter packages that have GPU-enabled builds."""
+        gpu_pks = (
+            queryset.exclude(versions__targets__gpu_architectures=[])
+            .values_list("pk", flat=True)
+            .distinct()
+        )
+        if value:
+            return queryset.filter(pk__in=gpu_pks)
+        return queryset.exclude(pk__in=gpu_pks)
+
+    def filter_gpu_arch(self, queryset, name, value):
+        """Filter packages by specific GPU architecture (e.g., nvidia/cc90)."""
+        return queryset.filter(
+            versions__targets__gpu_architectures__contains=[value]
+        ).distinct()
+
 
 class SoftwareVersionFilter(django_filters.FilterSet):
     """Filter for SoftwareVersion model."""
@@ -827,6 +855,17 @@ class SoftwareVersionFilter(django_filters.FilterSet):
         label="Catalog type",
         help_text="Filter versions by catalog type (binary_runtime, source_package, package_manager)",
     )
+    has_gpu = django_filters.BooleanFilter(
+        method="filter_has_gpu",
+        widget=BooleanWidget,
+        label="Has GPU support",
+        help_text="Filter versions that have GPU-enabled builds",
+    )
+    gpu_arch = django_filters.CharFilter(
+        method="filter_gpu_arch",
+        label="GPU architecture",
+        help_text="Filter versions by GPU architecture (e.g., nvidia/cc90)",
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -866,6 +905,21 @@ class SoftwareVersionFilter(django_filters.FilterSet):
         """Filter versions by toolchain version."""
         return queryset.filter(metadata__toolchain__version=value)
 
+    def filter_has_gpu(self, queryset, name, value):
+        """Filter versions that have GPU-enabled builds."""
+        gpu_pks = (
+            queryset.exclude(targets__gpu_architectures=[])
+            .values_list("pk", flat=True)
+            .distinct()
+        )
+        if value:
+            return queryset.filter(pk__in=gpu_pks)
+        return queryset.exclude(pk__in=gpu_pks)
+
+    def filter_gpu_arch(self, queryset, name, value):
+        """Filter versions by specific GPU architecture (e.g., nvidia/cc90)."""
+        return queryset.filter(targets__gpu_architectures__contains=[value]).distinct()
+
 
 class SoftwareTargetFilter(django_filters.FilterSet):
     """Filter for SoftwareTarget model."""
@@ -902,6 +956,17 @@ class SoftwareTargetFilter(django_filters.FilterSet):
         label="Target subtype",
         help_text="Filter targets by subtype (e.g., microarchitecture, distribution)",
     )
+    has_gpu = django_filters.BooleanFilter(
+        method="filter_has_gpu",
+        widget=BooleanWidget,
+        label="Has GPU support",
+        help_text="Filter targets that have GPU architectures",
+    )
+    gpu_arch = django_filters.CharFilter(
+        method="filter_gpu_arch",
+        label="GPU architecture",
+        help_text="Filter targets by GPU architecture (e.g., nvidia/cc90)",
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -930,6 +995,16 @@ class SoftwareTargetFilter(django_filters.FilterSet):
         return queryset.filter(
             version__package__catalog__offerings__offering__uuid=value
         ).distinct()
+
+    def filter_has_gpu(self, queryset, name, value):
+        """Filter targets that have GPU architectures."""
+        if value:
+            return queryset.exclude(gpu_architectures=[])
+        return queryset.filter(gpu_architectures=[])
+
+    def filter_gpu_arch(self, queryset, name, value):
+        """Filter targets by specific GPU architecture (e.g., nvidia/cc90)."""
+        return queryset.filter(gpu_architectures__contains=[value])
 
 
 class OfferingSoftwareCatalogFilter(django_filters.FilterSet):
@@ -2508,6 +2583,20 @@ class OfferingPartitionFilter(django_filters.FilterSet):
     exclusive_topo = django_filters.BooleanFilter(label="Exclusive topology")
     req_resv = django_filters.BooleanFilter(label="Requires reservation")
 
+    # Architecture filters
+    cpu_arch = django_filters.CharFilter(
+        lookup_expr="icontains", label="CPU architecture"
+    )
+    gpu_arch = django_filters.CharFilter(
+        lookup_expr="icontains", label="GPU architecture"
+    )
+    has_gpu = django_filters.BooleanFilter(
+        method="filter_has_gpu",
+        widget=BooleanWidget,
+        label="Has GPU",
+        help_text="Filter partitions that have GPU architecture",
+    )
+
     # Resource limit filters
     max_cpus_per_node = django_filters.NumberFilter(label="Max CPUs per node")
     max_nodes = django_filters.NumberFilter(label="Max nodes")
@@ -2542,12 +2631,20 @@ class OfferingPartitionFilter(django_filters.FilterSet):
             "offering_uuid",
             "offering_name",
             "partition_name",
+            "cpu_arch",
+            "gpu_arch",
             "qos",
             "priority_tier",
             "exclusive_user",
             "exclusive_topo",
             "req_resv",
         ]
+
+    def filter_has_gpu(self, queryset, name, value):
+        """Filter partitions that have GPU architecture."""
+        if value:
+            return queryset.exclude(gpu_arch="")
+        return queryset.filter(gpu_arch="")
 
 
 class OpenStackInstanceReportFilter(django_filters.FilterSet):

@@ -2699,7 +2699,14 @@ class PartitionSummarySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.OfferingPartition
-        fields = ("uuid", "partition_name", "priority_tier", "qos")
+        fields = (
+            "uuid",
+            "partition_name",
+            "priority_tier",
+            "qos",
+            "cpu_arch",
+            "gpu_arch",
+        )
 
 
 class NestedSoftwareCatalogSerializer(serializers.ModelSerializer):
@@ -2732,6 +2739,8 @@ class NestedPartitionSerializer(serializers.ModelSerializer):
         fields = (
             "uuid",
             "partition_name",
+            "cpu_arch",
+            "gpu_arch",
             "cpu_bind",
             "def_cpu_per_gpu",
             "max_cpus_per_node",
@@ -9918,6 +9927,7 @@ class NestedSoftwareTargetSerializer(serializers.ModelSerializer):
             "target_subtype",
             "location",
             "metadata",
+            "gpu_architectures",
         )
 
 
@@ -10148,6 +10158,7 @@ class SoftwareTargetSerializer(serializers.HyperlinkedModelSerializer):
             "target_subtype",
             "location",
             "metadata",
+            "gpu_architectures",
         )
         read_only_fields = fields
         extra_kwargs = {
@@ -10241,6 +10252,8 @@ class OfferingPartitionUpdateSerializer(serializers.ModelSerializer):
         fields = (
             "partition_uuid",
             "partition_name",
+            "cpu_arch",
+            "gpu_arch",
             "cpu_bind",
             "def_cpu_per_gpu",
             "max_cpus_per_node",
@@ -10280,6 +10293,8 @@ class OfferingPartitionSerializer(serializers.ModelSerializer):
             "offering",
             "offering_name",
             "partition_name",
+            "cpu_arch",
+            "gpu_arch",
             "cpu_bind",
             "def_cpu_per_gpu",
             "max_cpus_per_node",

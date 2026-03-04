@@ -427,14 +427,16 @@ Example detailed response:
           "target_type": "cpu_architecture",
           "target_name": "x86_64",
           "target_subtype": "generic",
-          "location": "/cvmfs/software.eessi.io/versions/2023.06/software/linux/x86_64/generic"
+          "location": "/cvmfs/software.eessi.io/versions/2023.06/software/linux/x86_64/generic",
+          "gpu_architectures": ["nvidia/cc70", "nvidia/cc80", "nvidia/cc90"]
         },
         {
           "uuid": "target-uuid-2",
           "target_type": "cpu_architecture",
           "target_name": "aarch64",
           "target_subtype": "generic",
-          "location": "/cvmfs/software.eessi.io/versions/2023.06/software/linux/aarch64/generic"
+          "location": "/cvmfs/software.eessi.io/versions/2023.06/software/linux/aarch64/generic",
+          "gpu_architectures": []
         }
       ]
     }
@@ -475,6 +477,70 @@ curl "https://your-waldur.example.com/api/marketplace-software-targets/?cpu_fami
 # Filter by CPU microarchitecture
 curl "https://your-waldur.example.com/api/marketplace-software-targets/?cpu_microarchitecture=generic"
 ```
+
+### GPU Architecture Filtering
+
+Software targets include a `gpu_architectures` field — a flat list of GPU architectures the target supports (e.g., `["nvidia/cc70", "nvidia/cc80", "nvidia/cc90"]`). This field is extracted from the nested `metadata["gpu_arch"]` structure for efficient filtering.
+
+#### Filter Packages by GPU Support
+
+```bash
+# Find packages with GPU-enabled builds
+curl "https://your-waldur.example.com/api/marketplace-software-packages/?has_gpu=true"
+
+# Find packages without GPU support
+curl "https://your-waldur.example.com/api/marketplace-software-packages/?has_gpu=false"
+
+# Find packages supporting a specific GPU architecture
+curl "https://your-waldur.example.com/api/marketplace-software-packages/?gpu_arch=nvidia/cc90"
+```
+
+#### Filter Versions by GPU Support
+
+```bash
+# Find versions with GPU-enabled builds
+curl "https://your-waldur.example.com/api/marketplace-software-versions/?has_gpu=true"
+
+# Find versions for a specific GPU architecture
+curl "https://your-waldur.example.com/api/marketplace-software-versions/?gpu_arch=nvidia/cc70"
+```
+
+#### Filter Targets by GPU Support
+
+```bash
+# Find targets with GPU architectures
+curl "https://your-waldur.example.com/api/marketplace-software-targets/?has_gpu=true"
+
+# Find targets supporting a specific GPU architecture
+curl "https://your-waldur.example.com/api/marketplace-software-targets/?gpu_arch=nvidia/cc80"
+```
+
+#### GPU Architecture in Responses
+
+Target responses include the `gpu_architectures` field:
+
+```json
+{
+  "uuid": "target-uuid",
+  "target_type": "cpu_architecture",
+  "target_name": "x86_64",
+  "target_subtype": "generic",
+  "location": "/cvmfs/software.eessi.io/versions/2023.06/software/linux/x86_64/generic",
+  "gpu_architectures": ["nvidia/cc70", "nvidia/cc80", "nvidia/cc90"],
+  "metadata": {
+    "full_arch": "x86_64/generic",
+    "gpu_arch": {
+      "x86_64/generic": ["nvidia/cc70", "nvidia/cc80", "nvidia/cc90"]
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `gpu_architectures` | array of strings | Flat list of supported GPU architectures (e.g., `nvidia/cc70`, `amd/gfx90a`) |
+| `has_gpu` | boolean filter | Filter by presence/absence of GPU support |
+| `gpu_arch` | string filter | Filter by specific GPU architecture string |
 
 ## Linking Catalogs to Offerings
 
@@ -600,6 +666,9 @@ The EESSI loader uses the dict-based format from [EESSI API PR #11](https://gith
         {
           "version": "2024.4",
           "cpu_arch": ["x86_64/generic", "aarch64/generic"],
+          "gpu_arch": {
+            "x86_64/generic": ["nvidia/cc70", "nvidia/cc80", "nvidia/cc90"]
+          },
           "toolchain": {"name": "foss", "version": "2023b"},
           "toolchain_families_compatibility": ["2023b_foss"],
           "module": {
@@ -635,6 +704,7 @@ The EESSI loader uses the dict-based format from [EESSI API PR #11](https://gith
 |-------|------|-------------|
 | `module` | object | Structured module info: `full_module_name`, `module_name`, `module_version` |
 | `required_modules` | array of objects | Each with `full_module_name`, `module_name`, `module_version` |
+| `gpu_arch` | object | Map of CPU arch to GPU arch lists (e.g., `{"x86_64/generic": ["nvidia/cc70"]}`) |
 | `extensions` | array | Bundled packages with `type`, `name`, `version` |
 | `toolchain_families_compatibility` | array | Compatible toolchain families (e.g., `"2023b_foss"`) |
 
@@ -738,4 +808,5 @@ This includes:
 - SLURM partition model configuration
 - Partition management APIs (add, update, remove)
 - Partition-specific software catalog associations
-- CPU architecture targeting for different partitions
+- CPU/GPU architecture targeting for different partitions
+- Connecting software GPU requirements to partition capabilities
