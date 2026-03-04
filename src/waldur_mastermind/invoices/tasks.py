@@ -383,6 +383,20 @@ def set_to_zero_overdue_credits(effective_date=None):
                 "credit_end_date": credit.end_date,
             },
         )
+    for project_credit in models.ProjectCredit.objects.filter(
+        end_date__lt=effective_date
+    ).exclude(value=0):
+        project_credit.value = 0
+        project_credit.save()
+        event_logger.emit(
+            "Project credit has been set to zero as the end date {credit_end_date} has arrived.",
+            event_type=EventType.SET_TO_ZERO_OVERDUE_CREDIT,
+            event_context={
+                "customer": project_credit.project.customer,
+                "project": project_credit.project,
+                "credit_end_date": project_credit.end_date,
+            },
+        )
 
 
 def process_invoice_credits(invoice: models.Invoice):

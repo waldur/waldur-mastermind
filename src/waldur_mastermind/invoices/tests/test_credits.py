@@ -398,6 +398,46 @@ class CustomerCreditTest(test.APITestCase):
             ).exists()
         )
 
+    def test_task_set_to_zero_overdue_project_credits(self):
+        """Test that set_to_zero_overdue_credits also zeros expired project credits."""
+        customer_credit = factories.CustomerCreditFactory(
+            customer=self.invoice.customer, value=1000
+        )
+        project = structure_factories.ProjectFactory(customer=self.invoice.customer)
+        # Active project credit — should be untouched
+        pc_active = factories.ProjectCreditFactory(
+            project=project,
+            value=100,
+            end_date=datetime.date.today() + datetime.timedelta(days=31),
+        )
+        # Expired project credit — should be zeroed
+        project2 = structure_factories.ProjectFactory(customer=self.invoice.customer)
+        pc_expired = factories.ProjectCreditFactory(
+            project=project2,
+            value=500,
+            end_date=datetime.date.today() - datetime.timedelta(days=31),
+        )
+        # No end_date — should be untouched
+        project3 = structure_factories.ProjectFactory(customer=self.invoice.customer)
+        pc_no_end = factories.ProjectCreditFactory(
+            project=project3,
+            value=200,
+        )
+
+        old_customer_value = customer_credit.value
+        tasks.set_to_zero_overdue_credits()
+
+        pc_active.refresh_from_db()
+        pc_expired.refresh_from_db()
+        pc_no_end.refresh_from_db()
+        customer_credit.refresh_from_db()
+
+        self.assertEqual(pc_active.value, 100)
+        self.assertEqual(pc_expired.value, 0)
+        self.assertEqual(pc_no_end.value, 200)
+        # Customer credit should not be affected
+        self.assertEqual(customer_credit.value, old_customer_value)
+
 
 @freeze_time("2024-01-01")
 class ProjectCreditTest(test.APITestCase):
@@ -653,6 +693,28 @@ class ProcessingCreditTest(test.APITestCase):
             self.project_credit.expected_consumption,
             Decimal("200.00000"),
         )
+
+    @freeze_time("2026-03-01")
+    def test_linear_expected_consumption_skips_expired_credits(self):
+        """Test that update_linear_expected_consumption skips project credits
+        whose end_date has already passed."""
+        self.customer_credit.value = 1000
+        self.customer_credit.save()
+
+        self.project_credit.value = 500
+        self.project_credit.minimal_consumption_logic = (
+            models.ProjectCredit.MinimalConsumptionLogic.LINEAR
+        )
+        # end_date in the past
+        self.project_credit.end_date = datetime.date(2026, 2, 1)
+        self.project_credit.expected_consumption = 0
+        self.project_credit.save()
+
+        tasks.process_invoice_credits(self.invoice)
+        self.project_credit.refresh_from_db()
+
+        # Expired credit should not get expected_consumption updated
+        self.assertEqual(self.project_credit.expected_consumption, 0)
 
 
 @freeze_time("2025-08-01")
