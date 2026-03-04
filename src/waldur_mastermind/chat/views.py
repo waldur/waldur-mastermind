@@ -150,6 +150,30 @@ class LLMStreamer:
         """
         return f"{json.dumps(data, separators=(',', ':'))}\n"
 
+    def _handle_stream_block(self, block: dict):
+        """
+        Yield formatted NDJSON for a parser block, intercepting tool call sentinels.
+
+        StreamParser signals embedded tool calls (LLM used a ```json code block
+        instead of raw JSON) via {"_tool_call": {...}}. We execute the tool here
+        so the result renders correctly instead of exposing raw JSON to the user.
+        """
+        if "_tool_call" in block and self.user:
+            tool_data = block["_tool_call"]
+            logger.debug(
+                "Intercepted embedded tool call in json code block: %s",
+                tool_data.get("tool"),
+            )
+            tool_executor = ToolExecutor(self.user)
+            result = tool_executor.execute_tool(
+                tool_data["tool"], tool_data.get("arguments", {})
+            )
+            tool_block = self.parser.parse_tool_result(result)
+            if tool_block:
+                yield self._format_ndjson(tool_block)
+        else:
+            yield self._format_ndjson(block)
+
     @staticmethod
     def _iter_sse_events(response):
         """Yield (content, metadata) tuples from an upstream SSE response."""
@@ -231,7 +255,7 @@ class LLMStreamer:
                         # Only stream if we know it's NOT a tool call
                         if not self.is_tool_call and not self.might_be_tool_call:
                             for block in self.parser.parse(content):
-                                yield self._format_ndjson(block)
+                                yield from self._handle_stream_block(block)
 
                     if metadata:
                         usage = metadata.get("usage_metadata", {})
@@ -240,7 +264,7 @@ class LLMStreamer:
 
                 # Final sweep
                 for block in self.parser.flush():
-                    yield self._format_ndjson(block)
+                    yield from self._handle_stream_block(block)
 
                 # Send buffered content that wasn't a confirmed tool call
                 if self.might_be_tool_call and not self.is_tool_call:

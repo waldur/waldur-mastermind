@@ -275,7 +275,16 @@ class StreamParser:
     ) -> Generator[dict, None, None]:
         """
         Render a code block using UI registry with fallback.
+
+        For json code blocks, checks if content is a tool call. If so, yields
+        a sentinel dict with key "_tool_call" for LLMStreamer to intercept and
+        execute, instead of rendering the raw JSON to the user.
         """
+        if tag in ("json", "JSON"):
+            parsed = parse_tool_call(content)
+            if parsed and "tool" in parsed:
+                yield {"_tool_call": parsed}
+                return
         try:
             ui_component = ui_registry.create_content_from_block(
                 {"c": content, "t": tag}
