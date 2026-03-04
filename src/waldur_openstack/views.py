@@ -1163,6 +1163,327 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
 
 @extend_schema_view(
     list=extend_schema(
+        summary="List load balancers",
+        description="Get a list of load balancers.",
+    ),
+    retrieve=extend_schema(
+        summary="Get load balancer details",
+        description="Retrieve details of a specific load balancer.",
+    ),
+    create=extend_schema(
+        summary="Create load balancer",
+        description="Create a new load balancer.",
+    ),
+    update=extend_schema(
+        summary="Update load balancer",
+        description="Update an existing load balancer.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update load balancer",
+        description="Update specific fields of a load balancer.",
+    ),
+    destroy=extend_schema(
+        summary="Delete load balancer",
+        description="Delete a load balancer.",
+    ),
+)
+class LoadBalancerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
+    lookup_field = "uuid"
+    queryset = models.LoadBalancer.objects.all().order_by("tenant__name")
+    filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
+    filterset_class = filters.LoadBalancerFilter
+    serializer_class = serializers.OpenStackLoadBalancerSerializer
+    create_serializer_class = serializers.CreateLoadBalancerSerializer
+
+    delete_executor = executors.LoadBalancerDeleteExecutor
+    create_executor = executors.LoadBalancerCreateExecutor
+    update_executor = executors.LoadBalancerUpdateExecutor
+
+    @extend_schema(
+        summary="Attach floating IP to VIP",
+        description="Attach a floating IP to the load balancer VIP port.",
+        request=serializers.LoadBalancerAttachFloatingIPSerializer,
+        responses=None,
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def attach_floating_ip(self, request, uuid=None):
+        load_balancer: models.LoadBalancer = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        floating_ip: models.FloatingIP = serializer.validated_data["floating_ip"]
+        if load_balancer.state != CoreStates.OK:
+            raise core_exceptions.IncorrectStateException(
+                _("Load balancer [%(lb)s] must be in OK state, current: [%(state)s]")
+                % {
+                    "lb": load_balancer,
+                    "state": load_balancer.get_state_display(),
+                }
+            )
+        if not load_balancer.vip_port_id:
+            raise exceptions.ValidationError(
+                _(
+                    "Load balancer VIP port is not available yet. "
+                    "Wait for the load balancer to become ACTIVE."
+                )
+            )
+        if floating_ip.tenant != load_balancer.tenant:
+            raise exceptions.ValidationError(
+                _("Floating IP must belong to the same tenant as the load balancer.")
+            )
+        executors.LoadBalancerAttachFloatingIPExecutor().execute(
+            load_balancer,
+            floating_ip=core_utils.serialize_instance(floating_ip),
+        )
+        return response.Response(
+            {"status": _("Attach was scheduled")},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    attach_floating_ip_serializer_class = (
+        serializers.LoadBalancerAttachFloatingIPSerializer
+    )
+    attach_floating_ip_validators = [
+        core_validators.StateValidator(CoreStates.OK),
+    ]
+
+    @extend_schema(
+        summary="Detach floating IP from VIP",
+        description="Detach floating IP from the load balancer VIP port.",
+        request=None,
+        responses=None,
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def detach_floating_ip(self, request, uuid=None):
+        load_balancer: models.LoadBalancer = self.get_object()
+        if not load_balancer.attached_floating_ip:
+            raise exceptions.ValidationError(
+                _("Load balancer has no floating IP attached.")
+            )
+        executors.LoadBalancerDetachFloatingIPExecutor().execute(load_balancer)
+        return response.Response(
+            {"status": _("Detach was scheduled")},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    detach_floating_ip_validators = [
+        core_validators.StateValidator(CoreStates.OK),
+    ]
+
+    @extend_schema(
+        summary="Update VIP security groups",
+        description="Update security groups on the load balancer VIP port.",
+        request=serializers.LoadBalancerUpdateVIPSecurityGroupsSerializer,
+        responses=None,
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def update_vip_security_groups(self, request, uuid=None):
+        load_balancer: models.LoadBalancer = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        security_groups = serializer.validated_data["security_groups"]
+        if load_balancer.state != CoreStates.OK:
+            raise core_exceptions.IncorrectStateException(
+                _("Load balancer [%(lb)s] must be in OK state, current: [%(state)s]")
+                % {
+                    "lb": load_balancer,
+                    "state": load_balancer.get_state_display(),
+                }
+            )
+        if not load_balancer.vip_port_id:
+            raise exceptions.ValidationError(
+                _(
+                    "Load balancer VIP port is not available yet. "
+                    "Wait for the load balancer to become ACTIVE."
+                )
+            )
+        security_group_uuids = [str(sg.uuid) for sg in security_groups]
+        executors.LoadBalancerUpdateVIPSecurityGroupsExecutor().execute(
+            load_balancer,
+            security_group_uuids=security_group_uuids,
+        )
+        return response.Response(
+            {"status": _("Security groups update was scheduled")},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    update_vip_security_groups_serializer_class = (
+        serializers.LoadBalancerUpdateVIPSecurityGroupsSerializer
+    )
+    update_vip_security_groups_validators = [
+        core_validators.StateValidator(CoreStates.OK),
+    ]
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List pools",
+        description="Get a list of load balancer pools.",
+    ),
+    retrieve=extend_schema(
+        summary="Get pool details",
+        description="Retrieve details of a specific pool.",
+    ),
+    create=extend_schema(
+        summary="Create pool",
+        description="Create a new pool for a load balancer.",
+    ),
+    update=extend_schema(
+        summary="Update pool",
+        description="Update an existing pool.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update pool",
+        description="Update specific fields of a pool.",
+    ),
+    destroy=extend_schema(
+        summary="Delete pool",
+        description="Delete a pool.",
+    ),
+)
+class PoolViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
+    lookup_field = "uuid"
+    queryset = models.Pool.objects.all().order_by("load_balancer__name", "name")
+    filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
+    filterset_class = filters.PoolFilter
+    serializer_class = serializers.OpenStackPoolSerializer
+    create_serializer_class = serializers.CreatePoolSerializer
+
+    delete_executor = executors.PoolDeleteExecutor
+    create_executor = executors.PoolCreateExecutor
+    update_executor = executors.PoolUpdateExecutor
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List listeners",
+        description="Get a list of load balancer listeners.",
+    ),
+    retrieve=extend_schema(
+        summary="Get listener details",
+        description="Retrieve details of a specific listener.",
+    ),
+    create=extend_schema(
+        summary="Create listener",
+        description="Create a new listener for a load balancer.",
+    ),
+    update=extend_schema(
+        summary="Update listener",
+        description="Update an existing listener.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update listener",
+        description="Update specific fields of a listener.",
+    ),
+    destroy=extend_schema(
+        summary="Delete listener",
+        description="Delete a listener.",
+    ),
+)
+class ListenerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
+    lookup_field = "uuid"
+    queryset = models.Listener.objects.all().order_by(
+        "load_balancer__name", "protocol_port", "name"
+    )
+    filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
+    filterset_class = filters.ListenerFilter
+    serializer_class = serializers.OpenStackListenerSerializer
+    create_serializer_class = serializers.CreateListenerSerializer
+    update_serializer_class = serializers.UpdateListenerSerializer
+    partial_update_serializer_class = serializers.UpdateListenerSerializer
+
+    delete_executor = executors.ListenerDeleteExecutor
+    create_executor = executors.ListenerCreateExecutor
+    update_executor = executors.ListenerUpdateExecutor
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List pool members",
+        description="Get a list of pool members.",
+    ),
+    retrieve=extend_schema(
+        summary="Get pool member details",
+        description="Retrieve details of a specific pool member.",
+    ),
+    create=extend_schema(
+        summary="Create pool member",
+        description="Create a new member for a pool.",
+    ),
+    update=extend_schema(
+        summary="Update pool member",
+        description="Update an existing pool member.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update pool member",
+        description="Update specific fields of a pool member.",
+    ),
+    destroy=extend_schema(
+        summary="Delete pool member",
+        description="Delete a pool member.",
+    ),
+)
+class PoolMemberViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
+    lookup_field = "uuid"
+    queryset = models.PoolMember.objects.all().order_by(
+        "pool__load_balancer__name", "pool__name", "address", "protocol_port"
+    )
+    filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
+    filterset_class = filters.PoolMemberFilter
+    serializer_class = serializers.OpenStackPoolMemberSerializer
+    create_serializer_class = serializers.CreatePoolMemberSerializer
+    update_serializer_class = serializers.UpdatePoolMemberSerializer
+    partial_update_serializer_class = serializers.UpdatePoolMemberSerializer
+
+    delete_executor = executors.PoolMemberDeleteExecutor
+    create_executor = executors.PoolMemberCreateExecutor
+    update_executor = executors.PoolMemberUpdateExecutor
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List health monitors",
+        description="Get a list of pool health monitors.",
+    ),
+    retrieve=extend_schema(
+        summary="Get health monitor details",
+        description="Retrieve details of a specific health monitor.",
+    ),
+    create=extend_schema(
+        summary="Create health monitor",
+        description="Create a new health monitor for a pool.",
+    ),
+    update=extend_schema(
+        summary="Update health monitor",
+        description="Update an existing health monitor.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update health monitor",
+        description="Update specific fields of a health monitor.",
+    ),
+    destroy=extend_schema(
+        summary="Delete health monitor",
+        description="Delete a health monitor.",
+    ),
+)
+class HealthMonitorViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
+    lookup_field = "uuid"
+    queryset = models.HealthMonitor.objects.all().order_by(
+        "pool__load_balancer__name", "pool__name", "name"
+    )
+    filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
+    filterset_class = filters.HealthMonitorFilter
+    serializer_class = serializers.OpenStackHealthMonitorSerializer
+    create_serializer_class = serializers.CreateHealthMonitorSerializer
+    update_serializer_class = serializers.UpdateHealthMonitorSerializer
+    partial_update_serializer_class = serializers.UpdateHealthMonitorSerializer
+
+    delete_executor = executors.HealthMonitorDeleteExecutor
+    create_executor = executors.HealthMonitorCreateExecutor
+    update_executor = executors.HealthMonitorUpdateExecutor
+
+
+@extend_schema_view(
+    list=extend_schema(
         summary="List ports",
         description="Get a list of network ports.",
     ),

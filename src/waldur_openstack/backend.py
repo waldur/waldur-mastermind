@@ -47,6 +47,7 @@ from waldur_openstack.exceptions import (
     OpenStackBackendError,
     OpenStackTenantNotFound,
 )
+from waldur_openstack.octavia import OctaviaClientException, get_octavia_client
 from waldur_openstack.session import (
     get_cinder_client,
     get_glance_client,
@@ -86,6 +87,7 @@ def reraise_exceptions(func):
             cinder_exceptions.ClientException,
             nova_exceptions.ClientException,
             glance_exceptions.BaseException,
+            OctaviaClientException,
         ) as e:
             # args is an empty list if no positional arguments were passed to the method
             # The first positional argument (args[0]) should be a Waldur model instance that is being operated on
@@ -6226,6 +6228,916 @@ class OpenStackBackend(ServiceBackend):
             neutron.delete_router(router.backend_id)
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e)
+
+    def _is_lbaas_enabled(self, tenant: models.Tenant) -> bool:
+        return bool(tenant.service_settings.options.get("lbaas_enabled", False))
+
+    @log_backend_action()
+    def create_load_balancer(self, load_balancer: models.LoadBalancer):
+        if not self._is_lbaas_enabled(load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service. "
+                "Set lbaas_enabled=True in service options."
+            )
+        session = get_tenant_session(load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        backend_lb = octavia.create_load_balancer(
+            name=load_balancer.name,
+            vip_subnet_id=load_balancer.vip_subnet_id,
+            provider=load_balancer.provider or "ovn",
+        )
+        load_balancer.backend_id = backend_lb["id"]
+        load_balancer.vip_address = backend_lb.get("vip_address") or None
+        load_balancer.provisioning_status = backend_lb.get("provisioning_status", "")
+        load_balancer.operating_status = backend_lb.get("operating_status", "")
+        load_balancer.save(
+            update_fields=[
+                "backend_id",
+                "vip_address",
+                "provisioning_status",
+                "operating_status",
+            ]
+        )
+        logger.info(
+            "Load balancer %s has been created in the backend.",
+            load_balancer.name,
+        )
+
+    @log_backend_action()
+    def delete_load_balancer(self, load_balancer: models.LoadBalancer):
+        if not load_balancer.backend_id:
+            logger.warning(
+                "Cannot remove load balancer without backend_id: %s",
+                load_balancer,
+            )
+            return
+        if not self._is_lbaas_enabled(load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service."
+            )
+        session = get_tenant_session(load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        octavia.delete_load_balancer(load_balancer.backend_id)
+        logger.info(
+            "Load balancer %s has been deleted from the backend.",
+            load_balancer.name,
+        )
+
+    @log_backend_action()
+    def pull_load_balancer(self, load_balancer: models.LoadBalancer):
+        if not load_balancer.backend_id:
+            return
+        if not self._is_lbaas_enabled(load_balancer.tenant):
+            return
+        session = get_tenant_session(load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        try:
+            backend_lb = octavia.show_load_balancer(load_balancer.backend_id)
+        except OctaviaClientException as e:
+            if e.status_code == 404:
+                load_balancer.error_message = "Load balancer not found in backend"
+                load_balancer.save(update_fields=["error_message"])
+                return
+            raise
+        load_balancer.vip_address = backend_lb.get("vip_address") or None
+        load_balancer.provisioning_status = backend_lb.get("provisioning_status", "")
+        load_balancer.operating_status = backend_lb.get("operating_status", "")
+        load_balancer.provider = backend_lb.get("provider") or "ovn"
+        load_balancer.vip_subnet_id = backend_lb.get("vip_subnet_id") or ""
+        vip = backend_lb.get("vip") or {}
+        load_balancer.vip_port_id = (
+            backend_lb.get("vip_port_id") or vip.get("port_id") or ""
+        )
+        load_balancer.error_message = ""
+        load_balancer.save(
+            update_fields=[
+                "vip_address",
+                "provisioning_status",
+                "operating_status",
+                "provider",
+                "vip_subnet_id",
+                "vip_port_id",
+                "error_message",
+            ]
+        )
+
+    @log_backend_action()
+    def update_load_balancer(self, load_balancer: models.LoadBalancer):
+        if not load_balancer.backend_id:
+            return
+        if not self._is_lbaas_enabled(load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service."
+            )
+        session = get_tenant_session(load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        octavia.update_load_balancer(load_balancer.backend_id, name=load_balancer.name)
+        logger.info(
+            "Load balancer %s has been updated in the backend.",
+            load_balancer.name,
+        )
+
+    @log_backend_action()
+    def attach_floating_ip_to_load_balancer_vip(
+        self, load_balancer: models.LoadBalancer, serialized_floating_ip=None
+    ):
+        floating_ip: models.FloatingIP = core_utils.deserialize_instance(
+            serialized_floating_ip
+        )
+        """Attach a floating IP to the load balancer VIP port."""
+        if not self._is_lbaas_enabled(load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service."
+            )
+        if not load_balancer.vip_port_id:
+            raise OpenStackBackendError(
+                "Load balancer VIP port is not available yet. "
+                "Wait for the load balancer to become ACTIVE."
+            )
+        if load_balancer.tenant != floating_ip.tenant:
+            raise OpenStackBackendError(
+                "Floating IP must belong to the same tenant as the load balancer."
+            )
+        session = get_tenant_session(load_balancer.tenant)
+        neutron = get_neutron_client(session)
+        try:
+            neutron.update_floatingip(
+                floating_ip.backend_id,
+                {"floatingip": {"port_id": load_balancer.vip_port_id}},
+            )
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(str(e))
+        # Clear previous LB attachment if this FIP was attached elsewhere
+        models.LoadBalancer.objects.filter(attached_floating_ip=floating_ip).update(
+            attached_floating_ip=None
+        )
+        # Clear FIP port (VIP port is not in our Port model)
+        floating_ip.port = None
+        floating_ip.save(update_fields=["port"])
+        load_balancer.attached_floating_ip = floating_ip
+        load_balancer.save(update_fields=["attached_floating_ip"])
+        logger.info(
+            "Floating IP %s attached to load balancer %s VIP.",
+            floating_ip.address,
+            load_balancer.name,
+        )
+
+    @log_backend_action()
+    def detach_floating_ip_from_load_balancer_vip(
+        self, load_balancer: models.LoadBalancer
+    ):
+        """Detach floating IP from the load balancer VIP port."""
+        if not load_balancer.attached_floating_ip:
+            raise OpenStackBackendError("Load balancer has no floating IP attached.")
+        floating_ip = load_balancer.attached_floating_ip
+        session = get_tenant_session(load_balancer.tenant)
+        neutron = get_neutron_client(session)
+        try:
+            neutron.update_floatingip(
+                floating_ip.backend_id,
+                {"floatingip": {"port_id": None}},
+            )
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(str(e))
+        load_balancer.attached_floating_ip = None
+        load_balancer.save(update_fields=["attached_floating_ip"])
+        logger.info(
+            "Floating IP %s detached from load balancer %s VIP.",
+            floating_ip.address,
+            load_balancer.name,
+        )
+
+    @log_backend_action()
+    def update_load_balancer_vip_security_groups(
+        self,
+        load_balancer: models.LoadBalancer,
+        security_group_uuids=None,
+    ):
+        """Update security groups on the load balancer VIP port.
+        security_group_uuids: list of SecurityGroup UUIDs (Waldur model).
+        """
+        security_group_uuids = security_group_uuids or []
+        if not self._is_lbaas_enabled(load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service."
+            )
+        if not load_balancer.vip_port_id:
+            raise OpenStackBackendError(
+                "Load balancer VIP port is not available yet. "
+                "Wait for the load balancer to become ACTIVE."
+            )
+        security_groups = (
+            models.SecurityGroup.objects.filter(
+                uuid__in=security_group_uuids,
+                tenant=load_balancer.tenant,
+            )
+            .exclude(backend_id__isnull=True)
+            .exclude(backend_id="")
+        )
+        backend_ids = list(security_groups.values_list("backend_id", flat=True))
+        if len(backend_ids) != len(security_group_uuids):
+            raise OpenStackBackendError(
+                "All security groups must belong to the load balancer tenant "
+                "and be provisioned in the backend."
+            )
+        session = get_tenant_session(load_balancer.tenant)
+        neutron = get_neutron_client(session)
+        try:
+            neutron.update_port(
+                load_balancer.vip_port_id,
+                {"port": {"security_groups": backend_ids}},
+            )
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(str(e))
+        logger.info(
+            "Security groups updated for load balancer %s VIP port.",
+            load_balancer.name,
+        )
+
+    def pull_tenant_load_balancers(self, tenant: models.Tenant):
+        """Sync load balancers from Octavia for the tenant. Only if lbaas_enabled."""
+        if not self._is_lbaas_enabled(tenant):
+            return
+        try:
+            session = get_tenant_session(tenant)
+            octavia = get_octavia_client(session)
+            backend_lbs = octavia.list_load_balancers(project_id=tenant.backend_id)
+        except (OpenStackBackendError, OctaviaClientException) as e:
+            logger.warning("Failed to pull load balancers for tenant %s: %s", tenant, e)
+            return
+        for backend_lb in backend_lbs:
+            backend_id = backend_lb["id"]
+            vip = backend_lb.get("vip") or {}
+            vip_port_id = backend_lb.get("vip_port_id") or vip.get("port_id") or ""
+            defaults = {
+                "name": backend_lb["name"],
+                "vip_address": backend_lb.get("vip_address") or None,
+                "vip_subnet_id": backend_lb.get("vip_subnet_id") or "",
+                "vip_port_id": vip_port_id,
+                "provider": backend_lb.get("provider") or "ovn",
+                "provisioning_status": backend_lb.get("provisioning_status", ""),
+                "operating_status": backend_lb.get("operating_status", ""),
+                "service_settings": tenant.service_settings,
+                "project": tenant.project,
+                "state": CoreStates.OK,
+                "error_message": "",
+            }
+            try:
+                models.LoadBalancer.objects.update_or_create(
+                    tenant=tenant,
+                    backend_id=backend_id,
+                    defaults=defaults,
+                )
+            except IntegrityError:
+                logger.warning(
+                    "Could not create load balancer with backend ID %s "
+                    "and tenant %s due to concurrent update.",
+                    backend_id,
+                    tenant,
+                )
+        remote_ids = {lb["id"] for lb in backend_lbs}
+        stale = models.LoadBalancer.objects.filter(tenant=tenant).exclude(
+            backend_id__in=remote_ids
+        )
+        stale.delete()
+
+    @log_backend_action()
+    def create_pool(self, pool: models.Pool):
+        if not self._is_lbaas_enabled(pool.load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service. "
+                "Set lbaas_enabled=True in service options."
+            )
+        if not pool.load_balancer.backend_id:
+            raise OpenStackBackendError(
+                "Load balancer must be created in the backend before creating a pool."
+            )
+        session = get_tenant_session(pool.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        backend_pool = octavia.create_pool(
+            loadbalancer_id=pool.load_balancer.backend_id,
+            name=pool.name,
+            protocol=pool.protocol,
+            lb_algorithm=pool.lb_algorithm or "SOURCE_IP_PORT",
+        )
+        pool.backend_id = backend_pool["id"]
+        pool.provisioning_status = backend_pool.get("provisioning_status", "")
+        pool.operating_status = backend_pool.get("operating_status", "")
+        pool.save(
+            update_fields=[
+                "backend_id",
+                "provisioning_status",
+                "operating_status",
+            ]
+        )
+        logger.info("Pool %s has been created in the backend.", pool.name)
+
+    @log_backend_action()
+    def delete_pool(self, pool: models.Pool):
+        if not pool.backend_id:
+            logger.warning("Cannot remove pool without backend_id: %s", pool)
+            return
+        if not self._is_lbaas_enabled(pool.load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service."
+            )
+        session = get_tenant_session(pool.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        octavia.delete_pool(pool.backend_id)
+        logger.info("Pool %s has been deleted from the backend.", pool.name)
+
+    @log_backend_action()
+    def pull_pool(self, pool: models.Pool):
+        if not pool.backend_id:
+            return
+        if not self._is_lbaas_enabled(pool.load_balancer.tenant):
+            return
+        session = get_tenant_session(pool.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        try:
+            backend_pool = octavia.show_pool(pool.backend_id)
+        except OctaviaClientException as e:
+            if e.status_code == 404:
+                pool.error_message = "Pool not found in backend"
+                pool.save(update_fields=["error_message"])
+                return
+            raise
+        pool.provisioning_status = backend_pool.get("provisioning_status", "")
+        pool.operating_status = backend_pool.get("operating_status", "")
+        pool.protocol = backend_pool.get("protocol") or pool.protocol
+        pool.lb_algorithm = backend_pool.get("lb_algorithm") or pool.lb_algorithm
+        pool.error_message = ""
+        pool.save(
+            update_fields=[
+                "provisioning_status",
+                "operating_status",
+                "protocol",
+                "lb_algorithm",
+                "error_message",
+            ]
+        )
+
+    @log_backend_action()
+    def update_pool(self, pool: models.Pool):
+        if not pool.backend_id:
+            return
+        if not self._is_lbaas_enabled(pool.load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service."
+            )
+        session = get_tenant_session(pool.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        octavia.update_pool(pool.backend_id, name=pool.name)
+        logger.info("Pool %s has been updated in the backend.", pool.name)
+
+    def pull_tenant_pools(self, tenant: models.Tenant):
+        """Sync pools from Octavia for the tenant. Only if lbaas_enabled."""
+        if not self._is_lbaas_enabled(tenant):
+            return
+        load_balancers = (
+            models.LoadBalancer.objects.filter(tenant=tenant)
+            .exclude(backend_id__isnull=True)
+            .exclude(backend_id="")
+        )
+        for lb in load_balancers:
+            try:
+                session = get_tenant_session(tenant)
+                octavia = get_octavia_client(session)
+                backend_pools = octavia.list_pools(loadbalancer_id=lb.backend_id)
+            except (OpenStackBackendError, OctaviaClientException) as e:
+                logger.warning("Failed to pull pools for load balancer %s: %s", lb, e)
+                continue
+            for backend_pool in backend_pools:
+                backend_id = backend_pool["id"]
+                defaults = {
+                    "name": backend_pool.get("name") or "",
+                    "protocol": backend_pool.get("protocol") or "TCP",
+                    "lb_algorithm": backend_pool.get("lb_algorithm")
+                    or "SOURCE_IP_PORT",
+                    "provisioning_status": backend_pool.get("provisioning_status", ""),
+                    "operating_status": backend_pool.get("operating_status", ""),
+                    "service_settings": tenant.service_settings,
+                    "project": tenant.project,
+                    "state": CoreStates.OK,
+                    "error_message": "",
+                }
+                try:
+                    models.Pool.objects.update_or_create(
+                        load_balancer=lb,
+                        backend_id=backend_id,
+                        defaults=defaults,
+                    )
+                except IntegrityError:
+                    logger.warning(
+                        "Could not create pool with backend ID %s "
+                        "and load balancer %s due to concurrent update.",
+                        backend_id,
+                        lb,
+                    )
+            remote_ids = {p["id"] for p in backend_pools}
+            stale = models.Pool.objects.filter(load_balancer=lb).exclude(
+                backend_id__in=remote_ids
+            )
+            stale.delete()
+
+    @log_backend_action()
+    def create_pool_member(self, member: models.PoolMember):
+        if not self._is_lbaas_enabled(member.pool.load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service. "
+                "Set lbaas_enabled=True in service options."
+            )
+        if not member.pool.backend_id:
+            raise OpenStackBackendError(
+                "Pool must be created in the backend before creating a member."
+            )
+        if not member.subnet_id:
+            raise OpenStackBackendError(
+                "Subnet ID is required for creating a pool member."
+            )
+        session = get_tenant_session(member.pool.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        backend_member = octavia.create_member(
+            pool_id=member.pool.backend_id,
+            address=str(member.address),
+            protocol_port=member.protocol_port,
+            subnet_id=member.subnet_id,
+            name=member.name or "",
+            weight=member.weight,
+        )
+        member.backend_id = backend_member["id"]
+        member.provisioning_status = backend_member.get("provisioning_status", "")
+        member.operating_status = backend_member.get("operating_status", "")
+        member.save(
+            update_fields=[
+                "backend_id",
+                "provisioning_status",
+                "operating_status",
+            ]
+        )
+        logger.info("Pool member %s has been created in the backend.", member.name)
+
+    @log_backend_action()
+    def delete_pool_member(self, member: models.PoolMember):
+        if not member.backend_id:
+            logger.warning("Cannot remove pool member without backend_id: %s", member)
+            return
+        if not self._is_lbaas_enabled(member.pool.load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service."
+            )
+        session = get_tenant_session(member.pool.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        octavia.delete_member(member.pool.backend_id, member.backend_id)
+        logger.info("Pool member %s has been deleted from the backend.", member.name)
+
+    @log_backend_action()
+    def pull_pool_member(self, member: models.PoolMember):
+        if not member.backend_id:
+            return
+        if not self._is_lbaas_enabled(member.pool.load_balancer.tenant):
+            return
+        session = get_tenant_session(member.pool.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        try:
+            backend_member = octavia.show_member(
+                member.pool.backend_id, member.backend_id
+            )
+        except OctaviaClientException as e:
+            if e.status_code == 404:
+                member.error_message = "Member not found in backend"
+                member.save(update_fields=["error_message"])
+                return
+            raise
+        member.provisioning_status = backend_member.get("provisioning_status", "")
+        member.operating_status = backend_member.get("operating_status", "")
+        member.address = backend_member.get("address") or member.address
+        member.protocol_port = backend_member.get("protocol_port", member.protocol_port)
+        member.weight = backend_member.get("weight", member.weight)
+        member.error_message = ""
+        member.save(
+            update_fields=[
+                "provisioning_status",
+                "operating_status",
+                "address",
+                "protocol_port",
+                "weight",
+                "error_message",
+            ]
+        )
+
+    @log_backend_action()
+    def update_pool_member(self, member: models.PoolMember):
+        if not member.backend_id:
+            return
+        if not self._is_lbaas_enabled(member.pool.load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service."
+            )
+        session = get_tenant_session(member.pool.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        octavia.update_member(
+            member.pool.backend_id,
+            member.backend_id,
+            name=member.name,
+            weight=member.weight,
+        )
+        logger.info("Pool member %s has been updated in the backend.", member.name)
+
+    def pull_tenant_pool_members(self, tenant: models.Tenant):
+        """Sync pool members from Octavia for the tenant. Only if lbaas_enabled."""
+        if not self._is_lbaas_enabled(tenant):
+            return
+        pools = (
+            models.Pool.objects.filter(
+                load_balancer__tenant=tenant,
+            )
+            .exclude(backend_id__isnull=True)
+            .exclude(backend_id="")
+        )
+        for pool in pools:
+            try:
+                session = get_tenant_session(tenant)
+                octavia = get_octavia_client(session)
+                backend_members = octavia.list_members(pool.backend_id)
+            except (OpenStackBackendError, OctaviaClientException) as e:
+                logger.warning("Failed to pull members for pool %s: %s", pool, e)
+                continue
+            for backend_member in backend_members:
+                backend_id = backend_member["id"]
+                defaults = {
+                    "name": backend_member.get("name") or "",
+                    "address": backend_member.get("address", "0.0.0.0"),
+                    "protocol_port": backend_member.get("protocol_port", 80),
+                    "subnet_id": backend_member.get("subnet_id", ""),
+                    "weight": backend_member.get("weight", 1),
+                    "provisioning_status": backend_member.get(
+                        "provisioning_status", ""
+                    ),
+                    "operating_status": backend_member.get("operating_status", ""),
+                    "service_settings": tenant.service_settings,
+                    "project": tenant.project,
+                    "state": CoreStates.OK,
+                    "error_message": "",
+                }
+                try:
+                    models.PoolMember.objects.update_or_create(
+                        pool=pool,
+                        backend_id=backend_id,
+                        defaults=defaults,
+                    )
+                except IntegrityError:
+                    logger.warning(
+                        "Could not create pool member with backend ID %s "
+                        "and pool %s due to concurrent update.",
+                        backend_id,
+                        pool,
+                    )
+            remote_ids = {m["id"] for m in backend_members}
+            stale = models.PoolMember.objects.filter(pool=pool).exclude(
+                backend_id__in=remote_ids
+            )
+            stale.delete()
+
+    @log_backend_action()
+    def create_health_monitor(self, health_monitor: models.HealthMonitor):
+        if not self._is_lbaas_enabled(health_monitor.pool.load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service. "
+                "Set lbaas_enabled=True in service options."
+            )
+        if not health_monitor.pool.backend_id:
+            raise OpenStackBackendError(
+                "Pool must be created in the backend before creating a health monitor."
+            )
+        session = get_tenant_session(health_monitor.pool.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        backend_hm = octavia.create_healthmonitor(
+            pool_id=health_monitor.pool.backend_id,
+            hm_type=health_monitor.monitor_type,
+            delay=health_monitor.delay,
+            timeout=health_monitor.timeout,
+            max_retries=health_monitor.max_retries,
+            name=health_monitor.name or "",
+        )
+        health_monitor.backend_id = backend_hm["id"]
+        health_monitor.provisioning_status = backend_hm.get("provisioning_status", "")
+        health_monitor.operating_status = backend_hm.get("operating_status", "")
+        health_monitor.save(
+            update_fields=[
+                "backend_id",
+                "provisioning_status",
+                "operating_status",
+            ]
+        )
+        logger.info(
+            "Health monitor %s has been created in the backend.",
+            health_monitor.name,
+        )
+
+    @log_backend_action()
+    def delete_health_monitor(self, health_monitor: models.HealthMonitor):
+        if not health_monitor.backend_id:
+            logger.warning(
+                "Cannot remove health monitor without backend_id: %s",
+                health_monitor,
+            )
+            return
+        if not self._is_lbaas_enabled(health_monitor.pool.load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service."
+            )
+        session = get_tenant_session(health_monitor.pool.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        octavia.delete_healthmonitor(health_monitor.backend_id)
+        logger.info(
+            "Health monitor %s has been deleted from the backend.",
+            health_monitor.name,
+        )
+
+    @log_backend_action()
+    def pull_health_monitor(self, health_monitor: models.HealthMonitor):
+        if not health_monitor.backend_id:
+            return
+        if not self._is_lbaas_enabled(health_monitor.pool.load_balancer.tenant):
+            return
+        session = get_tenant_session(health_monitor.pool.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        try:
+            backend_hm = octavia.show_healthmonitor(health_monitor.backend_id)
+        except OctaviaClientException as e:
+            if e.status_code == 404:
+                health_monitor.error_message = "Health monitor not found in backend"
+                health_monitor.save(update_fields=["error_message"])
+                return
+            raise
+        health_monitor.provisioning_status = backend_hm.get("provisioning_status", "")
+        health_monitor.operating_status = backend_hm.get("operating_status", "")
+        health_monitor.monitor_type = (
+            backend_hm.get("type") or health_monitor.monitor_type
+        )
+        health_monitor.delay = backend_hm.get("delay", health_monitor.delay)
+        health_monitor.timeout = backend_hm.get("timeout", health_monitor.timeout)
+        health_monitor.max_retries = backend_hm.get(
+            "max_retries", health_monitor.max_retries
+        )
+        health_monitor.error_message = ""
+        health_monitor.save(
+            update_fields=[
+                "provisioning_status",
+                "operating_status",
+                "monitor_type",
+                "delay",
+                "timeout",
+                "max_retries",
+                "error_message",
+            ]
+        )
+
+    @log_backend_action()
+    def update_health_monitor(self, health_monitor: models.HealthMonitor):
+        if not health_monitor.backend_id:
+            return
+        if not self._is_lbaas_enabled(health_monitor.pool.load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service."
+            )
+        session = get_tenant_session(health_monitor.pool.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        octavia.update_healthmonitor(
+            health_monitor.backend_id,
+            name=health_monitor.name,
+            delay=health_monitor.delay,
+            timeout=health_monitor.timeout,
+            max_retries=health_monitor.max_retries,
+        )
+        logger.info(
+            "Health monitor %s has been updated in the backend.",
+            health_monitor.name,
+        )
+
+    def pull_tenant_healthmonitors(self, tenant: models.Tenant):
+        """Sync health monitors from Octavia for the tenant. Only if lbaas_enabled."""
+        if not self._is_lbaas_enabled(tenant):
+            return
+        pools = (
+            models.Pool.objects.filter(
+                load_balancer__tenant=tenant,
+            )
+            .exclude(backend_id__isnull=True)
+            .exclude(backend_id="")
+        )
+        for pool in pools:
+            try:
+                session = get_tenant_session(tenant)
+                octavia = get_octavia_client(session)
+                backend_hms = octavia.list_healthmonitors(pool_id=pool.backend_id)
+            except (OpenStackBackendError, OctaviaClientException) as e:
+                logger.warning(
+                    "Failed to pull health monitors for pool %s: %s", pool, e
+                )
+                continue
+            for backend_hm in backend_hms:
+                backend_id = backend_hm["id"]
+                defaults = {
+                    "name": backend_hm.get("name") or "",
+                    "monitor_type": backend_hm.get("type") or "TCP",
+                    "delay": backend_hm.get("delay", 10),
+                    "timeout": backend_hm.get("timeout", 5),
+                    "max_retries": backend_hm.get("max_retries", 3),
+                    "provisioning_status": backend_hm.get("provisioning_status", ""),
+                    "operating_status": backend_hm.get("operating_status", ""),
+                    "service_settings": tenant.service_settings,
+                    "project": tenant.project,
+                    "state": CoreStates.OK,
+                    "error_message": "",
+                }
+                try:
+                    models.HealthMonitor.objects.update_or_create(
+                        pool=pool,
+                        defaults={**defaults, "backend_id": backend_id},
+                    )
+                except IntegrityError:
+                    logger.warning(
+                        "Could not create health monitor with backend ID %s "
+                        "and pool %s due to concurrent update.",
+                        backend_id,
+                        pool,
+                    )
+            remote_ids = {hm["id"] for hm in backend_hms}
+            stale = models.HealthMonitor.objects.filter(pool=pool).exclude(
+                backend_id__in=remote_ids
+            )
+            stale.delete()
+
+    @log_backend_action()
+    def create_listener(self, listener: models.Listener):
+        if not self._is_lbaas_enabled(listener.load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service. "
+                "Set lbaas_enabled=True in service options."
+            )
+        if not listener.load_balancer.backend_id:
+            raise OpenStackBackendError(
+                "Load balancer must be created in the backend before creating a listener."
+            )
+        session = get_tenant_session(listener.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        payload_kwargs = {}
+        if listener.default_pool_id and listener.default_pool.backend_id:
+            payload_kwargs["default_pool_id"] = listener.default_pool.backend_id
+        backend_listener = octavia.create_listener(
+            loadbalancer_id=listener.load_balancer.backend_id,
+            protocol=listener.protocol,
+            protocol_port=listener.protocol_port,
+            name=listener.name,
+            **payload_kwargs,
+        )
+        listener.backend_id = backend_listener["id"]
+        listener.provisioning_status = backend_listener.get("provisioning_status", "")
+        listener.operating_status = backend_listener.get("operating_status", "")
+        listener.save(
+            update_fields=[
+                "backend_id",
+                "provisioning_status",
+                "operating_status",
+            ]
+        )
+        logger.info("Listener %s has been created in the backend.", listener.name)
+
+    @log_backend_action()
+    def delete_listener(self, listener: models.Listener):
+        if not listener.backend_id:
+            logger.warning("Cannot remove listener without backend_id: %s", listener)
+            return
+        if not self._is_lbaas_enabled(listener.load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service."
+            )
+        session = get_tenant_session(listener.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        octavia.delete_listener(listener.backend_id)
+        logger.info("Listener %s has been deleted from the backend.", listener.name)
+
+    @log_backend_action()
+    def pull_listener(self, listener: models.Listener):
+        if not listener.backend_id:
+            return
+        if not self._is_lbaas_enabled(listener.load_balancer.tenant):
+            return
+        session = get_tenant_session(listener.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        try:
+            backend_listener = octavia.show_listener(listener.backend_id)
+        except OctaviaClientException as e:
+            if e.status_code == 404:
+                listener.error_message = "Listener not found in backend"
+                listener.save(update_fields=["error_message"])
+                return
+            raise
+        listener.provisioning_status = backend_listener.get("provisioning_status", "")
+        listener.operating_status = backend_listener.get("operating_status", "")
+        listener.protocol = backend_listener.get("protocol") or listener.protocol
+        listener.protocol_port = backend_listener.get(
+            "protocol_port", listener.protocol_port
+        )
+        default_pool_id = backend_listener.get("default_pool_id")
+        if default_pool_id:
+            default_pool = models.Pool.objects.filter(
+                load_balancer=listener.load_balancer, backend_id=default_pool_id
+            ).first()
+            listener.default_pool = default_pool
+        else:
+            listener.default_pool = None
+        listener.error_message = ""
+        listener.save(
+            update_fields=[
+                "provisioning_status",
+                "operating_status",
+                "protocol",
+                "protocol_port",
+                "default_pool",
+                "error_message",
+            ]
+        )
+
+    @log_backend_action()
+    def update_listener(self, listener: models.Listener):
+        if not listener.backend_id:
+            return
+        if not self._is_lbaas_enabled(listener.load_balancer.tenant):
+            raise OpenStackBackendError(
+                "LBaaS is not enabled for this OpenStack service."
+            )
+        session = get_tenant_session(listener.load_balancer.tenant)
+        octavia = get_octavia_client(session)
+        update_kwargs = {"name": listener.name}
+        if listener.default_pool_id and listener.default_pool.backend_id:
+            update_kwargs["default_pool_id"] = listener.default_pool.backend_id
+        octavia.update_listener(listener.backend_id, **update_kwargs)
+        logger.info("Listener %s has been updated in the backend.", listener.name)
+
+    def pull_tenant_listeners(self, tenant: models.Tenant):
+        """Sync listeners from Octavia for the tenant. Only if lbaas_enabled."""
+        if not self._is_lbaas_enabled(tenant):
+            return
+        load_balancers = (
+            models.LoadBalancer.objects.filter(tenant=tenant)
+            .exclude(backend_id__isnull=True)
+            .exclude(backend_id="")
+        )
+        for lb in load_balancers:
+            try:
+                session = get_tenant_session(tenant)
+                octavia = get_octavia_client(session)
+                backend_listeners = octavia.list_listeners(
+                    loadbalancer_id=lb.backend_id
+                )
+            except (OpenStackBackendError, OctaviaClientException) as e:
+                logger.warning(
+                    "Failed to pull listeners for load balancer %s: %s", lb, e
+                )
+                continue
+            for backend_listener in backend_listeners:
+                backend_id = backend_listener["id"]
+                default_pool_id = backend_listener.get("default_pool_id")
+                default_pool = None
+                if default_pool_id:
+                    default_pool = models.Pool.objects.filter(
+                        load_balancer=lb, backend_id=default_pool_id
+                    ).first()
+                defaults = {
+                    "name": backend_listener.get("name") or "",
+                    "protocol": backend_listener.get("protocol") or "TCP",
+                    "protocol_port": backend_listener.get("protocol_port", 80),
+                    "default_pool": default_pool,
+                    "provisioning_status": backend_listener.get(
+                        "provisioning_status", ""
+                    ),
+                    "operating_status": backend_listener.get("operating_status", ""),
+                    "service_settings": tenant.service_settings,
+                    "project": tenant.project,
+                    "state": CoreStates.OK,
+                    "error_message": "",
+                }
+                try:
+                    models.Listener.objects.update_or_create(
+                        load_balancer=lb,
+                        backend_id=backend_id,
+                        defaults=defaults,
+                    )
+                except IntegrityError:
+                    logger.warning(
+                        "Could not create listener with backend ID %s "
+                        "and load balancer %s due to concurrent update.",
+                        backend_id,
+                        lb,
+                    )
+            remote_ids = {listener["id"] for listener in backend_listeners}
+            stale = models.Listener.objects.filter(load_balancer=lb).exclude(
+                backend_id__in=remote_ids
+            )
+            stale.delete()
 
     @log_backend_action()
     def push_port_security_groups(self, port: models.Port):

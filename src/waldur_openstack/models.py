@@ -31,6 +31,16 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Octavia LBaaS choices (OVN supports TCP/UDP for protocol and health monitor type)
+PROTOCOL_CHOICES = [("TCP", "TCP"), ("UDP", "UDP")]
+LB_ALGORITHM_CHOICES = [
+    ("ROUND_ROBIN", "Round Robin"),
+    ("LEAST_CONNECTIONS", "Least Connections"),
+    ("SOURCE_IP", "Source IP"),
+    ("SOURCE_IP_PORT", "Source IP Port"),
+]
+HEALTHMONITOR_TYPE_CHOICES = [("TCP", "TCP"), ("UDP", "UDP")]
+
 
 def build_tenants_query(user):
     return Q(tenants__in=filter_queryset_for_user(Tenant.objects.all(), user))
@@ -50,6 +60,7 @@ class Tenant(
     security_groups: models.Manager["SecurityGroup"]
     floating_ips: models.Manager["FloatingIP"]
     routers: models.Manager["Router"]
+    load_balancers: models.Manager["LoadBalancer"]
     networks: models.Manager["Network"]
     ports: models.Manager["Port"]
     volume_availability_zones: models.Manager["VolumeAvailabilityZone"]
@@ -664,6 +675,294 @@ class Router(structure_models.BaseResource):
     @classmethod
     def get_url_name(cls):
         return "openstack-router"
+
+
+class LoadBalancer(structure_models.BaseResource):
+    class Meta(structure_models.BaseResource.Meta):
+        unique_together = [["tenant", "backend_id"]]
+
+    tenant = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=Tenant,
+        related_name="load_balancers",
+        help_text=_("OpenStack tenant this load balancer belongs to"),
+    )
+    backend_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text=_("Load balancer ID in Octavia"),
+    )
+    vip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        protocol="IPv4",
+        help_text=_("Virtual IP address of the load balancer"),
+    )
+    vip_subnet_id = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text=_("Subnet ID for the VIP (required for creation)"),
+    )
+    provider = models.CharField(
+        max_length=64,
+        default="ovn",
+        help_text=_("Octavia provider (e.g. ovn for OVN LBaaS)"),
+    )
+    provisioning_status = models.CharField(
+        max_length=32,
+        blank=True,
+        editable=False,
+        help_text=_("Octavia provisioning status: ACTIVE, PENDING_CREATE, etc."),
+    )
+    operating_status = models.CharField(
+        max_length=32,
+        blank=True,
+        editable=False,
+        help_text=_("Octavia operating status: ONLINE, OFFLINE, etc."),
+    )
+    vip_port_id = models.CharField(
+        max_length=36,
+        blank=True,
+        help_text=_(
+            "Neutron port ID for the VIP (for Floating IP and security groups)"
+        ),
+    )
+    attached_floating_ip = models.ForeignKey(
+        on_delete=models.SET_NULL,
+        to="FloatingIP",
+        related_name="load_balancers",
+        null=True,
+        blank=True,
+        help_text=_("Floating IP attached to the VIP port"),
+    )
+
+    tracker = cast(FieldInstanceTracker, FieldTracker())
+
+    def get_backend(self):
+        return self.tenant.get_backend()
+
+    @classmethod
+    def get_url_name(cls):
+        return "openstack-loadbalancer"
+
+
+class Pool(structure_models.BaseResource):
+    """Octavia LBaaS backend pool. OVN requires lb_algorithm=SOURCE_IP_PORT."""
+
+    class Meta(structure_models.BaseResource.Meta):
+        unique_together = [["load_balancer", "backend_id"]]
+
+    load_balancer = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=LoadBalancer,
+        related_name="pools",
+        help_text=_("Load balancer this pool belongs to"),
+    )
+    backend_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text=_("Pool ID in Octavia"),
+    )
+    protocol = models.CharField(
+        max_length=16,
+        choices=PROTOCOL_CHOICES,
+        help_text=_("Protocol for the pool: TCP, UDP (OVN supports TCP and UDP)"),
+    )
+    lb_algorithm = models.CharField(
+        max_length=32,
+        default="SOURCE_IP_PORT",
+        choices=LB_ALGORITHM_CHOICES,
+        help_text=_("Load balancing algorithm. OVN requires SOURCE_IP_PORT."),
+    )
+    provisioning_status = models.CharField(
+        max_length=32,
+        blank=True,
+        editable=False,
+        help_text=_("Octavia provisioning status: ACTIVE, PENDING_CREATE, etc."),
+    )
+    operating_status = models.CharField(
+        max_length=32,
+        blank=True,
+        editable=False,
+        help_text=_("Octavia operating status: ONLINE, OFFLINE, etc."),
+    )
+
+    def get_backend(self):
+        return self.load_balancer.get_backend()
+
+    @classmethod
+    def get_url_name(cls):
+        return "openstack-pool"
+
+
+class Listener(structure_models.BaseResource):
+    """Octavia LBaaS listener. Listens on load balancer VIP, forwards to default pool."""
+
+    class Meta(structure_models.BaseResource.Meta):
+        unique_together = [["load_balancer", "backend_id"]]
+
+    load_balancer = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=LoadBalancer,
+        related_name="listeners",
+        help_text=_("Load balancer this listener belongs to"),
+    )
+    backend_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text=_("Listener ID in Octavia"),
+    )
+    protocol = models.CharField(
+        max_length=16,
+        choices=PROTOCOL_CHOICES,
+        help_text=_("Protocol for the listener: TCP, UDP (OVN supports TCP and UDP)"),
+    )
+    protocol_port = models.IntegerField(
+        validators=[
+            validators.MinValueValidator(1),
+            validators.MaxValueValidator(65535),
+        ],
+        help_text=_("Port on which the listener listens"),
+    )
+    default_pool = models.ForeignKey(
+        on_delete=models.SET_NULL,
+        to=Pool,
+        related_name="listeners",
+        help_text=_("Default pool for this listener"),
+        null=True,
+        blank=True,
+    )
+    provisioning_status = models.CharField(
+        max_length=32,
+        blank=True,
+        editable=False,
+        help_text=_("Octavia provisioning status: ACTIVE, PENDING_CREATE, etc."),
+    )
+    operating_status = models.CharField(
+        max_length=32,
+        blank=True,
+        editable=False,
+        help_text=_("Octavia operating status: ONLINE, OFFLINE, etc."),
+    )
+
+    def get_backend(self):
+        return self.load_balancer.get_backend()
+
+    @classmethod
+    def get_url_name(cls):
+        return "openstack-listener"
+
+
+class PoolMember(structure_models.BaseResource):
+    """Octavia LBaaS pool member. Represents a backend server in a pool."""
+
+    class Meta(structure_models.BaseResource.Meta):
+        unique_together = [["pool", "backend_id"]]
+
+    pool = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=Pool,
+        related_name="members",
+        help_text=_("Pool this member belongs to"),
+    )
+    backend_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text=_("Member ID in Octavia"),
+    )
+    address = models.GenericIPAddressField(
+        help_text=_("IP address of the backend server"),
+    )
+    protocol_port = models.PositiveIntegerField(
+        validators=[
+            validators.MinValueValidator(1),
+            validators.MaxValueValidator(65535),
+        ],
+        help_text=_("Port on the backend server"),
+    )
+    subnet_id = models.CharField(
+        max_length=36,
+        blank=True,
+        help_text=_("Subnet ID for the member (required for creation)"),
+    )
+    weight = models.PositiveSmallIntegerField(
+        default=1,
+        help_text=_("Weight for load balancing (1-256)"),
+    )
+    provisioning_status = models.CharField(
+        max_length=32,
+        blank=True,
+        editable=False,
+        help_text=_("Octavia provisioning status: ACTIVE, PENDING_CREATE, etc."),
+    )
+    operating_status = models.CharField(
+        max_length=32,
+        blank=True,
+        editable=False,
+        help_text=_("Octavia operating status: ONLINE, OFFLINE, etc."),
+    )
+
+    def get_backend(self):
+        return self.pool.get_backend()
+
+    @classmethod
+    def get_url_name(cls):
+        return "openstack-poolmember"
+
+
+class HealthMonitor(structure_models.BaseResource):
+    """Octavia LBaaS health monitor. One per pool. OVN supports TCP and UDP only."""
+
+    pool = models.OneToOneField(
+        on_delete=models.CASCADE,
+        to=Pool,
+        related_name="health_monitor",
+        help_text=_("Pool this health monitor belongs to"),
+    )
+    backend_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text=_("Health monitor ID in Octavia"),
+    )
+    monitor_type = models.CharField(
+        max_length=16,
+        choices=HEALTHMONITOR_TYPE_CHOICES,
+        help_text=_("Health check type: TCP, UDP (OVN supports TCP and UDP only)"),
+        db_column="type",
+    )
+    delay = models.PositiveIntegerField(
+        help_text=_("Interval between health checks in seconds"),
+    )
+    timeout = models.PositiveIntegerField(
+        help_text=_("Time in seconds to timeout a health check"),
+    )
+    max_retries = models.PositiveIntegerField(
+        help_text=_("Number of retries before marking member as down"),
+    )
+    provisioning_status = models.CharField(
+        max_length=32,
+        blank=True,
+        editable=False,
+        help_text=_("Octavia provisioning status: ACTIVE, PENDING_CREATE, etc."),
+    )
+    operating_status = models.CharField(
+        max_length=32,
+        blank=True,
+        editable=False,
+        help_text=_("Octavia operating status: ONLINE, OFFLINE, etc."),
+    )
+
+    def get_backend(self):
+        return self.pool.get_backend()
+
+    @classmethod
+    def get_url_name(cls):
+        return "openstack-healthmonitor"
 
 
 class Network(core_models.RuntimeStateMixin, structure_models.BaseResource):

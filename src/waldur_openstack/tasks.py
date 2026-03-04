@@ -270,6 +270,11 @@ class TenantSubresourcesPullTask(structure_tasks.BackgroundPullTask):
         backend.pull_tenant_subnets(tenant)
         backend.pull_tenant_ports(tenant)
         backend.pull_tenant_routers(tenant)
+        backend.pull_tenant_load_balancers(tenant)
+        backend.pull_tenant_pools(tenant)
+        backend.pull_tenant_pool_members(tenant)
+        backend.pull_tenant_healthmonitors(tenant)
+        backend.pull_tenant_listeners(tenant)
         backend.pull_tenant_network_rbac_policies(tenant)
 
 

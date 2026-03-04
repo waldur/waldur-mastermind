@@ -48,6 +48,31 @@ def register_in(router):
         r"openstack-routers", views.RouterViewSet, basename="openstack-router"
     )
     router.register(
+        r"openstack-loadbalancers",
+        views.LoadBalancerViewSet,
+        basename="openstack-loadbalancer",
+    )
+    router.register(
+        r"openstack-pools",
+        views.PoolViewSet,
+        basename="openstack-pool",
+    )
+    router.register(
+        r"openstack-pool-members",
+        views.PoolMemberViewSet,
+        basename="openstack-poolmember",
+    )
+    router.register(
+        r"openstack-health-monitors",
+        views.HealthMonitorViewSet,
+        basename="openstack-healthmonitor",
+    )
+    router.register(
+        r"openstack-listeners",
+        views.ListenerViewSet,
+        basename="openstack-listener",
+    )
+    router.register(
         r"openstack-networks", views.NetworkViewSet, basename="openstack-network"
     )
     router.register(
