@@ -222,31 +222,38 @@ class MonthlyCompensation:
                 scopes=[self.customer],
             )
 
-        for project_credit, tail in self._project_tails.items():
-            if (
-                project_credit.minimal_consumption_logic
-                == models.ProjectCredit.MinimalConsumptionLogic.LINEAR
-                and project_credit.end_date
-            ):
-                new_expected_consumption = (
-                    project_credit.calculate_linear_expected_consumption(
-                        tail
-                        + self.get_total_project_compensation(project_credit.project)
-                    )
+        # Build tail lookup by PK for efficient access
+        project_tails_by_pk = {pc.pk: tail for pc, tail in self._project_tails.items()}
+
+        # Query ALL linear project credits for this customer, not just those
+        # in _project_tails (fixes chicken-and-egg: when expected_consumption=0,
+        # minimal_consumption=0, so credits never enter _project_tails)
+        all_linear_project_credits = models.ProjectCredit.objects.filter(
+            project__customer=self.customer,
+            minimal_consumption_logic=models.ProjectCredit.MinimalConsumptionLogic.LINEAR,
+            end_date__isnull=False,
+        ).select_related("project")
+
+        for project_credit in all_linear_project_credits:
+            tail = project_tails_by_pk.get(project_credit.pk, decimal.Decimal("0"))
+            new_expected_consumption = (
+                project_credit.calculate_linear_expected_consumption(
+                    tail + self.get_total_project_compensation(project_credit.project)
                 )
-                diff = new_expected_consumption - project_credit.expected_consumption
-                project_credit.expected_consumption = new_expected_consumption
-                project_credit.save(update_fields=["expected_consumption"])
-                event_logger.emit(
-                    "Reduction of {project_name} expected consumption by {consumption} according to linear minimal consumption logic.",
-                    event_type=EventType.REDUCTION_OF_PROJECT_EXPECTED_CONSUMPTION,
-                    event_context={
-                        "consumption": diff,
-                        "customer": self.customer,
-                        "project": project_credit.project,
-                    },
-                    scopes=[self.customer, project_credit.project],
-                )
+            )
+            diff = new_expected_consumption - project_credit.expected_consumption
+            project_credit.expected_consumption = new_expected_consumption
+            project_credit.save(update_fields=["expected_consumption"])
+            event_logger.emit(
+                "Reduction of {project_name} expected consumption by {consumption} according to linear minimal consumption logic.",
+                event_type=EventType.REDUCTION_OF_PROJECT_EXPECTED_CONSUMPTION,
+                event_context={
+                    "consumption": diff,
+                    "customer": self.customer,
+                    "project": project_credit.project,
+                },
+                scopes=[self.customer, project_credit.project],
+            )
 
     def get_total_project_compensation(self, project: Project):
         return sum(
