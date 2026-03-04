@@ -597,6 +597,63 @@ class ProcessingCreditTest(test.APITestCase):
             "Minimal consumption should be greater than actual consumption",
         )
 
+    @freeze_time("2026-03-01")
+    def test_linear_expected_consumption_is_set_for_project_credit(self):
+        """Test that project credits with LINEAR logic get expected_consumption updated.
+
+        Reproduces HPCMP-451: when expected_consumption starts at 0,
+        minimal_consumption is also 0, so the credit never enters _project_tails
+        and update_linear_expected_consumption() skips it.
+        """
+        # Set large credit values so project credit isn't fully consumed
+        self.customer_credit.value = 1000
+        self.customer_credit.save()
+
+        self.project_credit.value = 500
+        self.project_credit.minimal_consumption_logic = (
+            models.ProjectCredit.MinimalConsumptionLogic.LINEAR
+        )
+        self.project_credit.end_date = datetime.date(2026, 7, 1)
+        self.project_credit.expected_consumption = 0
+        self.project_credit.save()
+
+        tasks.process_invoice_credits(self.invoice)
+        self.project_credit.refresh_from_db()
+
+        self.assertGreater(self.project_credit.expected_consumption, 0)
+
+    @freeze_time("2026-03-01")
+    def test_linear_expected_consumption_near_end_date(self):
+        """Test that a project credit near its end_date gets expected_consumption
+        close to remaining value.
+
+        Simulates production scenario: credit with LINEAR logic has had
+        expected_consumption=0 for months due to HPCMP-451 bug, and is now
+        close to expiry. The first fix-up should set expected_consumption
+        to approximately the remaining credit value.
+        """
+        self.customer_credit.value = 1000
+        self.customer_credit.save()
+
+        # Credit expires next month — time_left_factor = 31/31 = 1.0
+        self.project_credit.value = 500
+        self.project_credit.minimal_consumption_logic = (
+            models.ProjectCredit.MinimalConsumptionLogic.LINEAR
+        )
+        self.project_credit.end_date = datetime.date(2026, 4, 1)
+        self.project_credit.expected_consumption = 0
+        self.project_credit.save()
+
+        tasks.process_invoice_credits(self.invoice)
+        self.project_credit.refresh_from_db()
+
+        # Invoice item costs 300 (10 * 30 days), leaving 200 in project credit.
+        # With time_left_factor=1.0, expected_consumption = remaining_value = 200.
+        self.assertEqual(
+            self.project_credit.expected_consumption,
+            Decimal("200.00000"),
+        )
+
 
 @freeze_time("2025-08-01")
 class CalculateMinimalConsumptionTest(test.APITestCase):
