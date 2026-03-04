@@ -2402,6 +2402,12 @@ Field name from the introspection response JSON used to identify the Waldur user
 
 Seconds to cache successful token introspection results. Reduces load on the introspection endpoint. Set to 0 to disable caching. Default: 300 (5 minutes).
 
+#### OIDC_DEFAULT_LOGOUT_URL
+
+**Type:** url_field
+
+Default logout URL used as fallback when IdentityProvider does not have a logout_url set. This allows configuring a global logout endpoint for OIDC providers that don't expose end_session_endpoint in their discovery document.
+
 #### WALDUR_AUTH_SOCIAL_ROLE_CLAIM
 
 **Type:** str
