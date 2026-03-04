@@ -555,6 +555,13 @@ def get_marketplace_offering_name(serializer, scope) -> str | None:
         return
 
 
+def get_marketplace_offering_type(serializer, scope) -> str | None:
+    try:
+        return models.Resource.objects.get(scope=scope).offering.type
+    except ObjectDoesNotExist:
+        return
+
+
 def get_marketplace_category_uuid(serializer, scope) -> str | None:
     try:
         return models.Resource.objects.get(scope=scope).offering.category.uuid.hex
@@ -613,6 +620,9 @@ def add_marketplace_offering(sender, fields, **kwargs):
 
     fields["marketplace_offering_name"] = serializers.SerializerMethodField()
     setattr(sender, "get_marketplace_offering_name", get_marketplace_offering_name)
+
+    fields["marketplace_offering_type"] = serializers.SerializerMethodField()
+    setattr(sender, "get_marketplace_offering_type", get_marketplace_offering_type)
 
     fields["marketplace_offering_plugin_options"] = serializers.SerializerMethodField()
     setattr(
