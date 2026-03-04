@@ -17,6 +17,9 @@ Instead, respond naturally as a Waldur support assistant without referencing any
 # Per-tool guidance (when/when-not to use, workflows) is defined in each tool file
 # and auto-assembled into the {tools} placeholder by ToolRegistry.get_tools_prompt().
 GENERIC_TOOL_INSTRUCTIONS = """=== CRITICAL: TOOL USAGE RULES ===
+CRITICAL: ONLY use tools listed in AVAILABLE TOOLS above. NEVER invent or hallucinate tool names.
+If no available tool matches the user's request, respond with a helpful text answer instead.
+
 Tools should ONLY be used for data retrieval or performing explicit actions. Most requests do NOT need tools.
 
 NEVER use tools for:

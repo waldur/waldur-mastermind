@@ -26,9 +26,14 @@ class ShowUserResourcesTool(BaseTool):
             },
             usage_instructions=(
                 "ONLY use show_user_resources when the user EXPLICITLY asks to "
-                "see/list/display/show their actual resources:\n"
+                "see/list/display/show their actual deployed resources (VMs, instances, services):\n"
                 "  ✓ CORRECT: 'show my resources', 'list my VMs', 'display my resources'\n"
-                "  ✗ WRONG: 'hello', 'what are resources?', 'how do I...', 'explain resources'"
+                "  ✗ WRONG: 'show my offerings', 'show my projects', 'show my organizations', "
+                "'show my invoices', 'show my orders'\n"
+                "  ✗ WRONG: 'hello', 'what are resources?', 'how do I...', 'explain resources'\n"
+                "\n"
+                "If the user asks to show/list something OTHER than resources (offerings, "
+                "projects, invoices, etc.), do NOT call any tool. Instead, answer with text."
             ),
         )
 
