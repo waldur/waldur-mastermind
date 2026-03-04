@@ -250,12 +250,15 @@ class EESSICatalogLoader(BaseCatalogLoader):
         if not filtered_versions:
             return None
 
-        # Determine parent software for extensions
-        parent_software_name = ""
+        # Determine parent software for extensions (collect from ALL versions)
+        parent_software_names = []
         if is_extension and filtered_versions:
-            first_version_info = filtered_versions[0]
-            parent_info = first_version_info.get("parent_software", {})
-            parent_software_name = parent_info.get("name", "")
+            seen = set()
+            for v in filtered_versions:
+                name = v.get("parent_software", {}).get("name", "")
+                if name and name not in seen:
+                    seen.add(name)
+                    parent_software_names.append(name)
 
         package_data = PackageData(
             name=package_name,
@@ -264,7 +267,7 @@ class EESSICatalogLoader(BaseCatalogLoader):
             categories=categories,
             licenses=package_info.get("licenses", []),
             is_extension=is_extension,
-            parent_software_name=parent_software_name,
+            parent_software_names=parent_software_names,
         )
 
         # Process filtered versions

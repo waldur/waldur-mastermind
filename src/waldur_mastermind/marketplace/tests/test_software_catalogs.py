@@ -1708,3 +1708,71 @@ class SoftwareCatalogUpdateTest(test.APITestCase):
     def test_anonymous_cannot_update(self):
         response = self.client.post(self.url)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+class SoftwarePackageMultipleParentsTest(test.APITestCase):
+    """Test that software packages can have multiple parent packages."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.catalog = factories.SoftwareCatalogFactory(name="EESSI", version="2023.06")
+
+        self.parent_gtk3 = factories.SoftwarePackageFactory(
+            catalog=self.catalog, name="GTK3", is_extension=False
+        )
+        self.parent_gtk4 = factories.SoftwarePackageFactory(
+            catalog=self.catalog, name="GTK4", is_extension=False
+        )
+        self.extension = factories.SoftwarePackageFactory(
+            catalog=self.catalog,
+            name="adwaita-icon-theme",
+            is_extension=True,
+            parent_softwares=[self.parent_gtk3, self.parent_gtk4],
+        )
+        self.url = factories.SoftwarePackageFactory.get_list_url()
+
+    def test_extension_has_two_parents(self):
+        self.assertEqual(self.extension.parent_softwares.count(), 2)
+        parent_names = set(
+            self.extension.parent_softwares.values_list("name", flat=True)
+        )
+        self.assertEqual(parent_names, {"GTK3", "GTK4"})
+
+    def test_filter_by_either_parent_returns_extension(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.get(
+            self.url + f"?parent_software_uuid={self.parent_gtk3.uuid.hex}"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertIn("adwaita-icon-theme", names)
+
+        response = self.client.get(
+            self.url + f"?parent_software_uuid={self.parent_gtk4.uuid.hex}"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertIn("adwaita-icon-theme", names)
+
+    def test_api_response_contains_parent_list(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.SoftwarePackageFactory.get_url(self.extension)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        parent_softwares = response.data["parent_softwares"]
+        self.assertEqual(len(parent_softwares), 2)
+        parent_names = {p["name"] for p in parent_softwares}
+        self.assertEqual(parent_names, {"GTK3", "GTK4"})
+
+    def test_both_parents_show_extension_count(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        url = factories.SoftwarePackageFactory.get_url(self.parent_gtk3)
+        response = self.client.get(url)
+        self.assertEqual(response.data["extension_count"], 1)
+
+        url = factories.SoftwarePackageFactory.get_url(self.parent_gtk4)
+        response = self.client.get(url)
+        self.assertEqual(response.data["extension_count"], 1)

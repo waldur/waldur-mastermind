@@ -204,7 +204,7 @@ The new EESSI API format includes support for extension packages:
 - **Ruby gems**: Scientific Ruby libraries
 - **Octave packages**: Signal processing, optimization
 
-Extensions are linked to their parent software (e.g., Python packages linked to Python installation).
+Extensions are linked to their parent software packages via a many-to-many relationship. A single extension can belong to multiple parents (e.g., `adwaita-icon-theme` can be an extension of both GTK3 and GTK4). The EESSI loader collects parent information from all versions of an extension, not just the first.
 
 ### Spack Build Variants
 
@@ -346,6 +346,9 @@ curl "https://your-waldur.example.com/api/marketplace-software-packages/?extensi
 # Filter by extension name (e.g., packages bundling numpy)
 curl "https://your-waldur.example.com/api/marketplace-software-packages/?extension_name=numpy"
 
+# Filter extensions by parent package UUID
+curl "https://your-waldur.example.com/api/marketplace-software-packages/?parent_software_uuid=parent-uuid"
+
 # Order by catalog version
 curl "https://your-waldur.example.com/api/marketplace-software-packages/?o=catalog_version"
 ```
@@ -387,7 +390,10 @@ Example detailed response:
   "description": "Molecular dynamics simulation package...",
   "homepage": "https://www.gromacs.org/",
   "catalog": "abc-123-def-456",
+  "is_extension": false,
+  "parent_softwares": [],
   "version_count": 2,
+  "extension_count": 0,
   "versions": [
     {
       "uuid": "version-uuid-1",
@@ -554,7 +560,7 @@ The unified catalog loader framework follows this process:
 
 Both loaders handle:
 
-- **Extension packages**: Link child packages to parent software
+- **Extension packages**: Link child packages to one or more parent software packages
 - **Multiple architectures**: Support diverse target platforms
 - **Metadata preservation**: Store catalog-specific information
 - **Error recovery**: Continue processing despite individual failures
@@ -634,6 +640,8 @@ The EESSI loader uses the dict-based format from [EESSI API PR #11](https://gith
 
 #### Extension Structure
 
+In the EESSI API, each version of an extension references its parent software. The loader collects parent references from **all** versions, so an extension that references different parents across versions will be linked to all of them via the `parent_softwares` many-to-many relationship.
+
 ```json
 {
   "timestamp": "2026-01-27T10:00:00Z",
@@ -663,6 +671,20 @@ The EESSI loader uses the dict-based format from [EESSI API PR #11](https://gith
       ]
     }
   }
+}
+```
+
+The Waldur API response for extension packages includes a list of parent software objects:
+
+```json
+{
+  "uuid": "extension-uuid",
+  "name": "numpy",
+  "is_extension": true,
+  "parent_softwares": [
+    {"uuid": "parent-uuid-1", "name": "SciPy-bundle", "url": "https://..."},
+    {"uuid": "parent-uuid-2", "name": "Python", "url": "https://..."}
+  ]
 }
 ```
 

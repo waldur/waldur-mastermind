@@ -14003,7 +14003,7 @@ class SoftwarePackageViewSet(
 
     queryset = models.SoftwarePackage.objects.select_related(
         "catalog"
-    ).prefetch_related("versions__targets")
+    ).prefetch_related("versions__targets", "parent_softwares")
     serializer_class = serializers.SoftwarePackageSerializer
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
