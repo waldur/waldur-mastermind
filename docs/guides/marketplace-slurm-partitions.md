@@ -12,6 +12,11 @@ The OfferingPartition model maps closely to SLURM's partition_info_t struct and 
 
 ### Partition Parameters
 
+#### Architecture
+
+- `cpu_arch`: CPU architecture of the partition (e.g., `x86_64/amd/zen3`)
+- `gpu_arch`: GPU architecture of the partition (e.g., `nvidia/cc90`, `amd/gfx90a`)
+
 #### CPU Configuration
 
 - `cpu_bind`: Default task binding policy (SLURM cpu_bind)
@@ -65,6 +70,8 @@ curl -X POST "https://your-waldur.example.com/api/marketplace-provider-offerings
   -H "Content-Type: application/json" \
   -d '{
     "partition_name": "gpu-partition",
+    "cpu_arch": "x86_64/amd/zen3",
+    "gpu_arch": "nvidia/cc90",
     "max_cpus_per_node": 64,
     "max_mem_per_node": 512000,
     "max_time": 2880,
@@ -137,6 +144,8 @@ curl -X POST "https://your-waldur.example.com/api/marketplace-provider-offerings
   -H "Content-Type: application/json" \
   -d '{
     "partition_name": "gpu-v100",
+    "cpu_arch": "x86_64/intel/skylake_avx512",
+    "gpu_arch": "nvidia/cc70",
     "max_cpus_per_node": 40,
     "def_cpu_per_gpu": 4,
     "max_mem_per_node": 384000,
@@ -157,6 +166,46 @@ curl -X POST "https://your-waldur.example.com/api/marketplace-provider-offerings
     "enabled_cpu_microarchitectures": ["skylake_avx512"],
     "partition": "gpu-partition-uuid"
   }'
+```
+
+## Partition Architecture Filtering
+
+Partitions can be filtered by their CPU and GPU architecture fields, enabling users to find partitions matching specific hardware requirements.
+
+### Available Filters
+
+| Filter | Type | Description |
+|--------|------|-------------|
+| `cpu_arch` | string (icontains) | Filter by CPU architecture substring (e.g., `zen3`, `x86_64`) |
+| `gpu_arch` | string (icontains) | Filter by GPU architecture substring (e.g., `nvidia`, `cc90`) |
+| `has_gpu` | boolean | Filter partitions with (`true`) or without (`false`) GPU architecture |
+
+### Examples
+
+```bash
+# Find partitions with AMD Zen3 CPUs
+curl "https://your-waldur.example.com/api/marketplace-offering-partitions/?cpu_arch=zen3"
+
+# Find partitions with NVIDIA GPUs
+curl "https://your-waldur.example.com/api/marketplace-offering-partitions/?gpu_arch=nvidia"
+
+# Find all GPU-equipped partitions
+curl "https://your-waldur.example.com/api/marketplace-offering-partitions/?has_gpu=true"
+
+# Find CPU-only partitions
+curl "https://your-waldur.example.com/api/marketplace-offering-partitions/?has_gpu=false"
+```
+
+### Connecting Software to Partitions
+
+The `gpu_arch` field on partitions and the `gpu_architectures` field on software targets enable matching software to compatible hardware. For example, to find which partitions can run software requiring `nvidia/cc90`:
+
+```bash
+# 1. Find software targets requiring nvidia/cc90
+curl "https://your-waldur.example.com/api/marketplace-software-targets/?gpu_arch=nvidia/cc90"
+
+# 2. Find partitions providing nvidia/cc90
+curl "https://your-waldur.example.com/api/marketplace-offering-partitions/?gpu_arch=nvidia/cc90"
 ```
 
 ## Integration Considerations

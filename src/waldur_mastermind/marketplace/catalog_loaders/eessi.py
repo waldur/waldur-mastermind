@@ -329,6 +329,11 @@ class EESSICatalogLoader(BaseCatalogLoader):
             # Build target path
             location = f"/cvmfs/software.eessi.io/versions/{self.catalog_version}/software/linux/{arch}"
 
+            gpu_arch_map = version_info.get("gpu_arch", {})
+            gpu_archs = sorted(
+                {arch_val for archs in gpu_arch_map.values() for arch_val in archs}
+            )
+
             target_data = TargetData(
                 target_type="cpu_architecture",
                 target_name=cpu_family,
@@ -336,8 +341,9 @@ class EESSICatalogLoader(BaseCatalogLoader):
                 location=location,
                 metadata={
                     "full_arch": arch,
-                    "gpu_arch": version_info.get("gpu_arch", {}),
+                    "gpu_arch": gpu_arch_map,
                 },
+                gpu_architectures=gpu_archs,
             )
             targets.append(target_data)
 

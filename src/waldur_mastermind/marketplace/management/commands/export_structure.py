@@ -1994,6 +1994,8 @@ class Command(BaseCommand):
                     "offering_uuid": partition.offering.uuid.hex,
                     "offering_name": partition.offering.name,
                     "partition_name": partition.partition_name,
+                    "cpu_arch": partition.cpu_arch,
+                    "gpu_arch": partition.gpu_arch,
                     "cpu_bind": partition.cpu_bind,
                     "def_cpu_per_gpu": partition.def_cpu_per_gpu,
                     "max_cpus_per_node": partition.max_cpus_per_node,

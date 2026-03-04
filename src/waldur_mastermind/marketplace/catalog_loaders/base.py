@@ -74,10 +74,13 @@ class TargetData:
     target_subtype: str = ""
     location: str = ""
     metadata: dict[str, Any] = None
+    gpu_architectures: list[str] = None
 
     def __post_init__(self):
         if self.metadata is None:
             self.metadata = {}
+        if self.gpu_architectures is None:
+            self.gpu_architectures = []
         # Ensure location is never None to avoid database constraint violations
         if self.location is None:
             self.location = ""
@@ -793,6 +796,7 @@ class BaseCatalogLoader(ABC):
                             target_subtype=target_data.target_subtype,
                             location=location,
                             metadata=target_data.metadata,
+                            gpu_architectures=target_data.gpu_architectures,
                         )
                     )
 

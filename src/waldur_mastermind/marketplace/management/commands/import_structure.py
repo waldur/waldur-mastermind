@@ -1964,6 +1964,8 @@ class Command(BaseCommand):
                 defaults = {
                     "offering": offering,
                     "partition_name": partition_name,
+                    "cpu_arch": partition_data.get("cpu_arch", ""),
+                    "gpu_arch": partition_data.get("gpu_arch", ""),
                     "cpu_bind": partition_data.get("cpu_bind"),
                     "def_cpu_per_gpu": partition_data.get("def_cpu_per_gpu"),
                     "max_cpus_per_node": partition_data.get("max_cpus_per_node"),
