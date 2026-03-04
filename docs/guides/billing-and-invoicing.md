@@ -130,13 +130,154 @@ graph TD
 
 ### Credits and Compensations
 
-Customer credits can be configured with an optional `end_date` (must be the 1st of a month). During invoice finalization:
+Waldur supports a two-level credit system: **CustomerCredit** (organization-wide) and **ProjectCredit** (per-project allocation). Both inherit from `BaseCredit` (`src/waldur_mastermind/invoices/models.py`).
 
-1. **Overdue credits are zeroed**: Credits with `end_date` before the effective date are set to zero
-2. **Compensations are applied**: `MonthlyCompensation` calculates and applies credit-based discounts to invoice items
-3. **Expected consumption is updated**: Linear consumption projections are recalculated
+#### Credit Model
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `value` | Decimal | Remaining credit balance |
+| `end_date` | Date (nullable) | Expiry date (must be 1st of month) |
+| `expected_consumption` | Decimal | Target monthly spend |
+| `minimal_consumption_logic` | `FIXED` / `LINEAR` | How expected consumption is managed |
+| `grace_coefficient` | Decimal (0-100) | Percentage discount on minimal consumption |
+| `apply_as_minimal_consumption` | Boolean | Whether to enforce minimal consumption |
+
+**ProjectCredit** is a sub-allocation of the customer credit. The sum of all project credit values cannot exceed the customer credit value.
+
+#### Invoice Finalization Flow
+
+During invoice finalization, credits are processed via `process_invoice_credits()`:
+
+```mermaid
+sequenceDiagram
+    participant T as Invoice Task
+    participant S as set_to_zero_overdue_credits
+    participant MC as MonthlyCompensation
+    participant DB as Database
+
+    T->>S: Zero overdue credits
+    S->>DB: Zero CustomerCredits where end_date < today
+    S->>DB: Zero ProjectCredits where end_date < today
+
+    T->>MC: process_invoice_credits(invoice)
+    MC->>MC: clear_compensations() (rollback any previous)
+    MC->>MC: calculate_current_compensations()
+    MC->>MC: save() (write compensation items + update credits)
+    MC->>MC: update_linear_expected_consumption()
+    MC->>DB: Update expected_consumption for LINEAR credits
+```
+
+#### Compensation Calculation
+
+`MonthlyCompensation.calculate_current_compensations()` processes invoice items sorted by price (ascending):
+
+1. For each item, check if the item's project has a **ProjectCredit**
+2. If yes: deduct from the project credit first, then from the customer credit
+3. If no: deduct directly from the customer credit
+4. Create a negative `InvoiceItem` (compensation) for each deduction
+5. After all items, enforce **minimal consumption** for both customer and project credits
+
+```mermaid
+sequenceDiagram
+    participant MC as MonthlyCompensation
+    participant PC as ProjectCredit
+    participant CC as CustomerCredit
+    participant INV as Invoice
+
+    loop For each invoice item (sorted by price)
+        alt Item's project has ProjectCredit
+            MC->>PC: Deduct min(item.price, pc.value)
+            MC->>CC: Deduct same amount from customer credit
+        else No ProjectCredit
+            MC->>CC: Deduct min(item.price, cc.value)
+        end
+        MC->>INV: Create negative InvoiceItem (compensation)
+    end
+
+    Note over MC: Enforce minimal consumption
+    alt total_compensation < cc.minimal_consumption
+        MC->>CC: Deduct shortfall (tail) from credit
+    end
+    loop For each ProjectCredit with minimal_consumption > 0
+        alt project_compensation < pc.minimal_consumption
+            MC->>PC: Deduct shortfall (tail) from credit
+        end
+    end
+```
+
+#### Minimal Consumption
+
+Minimal consumption ensures a minimum credit spend per month, preventing credits from being hoarded.
+
+**Formula**:
+
+```text
+If end_date is this month:
+    minimal_consumption = expected_consumption
+
+Otherwise:
+    minimal_consumption = (100 - grace_coefficient) / 100 * expected_consumption
+```
+
+If `apply_as_minimal_consumption` is `False`, minimal consumption is 0 (disabled).
+
+#### Minimal Consumption Logic: FIXED vs LINEAR
+
+**FIXED** (default): `expected_consumption` is set manually and stays constant.
+
+**LINEAR**: `expected_consumption` is recalculated each month to ensure the credit is consumed by `end_date`. The formula is:
+
+```text
+new_expected = max(0, old_expected - total_compensation) * (1 - time_left_factor)
+             + remaining_value * time_left_factor
+
+where:
+    time_left_factor = min(1, days_in_current_month / days_until_end_date)
+```
+
+This creates a sliding target: as the end date approaches, `time_left_factor` increases toward 1.0, pushing `expected_consumption` toward the full remaining credit value. This guarantees the credit is consumed by expiry.
+
+```mermaid
+sequenceDiagram
+    participant MC as MonthlyCompensation
+    participant CC as CustomerCredit (LINEAR)
+    participant PC as ProjectCredit (LINEAR)
+    participant DB as Database
+
+    MC->>MC: update_linear_expected_consumption()
+
+    alt CustomerCredit has LINEAR logic + end_date
+        MC->>CC: calculate_linear_expected_consumption(total_compensation)
+        MC->>DB: Save new expected_consumption
+    end
+
+    MC->>DB: Query all ProjectCredits with LINEAR logic + end_date > today
+    loop For each linear ProjectCredit
+        MC->>PC: calculate_linear_expected_consumption(tail + project_compensation)
+        MC->>DB: Save new expected_consumption
+    end
+```
+
+#### Overdue Credit Zeroing
+
+`set_to_zero_overdue_credits()` runs during invoice finalization and zeros both customer and project credits whose `end_date` has passed. Zeroing a project credit does **not** affect the customer credit balance.
 
 When a grace period is used, the effective date for zeroing credits is always the 1st of the current month (not the actual finalization date). This ensures credits with `end_date` on the 1st are still applied to the previous month's invoice before being zeroed.
+
+#### Credit Events
+
+| Event | Trigger |
+|-------|---------|
+| `reduction_of_customer_credit` | Compensation item created |
+| `reduction_of_project_credit` | Compensation item created for project |
+| `reduction_of_customer_credit_due_to_minimal_consumption` | Customer tail deducted |
+| `reduction_of_project_credit_due_to_minimal_consumption` | Project tail deducted |
+| `reduction_of_customer_expected_consumption` | LINEAR recalculation (customer) |
+| `reduction_of_project_expected_consumption` | LINEAR recalculation (project) |
+| `set_to_zero_overdue_credit` | Expired credit zeroed |
+| `roll_back_customer_credit` | Compensation cleared |
+| `roll_back_project_credit` | Compensation cleared |
 
 ### Configuration
 

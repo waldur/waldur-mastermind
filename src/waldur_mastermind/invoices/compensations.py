@@ -1,3 +1,4 @@
+import datetime
 import decimal
 import logging
 
@@ -232,6 +233,7 @@ class MonthlyCompensation:
             project__customer=self.customer,
             minimal_consumption_logic=models.ProjectCredit.MinimalConsumptionLogic.LINEAR,
             end_date__isnull=False,
+            end_date__gt=datetime.date.today(),
         ).select_related("project")
 
         for project_credit in all_linear_project_credits:
