@@ -950,6 +950,21 @@ class SoftwarePackageFactory(
     description = factory.Faker("text", max_nb_chars=200)
     homepage = factory.Faker("url")
 
+    @factory.post_generation
+    def parent_softwares(self, create, extracted, **kwargs):
+        if not create:
+            return
+        if extracted:
+            self.parent_softwares.set(extracted)
+
+    @factory.post_generation
+    def parent_software(self, create, extracted, **kwargs):
+        """Backward-compatible hook: accepts a single parent and adds it."""
+        if not create:
+            return
+        if extracted:
+            self.parent_softwares.add(extracted)
+
     @classmethod
     def get_url(cls, package=None, action=None):
         if package is None:

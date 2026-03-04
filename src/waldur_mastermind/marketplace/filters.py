@@ -663,7 +663,7 @@ class SoftwarePackageFilter(django_filters.FilterSet):
     )
     parent_software_uuid = core_filters.RelatedUUIDFilter(
         view_name="marketplace-software-package-detail",
-        field_name="parent_software__uuid",
+        field_name="parent_softwares__uuid",
         label="Parent software UUID",
         help_text="Filter extension packages belonging to a specific parent package",
     )

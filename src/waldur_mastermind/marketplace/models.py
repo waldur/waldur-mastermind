@@ -2992,14 +2992,13 @@ class SoftwarePackage(core_models.UuidMixin, TimeStampedModel):
         default=False,
         help_text=_("Whether this package is an extension of another package"),
     )
-    parent_software = models.ForeignKey(
+    parent_softwares = models.ManyToManyField(
         "self",
-        null=True,
+        symmetrical=False,
         blank=True,
-        on_delete=models.CASCADE,
         related_name="extensions",
         help_text=_(
-            "Parent package for extensions (e.g., Python package within Python)"
+            "Parent packages for extensions (e.g., Python package within Python)"
         ),
     )
 
@@ -3010,7 +3009,6 @@ class SoftwarePackage(core_models.UuidMixin, TimeStampedModel):
             models.Index(fields=["catalog", "name"]),
             models.Index(fields=["name"]),
             models.Index(fields=["is_extension"]),
-            models.Index(fields=["parent_software"]),
         ]
 
     def __str__(self):

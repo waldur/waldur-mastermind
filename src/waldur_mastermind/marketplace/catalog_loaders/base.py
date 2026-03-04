@@ -36,7 +36,7 @@ class PackageData:
     licenses: list[str] = None
     maintainers: list[str] = None
     is_extension: bool = False
-    parent_software_name: str = ""
+    parent_software_names: list[str] = None
 
     def __post_init__(self):
         if self.categories is None:
@@ -45,6 +45,8 @@ class PackageData:
             self.licenses = []
         if self.maintainers is None:
             self.maintainers = []
+        if self.parent_software_names is None:
+            self.parent_software_names = []
 
 
 @dataclass
@@ -481,7 +483,6 @@ class BaseCatalogLoader(ABC):
                     licenses=package_data.licenses,
                     maintainers=package_data.maintainers,
                     is_extension=package_data.is_extension,
-                    parent_software=None,  # Main packages have no parent
                 )
             )
 
@@ -611,10 +612,11 @@ class BaseCatalogLoader(ABC):
 
         # Collect all required parent package names for this batch
         required_parents = set()
+        extension_parent_mapping = {}
         for package_name, package_with_versions in extension_batch:
             package_data = package_with_versions.package_data
-            if package_data.parent_software_name:
-                required_parents.add(package_data.parent_software_name)
+            for parent_name in package_data.parent_software_names:
+                required_parents.add(parent_name)
 
         # Find any missing parent packages in batch
         missing_parents = required_parents - set(parent_packages.keys())
@@ -635,16 +637,27 @@ class BaseCatalogLoader(ABC):
 
         for package_name, package_with_versions in extension_batch:
             package_data = package_with_versions.package_data
-            parent_package = parent_packages.get(package_data.parent_software_name)
 
-            if not parent_package:
+            # Resolve parent packages for this extension
+            parent_objs = []
+            for parent_name in package_data.parent_software_names:
+                parent_obj = parent_packages.get(parent_name)
+                if parent_obj:
+                    parent_objs.append(parent_obj)
+                else:
+                    self.logger.warning(
+                        f"Parent package {parent_name} not found for extension {package_name}"
+                    )
+
+            if not parent_objs:
                 self.logger.warning(
-                    f"Parent package {package_data.parent_software_name} not found for extension {package_name}"
+                    f"No parent packages found for extension {package_name}"
                 )
                 continue
 
             package_names_in_batch.append(package_name)
             valid_extensions.append((package_name, package_with_versions))
+            extension_parent_mapping[package_name] = parent_objs
             packages_to_create.append(
                 SoftwarePackage(
                     catalog=catalog,
@@ -655,7 +668,6 @@ class BaseCatalogLoader(ABC):
                     licenses=package_data.licenses,
                     maintainers=package_data.maintainers,
                     is_extension=package_data.is_extension,
-                    parent_software=parent_package,
                 )
             )
 
@@ -690,10 +702,13 @@ class BaseCatalogLoader(ABC):
             )
         }
 
-        # Process versions for each valid package
+        # Set M2M parent relationships and process versions
         for package_name, package_with_versions in valid_extensions:
             package = all_packages.get(package_name)
             if package:
+                parent_objs = extension_parent_mapping.get(package_name, [])
+                if parent_objs:
+                    package.parent_softwares.set(parent_objs)
                 version_stats = self._process_versions_bulk(
                     package, package_with_versions.versions, sync=sync
                 )
@@ -805,7 +820,7 @@ class BaseCatalogLoader(ABC):
         self,
         catalog: SoftwareCatalog,
         package_data: PackageData,
-        parent_package: SoftwarePackage | None,
+        parent_packages: list[SoftwarePackage] | None,
         update_existing: bool,
     ) -> tuple[SoftwarePackage, bool]:
         """Create or update a software package."""
@@ -816,7 +831,6 @@ class BaseCatalogLoader(ABC):
             "licenses": package_data.licenses,
             "maintainers": package_data.maintainers,
             "is_extension": package_data.is_extension,
-            "parent_software": parent_package,
         }
 
         package, created = SoftwarePackage.objects.get_or_create(
@@ -827,6 +841,9 @@ class BaseCatalogLoader(ABC):
             for field, value in defaults.items():
                 setattr(package, field, value)
             package.save()
+
+        if parent_packages:
+            package.parent_softwares.set(parent_packages)
 
         return package, created
 

@@ -9943,6 +9943,18 @@ class NestedSoftwareVersionSerializer(serializers.ModelSerializer):
         return obj.metadata.get("toolchain_families_compatibility", [])
 
 
+class NestedParentSoftwareSerializer(serializers.HyperlinkedModelSerializer):
+    class Meta:
+        model = models.SoftwarePackage
+        fields = ("uuid", "name", "url")
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-software-package-detail",
+            },
+        }
+
+
 class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
     """Serializer for unified SoftwarePackage model."""
 
@@ -9955,6 +9967,7 @@ class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
     version_count = serializers.SerializerMethodField()
     extension_count = serializers.SerializerMethodField()
     versions = NestedSoftwareVersionSerializer(many=True, read_only=True)
+    parent_softwares = NestedParentSoftwareSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.SoftwarePackage
@@ -9971,7 +9984,7 @@ class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
             "licenses",
             "maintainers",
             "is_extension",
-            "parent_software",
+            "parent_softwares",
             "catalog_name",
             "catalog_version",
             "catalog_type",
@@ -10000,10 +10013,6 @@ class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
             },
             "catalog": {
                 "view_name": "marketplace-software-catalog-detail",
-                "lookup_field": "uuid",
-            },
-            "parent_software": {
-                "view_name": "marketplace-software-package-detail",
                 "lookup_field": "uuid",
             },
         }
