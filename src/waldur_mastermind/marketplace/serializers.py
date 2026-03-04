@@ -11048,3 +11048,62 @@ class AggregatedUsageTrendSerializer(serializers.Serializer):
     component_count = serializers.IntegerField(
         help_text="Number of component usage records"
     )
+
+
+class OpenStackInstanceReportSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(help_text="Instance UUID")
+    name = serializers.CharField(help_text="Instance name")
+    created = serializers.DateTimeField(help_text="Creation timestamp")
+    cores = serializers.IntegerField(help_text="Number of vCPUs")
+    ram = serializers.IntegerField(help_text="RAM in MiB")
+    disk = serializers.IntegerField(help_text="Root disk in MiB")
+    flavor_name = serializers.CharField(help_text="Flavor name")
+    flavor_disk = serializers.IntegerField(help_text="Flavor disk in MiB")
+    image_name = serializers.CharField(help_text="Image name")
+    hypervisor_hostname = serializers.CharField(help_text="Hypervisor hostname")
+    runtime_state = serializers.CharField(
+        help_text="Runtime state (e.g. ACTIVE, SHUTOFF)"
+    )
+    state = serializers.CharField(help_text="Provisioning state")
+    availability_zone_name = serializers.CharField(
+        allow_null=True, help_text="Availability zone name"
+    )
+    start_time = serializers.DateTimeField(
+        allow_null=True, help_text="Last start time of the VM"
+    )
+    service_settings_uuid = serializers.UUIDField(help_text="Cluster UUID")
+    service_settings_name = serializers.CharField(help_text="Cluster name")
+    tenant_uuid = serializers.UUIDField(help_text="Tenant UUID")
+    tenant_name = serializers.CharField(help_text="Tenant name")
+    project_uuid = serializers.UUIDField(help_text="Project UUID")
+    project_name = serializers.CharField(help_text="Project name")
+    customer_uuid = serializers.UUIDField(help_text="Customer UUID")
+    customer_name = serializers.CharField(help_text="Customer name")
+    customer_abbreviation = serializers.CharField(help_text="Customer abbreviation")
+    volume_count = serializers.IntegerField(help_text="Number of attached volumes")
+    total_volume_size_mb = serializers.IntegerField(
+        help_text="Total attached volume size in MiB"
+    )
+    floating_ip_count = serializers.IntegerField(help_text="Number of floating IPs")
+    port_count = serializers.IntegerField(help_text="Number of ports")
+    internal_ips = serializers.ListField(
+        child=serializers.CharField(), help_text="List of internal IP addresses"
+    )
+    external_ips = serializers.ListField(
+        child=serializers.CharField(), help_text="List of external IP addresses"
+    )
+
+
+class OpenStackInstanceAggregateSerializer(serializers.Serializer):
+    group_key = serializers.CharField(help_text="Group key value")
+    group_label = serializers.CharField(help_text="Human-readable group label")
+    instance_count = serializers.IntegerField(help_text="Number of instances")
+    total_cores = serializers.IntegerField(help_text="Total vCPUs")
+    total_ram_mb = serializers.IntegerField(help_text="Total RAM in MiB")
+    total_disk_mb = serializers.IntegerField(help_text="Total disk in MiB")
+    total_volume_size_mb = serializers.IntegerField(
+        help_text="Total attached volume size in MiB"
+    )
+    total_floating_ips = serializers.IntegerField(
+        help_text="Total number of floating IPs"
+    )
