@@ -104,6 +104,14 @@ class ServiceProvider(
         ),
         validators=[core_validators.validate_template_syntax],
     )
+    allowed_domains = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=_(
+            "List of allowed domains for offering endpoints. "
+            "Only staff can modify this field. "
+        ),
+    )
 
     class Permissions:
         customer_path = "customer"

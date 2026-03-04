@@ -10,6 +10,7 @@ from dateutil.relativedelta import relativedelta
 from django import forms
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.core.validators import DomainNameValidator
 from django.db import transaction
 from django.db.models import Count, Q, QuerySet, Sum
 from django.utils import timezone
@@ -819,6 +820,7 @@ class ServiceProviderSerializer(
             "organization_groups",
             "description",
             "offering_count",
+            "allowed_domains",
         )
         related_paths = {
             "customer": ("uuid", "name", "native_name", "abbreviation", "slug")
@@ -849,7 +851,35 @@ class ServiceProviderSerializer(
 
         if request.user.is_anonymous:
             fields.pop("enable_notifications", None)
+
+        if not request.user.is_staff:
+            if "allowed_domains" in fields:
+                fields["allowed_domains"].read_only = True
+
         return fields
+
+    _validate_domain = DomainNameValidator()
+
+    def validate_allowed_domains(self, value) -> list:
+        if not isinstance(value, list):
+            raise serializers.ValidationError(
+                _("allowed_domains must be a list of domain names.")
+            )
+        for domain in value:
+            if not isinstance(domain, str) or not domain.strip():
+                raise serializers.ValidationError(
+                    _("Error, domain entry must be a non-empty string.")
+                )
+            try:
+                self._validate_domain(domain)
+            except ValidationError:
+                raise serializers.ValidationError(
+                    _(
+                        "'%(domain)s' is not a valid domain name. Please provide domains in format e.g. 'example.com' or 'api.provider.org'"
+                    )
+                    % {"domain": domain}
+                )
+        return value
 
     def validate(self, attrs):
         if not self.instance:

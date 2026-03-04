@@ -5,6 +5,7 @@ import logging
 import textwrap
 import traceback
 from typing import cast
+from urllib.parse import urlparse
 
 import httpx
 import reversion
@@ -2852,15 +2853,50 @@ class ProviderOfferingViewSet(
         offering: models.Offering = self.get_object()
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+
+        url = serializer.validated_data["url"]
+        self._validate_endpoint_domain(offering, url)
+
         endpoint = models.OfferingAccessEndpoint.objects.create(
             offering=offering,
-            url=serializer.validated_data["url"],
+            url=url,
             name=serializer.validated_data["name"],
         )
 
         return Response(
             {"uuid": endpoint.uuid},
             status=status.HTTP_201_CREATED,
+        )
+
+    @staticmethod
+    def _validate_endpoint_domain(offering: models.Offering, url: str) -> None:
+        """
+        Validate that the endpoint URL's domain is within the allowed domains
+        configured on the service provider.
+        """
+        try:
+            service_provider = offering.customer.serviceprovider
+        except models.ServiceProvider.DoesNotExist:
+            return
+
+        allowed_domains = service_provider.allowed_domains
+        if not allowed_domains:
+            return
+
+        hostname = (urlparse(url).hostname or "").lower()
+        for domain in allowed_domains:
+            if hostname == domain.lower() or hostname.endswith("." + domain.lower()):
+                return
+
+        raise ValidationError(
+            _(
+                "Endpoint URL domain '%(hostname)s' is not in the list of allowed domains "
+                "for this service provider. Allowed domains: %(domains)s."
+            )
+            % {
+                "hostname": hostname,
+                "domains": ", ".join(allowed_domains),
+            }
         )
 
     add_endpoint_permissions = [
