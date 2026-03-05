@@ -412,6 +412,70 @@
       "categories": [],
       "identifier": "",
       "description": "A tool that only exists in EESSI 2025.06."
+    },
+    "GTK3": {
+      "versions": [
+        {
+          "homepage": "https://developer.gnome.org/gtk3/stable/",
+          "license": [],
+          "image": "",
+          "categories": [],
+          "identifier": "",
+          "toolchain": {
+            "name": "GCCcore",
+            "version": "12.2.0"
+          },
+          "toolchain_families_compatibility": ["2022b_foss"],
+          "modulename": "GTK3/3.24.35-GCCcore-12.2.0",
+          "required_modules": [
+            "EESSI/2023.06",
+            "GCCcore/12.2.0"
+          ],
+          "cpu_arch": ["x86_64/generic", "x86_64/amd/zen3"],
+          "gpu_arch": {},
+          "description": "GTK+ is a multi-platform toolkit for creating graphical user interfaces.",
+          "version": "3.24.35",
+          "versionsuffix": ""
+        }
+      ],
+      "homepage": "https://developer.gnome.org/gtk3/stable/",
+      "license": [],
+      "image": "",
+      "categories": [],
+      "identifier": "",
+      "description": "GTK+ is a multi-platform toolkit for creating graphical user interfaces."
+    },
+    "GTK4": {
+      "versions": [
+        {
+          "homepage": "https://developer.gnome.org/gtk4/stable/",
+          "license": [],
+          "image": "",
+          "categories": [],
+          "identifier": "",
+          "toolchain": {
+            "name": "GCCcore",
+            "version": "12.3.0"
+          },
+          "toolchain_families_compatibility": ["2023a_foss"],
+          "modulename": "GTK4/4.13.1-GCCcore-12.3.0",
+          "required_modules": [
+            "EESSI/2023.06",
+            "GCCcore/12.3.0"
+          ],
+          "cpu_arch": ["x86_64/generic", "x86_64/amd/zen3"],
+          "gpu_arch": {},
+          "description": "GTK 4 is a multi-platform toolkit for creating graphical user interfaces.",
+          "version": "4.13.1",
+          "versionsuffix": ""
+        }
+      ],
+      "homepage": "https://developer.gnome.org/gtk4/stable/",
+      "license": [],
+      "image": "",
+      "categories": [],
+      "identifier": "",
+      "description": "GTK 4 is a multi-platform toolkit for creating graphical user interfaces."
     }
   }
 }
