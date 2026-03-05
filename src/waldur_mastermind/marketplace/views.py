@@ -11804,11 +11804,7 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
                     }
                 )
         except httpx.HTTPError as exc:
-            error_details = (
-                exc.response.json()
-                if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
-                else str(exc)
-            )
+            error_details = utils.extract_error_details_from_httpx_error(exc)
             if "instance" in locals():
                 instance.set_state_erred()
                 instance.error_message = str(error_details)
@@ -11834,11 +11830,7 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
             # Update the DB object only if the API call is successful
             super().perform_update(serializer)
         except httpx.HTTPError as exc:
-            error_details = (
-                exc.response.json()
-                if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
-                else str(exc)
-            )
+            error_details = utils.extract_error_details_from_httpx_error(exc)
             raise ValidationError({"detail": error_details})
 
     update_validators = destroy_validators = [
@@ -11852,11 +11844,7 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
             utils.close_service_account(instance)
         except httpx.HTTPError as exc:
             raise ValidationError(
-                {
-                    "detail": exc.response.json()
-                    if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
-                    else str(exc)
-                }
+                {"detail": utils.extract_error_details_from_httpx_error(exc)}
             )
 
 
@@ -11952,11 +11940,7 @@ class ProjectServiceAccountViewSet(BaseServiceAccountViewSet):
                     {"detail": "API key rotation failed - no token returned"}
                 )
         except httpx.HTTPError as exc:
-            error_details = (
-                exc.response.json()
-                if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
-                else str(exc)
-            )
+            error_details = utils.extract_error_details_from_httpx_error(exc)
             raise ValidationError({"detail": error_details})
 
     rotate_api_key_permissions = [
@@ -12056,11 +12040,7 @@ class CustomerServiceAccountViewSet(BaseServiceAccountViewSet):
                     {"detail": "API key rotation failed - no token returned"}
                 )
         except httpx.HTTPError as exc:
-            error_details = (
-                exc.response.json()
-                if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
-                else str(exc)
-            )
+            error_details = utils.extract_error_details_from_httpx_error(exc)
             raise ValidationError({"detail": error_details})
 
     rotate_api_key_permissions = [
@@ -13753,11 +13733,7 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
             instance.user = user
             instance.save(update_fields=["user"])
         except httpx.HTTPError as exc:
-            error_details = (
-                exc.response.json()
-                if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
-                else str(exc)
-            )
+            error_details = utils.extract_error_details_from_httpx_error(exc)
             if "instance" in locals():
                 instance.set_state_erred()
                 instance.error_message = str(error_details)
@@ -13771,11 +13747,7 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
         try:
             utils.close_course_account(instance)
         except httpx.HTTPError as exc:
-            error_details = (
-                exc.response.json()
-                if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
-                else str(exc)
-            )
+            error_details = utils.extract_error_details_from_httpx_error(exc)
             raise ValidationError({"detail": error_details})
 
     destroy_validators = [

@@ -2172,6 +2172,15 @@ def post_service_account_to_url(
         raise
 
 
+def extract_error_details_from_httpx_error(exc: httpx.HTTPError):
+    """Extract error details from an HTTPx error depending on the error type."""
+    return (
+        exc.response.json()
+        if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
+        else f"Status code: {exc.response.status_code}, empty body"
+    )
+
+
 def create_service_account(service_account: dict, owner_username: str, scope_type: str):
     """
     Makes a synchronous call to the webhook URL to create a service account.
@@ -2198,11 +2207,7 @@ def create_service_account(service_account: dict, owner_username: str, scope_typ
         )
         return response.json()
     except (httpx.HTTPError, ValueError) as exc:
-        error_details = (
-            exc.response.json()
-            if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
-            else exc
-        )
+        error_details = extract_error_details_from_httpx_error(exc)
         logger.error(
             "Unable to create a service account for %s",
             error_details,
@@ -2259,11 +2264,7 @@ def close_service_account(service_account: models.ScopedServiceAccount):
             service_account.set_state_closed()
             service_account.save(update_fields=["state"])
     except (httpx.HTTPError, ValueError) as exc:
-        error_details = (
-            exc.response.json()
-            if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
-            else exc
-        )
+        error_details = extract_error_details_from_httpx_error(exc)
         logger.error(
             "Unable to close the service account %s: %s",
             service_account.username,
@@ -2385,11 +2386,7 @@ def update_service_account(service_account: models.ScopedServiceAccount):
         response.raise_for_status()
         return response.json()
     except (httpx.HTTPError, ValueError) as exc:
-        error_details = (
-            exc.response.json()
-            if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
-            else exc
-        )
+        error_details = extract_error_details_from_httpx_error(exc)
         logger.error(
             "Unable to update service account %s: %s",
             service_account.username,
@@ -2649,11 +2646,7 @@ def create_course_account(
         )
         return response.json()
     except (httpx.HTTPError, ValueError) as exc:
-        error_details = (
-            exc.response.json()
-            if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
-            else exc
-        )
+        error_details = extract_error_details_from_httpx_error(exc)
         logger.error(
             "Unable to create a course account for %s",
             error_details,
@@ -2776,11 +2769,7 @@ def close_course_account(
                 user.is_active = False
                 user.save(update_fields=["is_active"])
     except (httpx.HTTPError, ValueError) as exc:
-        error_details = (
-            exc.response.json()
-            if isinstance(exc, httpx.HTTPStatusError) and exc.response.text
-            else exc
-        )
+        error_details = extract_error_details_from_httpx_error(exc)
         logger.error(
             "Unable to close the course account %s: %s",
             course_account.email,
