@@ -213,10 +213,12 @@ def evaluate_resource_against_policy(resource_uuid: str, policy_uuid: str):
 
         # Check if policy should be reset (no resources exceed thresholds)
         elif not actions_needed and policy.has_fired:
-            # Check if any other resources in offering still exceed thresholds
-            other_resources_triggered = check_other_resources_triggered.apply(
-                args=[policy.uuid, resource.uuid]
-            ).get()
+            # Check if any other resources in offering still exceed thresholds.
+            # Call the function directly instead of via Celery .apply().get()
+            # to avoid RuntimeError('Never call result.get() within a task!').
+            other_resources_triggered = _check_other_resources_triggered(
+                str(policy.uuid), str(resource.uuid)
+            )
 
             if not other_resources_triggered:
                 policy.has_fired = False
@@ -235,15 +237,15 @@ def evaluate_resource_against_policy(resource_uuid: str, policy_uuid: str):
         logger.error(f"Error in resource policy evaluation: {e}")
 
 
-@shared_task
-def check_other_resources_triggered(
+def _check_other_resources_triggered(
     policy_uuid: str, exclude_resource_uuid: str
 ) -> bool:
     """
     Check if any other resources in the offering still trigger the policy.
 
     This is used to determine if a policy can be reset when one resource
-    drops below thresholds.
+    drops below thresholds.  Called as a plain function (not a Celery task)
+    to avoid the "Never call result.get() within a task!" error.
     """
     try:
         policy = models.SlurmPeriodicUsagePolicy.objects.get(uuid=policy_uuid)
@@ -275,6 +277,14 @@ def check_other_resources_triggered(
     except Exception as e:
         logger.error(f"Error checking other resources for policy {policy_uuid}: {e}")
         return True  # Conservative - assume triggered to avoid premature reset
+
+
+@shared_task
+def check_other_resources_triggered(
+    policy_uuid: str, exclude_resource_uuid: str
+) -> bool:
+    """Celery task wrapper for _check_other_resources_triggered."""
+    return _check_other_resources_triggered(policy_uuid, exclude_resource_uuid)
 
 
 @shared_task

@@ -629,6 +629,43 @@ class TestSlurmPolicyRecovery(TestCase):
         self.assertTrue(self.resource.downscaled)
         self.assertFalse(self.resource.paused)
 
+    @patch(
+        "waldur_mastermind.policy.tasks.check_other_resources_triggered.apply",
+        side_effect=RuntimeError(
+            "Never call result.get() within a task! "
+            "See https://docs.celeryq.dev/en/latest/userguide/tasks.html"
+            "#avoid-launching-synchronous-subtasks"
+        ),
+    )
+    def test_policy_reset_does_not_call_synchronous_subtask(self, mock_apply):
+        """Test that policy reset check calls function directly, not via .apply().get().
+
+        Regression test for CSCS-220: calling result.get() within a Celery task
+        raises RuntimeError('Never call result.get() within a task!').
+        The check_other_resources_triggered logic must be called as a plain
+        function, not dispatched through Celery.
+        """
+        # Low usage — no actions needed, but policy.has_fired is True
+        self._create_component_usage(self.resource, self.component, 500)
+
+        # This must NOT call check_other_resources_triggered.apply().get()
+        # which would raise RuntimeError in a real Celery worker
+        tasks.evaluate_resource_against_policy(
+            str(self.resource.uuid), str(self.policy.uuid)
+        )
+
+        # The synchronous .apply() must NOT have been called
+        mock_apply.assert_not_called()
+
+        # Policy should be reset since no resources exceed thresholds
+        self.policy.refresh_from_db()
+        self.assertFalse(self.policy.has_fired)
+
+        # Resource restrictions should be removed
+        self.resource.refresh_from_db()
+        self.assertFalse(self.resource.downscaled)
+        self.assertFalse(self.resource.paused)
+
 
 class TestSlurmPolicyPerformance(TestCase):
     """Test performance characteristics of Celery-based policy evaluation."""
