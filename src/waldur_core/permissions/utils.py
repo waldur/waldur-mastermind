@@ -213,7 +213,7 @@ def has_user(scope, user, role=None, expiration_time=False):
 def get_permissions(scope, user=None):
     qs = models.UserRole.objects.filter(
         scope=scope, is_active=True, user__is_active=True
-    )
+    ).select_related("role", "user", "created_by")
     if user:
         qs = qs.filter(user=user)
     return qs

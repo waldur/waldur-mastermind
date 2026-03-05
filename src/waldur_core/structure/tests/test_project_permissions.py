@@ -78,6 +78,28 @@ class ProjectPermissionListTest(ProjectPermissionBaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
 
+class ProjectPermissionListQueryTest(ProjectPermissionBaseTest):
+    def test_list_users_does_not_make_n_plus_one_queries(self):
+        """Regression test for CSCS-287: N+1 queries on role and user tables."""
+        owner = factories.UserFactory()
+        customer = factories.CustomerFactory()
+        project = factories.ProjectFactory(customer=customer)
+        customer.add_user(owner, CustomerRole.OWNER)
+
+        # Add several users to the project to trigger N+1
+        for _ in range(5):
+            project.add_user(factories.UserFactory(), ProjectRole.ADMIN)
+
+        self.client.force_authenticate(user=owner)
+        url = factories.ProjectFactory.get_url(project) + "list_users/"
+
+        with self.assertNumQueries(8):
+            response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(len(response.data), 5)  # 5 admins
+
+
 class ProjectPermissionGrantTest(ProjectPermissionBaseTest):
     def setUp(self) -> None:
         super().setUp()
