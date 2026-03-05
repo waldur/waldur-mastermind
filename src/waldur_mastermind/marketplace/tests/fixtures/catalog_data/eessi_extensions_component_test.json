@@ -1,0 +1,135 @@
+{
+  "timestamp": "2025-11-26T01:28:45.524653Z",
+  "architectures_map": {
+    "2023.06": {
+      "x86_64/generic": "x86_64/generic",
+      "x86_64/amd/zen3": "x86_64/amd/zen3"
+    }
+  },
+  "gpu_architectures_map": {},
+  "category_details": {},
+  "software": {
+    "adwaita-icon-theme": {
+      "versions": [
+        {
+          "homepage": "https://developer.gnome.org/gtk3/stable/",
+          "license": [],
+          "image": "",
+          "categories": [],
+          "identifier": "",
+          "toolchain": {
+            "name": "GCCcore",
+            "version": "12.2.0"
+          },
+          "toolchain_families_compatibility": ["2022b_foss"],
+          "module": {
+            "full_module_name": "GTK3/3.24.35-GCCcore-12.2.0",
+            "module_name": "GTK3",
+            "module_version": "3.24.35-GCCcore-12.2.0"
+          },
+          "required_modules": [
+            {
+              "full_module_name": "EESSI/2023.06",
+              "module_name": "EESSI",
+              "module_version": "2023.06"
+            }
+          ],
+          "cpu_arch": ["x86_64/generic", "x86_64/amd/zen3"],
+          "gpu_arch": {},
+          "version": "42.0",
+          "versionsuffix": "",
+          "parent_software": {
+            "name": "GTK3",
+            "version": "3.24.35",
+            "versionsuffix": ""
+          },
+          "description": "adwaita-icon-theme is a component included in GTK3"
+        },
+        {
+          "homepage": "https://developer.gnome.org/gtk4/stable/",
+          "license": [],
+          "image": "",
+          "categories": [],
+          "identifier": "",
+          "toolchain": {
+            "name": "GCCcore",
+            "version": "12.3.0"
+          },
+          "toolchain_families_compatibility": ["2023a_foss"],
+          "module": {
+            "full_module_name": "GTK4/4.13.1-GCCcore-12.3.0",
+            "module_name": "GTK4",
+            "module_version": "4.13.1-GCCcore-12.3.0"
+          },
+          "required_modules": [
+            {
+              "full_module_name": "EESSI/2023.06",
+              "module_name": "EESSI",
+              "module_version": "2023.06"
+            }
+          ],
+          "cpu_arch": ["x86_64/generic", "x86_64/amd/zen3"],
+          "gpu_arch": {},
+          "version": "45.0",
+          "versionsuffix": "",
+          "parent_software": {
+            "name": "GTK4",
+            "version": "4.13.1",
+            "versionsuffix": ""
+          },
+          "description": "adwaita-icon-theme is a component included in GTK4"
+        }
+      ],
+      "description": "The default GNOME icon theme",
+      "homepage": "https://developer.gnome.org/",
+      "license": [],
+      "image": "",
+      "categories": [],
+      "identifier": ""
+    },
+    "hicolor-icon-theme": {
+      "versions": [
+        {
+          "homepage": "https://developer.gnome.org/gtk3/stable/",
+          "license": [],
+          "image": "",
+          "categories": [],
+          "identifier": "",
+          "toolchain": {
+            "name": "GCCcore",
+            "version": "12.2.0"
+          },
+          "toolchain_families_compatibility": ["2022b_foss"],
+          "module": {
+            "full_module_name": "GTK3/3.24.35-GCCcore-12.2.0",
+            "module_name": "GTK3",
+            "module_version": "3.24.35-GCCcore-12.2.0"
+          },
+          "required_modules": [
+            {
+              "full_module_name": "EESSI/2023.06",
+              "module_name": "EESSI",
+              "module_version": "2023.06"
+            }
+          ],
+          "cpu_arch": ["x86_64/generic"],
+          "gpu_arch": {},
+          "version": "0.17",
+          "versionsuffix": "",
+          "parent_software": {
+            "name": "GTK3",
+            "version": "3.24.35",
+            "versionsuffix": ""
+          },
+          "description": "hicolor-icon-theme is a component included in GTK3"
+        }
+      ],
+      "description": "Default fallback icon theme",
+      "homepage": "https://developer.gnome.org/",
+      "license": [],
+      "image": "",
+      "categories": [],
+      "identifier": ""
+    }
+  }
+}

@@ -640,6 +640,9 @@ class BaseCatalogLoader(ABC):
 
         for package_name, package_with_versions in extension_batch:
             package_data = package_with_versions.package_data
+            # Use actual package name for DB operations, not the dict key
+            # which may be prefixed (e.g. "component:adwaita-icon-theme")
+            actual_name = package_data.name
 
             # Resolve parent packages for this extension
             parent_objs = []
@@ -649,22 +652,22 @@ class BaseCatalogLoader(ABC):
                     parent_objs.append(parent_obj)
                 else:
                     self.logger.warning(
-                        f"Parent package {parent_name} not found for extension {package_name}"
+                        f"Parent package {parent_name} not found for extension {actual_name}"
                     )
 
             if not parent_objs:
                 self.logger.warning(
-                    f"No parent packages found for extension {package_name}"
+                    f"No parent packages found for extension {actual_name}"
                 )
                 continue
 
-            package_names_in_batch.append(package_name)
-            valid_extensions.append((package_name, package_with_versions))
-            extension_parent_mapping[package_name] = parent_objs
+            package_names_in_batch.append(actual_name)
+            valid_extensions.append((actual_name, package_with_versions))
+            extension_parent_mapping[actual_name] = parent_objs
             packages_to_create.append(
                 SoftwarePackage(
                     catalog=catalog,
-                    name=package_data.name,
+                    name=actual_name,
                     description=package_data.description,
                     homepage=package_data.homepage,
                     categories=package_data.categories,
@@ -706,10 +709,10 @@ class BaseCatalogLoader(ABC):
         }
 
         # Set M2M parent relationships and process versions
-        for package_name, package_with_versions in valid_extensions:
-            package = all_packages.get(package_name)
+        for actual_name, package_with_versions in valid_extensions:
+            package = all_packages.get(actual_name)
             if package:
-                parent_objs = extension_parent_mapping.get(package_name, [])
+                parent_objs = extension_parent_mapping.get(actual_name, [])
                 if parent_objs:
                     package.parent_softwares.set(parent_objs)
                 version_stats = self._process_versions_bulk(

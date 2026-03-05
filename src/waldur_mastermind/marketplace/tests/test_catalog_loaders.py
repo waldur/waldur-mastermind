@@ -623,6 +623,121 @@ class EESSINewAPIFormatTest(BaseLoaderTestCase):
         self.assertEqual(module["module_name"], "PackageWithExtensions")
 
 
+class EESSIExtensionMultipleParentsTest(BaseLoaderTestCase):
+    """Test that extensions with multiple parent software packages are loaded correctly.
+
+    Reproduces the bug where adwaita-icon-theme should have both GTK3 and GTK4
+    as parents but only gets one (or zero) due to prefixed dict keys in
+    _process_extension_batch not matching actual DB package names.
+    """
+
+    def setUp(self):
+        self.eessi_software_data = self.load_test_fixture("eessi_software_test.json")
+        self.eessi_component_data = self.load_test_fixture(
+            "eessi_extensions_component_test.json"
+        )
+
+    def _make_mock_get(self):
+        """Create mock that returns software + component extension data."""
+
+        def mock_requests_side_effect(url, **kwargs):
+            mock_response = Mock()
+            if "software.json" in url:
+                mock_response.json.return_value = self.eessi_software_data
+            elif "ext-component.json" in url:
+                mock_response.json.return_value = self.eessi_component_data
+            else:
+                mock_response.json.return_value = {}
+            mock_response.raise_for_status.return_value = None
+            return mock_response
+
+        return mock_requests_side_effect
+
+    @patch("requests.get")
+    def test_extension_with_two_parents_loaded_into_database(self, mock_get):
+        """adwaita-icon-theme should have both GTK3 and GTK4 as parent_softwares."""
+        mock_get.side_effect = self._make_mock_get()
+
+        loader = EESSICatalogLoader(catalog_version="2023.06")
+        loader.load_catalog(update_existing=True, dry_run=False)
+
+        catalog = SoftwareCatalog.objects.get(name="EESSI", version="2023.06")
+
+        # Both parent packages must exist as main packages
+        gtk3 = SoftwarePackage.objects.get(catalog=catalog, name="GTK3")
+        gtk4 = SoftwarePackage.objects.get(catalog=catalog, name="GTK4")
+        self.assertFalse(gtk3.is_extension)
+        self.assertFalse(gtk4.is_extension)
+
+        # adwaita-icon-theme must exist as an extension
+        adwaita = SoftwarePackage.objects.get(
+            catalog=catalog, name="adwaita-icon-theme"
+        )
+        self.assertTrue(adwaita.is_extension)
+
+        # Must have BOTH parents
+        parent_names = set(adwaita.parent_softwares.values_list("name", flat=True))
+        self.assertEqual(parent_names, {"GTK3", "GTK4"})
+
+    @patch("requests.get")
+    def test_extension_versions_are_created(self, mock_get):
+        """Extension packages must have their versions created in the DB."""
+        mock_get.side_effect = self._make_mock_get()
+
+        loader = EESSICatalogLoader(catalog_version="2023.06")
+        loader.load_catalog(update_existing=True, dry_run=False)
+
+        catalog = SoftwareCatalog.objects.get(name="EESSI", version="2023.06")
+        adwaita = SoftwarePackage.objects.get(
+            catalog=catalog, name="adwaita-icon-theme"
+        )
+
+        # Must have versions from the fixture (42.0 from GTK3, 45.0 from GTK4)
+        version_names = set(
+            SoftwareVersion.objects.filter(package=adwaita).values_list(
+                "version", flat=True
+            )
+        )
+        self.assertIn("42.0", version_names)
+        self.assertIn("45.0", version_names)
+
+    @patch("requests.get")
+    def test_single_parent_extension_works(self, mock_get):
+        """hicolor-icon-theme has only GTK3 as parent — should still work."""
+        mock_get.side_effect = self._make_mock_get()
+
+        loader = EESSICatalogLoader(catalog_version="2023.06")
+        loader.load_catalog(update_existing=True, dry_run=False)
+
+        catalog = SoftwareCatalog.objects.get(name="EESSI", version="2023.06")
+        hicolor = SoftwarePackage.objects.get(
+            catalog=catalog, name="hicolor-icon-theme"
+        )
+        self.assertTrue(hicolor.is_extension)
+
+        parent_names = set(hicolor.parent_softwares.values_list("name", flat=True))
+        self.assertEqual(parent_names, {"GTK3"})
+
+    @patch("requests.get")
+    def test_reload_preserves_multiple_parents(self, mock_get):
+        """Loading twice should preserve (not lose) parent relationships."""
+        mock_get.side_effect = self._make_mock_get()
+
+        loader = EESSICatalogLoader(catalog_version="2023.06")
+        loader.load_catalog(update_existing=True, dry_run=False)
+
+        # Second load
+        loader2 = EESSICatalogLoader(catalog_version="2023.06")
+        loader2.load_catalog(update_existing=True, dry_run=False)
+
+        catalog = SoftwareCatalog.objects.get(name="EESSI", version="2023.06")
+        adwaita = SoftwarePackage.objects.get(
+            catalog=catalog, name="adwaita-icon-theme"
+        )
+        parent_names = set(adwaita.parent_softwares.values_list("name", flat=True))
+        self.assertEqual(parent_names, {"GTK3", "GTK4"})
+
+
 class CatalogLoaderErrorHandlingTest(TestCase):
     """Test error handling and resilience of catalog loaders."""
 
