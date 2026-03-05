@@ -2692,6 +2692,7 @@ def create_multiple_course_accounts(
         api_access_token = get_course_account_api_token()
     except (httpx.HTTPError, ValueError, KeyError) as e:
         logger.error("Request to %s failed: %s", course_account_url, e)
+        return course_accounts_created
 
     for course_account_data in course_accounts_data:
         try:

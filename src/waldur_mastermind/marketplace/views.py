@@ -136,6 +136,7 @@ from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING,
     SUPPORT_OFFERING,
     BillingTypes,
+    CourseAccountState,
     ImpactLevel,
     MaintenanceState,
     MaintenanceType,
@@ -13807,26 +13808,53 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        # Prepare course accounts data with project included
-        course_accounts_data = []
+        project = serializer.validated_data["project"]
+        owner_username = request.user.username
+
+        # Deduplicate: unique emails in this request
+        seen_emails: set[str] = set()
+        unique_accounts_data = []
         for account_data in serializer.validated_data["course_accounts"]:
-            account_data["project"] = serializer.validated_data["project"]
-            course_accounts_data.append(account_data)
+            email = account_data["email"]
+            if email not in seen_emails:
+                seen_emails.add(email)
+                unique_accounts_data.append(account_data)
 
-        course_accounts = utils.create_multiple_course_accounts(
-            course_accounts_data, self.request.user.username
+        # Skip emails already recorded in Waldur for this project
+        existing_emails = set(
+            models.CourseAccount.objects.filter(
+                project=project, email__in=seen_emails
+            ).values_list("email", flat=True)
         )
+        new_accounts_data = [
+            a for a in unique_accounts_data if a["email"] not in existing_emails
+        ]
 
-        # Handle both mock (returns dicts) and real API (returns model instances)
-        if course_accounts and isinstance(course_accounts[0], dict):
-            # Mock backend returned dicts, return them directly
-            return Response(course_accounts)
-        else:
-            # Real API returned model instances, serialize them
-            course_accounts_serializer = serializers.CourseAccountSerializer(
-                course_accounts, many=True, context={"request": request}
+        # Create placeholder CourseAccount records in PENDING state, then enqueue
+        # one Celery task per record so each is processed independently.
+        created_accounts = []
+        with transaction.atomic():
+            for account_data in new_accounts_data:
+                course_account = models.CourseAccount.objects.create(
+                    project=project,
+                    email=account_data["email"],
+                    description=account_data.get("description", ""),
+                    state=CourseAccountState.PENDING,
+                )
+                created_accounts.append(course_account)
+
+        for course_account in created_accounts:
+            uuid_hex = course_account.uuid.hex
+            transaction.on_commit(
+                lambda hex=uuid_hex: tasks.create_course_account_task.delay(
+                    hex, owner_username
+                )
             )
-            return Response(course_accounts_serializer.data)
+
+        response_serializer = serializers.CourseAccountSerializer(
+            created_accounts, many=True, context={"request": request}
+        )
+        return Response(response_serializer.data, status=status.HTTP_202_ACCEPTED)
 
     create_bulk_permissions = [check_create_permissions]
     create_bulk_serializer_class = serializers.CourseAccountsBulkCreateSerializer

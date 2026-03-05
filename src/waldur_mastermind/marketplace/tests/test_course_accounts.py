@@ -667,24 +667,12 @@ class CourseAccountBulkCreateTest(test.APITestCase):
 
     @data("staff", "manager", "admin", "owner")
     def test_authorized_user_can_bulk_create_course_accounts(self, user):
-        """Test that authorized users can bulk create course accounts"""
-        self.client.force_authenticate(getattr(self.fixture, user))
+        """Test that authorized users can bulk create course accounts.
 
-        # Mock multiple account creation responses
-        respx.post(COURSE_ACCOUNT_URL).mock(
-            side_effect=[
-                httpx.Response(
-                    200,
-                    json={
-                        "tempAccount": {
-                            "username": f"test_user_{i}",
-                            "email": f"test{i}@example.com",
-                        }
-                    },
-                )
-                for i in range(3)
-            ]
-        )
+        The endpoint returns 202 immediately with PENDING accounts;
+        the external API calls happen asynchronously via Celery tasks.
+        """
+        self.client.force_authenticate(getattr(self.fixture, user))
 
         payload = {
             "course_accounts": [
@@ -696,19 +684,21 @@ class CourseAccountBulkCreateTest(test.APITestCase):
         }
 
         response = self.client.post(self.bulk_url, payload, format="json")
-        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
 
-        # Verify all accounts were created
+        # Verify all accounts were created in PENDING state
         accounts = models.CourseAccount.objects.filter(project=self.course_project)
         self.assertEqual(accounts.count(), 3)
+        self.assertTrue(accounts.filter(state=CourseAccountState.PENDING).count() == 3)
 
-        # Verify response structure (it's a list, not paginated)
+        # Verify response structure
         self.assertIsInstance(response.data, list)
         self.assertEqual(len(response.data), 3)
         for i, account_data in enumerate(response.data, 1):
             self.assertIn("uuid", account_data)
             self.assertIn("email", account_data)
             self.assertEqual(account_data["email"], f"test{i}@example.com")
+            self.assertEqual(account_data["state"], "Pending")
 
     @data("user", "customer_support", "member")
     def test_unauthorized_user_cannot_bulk_create_course_accounts(self, user):
@@ -798,13 +788,12 @@ class CourseAccountBulkCreateTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_bulk_create_handles_api_errors(self):
-        """Test that bulk create handles API errors gracefully"""
-        self.client.force_authenticate(self.fixture.staff)
+        """Test that bulk create returns 202 immediately; API errors surface in the task.
 
-        # Mock API error
-        respx.post(COURSE_ACCOUNT_URL).mock(
-            return_value=httpx.Response(500, json={"error": "Internal server error"})
-        )
+        The view creates PENDING accounts and returns before calling the external API.
+        External API failures are handled by the background Celery task.
+        """
+        self.client.force_authenticate(self.fixture.staff)
 
         payload = {
             "course_accounts": [
@@ -814,14 +803,17 @@ class CourseAccountBulkCreateTest(test.APITestCase):
         }
 
         response = self.client.post(self.bulk_url, payload, format="json")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
-        # When API fails, no accounts are created (current behavior)
+        # Account is created in PENDING state (external API call deferred to task)
         accounts = models.CourseAccount.objects.filter(project=self.course_project)
-        self.assertEqual(accounts.count(), 0)
+        self.assertEqual(accounts.count(), 1)
+        self.assertEqual(accounts.first().state, CourseAccountState.PENDING)
 
-        # Response should be an empty list
-        self.assertEqual(response.data, [])
+        # Response contains the pending account
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["email"], "test@example.com")
+        self.assertEqual(response.data[0]["state"], "Pending")
 
     def test_bulk_create_with_empty_course_accounts_list(self):
         """Test bulk create with empty course accounts list"""
@@ -836,33 +828,9 @@ class CourseAccountBulkCreateTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("course_accounts", response.data)
 
-    def test_bulk_create_validates_duplicate_emails_in_request(self):
-        """Test that bulk create handles duplicate emails in the same request"""
+    def test_bulk_create_deduplicates_emails_in_request(self):
+        """Test that duplicate emails in the same request are deduplicated."""
         self.client.force_authenticate(self.fixture.staff)
-
-        # Mock account creation responses
-        respx.post(COURSE_ACCOUNT_URL).mock(
-            side_effect=[
-                httpx.Response(
-                    200,
-                    json={
-                        "tempAccount": {
-                            "username": "test_user_1",
-                            "email": "test@example.com",
-                        }
-                    },
-                ),
-                httpx.Response(
-                    200,
-                    json={
-                        "tempAccount": {
-                            "username": "test_user_2",
-                            "email": "test@example.com",
-                        }
-                    },
-                ),
-            ]
-        )
 
         payload = {
             "course_accounts": [
@@ -873,59 +841,70 @@ class CourseAccountBulkCreateTest(test.APITestCase):
         }
 
         response = self.client.post(self.bulk_url, payload, format="json")
-        # The API should still succeed but create separate accounts
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
+        # Only one account created (duplicate skipped)
         accounts = models.CourseAccount.objects.filter(
             project=self.course_project, email="test@example.com"
         )
-        self.assertEqual(accounts.count(), 2)
+        self.assertEqual(accounts.count(), 1)
+        self.assertEqual(len(response.data), 1)
 
-    def test_bulk_create_with_mixed_valid_and_invalid_data(self):
-        """Test bulk create with some valid and some invalid course account data"""
+    def test_bulk_create_skips_already_existing_emails(self):
+        """Test that emails already in Waldur for the project are skipped."""
         self.client.force_authenticate(self.fixture.staff)
 
-        # Mock successful API calls for valid accounts
-        respx.post(COURSE_ACCOUNT_URL).mock(
-            side_effect=[
-                httpx.Response(
-                    200,
-                    json={
-                        "tempAccount": {
-                            "username": "test_user_1",
-                            "email": "valid@example.com",
-                        }
-                    },
-                ),
-                httpx.Response(
-                    400,
-                    json={"error": "Invalid email domain"},
-                ),
-            ]
+        # Pre-create an account for this email
+        models.CourseAccount.objects.create(
+            project=self.course_project,
+            email="existing@example.com",
+            state=CourseAccountState.OK,
         )
 
         payload = {
             "course_accounts": [
-                {"email": "valid@example.com", "description": "Valid account"},
-                {"email": "invalid@blocked.com", "description": "Invalid account"},
+                {"email": "existing@example.com", "description": "Already exists"},
+                {"email": "new@example.com", "description": "New account"},
             ],
             "project": str(self.course_project.uuid),
         }
 
         response = self.client.post(self.bulk_url, payload, format="json")
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
 
-        # Only the successful account is created (current behavior)
-        accounts = models.CourseAccount.objects.filter(project=self.course_project)
-        self.assertEqual(accounts.count(), 1)
-
-        valid_account = accounts.filter(email="valid@example.com").first()
-        self.assertIsNotNone(valid_account)
-        self.assertEqual(valid_account.state, CourseAccountState.OK)
-
-        # The response should only contain the successful account
+        # Only the new account is created
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["email"], "valid@example.com")
+        self.assertEqual(response.data[0]["email"], "new@example.com")
+        self.assertEqual(
+            models.CourseAccount.objects.filter(project=self.course_project).count(),
+            2,  # pre-existing + new
+        )
+
+    def test_bulk_create_with_mixed_valid_and_invalid_data(self):
+        """Test bulk create returns all accounts in PENDING state immediately.
+
+        External API validation (e.g., blocked email domains) is reported
+        by the background task, not by the HTTP response.
+        """
+        self.client.force_authenticate(self.fixture.staff)
+
+        payload = {
+            "course_accounts": [
+                {"email": "valid@example.com", "description": "Valid account"},
+                {"email": "other@example.com", "description": "Other account"},
+            ],
+            "project": str(self.course_project.uuid),
+        }
+
+        response = self.client.post(self.bulk_url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+        # Both accounts created in PENDING state
+        accounts = models.CourseAccount.objects.filter(project=self.course_project)
+        self.assertEqual(accounts.count(), 2)
+        self.assertTrue(accounts.filter(state=CourseAccountState.PENDING).count() == 2)
+
+        self.assertEqual(len(response.data), 2)
 
 
 @override_waldur_core_settings(

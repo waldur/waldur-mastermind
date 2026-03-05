@@ -322,6 +322,7 @@ class CourseAccountState(models.IntegerChoices):
     OK = 1, _("OK")
     CLOSED = 2, _("Closed")
     ERRED = 3, _("Erred")
+    PENDING = 4, _("Pending")
 
 
 SUPPORT_OFFERING = "Support.OfferingTemplate"
