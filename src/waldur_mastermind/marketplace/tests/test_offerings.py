@@ -15,6 +15,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 from ddt import data, ddt, idata
 from django.core.exceptions import ObjectDoesNotExist
+from django.db import connection as db_connection
+from django.test.utils import CaptureQueriesContext
 from rest_framework import exceptions as rest_exceptions
 from rest_framework import status, test
 
@@ -2697,6 +2699,37 @@ class ListCustomerProjectsTest(test.APITestCase):
         self.assertIn(RESULT_COUNT_HEADER, headers)
         self.assertGreaterEqual(int(headers[RESULT_COUNT_HEADER]), 15)
         self.assertIn("Link", headers)
+
+    def test_list_customer_projects_does_not_have_n_plus_one_queries(self):
+        """Query count should stay constant when more projects are added."""
+        user = self.fixture.staff
+        self.client.force_authenticate(user)
+        url = factories.OfferingFactory.get_url(
+            self.fixture.offering, "list_customer_projects"
+        )
+
+        # Measure queries with 1 project
+        with CaptureQueriesContext(db_connection) as ctx_before:
+            self.client.get(url)
+        num_queries_1 = len(ctx_before)
+
+        # Add more projects with resources
+        for _ in range(5):
+            project = structure_factories.ProjectFactory(
+                customer=self.fixture.project.customer
+            )
+            factories.ResourceFactory(
+                offering=self.fixture.offering,
+                project=project,
+                state=ResourceStates.OK,
+            )
+
+        # Measure queries with 6 projects
+        with CaptureQueriesContext(db_connection) as ctx_after:
+            self.client.get(url)
+        num_queries_6 = len(ctx_after)
+
+        self.assertEqual(num_queries_1, num_queries_6)
 
 
 @ddt
