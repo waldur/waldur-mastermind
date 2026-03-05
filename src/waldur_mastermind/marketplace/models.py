@@ -3757,7 +3757,9 @@ class CourseAccount(
         return f"Course account for {user_name} in {self.project}"
 
     @transition(
-        field=state, source=CourseAccountState.ERRED, target=CourseAccountState.OK
+        field=state,
+        source=[CourseAccountState.ERRED, CourseAccountState.PENDING],
+        target=CourseAccountState.OK,
     )
     def set_state_ok(self):
         pass
@@ -3772,4 +3774,8 @@ class CourseAccount(
 
     @transition(field=state, source="*", target=CourseAccountState.ERRED)
     def set_state_erred(self):
+        pass
+
+    @transition(field=state, source="*", target=CourseAccountState.PENDING)
+    def set_state_pending(self):
         pass

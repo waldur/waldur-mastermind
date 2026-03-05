@@ -77,6 +77,47 @@ def create_screenshot_thumbnail(uuid):
 
 
 @shared_task
+def create_course_account_task(course_account_uuid_hex: str, owner_username: str):
+    """Create a single course account via the external API.
+
+    Called per-item during bulk creation so each account is processed
+    independently — a failure on one does not block the others.
+    """
+    try:
+        course_account = models.CourseAccount.objects.get(uuid=course_account_uuid_hex)
+    except models.CourseAccount.DoesNotExist:
+        logger.error(
+            "CourseAccount %s not found, skipping task", course_account_uuid_hex
+        )
+        return
+
+    try:
+        response_data = utils.create_course_account(
+            {"email": course_account.email, "project": course_account.project},
+            owner_username,
+        )
+        if response_data is None:
+            # API disabled in settings — leave record in PENDING state
+            return
+        temp_account = response_data.get("tempAccount", {})
+        user = core_models.User.objects.create(
+            username=temp_account["username"],
+            email=temp_account.get("email", course_account.email),
+            description="Course Account",
+        )
+        course_account.user = user
+        course_account.set_state_ok()
+        course_account.save(update_fields=["user", "state"])
+    except Exception as exc:
+        logger.error(
+            "Failed to create course account %s: %s", course_account_uuid_hex, exc
+        )
+        course_account.error_message = str(exc)
+        course_account.set_state_erred()
+        course_account.save(update_fields=["error_message", "state"])
+
+
+@shared_task
 def notify_consumer_about_pending_order(uuid):
     order = models.Order.objects.get(uuid=uuid)
     approvers = get_consumer_approvers(order)
