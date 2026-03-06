@@ -157,6 +157,7 @@ class AgentIdentitySerializer(serializers.HyperlinkedModelSerializer):
     created_by = serializers.SlugRelatedField(
         slug_field="uuid",
         read_only=True,
+        allow_null=True,
     )
     services = NestedAgentServiceSerializer(
         many=True, read_only=True, source="agentservice_set"

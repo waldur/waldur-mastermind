@@ -256,7 +256,31 @@ def filter_invoice_items(items, ordering=None):
 
 ---
 
-## 7. Best Practices and Conventions
+## 7. Nullable Fields and SDK Client Generation
+
+When a model ForeignKey is nullable (`null=True`), the corresponding serializer field **must** declare `allow_null=True`. Without this, the OpenAPI schema will not mark the field as nullable, and auto-generated SDK clients (Python, TypeScript, Go) will crash when parsing a `null` value from the API response.
+
+**Example bug**: A nullable FK serialized without `allow_null=True` causes the generated Python client to call `UUID(None)`, raising a `TypeError`.
+
+```python
+# Model
+class AgentIdentity(models.Model):
+    created_by = models.ForeignKey(User, null=True, on_delete=models.SET_NULL)
+
+# WRONG - missing allow_null=True
+created_by = serializers.SlugRelatedField(slug_field="uuid", read_only=True)
+
+# CORRECT - matches the model's nullable nature
+created_by = serializers.SlugRelatedField(slug_field="uuid", read_only=True, allow_null=True)
+```
+
+**Rule**: Any time a serializer field maps to a nullable model field (FK with `null=True`, or `CharField(null=True)`, etc.), add `allow_null=True` to the serializer field. This applies to `SlugRelatedField`, `HyperlinkedRelatedField`, `PrimaryKeyRelatedField`, and plain fields alike.
+
+**How to verify**: After making changes, run `uv run waldur spectacular --validate` and inspect the generated schema to confirm the field shows `nullable: true`.
+
+---
+
+## 8. Best Practices and Conventions
 
 1. **Docstrings are the Source of Truth**: Write clear docstrings on viewset *action methods*. They become the official API descriptions.
 2. **Use the Right Tool for the Job**:
@@ -271,7 +295,7 @@ def filter_invoice_items(items, ordering=None):
 7. **Handle Polymorphism with Hooks**: For complex conditional schemas (`oneOf`, `anyOf`), post-processing hooks are the most flexible and powerful tool available, as demonstrated by `add_polymorphic_attributes_schema`.
 8. **Simplify for the Consumer**: Use extensions (`OpenStackNestedSecurityGroupSerializerExtension`) and hooks (`transform_paginated_arrays`) to simplify complex or deeply nested objects where the full detail is unnecessary for the API consumer. The goal is a schema that is not just accurate, but also usable.
 
-## 8. The OpenAPI Schema in the Broader Workflow
+## 9. The OpenAPI Schema in the Broader Workflow
 
 The OpenAPI schema is not merely a documentation artifact; it is a critical, machine-readable contract that drives a significant portion of our development, testing, and release workflows. Our CI/CD pipelines are built around the schema as the single source of truth for the API's structure.
 

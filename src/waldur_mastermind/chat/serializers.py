@@ -288,6 +288,7 @@ class MessageSerializer(serializers.ModelSerializer):
     replaces = serializers.SlugRelatedField(
         slug_field="uuid",
         read_only=True,
+        allow_null=True,
     )
 
     class Meta:
