@@ -10,6 +10,52 @@ from waldur_mastermind.chat.ui_registry import ui_registry
 logger = logging.getLogger(__name__)
 
 
+def _extract_json_objects(content: str):
+    """
+    Extract potential JSON objects from text using balanced brace counting.
+    Yields candidate JSON strings that start with { and have balanced braces.
+    """
+    i = 0
+    while i < len(content):
+        # Find next opening brace
+        start = content.find("{", i)
+        if start == -1:
+            break
+
+        # Count balanced braces to find the complete JSON object
+        brace_count = 0
+        in_string = False
+        escape_next = False
+        end = start
+
+        for j in range(start, len(content)):
+            char = content[j]
+
+            if escape_next:
+                escape_next = False
+                continue
+
+            if char == "\\":
+                escape_next = True
+                continue
+
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+
+            if not in_string:
+                if char == "{":
+                    brace_count += 1
+                elif char == "}":
+                    brace_count -= 1
+                    if brace_count == 0:
+                        end = j + 1
+                        yield content[start:end]
+                        break
+
+        i = end if end > start else start + 1
+
+
 def parse_tool_call(content):
     """
     Try to parse a tool call from LLM response content.
@@ -31,20 +77,45 @@ def parse_tool_call(content):
     except json.JSONDecodeError:
         pass
 
-    # Try to extract JSON from content with prefix/suffix text
-    # Match JSON objects that contain "tool" key
-    json_pattern = r'\{[^{}]*"tool"\s*:\s*"[^"]+"[^{}]*\}'
-    matches = re.finditer(json_pattern, content)
+    # Try to extract JSON objects from content with prefix/suffix text
+    # Use balanced brace parser to handle nested objects
+    for json_candidate in _extract_json_objects(content):
+        # Quick check: must contain "tool" keyword before expensive JSON parse
+        if '"tool"' not in json_candidate:
+            continue
 
-    for match in matches:
         try:
-            data = json.loads(match.group(0))
-            if isinstance(data, dict) and "tool" in data and "arguments" in data:
+            data = json.loads(json_candidate)
+            if isinstance(data, dict) and "tool" in data:
                 return data
         except json.JSONDecodeError:
             continue
 
     return None
+
+
+def looks_like_tool_call(content: str) -> bool:
+    """
+    Check if content might contain a tool call JSON.
+
+    Only triggers on the specific '{"tool"' pattern the LLM is instructed to
+    produce. Using a bare '{' as the trigger caused false positives: any normal
+    LLM response that mentions a '{variable}', a JSON example, or a dict literal
+    would be incorrectly buffered — and if it turned out not to be a tool call,
+    the fallback path would render the entire response as untyped content.
+
+    The '{"tool"' string is specific enough to avoid false positives in
+    conversational text while still detecting tool calls even when the LLM adds
+    a short preamble or wraps the JSON in a ```json code fence (despite being
+    instructed not to).
+    """
+    stripped = content.strip()
+
+    # Handle markdown code blocks (strip opening fence)
+    if stripped.startswith("```"):
+        stripped = re.sub(r"^```\w*\s*", "", stripped).strip()
+
+    return '{"tool"' in stripped
 
 
 class ParserState(Enum):
@@ -280,7 +351,7 @@ class StreamParser:
         a sentinel dict with key "_tool_call" for LLMStreamer to intercept and
         execute, instead of rendering the raw JSON to the user.
         """
-        if tag in ("json", "JSON"):
+        if tag.lower() == "json":
             parsed = parse_tool_call(content)
             if parsed and "tool" in parsed:
                 yield {"_tool_call": parsed}
@@ -316,12 +387,22 @@ class StreamParser:
     def parse_tool_result(self, result: dict) -> dict | None:
         """
         Parse tool execution result into UI component.
-        Returns None for errors (which should not be displayed to users).
+
+        Returns None for internal system errors (which should be hidden from users).
+        Displays validation errors and successes to users.
+
+        Result types:
+        - "success": Tool executed successfully
+        - "validation_error": User-facing error (e.g., "Flavor not found")
+        - "error": Internal system error (hidden from users, logged server-side)
         """
-        if result.get("type") == "error":
-            # Don't display errors to users - they're logged in tool_executor
+        result_type = result.get("type")
+
+        if result_type == "error":
+            # Hide internal system errors from users - they're logged in tool_executor
             return None
 
+        # Display both success and validation_error types to users
         # Extract UI component info from tool result
         ui_key = result.get("ui_component", "markdown")
         ui_data = result.get("ui_data", {"c": result.get("summary", "")})

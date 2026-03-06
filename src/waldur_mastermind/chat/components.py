@@ -68,3 +68,39 @@ ui_registry.register(
     },
     has_loading_state=True,
 )
+
+
+ui_registry.register(
+    key="vm_order",
+    name="VM Order Result",
+    description="Structured display of VM creation order result or configuration form",
+    schema={
+        "type": "object",
+        "required": [
+            "name",
+            "status",
+        ],  # order_id not required (preview has no order yet)
+        "properties": {
+            "order_id": {"type": "string"},  # Order UUID (only in success/error)
+            "name": {"type": "string"},  # VM name
+            "flavor": {
+                "type": "string"
+            },  # Flavor display (e.g., "m1.small (2 vCPU, 4GB RAM)")
+            "image": {"type": "string"},  # Image name
+            "status": {"type": "string"},  # Order state (form/preview/success/error)
+            "message": {"type": "string"},  # Success message (optional)
+            "error": {"type": "string"},  # Error message (optional)
+            "content": {
+                "type": "string"
+            },  # Preview intro text or form instructions (optional)
+            "project": {"type": "string"},  # Project name (optional)
+            "organization": {"type": "string"},  # Organization/customer name (optional)
+            "project_uuid": {"type": "string"},  # Project UUID (optional)
+            "flavors": {"type": "array"},  # Available flavors list (form mode only)
+            "images": {"type": "array"},  # Available images list (form mode only)
+            "projects": {
+                "type": "array"
+            },  # Available projects list (project_form mode only)
+        },
+    },
+)
