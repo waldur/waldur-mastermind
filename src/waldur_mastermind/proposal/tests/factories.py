@@ -455,7 +455,7 @@ class ReviewerExpertiseFactory(
         model = models.ReviewerExpertise
 
     reviewer_profile = factory.SubFactory(ReviewerProfileFactory)
-    expertise_keyword = factory.Faker("word")
+    expertise_keyword = factory.Sequence(lambda n: f"expertise_{n}")
     expertise_category = None
     proficiency_level = ExpertiseProficiencyLevels.EXPERT
     years_experience = factory.Faker("random_int", min=1, max=30)
