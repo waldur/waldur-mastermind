@@ -40,6 +40,11 @@ list_permissions = [permission_factory(PermissionEnum.VIEW_RESOURCE)]
 ```python
 # Use SlugRelatedField for UUIDs
 project = serializers.SlugRelatedField(slug_field="uuid", queryset=Project.objects.all())
+
+# CRITICAL: Nullable FKs MUST use allow_null=True on SlugRelatedField
+# Without it, the OpenAPI spec won't mark the field as nullable,
+# and auto-generated SDK clients will crash on null values (e.g. UUID(None))
+created_by = serializers.SlugRelatedField(slug_field="uuid", read_only=True, allow_null=True)
 ```
 
 ### Testing

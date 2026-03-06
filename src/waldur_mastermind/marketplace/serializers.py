@@ -8360,7 +8360,9 @@ class BaseScopedServiceAccountSerializer(BaseServiceAccountSerializer):
 
 class ProjectServiceAccountSerializer(BaseScopedServiceAccountSerializer):
     project = serializers.SlugRelatedField(
-        queryset=structure_models.Project.available_objects.all(), slug_field="uuid"
+        queryset=structure_models.Project.available_objects.all(),
+        slug_field="uuid",
+        allow_null=True,
     )
     project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
     project_name = serializers.CharField(read_only=True, source="project.name")
@@ -8395,7 +8397,9 @@ class ProjectServiceAccountSerializer(BaseScopedServiceAccountSerializer):
 
 class CustomerServiceAccountSerializer(BaseScopedServiceAccountSerializer):
     customer = serializers.SlugRelatedField(
-        queryset=structure_models.Customer.objects.all(), slug_field="uuid"
+        queryset=structure_models.Customer.objects.all(),
+        slug_field="uuid",
+        allow_null=True,
     )
     customer_uuid = serializers.UUIDField(read_only=True, source="customer.uuid")
     customer_name = serializers.CharField(read_only=True, source="customer.name")

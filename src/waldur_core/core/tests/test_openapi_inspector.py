@@ -2,6 +2,7 @@ import unittest
 from unittest.mock import MagicMock, Mock, patch
 
 import pytest
+from django.apps import apps
 from drf_spectacular.openapi import AutoSchema
 from drf_spectacular.utils import OpenApiParameter
 from rest_framework import serializers, viewsets
@@ -340,3 +341,69 @@ class TestRealWorldSerializers(unittest.TestCase):
         self.assertIn("name", field_enum)
         self.assertIn("uuid", field_enum)
         self.assertIn("url", field_enum)
+
+
+@pytest.mark.django_db
+def test_nullable_fk_slug_related_fields_have_allow_null():
+    """Ensure every SlugRelatedField backed by a nullable FK declares allow_null=True.
+
+    Without allow_null=True, the OpenAPI schema won't mark the field as nullable,
+    and auto-generated SDK clients will crash when parsing null values
+    (e.g. Python client does UUID(None) → TypeError).
+    """
+    violations = []
+
+    # Collect all serializer classes from waldur apps
+    serializer_classes = set()
+    for app_config in apps.get_app_configs():
+        if not app_config.name.startswith("waldur"):
+            continue
+        try:
+            module = __import__(
+                app_config.name + ".serializers", fromlist=["serializers"]
+            )
+        except ImportError:
+            continue
+        for attr_name in dir(module):
+            attr = getattr(module, attr_name)
+            if (
+                isinstance(attr, type)
+                and issubclass(attr, serializers.Serializer)
+                and attr is not serializers.Serializer
+            ):
+                serializer_classes.add(attr)
+
+    for serializer_cls in sorted(serializer_classes, key=lambda c: c.__name__):
+        meta = getattr(serializer_cls, "Meta", None)
+        model = getattr(meta, "model", None) if meta else None
+
+        # Get declared fields (class-level, not instantiated)
+        for field_name, field in serializer_cls._declared_fields.items():
+            if not isinstance(field, serializers.SlugRelatedField):
+                continue
+            if field.slug_field != "uuid":
+                continue
+
+            # Check if the model field is a nullable FK
+            if model is None:
+                continue
+            try:
+                model_field = model._meta.get_field(field_name)
+            except Exception:
+                continue
+            if not getattr(model_field, "null", False):
+                continue
+
+            # Model FK is nullable — serializer field must have allow_null=True
+            if not field.allow_null:
+                violations.append(
+                    f"{serializer_cls.__name__}.{field_name} "
+                    f"(model {model.__name__}.{field_name} is nullable FK, "
+                    f"but SlugRelatedField is missing allow_null=True)"
+                )
+
+    assert not violations, (
+        "SlugRelatedField(slug_field='uuid') on nullable FK fields must set allow_null=True "
+        "to produce correct OpenAPI specs for SDK client generation:\n"
+        + "\n".join(f"  - {v}" for v in violations)
+    )
