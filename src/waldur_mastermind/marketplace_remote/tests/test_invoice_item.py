@@ -1,109 +1,71 @@
 import datetime
-import uuid
 
-import respx
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
-from waldur_api_client.models.billing_unit import BillingUnit
 
-from waldur_core.core.utils import month_end, month_start, serialize_instance
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.invoices.models import Invoice, InvoiceItem
-from waldur_mastermind.invoices.tests.factories import (
-    InvoiceFactory,
-    InvoiceItemFactory,
+from waldur_mastermind.invoices.tasks import create_monthly_invoices
+from waldur_mastermind.marketplace.billing import MarketplaceBillingService
+from waldur_mastermind.marketplace.enums import (
+    REMOTE_OFFERING,
+    BillingTypes,
+    ResourceStates,
 )
-from waldur_mastermind.marketplace.enums import REMOTE_OFFERING
 from waldur_mastermind.marketplace.tests.factories import (
+    OfferingComponentFactory,
     OfferingFactory,
+    PlanComponentFactory,
+    PlanFactory,
     ResourceFactory,
 )
-from waldur_mastermind.marketplace_remote.tasks import ResourceInvoicePullTask
-from waldur_mastermind.marketplace_remote.tests.dns_utils import (
-    create_selective_dns_mock,
-)
-
-# Fields required by InvoiceItemDetail.from_dict() but not valid
-# for the Django InvoiceItem model (computed properties or non-existent fields).
-API_ONLY_FIELDS = {
-    "price",
-    "offering_name",
-    "project_uuid",
-    "project_name",
-    "customer_uuid",
-    "customer_name",
-}
 
 
-class InvoiceItemPullTest(test.APITestCase):
+class RemoteOfferingInvoiceLocalCalculationTest(test.APITestCase):
+    """Test that invoices for remote offering resources are created via local calculation."""
+
     def setUp(self) -> None:
-        self.dns_patcher = create_selective_dns_mock()
-        self.dns_patcher.start()
-        super().setUp()
-        respx.start()
         self.fixture = ProjectFixture()
-        self.api_url = "https://remote-waldur.com"
         self.offering = OfferingFactory(
             type=REMOTE_OFFERING,
+            billable=True,
             secret_options={
-                "api_url": self.api_url,
+                "api_url": "https://remote-waldur.com",
                 "token": "valid_token",
                 "customer_uuid": "customer-uuid",
             },
         )
-        self.customer = self.fixture.customer
+        self.offering_component = OfferingComponentFactory(
+            offering=self.offering,
+            type="cpu",
+            name="CPU",
+            billing_type=BillingTypes.FIXED,
+        )
+        self.plan = PlanFactory(
+            offering=self.offering,
+            unit_price=0,
+        )
+        PlanComponentFactory(
+            plan=self.plan,
+            component=self.offering_component,
+            price=10,
+            amount=1,
+        )
         self.resource = ResourceFactory(
-            project=self.fixture.project, offering=self.offering
+            project=self.fixture.project,
+            offering=self.offering,
+            plan=self.plan,
+            state=ResourceStates.CREATING,
         )
         self.resource.backend_id = "valid-backend-id"
         self.resource.save()
-
-    def tearDown(self):
-        self.dns_patcher.stop()
-        super().tearDown()
-        respx.stop()
-
-    def get_common_data(self, start=None, end=None, quantity=100):
-        now = timezone.now()
-        if start is None:
-            start = month_start(now)
-        if end is None:
-            end = month_end(now)
-        return {
-            "invoice": f"/api/invoices/{uuid.uuid4().hex}/",
-            "unit": BillingUnit.DAY.value,
-            "name": "Fake invoice item",
-            "measured_unit": "sample-m-unit",
-            "article_code": "",
-            "unit_price": 2.0,
-            "details": {},
-            "quantity": quantity,
-            "start": start.isoformat(),
-            "end": end.isoformat(),
-            "uuid": uuid.uuid4().hex,
-            "price": float(2.0 * quantity),
-            "offering_name": "Test offering",
-            "project_uuid": None,
-            "project_name": "",
-            "customer_uuid": uuid.uuid4().hex,
-            "customer_name": "Test customer",
-        }
-
-    def get_factory_data(self, data):
-        """Return data suitable for Django InvoiceItemFactory (without API-only fields)."""
-        return {k: v for k, v in data.items() if k not in API_ONLY_FIELDS}
-
-    def mock_invoice_items(self, json):
-        respx.get(
-            f"{self.api_url}/api/invoice-items/", params={"page_size": 100}
-        ).respond(200, json=json)
+        self.customer = self.fixture.customer
 
     @freeze_time("2021-08-17")
-    def test_invoice_is_created_after_pull(self):
-        self.mock_invoice_items([])
+    def test_invoice_is_created_when_resource_is_activated(self):
+        """Invoice is created when remote resource transitions to OK state."""
         today = datetime.date.today()
-
         self.assertEqual(
             0,
             Invoice.objects.filter(
@@ -111,7 +73,9 @@ class InvoiceItemPullTest(test.APITestCase):
             ).count(),
         )
 
-        ResourceInvoicePullTask().run(serialize_instance(self.resource))
+        self.resource.set_state_ok()
+        self.resource.save()
+
         self.assertEqual(
             1,
             Invoice.objects.filter(
@@ -119,92 +83,59 @@ class InvoiceItemPullTest(test.APITestCase):
             ).count(),
         )
 
-        ResourceInvoicePullTask().run(serialize_instance(self.resource))
-        self.assertEqual(
-            1,
-            Invoice.objects.filter(
-                customer__uuid=self.customer.uuid, year=today.year, month=today.month
-            ).count(),
-        )
+    @freeze_time("2021-08-01")
+    def test_invoice_items_are_created_by_local_calculation(self):
+        """Invoice items are created from local plan components, not pulled from remote."""
+        self.resource.set_state_ok()
+        self.resource.save()
 
-    def test_invoice_items_creation(self):
-        item_data = self.get_common_data()
-        self.mock_invoice_items(
-            [
-                {
-                    "resource_uuid": self.resource.backend_id,
-                    "offering_uuid": self.offering.uuid.hex,
-                    "offering_component_type": None,
-                    **item_data,
-                }
-            ]
-        )
-        today = datetime.date.today()
-        ResourceInvoicePullTask().run(serialize_instance(self.resource))
         invoice = Invoice.objects.get(
-            customer__uuid=self.customer.uuid, year=today.year, month=today.month
+            customer__uuid=self.customer.uuid, year=2021, month=8
         )
-        self.assertEqual(
-            1,
-            InvoiceItem.objects.filter(
-                resource__uuid=self.resource.uuid, invoice=invoice
-            ).count(),
-        )
-        item = InvoiceItem.objects.get(
+        items = InvoiceItem.objects.filter(
             resource__uuid=self.resource.uuid, invoice=invoice
         )
-        self.assertEqual(2.0 * 100, item.total)
+        self.assertEqual(items.count(), 1)
+        item = items.first()
+        self.assertEqual(item.unit_price, 10)
+        # Full month on 1st: quantity=1, total=10
+        self.assertEqual(item.quantity, 1)
+        self.assertEqual(item.total, 10)
 
-    def test_invoice_item_deletion(self):
-        item_data = self.get_common_data()
-        self.mock_invoice_items([])
-        invoice = InvoiceFactory(customer=self.customer)
-        factory_data = self.get_factory_data(item_data)
-        factory_data.pop("invoice")
-        InvoiceItemFactory(
-            invoice=invoice,
-            resource=self.resource,
-            **factory_data,
+    @freeze_time("2021-08-17")
+    def test_invoice_is_created_via_monthly_task(self):
+        """create_monthly_invoices creates invoices for remote resources."""
+        self.resource.set_state_ok()
+        self.resource.save()
+
+        # Create invoice for next month via monthly task
+        with freeze_time("2021-09-01"):
+            create_monthly_invoices()
+
+        invoice = Invoice.objects.get(
+            customer__uuid=self.customer.uuid, year=2021, month=9
         )
-        ResourceInvoicePullTask().run(serialize_instance(self.resource))
-        self.assertEqual(
-            0,
-            InvoiceItem.objects.filter(
-                resource__uuid=self.resource.uuid, invoice=invoice
-            ).count(),
+        items = InvoiceItem.objects.filter(
+            resource__uuid=self.resource.uuid, invoice=invoice
         )
+        self.assertEqual(items.count(), 1)
 
-    def test_invoice_item_modification(self):
-        new_quantity = 200
-        new_month_end = month_end(timezone.now() + datetime.timedelta(weeks=5))
-        new_item_data = self.get_common_data(quantity=new_quantity, end=new_month_end)
-        old_item_data = self.get_common_data()
-        old_factory_data = self.get_factory_data(old_item_data)
-        old_factory_data.pop("invoice")
+    @freeze_time("2021-10-01")
+    def test_get_or_create_invoice_processes_remote_resources(self):
+        """get_or_create_invoice processes remote resources when creating new invoice."""
+        self.resource.set_state_ok()
+        self.resource.save()
 
-        self.mock_invoice_items(
-            [
-                {
-                    "resource_uuid": self.resource.backend_id,
-                    "offering_uuid": self.offering.uuid.hex,
-                    "offering_component_type": None,
-                    **new_item_data,
-                }
-            ]
+        today = timezone.now().date()
+        invoice, _ = MarketplaceBillingService.get_or_create_invoice(
+            self.customer, today
         )
 
-        invoice = InvoiceFactory(customer=self.customer)
-        item = InvoiceItemFactory(
-            invoice=invoice,
-            resource=self.resource,
-            **old_factory_data,
-            backend_uuid=new_item_data["uuid"],
+        items = InvoiceItem.objects.filter(
+            resource__uuid=self.resource.uuid, invoice=invoice
         )
-
-        self.assertNotEqual(new_month_end, item.end)
-
-        ResourceInvoicePullTask().run(serialize_instance(self.resource))
-
-        item.refresh_from_db()
-        self.assertEqual(new_quantity, item.quantity)
-        self.assertEqual(new_month_end, item.end)
+        self.assertGreaterEqual(
+            items.count(),
+            1,
+            "Remote resources should get invoice items from local calculation",
+        )

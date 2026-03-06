@@ -15,7 +15,6 @@ from django.utils import dateparse, timezone
 from httpx import TimeoutException
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import status
-from waldur_api_client.api.invoice_items import invoice_items_list
 from waldur_api_client.api.maintenance_announcements import (
     maintenance_announcements_list,
 )
@@ -88,10 +87,7 @@ from waldur_core.permissions.utils import get_users_with_permission
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.tasks import BackgroundListPullTask, BackgroundPullTask
-from waldur_mastermind.invoices import models as invoice_models
-from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace import models
-from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.callbacks import sync_order_state
 from waldur_mastermind.marketplace.enums import (
     REMOTE_OFFERING,
@@ -1033,114 +1029,6 @@ def pull_offering_usage(serialized_offering):
         UsagePullTask().delay(serialize_instance(resource), from_creation_date=True)
 
 
-class ResourceInvoicePullTask(BackgroundPullTask):
-    def pull(self, local_resource: models.Resource):
-        for date in (get_previous_month(), timezone.now()):
-            self.pull_date(date, local_resource)
-
-    def pull_date(self, date, local_resource: models.Resource):
-        client = get_client_for_offering(local_resource.offering)
-        local_customer: structure_models.Customer = local_resource.project.customer
-        try:
-            remote_invoice_items = invoice_items_list.sync_all(
-                client=client,
-                resource_uuid=local_resource.backend_id,
-                year=date.year,
-                month=date.month,
-            )
-        except (UnexpectedStatus, TimeoutException, KeyError) as e:
-            logger.info(
-                f"Unable to get remote invoice items for resource [id={local_resource.backend_id}]: {e}"
-            )
-            return
-
-        local_invoice, _ = MarketplaceBillingService.get_or_create_invoice(
-            local_customer, date
-        )
-        local_invoice_items = local_invoice.items.filter(resource=local_resource)
-        local_invoice_items.filter(backend_uuid=None).delete()
-
-        local_item_ids = {item.backend_uuid.hex for item in local_invoice_items}
-        remote_item_ids = {item.uuid.hex for item in remote_invoice_items}
-
-        new_item_ids = remote_item_ids - local_item_ids
-        stale_item_ids = local_item_ids - remote_item_ids
-        existing_item_ids = local_item_ids & remote_item_ids
-
-        if len(stale_item_ids) > 0:
-            invoice_models.InvoiceItem.objects.filter(name__in=stale_item_ids).delete()
-            logger.info(
-                f"The following invoice items for resource [uuid={local_resource.uuid}] have been deleted: {stale_item_ids}"
-            )
-
-        new_invoice_items = [
-            item for item in remote_invoice_items if item.uuid.hex in new_item_ids
-        ]
-        for remote_item in new_invoice_items:
-            invoice_models.InvoiceItem.objects.create(
-                backend_uuid=remote_item.uuid.hex,
-                resource=local_resource,
-                invoice=local_invoice,
-                start=remote_item.start,
-                end=remote_item.end,
-                name=remote_item.name,
-                project=local_resource.project,
-                unit=remote_item.unit.value,
-                measured_unit=remote_item.measured_unit,
-                article_code=remote_item.article_code,
-                unit_price=remote_item.unit_price,
-                details=remote_item.details,
-                quantity=remote_item.quantity,
-            )
-
-        existing_invoice_items = [
-            item for item in remote_invoice_items if item.uuid.hex in existing_item_ids
-        ]
-        for remote_item in existing_invoice_items:
-            local_item = local_invoice_items.get(
-                backend_uuid=remote_item.uuid.hex,
-            )
-            local_item.start = remote_item.start
-            local_item.end = remote_item.end
-            local_item.measured_unit = remote_item.measured_unit
-            local_item.details = remote_item.details
-            local_item.quantity = remote_item.quantity
-            local_item.article_code = remote_item.article_code
-            local_item.unit_price = remote_item.unit_price
-            local_item.unit = remote_item.unit.value
-            local_item.save(
-                update_fields=[
-                    "start",
-                    "end",
-                    "measured_unit",
-                    "details",
-                    "quantity",
-                    "article_code",
-                    "unit_price",
-                    "unit",
-                ]
-            )
-
-
-class ResourceInvoiceListPullTask(BackgroundListPullTask):
-    """Pull and synchronize remote marketplace resource invoice data.
-
-    This task synchronizes invoice items for marketplace resources from
-    remote Waldur instances, including current and previous month data.
-    Runs every 60 minutes via celery beat.
-    """
-
-    name = "waldur_mastermind.marketplace_remote.pull_invoices"
-    pull_task = ResourceInvoicePullTask
-
-    def get_pulled_objects(self):
-        return (
-            models.Resource.objects.filter(offering__type=REMOTE_OFFERING)
-            .exclude(state=ResourceStates.TERMINATED)
-            .exclude(backend_id="")
-        )
-
-
 # Monkey-patch the API client's RobotAccountStates to handle different enum versions
 # Some versions use IntEnum with integer values (VALUE_1=1, VALUE_2=2, etc.)
 # Other versions use StrEnum with string values (OK="OK", CREATING="Creating", etc.)
@@ -1285,24 +1173,6 @@ def pull_offering_robot_accounts(serialized_offering):
     )
     for resource in resources:
         ResourceRobotAccountPullTask().delay(serialize_instance(resource))
-
-
-@shared_task
-def pull_offering_invoices(serialized_offering):
-    """Pull invoice data for a specific offering.
-
-    This task pulls invoice data for all resources associated with a specific
-    offering, excluding terminated resources.
-    Used for targeted synchronization of a single offering's invoice data.
-    """
-    offering = deserialize_instance(serialized_offering)
-    resources = (
-        models.Resource.objects.filter(offering=offering)
-        .exclude(state=ResourceStates.TERMINATED)
-        .exclude(backend_id="")
-    )
-    for resource in resources:
-        ResourceInvoicePullTask().delay(serialize_instance(resource))
 
 
 @shared_task(
