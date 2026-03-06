@@ -1132,6 +1132,28 @@ class OrderDeleteTest(test.APITestCase):
         return response
 
 
+class OrderUnlinkTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.order = factories.OrderFactory(
+            project=self.fixture.project,
+            created_by=self.fixture.manager,
+        )
+
+    def test_staff_can_unlink_order(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OrderFactory.get_url(self.order, action="unlink")
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(models.Order.objects.filter(pk=self.order.pk).exists())
+
+    def test_non_staff_cannot_unlink_order(self):
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.OrderFactory.get_url(self.order, action="unlink")
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
 @ddt
 class OrderFilterTest(test.APITestCase):
     def setUp(self):

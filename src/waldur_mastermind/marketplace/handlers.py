@@ -44,6 +44,7 @@ from waldur_mastermind.marketplace.enums import SCRIPT_OFFERING as SCRIPT_PLUGIN
 from waldur_mastermind.marketplace.enums import (
     SITE_AGENT_OFFERING as SITE_AGENT_PLUGIN_NAME,
 )
+from waldur_mastermind.marketplace.log import get_order_scopes
 from waldur_mastermind.marketplace.maintenance_utils import (
     MaintenanceAnnouncementTemplate,
 )
@@ -108,10 +109,6 @@ def get_plan_scopes(plan: models.Plan):
 def get_offering_role_scopes(offering_role: models.OfferingUserRole):
     offering = offering_role.offering
     return [offering, offering.customer]
-
-
-def get_order_scopes(order: models.Order):
-    return [order, order.project, order.project.customer, order.resource]
 
 
 ORDER_STATE_HANDLERS = {

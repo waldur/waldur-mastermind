@@ -7,6 +7,10 @@ def get_resource_scopes(resource: models.Resource):
     return [resource, resource.project, resource.project.customer]
 
 
+def get_order_scopes(order: models.Order):
+    return [order, order.project, order.project.customer, order.resource]
+
+
 def log_resource_limit_update_succeeded(resource: models.Resource):
     event_logger.emit(
         "Limits of resource {resource_name} have been updated.",
