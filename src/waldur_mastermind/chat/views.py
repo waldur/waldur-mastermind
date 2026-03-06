@@ -40,7 +40,11 @@ from waldur_mastermind.chat.input_guards import (
     get_detection_service,
 )
 from waldur_mastermind.chat.models import TokenQuota
-from waldur_mastermind.chat.parsers import StreamParser, parse_tool_call
+from waldur_mastermind.chat.parsers import (
+    StreamParser,
+    looks_like_tool_call,
+    parse_tool_call,
+)
 from waldur_mastermind.chat.prompts import (
     CANNED_REJECTION_MESSAGE,
     TITLE_GENERATION_PROMPT,
@@ -230,14 +234,12 @@ class LLMStreamer:
 
                         # Check if this looks like a tool call
                         if not self.is_tool_call and not self.might_be_tool_call:
-                            stripped = self.accumulated_content.strip()
-
-                            # Check if it could be a tool call
-                            if stripped.startswith("{"):
+                            if looks_like_tool_call(self.accumulated_content):
                                 # Might be a tool call - don't stream yet
                                 self.might_be_tool_call = True
-                                # Try to parse to see if it's complete
-                                tentative_parse = parse_tool_call(stripped)
+                                tentative_parse = parse_tool_call(
+                                    self.accumulated_content.strip()
+                                )
                                 if tentative_parse:
                                     self.is_tool_call = True
                                 # Continue buffering either way
@@ -262,13 +264,13 @@ class LLMStreamer:
                         self.input_tokens = usage.get("input_tokens", 0)
                         self.output_tokens = usage.get("output_tokens", 0)
 
-                # Final sweep
-                for block in self.parser.flush():
-                    yield from self._handle_stream_block(block)
-
-                # Send buffered content that wasn't a confirmed tool call
-                if self.might_be_tool_call and not self.is_tool_call:
-                    yield self._format_ndjson({"c": self.accumulated_content})
+                # Final sweep — skip if is_tool_call: the parser may have received
+                # preamble text or a partial ```json fence before detection kicked in,
+                # leaving it in a corrupt/half-open state. Flushing that garbage would
+                # render spurious content before the tool result.
+                if not self.is_tool_call:
+                    for block in self.parser.flush():
+                        yield from self._handle_stream_block(block)
 
                 # Handle tool call or regular content
                 if self.is_tool_call and self.user:
@@ -293,8 +295,22 @@ class LLMStreamer:
                         if tool_block:
                             yield self._format_ndjson(tool_block)
                     else:
-                        # Looked like JSON but wasn't a valid tool call - send as-is
-                        yield self._format_ndjson({"c": self.accumulated_content})
+                        # is_tool_call was tentatively set during streaming but the
+                        # final parse on the complete content failed. This should not
+                        # happen when the LLM follows the system prompt. Log for
+                        # debugging and yield nothing (same as internal tool errors).
+                        logger.warning(
+                            "Tool call parse failed on complete content: %s...",
+                            self.accumulated_content[:200],
+                        )
+                elif self.might_be_tool_call:
+                    # '{"tool"' was detected during streaming but the full content
+                    # never parsed as a valid tool call (e.g. stream cut short,
+                    # LLM produced malformed JSON). Log and yield nothing.
+                    logger.warning(
+                        "Tool call detection triggered but no valid tool call found: %s...",
+                        self.accumulated_content[:200],
+                    )
 
             # Normal completion: persist and yield UUIDs
             self._persist_messages()

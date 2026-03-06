@@ -68,27 +68,51 @@ class ChatResponseSerializer(serializers.Serializer):
     NDJSON streaming response format for chat messages.
 
     Uses single-character keys for bandwidth optimization. Each line is a JSON object
-    containing one or more of these fields:
+    containing one or more of these fields.
 
-    - k: Component key (markdown, code, table, mermaid, load)
-    - c: Content payload (text)
+    Generic fields (all component types):
+    - k: Component key (markdown, code, table, mermaid, load, vm_order)
+    - c: Content payload (text/markdown)
     - t: Type/tag (language for code blocks, component for loading)
     - h: Table headers (array of strings)
     - r: Table rows (array of arrays)
     - n: Row count (number)
     - e: Error message (string)
     - w: Warning message (PII detected, content redacted, etc.)
+    - m: System metadata (thread_uuid, message UUIDs)
+
+    vm_order component fields (k='vm_order'):
+    - status: 'form' | 'project_form' | 'preview' | 'success' | 'error'
+    - name: VM name
+    - flavor: Flavor display string (e.g. 'm1.small (2 vCPU, 4GB RAM)')
+    - image: Image name
+    - content: Intro text or form instructions
+    - project: Project name
+    - organization: Organization/customer name
+    - project_uuid: Project UUID
+    - order_id: Order UUID (success only)
+    - message: Success message (success only)
+    - error: Error detail (error only)
+    - flavors: Available flavor options [{name, cores, ram}] (form only)
+    - images: Available image options [{name, min_disk, min_ram}] (form only)
+    - projects: Available project options [{name, organization, uuid}] (project_form only)
 
     Examples:
         {"k":"markdown","c":"Hello!"}
         {"k":"code","c":"print('hi')","t":"python"}
         {"k":"table","h":["Name","State"],"r":[["VM1","OK"]],"n":1}
-        {"m":{"tokens":150}}
+        {"k":"vm_order","status":"project_form","name":"","content":"...","projects":[...]}
+        {"k":"vm_order","status":"form","name":"my-vm","project":"Acme","flavors":[...],"images":[...]}
+        {"k":"vm_order","status":"preview","name":"my-vm","flavor":"m1.small (2 vCPU, 4GB RAM)","image":"Ubuntu 22.04"}
+        {"k":"vm_order","status":"success","name":"my-vm","order_id":"uuid","message":"VM order created."}
+        {"k":"vm_order","status":"error","name":"","error":"No offering available."}
+        {"m":{"thread_uuid":"uuid"}}
         {"e":"Request failed"}
     """
 
     k = serializers.CharField(
-        required=False, help_text="Component Alias (e.g. 'markdown', 'code', 'table')."
+        required=False,
+        help_text="Component key (e.g. 'markdown', 'code', 'table', 'vm_order').",
     )
     c = serializers.CharField(required=False, help_text="Content payload.")
     t = serializers.CharField(
@@ -98,9 +122,51 @@ class ChatResponseSerializer(serializers.Serializer):
     h = serializers.ListField(required=False, help_text="Table headers.")
     r = serializers.ListField(required=False, help_text="Table rows.")
     n = serializers.IntegerField(required=False, help_text="Total row count.")
-    m = serializers.DictField(required=False, help_text="System metadata.")
+    m = serializers.DictField(
+        required=False, help_text="System metadata (thread_uuid, message UUIDs)."
+    )
     w = serializers.CharField(
         required=False, help_text="PII detection warning message."
+    )
+    # vm_order fields
+    status = serializers.CharField(
+        required=False,
+        help_text="vm_order status: 'form' | 'project_form' | 'preview' | 'success' | 'error'.",
+    )
+    name = serializers.CharField(required=False, help_text="VM name.")
+    flavor = serializers.CharField(
+        required=False,
+        help_text="Flavor display string (e.g. 'm1.small (2 vCPU, 4GB RAM)').",
+    )
+    image = serializers.CharField(required=False, help_text="Image name.")
+    content = serializers.CharField(
+        required=False, help_text="Intro text or form instructions."
+    )
+    project = serializers.CharField(required=False, help_text="Project name.")
+    organization = serializers.CharField(
+        required=False, help_text="Organization/customer name."
+    )
+    project_uuid = serializers.CharField(required=False, help_text="Project UUID.")
+    order_id = serializers.CharField(
+        required=False, help_text="Order UUID (present on success)."
+    )
+    message = serializers.CharField(
+        required=False, help_text="Success message (present on success)."
+    )
+    error = serializers.CharField(
+        required=False, help_text="Error detail (present on error)."
+    )
+    flavors = serializers.ListField(
+        required=False,
+        help_text="Available flavor options [{name, cores, ram}]. Present when status='form'.",
+    )
+    images = serializers.ListField(
+        required=False,
+        help_text="Available image options [{name, min_disk, min_ram}]. Present when status='form'.",
+    )
+    projects = serializers.ListField(
+        required=False,
+        help_text="Available project options [{name, organization, uuid}]. Present when status='project_form'.",
     )
 
 
