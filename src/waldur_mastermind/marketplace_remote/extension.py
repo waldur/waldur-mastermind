@@ -62,11 +62,6 @@ class MarketplaceRemoteExtension(WaldurExtension):
                 "schedule": timedelta(hours=6),
                 "args": (),
             },
-            "waldur-remote-pull-invoices": {
-                "task": "waldur_mastermind.marketplace_remote.pull_invoices",
-                "schedule": timedelta(minutes=60),
-                "args": (),
-            },
             "waldur-remote-pull-robot-accounts": {
                 "task": "waldur_mastermind.marketplace_remote.pull_robot_accounts",
                 "schedule": timedelta(minutes=60),

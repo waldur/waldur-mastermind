@@ -49,10 +49,6 @@ urlpatterns = [
         views.PullOfferingUsage.as_view(),
     ),
     re_path(
-        r"^api/remote-waldur-api/pull_offering_invoices/(?P<uuid>[a-f0-9]+)/$",
-        views.PullOfferingInvoices.as_view(),
-    ),
-    re_path(
         r"^api/remote-waldur-api/pull_offering_robot_accounts/(?P<uuid>[a-f0-9]+)/$",
         views.PullOfferingRobotAccounts.as_view(),
     ),
