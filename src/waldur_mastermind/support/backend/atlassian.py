@@ -784,33 +784,18 @@ class ServiceDeskBackend(SupportBackend):
 
     @reraise_exceptions
     def pull_request_types(self):
-        """Pull request types from Atlassian Service Desk with Jira REST API fallback."""
+        """Pull request types from Atlassian Service Desk via direct API call.
+
+        Uses direct HTTP request instead of the atlassian library's
+        get_request_types method to avoid TypeError in the library's
+        raise_for_status when the API returns a non-dict JSON error body.
+        See Sentry CSCS-PY.
+        """
         try:
-            # Try Service Desk API first
-            request_types = self.manager.get_request_types(
-                config.ATLASSIAN_PROJECT_ID
-            ).get("values", [])
-        except (ApiPermissionError, ApiError, requests.exceptions.HTTPError) as e:
-            # Fallback to Jira REST API
-            if "401" in str(e) or "403" in str(e):
-                logger.info(
-                    "Service Desk API access denied for request types, trying Jira REST API fallback"
-                )
-                try:
-                    request_types_response = self._get_request_types_fallback(
-                        config.ATLASSIAN_PROJECT_ID
-                    )
-                    request_types = request_types_response.get("values", [])
-                    logger.info(
-                        f"Successfully retrieved {len(request_types)} request types via Jira REST API fallback"
-                    )
-                except Exception as fe:
-                    logger.error(
-                        f"Both Service Desk API and Jira REST API failed for request types: {fe}"
-                    )
-                    raise ServiceBackendError(f"Failed to retrieve request types: {fe}")
-            else:
-                raise
+            response = self._get_request_types_fallback(config.ATLASSIAN_PROJECT_ID)
+            request_types = response.get("values", [])
+        except Exception as e:
+            raise ServiceBackendError(f"Failed to retrieve request types: {e}")
 
         try:
             with transaction.atomic():

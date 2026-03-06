@@ -80,7 +80,7 @@ class InvoiceTest(test.APITestCase):
 
 
 @freeze_time("2020-11-01")
-class TotalLimitTest(test.APITransactionTestCase):
+class TotalLimitTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()
         self.component = self.fixture.offering_component
