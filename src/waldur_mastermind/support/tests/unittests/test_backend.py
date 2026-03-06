@@ -100,8 +100,10 @@ class IssueCreateTest(BaseBackendTest):
         )
 
     def test_original_reporter_is_specified_in_custom_field(self):
-        # Mock get_request_types for pull_request_types
-        self.mocked_jira.get_request_types.return_value = {"values": []}
+        # Mock _get_request_types_fallback for pull_request_types
+        self.backend._get_request_types_fallback = mock.Mock(
+            return_value={"values": []}
+        )
 
         # Create the needed RequestType since create_issue checks for it
         from waldur_mastermind.support.tests.factories import RequestTypeFactory
@@ -304,8 +306,10 @@ class RequestTypeLookupTest(BaseBackendTest):
 
     def setUp(self):
         super().setUp()
-        # Mock get_request_types for pull_request_types
-        self.mocked_jira.get_request_types.return_value = {"values": []}
+        # Mock _get_request_types_fallback for pull_request_types
+        self.backend._get_request_types_fallback = mock.Mock(
+            return_value={"values": []}
+        )
 
         # Mock create_customer_request to return Service Desk API format
         self.mocked_jira.create_customer_request.return_value = {
@@ -381,23 +385,36 @@ class RequestTypeLookupTest(BaseBackendTest):
 
 
 class PullRequestTypesTest(BaseBackendTest):
-    """Test pull_request_types functionality."""
+    """Test pull_request_types functionality.
+
+    pull_request_types uses _get_request_types_fallback (direct HTTP) instead of
+    the atlassian library's get_request_types to avoid TypeError in the library's
+    raise_for_status when API returns non-dict JSON error body (Sentry CSCS-PY).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.mock_request_types_response = {
+            "values": [
+                {"id": "125", "name": "Get IT help"},
+                {"id": "128", "name": "Request a new account"},
+            ]
+        }
+        self.fallback_patcher = mock.patch.object(
+            self.backend, "_get_request_types_fallback"
+        )
+        self.mock_fallback = self.fallback_patcher.start()
+        self.mock_fallback.return_value = self.mock_request_types_response
+
+    def tearDown(self):
+        self.fallback_patcher.stop()
+        super().tearDown()
 
     def test_pull_request_types_sets_issue_type_name(self):
         """Test that pull_request_types correctly sets issue_type_name field."""
-        # Mock request types response from Atlassian
-        mock_request_types = [
-            {"id": "125", "name": "Get IT help"},
-            {"id": "128", "name": "Request a new account"},
-        ]
-        self.mocked_jira.get_request_types.return_value = {"values": mock_request_types}
-
-        # Call pull_request_types
         self.backend.pull_request_types()
 
-        # Verify RequestTypes were created with correct issue_type_name
         request_types = models.RequestType.objects.all()
-
         self.assertEqual(request_types.count(), 2)
 
         rt1 = models.RequestType.objects.get(backend_id="125")
@@ -411,13 +428,39 @@ class PullRequestTypesTest(BaseBackendTest):
     @override_config(WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE="atlassian")
     def test_pull_request_types_sets_backend_name(self):
         """Test that pull_request_types correctly sets backend_name from config."""
-        # Mock request types response
-        mock_request_types = [{"id": "125", "name": "Get IT help"}]
-        self.mocked_jira.get_request_types.return_value = {"values": mock_request_types}
+        self.mock_fallback.return_value = {
+            "values": [{"id": "125", "name": "Get IT help"}]
+        }
 
-        # Call pull_request_types
         self.backend.pull_request_types()
 
-        # Verify backend_name is set correctly
         request_type = models.RequestType.objects.get(backend_id="125")
         self.assertEqual(request_type.backend_name, "atlassian")
+
+    def test_pull_request_types_handles_api_error_gracefully(self):
+        """Test that pull_request_types wraps API errors in ServiceBackendError.
+
+        Reproduces Sentry CSCS-PY: previously, pull_request_types used the
+        atlassian library's get_request_types which could trigger TypeError
+        in raise_for_status when the API returned a non-dict JSON error body.
+        The fix uses direct HTTP calls that raise ServiceBackendError instead.
+        """
+        self.mock_fallback.side_effect = ServiceBackendError(
+            "Jira REST API request failed: 403 Forbidden"
+        )
+
+        with self.assertRaises(ServiceBackendError):
+            self.backend.pull_request_types()
+
+    def test_pull_request_types_does_not_use_library_get_request_types(self):
+        """Verify pull_request_types uses direct API call, not atlassian library method.
+
+        The library's get_request_types triggers TypeError in raise_for_status
+        when the API returns a non-dict JSON error body (Sentry CSCS-PY).
+        """
+        self.backend.pull_request_types()
+
+        # The library method should NOT be called
+        self.mocked_jira.get_request_types.assert_not_called()
+        # The direct API fallback SHOULD be called
+        self.mock_fallback.assert_called_once()
