@@ -785,11 +785,10 @@ Upload OpenAPI schema and schema diff to docs:
   image:
     name: registry.hpc.ut.ee/mirror/alpine/git:latest
     entrypoint: [""]
+  before_script: *build_before_script
   script:
     - cd /tmp/
     - git clone --depth 1 "git@github.com:waldur/api-docs.git"
-    - git config --global user.name "$GITLAB_USER_NAME"
-    - git config --global user.email "$GITLAB_USER_EMAIL"
     - cd api-docs
     - mkdir -p docs/API
     - cp $CI_PROJECT_DIR/waldur-openapi-schema.yaml docs/API/waldur-openapi-schema-${CI_COMMIT_TAG}.yaml
@@ -808,7 +807,6 @@ Upload OpenAPI schema and schema diff to docs:
     - git commit -m "Add Waldur OpenAPI schema and diff for ${CI_COMMIT_TAG}" || exit 0
     - git pull --rebase origin main
     - git push origin HEAD:main
-  before_script: []
 
 Upload HomePort enums:
   stage: postdeploy
