@@ -558,10 +558,28 @@ class UserSerializerIdentityBridgeFieldsTest(TestCase):
         self.assertEqual(response.data["active_isds"], ["isd:fenix"])
         self.assertEqual(response.data["managed_isds"], ["isd:puhuri"])
 
-    def test_regular_user_does_not_see_identity_bridge_fields(self):
+    def test_regular_user_sees_own_identity_bridge_fields(self):
+        """Regular users can see identity bridge fields on their own profile."""
         user = structure_factories.UserFactory()
         self.client.force_authenticate(user)
         url = reverse("user-detail", kwargs={"uuid": user.uuid.hex})
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("active_isds", response.data)
+        self.assertIn("managed_isds", response.data)
+        self.assertIn("is_identity_manager", response.data)
+        # attribute_sources is staff-only
+        self.assertNotIn("attribute_sources", response.data)
+
+    def test_support_does_not_see_identity_bridge_fields_on_other_user(self):
+        """Support users cannot see identity bridge fields on other users."""
+        support = structure_factories.UserFactory(is_support=True)
+        other = structure_factories.UserFactory(
+            active_isds=["isd:fenix"],
+            managed_isds=["isd:puhuri"],
+        )
+        self.client.force_authenticate(support)
+        url = reverse("user-detail", kwargs={"uuid": other.uuid.hex})
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertNotIn("active_isds", response.data)
