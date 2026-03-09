@@ -1123,6 +1123,70 @@ class UserPermissionsFieldTest(test.APITestCase):
         self.assertEqual(len(multi_role_data["permissions"]), 2)
 
 
+class UserIdentityBridgeFieldsVisibilityTest(test.APITestCase):
+    """Identity Bridge fields (is_identity_manager, managed_isds, active_isds)
+    are visible read-only on own profile but hidden when viewing other users."""
+
+    SELF_VISIBLE_FIELDS = ("is_identity_manager", "managed_isds", "active_isds")
+
+    def setUp(self):
+        self.staff = factories.UserFactory(is_staff=True)
+        self.identity_manager = factories.UserFactory(
+            is_identity_manager=True,
+            managed_isds=["isd:efp"],
+            active_isds=["isd:efp"],
+        )
+        self.regular_user = factories.UserFactory()
+        # Put both non-staff users in the same customer so they can see each other
+        self.customer = factories.CustomerFactory()
+        self.customer.add_user(self.identity_manager, CustomerRole.OWNER)
+        self.customer.add_user(self.regular_user, CustomerRole.SUPPORT)
+
+    def test_user_can_see_own_identity_bridge_fields(self):
+        self.client.force_authenticate(self.identity_manager)
+        response = self.client.get(factories.UserFactory.get_url(self.identity_manager))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for field in self.SELF_VISIBLE_FIELDS:
+            self.assertIn(
+                field, response.data, f"{field} should be visible on own profile"
+            )
+        self.assertTrue(response.data["is_identity_manager"])
+        self.assertEqual(response.data["managed_isds"], ["isd:efp"])
+
+    def test_user_cannot_see_identity_bridge_fields_of_other_user(self):
+        self.client.force_authenticate(self.regular_user)
+        response = self.client.get(factories.UserFactory.get_url(self.identity_manager))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for field in self.SELF_VISIBLE_FIELDS:
+            self.assertNotIn(
+                field, response.data, f"{field} should be hidden for other users"
+            )
+
+    def test_staff_can_see_identity_bridge_fields_of_any_user(self):
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(factories.UserFactory.get_url(self.identity_manager))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        for field in self.SELF_VISIBLE_FIELDS:
+            self.assertIn(field, response.data, f"{field} should be visible to staff")
+
+    def test_identity_bridge_fields_are_read_only_on_own_profile(self):
+        self.client.force_authenticate(self.identity_manager)
+        self.client.patch(
+            factories.UserFactory.get_url(self.identity_manager),
+            {"managed_isds": ["isd:fenix"]},
+            format="json",
+        )
+        self.identity_manager.refresh_from_db()
+        self.assertEqual(self.identity_manager.managed_isds, ["isd:efp"])
+
+    def test_regular_user_sees_own_identity_bridge_fields_with_defaults(self):
+        self.client.force_authenticate(self.regular_user)
+        response = self.client.get(factories.UserFactory.get_url(self.regular_user))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("is_identity_manager", response.data)
+        self.assertFalse(response.data["is_identity_manager"])
+
+
 class UserAggregationEndpointsTest(test.APITestCase):
     """Tests for user aggregation endpoints (staff/support only)."""
 
