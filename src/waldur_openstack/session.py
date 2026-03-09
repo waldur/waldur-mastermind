@@ -185,7 +185,7 @@ def get_keystone_client(session):
 def get_nova_client(session: keystone_session.Session) -> "nova2_client.Client":
     try:
         return nova_client.Client(
-            version="2.19",
+            version="2.47",
             session=session,
             endpoint_type="publicURL",
         )

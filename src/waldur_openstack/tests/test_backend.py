@@ -66,7 +66,14 @@ class BaseBackendTest(TestCase):
                 "key_name": "",
                 "created": "2012-04-23T08:10:00Z",
                 "OS-SRV-USG:launched_at": "2012-04-23T09:15",
-                "flavor": {"id": backend_id},
+                "flavor": {
+                    "vcpus": 2,
+                    "ram": 4096,
+                    "disk": 10,
+                    "ephemeral": 0,
+                    "swap": 0,
+                    "original_name": "m1.small",
+                },
                 "image": {"id": backend_id},
                 "networks": {
                     "test-int-net": ["192.168.42.60"],
@@ -476,18 +483,19 @@ class PullInstanceTest(BaseBackendTest):
     def setUp(self):
         super().setUp()
 
-        class MockFlavor:
-            name = "flavor_name"
-            disk = 102400
-            ram = 10240
-            vcpus = 1
-
         class MockInstance:
             name = "instance_name"
             id = "instance_id"
             created = "2017-08-10"
             key_name = "key_name"
-            flavor = {"id": "flavor_id"}
+            flavor = {
+                "vcpus": 1,
+                "ram": 10240,
+                "disk": 100,
+                "ephemeral": 0,
+                "swap": 0,
+                "original_name": "flavor_name",
+            }
             image = {"id": "image_id"}
             status = "ERRED"
             fault = {"message": "OpenStack Nova error."}
@@ -505,7 +513,6 @@ class PullInstanceTest(BaseBackendTest):
 
         self.mocked_nova.servers.get.return_value = MockInstance
         self.mocked_nova.volumes.get_server_volumes.return_value = []
-        self.mocked_nova.flavors.get.return_value = MockFlavor
 
     def test_availability_zone_is_pulled(self):
         zone = self.fixture.instance_availability_zone
@@ -971,11 +978,7 @@ class GetInstancesTest(BaseBackendTest):
         backend_instances = self._generate_instances(backend=True, count=3)
         instances = backend_instances + self._generate_instances()
 
-        def get_volume(backend_id):
-            return self._get_valid_flavor(backend_id=backend_id)
-
         self.mocked_nova.servers.list.return_value = instances
-        self.mocked_nova.flavors.get.side_effect = get_volume
 
         result = self.backend.get_instances(self.tenant)
 
@@ -991,13 +994,8 @@ class ImportInstanceTest(BaseBackendTest):
         self.backend_instance = self._get_valid_instance(self.backend_id)
         self.mocked_nova.servers.get.return_value = self.backend_instance
 
-        backend_flavor = self._get_valid_flavor(self.backend_id)
-        self.backend_instance.flavor = backend_flavor._info
-        self.mocked_nova.flavors.get.return_value = backend_flavor
-
         backend_image = self._get_valid_image(self.backend_id)
         self.backend_instance.image = backend_image
-        self.mocked_glance.images.get.return_value = backend_flavor
 
     def test_backend_instance_without_volumes_is_imported(self):
         self.mocked_nova.volumes.get_server_volumes.return_value = []
@@ -1168,7 +1166,14 @@ class EnhancedImageDetectionTest(BaseBackendTest):
                 "key_name": "",
                 "created": "2012-04-23T08:10:00Z",
                 "OS-SRV-USG:launched_at": "2012-04-23T09:15",
-                "flavor": {"id": "flavor_id"},
+                "flavor": {
+                    "vcpus": 2,
+                    "ram": 4096,
+                    "disk": 10,
+                    "ephemeral": 0,
+                    "swap": 0,
+                    "original_name": "m1.small",
+                },
                 "image": "",  # No image metadata
                 "OS-EXT-SRV-ATTR:root_device_name": "/dev/vda",
                 "networks": {"test-int-net": ["192.168.42.60"]},
@@ -1212,11 +1217,7 @@ class EnhancedImageDetectionTest(BaseBackendTest):
         # Create volume reference object for nova API
         self.volume_ref = type("VolumeRef", (), {"volumeId": self.volume_backend_id})
 
-        # Setup flavor mock (required for instance creation)
-        self.flavor_id = "test_flavor_id"
-        self.backend_flavor = self._get_valid_flavor(self.flavor_id)
-        self.backend_instance_no_image.flavor = self.backend_flavor._info
-        self.mocked_nova.flavors.get.return_value = self.backend_flavor
+        # Flavor is embedded in server response with microversion 2.47+
 
     def test_image_detection_from_bootable_volume_with_image_id(self):
         """Test that image is detected from bootable volume when instance has no image metadata"""

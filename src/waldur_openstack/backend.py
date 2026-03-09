@@ -4569,7 +4569,7 @@ class OpenStackBackend(ServiceBackend):
             attached_volume_ids = [
                 v.volumeId for v in nova.volumes.get_server_volumes(backend_id)
             ]
-            flavor_id = backend_instance.flavor["id"]
+            backend_flavor = backend_instance.flavor
             image_id = backend_instance.image and backend_instance.image.get("id")
 
             # If no image_id from instance metadata, try to get it from bootable volumes
@@ -4603,7 +4603,7 @@ class OpenStackBackend(ServiceBackend):
         instance: models.Instance = self._backend_instance_to_instance(
             tenant,
             backend_instance,
-            flavor_id,
+            backend_flavor,
             connected_internal_network_names,
             image_id,
             detected_image_name,
@@ -4760,7 +4760,7 @@ class OpenStackBackend(ServiceBackend):
         self,
         tenant: models.Tenant,
         backend_instance,
-        backend_flavor_id=None,
+        backend_flavor=None,
         connected_internal_network_names=None,
         backend_image_id=None,
         backend_image_name=None,
@@ -4823,23 +4823,13 @@ class OpenStackBackend(ServiceBackend):
             directly_connected_ips=",".join(external_backend_ips),
         )
 
-        if backend_flavor_id:
-            try:
-                flavor = models.Flavor.objects.get(
-                    settings=tenant.service_settings, backend_id=backend_flavor_id
-                )
-                instance.flavor_name = flavor.name
-                instance.flavor_disk = flavor.disk
-                instance.cores = flavor.cores
-                instance.ram = flavor.ram
-            except models.Flavor.DoesNotExist:
-                backend_flavor = self._get_flavor(tenant, backend_flavor_id)
-                # If flavor has been removed in OpenStack cloud, we should skip update
-                if backend_flavor:
-                    instance.flavor_name = backend_flavor.name
-                    instance.flavor_disk = self.gb2mb(backend_flavor.disk)
-                    instance.cores = backend_flavor.vcpus
-                    instance.ram = backend_flavor.ram
+        # With Nova microversion 2.47+, flavor details are embedded in the
+        # server response (vcpus, ram, disk, original_name) even for deleted flavors.
+        if backend_flavor:
+            instance.flavor_name = backend_flavor.get("original_name", "")
+            instance.flavor_disk = self.gb2mb(backend_flavor.get("disk", 0))
+            instance.cores = backend_flavor.get("vcpus", 0)
+            instance.ram = backend_flavor.get("ram", 0)
 
         if backend_image_id:
             try:
@@ -4874,17 +4864,6 @@ class OpenStackBackend(ServiceBackend):
 
         return instance
 
-    def _get_flavor(self, tenant: models.Tenant, flavor_id):
-        session = get_tenant_session(tenant)
-        nova = get_nova_client(session)
-        try:
-            return nova.flavors.get(flavor_id)
-        except nova_exceptions.NotFound:
-            logger.info("OpenStack flavor %s is gone.", flavor_id)
-            return None
-        except nova_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-
     def _get_image(self, tenant: models.Tenant, image_id):
         session = get_tenant_session(tenant)
         glance = get_glance_client(session)
@@ -4911,11 +4890,11 @@ class OpenStackBackend(ServiceBackend):
 
         instances = []
         for backend_instance in backend_instances:
-            flavor_id = backend_instance.flavor["id"]
+            backend_flavor = backend_instance.flavor
             image_id = backend_instance.image and backend_instance.image.get("id")
             instances.append(
                 self._backend_instance_to_instance(
-                    tenant, backend_instance, flavor_id, None, image_id, None
+                    tenant, backend_instance, backend_flavor, None, image_id, None
                 )
             )
         return instances
@@ -5059,6 +5038,14 @@ class OpenStackBackend(ServiceBackend):
                 and "image_name" in update_fields
             ):
                 update_fields = tuple(f for f in update_fields if f != "image_name")
+            # Don't overwrite flavor fields with zeros if instance already has values
+            for field in ("cores", "ram", "flavor_name", "flavor_disk"):
+                if (
+                    not getattr(imported_instance, field)
+                    and getattr(instance, field)
+                    and field in update_fields
+                ):
+                    update_fields = tuple(f for f in update_fields if f != field)
             update_pulled_fields(instance, imported_instance, update_fields)
 
     @log_backend_action()
