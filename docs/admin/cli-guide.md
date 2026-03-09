@@ -38,6 +38,27 @@ positional arguments:
 
 ```
 
+## archive_offering
+
+Archive an offering and terminate all its resources (including child offerings' resources), or clean up invoice items for already-terminated resources.
+
+```bash
+
+usage: waldur archive_offering [--dry-run]
+                               {terminate,cleanup-invoices} offering_uuid
+
+positional arguments:
+  {terminate,cleanup-invoices}
+                        terminate: archive offering(s) and terminate all non-
+                        terminated resources. cleanup-invoices: remove current
+                        month invoice items for terminated resources.
+  offering_uuid         UUID of the parent offering to process.
+
+options:
+  --dry-run             List affected resources/items without making changes.
+
+```
+
 ## axes_list_attempts
 
 List access attempts

@@ -124,6 +124,7 @@ td:nth-child(4) {
 | `waldur-keycloak-cleanup-orphaned-memberships` | `waldur_keycloak.cleanup_orphaned_memberships` | 1 hour | Task not found in registry |
 | `waldur-keycloak-sync-pending-memberships` | `waldur_keycloak.sync_pending_memberships` | 15 minutes | Task not found in registry |
 | `waldur-marketplace-calculate-usage` | `waldur_mastermind.marketplace.calculate_usage_for_current_month` | 1 hour | Calculate marketplace resource usage for the current month across all customers and projects. |
+| `waldur-marketplace-script-cleanup-orphaned-k8s-resources` | `waldur_marketplace_script.cleanup_orphaned_k8s_resources` | 1 hour | Remove orphaned Kubernetes Jobs and ConfigMaps created by Waldur that are older than 1 hour. |
 | `waldur-marketplace-script-pull-resources` | `waldur_marketplace_script.pull_resources` | 1 hour | Pull resources from marketplace script offerings by executing configured pull scripts. |
 | `waldur-marketplace-script-remove-old-dry-runs` | `waldur_marketplace_script.remove_old_dry_runs` | 1 day | Remove old dry run records that are older than one day. |
 | `waldur-mastermind-reject-past-bookings` | `waldur_mastermind.booking.reject_past_bookings` | Cron: `0 10 * * * (m/h/dM/MY/d)` | Reject booking resources that have start times in the past. |
