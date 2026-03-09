@@ -63,7 +63,14 @@ MOCK_INSTANCE = MockInstance(
     status="active",
     key_name="ssh-public",
     created="2020-02-02T02:02",
-    flavor={"id": "std"},
+    flavor={
+        "vcpus": 4,
+        "ram": 4096,
+        "disk": 100,
+        "ephemeral": 0,
+        "swap": 0,
+        "original_name": "Standard",
+    },
     image={"id": "image_id"},
     networks={
         "test-int-net": ["192.168.42.60"],

@@ -173,7 +173,6 @@ class InstanceImportableResourcesTest(BaseInstanceImportTest):
             ],
         )
         self.mocked_nova.servers.list.assert_called()
-        self.mocked_nova.flavors.get.assert_called()
 
 
 class InstanceImportTest(test.APITransactionTestCase):
