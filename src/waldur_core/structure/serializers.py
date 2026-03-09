@@ -1318,17 +1318,28 @@ class UserSerializer(
                 "description",
                 "has_active_session",
             )
-            # Identity Bridge fields are staff-only
-            staff_only_fields = (
-                "attribute_sources",
+            # Identity Bridge fields visible to staff and to the user themselves
+            self_visible_fields = (
                 "managed_isds",
                 "active_isds",
                 "is_identity_manager",
+            )
+            staff_only_fields = (
+                "attribute_sources",
                 "has_usable_password",
             )
+            is_own_profile = self._can_see_token(user)
             for field in staff_only_fields:
                 if field in fields:
                     del fields[field]
+            if is_own_profile:
+                for field in self_visible_fields:
+                    if field in fields:
+                        fields[field].read_only = True
+            else:
+                for field in self_visible_fields:
+                    if field in fields:
+                        del fields[field]
             if user.is_support:
                 for field in protected_fields:
                     if field in fields:
