@@ -3673,6 +3673,7 @@ class BaseItemSerializer(
             "provider_name",
             "provider_uuid",
             "provider_slug",
+            "provider_description",
             "category_title",
             "category_uuid",
             "category_icon",
@@ -3715,6 +3716,9 @@ class BaseItemSerializer(
     )
     provider_slug = serializers.ReadOnlyField(
         read_only=True, source="offering.customer.slug"
+    )
+    provider_description = serializers.ReadOnlyField(
+        source="offering.customer.description"
     )
     category_title = serializers.ReadOnlyField(source="offering.category.title")
     category_icon = serializers.ImageField(
