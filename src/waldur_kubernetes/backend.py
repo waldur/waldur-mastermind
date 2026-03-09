@@ -98,11 +98,11 @@ class KubernetesBackend:
         else:
             self.create_k8s_secret(name, namespace, data, labels)
 
-    def create_k8s_config_map(self, name, namespace, data):
+    def create_k8s_config_map(self, name, namespace, data, labels=None):
         config_map = k8s.client.V1ConfigMap(
             api_version="v1",
             kind="ConfigMap",
-            metadata=k8s.client.V1ObjectMeta(name=name),
+            metadata=k8s.client.V1ObjectMeta(name=name, labels=labels),
             data=data,
         )
         try:
@@ -130,7 +130,7 @@ class KubernetesBackend:
             self.core_api.delete_namespaced_config_map(name, namespace)
         except k8s.client.ApiException as e:
             logger.error(
-                "Unable to credeleteate a ConfigMap %s in the Kubernetes namespace %s. Reason: %s",
+                "Unable to delete a ConfigMap %s in the Kubernetes namespace %s. Reason: %s",
                 name,
                 namespace,
                 e,
@@ -143,11 +143,49 @@ class KubernetesBackend:
                 namespace,
             )
 
-    def create_k8s_job(self, name: str, namespace: str, spec: k8s.client.V1JobSpec):
+    def list_k8s_jobs(self, namespace: str, label_selector: str | None = None) -> list:
+        try:
+            response = self.batch_v1_api.list_namespaced_job(
+                namespace,
+                label_selector=label_selector,
+            )
+            return response.items
+        except k8s.client.ApiException as e:
+            logger.error(
+                "Unable to list Jobs in the Kubernetes namespace %s. Reason: %s",
+                namespace,
+                e,
+            )
+            raise KubernetesException(e)
+
+    def list_k8s_config_maps(
+        self, namespace: str, label_selector: str | None = None
+    ) -> list:
+        try:
+            response = self.core_api.list_namespaced_config_map(
+                namespace,
+                label_selector=label_selector,
+            )
+            return response.items
+        except k8s.client.ApiException as e:
+            logger.error(
+                "Unable to list ConfigMaps in the Kubernetes namespace %s. Reason: %s",
+                namespace,
+                e,
+            )
+            raise KubernetesException(e)
+
+    def create_k8s_job(
+        self,
+        name: str,
+        namespace: str,
+        spec: k8s.client.V1JobSpec,
+        labels: dict | None = None,
+    ):
         job = k8s.client.V1Job(
             api_version="batch/v1",
             kind="Job",
-            metadata=k8s.client.V1ObjectMeta(name=name),
+            metadata=k8s.client.V1ObjectMeta(name=name, labels=labels),
             spec=spec,
         )
         try:

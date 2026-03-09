@@ -37,4 +37,9 @@ class MarketplaceScriptExtension(WaldurExtension):
                 "schedule": timedelta(days=1),
                 "args": (),
             },
+            "waldur-marketplace-script-cleanup-orphaned-k8s-resources": {
+                "task": "waldur_marketplace_script.cleanup_orphaned_k8s_resources",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
         }

@@ -24,6 +24,12 @@ class DeploymentOptions(Enum):
     KUBERNETES = "k8s"
 
 
+WALDUR_K8S_LABELS = {
+    "app.kubernetes.io/managed-by": "waldur",
+    "app.kubernetes.io/component": "marketplace-script",
+}
+
+
 def check_docker_socket_access(docker_config):
     base_url = docker_config.get("base_url")
 
@@ -139,19 +145,35 @@ def execute_script_in_k8s(image, command, src, dry_run=False, **kwargs):
 
     config_map_data = {"script": src}
     k8s_backend.create_k8s_config_map(
-        config_map_name, config.K8S_NAMESPACE, config_map_data
+        config_map_name, config.K8S_NAMESPACE, config_map_data, labels=WALDUR_K8S_LABELS
     )
 
     job_spec = construct_k8s_job_spec(image, command, volume_name, config_map_name, env)
-    k8s_backend.create_k8s_job(job_name, config.K8S_NAMESPACE, job_spec)
-
-    job_succeeded = k8s_backend.wait_for_k8s_job_completion(
-        job_name, config.K8S_NAMESPACE, timeout=600
+    k8s_backend.create_k8s_job(
+        job_name, config.K8S_NAMESPACE, job_spec, labels=WALDUR_K8S_LABELS
     )
-    pod_log = k8s_backend.get_k8s_job_result(job_name, config.K8S_NAMESPACE)
 
-    k8s_backend.delete_job_from_k8s(job_name, config.K8S_NAMESPACE)
-    k8s_backend.delete_config_map_from_k8s(config_map_name, config.K8S_NAMESPACE)
+    try:
+        job_succeeded = k8s_backend.wait_for_k8s_job_completion(
+            job_name, config.K8S_NAMESPACE, timeout=600
+        )
+        pod_log = k8s_backend.get_k8s_job_result(job_name, config.K8S_NAMESPACE)
+    finally:
+        try:
+            k8s_backend.delete_job_from_k8s(job_name, config.K8S_NAMESPACE)
+        except Exception:
+            logger.exception(
+                "Failed to delete Kubernetes Job %s during cleanup", job_name
+            )
+        try:
+            k8s_backend.delete_config_map_from_k8s(
+                config_map_name, config.K8S_NAMESPACE
+            )
+        except Exception:
+            logger.exception(
+                "Failed to delete Kubernetes ConfigMap %s during cleanup",
+                config_map_name,
+            )
 
     if not job_succeeded and not dry_run:
         raise JobFailedException(pod_log)

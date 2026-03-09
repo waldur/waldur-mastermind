@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+import uuid
 
 from celery import shared_task
 from constance import config
@@ -8,11 +9,17 @@ from django.utils import timezone
 
 from waldur_core.core.utils import get_fake_context, get_system_robot
 from waldur_core.structure import models as structure_models
+from waldur_kubernetes import backend as kubernetes_backend
+from waldur_kubernetes.exceptions import KubernetesException
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace import serializers as marketplace_serializer
 from waldur_mastermind.marketplace.enums import SCRIPT_OFFERING, ResourceStates
 from waldur_mastermind.marketplace_script import models as marketplace_script_models
 from waldur_mastermind.marketplace_script import serializers, utils
+from waldur_mastermind.marketplace_script.utils import (
+    WALDUR_K8S_LABELS,
+    DeploymentOptions,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +50,7 @@ def pull_resource(resource_id):
         for key, value in dict(serializer.data).items()
     }
     # ORDER_UUID is required for k8s job naming; use resource UUID for pull operations
-    environment["ORDER_UUID"] = str(resource.uuid)
+    environment["ORDER_UUID"] = f"{resource.uuid}-{uuid.uuid4().hex[:8]}"
     for opt in options.get("environ", []):
         if isinstance(opt, dict):
             environment.update({opt["name"]: opt["value"]})
@@ -147,7 +154,7 @@ def resource_options_have_been_changed(resource_id, options_old):
         for key, value in dict(serializer.data).items()
     }
     # ORDER_UUID is required for k8s job naming; use resource UUID for options handler
-    environment["ORDER_UUID"] = str(resource.uuid)
+    environment["ORDER_UUID"] = f"{resource.uuid}-{uuid.uuid4().hex[:8]}"
     for opt in options.get("environ", []):
         if isinstance(opt, dict):
             environment.update({opt["name"]: opt["value"]})
@@ -177,3 +184,67 @@ def resource_options_have_been_changed(resource_id, options_old):
             resource.error_traceback = ""
     finally:
         resource.save()
+
+
+WALDUR_K8S_LABEL_SELECTOR = ",".join(f"{k}={v}" for k, v in WALDUR_K8S_LABELS.items())
+
+
+@shared_task(name="waldur_marketplace_script.cleanup_orphaned_k8s_resources")
+def cleanup_orphaned_k8s_resources():
+    """Remove orphaned Kubernetes Jobs and ConfigMaps created by Waldur that are older than 1 hour."""
+    if config.SCRIPT_RUN_MODE != DeploymentOptions.KUBERNETES.value:
+        logger.debug(
+            "SCRIPT_RUN_MODE is not kubernetes, skipping orphaned K8s resource cleanup"
+        )
+        return
+
+    k8s_backend = kubernetes_backend.KubernetesBackend(
+        kubeconfig_file_path=config.K8S_CONFIG_PATH
+    )
+    namespace = config.K8S_NAMESPACE
+    cutoff = timezone.now() - timezone.timedelta(hours=1)
+
+    try:
+        jobs = k8s_backend.list_k8s_jobs(
+            namespace, label_selector=WALDUR_K8S_LABEL_SELECTOR
+        )
+    except KubernetesException:
+        logger.exception("Failed to list Kubernetes Jobs for orphan cleanup")
+        jobs = []
+
+    for job in jobs:
+        if job.metadata.creation_timestamp and job.metadata.creation_timestamp < cutoff:
+            try:
+                k8s_backend.delete_job_from_k8s(job.metadata.name, namespace)
+                logger.info(
+                    "Deleted orphaned Kubernetes Job %s (created at %s)",
+                    job.metadata.name,
+                    job.metadata.creation_timestamp,
+                )
+            except KubernetesException:
+                logger.exception(
+                    "Failed to delete orphaned Kubernetes Job %s", job.metadata.name
+                )
+
+    try:
+        config_maps = k8s_backend.list_k8s_config_maps(
+            namespace, label_selector=WALDUR_K8S_LABEL_SELECTOR
+        )
+    except KubernetesException:
+        logger.exception("Failed to list Kubernetes ConfigMaps for orphan cleanup")
+        config_maps = []
+
+    for cm in config_maps:
+        if cm.metadata.creation_timestamp and cm.metadata.creation_timestamp < cutoff:
+            try:
+                k8s_backend.delete_config_map_from_k8s(cm.metadata.name, namespace)
+                logger.info(
+                    "Deleted orphaned Kubernetes ConfigMap %s (created at %s)",
+                    cm.metadata.name,
+                    cm.metadata.creation_timestamp,
+                )
+            except KubernetesException:
+                logger.exception(
+                    "Failed to delete orphaned Kubernetes ConfigMap %s",
+                    cm.metadata.name,
+                )
