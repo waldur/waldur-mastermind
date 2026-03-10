@@ -1667,9 +1667,22 @@ def create_or_restore_offering_users_for_user(user_uuid: str, project_uuid: str)
     user = User.objects.get(uuid=user_uuid)
     project = structure_models.Project.objects.get(uuid=project_uuid)
 
-    resources = project.resource_set.filter(
-        state=ResourceStates.OK,
-        offering__type__in=OFFERING_USER_ALLOWED_OFFERING_TYPES,
+    resources = (
+        project.resource_set.filter(
+            offering__type__in=OFFERING_USER_ALLOWED_OFFERING_TYPES,
+        )
+        .filter(
+            Q(state=ResourceStates.OK)
+            | Q(
+                state=ResourceStates.CREATING,
+                order__type=OrderTypes.CREATE,
+                order__state__in=[
+                    OrderStates.PENDING_PROVIDER,
+                    OrderStates.EXECUTING,
+                ],
+            )
+        )
+        .distinct()
     )
     offering_ids = set(resources.values_list("offering_id", flat=True))
     offerings = models.Offering.objects.filter(id__in=offering_ids)

@@ -395,6 +395,12 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.cleanup_admin_announcement_on_maintenance_deletion",
         )
 
+        signals.post_save.connect(
+            handlers.create_offering_users_if_order_is_valid,
+            sender=models.Order,
+            dispatch_uid="waldur_mastermind.marketplace.create_offering_users_when_order_becomes_pending_provider",
+        )
+
         marketplace_signals.resource_creation_succeeded.connect(
             handlers.create_offering_user_for_new_resource,
             sender=models.Resource,

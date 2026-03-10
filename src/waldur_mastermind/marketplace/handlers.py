@@ -1516,6 +1516,34 @@ def create_offering_user_for_new_resource(sender, instance: Resource, **kwargs):
         logger.info("The offering user %s has been created", offering_user)
 
 
+def create_offering_users_if_order_is_valid(
+    sender, instance: Order, created=False, **kwargs
+):
+    """Create offering users for all project members when order reaches PENDING_PROVIDER or EXECUTING."""
+    order = instance
+    if not order.tracker.has_changed("state"):
+        return
+    if order.state not in [OrderStates.PENDING_PROVIDER, OrderStates.EXECUTING]:
+        return
+    if order.type != OrderTypes.CREATE:
+        return
+
+    offering = order.resource.offering
+    if offering.type not in OFFERING_USER_ALLOWED_OFFERING_TYPES:
+        return
+    if not offering.plugin_options.get("service_provider_can_create_offering_user"):
+        return
+
+    project = order.project
+    users = project.get_users()
+    for user in users:
+        transaction.on_commit(
+            lambda u=user: tasks.create_or_restore_offering_users_for_user.delay(
+                u.uuid.hex, project.uuid.hex
+            )
+        )
+
+
 def update_offering_user_username_after_offering_settings_change(
     sender, instance: Offering, created=False, **kwargs
 ):
