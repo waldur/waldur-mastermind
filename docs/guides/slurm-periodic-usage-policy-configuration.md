@@ -139,7 +139,6 @@ offerings:
           CPU: 0.015625
           Mem: 0.001953125G
           "GRES/gpu": 0.25
-        fairshare_decay_half_life: 15
 ```
 
 ## Policy Parameters
@@ -152,14 +151,13 @@ offerings:
 
 ### SLURM-Specific Parameters
 
-- **`period`**: Billing period length — `MONTH_1` (monthly), `MONTH_3` (quarterly, default), `MONTH_12` (annual), or `TOTAL` (cumulative, never resets). Controls how `_get_current_period()` computes the billing window for usage calculations and carryover.
+- **`period`**: Billing period length — `MONTH_1` (monthly, default), `MONTH_3` (quarterly), `MONTH_12` (annual), or `TOTAL` (cumulative, never resets). Controls how `_get_current_period()` computes the billing window for usage calculations and carryover. Note: if the offering's components have a `limit_period` set, it takes precedence over this field.
 - **`limit_type`**: `"GrpTRESMins"`, `"MaxTRESMins"`, or `"GrpTRES"`
 - **`tres_billing_enabled`**: Use TRES billing units vs raw values
 - **`tres_billing_weights`**: Weight configuration for billing units
-- **`fairshare_decay_half_life`**: Days for fairshare decay (default: 15)
 - **`grace_ratio`**: Grace period ratio (0.2 = 20% overconsumption). The pause threshold is `(1 + grace_ratio) * 100`%. For example, `grace_ratio=0.2` means resources are paused at 120% usage.
 - **`carryover_enabled`**: Allow unused allocation carryover between periods
-- **`carryover_factor`**: Maximum carryover as a fraction of the base allocation (e.g., 0.3 = up to 30% of the base limit can be carried over). Unused allocation from the previous period is `max(0, base - prev_usage)`, capped at `carryover_factor * base`.
+- **`carryover_factor`**: Maximum percentage of base allocation that can carry over from unused previous period (integer, 0-100, default: 50). For example, `carryover_factor=50` means up to 50% of the base limit can be carried over. Unused allocation from the previous period is `max(0, base - prev_usage)`, capped at `(carryover_factor / 100) * base`.
 - **`raw_usage_reset`**: Reset SLURM raw usage at period transitions
 - **`qos_strategy`**: `"threshold"` or `"progressive"`
 
@@ -176,7 +174,6 @@ policy = models.SlurmPeriodicUsagePolicy.objects.create(
     limit_type="GrpTRESMins",
     grace_ratio=0.2,
     carryover_enabled=True,
-    fairshare_decay_half_life=15,
 )
 
 # Add component limit
@@ -210,7 +207,6 @@ policy = models.SlurmPeriodicUsagePolicy.objects.create(
     apply_to_all=False,
     grace_ratio=0.5,  # 50% grace period
     carryover_enabled=True,
-    fairshare_decay_half_life=30,  # Slower decay
 )
 policy.organization_groups.add(consortium_members)
 ```
@@ -441,14 +437,14 @@ print(f"Current usage: {usage_percentage:.1f}%")
 Carryover allows unused allocation from the previous period to increase the current period's effective limit. The formula is:
 
 1. `unused = max(0, base_limit - previous_period_usage)`
-2. `cap = carryover_factor * base_limit`
+2. `cap = (carryover_factor / 100) * base_limit`
 3. `carryover = min(unused, cap)`
 4. `effective_limit = base_limit + carryover`
 
-Example: base limit 1000, previous usage 400, carryover_factor 0.5:
+Example: base limit 1000, previous usage 400, carryover_factor 50 (i.e. 50%):
 
 - `unused = max(0, 1000 - 400) = 600`
-- `cap = 0.5 * 1000 = 500`
+- `cap = (50 / 100) * 1000 = 500`
 - `carryover = min(600, 500) = 500`
 - `effective_limit = 1000 + 500 = 1500`
 
@@ -500,7 +496,7 @@ The STOMP message payload includes `policy_uuid` so the site agent knows which p
 ### Incorrect Usage Calculations
 
 - Review carryover settings and carryover factor
-- Check billing period alignment — the `period` field controls boundaries: `MONTH_1` (monthly), `MONTH_3` (quarterly), `MONTH_12` (annual), `TOTAL` (cumulative)
+- Check billing period alignment — the `period` field controls boundaries: `MONTH_1` (monthly, default), `MONTH_3` (quarterly), `MONTH_12` (annual), `TOTAL` (cumulative). Note that offering component `limit_period` overrides this field if set.
 - Verify component type matches between policy and usage data
 
 ### Resources Still Paused After New Period Starts
