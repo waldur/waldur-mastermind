@@ -55,6 +55,7 @@ from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure.managers import (
+    get_connected_customers,
     get_connected_projects,
     get_customer_users,
     get_organization_groups,
@@ -2459,6 +2460,99 @@ def _identity_manager_matches_offering_user(
     return bool(set(managed_isds) & set(active_isds))
 
 
+# Event types where consumer access is determined by payload content.
+# Scoped via order_uuid → order.project.customer
+_CONSUMER_ORDER_EVENTS = {ObservableObjectType.ORDER}
+# Scoped via resource_uuid → resource.project.customer
+_CONSUMER_RESOURCE_EVENTS = {
+    ObservableObjectType.RESOURCE,
+    ObservableObjectType.RESOURCE_PERIODIC_LIMITS,
+}
+# Scoped via project_uuid in payload
+_CONSUMER_PROJECT_SCOPED_EVENTS = {
+    ObservableObjectType.USER_ROLE,
+    ObservableObjectType.SERVICE_ACCOUNT,
+    ObservableObjectType.COURSE_ACCOUNT,
+}
+
+
+def _resolve_event_consumer_customer(
+    offering: models.Offering,
+    message_payload: dict,
+    affected_object: ObservableObjectType,
+) -> structure_models.Customer | None:
+    """Resolve which consumer customer an event belongs to.
+
+    Returns the customer that owns the project associated with the event,
+    or None if the event type is not consumer-visible or cannot be resolved.
+    Only resources with non-terminated state on the given offering are considered.
+    """
+    project = None
+
+    # Projects with active (non-terminated) resources on this offering
+    active_project_ids = (
+        models.Resource.objects.filter(offering=offering)
+        .exclude(state=ResourceStates.TERMINATED)
+        .values_list("project_id", flat=True)
+    )
+
+    if affected_object in _CONSUMER_ORDER_EVENTS:
+        order_uuid = message_payload.get("order_uuid")
+        if order_uuid:
+            order = (
+                models.Order.objects.filter(uuid=order_uuid)
+                .select_related("project__customer")
+                .first()
+            )
+            if order and order.project_id in set(active_project_ids):
+                project = order.project
+    elif affected_object in _CONSUMER_RESOURCE_EVENTS:
+        resource_uuid = message_payload.get("resource_uuid")
+        if resource_uuid:
+            resource = (
+                models.Resource.objects.filter(
+                    uuid=resource_uuid,
+                    offering=offering,
+                    project_id__in=active_project_ids,
+                )
+                .select_related("project__customer")
+                .first()
+            )
+            if resource:
+                project = resource.project
+    elif affected_object in _CONSUMER_PROJECT_SCOPED_EVENTS:
+        event_project_uuid = message_payload.get("project_uuid")
+        if event_project_uuid:
+            project = (
+                structure_models.Project.objects.filter(
+                    uuid=event_project_uuid,
+                    id__in=active_project_ids,
+                )
+                .select_related("customer")
+                .first()
+            )
+    elif affected_object == ObservableObjectType.OFFERING_USER:
+        offering_user_uuid = message_payload.get("user_uuid")
+        if offering_user_uuid:
+            project_ct = ContentType.objects.get_for_model(structure_models.Project)
+            role = UserRole.objects.filter(
+                content_type=project_ct,
+                object_id__in=active_project_ids,
+                user__uuid=offering_user_uuid,
+                is_active=True,
+            ).first()
+            if role:
+                project = (
+                    structure_models.Project.objects.filter(id=role.object_id)
+                    .select_related("customer")
+                    .first()
+                )
+
+    if project:
+        return project.customer
+    return None
+
+
 def prepare_messages(
     offering: models.Offering,
     message_payload: dict,
@@ -2514,6 +2608,13 @@ def prepare_messages(
         )
         return []
 
+    # Resolve the event's target customer for consumer access checks.
+    # This is computed once (outside the loop) since it depends only on the
+    # payload, not the subscribing user.
+    event_consumer_customer = _resolve_event_consumer_customer(
+        offering, message_payload, affected_object
+    )
+
     messages_to_send = []
     for event_subscription in event_subscriptions:
         user = event_subscription.user
@@ -2522,18 +2623,26 @@ def prepare_messages(
         # Check if user has access to offering
         linked_offerings = models.Offering.objects.all().filter_for_user(user)
         if not linked_offerings.filter(id=offering.id).exists():
-            # Identity managers can receive OFFERING_USER events for users
-            # whose active_isds overlap with the manager's managed_isds.
-            if not (
-                affected_object == ObservableObjectType.OFFERING_USER
-                and _identity_manager_matches_offering_user(user, message_payload)
-            ):
-                logger.debug(
-                    "The user %s does not have access to the offering %s",
-                    user,
-                    offering,
-                )
-                continue
+            # Consumer access: the event's target customer must be one of
+            # the user's connected customers.
+            # get_connected_customers returns a flat QuerySet of customer IDs.
+            has_consumer_access = (
+                event_consumer_customer is not None
+                and event_consumer_customer.id in set(get_connected_customers(user))
+            )
+            if not has_consumer_access:
+                # Identity managers can receive OFFERING_USER events for users
+                # whose active_isds overlap with the manager's managed_isds.
+                if not (
+                    affected_object == ObservableObjectType.OFFERING_USER
+                    and _identity_manager_matches_offering_user(user, message_payload)
+                ):
+                    logger.debug(
+                        "The user %s does not have access to the offering %s",
+                        user,
+                        offering,
+                    )
+                    continue
 
         # Check if queue is registered (receiver must request queue creation first)
         queue_exists = logging_models.EventSubscriptionQueue.objects.filter(
