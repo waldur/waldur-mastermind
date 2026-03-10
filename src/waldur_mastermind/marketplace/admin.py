@@ -355,6 +355,8 @@ class OfferingAdmin(VersionAdmin, admin.ModelAdmin):
         "full_description",
         "country",
         "privacy_policy_link",
+        "helpdesk_url",
+        "documentation_url",
         "thumbnail",
         "attributes",
         "options",

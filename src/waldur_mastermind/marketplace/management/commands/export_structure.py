@@ -631,6 +631,8 @@ class Command(BaseCommand):
                 "getting_started": offering.getting_started,
                 "integration_guide": offering.integration_guide,
                 "privacy_policy_link": offering.privacy_policy_link,
+                "helpdesk_url": offering.helpdesk_url,
+                "documentation_url": offering.documentation_url,
                 "access_url": offering.access_url,
                 "country": offering.country,
                 "paused_reason": offering.paused_reason,

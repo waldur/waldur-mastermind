@@ -623,6 +623,8 @@ class Offering(
     )
 
     privacy_policy_link = models.URLField(blank=True)
+    helpdesk_url = models.URLField(blank=True)
+    documentation_url = models.URLField(blank=True)
     country = models.CharField(max_length=2, blank=True)
     type = models.CharField(max_length=100)
     state = FSMIntegerField(default=States.DRAFT, choices=States.CHOICES)
