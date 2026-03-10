@@ -853,19 +853,23 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
             dict[str, float]: Usage per component type, e.g. {"cpu": 3200.0, "mem": 128000.0}
         """
         date_range = self._get_period_date_range(period)
-        if not date_range:
-            return {}
 
-        start_date, end_date = date_range
-
-        usages = marketplace_models.ComponentUsage.objects.filter(
+        qs = marketplace_models.ComponentUsage.objects.filter(
             resource=resource,
-            billing_period__gte=start_date,
-            billing_period__lte=end_date,
         ).select_related("component")
 
+        if date_range:
+            start_date, end_date = date_range
+            qs = qs.filter(
+                billing_period__gte=start_date,
+                billing_period__lte=end_date,
+            )
+        elif period != "total":
+            # Unknown period format with no date range — return empty
+            return {}
+
         result = {}
-        for usage in usages:
+        for usage in qs:
             comp_type = usage.component.type
             result[comp_type] = result.get(comp_type, 0.0) + float(usage.usage)
 

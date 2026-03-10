@@ -1,4 +1,3 @@
-import datetime
 import logging
 
 from django.db.models import Q, Sum
@@ -175,40 +174,14 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
         data = list(models.SlurmPeriodicUsagePolicy.available_actions)
         return Response(data, status=status.HTTP_200_OK)
 
-    def _get_quarter_period(self, today):
-        """Calculate the current quarter's start and end dates."""
-        current_quarter = (today.month - 1) // 3 + 1
-        quarter_start_month = (current_quarter - 1) * 3 + 1
-        period_start = datetime.date(today.year, quarter_start_month, 1)
-
-        if current_quarter == 4:
-            period_end = datetime.date(today.year, 12, 31)
-        else:
-            next_quarter_month = quarter_start_month + 3
-            period_end = datetime.date(
-                today.year, next_quarter_month, 1
-            ) - datetime.timedelta(days=1)
-
-        return period_start, period_end, current_quarter, quarter_start_month
-
-    def _get_previous_quarter_period(self, today, current_quarter, quarter_start_month):
-        """Calculate the previous quarter's start and end dates."""
-        if current_quarter == 1:
-            prev_quarter_start = datetime.date(today.year - 1, 10, 1)
-            prev_quarter_end = datetime.date(today.year - 1, 12, 31)
-        else:
-            prev_quarter_start_month = quarter_start_month - 3
-            prev_quarter_start = datetime.date(today.year, prev_quarter_start_month, 1)
-            period_start = datetime.date(today.year, quarter_start_month, 1)
-            prev_quarter_end = period_start - datetime.timedelta(days=1)
-
-        return prev_quarter_start, prev_quarter_end
-
     def _fetch_resource_usage_data(self, resource_uuid, defaults):
         """Fetch usage data from resource if available.
 
         Returns a dict with allocation, current_usage, daily_usage_rate, and previous_usage.
         The preview API stays scalar (frontend-facing with simple example values).
+
+        Uses the policy's period setting to determine the correct date range.
+        If no policy exists, queries all usage without date bounds.
         """
         result = defaults.copy()
 
@@ -227,23 +200,40 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
                 result["allocation"] = total_alloc
 
         today = timezone.now().date()
-        period_start, period_end, current_quarter, quarter_start_month = (
-            self._get_quarter_period(today)
-        )
 
-        # Get per-component usages for the current quarter, summed into scalar
-        usages = (
-            marketplace_models.ComponentUsage.objects.filter(
-                resource=resource,
+        # Look up the policy for this offering to determine the correct period
+        policy = models.SlurmPeriodicUsagePolicy.objects.filter(
+            scope=resource.offering,
+        ).first()
+
+        if policy:
+            current_period = policy._get_current_period()
+            date_range = policy._get_period_date_range(current_period)
+            if date_range:
+                period_start, period_end = date_range
+            else:
+                # TOTAL period: no date range, query all usage
+                period_start = None
+                period_end = None
+
+            previous_period = policy._get_previous_period(current_period)
+        else:
+            # No policy for offering — query all usage without date bounds
+            period_start = None
+            period_end = None
+            previous_period = None
+
+        # Get per-component usages for the current period, summed into scalar
+        usage_qs = marketplace_models.ComponentUsage.objects.filter(resource=resource)
+        if period_start is not None and period_end is not None:
+            usage_qs = usage_qs.filter(
                 billing_period__gte=period_start,
                 billing_period__lte=period_end,
             )
-            .values("component__type")
-            .annotate(total=Sum("usage"))
-        )
+        usages = usage_qs.values("component__type").annotate(total=Sum("usage"))
         current_usage = sum(float(u["total"]) for u in usages if u["total"])
 
-        # If no usage in current quarter, try to get most recent usage
+        # If no usage in current period, try to get most recent usage
         if current_usage == 0:
             recent_usage = (
                 marketplace_models.ComponentUsage.objects.filter(resource=resource)
@@ -257,22 +247,33 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
         result["current_usage"] = current_usage
 
         # Calculate daily usage rate
-        days_in_period = max(1, (today - period_start).days + 1)
+        if period_start is not None:
+            days_in_period = max(1, (today - period_start).days + 1)
+        else:
+            # TOTAL period: use earliest usage date as start
+            earliest = (
+                marketplace_models.ComponentUsage.objects.filter(resource=resource)
+                .order_by("billing_period")
+                .values_list("billing_period", flat=True)
+                .first()
+            )
+            days_in_period = max(1, (today - earliest).days + 1) if earliest else 1
         if current_usage > 0:
             result["daily_usage_rate"] = current_usage / days_in_period
 
-        # Get previous quarter usage
-        prev_quarter_start, prev_quarter_end = self._get_previous_quarter_period(
-            today, current_quarter, quarter_start_month
-        )
-        prev_usages = marketplace_models.ComponentUsage.objects.filter(
-            resource=resource,
-            billing_period__gte=prev_quarter_start,
-            billing_period__lte=prev_quarter_end,
-        )
-        prev_usage_sum = prev_usages.aggregate(total=Sum("usage"))["total"]
-        if prev_usage_sum:
-            result["previous_usage"] = float(prev_usage_sum)
+        # Get previous period usage
+        if policy and previous_period:
+            prev_date_range = policy._get_period_date_range(previous_period)
+            if prev_date_range:
+                prev_start, prev_end = prev_date_range
+                prev_usages = marketplace_models.ComponentUsage.objects.filter(
+                    resource=resource,
+                    billing_period__gte=prev_start,
+                    billing_period__lte=prev_end,
+                )
+                prev_usage_sum = prev_usages.aggregate(total=Sum("usage"))["total"]
+                if prev_usage_sum:
+                    result["previous_usage"] = float(prev_usage_sum)
 
         return result
 

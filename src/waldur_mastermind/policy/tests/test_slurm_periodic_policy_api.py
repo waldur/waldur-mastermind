@@ -1,8 +1,13 @@
+import datetime
+from unittest.mock import patch
+
 from ddt import data, ddt
 from rest_framework import status, test
 
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.invoices.models import PeriodMixin
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.policy.models import SlurmPeriodicUsagePolicy
 from waldur_mastermind.policy.tests.factories import SlurmPeriodicUsagePolicyFactory
@@ -356,3 +361,324 @@ class SlurmPeriodicUsagePolicyPreviewImpactTest(test.APITestCase):
             response.status_code,
             [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST],
         )
+
+
+class SlurmPeriodicUsagePolicyPreviewPeriodTest(test.APITestCase):
+    """Test that preview_impact respects the policy's period setting."""
+
+    def setUp(self):
+        self.staff_user = structure_factories.UserFactory(is_staff=True)
+        self.customer = structure_factories.CustomerFactory()
+        self.project = structure_factories.ProjectFactory(customer=self.customer)
+        self.offering = marketplace_factories.OfferingFactory(
+            customer=self.customer, type="Marketplace.Slurm"
+        )
+        self.component = marketplace_models.OfferingComponent.objects.create(
+            offering=self.offering,
+            type="node",
+            name="Compute",
+            measured_unit="node hours",
+        )
+        self.resource = marketplace_factories.ResourceFactory(
+            offering=self.offering,
+            project=self.project,
+            limits={"node": 1},
+        )
+        self.plan = marketplace_factories.PlanFactory(offering=self.offering)
+        self.resource.plan = self.plan
+        self.resource.save()
+
+        self.url = SlurmPeriodicUsagePolicyFactory.get_list_url("preview_impact")
+
+    def _create_usage(self, billing_period, usage_value):
+        marketplace_models.ComponentUsage.objects.create(
+            resource=self.resource,
+            component=self.component,
+            billing_period=billing_period,
+            usage=usage_value,
+            date=billing_period,
+        )
+
+    @patch("waldur_mastermind.policy.views.timezone")
+    def test_monthly_policy_preview_uses_current_month_only(self, mock_timezone):
+        """Preview with monthly policy should only count current month's usage."""
+        mock_timezone.now.return_value = datetime.datetime(
+            2026, 3, 15, tzinfo=datetime.UTC
+        )
+
+        SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.MONTH_1,
+            grace_ratio=0.15,
+        )
+
+        # Feb usage should NOT be counted for monthly policy
+        self._create_usage(datetime.date(2026, 2, 1), 1.08)
+        # March usage should be counted
+        self._create_usage(datetime.date(2026, 3, 1), 0.36)
+
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.post(
+            self.url,
+            {
+                "allocation": 1,
+                "grace_ratio": 0.15,
+                "carryover_enabled": False,
+                "carryover_factor": 0,
+                "previous_usage": 0,
+                "resource_uuid": str(self.resource.uuid),
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should use only March usage (0.36), not Feb+Mar (1.44)
+        self.assertAlmostEqual(response.data["current_usage"], 0.36, places=2)
+        self.assertEqual(response.data["current_qos_status"], "normal")
+
+    @patch("waldur_mastermind.policy.views.timezone")
+    def test_quarterly_policy_preview_sums_all_months_in_quarter(self, mock_timezone):
+        """Preview with quarterly policy should sum all months in the quarter."""
+        mock_timezone.now.return_value = datetime.datetime(
+            2026, 3, 15, tzinfo=datetime.UTC
+        )
+
+        SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.MONTH_3,
+            grace_ratio=0.15,
+        )
+
+        self._create_usage(datetime.date(2026, 1, 1), 0.20)
+        self._create_usage(datetime.date(2026, 2, 1), 0.30)
+        self._create_usage(datetime.date(2026, 3, 1), 0.10)
+
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.post(
+            self.url,
+            {
+                "allocation": 1,
+                "grace_ratio": 0.15,
+                "carryover_enabled": False,
+                "carryover_factor": 0,
+                "previous_usage": 0,
+                "resource_uuid": str(self.resource.uuid),
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should sum all Q1 months: 0.20 + 0.30 + 0.10 = 0.60
+        self.assertAlmostEqual(response.data["current_usage"], 0.60, places=2)
+
+    @patch("waldur_mastermind.policy.views.timezone")
+    def test_monthly_policy_preview_not_blocked_when_quarterly_would_be(
+        self, mock_timezone
+    ):
+        """Monthly policy should show normal when only current month is under limit,
+        even if quarterly sum would exceed it."""
+        mock_timezone.now.return_value = datetime.datetime(
+            2026, 3, 15, tzinfo=datetime.UTC
+        )
+
+        SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.MONTH_1,
+            grace_ratio=0.15,
+        )
+
+        # Previous month: heavy usage that would push quarterly total over limit
+        self._create_usage(datetime.date(2026, 2, 1), 1.08)
+        # Current month: under limit
+        self._create_usage(datetime.date(2026, 3, 1), 0.36)
+
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.post(
+            self.url,
+            {
+                "allocation": 1,
+                "grace_ratio": 0.15,
+                "carryover_enabled": False,
+                "carryover_factor": 0,
+                "previous_usage": 0,
+                "resource_uuid": str(self.resource.uuid),
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Monthly: 0.36 < 1.0 allocation → normal (not blocked)
+        self.assertEqual(response.data["current_qos_status"], "normal")
+        # Quarterly would have been: 1.44 > 1.15 blocked_threshold → blocked
+        # But monthly policy should NOT show that
+        self.assertAlmostEqual(response.data["current_usage"], 0.36, places=2)
+
+    @patch("waldur_mastermind.policy.views.timezone")
+    def test_total_policy_preview_sums_all_usage(self, mock_timezone):
+        """Preview with TOTAL period should sum usage across all time."""
+        mock_timezone.now.return_value = datetime.datetime(
+            2026, 3, 15, tzinfo=datetime.UTC
+        )
+
+        SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.TOTAL,
+            grace_ratio=0.15,
+        )
+
+        # Usage from various months spanning multiple quarters/years
+        self._create_usage(datetime.date(2025, 6, 1), 0.10)
+        self._create_usage(datetime.date(2025, 12, 1), 0.20)
+        self._create_usage(datetime.date(2026, 1, 1), 0.30)
+        self._create_usage(datetime.date(2026, 3, 1), 0.40)
+
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.post(
+            self.url,
+            {
+                "allocation": 2,
+                "grace_ratio": 0.15,
+                "carryover_enabled": False,
+                "carryover_factor": 0,
+                "previous_usage": 0,
+                "resource_uuid": str(self.resource.uuid),
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should sum ALL usage: 0.10 + 0.20 + 0.30 + 0.40 = 1.00
+        self.assertAlmostEqual(response.data["current_usage"], 1.00, places=2)
+
+    @patch("waldur_mastermind.policy.views.timezone")
+    def test_total_policy_preview_has_no_carryover(self, mock_timezone):
+        """Preview with TOTAL period should not apply carryover since there's no previous period."""
+        mock_timezone.now.return_value = datetime.datetime(
+            2026, 3, 15, tzinfo=datetime.UTC
+        )
+
+        SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.TOTAL,
+            grace_ratio=0.15,
+            carryover_enabled=True,
+            carryover_factor=50,
+        )
+
+        self._create_usage(datetime.date(2025, 6, 1), 0.50)
+        self._create_usage(datetime.date(2026, 3, 1), 0.30)
+
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.post(
+            self.url,
+            {
+                "allocation": 2,
+                "grace_ratio": 0.15,
+                "carryover_enabled": True,
+                "carryover_factor": 50,
+                "previous_usage": 0,
+                "resource_uuid": str(self.resource.uuid),
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # TOTAL has no previous period, so effective_allocation == base_allocation (no carryover)
+        self.assertEqual(
+            response.data["effective_allocation"],
+            response.data["base_allocation"],
+        )
+
+    @patch("waldur_mastermind.policy.views.timezone")
+    def test_annual_policy_preview_sums_current_year(self, mock_timezone):
+        """Preview with MONTH_12 period should sum usage for the current year only."""
+        mock_timezone.now.return_value = datetime.datetime(
+            2026, 3, 15, tzinfo=datetime.UTC
+        )
+
+        SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.MONTH_12,
+            grace_ratio=0.15,
+        )
+
+        # Previous year usage should NOT be counted
+        self._create_usage(datetime.date(2025, 11, 1), 0.50)
+        # Current year usage should be counted
+        self._create_usage(datetime.date(2026, 1, 1), 0.20)
+        self._create_usage(datetime.date(2026, 3, 1), 0.30)
+
+        self.client.force_authenticate(self.staff_user)
+        response = self.client.post(
+            self.url,
+            {
+                "allocation": 2,
+                "grace_ratio": 0.15,
+                "carryover_enabled": False,
+                "carryover_factor": 0,
+                "previous_usage": 0,
+                "resource_uuid": str(self.resource.uuid),
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should sum only 2026 usage: 0.20 + 0.30 = 0.50
+        self.assertAlmostEqual(response.data["current_usage"], 0.50, places=2)
+
+
+class SlurmPeriodicUsagePolicyTotalPeriodCalculationTest(test.APITestCase):
+    """Test that _get_period_usage returns all usage for TOTAL period."""
+
+    def setUp(self):
+        self.customer = structure_factories.CustomerFactory()
+        self.project = structure_factories.ProjectFactory(customer=self.customer)
+        self.offering = marketplace_factories.OfferingFactory(
+            customer=self.customer, type="Marketplace.Slurm"
+        )
+        self.component = marketplace_models.OfferingComponent.objects.create(
+            offering=self.offering,
+            type="cpu",
+            name="CPU",
+            measured_unit="hours",
+        )
+        self.resource = marketplace_factories.ResourceFactory(
+            offering=self.offering,
+            project=self.project,
+            limits={"cpu": 1000},
+        )
+        self.plan = marketplace_factories.PlanFactory(offering=self.offering)
+        self.resource.plan = self.plan
+        self.resource.save()
+
+    def _create_usage(self, billing_period, usage_value):
+        marketplace_models.ComponentUsage.objects.create(
+            resource=self.resource,
+            component=self.component,
+            billing_period=billing_period,
+            usage=usage_value,
+            date=billing_period,
+        )
+
+    def test_get_period_usage_returns_all_usage_for_total(self):
+        """_get_period_usage with 'total' should return all usage across all time."""
+        policy = SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.TOTAL,
+        )
+
+        self._create_usage(datetime.date(2024, 1, 1), 100)
+        self._create_usage(datetime.date(2025, 6, 1), 200)
+        self._create_usage(datetime.date(2026, 3, 1), 300)
+
+        usage = policy._get_period_usage(self.resource, "total")
+        self.assertEqual(usage["cpu"], 600.0)
+
+    def test_get_resource_usage_percentage_nonzero_for_total(self):
+        """get_resource_usage_percentage should report real usage for TOTAL period."""
+        policy = SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.TOTAL,
+            carryover_enabled=False,
+        )
+
+        self._create_usage(datetime.date(2024, 1, 1), 500)
+        self._create_usage(datetime.date(2026, 3, 1), 300)
+
+        pct = policy.get_resource_usage_percentage(self.resource)
+        # 800 / 1000 = 80%
+        self.assertAlmostEqual(pct, 80.0, places=1)
