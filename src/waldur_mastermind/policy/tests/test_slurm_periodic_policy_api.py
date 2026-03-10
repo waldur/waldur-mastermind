@@ -1,13 +1,15 @@
 import datetime
 from unittest.mock import patch
 
-from ddt import data, ddt
+from ddt import data, ddt, unpack
+from freezegun import freeze_time
 from rest_framework import status, test
 
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices.models import PeriodMixin
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.policy.models import SlurmPeriodicUsagePolicy
 from waldur_mastermind.policy.tests.factories import SlurmPeriodicUsagePolicyFactory
@@ -361,6 +363,269 @@ class SlurmPeriodicUsagePolicyPreviewImpactTest(test.APITestCase):
             response.status_code,
             [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST],
         )
+
+
+@ddt
+class SlurmPeriodicUsagePolicyPeriodValidationTest(test.APITestCase):
+    """Validate that policy.period must match the offering component's limit_period."""
+
+    def setUp(self):
+        self.customer = structure_factories.CustomerFactory()
+        self.offering = marketplace_factories.OfferingFactory(customer=self.customer)
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.url = SlurmPeriodicUsagePolicyFactory.get_list_url()
+
+    def _create_limit_component(self, limit_period):
+        return marketplace_factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="node",
+            billing_type=BillingTypes.LIMIT,
+            limit_period=limit_period,
+        )
+
+    def _base_payload(self, **overrides):
+        payload = {
+            "actions": "notify_organization_owners",
+            "scope": marketplace_factories.OfferingFactory.get_url(self.offering),
+            "apply_to_all": True,
+            "limit_type": "GrpTRESMins",
+            "tres_billing_enabled": True,
+            "grace_ratio": 0.2,
+            "carryover_enabled": True,
+            "carryover_factor": 15,
+            "raw_usage_reset": True,
+            "qos_strategy": "threshold",
+            "component_limits_set": [],
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_create_with_matching_period_succeeds(self):
+        self._create_limit_component(LimitPeriods.MONTH)
+        self.client.force_authenticate(self.staff)
+        payload = self._base_payload(period=PeriodMixin.Periods.MONTH_1)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_create_with_mismatched_period_fails(self):
+        self._create_limit_component(LimitPeriods.MONTH)
+        self.client.force_authenticate(self.staff)
+        payload = self._base_payload(period=PeriodMixin.Periods.MONTH_3)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("period", response.data)
+
+    def test_create_without_period_auto_sets_from_component(self):
+        self._create_limit_component(LimitPeriods.QUARTERLY)
+        self.client.force_authenticate(self.staff)
+        payload = self._base_payload()
+        # Do not include period in payload
+        payload.pop("period", None)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        policy = SlurmPeriodicUsagePolicy.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(policy.period, PeriodMixin.Periods.MONTH_3)
+
+    def test_create_with_no_limit_component_allows_any_period(self):
+        # Offering has no limit-based component
+        self.client.force_authenticate(self.staff)
+        payload = self._base_payload(period=PeriodMixin.Periods.MONTH_3)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_create_with_empty_limit_period_allows_any_period(self):
+        self._create_limit_component("")
+        self.client.force_authenticate(self.staff)
+        payload = self._base_payload(period=PeriodMixin.Periods.MONTH_3)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_create_with_null_limit_period_allows_any_period(self):
+        self._create_limit_component(None)
+        self.client.force_authenticate(self.staff)
+        payload = self._base_payload(period=PeriodMixin.Periods.MONTH_3)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_update_period_to_mismatched_value_fails(self):
+        self._create_limit_component(LimitPeriods.MONTH)
+        policy = SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.MONTH_1,
+        )
+        detail_url = SlurmPeriodicUsagePolicyFactory.get_url(policy)
+        self.client.force_authenticate(self.staff)
+        response = self.client.patch(
+            detail_url, {"period": PeriodMixin.Periods.MONTH_3}
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("period", response.data)
+
+    def test_update_period_to_matching_value_succeeds(self):
+        self._create_limit_component(LimitPeriods.QUARTERLY)
+        policy = SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.MONTH_1,
+        )
+        detail_url = SlurmPeriodicUsagePolicyFactory.get_url(policy)
+        self.client.force_authenticate(self.staff)
+        response = self.client.patch(
+            detail_url, {"period": PeriodMixin.Periods.MONTH_3}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        policy.refresh_from_db()
+        self.assertEqual(policy.period, PeriodMixin.Periods.MONTH_3)
+
+    @data(
+        (LimitPeriods.MONTH, PeriodMixin.Periods.MONTH_1),
+        (LimitPeriods.QUARTERLY, PeriodMixin.Periods.MONTH_3),
+        (LimitPeriods.ANNUAL, PeriodMixin.Periods.MONTH_12),
+        (LimitPeriods.TOTAL, PeriodMixin.Periods.TOTAL),
+    )
+    @unpack
+    def test_all_limit_period_mappings(self, limit_period, expected_policy_period):
+        self._create_limit_component(limit_period)
+        self.client.force_authenticate(self.staff)
+        payload = self._base_payload(period=expected_policy_period)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        policy = SlurmPeriodicUsagePolicy.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(policy.period, expected_policy_period)
+
+    @data(
+        (LimitPeriods.MONTH, PeriodMixin.Periods.MONTH_3),
+        (LimitPeriods.MONTH, PeriodMixin.Periods.MONTH_12),
+        (LimitPeriods.QUARTERLY, PeriodMixin.Periods.MONTH_1),
+        (LimitPeriods.ANNUAL, PeriodMixin.Periods.MONTH_1),
+    )
+    @unpack
+    def test_all_limit_period_mismatches_rejected(self, limit_period, wrong_period):
+        self._create_limit_component(limit_period)
+        self.client.force_authenticate(self.staff)
+        payload = self._base_payload(period=wrong_period)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("period", response.data)
+
+    def test_multiple_components_same_limit_period_succeeds(self):
+        """Two limit-based components with the same limit_period should work."""
+        self._create_limit_component(LimitPeriods.MONTH)
+        marketplace_factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="gpu",
+            billing_type=BillingTypes.LIMIT,
+            limit_period=LimitPeriods.MONTH,
+        )
+        self.client.force_authenticate(self.staff)
+        payload = self._base_payload(period=PeriodMixin.Periods.MONTH_1)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_multiple_components_different_limit_periods_rejected(self):
+        """Two limit-based components with different limit_periods should fail."""
+        self._create_limit_component(LimitPeriods.MONTH)
+        marketplace_factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="gpu",
+            billing_type=BillingTypes.LIMIT,
+            limit_period=LimitPeriods.QUARTERLY,
+        )
+        self.client.force_authenticate(self.staff)
+        payload = self._base_payload(period=PeriodMixin.Periods.MONTH_1)
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("period", response.data)
+
+
+@freeze_time("2026-03-15")
+class SlurmPolicyGetCurrentPeriodFromComponentTest(test.APITransactionTestCase):
+    """_get_current_period() should derive period from component, not DB field."""
+
+    def setUp(self):
+        self.customer = structure_factories.CustomerFactory()
+        self.offering = marketplace_factories.OfferingFactory(customer=self.customer)
+
+    def _create_limit_component(self, limit_period):
+        return marketplace_factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="node",
+            billing_type=BillingTypes.LIMIT,
+            limit_period=limit_period,
+        )
+
+    def test_uses_component_period_over_stale_db_value(self):
+        """When DB has MONTH_1 but component says quarterly, use quarterly."""
+        self._create_limit_component(LimitPeriods.QUARTERLY)
+        policy = SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.MONTH_1,  # stale DB value
+        )
+        # Should return quarterly format, not monthly
+        result = policy._get_current_period()
+        self.assertEqual(result, "2026-Q1")
+
+    def test_falls_back_to_db_when_no_limit_component(self):
+        """When no limit-based component, use the DB period field."""
+        policy = SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.MONTH_1,
+        )
+        result = policy._get_current_period()
+        self.assertEqual(result, "2026-03")
+
+    def test_falls_back_to_db_when_limit_period_is_empty(self):
+        """When component has empty limit_period, use the DB period field."""
+        self._create_limit_component("")
+        policy = SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.MONTH_3,
+        )
+        result = policy._get_current_period()
+        self.assertEqual(result, "2026-Q1")
+
+    def test_monthly_component_returns_monthly_format(self):
+        self._create_limit_component(LimitPeriods.MONTH)
+        policy = SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.MONTH_1,
+        )
+        result = policy._get_current_period()
+        self.assertEqual(result, "2026-03")
+
+    def test_annual_component_returns_annual_format(self):
+        self._create_limit_component(LimitPeriods.ANNUAL)
+        policy = SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.MONTH_12,
+        )
+        result = policy._get_current_period()
+        self.assertEqual(result, "2026")
+
+    def test_total_component_returns_total(self):
+        self._create_limit_component(LimitPeriods.TOTAL)
+        policy = SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.TOTAL,
+        )
+        result = policy._get_current_period()
+        self.assertEqual(result, "total")
+
+    def test_conflicting_components_falls_back_to_db(self):
+        """When components have different limit_periods, fall back to DB."""
+        self._create_limit_component(LimitPeriods.MONTH)
+        marketplace_factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="gpu",
+            billing_type=BillingTypes.LIMIT,
+            limit_period=LimitPeriods.QUARTERLY,
+        )
+        policy = SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.MONTH_1,
+        )
+        # Ambiguous components → falls back to DB period (MONTH_1)
+        result = policy._get_current_period()
+        self.assertEqual(result, "2026-03")
 
 
 class SlurmPeriodicUsagePolicyPreviewPeriodTest(test.APITestCase):

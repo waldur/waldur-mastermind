@@ -12,12 +12,13 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.permissions import _get_customer
-from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
+from waldur_mastermind.invoices.models import CustomerCredit, PeriodMixin, ProjectCredit
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.policy.policy_actions import POLICY_ACTIONS
 
 from . import models
+from .models import LIMIT_PERIOD_TO_POLICY_PERIOD
 
 logger = logging.getLogger(__name__)
 
@@ -509,6 +510,61 @@ class SlurmPeriodicUsagePolicySerializer(OfferingUsagePolicySerializer):
             "warnings",
         )
         extra_kwargs = OfferingUsagePolicySerializer.Meta.extra_kwargs
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        scope = attrs.get("scope") or (self.instance.scope if self.instance else None)
+        if not scope:
+            return attrs
+
+        # Collect distinct non-empty limit_period values from limit-based components
+        limit_periods = set(
+            scope.components.filter(billing_type=BillingTypes.LIMIT)
+            .exclude(limit_period__isnull=True)
+            .exclude(limit_period="")
+            .values_list("limit_period", flat=True)
+            .distinct()
+        )
+        if not limit_periods:
+            return attrs
+        if len(limit_periods) > 1:
+            raise serializers.ValidationError(
+                {
+                    "period": _(
+                        "Offering has multiple limit-based components with "
+                        "different limit_period values: %(periods)s. "
+                        "All must use the same limit_period."
+                    )
+                    % {"periods": ", ".join(sorted(limit_periods))}
+                }
+            )
+
+        limit_period = limit_periods.pop()
+        expected_period = LIMIT_PERIOD_TO_POLICY_PERIOD.get(limit_period)
+        if expected_period is None:
+            return attrs
+
+        period = attrs.get("period")
+        if period is None and self.instance is None:
+            # Auto-set period on create when not explicitly provided
+            attrs["period"] = expected_period
+        elif period is not None and period != expected_period:
+            raise serializers.ValidationError(
+                {
+                    "period": _(
+                        "Period must match the offering component's limit_period "
+                        "(%(limit_period)s). Expected %(expected)s, got %(actual)s."
+                    )
+                    % {
+                        "limit_period": limit_period,
+                        "expected": dict(PeriodMixin.Periods.CHOICES).get(
+                            expected_period
+                        ),
+                        "actual": dict(PeriodMixin.Periods.CHOICES).get(period),
+                    }
+                }
+            )
+        return attrs
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

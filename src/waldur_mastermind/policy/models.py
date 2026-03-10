@@ -21,12 +21,19 @@ from waldur_mastermind.invoices import (
     models as invoices_models,
 )
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace.enums import BillingTypes, LimitPeriods
 
 from . import enums, structures
 
 logger = logging.getLogger(__name__)
 
-# Import for TRES billing calculations
+# Mapping from OfferingComponent.limit_period to PeriodMixin.Periods
+LIMIT_PERIOD_TO_POLICY_PERIOD = {
+    LimitPeriods.MONTH: invoices_models.PeriodMixin.Periods.MONTH_1,
+    LimitPeriods.QUARTERLY: invoices_models.PeriodMixin.Periods.MONTH_3,
+    LimitPeriods.ANNUAL: invoices_models.PeriodMixin.Periods.MONTH_12,
+    LimitPeriods.TOTAL: invoices_models.PeriodMixin.Periods.TOTAL,
+}
 
 
 class Policy(
@@ -545,6 +552,42 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         self.clean()
         super().save(*args, **kwargs)
 
+    def _get_offering(self):
+        """Return the linked offering, or None if missing/deleted."""
+        try:
+            return self.scope if self.scope else None
+        except self.__class__.scope.RelatedObjectDoesNotExist:
+            return None
+
+    def _get_limit_based_component(self):
+        """Return the offering's limit-based component, or None."""
+        offering = self._get_offering()
+        if not offering:
+            return None
+        return offering.components.filter(billing_type=BillingTypes.LIMIT).first()
+
+    def _get_component_limit_period(self):
+        """Return the single limit_period string from this offering's limit-based components.
+
+        Returns None if:
+        - offering is missing
+        - no limit-based components have a limit_period set
+        - multiple limit-based components have different limit_periods (ambiguous)
+        """
+        offering = self._get_offering()
+        if not offering:
+            return None
+        periods = set(
+            offering.components.filter(billing_type=BillingTypes.LIMIT)
+            .exclude(limit_period__isnull=True)
+            .exclude(limit_period="")
+            .values_list("limit_period", flat=True)
+            .distinct()
+        )
+        if len(periods) == 1:
+            return periods.pop()
+        return None
+
     def calculate_slurm_settings(self, resource, config_override=None):
         """Calculate SLURM settings with configurable behavior and decay logic.
 
@@ -641,7 +684,10 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         }
 
     def _get_current_period(self):
-        """Get current period based on policy's period field from PeriodMixin.
+        """Get current period, preferring the offering component's limit_period.
+
+        Falls back to the DB period field if no limit-based component exists
+        or if the component's limit_period is empty/null.
 
         Returns:
             str: Period string in format appropriate for the period type:
@@ -650,14 +696,18 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
                 - MONTH_12: "YYYY" (e.g. "2026")
                 - TOTAL: "total"
         """
+        limit_period = self._get_component_limit_period()
+        effective_period = (
+            LIMIT_PERIOD_TO_POLICY_PERIOD.get(limit_period) if limit_period else None
+        ) or self.period
         now = core_utils.datetime.date.today()
         Periods = invoices_models.PeriodMixin.Periods
 
-        if self.period == Periods.MONTH_1:
+        if effective_period == Periods.MONTH_1:
             return f"{now.year}-{now.month:02d}"
-        elif self.period == Periods.MONTH_12:
+        elif effective_period == Periods.MONTH_12:
             return f"{now.year}"
-        elif self.period == Periods.TOTAL:
+        elif effective_period == Periods.TOTAL:
             return "total"
         else:
             # MONTH_3 (quarterly) - existing behavior
