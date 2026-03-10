@@ -20,6 +20,7 @@ from waldur_mastermind.marketplace.enums import (
     BillingTypes,
     OfferingUserStates,
     OrderStates,
+    OrderTypes,
     ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories, fixtures
@@ -1369,3 +1370,192 @@ class UserOfferingsMappingRestorationTest(APITestCase):
 
         offering_user.refresh_from_db()
         self.assertEqual(offering_user.state, OfferingUserStates.DELETED)
+
+
+class OfferingUserCreationHandlerWhenOrderIsValidTest(APITestCase):
+    """
+    Tests for create_offering_users_if_order_is_valid handler. Offering users are created when order reaches PENDING_PROVIDER or EXECUTING.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.fixture.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True,
+        }
+        self.fixture.offering.save()
+
+        self.project_user = structure_factories.UserFactory()
+        self.fixture.project.add_user(self.project_user, ProjectRole.MANAGER)
+
+        self.order = factories.OrderFactory(
+            project=self.fixture.project,
+            offering=self.fixture.offering,
+            plan=self.fixture.plan,
+            state=OrderStates.PENDING_CONSUMER,
+            type=OrderTypes.CREATE,
+        )
+
+    def _call_handler_for_state_change(self, new_state):
+        self.order.state = new_state
+        marketplace_handlers.create_offering_users_if_order_is_valid(
+            sender=None, instance=self.order, created=False
+        )
+        self.order.save()
+        for user in self.fixture.project.get_users():
+            tasks.create_or_restore_offering_users_for_user(
+                user.uuid.hex, self.fixture.project.uuid.hex
+            )
+
+    def _offering_user_exists(self):
+        return marketplace_models.OfferingUser.objects.filter(
+            user=self.project_user,
+            offering=self.fixture.offering,
+        ).exists()
+
+    def test_offering_users_created_for_existing_members_when_order_reaches_pending_provider(
+        self,
+    ):
+        self._call_handler_for_state_change(OrderStates.PENDING_PROVIDER)
+        self.assertTrue(self._offering_user_exists())
+
+    def test_offering_users_created_when_order_transitions_to_executing(self):
+        self._call_handler_for_state_change(OrderStates.EXECUTING)
+        self.assertTrue(self._offering_user_exists())
+
+    def test_no_offering_user_when_order_state_has_not_changed(self):
+        marketplace_handlers.create_offering_users_if_order_is_valid(
+            sender=None, instance=self.order, created=False
+        )
+        self.assertFalse(self._offering_user_exists())
+
+    def test_no_offering_user_when_order_transitions_to_unrelated_state(self):
+        self.order.state = OrderStates.REJECTED
+        marketplace_handlers.create_offering_users_if_order_is_valid(
+            sender=None, instance=self.order, created=False
+        )
+        self.assertFalse(self._offering_user_exists())
+
+    def test_no_offering_user_for_non_create_order_type(self):
+        self.order.type = OrderTypes.UPDATE
+        self.order.state = OrderStates.PENDING_PROVIDER
+        marketplace_handlers.create_offering_users_if_order_is_valid(
+            sender=None, instance=self.order, created=False
+        )
+        self.assertFalse(self._offering_user_exists())
+
+    def test_no_offering_user_when_plugin_option_disabled(self):
+        self.fixture.offering.plugin_options = {
+            "service_provider_can_create_offering_user": False,
+        }
+        self.fixture.offering.save()
+        self.order.state = OrderStates.PENDING_PROVIDER
+        marketplace_handlers.create_offering_users_if_order_is_valid(
+            sender=None, instance=self.order, created=False
+        )
+        self.assertFalse(self._offering_user_exists())
+
+    def test_no_offering_user_for_disallowed_offering_type(self):
+        self.fixture.offering.type = "Marketplace.OpenStack"
+        self.fixture.offering.save()
+        self.order.state = OrderStates.PENDING_PROVIDER
+        marketplace_handlers.create_offering_users_if_order_is_valid(
+            sender=None, instance=self.order, created=False
+        )
+        self.assertFalse(self._offering_user_exists())
+
+    def test_offering_user_not_duplicated_if_already_exists(self):
+        marketplace_models.OfferingUser.objects.create(
+            offering=self.fixture.offering,
+            user=self.project_user,
+            username="existing",
+        )
+        self._call_handler_for_state_change(OrderStates.PENDING_PROVIDER)
+        count = marketplace_models.OfferingUser.objects.filter(
+            user=self.project_user,
+            offering=self.fixture.offering,
+        ).count()
+        self.assertEqual(count, 1)
+
+
+class CreateOrRestoreOfferingUsersTaskOrderStateFilterTest(APITestCase):
+    """
+    Tests for the create_or_restore_offering_users_for_user task state filter.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.fixture.offering.plugin_options = {
+            "service_provider_can_create_offering_user": True,
+        }
+        self.fixture.offering.save()
+
+        self.project_user = structure_factories.UserFactory()
+        self.fixture.project.add_user(self.project_user, ProjectRole.MANAGER)
+
+    def _make_resource_with_order(
+        self, resource_state, order_state, order_type=OrderTypes.CREATE
+    ):
+        resource = factories.ResourceFactory(
+            offering=self.fixture.offering,
+            project=self.fixture.project,
+            state=resource_state,
+        )
+        factories.OrderFactory(
+            project=self.fixture.project,
+            offering=self.fixture.offering,
+            plan=self.fixture.plan,
+            resource=resource,
+            state=order_state,
+            type=order_type,
+        )
+        return resource
+
+    def _run_task(self):
+        tasks.create_or_restore_offering_users_for_user(
+            self.project_user.uuid.hex,
+            self.fixture.project.uuid.hex,
+        )
+
+    def _offering_user_exists(self):
+        return marketplace_models.OfferingUser.objects.filter(
+            user=self.project_user,
+            offering=self.fixture.offering,
+        ).exists()
+
+    def test_no_offering_user_while_order_pending_consumer(self):
+        """Customer hasn't approved yet — SP must not see users at this stage."""
+        self._make_resource_with_order(
+            ResourceStates.CREATING, OrderStates.PENDING_CONSUMER
+        )
+        self._run_task()
+        self.assertFalse(self._offering_user_exists())
+
+    def test_fix_offering_user_created_once_order_reaches_pending_provider(self):
+        """fix: resource still CREATING but order approved → offering user created."""
+        self._make_resource_with_order(
+            ResourceStates.CREATING, OrderStates.PENDING_PROVIDER
+        )
+        self._run_task()
+        self.assertTrue(self._offering_user_exists())
+
+    def test_offering_user_created_when_resource_creating_and_order_executing(self):
+        self._make_resource_with_order(ResourceStates.CREATING, OrderStates.EXECUTING)
+        self._run_task()
+        self.assertTrue(self._offering_user_exists())
+
+    def test_offering_user_created_when_resource_ok(self):
+        self._make_resource_with_order(ResourceStates.OK, OrderStates.DONE)
+        self._run_task()
+        self.assertTrue(self._offering_user_exists())
+
+    def test_no_offering_user_when_order_pending_project(self):
+        self._make_resource_with_order(
+            ResourceStates.CREATING, OrderStates.PENDING_PROJECT
+        )
+        self._run_task()
+        self.assertFalse(self._offering_user_exists())
+
+    def test_no_offering_user_for_erred_resource(self):
+        self._make_resource_with_order(ResourceStates.ERRED, OrderStates.ERRED)
+        self._run_task()
+        self.assertFalse(self._offering_user_exists())
