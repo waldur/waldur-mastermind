@@ -2402,6 +2402,8 @@ class Command(BaseCommand):
                     "getting_started": offering_data.get("getting_started", ""),
                     "integration_guide": offering_data.get("integration_guide", ""),
                     "privacy_policy_link": offering_data.get("privacy_policy_link", ""),
+                    "helpdesk_url": offering_data.get("helpdesk_url", ""),
+                    "documentation_url": offering_data.get("documentation_url", ""),
                     "access_url": offering_data.get("access_url", ""),
                     "country": offering_data.get("country", ""),
                     "paused_reason": offering_data.get("paused_reason", ""),
