@@ -1592,10 +1592,24 @@ class RobotAccountFilter(core_filters.CreatedModifiedFilter, django_filters.Filt
     state = django_filters.ChoiceFilter(
         choices=RobotAccountStates.CHOICES, label="Robot account state"
     )
+    username = django_filters.CharFilter(
+        lookup_expr="icontains", label="Username contains"
+    )
+    user_email = django_filters.CharFilter(
+        field_name="users__email",
+        lookup_expr="icontains",
+        label="Connected user email contains",
+        distinct=True,
+    )
+    responsible_user_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail",
+        field_name="responsible_user__uuid",
+        label="Responsible user UUID",
+    )
 
     class Meta:
         model = models.RobotAccount
-        fields = ["type", "state"]
+        fields = ["type", "state", "username"]
 
 
 class ResourceUserFilter(django_filters.FilterSet):
