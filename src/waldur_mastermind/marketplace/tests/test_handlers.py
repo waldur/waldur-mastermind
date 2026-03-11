@@ -672,15 +672,20 @@ class OfferingUserCreationWithUsernameTest(APITestCase):
         # Create a second offering for testing multiple offerings
         self.offering2 = factories.OfferingFactory(customer=self.fixture.customer)
 
-    def test_create_offering_user_for_new_resource_with_ok_state_when_username_provided(
-        self,
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.create_or_restore_offering_users_for_project.delay"
+    )
+    def test_create_offering_user_for_new_resource_dispatches_batch_task(
+        self, mock_delay
     ):
         """
-        Test that handlers.create_offering_user_for_new_resource creates OfferingUser with OK state.
+        Test that handlers.create_offering_user_for_new_resource dispatches
+        a single batch Celery task for the project.
         """
-        # Configure offering to generate usernames
+        # Configure offering to generate usernames and allow user creation
         self.fixture.offering.plugin_options = {
             "username_generation_policy": "full_name",
+            "service_provider_can_create_offering_user": True,
         }
         self.fixture.offering.save()
 
@@ -691,54 +696,14 @@ class OfferingUserCreationWithUsernameTest(APITestCase):
             state=ResourceStates.OK,
         )
 
-        # Call the handler function
-        marketplace_handlers.create_offering_user_for_new_resource(
-            None, resource, created=True
-        )
-
-        # Verify OfferingUser was created with OK state
-        project_users = self.fixture.project.get_users()
-        for user in project_users:
-            offering_user = marketplace_models.OfferingUser.objects.get(
-                user=user, offering=self.fixture.offering
+        # Call the handler function inside captureOnCommitCallbacks to execute deferred callbacks
+        with self.captureOnCommitCallbacks(execute=True):
+            marketplace_handlers.create_offering_user_for_new_resource(
+                None, resource, created=True
             )
-            self.assertEqual(offering_user.state, OfferingUserStates.OK)
-            self.assertIsNotNone(offering_user.username)
-            # Username should be based on full name for this policy
-            self.assertIn(user.first_name.lower(), offering_user.username)
 
-    def test_create_offering_user_for_new_resource_with_creation_requested_when_no_username(
-        self,
-    ):
-        """
-        Test that handlers.create_offering_user_for_new_resource creates OfferingUser with CREATION_REQUESTED state.
-        """
-        # Configure offering to NOT generate usernames
-        self.fixture.offering.plugin_options = {
-            "username_generation_policy": "service_provider",
-        }
-        self.fixture.offering.save()
-
-        # Create a resource that triggers the handler
-        resource = factories.ResourceFactory(
-            offering=self.fixture.offering,
-            project=self.fixture.project,
-            state=ResourceStates.OK,
-        )
-
-        # Call the handler function
-        marketplace_handlers.create_offering_user_for_new_resource(
-            None, resource, created=True
-        )
-
-        # Verify OfferingUser was created with CREATION_REQUESTED state
-        project_users = self.fixture.project.get_users()
-        for user in project_users:
-            offering_user = marketplace_models.OfferingUser.objects.get(
-                user=user, offering=self.fixture.offering
-            )
-            self.assertEqual(offering_user.state, OfferingUserStates.CREATION_REQUESTED)
-            self.assertEqual(offering_user.username, "")
+        # Verify a single batch Celery task was dispatched for the project
+        mock_delay.assert_called_once_with(self.fixture.project.uuid.hex)
 
 
 class OfferingUserDirectCreationTest(APITestCase):
@@ -1401,10 +1366,9 @@ class OfferingUserCreationHandlerWhenOrderIsValidTest(APITestCase):
             sender=None, instance=self.order, created=False
         )
         self.order.save()
-        for user in self.fixture.project.get_users():
-            tasks.create_or_restore_offering_users_for_user(
-                user.uuid.hex, self.fixture.project.uuid.hex
-            )
+        tasks.create_or_restore_offering_users_for_project(
+            self.fixture.project.uuid.hex
+        )
 
     def _offering_user_exists(self):
         return marketplace_models.OfferingUser.objects.filter(

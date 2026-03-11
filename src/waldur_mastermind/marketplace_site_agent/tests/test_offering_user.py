@@ -107,7 +107,12 @@ class OfferingUserCreationTest(test.APITestCase):
         )
 
         self.resource.project.add_user(self.offering_admin, ProjectRole.ADMIN)
-        resource_creation_succeeded(self.resource)
+        with mock.patch(
+            "waldur_mastermind.marketplace.tasks.create_or_restore_offering_users_for_project.delay",
+            side_effect=tasks.create_or_restore_offering_users_for_project,
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                resource_creation_succeeded(self.resource)
 
         # Verify that publish_messages.delay was called
         mocked_publish_messages.assert_called()
@@ -132,7 +137,12 @@ class OfferingUserCreationTest(test.APITestCase):
             ).exists()
         )
 
-        resource_creation_succeeded(self.resource)
+        with mock.patch(
+            "waldur_mastermind.marketplace.tasks.create_or_restore_offering_users_for_project.delay",
+            side_effect=tasks.create_or_restore_offering_users_for_project,
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                resource_creation_succeeded(self.resource)
 
         self.assertTrue(
             marketplace_models.OfferingUser.objects.filter(
@@ -148,7 +158,12 @@ class OfferingUserCreationTest(test.APITestCase):
         self.resource.project.add_user(self.offering_admin, ProjectRole.ADMIN)
         self.resource.project.add_user(self.offering_owner, ProjectRole.MANAGER)
 
-        resource_creation_succeeded(self.resource)
+        with mock.patch(
+            "waldur_mastermind.marketplace.tasks.create_or_restore_offering_users_for_project.delay",
+            side_effect=tasks.create_or_restore_offering_users_for_project,
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                resource_creation_succeeded(self.resource)
         offering_user = marketplace_models.OfferingUser.objects.get(
             offering=self.resource.offering, user=self.offering_admin
         )
