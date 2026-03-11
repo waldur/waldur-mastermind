@@ -1471,7 +1471,7 @@ def request_offering_user_deletion_when_project_access_lost(sender, instance, **
 
 
 def create_offering_user_for_new_resource(sender, instance: Resource, **kwargs):
-    """Create an offering user for a new resource."""
+    """Defer offering user creation to Celery after resource creation succeeds."""
     resource = instance
     project = resource.project
     offering = resource.offering
@@ -1487,33 +1487,11 @@ def create_offering_user_for_new_resource(sender, instance: Resource, **kwargs):
         )
         return
 
-    users = project.get_users()
-
-    for user in users:
-        if models.OfferingUser.objects.filter(
-            offering=offering,
-            user=user,
-        ).exists():
-            logger.info("An offering user for %s in %s already exists", user, offering)
-            continue
-
-        username = utils.generate_username(user, offering)
-        # Set state to OK when username is known at creation time
-        state = (
-            OfferingUserStates.OK if username else OfferingUserStates.CREATION_REQUESTED
+    transaction.on_commit(
+        lambda: tasks.create_or_restore_offering_users_for_project.delay(
+            project.uuid.hex
         )
-        offering_user = models.OfferingUser.objects.create(
-            offering=offering,
-            user=user,
-            username=username,
-            state=state,
-        )
-
-        utils.setup_linux_related_data(offering_user, offering)
-
-        offering_user.save(update_fields=["backend_metadata"])
-
-        logger.info("The offering user %s has been created", offering_user)
+    )
 
 
 def create_offering_users_if_order_is_valid(
@@ -1535,13 +1513,11 @@ def create_offering_users_if_order_is_valid(
         return
 
     project = order.project
-    users = project.get_users()
-    for user in users:
-        transaction.on_commit(
-            lambda u=user: tasks.create_or_restore_offering_users_for_user.delay(
-                u.uuid.hex, project.uuid.hex
-            )
+    transaction.on_commit(
+        lambda: tasks.create_or_restore_offering_users_for_project.delay(
+            project.uuid.hex
         )
+    )
 
 
 def update_offering_user_username_after_offering_settings_change(
