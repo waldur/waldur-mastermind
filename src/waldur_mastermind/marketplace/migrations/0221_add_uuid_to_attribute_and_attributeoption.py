@@ -23,7 +23,7 @@ def gen_attributeoption_uuids(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0219_courseaccount_pending_state"),
+        ("marketplace", "0220_offering_helpdesk_url_documentation_url"),
     ]
 
     operations = [
