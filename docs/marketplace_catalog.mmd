@@ -11,6 +11,7 @@ classDiagram
     class Attribute {
         +AutoCreatedField created
         +AutoLastModifiedField modified
+        +string uuid
         +string key [PK]
         +string title
         +Section section [FK]
@@ -20,6 +21,7 @@ classDiagram
     }
     class AttributeOption {
         +int id [PK]
+        +string uuid
         +Attribute attribute [FK]
         +string key
         +string title

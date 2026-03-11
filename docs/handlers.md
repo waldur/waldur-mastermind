@@ -576,7 +576,7 @@ td:nth-child(4) {
 | `create_offering_component_for_volume_type` | `Django Signal (post_save)` | `openstack.VolumeType` | Create marketplace offering component when OpenStack volume type is created. |
 | `create_offering_from_tenant` | `Django Signal (post_save)` | `openstack.Tenant` | No description |
 | `create_offering_user_checklist_completions` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Create checklist completions for OfferingUser when created. |
-| `create_offering_user_for_new_resource` | `Custom Signal (resource_creation_succeeded)` | `marketplace.Resource` | Create an offering user for a new resource. |
+| `create_offering_user_for_new_resource` | `Custom Signal (resource_creation_succeeded)` | `marketplace.Resource` | Defer offering user creation to Celery after resource creation succeeds. |
 | `create_offering_user_for_openportal_remote_user` | `Custom Signal (openportal_remote_association_created)` | `waldur_openportal.RemoteAllocation` | No description |
 | `create_offering_user_for_openportal_user` | `Custom Signal (openportal_association_created)` | `waldur_openportal.Allocation` | No description |
 | `create_offering_user_for_rancher_user` | `Django Signal (post_save)` | `waldur_rancher.RancherUser` | No description |
