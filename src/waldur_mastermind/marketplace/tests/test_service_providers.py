@@ -755,8 +755,8 @@ class ServiceProviderUsersGDPRFilteringTest(test.APITestCase):
         self.assertIn("phone_number", user_data)
         self.assertIn("organization", user_data)
 
-    def test_intersection_of_multiple_offerings(self):
-        """When multiple offerings exist, uses intersection (most restrictive)."""
+    def test_union_of_multiple_offerings(self):
+        """When multiple offerings exist, uses union (least restrictive)."""
         # Create first offering config - exposes phone_number but not organization
         models.OfferingUserAttributeConfig.objects.create(
             offering=self.offering,
@@ -791,14 +791,14 @@ class ServiceProviderUsersGDPRFilteringTest(test.APITestCase):
         )
         self.assertIsNotNone(user_data)
 
-        # Only common attributes should be exposed (intersection)
+        # Common attributes should be exposed
         self.assertIn("username", user_data)
         self.assertIn("full_name", user_data)
         self.assertIn("email", user_data)
 
-        # phone_number and organization are NOT in intersection
-        self.assertNotIn("phone_number", user_data)
-        self.assertNotIn("organization", user_data)
+        # Both phone_number and organization are in the union
+        self.assertIn("phone_number", user_data)
+        self.assertIn("organization", user_data)
 
     def test_uuid_and_projects_count_always_present(self):
         """Non-GDPR fields like uuid and projects_count are always present."""
@@ -823,9 +823,9 @@ class ServiceProviderUsersGDPRFilteringTest(test.APITestCase):
         self.assertIn("uuid", user_data)
         self.assertIn("projects_count", user_data)
 
-    def test_mixed_config_and_no_config_uses_intersection(self):
-        """When one offering has config and another uses defaults, intersection is applied."""
-        # First offering has restrictive config (no phone)
+    def test_mixed_config_and_no_config_uses_union(self):
+        """When one offering has config and another uses defaults, union is applied."""
+        # First offering has config with organization enabled
         models.OfferingUserAttributeConfig.objects.create(
             offering=self.offering,
             expose_username=True,
@@ -852,13 +852,13 @@ class ServiceProviderUsersGDPRFilteringTest(test.APITestCase):
         )
         self.assertIsNotNone(user_data)
 
-        # Intersection of config1 and defaults: username, full_name, email
+        # Union of config1 and defaults: username, full_name, email, organization
         self.assertIn("username", user_data)
         self.assertIn("full_name", user_data)
         self.assertIn("email", user_data)
 
-        # organization is in config1 but not in defaults - NOT exposed
-        self.assertNotIn("organization", user_data)
+        # organization is in config1 - exposed via union
+        self.assertIn("organization", user_data)
 
     def test_first_last_name_filtered_with_full_name(self):
         """first_name and last_name are filtered together with full_name via USER_ATTRIBUTE_EXTRA_FIELDS."""

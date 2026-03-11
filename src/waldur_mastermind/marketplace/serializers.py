@@ -7890,9 +7890,9 @@ class MarketplaceServiceProviderUserSerializer(
     """
     Serializer for users in the service provider users endpoint.
 
-    Applies GDPR-aware attribute filtering based on the intersection of exposed
-    fields from all offerings of the service provider. This ensures that only
-    attributes that are exposed by ALL offerings are shown.
+    Applies GDPR-aware attribute filtering based on the union of exposed
+    fields from all offerings of the service provider. If at least one
+    offering exposes an attribute, it is shown.
     """
 
     # Extra serializer fields exposed/hidden together with their parent attribute.
@@ -7977,10 +7977,11 @@ class MarketplaceServiceProviderUserSerializer(
 
     def _get_service_provider_exposed_attributes(self):
         """
-        Get the intersection of exposed attributes across all service provider offerings.
+        Get the union of exposed attributes across all service provider offerings.
 
         Uses request-level caching to avoid repeated database queries.
-        Returns the most restrictive set of attributes (intersection).
+        Returns the least restrictive set of attributes (union) — if any offering
+        exposes a field, it is shown.
         """
         # Check if this is schema generation context - return ALL possible attributes
         # so the OpenAPI schema shows the maximum possible response shape
@@ -8017,7 +8018,7 @@ class MarketplaceServiceProviderUserSerializer(
                 setattr(request, cache_key, default_attrs)
             return default_attrs
 
-        # Get intersection of exposed fields from all offerings
+        # Get union of exposed fields from all offerings
         exposed_sets = []
         for offering in offerings:
             exposed_fields = (
@@ -8027,9 +8028,9 @@ class MarketplaceServiceProviderUserSerializer(
             )
             exposed_sets.append(set(exposed_fields))
 
-        # Intersection of all sets (most restrictive)
+        # Union of all sets (least restrictive — if any offering exposes a field, show it)
         if exposed_sets:
-            result = set.intersection(*exposed_sets)
+            result = set.union(*exposed_sets)
         else:
             result = set()
 
