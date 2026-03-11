@@ -118,6 +118,18 @@ class Command(BaseCommand):
         waldur import_structure -i structure.json --skip-rabbitmq-messages --skip-roles
     """
 
+    @staticmethod
+    def _normalize_uuid(uuid_str):
+        """Normalize a UUID string by removing hyphens.
+
+        Waldur uses StringUUID whose __str__ returns hex (no hyphens),
+        but exported data may contain hyphenated UUIDs. This ensures
+        consistent dict key format for pre-fetched lookup maps.
+        """
+        if uuid_str is None:
+            return None
+        return str(uuid_str).replace("-", "")
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.stats = {
@@ -1033,6 +1045,10 @@ class Command(BaseCommand):
         """Import user data including system_robot."""
         self.stdout.write("Importing users...")
 
+        # Pre-fetch lookup maps to avoid N+1 queries
+        user_by_uuid = {str(u.uuid): u for u in User.all_objects.all()}
+        user_by_username = {u.username: u for u in user_by_uuid.values()}
+
         for user_data in users_data:
             try:
                 uuid = user_data.get("uuid")
@@ -1051,14 +1067,12 @@ class Command(BaseCommand):
                     self.stats["users"]["errors"] += 1
                     continue
 
-                # Use all_objects to include inactive users to avoid unique constraint violations
-                existing_user = User.all_objects.filter(uuid=uuid).first()
+                # Use pre-fetched maps instead of per-item DB queries
+                existing_user = user_by_uuid.get(self._normalize_uuid(uuid))
 
                 # Also check if username already exists (even with different UUID)
                 if not existing_user:
-                    username_conflict = User.all_objects.filter(
-                        username=username
-                    ).first()
+                    username_conflict = user_by_username.get(username)
                     if username_conflict:
                         # For system_robot, use the existing one if UUID matches or update it
                         if username == "system_robot":
@@ -1267,6 +1281,10 @@ class Command(BaseCommand):
                     if not self.dry_run:
                         user.save()
 
+                    # Update maps for subsequent lookups
+                    user_by_uuid[self._normalize_uuid(uuid)] = user
+                    user_by_username[username] = user
+
                     self.stats["users"]["created"] += 1
 
             except Exception as e:
@@ -1281,6 +1299,11 @@ class Command(BaseCommand):
         """Import user authentication tokens."""
         self.stdout.write("Importing auth tokens...")
 
+        # Pre-fetch lookup maps to avoid N+1 queries
+        user_map = {str(u.uuid): u for u in User.all_objects.all()}
+        token_by_key = {t.key: t for t in Token.objects.all()}
+        token_by_user_id = {t.user_id: t for t in token_by_key.values()}
+
         for token_data in tokens_data:
             try:
                 key = token_data.get("key")
@@ -1294,7 +1317,7 @@ class Command(BaseCommand):
                     continue
 
                 # Find user
-                user = User.all_objects.filter(uuid=user_uuid).first()
+                user = user_map.get(self._normalize_uuid(user_uuid))
                 if not user:
                     self.stdout.write(
                         self.style.WARNING(
@@ -1315,7 +1338,7 @@ class Command(BaseCommand):
                         pass
 
                 if not self.dry_run:
-                    existing_token = Token.objects.filter(key=key).first()
+                    existing_token = token_by_key.get(key)
 
                     if existing_token:
                         if self.update_existing:
@@ -1329,15 +1352,21 @@ class Command(BaseCommand):
                             self.stats["auth_tokens"]["skipped"] += 1
                     else:
                         # Check if user already has a token
-                        user_token = Token.objects.filter(user=user).first()
+                        user_token = token_by_user_id.get(user.id)
                         if user_token:
                             if self.update_existing:
                                 # Replace existing token
                                 user_token.delete()
+                                # Remove old token from maps
+                                token_by_key.pop(user_token.key, None)
+                                token_by_user_id.pop(user.id, None)
                                 token = Token(key=key, user=user)
                                 if created:
                                     token.created = created
                                 token.save()
+                                # Update maps
+                                token_by_key[key] = token
+                                token_by_user_id[user.id] = token
                                 self.stats["auth_tokens"]["updated"] += 1
                             else:
                                 self.stdout.write(
@@ -1352,10 +1381,13 @@ class Command(BaseCommand):
                             if created:
                                 token.created = created
                             token.save()
+                            # Update maps
+                            token_by_key[key] = token
+                            token_by_user_id[user.id] = token
                             self.stats["auth_tokens"]["created"] += 1
                 else:
                     # Dry run
-                    existing = Token.objects.filter(key=key).exists()
+                    existing = key in token_by_key
                     if existing:
                         if self.update_existing:
                             self.stats["auth_tokens"]["updated"] += 1
@@ -1363,7 +1395,7 @@ class Command(BaseCommand):
                             self.stats["auth_tokens"]["skipped"] += 1
                     else:
                         # Check for user token conflict
-                        user_has_token = Token.objects.filter(user=user).exists()
+                        user_has_token = user.id in token_by_user_id
                         if user_has_token:
                             if self.update_existing:
                                 self.stats["auth_tokens"]["updated"] += 1
@@ -2915,6 +2947,27 @@ class Command(BaseCommand):
         """Import user role assignments."""
         self.stdout.write("Importing user roles...")
 
+        # Pre-fetch lookup maps to avoid N+1 queries
+        # Note: str(obj.uuid) may return non-hyphenated hex (StringUUID),
+        # but data UUIDs may have hyphens, so we normalize all keys by removing hyphens.
+        user_map = {str(u.uuid): u for u in User.all_objects.all()}
+        role_by_uuid = {str(r.uuid): r for r in Role.objects.all()}
+        role_by_name = {r.name: r for r in role_by_uuid.values()}
+        existing_user_roles = {str(ur.uuid): ur for ur in UserRole.objects.all()}
+
+        # Pre-fetch ContentType map
+        content_type_map = {
+            (ct.app_label, ct.model): ct for ct in ContentType.objects.all()
+        }
+
+        # Pre-fetch common scope objects (Customer and Project cover >95% of scopes)
+        customer_by_uuid = {str(c.uuid): c for c in Customer.objects.all()}
+        project_by_uuid = {str(p.uuid): p for p in Project.objects.all()}
+        scope_cache = {
+            ("structure", "customer"): customer_by_uuid,
+            ("structure", "project"): project_by_uuid,
+        }
+
         for user_role_data in user_roles_data:
             try:
                 uuid = user_role_data.get("uuid")
@@ -2934,7 +2987,7 @@ class Command(BaseCommand):
                     continue
 
                 # Find user
-                user = User.all_objects.filter(uuid=user_uuid).first()
+                user = user_map.get(self._normalize_uuid(user_uuid))
                 if not user:
                     self.stdout.write(
                         self.style.WARNING(
@@ -2951,9 +3004,9 @@ class Command(BaseCommand):
                 if scope_type and scope_uuid:
                     try:
                         app_label, model = scope_type.split(".")
-                        content_type = ContentType.objects.get(
-                            app_label=app_label, model=model
-                        )
+                        content_type = content_type_map.get((app_label, model))
+                        if not content_type:
+                            raise ContentType.DoesNotExist
                     except (ValueError, ContentType.DoesNotExist):
                         self.stdout.write(
                             self.style.WARNING(
@@ -2966,12 +3019,15 @@ class Command(BaseCommand):
                 # Find role by UUID or by name (create system role if needed)
                 role = None
                 if role_uuid:
-                    role = Role.objects.filter(uuid=role_uuid).first()
+                    role = role_by_uuid.get(self._normalize_uuid(role_uuid))
                 if not role and role_name:
-                    role = Role.objects.filter(name=role_name).first()
+                    role = role_by_name.get(role_name)
                     # If role not found and we have a content_type, create it as a system role
                     if not role and content_type:
                         role = Role.objects.get_system_role(role_name, content_type)
+                        # Cache the newly created/fetched role
+                        role_by_uuid[str(role.uuid)] = role
+                        role_by_name[role.name] = role
                 if not role:
                     self.stdout.write(
                         self.style.WARNING(
@@ -2993,7 +3049,15 @@ class Command(BaseCommand):
                         )
                         self.stats["user_roles"]["errors"] += 1
                         continue
-                    scope_object = model_class.objects.filter(uuid=scope_uuid).first()
+                    # Use pre-fetched scope maps for common types, fall back to DB for rare ones
+                    app_label, model = scope_type.split(".")
+                    scope_map = scope_cache.get((app_label, model))
+                    if scope_map is not None:
+                        scope_object = scope_map.get(self._normalize_uuid(scope_uuid))
+                    else:
+                        scope_object = model_class.objects.filter(
+                            uuid=scope_uuid
+                        ).first()
                     if not scope_object:
                         self.stdout.write(
                             self.style.WARNING(
@@ -3028,7 +3092,8 @@ class Command(BaseCommand):
 
                 if not self.dry_run:
                     # Check if already exists
-                    existing = UserRole.objects.filter(uuid=uuid).first()
+                    normalized_uuid = self._normalize_uuid(uuid)
+                    existing = existing_user_roles.get(normalized_uuid)
 
                     if existing:
                         if self.update_existing:
@@ -3039,10 +3104,11 @@ class Command(BaseCommand):
                         else:
                             self.stats["user_roles"]["skipped"] += 1
                     else:
-                        UserRole.objects.create(uuid=uuid, **defaults)
+                        obj = UserRole.objects.create(uuid=uuid, **defaults)
+                        existing_user_roles[normalized_uuid] = obj
                         self.stats["user_roles"]["created"] += 1
                 else:
-                    existing = UserRole.objects.filter(uuid=uuid).exists()
+                    existing = self._normalize_uuid(uuid) in existing_user_roles
                     if existing:
                         if self.update_existing:
                             self.stats["user_roles"]["updated"] += 1
@@ -3809,6 +3875,17 @@ class Command(BaseCommand):
         """Import component usage data."""
         self.stdout.write("Importing component usages...")
 
+        # Pre-fetch lookup maps to avoid N+1 queries
+        resource_map = {str(r.uuid): r for r in Resource.objects.all()}
+        component_map = {str(c.uuid): c for c in OfferingComponent.objects.all()}
+        plan_period_map = {str(pp.uuid): pp for pp in ResourcePlanPeriod.objects.all()}
+        existing_usages = {str(cu.uuid): cu for cu in ComponentUsage.objects.all()}
+        # Build duplicate check set: (resource_id, component_id, billing_period) for null plan_period
+        duplicate_keys = set()
+        for cu in existing_usages.values():
+            if cu.plan_period_id is None:
+                duplicate_keys.add((cu.resource_id, cu.component_id, cu.billing_period))
+
         for usage_data in usages_data:
             try:
                 uuid = usage_data.get("uuid")
@@ -3825,7 +3902,7 @@ class Command(BaseCommand):
                     continue
 
                 # Find resource
-                resource = Resource.objects.filter(uuid=resource_uuid).first()
+                resource = resource_map.get(self._normalize_uuid(resource_uuid))
                 if not resource:
                     self.stdout.write(
                         self.style.WARNING(
@@ -3836,9 +3913,7 @@ class Command(BaseCommand):
                     continue
 
                 # Find component
-                component = OfferingComponent.objects.filter(
-                    uuid=component_uuid
-                ).first()
+                component = component_map.get(self._normalize_uuid(component_uuid))
                 if not component:
                     self.stdout.write(
                         self.style.WARNING(
@@ -3871,9 +3946,9 @@ class Command(BaseCommand):
                 plan_period = None
                 plan_period_uuid = usage_data.get("plan_period")
                 if plan_period_uuid:
-                    plan_period = ResourcePlanPeriod.objects.filter(
-                        uuid=plan_period_uuid
-                    ).first()
+                    plan_period = plan_period_map.get(
+                        self._normalize_uuid(plan_period_uuid)
+                    )
                     if not plan_period:
                         self.stdout.write(
                             self.style.WARNING(
@@ -3894,7 +3969,8 @@ class Command(BaseCommand):
                 }
 
                 if not self.dry_run:
-                    existing_usage = ComponentUsage.objects.filter(uuid=uuid).first()
+                    normalized_uuid = self._normalize_uuid(uuid)
+                    existing_usage = existing_usages.get(normalized_uuid)
 
                     if existing_usage:
                         if self.update_existing:
@@ -3905,32 +3981,43 @@ class Command(BaseCommand):
                     else:
                         # Check if a record with the same business key exists
                         # (unique constraint on resource, component, billing_period when plan_period is NULL)
-                        duplicate_usage = ComponentUsage.objects.filter(
-                            resource=resource,
-                            component=component,
-                            billing_period=billing_period or timezone.now().date(),
-                            plan_period__isnull=True,
-                        ).first()
+                        biz_key = (
+                            resource.id,
+                            component.id,
+                            billing_period or timezone.now().date(),
+                        )
+                        duplicate_exists = biz_key in duplicate_keys
 
-                        if duplicate_usage:
+                        if duplicate_exists:
                             if self.update_existing:
-                                # Update the existing record with the new UUID and data
-                                ComponentUsage.objects.filter(
-                                    pk=duplicate_usage.pk
-                                ).update(uuid=uuid, **defaults)
+                                # Fall back to DB query to get the actual duplicate for update
+                                duplicate_usage = ComponentUsage.objects.filter(
+                                    resource=resource,
+                                    component=component,
+                                    billing_period=billing_period
+                                    or timezone.now().date(),
+                                    plan_period__isnull=True,
+                                ).first()
+                                if duplicate_usage:
+                                    ComponentUsage.objects.filter(
+                                        pk=duplicate_usage.pk
+                                    ).update(uuid=uuid, **defaults)
                                 self.stats["component_usages"]["updated"] += 1
                             else:
                                 self.stdout.write(
                                     self.style.WARNING(
-                                        f"Skipping component usage {uuid}: duplicate exists with UUID {duplicate_usage.uuid}"
+                                        f"Skipping component usage {uuid}: duplicate exists"
                                     )
                                 )
                                 self.stats["component_usages"]["skipped"] += 1
                         else:
-                            ComponentUsage.objects.create(uuid=uuid, **defaults)
+                            obj = ComponentUsage.objects.create(uuid=uuid, **defaults)
+                            existing_usages[normalized_uuid] = obj
+                            if plan_period is None:
+                                duplicate_keys.add(biz_key)
                             self.stats["component_usages"]["created"] += 1
                 else:
-                    existing = ComponentUsage.objects.filter(uuid=uuid).exists()
+                    existing = self._normalize_uuid(uuid) in existing_usages
                     if existing:
                         if self.update_existing:
                             self.stats["component_usages"]["updated"] += 1
@@ -3938,12 +4025,12 @@ class Command(BaseCommand):
                             self.stats["component_usages"]["skipped"] += 1
                     else:
                         # Check for duplicate by business key
-                        duplicate_exists = ComponentUsage.objects.filter(
-                            resource=resource,
-                            component=component,
-                            billing_period=billing_period or timezone.now().date(),
-                            plan_period__isnull=True,
-                        ).exists()
+                        biz_key = (
+                            resource.id,
+                            component.id,
+                            billing_period or timezone.now().date(),
+                        )
+                        duplicate_exists = biz_key in duplicate_keys
 
                         if duplicate_exists:
                             if self.update_existing:
@@ -4168,6 +4255,13 @@ class Command(BaseCommand):
         """Import invoice item data."""
         self.stdout.write("Importing invoice items...")
 
+        # Pre-fetch lookup maps to avoid N+1 queries
+        invoice_map = {str(i.uuid): i for i in Invoice.objects.all()}
+        resource_map = {str(r.uuid): r for r in Resource.objects.all()}
+        project_map = {str(p.uuid): p for p in Project.available_objects.all()}
+        plan_component_map = {pc.id: pc for pc in PlanComponent.objects.all()}
+        existing_items = {str(ii.uuid): ii for ii in InvoiceItem.objects.all()}
+
         for item_data in invoice_items_data:
             try:
                 uuid = item_data.get("uuid")
@@ -4183,7 +4277,7 @@ class Command(BaseCommand):
                     continue
 
                 # Find invoice
-                invoice = Invoice.objects.filter(uuid=invoice_uuid).first()
+                invoice = invoice_map.get(self._normalize_uuid(invoice_uuid))
                 if not invoice:
                     self.stdout.write(
                         self.style.WARNING(
@@ -4197,15 +4291,13 @@ class Command(BaseCommand):
                 resource = None
                 resource_uuid = item_data.get("resource_uuid")
                 if resource_uuid:
-                    resource = Resource.objects.filter(uuid=resource_uuid).first()
+                    resource = resource_map.get(self._normalize_uuid(resource_uuid))
 
                 # Find project (optional)
                 project = None
                 project_uuid = item_data.get("project_uuid")
                 if project_uuid:
-                    project = Project.available_objects.filter(
-                        uuid=project_uuid
-                    ).first()
+                    project = project_map.get(self._normalize_uuid(project_uuid))
 
                 # Parse dates
                 start = None
@@ -4230,9 +4322,7 @@ class Command(BaseCommand):
                 plan_component = None
                 plan_component_id = item_data.get("plan_component")
                 if plan_component_id:
-                    plan_component = PlanComponent.objects.filter(
-                        id=plan_component_id
-                    ).first()
+                    plan_component = plan_component_map.get(plan_component_id)
 
                 # Parse backend_uuid
                 backend_uuid = None
@@ -4263,7 +4353,8 @@ class Command(BaseCommand):
                     defaults["end"] = end
 
                 if not self.dry_run:
-                    existing_item = InvoiceItem.objects.filter(uuid=uuid).first()
+                    normalized_uuid = self._normalize_uuid(uuid)
+                    existing_item = existing_items.get(normalized_uuid)
 
                     if existing_item:
                         if self.update_existing:
@@ -4272,10 +4363,11 @@ class Command(BaseCommand):
                         else:
                             self.stats["invoice_items"]["skipped"] += 1
                     else:
-                        InvoiceItem.objects.create(uuid=uuid, **defaults)
+                        obj = InvoiceItem.objects.create(uuid=uuid, **defaults)
+                        existing_items[normalized_uuid] = obj
                         self.stats["invoice_items"]["created"] += 1
                 else:
-                    existing = InvoiceItem.objects.filter(uuid=uuid).exists()
+                    existing = self._normalize_uuid(uuid) in existing_items
                     if existing:
                         if self.update_existing:
                             self.stats["invoice_items"]["updated"] += 1
@@ -4295,6 +4387,14 @@ class Command(BaseCommand):
     def import_orders(self, orders_data):
         """Import order data."""
         self.stdout.write("Importing orders...")
+
+        # Pre-fetch lookup maps to avoid N+1 queries
+        project_map = {str(p.uuid): p for p in Project.available_objects.all()}
+        resource_map = {str(r.uuid): r for r in Resource.objects.all()}
+        offering_map = {str(o.uuid): o for o in Offering.objects.all()}
+        user_map = {str(u.uuid): u for u in User.all_objects.all()}
+        plan_map = {str(p.uuid): p for p in Plan.objects.all()}
+        existing_orders = {str(o.uuid): o for o in Order.objects.all()}
 
         for order_data in orders_data:
             try:
@@ -4320,7 +4420,7 @@ class Command(BaseCommand):
                     continue
 
                 # Find project
-                project = Project.available_objects.filter(uuid=project_uuid).first()
+                project = project_map.get(self._normalize_uuid(project_uuid))
                 if not project:
                     self.stdout.write(
                         self.style.WARNING(
@@ -4331,7 +4431,7 @@ class Command(BaseCommand):
                     continue
 
                 # Find resource
-                resource = Resource.objects.filter(uuid=resource_uuid).first()
+                resource = resource_map.get(self._normalize_uuid(resource_uuid))
                 if not resource:
                     self.stdout.write(
                         self.style.WARNING(
@@ -4342,7 +4442,7 @@ class Command(BaseCommand):
                     continue
 
                 # Find offering
-                offering = Offering.objects.filter(uuid=offering_uuid).first()
+                offering = offering_map.get(self._normalize_uuid(offering_uuid))
                 if not offering:
                     self.stdout.write(
                         self.style.WARNING(
@@ -4353,7 +4453,7 @@ class Command(BaseCommand):
                     continue
 
                 # Find created_by user
-                created_by = User.all_objects.filter(uuid=created_by_uuid).first()
+                created_by = user_map.get(self._normalize_uuid(created_by_uuid))
                 if not created_by:
                     self.stdout.write(
                         self.style.WARNING(
@@ -4367,29 +4467,29 @@ class Command(BaseCommand):
                 plan = None
                 plan_uuid = order_data.get("plan_uuid")
                 if plan_uuid:
-                    plan = Plan.objects.filter(uuid=plan_uuid).first()
+                    plan = plan_map.get(self._normalize_uuid(plan_uuid))
 
                 # Find old_plan (optional)
                 old_plan = None
                 old_plan_uuid = order_data.get("old_plan_uuid")
                 if old_plan_uuid:
-                    old_plan = Plan.objects.filter(uuid=old_plan_uuid).first()
+                    old_plan = plan_map.get(self._normalize_uuid(old_plan_uuid))
 
                 # Find consumer_reviewed_by (optional)
                 consumer_reviewed_by = None
                 consumer_reviewed_by_uuid = order_data.get("consumer_reviewed_by_uuid")
                 if consumer_reviewed_by_uuid:
-                    consumer_reviewed_by = User.all_objects.filter(
-                        uuid=consumer_reviewed_by_uuid
-                    ).first()
+                    consumer_reviewed_by = user_map.get(
+                        self._normalize_uuid(consumer_reviewed_by_uuid)
+                    )
 
                 # Find provider_reviewed_by (optional)
                 provider_reviewed_by = None
                 provider_reviewed_by_uuid = order_data.get("provider_reviewed_by_uuid")
                 if provider_reviewed_by_uuid:
-                    provider_reviewed_by = User.all_objects.filter(
-                        uuid=provider_reviewed_by_uuid
-                    ).first()
+                    provider_reviewed_by = user_map.get(
+                        self._normalize_uuid(provider_reviewed_by_uuid)
+                    )
 
                 # Parse datetime fields
                 consumer_reviewed_at = None
@@ -4472,7 +4572,8 @@ class Command(BaseCommand):
                 }
 
                 if not self.dry_run:
-                    existing_order = Order.objects.filter(uuid=uuid).first()
+                    normalized_uuid = self._normalize_uuid(uuid)
+                    existing_order = existing_orders.get(normalized_uuid)
 
                     if existing_order:
                         if self.update_existing:
@@ -4485,12 +4586,13 @@ class Command(BaseCommand):
                             self.stats["orders"]["skipped"] += 1
                     else:
                         order = Order.objects.create(uuid=uuid, **defaults)
+                        existing_orders[normalized_uuid] = order
                         # Update created timestamp if provided
                         if created:
                             Order.objects.filter(pk=order.pk).update(created=created)
                         self.stats["orders"]["created"] += 1
                 else:
-                    existing = Order.objects.filter(uuid=uuid).exists()
+                    existing = self._normalize_uuid(uuid) in existing_orders
                     if existing:
                         if self.update_existing:
                             self.stats["orders"]["updated"] += 1
@@ -4514,6 +4616,11 @@ class Command(BaseCommand):
         """Import offering user data."""
         self.stdout.write("Importing offering users...")
 
+        # Pre-fetch lookup maps to avoid N+1 queries
+        offering_map = {str(o.uuid): o for o in Offering.objects.all()}
+        user_map = {str(u.uuid): u for u in User.all_objects.all()}
+        existing_map = {str(ou.uuid): ou for ou in OfferingUser.objects.all()}
+
         for offering_user_data in offering_users_data:
             try:
                 uuid = offering_user_data.get("uuid")
@@ -4530,7 +4637,7 @@ class Command(BaseCommand):
                     continue
 
                 # Find offering
-                offering = Offering.objects.filter(uuid=offering_uuid).first()
+                offering = offering_map.get(self._normalize_uuid(offering_uuid))
                 if not offering:
                     self.stdout.write(
                         self.style.WARNING(
@@ -4541,7 +4648,7 @@ class Command(BaseCommand):
                     continue
 
                 # Find user
-                user = User.all_objects.filter(uuid=user_uuid).first()
+                user = user_map.get(self._normalize_uuid(user_uuid))
                 if not user:
                     self.stdout.write(
                         self.style.WARNING(
@@ -4566,9 +4673,8 @@ class Command(BaseCommand):
                 }
 
                 if not self.dry_run:
-                    existing_offering_user = OfferingUser.objects.filter(
-                        uuid=uuid
-                    ).first()
+                    normalized_uuid = self._normalize_uuid(uuid)
+                    existing_offering_user = existing_map.get(normalized_uuid)
 
                     if existing_offering_user:
                         if self.update_existing:
@@ -4577,10 +4683,11 @@ class Command(BaseCommand):
                         else:
                             self.stats["offering_users"]["skipped"] += 1
                     else:
-                        OfferingUser.objects.create(uuid=UUID(uuid), **defaults)
+                        obj = OfferingUser.objects.create(uuid=UUID(uuid), **defaults)
+                        existing_map[normalized_uuid] = obj
                         self.stats["offering_users"]["created"] += 1
                 else:
-                    existing = OfferingUser.objects.filter(uuid=uuid).exists()
+                    existing = self._normalize_uuid(uuid) in existing_map
                     if existing:
                         if self.update_existing:
                             self.stats["offering_users"]["updated"] += 1
@@ -5393,6 +5500,26 @@ class Command(BaseCommand):
     def import_invitations(self, invitations_data):
         """Import invitation data."""
         self.stdout.write("Importing invitations...")
+
+        # Pre-fetch lookup maps to avoid N+1 queries
+        customer_map = {str(c.uuid): c for c in Customer.objects.all()}
+        role_by_uuid = {str(r.uuid): r for r in Role.objects.all()}
+        role_by_name = {r.name: r for r in role_by_uuid.values()}
+        user_map = {str(u.uuid): u for u in User.all_objects.all()}
+        existing_invitations = {str(inv.uuid): inv for inv in Invitation.objects.all()}
+
+        # Pre-fetch ContentType map
+        content_type_map = {
+            (ct.app_label, ct.model): ct for ct in ContentType.objects.all()
+        }
+
+        # Pre-fetch common scope objects for scope resolution
+        project_by_uuid = {str(p.uuid): p for p in Project.objects.all()}
+        scope_cache = {
+            ("structure", "customer"): customer_map,
+            ("structure", "project"): project_by_uuid,
+        }
+
         for invitation_data in invitations_data:
             try:
                 uuid = invitation_data.get("uuid")
@@ -5415,7 +5542,7 @@ class Command(BaseCommand):
                     continue
 
                 # Find customer
-                customer = Customer.objects.filter(uuid=customer_uuid).first()
+                customer = customer_map.get(self._normalize_uuid(customer_uuid))
                 if not customer:
                     self.stdout.write(
                         self.style.WARNING(
@@ -5428,25 +5555,28 @@ class Command(BaseCommand):
                 # Find role by UUID or by name (create system role if needed)
                 role = None
                 if role_uuid:
-                    role = Role.objects.filter(uuid=role_uuid).first()
+                    role = role_by_uuid.get(self._normalize_uuid(role_uuid))
                 if not role and role_name:
-                    role = Role.objects.filter(name=role_name).first()
+                    role = role_by_name.get(role_name)
                     # If role not found, create it as a system role
                     if not role:
                         # Determine content_type from role name prefix
                         role_content_type = None
                         if role_name.startswith("CUSTOMER."):
-                            role_content_type = ContentType.objects.get(
-                                app_label="structure", model="customer"
+                            role_content_type = content_type_map.get(
+                                ("structure", "customer")
                             )
                         elif role_name.startswith("PROJECT."):
-                            role_content_type = ContentType.objects.get(
-                                app_label="structure", model="project"
+                            role_content_type = content_type_map.get(
+                                ("structure", "project")
                             )
                         if role_content_type:
                             role = Role.objects.get_system_role(
                                 role_name, role_content_type
                             )
+                            # Cache the newly created/fetched role
+                            role_by_uuid[str(role.uuid)] = role
+                            role_by_name[role.name] = role
                 if not role:
                     self.stdout.write(
                         self.style.WARNING(
@@ -5460,13 +5590,13 @@ class Command(BaseCommand):
                 created_by = None
                 created_by_uuid = invitation_data.get("created_by_uuid")
                 if created_by_uuid:
-                    created_by = User.all_objects.filter(uuid=created_by_uuid).first()
+                    created_by = user_map.get(self._normalize_uuid(created_by_uuid))
 
                 # Find approved_by (optional)
                 approved_by = None
                 approved_by_uuid = invitation_data.get("approved_by_uuid")
                 if approved_by_uuid:
-                    approved_by = User.all_objects.filter(uuid=approved_by_uuid).first()
+                    approved_by = user_map.get(self._normalize_uuid(approved_by_uuid))
 
                 # Parse dates
                 created = None
@@ -5495,9 +5625,9 @@ class Command(BaseCommand):
                 if scope_content_type:
                     try:
                         app_label, model = scope_content_type.split(".")
-                        content_type = ContentType.objects.get(
-                            app_label=app_label, model=model
-                        )
+                        content_type = content_type_map.get((app_label, model))
+                        if not content_type:
+                            raise ContentType.DoesNotExist
                     except (ValueError, ContentType.DoesNotExist):
                         self.stdout.write(
                             self.style.WARNING(
@@ -5511,9 +5641,16 @@ class Command(BaseCommand):
                     if scope_uuid and content_type:
                         model_class = content_type.model_class()
                         if model_class:
-                            scope_object = model_class.objects.filter(
-                                uuid=scope_uuid
-                            ).first()
+                            # Use pre-fetched scope maps for common types, fall back to DB for rare ones
+                            scope_map = scope_cache.get((app_label, model))
+                            if scope_map is not None:
+                                scope_object = scope_map.get(
+                                    self._normalize_uuid(scope_uuid)
+                                )
+                            else:
+                                scope_object = model_class.objects.filter(
+                                    uuid=scope_uuid
+                                ).first()
                             if scope_object:
                                 object_id = scope_object.id
                             else:
@@ -5547,7 +5684,8 @@ class Command(BaseCommand):
                 }
 
                 if not self.dry_run:
-                    existing_invitation = Invitation.objects.filter(uuid=uuid).first()
+                    normalized_uuid = self._normalize_uuid(uuid)
+                    existing_invitation = existing_invitations.get(normalized_uuid)
                     if existing_invitation:
                         if self.update_existing:
                             Invitation.objects.filter(uuid=uuid).update(**defaults)
@@ -5558,6 +5696,7 @@ class Command(BaseCommand):
                         invitation = Invitation.objects.create(
                             uuid=UUID(uuid), **defaults
                         )
+                        existing_invitations[normalized_uuid] = invitation
                         # Set timestamps after creation
                         if created:
                             invitation.created = created
@@ -5567,7 +5706,7 @@ class Command(BaseCommand):
                             invitation.save()
                         self.stats["invitations"]["created"] += 1
                 else:
-                    existing = Invitation.objects.filter(uuid=uuid).exists()
+                    existing = self._normalize_uuid(uuid) in existing_invitations
                     if existing:
                         if self.update_existing:
                             self.stats["invitations"]["updated"] += 1

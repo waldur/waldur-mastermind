@@ -1,3 +1,5 @@
+import time
+
 from django.core.management.base import BaseCommand
 from django.db import connection, transaction
 from django.db.models import signals
@@ -450,31 +452,59 @@ class Command(BaseCommand):
 
             for stat_key, table_name in tables:
                 self.stdout.write(f"Deleting {stat_key}...")
-                try:
-                    # Use a savepoint so a failure on one table
-                    # does not abort the entire transaction
-                    sid = transaction.savepoint()
-                    # Get count first
-                    cursor.execute(f"SELECT COUNT(*) FROM {table_name}")  # noqa: S608
-                    count = cursor.fetchone()[0]
+                self._fast_delete_table(cursor, stat_key, table_name)
 
-                    if not self.dry_run:
-                        # Use TRUNCATE CASCADE for speed and to handle FK dependencies
+            if self.dry_run:
+                raise Exception("Dry run - rolling back transaction")
+
+    def _fast_delete_table(self, cursor, stat_key, table_name, max_retries=3):
+        """
+        Delete a table using TRUNCATE CASCADE, falling back to DELETE FROM
+        if a deadlock is detected. Retries on deadlock up to max_retries times.
+
+        TRUNCATE acquires AccessExclusiveLock on the target table and all
+        tables referenced via CASCADE, which can deadlock with concurrent
+        processes (e.g. Celery workers, API requests). DELETE FROM uses
+        row-level locks and is less prone to deadlocks.
+        """
+        for attempt in range(max_retries):
+            sid = transaction.savepoint()
+            try:
+                cursor.execute(f"SELECT COUNT(*) FROM {table_name}")  # noqa: S608
+                count = cursor.fetchone()[0]
+
+                if not self.dry_run:
+                    if attempt == 0:
+                        # First attempt: use TRUNCATE CASCADE for speed
                         cursor.execute(
                             f"TRUNCATE TABLE {table_name} CASCADE"  # noqa: S608
                         )
+                    else:
+                        # Retry attempts: use DELETE FROM to avoid table-level locks
+                        cursor.execute(
+                            f"DELETE FROM {table_name}"  # noqa: S608
+                        )
 
-                    transaction.savepoint_commit(sid)
-                    self.stats[stat_key]["deleted"] = count
-                except Exception as e:
-                    transaction.savepoint_rollback(sid)
+                transaction.savepoint_commit(sid)
+                self.stats[stat_key]["deleted"] = count
+                return
+            except Exception as e:
+                transaction.savepoint_rollback(sid)
+                if "deadlock detected" in str(e) and attempt < max_retries - 1:
+                    wait = 2**attempt
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Deadlock on {stat_key}, retrying with DELETE in {wait}s "
+                            f"(attempt {attempt + 2}/{max_retries})..."
+                        )
+                    )
+                    time.sleep(wait)
+                else:
                     self.stdout.write(
                         self.style.WARNING(f"Failed to delete {stat_key}: {e}")
                     )
                     self.stats[stat_key]["errors"] += 1
-
-            if self.dry_run:
-                raise Exception("Dry run - rolling back transaction")
+                    return
 
     def cleanup_feeds(self):
         """Delete all feed data."""
