@@ -12378,6 +12378,93 @@ class SectionViewSet(rf_viewsets.ModelViewSet):
 
 @extend_schema_view(
     list=extend_schema(
+        summary="List attributes",
+        description="Returns a paginated list of all attributes. Attributes define form fields within section. Filter by section (URL).",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve an attribute",
+        description="Returns the details of a specific attribute, identified by its UUID.",
+    ),
+    create=extend_schema(
+        summary="Create an attribute",
+        description="Creates a new attribute within a section. Requires staff permissions.",
+    ),
+    update=extend_schema(
+        summary="Update an attribute",
+        description="Updates an existing attribute. Requires staff permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update an attribute",
+        description="Partially updates an existing attribute. Requires staff permissions.",
+    ),
+    destroy=extend_schema(
+        summary="Delete an attribute",
+        description="Deletes an attribute. Requires staff permissions.",
+    ),
+)
+class AttributeViewSet(rf_viewsets.ModelViewSet):
+    """
+    Manage attributes for marketplace sections.
+
+    Attributes define form fields (string, integer, choice, etc.) within a section.
+    This endpoint is primarily for administrative purposes and requires staff
+    permissions for modification.
+    """
+
+    queryset = models.Attribute.objects.all().order_by("title")
+    lookup_field = "uuid"
+    serializer_class = serializers.AttributeSerializer
+    filterset_class = filters.AttributeFilter
+    filter_backends = (DjangoFilterBackend,)
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="List attribute options",
+        description="Returns a paginated list of options for choice-type attributes. Filter by attribute (URL). Default option is determined by attribute.default.",
+    ),
+    retrieve=extend_schema(
+        summary="Retrieve an attribute option",
+        description="Returns the details of a specific attribute option.",
+    ),
+    create=extend_schema(
+        summary="Create an attribute option",
+        description="Creates a new option for a choice-type attribute. Requires staff permissions.",
+    ),
+    update=extend_schema(
+        summary="Update an attribute option",
+        description="Updates an existing attribute option. Requires staff permissions.",
+    ),
+    partial_update=extend_schema(
+        summary="Partially update an attribute option",
+        description="Partially updates an existing attribute option. To set the default option, PATCH the attribute with default=<option_key>. Requires staff permissions.",
+    ),
+    destroy=extend_schema(
+        summary="Delete an attribute option",
+        description="Deletes an attribute option. Requires staff permissions.",
+    ),
+)
+class AttributeOptionViewSet(rf_viewsets.ModelViewSet):
+    """
+    Manage options for choice-type attributes.
+
+    Options can only be added to attributes of type 'choice'. The default
+    option is stored in attribute.default. Use PATCH on the attribute to set
+    the default option key.
+    Requires staff permissions for modification.
+    """
+
+    queryset = models.AttributeOption.objects.all().order_by("title")
+    lookup_field = "uuid"
+    serializer_class = serializers.AttributeOptionSerializer
+    filterset_class = filters.AttributeOptionFilter
+    filter_backends = (DjangoFilterBackend,)
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+
+
+@extend_schema_view(
+    list=extend_schema(
         summary="List category help articles",
         description="Returns a paginated list of all help articles associated with marketplace categories.",
     ),

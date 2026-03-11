@@ -2169,6 +2169,31 @@ class CategoryFilter(django_filters.FilterSet):
         return queryset.filter(id__in=valid_ids)
 
 
+class AttributeFilter(django_filters.FilterSet):
+    class Meta:
+        model = models.Attribute
+        fields = []
+
+    section = core_filters.URLFilter(
+        view_name="marketplace-section-detail",
+        field_name="section__key",
+        label="Section URL",
+        lookup_field="key",
+    )
+
+
+class AttributeOptionFilter(django_filters.FilterSet):
+    class Meta:
+        model = models.AttributeOption
+        fields = []
+
+    attribute = core_filters.URLFilter(
+        view_name="marketplace-attribute-detail",
+        field_name="attribute__uuid",
+        label="Attribute URL",
+    )
+
+
 class CategoryColumnFilter(django_filters.FilterSet):
     class Meta:
         model = models.CategoryColumn

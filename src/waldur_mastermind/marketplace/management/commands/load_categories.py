@@ -345,7 +345,7 @@ enums = {
     "measurement_devices_principle": [
         ("x-ray-diffraction", "X-ray diffraction"),
         ("chromatography", "Chromatography"),
-        ("mass-spectrometry ", "Mass-spectrometry"),
+        ("mass-spectrometry", "Mass-spectrometry"),
         ("electrophoresis", "Electrophoresis"),
         ("magnetic-resonance", "Magnetic resonance"),
         ("physical-properties", "Physical properties"),
@@ -391,7 +391,7 @@ enums = {
     ],
     "vpn_technology": [
         ("ipsec", "IPSEC"),
-        ("gre+ipsec", "GRE + IPSEC"),
+        ("gre_ipsec", "GRE + IPSEC"),
     ],
     "vm_access_level": [
         ("root", "Root / Administrator"),
@@ -411,7 +411,7 @@ enums = {
         ("vpn", "VPN"),
     ],
     "os": [
-        ("ubuntu16.04", "Ubuntu 16.04"),
+        ("ubuntu_16_04", "Ubuntu 16.04"),
         ("centos7", "CentOS 7"),
         ("windows2016", "Windows 2016"),
         ("rhel7", "RHEL 7"),

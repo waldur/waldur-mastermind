@@ -158,6 +158,16 @@ def register_in(router):
         basename="marketplace-section",
     )
     router.register(
+        r"marketplace-attributes",
+        views.AttributeViewSet,
+        basename="marketplace-attribute",
+    )
+    router.register(
+        r"marketplace-attribute-options",
+        views.AttributeOptionViewSet,
+        basename="marketplace-attribute-option",
+    )
+    router.register(
         r"marketplace-category-help-articles",
         views.CategoryHelpArticleViewSet,
         basename="marketplace-category-help-articles",

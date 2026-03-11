@@ -12,6 +12,7 @@ from waldur_core.server.constance_settings import (
 from waldur_core.users.enums import InvitationState
 from waldur_mastermind.chat.input_guards.base import SeverityLevel
 from waldur_mastermind.common.enums import Units
+from waldur_mastermind.marketplace.attribute_types import ATTRIBUTE_TYPES
 from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     OfferingUserStates,
@@ -123,6 +124,8 @@ SPECTACULAR_SETTINGS = {
             ("udp", "udp"),
             ("icmp", "icmp"),
         ),
+        # Marketplace attribute type (string, integer, boolean, choice, list, etc.)
+        "AttributeTypeEnum": ATTRIBUTE_TYPES,
     },
     "VERSION": None,
 }
