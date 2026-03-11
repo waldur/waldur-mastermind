@@ -321,6 +321,46 @@ class AttributeFactory(
 
     key = factory.Sequence(lambda n: "attribute-%s" % n)
     section = factory.SubFactory(SectionFactory)
+    type = "string"
+
+    @classmethod
+    def get_url(cls, attribute=None):
+        if attribute is None:
+            attribute = AttributeFactory()
+        return "http://testserver" + reverse(
+            "marketplace-attribute-detail", kwargs={"uuid": attribute.uuid.hex}
+        )
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("marketplace-attribute-list")
+
+
+class AttributeOptionFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.AttributeOption],
+):
+    class Meta:
+        model = models.AttributeOption
+
+    key = factory.Sequence(lambda n: "option-%s" % n)
+    title = factory.Sequence(lambda n: "Option %s" % n)
+    attribute = factory.SubFactory(
+        AttributeFactory,
+        type="choice",
+    )
+
+    @classmethod
+    def get_url(cls, option=None):
+        if option is None:
+            option = AttributeOptionFactory()
+        return "http://testserver" + reverse(
+            "marketplace-attribute-option-detail", kwargs={"uuid": option.uuid.hex}
+        )
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("marketplace-attribute-option-list")
 
 
 @factory.django.mute_signals(signals.pre_save, signals.post_save)

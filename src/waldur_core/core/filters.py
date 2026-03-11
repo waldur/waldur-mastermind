@@ -147,10 +147,12 @@ class URLFilter(django_filters.CharFilter):
         if value in EMPTY_VALUES:
             return qs
 
-        uuid_value = self.get_uuid(value)
-        if not core_utils.is_uuid_like(uuid_value):
+        lookup_value = self.get_uuid(value)
+        if not lookup_value:
             return qs.none()
-        return super().filter(qs, uuid_value)
+        if self.lookup_field == "uuid" and not core_utils.is_uuid_like(lookup_value):
+            return qs.none()
+        return super().filter(qs, lookup_value)
 
 
 class RelatedUUIDFilter(django_filters.UUIDFilter):

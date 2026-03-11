@@ -363,7 +363,7 @@ InternalNameValidator = RegexValidator(
 # Regex validator for internal names allowing alphanumeric characters, underscores, hyphens, and slashes
 
 
-class Attribute(TimeStampedModel):
+class Attribute(TimeStampedModel, core_models.UuidMixin):
     """
     Configuration model for category attributes.
 
@@ -391,7 +391,7 @@ class Attribute(TimeStampedModel):
         return str(self.title)
 
 
-class AttributeOption(models.Model):
+class AttributeOption(core_models.UuidMixin, models.Model):
     """
     Options for choice-based attributes.
 

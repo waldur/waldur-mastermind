@@ -1015,9 +1015,15 @@ class SetOfferingsUsernameSerializer(serializers.Serializer):
 
 
 class NestedAttributeOptionSerializer(serializers.ModelSerializer):
+    is_default = serializers.SerializerMethodField()
+
     class Meta:
         model = models.AttributeOption
-        fields = ("key", "title")
+        fields = ("uuid", "key", "title", "is_default")
+
+    def get_is_default(self, obj) -> bool:
+        """Return True if this option is the default for its attribute."""
+        return obj.attribute.default == obj.key
 
 
 class NestedAttributeSerializer(serializers.ModelSerializer):
@@ -1025,7 +1031,7 @@ class NestedAttributeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.Attribute
-        fields = ("key", "title", "type", "options", "required", "default")
+        fields = ("uuid", "key", "title", "type", "options", "required", "default")
 
 
 class NestedSectionSerializer(serializers.ModelSerializer):
@@ -8625,6 +8631,78 @@ class ServiceProviderRevenues(serializers.Serializer):
     month = serializers.IntegerField(
         read_only=True, source="invoice__month", help_text="Invoice month"
     )
+
+
+class AttributeSerializer(serializers.HyperlinkedModelSerializer):
+    section_title = serializers.ReadOnlyField(source="section.title")
+
+    class Meta:
+        model = models.Attribute
+        fields = (
+            "url",
+            "uuid",
+            "key",
+            "created",
+            "title",
+            "section",
+            "section_title",
+            "type",
+            "required",
+            "default",
+        )
+        extra_kwargs = dict(
+            section={
+                "lookup_field": "key",
+                "view_name": "marketplace-section-detail",
+            },
+            url={
+                "lookup_field": "uuid",
+                "view_name": "marketplace-attribute-detail",
+            },
+        )
+        read_only_fields = ["created"]
+
+
+class AttributeOptionSerializer(serializers.HyperlinkedModelSerializer):
+    attribute_title = serializers.ReadOnlyField(source="attribute.title")
+    is_default = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.AttributeOption
+        fields = (
+            "url",
+            "uuid",
+            "id",
+            "key",
+            "title",
+            "attribute",
+            "attribute_title",
+            "is_default",
+        )
+        extra_kwargs = dict(
+            attribute={
+                "lookup_field": "uuid",
+                "view_name": "marketplace-attribute-detail",
+            },
+            url={
+                "lookup_field": "uuid",
+                "view_name": "marketplace-attribute-option-detail",
+            },
+        )
+
+    def get_is_default(self, obj) -> bool:
+        """Return True if this option is the default for its attribute."""
+        return obj.attribute.default == obj.key
+
+    def validate_attribute(self, value):
+        if value.type != "choice":
+            raise serializers.ValidationError(
+                _("Options can only be added to attributes of type choice.")
+            )
+        return value
+
+    def validate(self, data):
+        return super().validate(data)
 
 
 class SectionSerializer(serializers.HyperlinkedModelSerializer):
