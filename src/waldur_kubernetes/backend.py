@@ -23,7 +23,14 @@ class KubernetesBackend:
             kubeconfig_dict = yaml.safe_load(kubeconfig_str)
             k8s.config.load_kube_config_from_dict(config_dict=kubeconfig_dict)
         else:
-            k8s.config.load_kube_config(config_file=kubeconfig_file_path)
+            try:
+                k8s.config.load_kube_config(config_file=kubeconfig_file_path)
+            except k8s.config.config_exception.ConfigException:
+                logger.info(
+                    "Failed to load kubeconfig from %s, trying in-cluster config",
+                    kubeconfig_file_path,
+                )
+                k8s.config.load_incluster_config()
         self.core_api = k8s.client.CoreV1Api()
         self.batch_v1_api = k8s.client.BatchV1Api()
 
