@@ -342,8 +342,8 @@ def publish_stomp_messages(
         logger.warning("STOMP_PORT is not defined in settings")
         return (0, len(messages_to_send))
 
-    # Check circuit breaker
-    if stomp_circuit_breaker.is_open():
+    # Check circuit breaker (use can_execute() so recovery timeout is respected)
+    if not stomp_circuit_breaker.can_execute():
         logger.warning(
             "STOMP circuit breaker is OPEN, skipping %d messages",
             len(messages_to_send),
