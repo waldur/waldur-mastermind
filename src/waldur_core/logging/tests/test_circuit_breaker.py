@@ -8,8 +8,10 @@ Note: Uses unittest.TestCase (not Django's) to avoid database dependencies.
 
 import time
 import unittest
+from unittest.mock import MagicMock, patch
 
 from waldur_core.logging.circuit_breaker import CircuitBreaker, CircuitState
+from waldur_core.logging.utils import publish_stomp_messages
 
 
 class TestCircuitBreakerStateTransitions(unittest.TestCase):
@@ -135,6 +137,58 @@ class TestCircuitBreakerHistory(unittest.TestCase):
             cb.reset()
 
         self.assertLessEqual(len(cb._state_history), 50)
+
+
+class TestPublishStompMessagesCircuitBreakerRecovery(unittest.TestCase):
+    """Test that publish_stomp_messages allows recovery after circuit breaker timeout."""
+
+    def test_publish_attempts_recovery_after_timeout(self):
+        """After recovery_timeout elapses, publish_stomp_messages should attempt
+        to send messages instead of skipping them.
+
+        Regression: is_open() was used as the early-return guard, which doesn't
+        check recovery_timeout. This prevented the circuit breaker from ever
+        transitioning to HALF_OPEN, making the OPEN state permanent.
+        """
+        cb = CircuitBreaker(failure_threshold=1, recovery_timeout=0.1)
+        cb.record_failure()
+        self.assertEqual(cb._state, CircuitState.OPEN)
+
+        # Wait for recovery timeout
+        time.sleep(0.15)
+
+        messages = [
+            {
+                "vhost": "test_vhost",
+                "topic": "test/topic",
+                "payload": '{"key": "value"}',
+            }
+        ]
+
+        rabbitmq_settings = {
+            "HOST": "localhost",
+            "STOMP_PORT": 61613,
+            "USER": "guest",
+            "PASSWORD": "guest",
+        }
+
+        with (
+            patch("waldur_core.logging.circuit_breaker.stomp_circuit_breaker", cb),
+            patch("waldur_core.logging.utils.settings") as mock_settings,
+            patch("waldur_core.logging.utils.stomp.Connection12") as mock_conn_cls,
+        ):
+            mock_settings.RABBITMQ = rabbitmq_settings
+            mock_conn = MagicMock()
+            mock_conn_cls.return_value = mock_conn
+            mock_conn.is_connected.return_value = True
+
+            successful, failed = publish_stomp_messages(messages)
+
+        # Should have attempted to send (not skipped)
+        self.assertEqual(
+            successful, 1, "Message should have been sent after recovery timeout"
+        )
+        self.assertEqual(failed, 0)
 
 
 class TestGlobalCircuitBreaker(unittest.TestCase):
