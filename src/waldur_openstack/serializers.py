@@ -2154,6 +2154,7 @@ class OpenStackCreateInstancePortSerializer(serializers.HyperlinkedModelSerializ
             "fixed_ips",
             "subnet",
             "port",
+            "port_security_enabled",
         )
         extra_kwargs = {
             "subnet": {
