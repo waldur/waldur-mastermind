@@ -321,7 +321,13 @@ class ExtendedOrderingFilter(django_filters.OrderingFilter):
 
 class CreatedModifiedFilter(django_filters.FilterSet):
     created = django_filters.DateTimeFilter(lookup_expr="gte", label="Created after")
+    created_before = django_filters.DateTimeFilter(
+        field_name="created", lookup_expr="lte", label="Created before"
+    )
     modified = django_filters.DateTimeFilter(lookup_expr="gte", label="Modified after")
+    modified_before = django_filters.DateTimeFilter(
+        field_name="modified", lookup_expr="lte", label="Modified before"
+    )
 
 
 def filter_by_full_name(queryset, value, field=""):
