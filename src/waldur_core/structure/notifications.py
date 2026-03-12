@@ -596,6 +596,11 @@ class MarketplaceSection(NotificationSection):
         description="Notifies project administrators and managers when a resource component allocation limit has been reached.",
         context_model=QuotaFullContext,
     )
+    notification_quota_75_percent = Notification(
+        key="notification_quota_75_percent",
+        description="Notifies project administrators and managers when 75% of a resource component allocation has been consumed.",
+        context_model=QuotaFullContext,
+    )
 
 
 class PendingProjectUpdatesContext(BaseModel):

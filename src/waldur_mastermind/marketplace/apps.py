@@ -55,6 +55,12 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.check_and_notify_quota_75_percent,
+            sender=models.ComponentUsage,
+            dispatch_uid="waldur_mastermind.marketplace.check_and_notify_quota_75_percent",
+        )
+
+        signals.post_save.connect(
             handlers.create_screenshot_thumbnail,
             sender=models.Screenshot,
             dispatch_uid="waldur_mastermind.marketplace.create_screenshot_thumbnail",

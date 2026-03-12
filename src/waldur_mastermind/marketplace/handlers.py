@@ -693,8 +693,11 @@ def _get_previous_total(current_total, instance, created):
     return current_total - (instance.usage - previous)
 
 
-def check_and_notify_quota_full(sender, instance, created=False, **kwargs):
-    """Send notification when a resource component's allocation is fully consumed."""
+def _check_and_notify_at_threshold(instance, created, threshold_factor, task):
+    """Dispatch a quota notification task when usage first crosses a threshold.
+
+    threshold_factor: fraction of the limit (e.g. 1 for 100%, Decimal("0.75") for 75%).
+    """
     component = instance.component
     if component.billing_type != BillingTypes.LIMIT:
         return
@@ -704,24 +707,37 @@ def check_and_notify_quota_full(sender, instance, created=False, **kwargs):
     if limit is None:
         return
 
+    threshold = limit * threshold_factor
     current_total = _get_current_total(component, resource, instance)
-    if current_total < limit:
+    if current_total < threshold:
         return
 
-    # Only notify when the quota first becomes full — i.e., this update pushed usage
-    # over the limit. If previous_total was already at or above the limit, the
-    # notification was already sent for an earlier update, so skip to avoid spam.
+    # Only notify the first time usage crosses the threshold — if previous_total was
+    # already at or above it, the notification was already sent, so skip to avoid spam.
     previous_total = _get_previous_total(current_total, instance, created)
-    quota_was_already_full = previous_total >= limit
-    if quota_was_already_full:
+    if previous_total >= threshold:
         return
 
     serialized_resource = core_utils.serialize_instance(resource)
     serialized_component = core_utils.serialize_instance(component)
     transaction.on_commit(
-        lambda: tasks.notify_quota_full.delay(
+        lambda: task.delay(
             serialized_resource, serialized_component, str(current_total)
         )
+    )
+
+
+def check_and_notify_quota_full(sender, instance, created=False, **kwargs):
+    """Send notification when a resource component's allocation is fully consumed."""
+    _check_and_notify_at_threshold(
+        instance, created, Decimal(1), tasks.notify_quota_full
+    )
+
+
+def check_and_notify_quota_75_percent(sender, instance, created=False, **kwargs):
+    """Send notification when a resource component's allocation reaches 75%."""
+    _check_and_notify_at_threshold(
+        instance, created, Decimal("0.75"), tasks.notify_quota_75_percent
     )
 
 
