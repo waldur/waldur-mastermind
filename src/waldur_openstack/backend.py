@@ -3367,6 +3367,7 @@ class OpenStackBackend(ServiceBackend):
             "description": port.description,
             "network_id": network.backend_id,
             "tenant_id": port.tenant.backend_id,
+            "port_security_enabled": port.port_security_enabled,
         }
 
         logger.info(
@@ -5404,8 +5405,11 @@ class OpenStackBackend(ServiceBackend):
                     "subnet_id": port.subnet.backend_id,
                 }
             ],
-            "security_groups": security_groups,
+            "port_security_enabled": port.port_security_enabled,
         }
+
+        if port.port_security_enabled:
+            port_payload["security_groups"] = security_groups
 
         logger.debug(
             "Final port payload security_groups: %s (count: %d)",
