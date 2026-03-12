@@ -8,7 +8,7 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
-from django.db.models import signals
+from django.db.models import Sum, signals
 from django.template import Context, Template
 from django.utils import timezone
 from django.utils.timezone import now
@@ -33,6 +33,8 @@ from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
+    BillingTypes,
+    LimitPeriods,
     MaintenanceState,
     OfferingStates,
     OfferingUserStates,
@@ -665,6 +667,62 @@ def sync_limits(sender, instance: Resource, created=False, **kwargs):
     if not created and not instance.tracker.has_changed("limits"):
         return
     transaction.on_commit(lambda: update_or_create_quotas(instance))
+
+
+def _get_limit(resource, component):
+    limit_raw = resource.limits.get(component.type)
+    if not limit_raw:
+        return None
+    limit = Decimal(str(limit_raw))
+    return limit if limit > 0 else None
+
+
+def _get_current_total(component, resource, instance):
+    if component.limit_period == LimitPeriods.TOTAL:
+        return models.ComponentUsage.objects.filter(
+            resource=resource, component=component
+        ).aggregate(total=Sum("usage"))["total"] or Decimal(0)
+    return instance.usage
+
+
+def _get_previous_total(current_total, instance, created):
+    if created:
+        return current_total - instance.usage
+    previous_raw = instance.tracker.previous("usage")
+    previous = Decimal(str(previous_raw)) if previous_raw is not None else Decimal(0)
+    return current_total - (instance.usage - previous)
+
+
+def check_and_notify_quota_full(sender, instance, created=False, **kwargs):
+    """Send notification when a resource component's allocation is fully consumed."""
+    component = instance.component
+    if component.billing_type != BillingTypes.LIMIT:
+        return
+
+    resource = instance.resource
+    limit = _get_limit(resource, component)
+    if limit is None:
+        return
+
+    current_total = _get_current_total(component, resource, instance)
+    if current_total < limit:
+        return
+
+    # Only notify when the quota first becomes full — i.e., this update pushed usage
+    # over the limit. If previous_total was already at or above the limit, the
+    # notification was already sent for an earlier update, so skip to avoid spam.
+    previous_total = _get_previous_total(current_total, instance, created)
+    quota_was_already_full = previous_total >= limit
+    if quota_was_already_full:
+        return
+
+    serialized_resource = core_utils.serialize_instance(resource)
+    serialized_component = core_utils.serialize_instance(component)
+    transaction.on_commit(
+        lambda: tasks.notify_quota_full.delay(
+            serialized_resource, serialized_component, str(current_total)
+        )
+    )
 
 
 @transaction.atomic()
