@@ -4,6 +4,7 @@ import hashlib
 import logging
 import uuid as uuid_mod
 from datetime import timedelta
+from decimal import Decimal
 from typing import cast
 
 import requests
@@ -2612,3 +2613,82 @@ def reconcile_robot_account_access():
             f"Error during robot account access reconciliation: {e}", exc_info=True
         )
         raise
+
+
+@shared_task
+def notify_quota_full(serialized_resource, serialized_component, current_usage):
+    """Send notification when resource component quota is fully consumed."""
+    try:
+        resource = core_utils.deserialize_instance(serialized_resource)
+        resource = models.Resource.objects.select_related(
+            "project", "offering__customer"
+        ).get(pk=resource.pk)
+    except models.Resource.DoesNotExist:
+        logger.warning(
+            "Resource %s not found for quota full notification", serialized_resource
+        )
+        return
+
+    try:
+        component = core_utils.deserialize_instance(serialized_component)
+    except models.OfferingComponent.DoesNotExist:
+        logger.warning(
+            "Component %s not found for quota full notification", serialized_component
+        )
+        return
+
+    project = resource.project
+    offering = resource.offering
+    provider = offering.customer
+
+    users = (
+        (project.get_users(ProjectRole.ADMIN) | project.get_users(ProjectRole.MANAGER))
+        .distinct()
+        .exclude(email="")
+        .filter(notifications_enabled=True)
+    )
+
+    if not users.exists():
+        return
+
+    limit_raw = resource.limits.get(component.type)
+    if not limit_raw:
+        return
+    limit = Decimal(str(limit_raw))
+
+    usage_percentage = round(Decimal(str(current_usage)) / limit * 100)
+
+    resource_url = core_utils.format_homeport_link(
+        "resource-details/{resource_uuid}/",
+        resource_uuid=resource.uuid.hex,
+    )
+
+    base_context = {
+        "project_name": project.name,
+        "resource_name": resource.name,
+        "resource_url": resource_url,
+        "component_name": component.name,
+        "component_type": component.type,
+        "measured_unit": component.measured_unit or "",
+        "allocation_total": str(limit),
+        "current_usage": str(current_usage),
+        "usage_percentage": usage_percentage,
+        "provider_name": provider.name if provider else "",
+        "provider_email": provider.email if provider else "",
+        "site_name": config.SITE_NAME,
+    }
+
+    for user in users:
+        context = {**base_context, "user": user}
+        logger.info(
+            "Sending quota full notification for resource %s, component %s to %s",
+            serialized_resource,
+            serialized_component,
+            user.email,
+        )
+        core_utils.broadcast_mail(
+            "marketplace",
+            "notification_quota_full",
+            context,
+            [user.email],
+        )
