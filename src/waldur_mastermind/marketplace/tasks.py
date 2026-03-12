@@ -1743,12 +1743,17 @@ def _create_or_restore_offering_user(user, offering):
     # Create new offering user
     username = utils.generate_username(user, offering)
     state = OfferingUserStates.OK if username else OfferingUserStates.CREATION_REQUESTED
-    offering_user = models.OfferingUser.objects.create(
+    offering_user, created = models.OfferingUser.objects.get_or_create(
         offering=offering,
         user=user,
-        username=username,
-        state=state,
+        defaults={
+            "username": username,
+            "state": state,
+        },
     )
+    if not created:
+        logger.info("An offering user for %s in %s already exists", user, offering)
+        return
     utils.setup_linux_related_data(offering_user, offering)
     offering_user.save(update_fields=["backend_metadata"])
 
