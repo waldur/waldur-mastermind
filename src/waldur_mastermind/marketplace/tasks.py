@@ -2615,9 +2615,9 @@ def reconcile_robot_account_access():
         raise
 
 
-@shared_task
-def notify_quota_full(serialized_resource, serialized_component, current_usage):
-    """Send notification when resource component quota is fully consumed."""
+def _send_quota_notification(
+    serialized_resource, serialized_component, current_usage, notification_key
+):
     try:
         resource = core_utils.deserialize_instance(serialized_resource)
         resource = models.Resource.objects.select_related(
@@ -2625,7 +2625,9 @@ def notify_quota_full(serialized_resource, serialized_component, current_usage):
         ).get(pk=resource.pk)
     except models.Resource.DoesNotExist:
         logger.warning(
-            "Resource %s not found for quota full notification", serialized_resource
+            "Resource %s not found for %s notification",
+            serialized_resource,
+            notification_key,
         )
         return
 
@@ -2633,7 +2635,9 @@ def notify_quota_full(serialized_resource, serialized_component, current_usage):
         component = core_utils.deserialize_instance(serialized_component)
     except models.OfferingComponent.DoesNotExist:
         logger.warning(
-            "Component %s not found for quota full notification", serialized_component
+            "Component %s not found for %s notification",
+            serialized_component,
+            notification_key,
         )
         return
 
@@ -2681,14 +2685,37 @@ def notify_quota_full(serialized_resource, serialized_component, current_usage):
     for user in users:
         context = {**base_context, "user": user}
         logger.info(
-            "Sending quota full notification for resource %s, component %s to %s",
+            "Sending %s notification for resource %s, component %s to %s",
+            notification_key,
             serialized_resource,
             serialized_component,
             user.email,
         )
         core_utils.broadcast_mail(
             "marketplace",
-            "notification_quota_full",
+            notification_key,
             context,
             [user.email],
         )
+
+
+@shared_task
+def notify_quota_full(serialized_resource, serialized_component, current_usage):
+    """Send notification when resource component quota is fully consumed."""
+    _send_quota_notification(
+        serialized_resource,
+        serialized_component,
+        current_usage,
+        "notification_quota_full",
+    )
+
+
+@shared_task
+def notify_quota_75_percent(serialized_resource, serialized_component, current_usage):
+    """Send notification when resource component quota reaches 75%."""
+    _send_quota_notification(
+        serialized_resource,
+        serialized_component,
+        current_usage,
+        "notification_quota_75_percent",
+    )
