@@ -8024,12 +8024,18 @@ class MarketplaceServiceProviderUserSerializer(
                 setattr(request, cache_key, default_attrs)
             return default_attrs
 
+        # Pre-fetch the constance default once to avoid N+1 queries
+        # when multiple offerings lack a user_attribute_config.
+        default_attrs = (
+            config.DEFAULT_OFFERING_USER_ATTRIBUTES or self.DEFAULT_EXPOSED_ATTRIBUTES
+        )
+
         # Get union of exposed fields from all offerings
         exposed_sets = []
         for offering in offerings:
             exposed_fields = (
                 models.OfferingUserAttributeConfig.get_exposed_fields_for_offering(
-                    offering
+                    offering, default_attributes=default_attrs
                 )
             )
             exposed_sets.append(set(exposed_fields))

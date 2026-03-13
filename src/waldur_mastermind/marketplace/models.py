@@ -4,6 +4,7 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Any, Literal, cast
 
+from constance import config as constance_config
 from dateutil.relativedelta import relativedelta
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, RegexValidator
@@ -993,14 +994,23 @@ class OfferingUserAttributeConfig(TimeStampedModel, core_models.UuidMixin):
         ]
 
     @classmethod
-    def get_exposed_fields_for_offering(cls, offering) -> list[str]:
-        """Get exposed fields for offering, falling back to Constance defaults."""
-        from constance import config
+    def get_exposed_fields_for_offering(
+        cls, offering, default_attributes=None
+    ) -> list[str]:
+        """Get exposed fields for offering, falling back to Constance defaults.
 
+        Args:
+            offering: The offering to get exposed fields for.
+            default_attributes: Pre-fetched default attributes from Constance config.
+                When processing multiple offerings in a loop, pass this to avoid
+                repeated database queries for the same config value.
+        """
         try:
             return offering.user_attribute_config.get_exposed_fields()
         except cls.DoesNotExist:
-            return config.DEFAULT_OFFERING_USER_ATTRIBUTES or [
+            if default_attributes is not None:
+                return default_attributes
+            return constance_config.DEFAULT_OFFERING_USER_ATTRIBUTES or [
                 "username",
                 "full_name",
                 "email",
