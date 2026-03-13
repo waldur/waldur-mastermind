@@ -61,7 +61,9 @@ class OfferingUserAttributeConfigModelTest(test.APITestCase):
         """Test that get_exposed_fields_for_offering falls back to Constance default."""
         # No config created for this offering
 
-        with mock.patch("constance.config") as mock_config:
+        with mock.patch(
+            "waldur_mastermind.marketplace.models.constance_config"
+        ) as mock_config:
             mock_config.DEFAULT_OFFERING_USER_ATTRIBUTES = [
                 "username",
                 "email",
@@ -80,7 +82,9 @@ class OfferingUserAttributeConfigModelTest(test.APITestCase):
         """Test hardcoded fallback when Constance is not configured."""
         # No config created for this offering
 
-        with mock.patch("constance.config") as mock_config:
+        with mock.patch(
+            "waldur_mastermind.marketplace.models.constance_config"
+        ) as mock_config:
             mock_config.DEFAULT_OFFERING_USER_ATTRIBUTES = None
 
             exposed = (
@@ -296,7 +300,9 @@ class OfferingTermsOfServiceCollectedAttributesTest(test.APITestCase):
             is_active=True,
         )
 
-        with mock.patch("constance.config") as mock_config:
+        with mock.patch(
+            "waldur_mastermind.marketplace.models.constance_config"
+        ) as mock_config:
             mock_config.DEFAULT_OFFERING_USER_ATTRIBUTES = ["username", "email"]
             collected = tos.collected_attributes
 
