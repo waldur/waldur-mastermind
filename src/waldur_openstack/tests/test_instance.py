@@ -238,6 +238,29 @@ class InstanceCreateTest(test.APITestCase):
         self.assertIsNotNone(port)
         self.assertTrue(port.port_security_enabled)
 
+    def test_security_groups_rejected_when_port_security_disabled(self):
+        subnet = self.fixture.subnet
+        security_group = factories.SecurityGroupFactory(
+            tenant=self.tenant,
+            service_settings=self.openstack_settings,
+            project=self.project,
+        )
+        data = self.get_valid_data(
+            ports=[
+                {
+                    "subnet": factories.SubNetFactory.get_url(subnet),
+                    "port_security_enabled": False,
+                }
+            ],
+            security_groups=[
+                {"url": factories.SecurityGroupFactory.get_url(security_group)}
+            ],
+        )
+
+        response = self.create_instance(data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
     def test_user_cannot_assign_subnet_from_other_settings_to_instance(self):
         data = self.get_valid_data(
             ports=[{"subnet": factories.SubNetFactory.get_url()}]

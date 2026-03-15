@@ -4098,7 +4098,16 @@ class OpenStackInstanceCreateSerializer(OpenStackInstanceSerializer):
                 gettext("Please specify at least one network.")
             )
 
-        _validate_instance_security_groups(attrs.get("security_groups", []), tenant)
+        security_groups = attrs.get("security_groups", [])
+        has_port_security_disabled = any(
+            not port.port_security_enabled for port in ports
+        )
+        if has_port_security_disabled and security_groups:
+            raise serializers.ValidationError(
+                _("Security groups cannot be assigned when port security is disabled.")
+            )
+
+        _validate_instance_security_groups(security_groups, tenant)
         _validate_instance_server_group(attrs.get("server_group"), tenant)
         _validate_instance_ports(ports, tenant)
         subnets = [port.subnet for port in ports]
