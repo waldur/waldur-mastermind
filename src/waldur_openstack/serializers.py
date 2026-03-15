@@ -2176,6 +2176,7 @@ class OpenStackCreateInstancePortSerializer(serializers.HyperlinkedModelSerializ
 
         subnet: models.SubNet = internal_value.get("subnet")
         fixed_ips = internal_value.get("fixed_ips")
+        port_security_enabled = internal_value.get("port_security_enabled", True)
 
         # For instance creation, initially set to subnet's tenant
         # This will be corrected to instance's tenant during instance creation
@@ -2186,6 +2187,7 @@ class OpenStackCreateInstancePortSerializer(serializers.HyperlinkedModelSerializ
             project=subnet.project,  # Initially use subnet's project (will be corrected later)
             service_settings=subnet.service_settings,
             fixed_ips=fixed_ips,
+            port_security_enabled=port_security_enabled,
         )
 
 

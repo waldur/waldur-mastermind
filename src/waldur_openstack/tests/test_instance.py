@@ -205,6 +205,39 @@ class InstanceCreateTest(test.APITestCase):
         instance = models.Instance.objects.get(uuid=response.data["uuid"])
         self.assertTrue(Port.objects.filter(subnet=subnet, instance=instance).exists())
 
+    def test_port_security_enabled_is_persisted_during_instance_creation(self):
+        subnet = self.fixture.subnet
+        data = self.get_valid_data(
+            ports=[
+                {
+                    "subnet": factories.SubNetFactory.get_url(subnet),
+                    "port_security_enabled": False,
+                }
+            ]
+        )
+
+        response = self.create_instance(data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        instance = models.Instance.objects.get(uuid=response.data["uuid"])
+        port = instance.ports.first()
+        self.assertIsNotNone(port)
+        self.assertFalse(port.port_security_enabled)
+
+    def test_port_security_enabled_defaults_to_true_during_instance_creation(self):
+        subnet = self.fixture.subnet
+        data = self.get_valid_data(
+            ports=[{"subnet": factories.SubNetFactory.get_url(subnet)}]
+        )
+
+        response = self.create_instance(data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        instance = models.Instance.objects.get(uuid=response.data["uuid"])
+        port = instance.ports.first()
+        self.assertIsNotNone(port)
+        self.assertTrue(port.port_security_enabled)
+
     def test_user_cannot_assign_subnet_from_other_settings_to_instance(self):
         data = self.get_valid_data(
             ports=[{"subnet": factories.SubNetFactory.get_url()}]
