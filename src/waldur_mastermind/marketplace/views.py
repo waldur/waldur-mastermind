@@ -13846,10 +13846,12 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
         try:
             data = serializer.validated_data
             response_data = utils.create_course_account(data, owner_username)
-            user = core_models.User.objects.create(
+            user, _ = core_models.User.objects.get_or_create(
                 username=response_data["tempAccount"]["username"],
-                email=response_data["tempAccount"]["email"],
-                description="Course Account",
+                defaults={
+                    "email": response_data["tempAccount"]["email"],
+                    "description": "Course Account",
+                },
             )
             instance = serializer.save()
             instance.user = user
