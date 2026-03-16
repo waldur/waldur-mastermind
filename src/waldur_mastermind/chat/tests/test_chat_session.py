@@ -1,18 +1,22 @@
 import json
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, patch
 
-import requests
 from django.urls import reverse
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.chat.llm_streamer import LLMStreamer
 from waldur_mastermind.chat.models import (
     ChatSession,
     Message,
     ThreadSession,
     TokenQuota,
 )
-from waldur_mastermind.chat.views import LLMStreamer
+from waldur_mastermind.chat.tests.utils import (
+    _fake_stream,
+    _make_content_chunk,
+    _make_usage_chunk,
+)
 
 
 class MessageModelTest(test.APITestCase):
@@ -176,15 +180,9 @@ class ThreadTitleGenerationTest(test.APITestCase):
         self.session = ChatSession.objects.create(user=self.user)
         self.thread = ThreadSession.objects.create(chat_session=self.session)
 
-    def _fake_response(self, lines):
-        resp = Mock()
-        resp.iter_lines.return_value = lines
-        resp.raise_for_status = Mock()
-        return resp
-
     def _make_streamer(self, is_new_thread=False, **kwargs):
         defaults = dict(
-            llm_prompt="test prompt",
+            messages=[{"role": "user", "content": "How do I manage VMs?"}],
             url="https://example.com/stream",
             token="dummy-token",
             user=self.user,
@@ -195,32 +193,20 @@ class ThreadTitleGenerationTest(test.APITestCase):
         defaults.update(kwargs)
         return LLMStreamer(**defaults)
 
-    @patch("waldur_mastermind.chat.views.requests.post")
-    def test_new_thread_gets_llm_generated_title(self, mock_post):
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_new_thread_gets_llm_generated_title(self, mock_openai_cls):
         """New thread's name is updated with the title from a second LLM call."""
-        # First call: main stream response
-        main_resp = self._fake_response(
-            ["data: " + json.dumps({"content": "Here is how you manage VMs."})]
-        )
-        # Second call: title generation response
-        title_resp = self._fake_response(
-            [
-                "data: " + json.dumps({"content": "Managing Virtual Machines"}),
-                "data: "
-                + json.dumps(
-                    {
-                        "additional_kwargs": {
-                            "usage_metadata": {
-                                "input_tokens": 20,
-                                "output_tokens": 5,
-                            }
-                        }
-                    }
-                ),
-            ]
-        )
-
-        mock_post.return_value.__enter__.side_effect = [main_resp, title_resp]
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.side_effect = [
+            _fake_stream([_make_content_chunk("Here is how you manage VMs.")]),
+            _fake_stream(
+                [
+                    _make_content_chunk("Managing Virtual Machines"),
+                    _make_usage_chunk(20, 5),
+                ]
+            ),
+        ]
 
         streamer = self._make_streamer(is_new_thread=True)
         list(streamer)  # consume the stream
@@ -228,36 +214,34 @@ class ThreadTitleGenerationTest(test.APITestCase):
         self.thread.refresh_from_db()
         self.assertEqual(self.thread.name, "Managing Virtual Machines")
 
-    @patch("waldur_mastermind.chat.views.requests.post")
-    def test_existing_thread_does_not_regenerate_title(self, mock_post):
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_existing_thread_does_not_regenerate_title(self, mock_openai_cls):
         """Existing thread (is_new_thread=False) should not trigger title generation."""
         self.thread.name = "Existing Title"
         self.thread.save()
 
-        main_resp = self._fake_response(
-            ["data: " + json.dumps({"content": "Response content"})]
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.return_value = _fake_stream(
+            [_make_content_chunk("Response content")]
         )
-        mock_post.return_value.__enter__.return_value = main_resp
 
         streamer = self._make_streamer(is_new_thread=False)
         list(streamer)
 
         self.thread.refresh_from_db()
         self.assertEqual(self.thread.name, "Existing Title")
-        # Only one call (main stream), no title generation call
-        mock_post.assert_called_once()
+        # Only one create() call (main stream), no title generation call
+        mock_client.chat.completions.create.assert_called_once()
 
-    @patch("waldur_mastermind.chat.views.requests.post")
-    def test_title_generation_failure_does_not_break_stream(self, mock_post):
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_title_generation_failure_does_not_break_stream(self, mock_openai_cls):
         """If the title LLM call fails, the main response still works and name stays default."""
-        main_resp = self._fake_response(
-            ["data: " + json.dumps({"content": "Main response content"})]
-        )
-
-        # Title generation call raises an exception
-        mock_post.return_value.__enter__.side_effect = [
-            main_resp,
-            requests.ConnectionError("timeout"),
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.side_effect = [
+            _fake_stream([_make_content_chunk("Main response content")]),
+            Exception("timeout"),
         ]
 
         streamer = self._make_streamer(is_new_thread=True)
@@ -271,17 +255,16 @@ class ThreadTitleGenerationTest(test.APITestCase):
         self.thread.refresh_from_db()
         self.assertEqual(self.thread.name, "New chat")
 
-    @patch("waldur_mastermind.chat.views.requests.post")
-    def test_long_title_is_truncated(self, mock_post):
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_long_title_is_truncated(self, mock_openai_cls):
         """Title longer than 150 chars is truncated in DB."""
         long_title = "A" * 200
-        main_resp = self._fake_response(
-            ["data: " + json.dumps({"content": "Main response"})]
-        )
-        title_resp = self._fake_response(
-            ["data: " + json.dumps({"content": long_title})]
-        )
-        mock_post.return_value.__enter__.side_effect = [main_resp, title_resp]
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.side_effect = [
+            _fake_stream([_make_content_chunk("Main response")]),
+            _fake_stream([_make_content_chunk(long_title)]),
+        ]
 
         streamer = self._make_streamer(is_new_thread=True)
         list(streamer)
@@ -290,14 +273,15 @@ class ThreadTitleGenerationTest(test.APITestCase):
         self.assertEqual(len(self.thread.name), 150)
         self.assertEqual(self.thread.name, "A" * 150)
 
-    @patch("waldur_mastermind.chat.views.requests.post")
-    def test_empty_title_leaves_default_name(self, mock_post):
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_empty_title_leaves_default_name(self, mock_openai_cls):
         """If the LLM returns only whitespace/quotes, the default name is kept."""
-        main_resp = self._fake_response(
-            ["data: " + json.dumps({"content": "Main response"})]
-        )
-        title_resp = self._fake_response(["data: " + json.dumps({"content": '  "" '})])
-        mock_post.return_value.__enter__.side_effect = [main_resp, title_resp]
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.side_effect = [
+            _fake_stream([_make_content_chunk("Main response")]),
+            _fake_stream([_make_content_chunk('  "" ')]),
+        ]
 
         streamer = self._make_streamer(is_new_thread=True)
         list(streamer)
@@ -305,16 +289,15 @@ class ThreadTitleGenerationTest(test.APITestCase):
         self.thread.refresh_from_db()
         self.assertEqual(self.thread.name, "New chat")
 
-    @patch("waldur_mastermind.chat.views.requests.post")
-    def test_title_quotes_are_stripped(self, mock_post):
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_title_quotes_are_stripped(self, mock_openai_cls):
         """Surrounding quotes are stripped from the generated title."""
-        main_resp = self._fake_response(
-            ["data: " + json.dumps({"content": "Main response"})]
-        )
-        title_resp = self._fake_response(
-            ["data: " + json.dumps({"content": '"My Title"'})]
-        )
-        mock_post.return_value.__enter__.side_effect = [main_resp, title_resp]
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.side_effect = [
+            _fake_stream([_make_content_chunk("Main response")]),
+            _fake_stream([_make_content_chunk('"My Title"')]),
+        ]
 
         streamer = self._make_streamer(is_new_thread=True)
         list(streamer)
@@ -322,13 +305,14 @@ class ThreadTitleGenerationTest(test.APITestCase):
         self.thread.refresh_from_db()
         self.assertEqual(self.thread.name, "My Title")
 
-    @patch("waldur_mastermind.chat.views.requests.post")
-    def test_canned_response_new_thread_generates_title(self, mock_post):
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_canned_response_new_thread_generates_title(self, mock_openai_cls):
         """Canned response path with is_new_thread=True still generates a title."""
-        title_resp = self._fake_response(
-            ["data: " + json.dumps({"content": "Blocked Query Title"})]
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.return_value = _fake_stream(
+            [_make_content_chunk("Blocked Query Title")]
         )
-        mock_post.return_value.__enter__.return_value = title_resp
 
         streamer = self._make_streamer(
             is_new_thread=True,
@@ -339,43 +323,17 @@ class ThreadTitleGenerationTest(test.APITestCase):
         self.thread.refresh_from_db()
         self.assertEqual(self.thread.name, "Blocked Query Title")
 
-    @patch("waldur_mastermind.chat.views.requests.post")
-    def test_title_tokens_counted_in_usage(self, mock_post):
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_title_tokens_counted_in_usage(self, mock_openai_cls):
         """Title generation tokens should be added to the streamer's token counts."""
-        main_resp = self._fake_response(
-            [
-                "data: " + json.dumps({"content": "Response"}),
-                "data: "
-                + json.dumps(
-                    {
-                        "additional_kwargs": {
-                            "usage_metadata": {
-                                "input_tokens": 100,
-                                "output_tokens": 50,
-                            }
-                        }
-                    }
-                ),
-            ]
-        )
-        title_resp = self._fake_response(
-            [
-                "data: " + json.dumps({"content": "VM Management"}),
-                "data: "
-                + json.dumps(
-                    {
-                        "additional_kwargs": {
-                            "usage_metadata": {
-                                "input_tokens": 20,
-                                "output_tokens": 5,
-                            }
-                        }
-                    }
-                ),
-            ]
-        )
-
-        mock_post.return_value.__enter__.side_effect = [main_resp, title_resp]
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.side_effect = [
+            _fake_stream([_make_content_chunk("Response"), _make_usage_chunk(100, 50)]),
+            _fake_stream(
+                [_make_content_chunk("VM Management"), _make_usage_chunk(20, 5)]
+            ),
+        ]
 
         streamer = self._make_streamer(is_new_thread=True)
         list(streamer)

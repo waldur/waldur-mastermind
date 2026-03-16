@@ -2,7 +2,6 @@ import logging
 import re
 from abc import ABC, abstractmethod
 
-from waldur_mastermind.chat.parsers import parse_tool_call
 from waldur_mastermind.chat.validation.scenarios import EvaluationResult
 
 logger = logging.getLogger(__name__)
@@ -36,14 +35,19 @@ class ToolUsageEvaluator(Evaluator):
         Config keys:
             expected_tool (str|None): Name of tool that should be called,
                                       or None if no tool should be called
+            tool_calls (list[dict]|None): Native function call results from the API,
+                                          e.g. [{"name": "show_user_resources"}].
+                                          None or empty list means no tool was called.
             rationale (str): Explanation of why this is expected
         """
         expected_tool = config.get("expected_tool")
         rationale = config.get("rationale", "")
 
-        # Parse response for tool calls
-        tool_call = parse_tool_call(response_text)
-        actual_tool = tool_call.get("tool") if tool_call else None
+        # With native function calling, tool_calls come from the API response
+        # Callers pass tool_calls=[{"name": "tool_name"}] in config
+        api_tool_calls = config.get("tool_calls") or []
+        actual_tool = api_tool_calls[0].get("name") if api_tool_calls else None
+        tool_call = {"name": actual_tool} if actual_tool else None
 
         # Check if expectation matches reality
         if expected_tool is None:

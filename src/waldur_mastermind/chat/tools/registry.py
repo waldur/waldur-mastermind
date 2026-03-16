@@ -32,47 +32,40 @@ class ToolRegistry:
         """Return {name: ToolDefinition} mapping for backward compatibility."""
         return {name: tool.definition for name, tool in self._tools.items()}
 
+    def get_openai_tools(self) -> list[dict]:
+        """Return registered tools in OpenAI function-calling format.
+
+        Tool schemas are sent via the API `tools` parameter instead of being
+        injected as text into the system prompt.
+        """
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": tool.definition.name,
+                    "description": tool.definition.description,
+                    "parameters": tool.definition.inputSchema,
+                },
+            }
+            for tool in self._tools.values()
+        ]
+
     def get_tools_prompt(self) -> str:
         """Auto-assemble the tools section of the system prompt.
 
-        Generates three sections from registered tools:
-        1. AVAILABLE TOOLS: tool names, descriptions, and parameter schemas.
-        2. TOOL USAGE GUIDELINES: per-tool usage_instructions (when/when-not to use).
-        3. WORKFLOWS: per-tool workflow_instructions (multi-step sequences).
+        Generates behavioral guidance sections from registered tools:
+        1. TOOL USAGE GUIDELINES: per-tool usage_instructions (when/when-not to use).
+        2. WORKFLOWS: per-tool workflow_instructions (multi-step sequences).
 
-        Sections 2 and 3 are omitted if no tools define those fragments.
+        Tool schemas are passed via the API `tools` parameter, not injected here.
+        Sections are omitted if no tools define those fragments.
         """
         if not self._tools:
             return ""
 
         sections = []
 
-        # Section 1: Tool definitions with parameter schemas
-        tool_defs = []
-        for tool in self._tools.values():
-            defn = tool.definition
-            params = defn.inputSchema.get("properties", {})
-
-            if params:
-                param_lines = []
-                required = defn.inputSchema.get("required", [])
-                for param_name, info in params.items():
-                    param_type = info.get("type", "string")
-                    desc = info.get("description", "")
-                    req_label = "required" if param_name in required else "optional"
-                    param_lines.append(
-                        f"  - {param_name} ({param_type}, {req_label}) — {desc}"
-                    )
-                params_str = "\n".join(param_lines)
-            else:
-                params_str = "  (no parameters)"
-
-            tool_defs.append(
-                f"- **{defn.name}**: {defn.description}\n  Parameters:\n{params_str}"
-            )
-        sections.append("=== AVAILABLE TOOLS ===\n" + "\n\n".join(tool_defs))
-
-        # Section 2: Per-tool usage guidelines
+        # Section 1: Per-tool usage guidelines
         usage_parts = [
             tool.definition.usage_instructions
             for tool in self._tools.values()
@@ -83,7 +76,7 @@ class ToolRegistry:
                 "=== TOOL USAGE GUIDELINES ===\n" + "\n\n".join(usage_parts)
             )
 
-        # Section 3: Per-tool workflow instructions
+        # Section 2: Per-tool workflow instructions
         workflow_parts = [
             tool.definition.workflow_instructions
             for tool in self._tools.values()

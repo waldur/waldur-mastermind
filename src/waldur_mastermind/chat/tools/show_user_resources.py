@@ -31,6 +31,7 @@ class ShowUserResourcesTool(BaseTool):
                 "  ✗ WRONG: 'show my offerings', 'show my projects', 'show my organizations', "
                 "'show my invoices', 'show my orders'\n"
                 "  ✗ WRONG: 'hello', 'what are resources?', 'how do I...', 'explain resources'\n"
+                "  ✗ WRONG: 'create a VM', 'make a VM', 'provision a VM' — use the VM creation workflow instead\n"
                 "\n"
                 "If the user asks to show/list something OTHER than resources (offerings, "
                 "projects, invoices, etc.), do NOT call any tool. Instead, answer with text."

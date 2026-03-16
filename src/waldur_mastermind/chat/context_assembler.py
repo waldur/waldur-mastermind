@@ -1,3 +1,4 @@
+import json
 import logging
 
 from constance import config
@@ -69,12 +70,12 @@ def _get_thread_messages(thread):
     return filtered
 
 
-def build_context(user, user_input, thread=None):
+def build_context(user, user_input, thread=None) -> list[dict]:
     """
-    Build the complete prompt string for the LLM.
+    Build the messages array for the LLM in OpenAI chat completions format.
 
     Assembles:
-      1. System prompt (persona + tool definitions + UI capabilities)
+      1. System message (persona + tool usage guidelines + UI capabilities)
       2. Conversation history from DB (limited by LLM_CHAT_HISTORY_LIMIT, chronological)
       3. Current user message
     """
@@ -84,31 +85,54 @@ def build_context(user, user_input, thread=None):
     tools_prompt = tool_registry.get_tools_prompt()
     system_prompt = SYSTEM_PROMPT.format(tools=tools_prompt)
 
-    parts = [system_prompt]
+    messages = [{"role": "system", "content": system_prompt}]
 
     if thread:
-        history = _get_conversation_history(thread)
-        if history:
-            parts.append(f"=== CONVERSATION HISTORY ===\n{history}")
+        messages.extend(_get_conversation_history(thread))
 
-    parts.append(f"=== CURRENT USER MESSAGE ===\nuser: {user_input}")
+    messages.append({"role": "user", "content": user_input})
 
-    return "\n\n".join(parts)
+    return messages
 
 
-def _get_conversation_history(thread):
-    messages = _get_thread_messages(thread)
-    if messages is None or not messages.exists():
-        return ""
-    lines = [
-        f"{role}: {content}"
-        for role, content in messages.values_list("role", "content")
-    ]
-    return "\n".join(lines)
+def _get_conversation_history(thread) -> list[dict]:
+    db_messages = _get_thread_messages(thread)
+    if db_messages is None or not db_messages.exists():
+        return []
+    result = []
+    for role, content, tool_calls in db_messages.values_list(
+        "role", "content", "tool_calls"
+    ):
+        if tool_calls and role == Message.Role.ASSISTANT:
+            msg = {"role": role, "content": content or None}
+            msg["tool_calls"] = [
+                {
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": {
+                        "name": tc["name"],
+                        "arguments": json.dumps(tc["arguments"]),
+                    },
+                }
+                for tc in tool_calls
+            ]
+            result.append(msg)
+            # OpenAI requires tool role messages after assistant tool_calls
+            for tc in tool_calls:
+                result.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": "(result was displayed to user)",
+                    }
+                )
+        elif content:
+            result.append({"role": role, "content": content})
+    return result
 
 
-def build_rejection_input(thread):
-    """Build LLM input for context-aware rejection using recent conversation history.
+def build_rejection_input(thread) -> list[dict] | None:
+    """Build messages array for context-aware rejection using recent conversation history.
 
     Returns None if no thread or no history (caller should fall back to static message).
     """
@@ -119,4 +143,4 @@ def build_rejection_input(thread):
     if not history:
         return None
 
-    return f"{REJECTION_SYSTEM_PROMPT}\n\nConversation history:\n{history}"
+    return [{"role": "system", "content": REJECTION_SYSTEM_PROMPT}, *history]

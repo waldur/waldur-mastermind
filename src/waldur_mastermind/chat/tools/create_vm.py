@@ -37,12 +37,16 @@ class CreateVMTool(BaseTool):
                 "Use ONLY after showing preview_vm and receiving user confirmation (e.g., 'yes', 'proceed', 'create'). "
                 "NEVER use this without showing preview first."
             ),
+            usage_instructions=(
+                "ONLY use create_vm after the user has confirmed a VM preview.\n"
+                "NEVER use without first showing a preview_vm result and receiving explicit user confirmation."
+            ),
             workflow_instructions="""\
 === VM CREATION WORKFLOW ===
 For VM creation requests, follow this EXACT sequence:
 
 **Phase 0: Discover Projects (if needed)**
-- If the user has NOT specified a project, call list_projects IMMEDIATELY — do NOT ask a plain text question
+- If the user has not specified a project, call list_projects to show available projects
 - Show the returned project table and ask: "Which project would you like to create the VM in?"
 - Wait for the user to pick a project before continuing
 - CRITICAL: When the user selects a project, use the UUID from the table (e.g. "66f82a86c3074626a825ee72a09bee67"), NOT the project name. Multiple projects can share the same name; only the UUID uniquely identifies the project.
