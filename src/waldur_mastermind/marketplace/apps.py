@@ -510,6 +510,17 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.update_resource_scope_availability_on_offering_state_change",
         )
 
+        signals.post_save.connect(
+            handlers.trigger_scim_sync_on_offering_endpoint_change,
+            sender=models.OfferingAccessEndpoint,
+            dispatch_uid="waldur_mastermind.marketplace.trigger_scim_sync_on_offering_endpoint_save",
+        )
+        signals.post_delete.connect(
+            handlers.trigger_scim_sync_on_offering_endpoint_change,
+            sender=models.OfferingAccessEndpoint,
+            dispatch_uid="waldur_mastermind.marketplace.trigger_scim_sync_on_offering_endpoint_delete",
+        )
+
         # Register user action cleanup handlers for marketplace models
         from waldur_core.user_actions.handlers import register_cleanup_handler
 

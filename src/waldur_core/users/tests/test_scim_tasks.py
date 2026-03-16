@@ -35,7 +35,7 @@ class BaseScimTestCase(TestCase):
     ):
         """Create an offering user with a specific username."""
         if user is None:
-            user = self.user
+            raise ValueError("user parameter is required")
         if username is None:
             username = f"{user.username}-on-offering"
         return marketplace_models.OfferingUser.objects.create(
@@ -44,6 +44,21 @@ class BaseScimTestCase(TestCase):
             username=username,
             state=state,
         )
+
+    def _grant_project_role(self, user, project, modified=None):
+        """Grant project member role to user. Optionally override the modified timestamp."""
+        project_ct = ContentType.objects.get_for_model(structure_models.Project)
+        role = Role.objects.get_system_role("Project member", project_ct)
+        role_obj = UserRole.objects.create(
+            user=user,
+            role=role,
+            scope=project,
+            is_active=True,
+        )
+        if modified:
+            UserRole.objects.filter(pk=role_obj.pk).update(modified=modified)
+            role_obj.refresh_from_db()
+        return role_obj
 
 
 @override_config(
@@ -74,18 +89,9 @@ class ScimTasksTest(BaseScimTestCase):
         return resource, offering
 
     def _grant_project_role(self, user=None, project=None):
-        """Grant project role to user."""
-        if user is None:
-            user = self.user
-        if project is None:
-            project = self.project
-        project_ct = ContentType.objects.get_for_model(structure_models.Project)
-        role = Role.objects.get_system_role("Project member", project_ct)
-        return UserRole.objects.create(
-            user=user,
-            role=role,
-            scope=project,
-            is_active=True,
+        return super()._grant_project_role(
+            user=user or self.user,
+            project=project or self.project,
         )
 
     def _mock_client(self):
@@ -534,23 +540,11 @@ class ScimReconcileTasksTest(BaseScimTestCase):
         return resource
 
     def _grant_project_role(self, user=None, project=None, modified=None):
-        """Grant project role to user with optional modified timestamp."""
-        if user is None:
-            user = self.user
-        if project is None:
-            project = self.project
-        project_ct = ContentType.objects.get_for_model(structure_models.Project)
-        role = Role.objects.get_system_role("Project member", project_ct)
-        role_obj = UserRole.objects.create(
-            user=user,
-            role=role,
-            scope=project,
-            is_active=True,
+        return super()._grant_project_role(
+            user=user or self.user,
+            project=project or self.project,
+            modified=modified,
         )
-        if modified:
-            UserRole.objects.filter(pk=role_obj.pk).update(modified=modified)
-            role_obj.refresh_from_db()
-        return role_obj
 
     def _create_batch_capture(self):
         batch_calls = []
@@ -656,7 +650,7 @@ class ScimReconcileTasksTest(BaseScimTestCase):
         self.assertEqual(len(second_batch), 2, "Second batch should contain 2 users")
 
         all_batched_uuids = set(first_batch + second_batch)
-        all_user_uuids = {str(user.uuid) for user in users}
+        all_user_uuids = {user.uuid.hex for user in users}
         self.assertEqual(
             all_batched_uuids, all_user_uuids, "All users should be included in batches"
         )
@@ -721,3 +715,187 @@ class ScimSyncAllApiTest(test.APITestCase):
         response = self.client.post(self.url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@override_config(
+    SCIM_MEMBERSHIP_SYNC_ENABLED=True,
+    SCIM_API_URL="https://scim.example.org",
+    SCIM_API_KEY="secret",
+    SCIM_URN_NAMESPACE="urn:ietf:dev",
+)
+class ScimEndpointChangeTest(BaseScimTestCase):
+    """Test that the signal handler dispatches the right task — nothing more."""
+
+    def setUp(self):
+        self.offering = marketplace_factories.OfferingFactory()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
+    def test_ssh_endpoint_creation_triggers_scim_sync(self, mock_task_delay):
+        """Creating an SSH endpoint dispatches sync for that offering."""
+        marketplace_models.OfferingAccessEndpoint.objects.create(
+            offering=self.offering,
+            name="SSH Access",
+            url="ssh://login.example.org",
+        )
+
+        mock_task_delay.assert_called_once_with(self.offering.uuid.hex)
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
+    def test_ssh_endpoint_update_triggers_scim_sync(self, mock_task_delay):
+        """Updating an SSH endpoint dispatches sync for that offering."""
+        endpoint = marketplace_models.OfferingAccessEndpoint.objects.create(
+            offering=self.offering,
+            name="SSH Access",
+            url="ssh://login.example.org",
+        )
+        mock_task_delay.reset_mock()
+
+        endpoint.url = "ssh://new-login.example.org"
+        endpoint.save()
+
+        mock_task_delay.assert_called_once_with(self.offering.uuid.hex)
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
+    def test_ssh_endpoint_deletion_triggers_scim_sync(self, mock_task_delay):
+        """Deleting an SSH endpoint dispatches sync for that offering."""
+        endpoint = marketplace_models.OfferingAccessEndpoint.objects.create(
+            offering=self.offering,
+            name="SSH Access",
+            url="ssh://login.example.org",
+        )
+        mock_task_delay.reset_mock()
+
+        endpoint.delete()
+
+        mock_task_delay.assert_called_once_with(self.offering.uuid.hex)
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
+    def test_non_ssh_endpoint_does_not_trigger_sync(self, mock_task_delay):
+        """Non-SSH endpoints must not trigger a sync."""
+        marketplace_models.OfferingAccessEndpoint.objects.create(
+            offering=self.offering,
+            name="HTTP Access",
+            url="https://example.org",
+        )
+
+        mock_task_delay.assert_not_called()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
+    def test_endpoint_change_skips_when_scim_disabled(self, mock_task_delay):
+        """No task is dispatched when SCIM sync is disabled."""
+        with override_config(SCIM_MEMBERSHIP_SYNC_ENABLED=False):
+            marketplace_models.OfferingAccessEndpoint.objects.create(
+                offering=self.offering,
+                name="SSH Access",
+                url="ssh://login.example.org",
+            )
+
+        mock_task_delay.assert_not_called()
+
+
+@override_config(
+    SCIM_MEMBERSHIP_SYNC_ENABLED=True,
+    SCIM_API_URL="https://scim.example.org",
+    SCIM_API_KEY="secret",
+    SCIM_URN_NAMESPACE="urn:ietf:dev",
+)
+class ScimSyncUsersForOfferingTaskTest(BaseScimTestCase):
+    """Test sync_users_for_offering_endpoint: user discovery, filtering and batching."""
+
+    def setUp(self):
+        self.offering = marketplace_factories.OfferingFactory()
+        self.user1 = structure_factories.UserFactory(username="user1@example.org")
+        self.user2 = structure_factories.UserFactory(username="user2@example.org")
+        self._create_offering_user(
+            user=self.user1, offering=self.offering, username="user1-on-offering"
+        )
+        self._create_offering_user(
+            user=self.user2, offering=self.offering, username="user2-on-offering"
+        )
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_batch_entitlements.delay")
+    def test_syncs_eligible_users(self, mock_batch_delay):
+        """Task dispatches a batch containing all eligible offering users."""
+        tasks.sync_users_for_offering_endpoint(self.offering.uuid.hex)
+
+        mock_batch_delay.assert_called_once()
+        batch = mock_batch_delay.call_args[0][0]
+        self.assertEqual(set(batch), {self.user1.uuid.hex, self.user2.uuid.hex})
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_batch_entitlements.delay")
+    def test_skips_users_without_offering_users(self, mock_batch_delay):
+        """Users with no OfferingUser for this offering are not included."""
+        user3 = structure_factories.UserFactory(username="user3@example.org")
+        # user3 has no OfferingUser — they should not appear in the batch
+
+        tasks.sync_users_for_offering_endpoint(self.offering.uuid.hex)
+
+        batch = mock_batch_delay.call_args[0][0]
+        self.assertNotIn(user3.uuid.hex, batch)
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_batch_entitlements.delay")
+    def test_skips_offering_users_not_in_ok_state(self, mock_batch_delay):
+        """OfferingUsers not in OK state are excluded."""
+        user3 = structure_factories.UserFactory(username="user3@example.org")
+        offering_user3 = self._create_offering_user(
+            user=user3, offering=self.offering, username="user3-on-offering"
+        )
+        marketplace_models.OfferingUser.objects.filter(pk=offering_user3.pk).update(
+            state=OfferingUserStates.CREATING
+        )
+
+        tasks.sync_users_for_offering_endpoint(self.offering.uuid.hex)
+
+        batch = mock_batch_delay.call_args[0][0]
+        self.assertNotIn(user3.uuid.hex, batch)
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_batch_entitlements.delay")
+    def test_skips_offering_users_without_username(self, mock_batch_delay):
+        """OfferingUsers with an empty username are excluded."""
+        user3 = structure_factories.UserFactory(username="user3@example.org")
+        marketplace_models.OfferingUser.objects.create(
+            user=user3,
+            offering=self.offering,
+            username="",
+            state=OfferingUserStates.OK,
+        )
+
+        tasks.sync_users_for_offering_endpoint(self.offering.uuid.hex)
+
+        batch = mock_batch_delay.call_args[0][0]
+        self.assertNotIn(user3.uuid.hex, batch)
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_batch_entitlements.delay")
+    def test_skips_when_no_eligible_users(self, mock_batch_delay):
+        """No batch is dispatched when the offering has no eligible users."""
+        marketplace_models.OfferingUser.objects.filter(offering=self.offering).delete()
+
+        tasks.sync_users_for_offering_endpoint(self.offering.uuid.hex)
+
+        mock_batch_delay.assert_not_called()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_batch_entitlements.delay")
+    def test_batches_users_correctly(self, mock_batch_delay):
+        """Users are split into batches of DEFAULT_SCIM_BATCH_SIZE (20)."""
+        # setUp has 2 users; add 22 more → 24 total → batches of 20 + 4.
+        extra_users = []
+        for i in range(22):
+            user = structure_factories.UserFactory(username=f"user-{i}@example.org")
+            extra_users.append(user)
+            self._create_offering_user(
+                user=user, offering=self.offering, username=f"user-{i}-on-offering"
+            )
+
+        tasks.sync_users_for_offering_endpoint(self.offering.uuid.hex)
+
+        self.assertEqual(mock_batch_delay.call_count, 2)
+        first_batch = mock_batch_delay.call_args_list[0][0][0]
+        second_batch = mock_batch_delay.call_args_list[1][0][0]
+        self.assertEqual(len(first_batch), 20)
+        self.assertEqual(len(second_batch), 4)
+
+        all_batched = set(first_batch + second_batch)
+        expected = {self.user1.uuid.hex, self.user2.uuid.hex} | {
+            u.uuid.hex for u in extra_users
+        }
+        self.assertEqual(all_batched, expected)
