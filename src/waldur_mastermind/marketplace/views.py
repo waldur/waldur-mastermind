@@ -3622,7 +3622,7 @@ class ProviderOfferingViewSet(
         )
         course_accounts = models.CourseAccount.objects.filter(
             project_id__in=project_ids,
-        )
+        ).select_related("project__customer", "user")
         page = self.paginate_queryset(course_accounts)
         serializer = serializers.CourseAccountSerializer(
             instance=page,
