@@ -161,6 +161,51 @@ USER_ATTRIBUTE_CHOICES = [
     ("identity_source", "Identity source"),
 ]
 
+REPORTING_SCREEN_CHOICES = [
+    # Resources
+    ("resource-usage", "Resources: Usage"),
+    ("user-usage", "Resources: Usage by user"),
+    ("quotas", "Resources: Quotas"),
+    ("usage-monitoring", "Resources: Usage monitoring"),
+    ("usage-trends", "Resources: Usage trends"),
+    ("organization-summary", "Resources: Organization summary"),
+    ("project-detail", "Resources: Project detail"),
+    ("resources-geography", "Resources: Geographic distribution"),
+    ("project-classification", "Resources: Project classification"),
+    ("usage-by-customer", "Resources: Usage by customer"),
+    ("usage-by-org-type", "Resources: Usage by organization type"),
+    ("usage-by-creator", "Resources: Usage by creator"),
+    # Proposals
+    ("call-performance", "Proposals: Call performance"),
+    ("review-progress", "Proposals: Review progress"),
+    ("resource-demand", "Proposals: Resource demand"),
+    # Provider
+    ("capacity", "Provider: Capacity"),
+    ("provider-overview", "Provider: Provider overview"),
+    ("provider-revenue", "Provider: Provider revenue"),
+    ("provider-orders", "Provider: Provider orders"),
+    ("provider-resources", "Provider: Provider resources"),
+    ("provider-customers", "Provider: Provider customers"),
+    ("provider-offerings", "Provider: Provider offerings"),
+    ("openstack-instances", "Provider: OpenStack instances"),
+    # Users
+    ("user-demographics", "Users: Demographics"),
+    ("user-organizations", "Users: Organizations"),
+    ("user-affiliations", "Users: Affiliations"),
+    ("user-roles", "Users: Role distribution"),
+    # Financial
+    ("growth", "Financial: Growth"),
+    ("revenue", "Financial: Monthly revenue"),
+    ("pricelist", "Financial: Pricelist"),
+    ("orders", "Financial: Orders"),
+    ("offering-costs", "Financial: Offering costs"),
+    # Operations
+    ("maintenance-overview", "Operations: Maintenance overview"),
+    ("provisioning-stats", "Operations: Provisioning statistics"),
+]
+
+DEFAULT_ENABLED_REPORTING_SCREENS = [key for key, _ in REPORTING_SCREEN_CHOICES]
+
 CONSTANCE_BACKEND = "constance.backends.database.DatabaseBackend"
 CONSTANCE_DBS = "default"
 CONSTANCE_SUPERUSER_ONLY = False
@@ -213,6 +258,7 @@ CONSTANCE_CONFIG_CHOICES = {
     "FEDERATED_IDENTITY_DEACTIVATION_POLICY": DEACTIVATION_POLICY_CHOICES,
     "RESTRICTED_OFFERING_VISIBILITY_MODE": OFFERING_VISIBILITY_CHOICES,
     "SSH_KEY_ALLOWED_TYPES": SSH_KEY_TYPE_CHOICES,
+    "ENABLED_REPORTING_SCREENS": REPORTING_SCREEN_CHOICES,
 }
 
 CONSTANCE_CONFIG = {
@@ -1209,6 +1255,11 @@ CONSTANCE_CONFIG = {
         2048,
         "Minimum allowed RSA key size in bits. Set to 0 to disable the check.",
     ),
+    "ENABLED_REPORTING_SCREENS": (
+        DEFAULT_ENABLED_REPORTING_SCREENS,
+        "Select which reporting screens should be visible to users. Uncheck to disable specific reports.",
+        "multiple_choice_field",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -1526,6 +1577,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SSH_KEY_MIN_RSA_KEY_SIZE",
         "ENABLE_ISSUES_FOR_USER_SSH_KEY_CHANGES",
     ),
+    "Reporting": ("ENABLED_REPORTING_SCREENS",),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (
@@ -1600,4 +1652,5 @@ PUBLIC_CONSTANCE_SETTINGS = (
     # SSH keys
     "SSH_KEY_ALLOWED_TYPES",
     "SSH_KEY_MIN_RSA_KEY_SIZE",
+    "ENABLED_REPORTING_SCREENS",
 )
