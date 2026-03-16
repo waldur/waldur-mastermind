@@ -276,7 +276,7 @@ def sync_recent_entitlements() -> None:
         return
 
     users = get_users_for_reconciliation()
-    user_uuids = [str(user.uuid) for user in users]
+    user_uuids = [user.uuid.hex for user in users]
     total_users = len(user_uuids)
     logger.info(
         "SCIM reconcile: scheduling %d users in batches of %d",
@@ -290,6 +290,52 @@ def sync_recent_entitlements() -> None:
     for batch_uuids in chunks(user_uuids, DEFAULT_SCIM_BATCH_SIZE):
         try:
             sync_user_batch_entitlements.delay(batch_uuids)
+        except Exception as e:
+            logger.error("Failed to schedule SCIM batch task: %s", e)
+
+
+@shared_task(name="waldur_core.users.scim.sync_users_for_offering_endpoint")
+def sync_users_for_offering_endpoint(offering_uuid: str) -> None:
+    """Sync SCIM entitlements for all eligible users of an offering."""
+    if not config.SCIM_MEMBERSHIP_SYNC_ENABLED:
+        return
+    if not is_scim_configured():
+        return
+
+    try:
+        offering = marketplace_models.Offering.objects.get(uuid=offering_uuid)
+    except marketplace_models.Offering.DoesNotExist:
+        logger.warning("SCIM: offering %s not found, skipping.", offering_uuid)
+        return
+
+    offering_users = (
+        marketplace_models.OfferingUser.objects.filter(
+            offering=offering,
+            state=OfferingUserStates.OK,
+        )
+        .exclude(username__isnull=True)
+        .exclude(username="")
+        .select_related("user")
+    )
+
+    user_uuids = [ou.user.uuid.hex for ou in offering_users]
+
+    if not user_uuids:
+        logger.info(
+            "SCIM Offering Endpoint change: no eligible users for offering %s, nothing to sync.",
+            offering_uuid,
+        )
+        return
+
+    logger.info(
+        "SCIM Offering Endpoint change: scheduling sync for %d users of offering %s in batches of %d",
+        len(user_uuids),
+        offering_uuid,
+        DEFAULT_SCIM_BATCH_SIZE,
+    )
+    for batch in chunks(user_uuids, DEFAULT_SCIM_BATCH_SIZE):
+        try:
+            sync_user_batch_entitlements.delay(batch)
         except Exception as e:
             logger.error("Failed to schedule SCIM batch task: %s", e)
 

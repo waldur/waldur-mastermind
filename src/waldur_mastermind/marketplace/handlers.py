@@ -27,6 +27,7 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import Customer, Project
 from waldur_core.users import models as users_models
 from waldur_core.users.enums import InvitationState
+from waldur_core.users.scim import tasks as scim_tasks
 from waldur_core.users.tasks import process_invitation
 from waldur_freeipa.models import Profile
 from waldur_mastermind.marketplace import utils as marketplace_utils
@@ -2547,6 +2548,19 @@ def update_resource_scope_availability_on_offering_state_change(
         return
 
     tasks.update_resource_scope_availability.delay(offering.uuid.hex, can_be_managed)
+
+
+def trigger_scim_sync_on_offering_endpoint_change(
+    sender, instance: models.OfferingAccessEndpoint, created=False, **kwargs
+):
+    """Trigger SCIM entitlements synchronization when offering SSH endpoints change."""
+    if not config.SCIM_MEMBERSHIP_SYNC_ENABLED or not scim_tasks.is_scim_configured():
+        return
+
+    if not instance.url or not instance.url.startswith("ssh://"):
+        return
+
+    scim_tasks.sync_users_for_offering_endpoint.delay(instance.offering.uuid.hex)
 
 
 def handle_user_role_revoked(
