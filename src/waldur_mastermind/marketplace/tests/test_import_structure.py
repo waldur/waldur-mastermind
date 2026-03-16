@@ -26,6 +26,7 @@ from waldur_mastermind.marketplace.models import (
     OfferingComponent,
     OfferingPartition,
     OfferingSoftwareCatalog,
+    OfferingUser,
     Order,
     Plan,
     PlanComponent,
@@ -2784,3 +2785,56 @@ class ImportStructureCommandTest(TestCase):
         self.assertEqual(restored_link.partition, restored_partition)
         self.assertEqual(restored_link.enabled_cpu_family, ["x86_64"])
         self.assertEqual(restored_link.enabled_cpu_microarchitectures, ["zen3"])
+
+    def test_offering_user_import_continues_after_duplicate_failure(self):
+        """Test that a failed offering user import (e.g. duplicate unique_together)
+        does not prevent subsequent offering users from being imported.
+
+        Regression test: without per-row savepoints, a single IntegrityError
+        taints the outer atomic block and all subsequent rows fail with
+        "An error occurred in the current transaction".
+        """
+        offering = marketplace_factories.OfferingFactory()
+        user1 = structure_factories.UserFactory()
+        user2 = structure_factories.UserFactory()
+
+        # Pre-create an offering user so the second entry causes a duplicate
+        marketplace_factories.OfferingUserFactory(
+            offering=offering,
+            user=user1,
+            username="existing",
+        )
+
+        data = {
+            "offering_users": [
+                {
+                    # This will fail: same (offering, user) pair already exists
+                    # but with a different UUID, triggering IntegrityError
+                    "uuid": "aaaaaaaa000000000000000000000002",
+                    "offering_uuid": offering.uuid.hex,
+                    "user_uuid": user1.uuid.hex,
+                    "username": "duplicate",
+                },
+                {
+                    # This should succeed despite the previous failure
+                    "uuid": "aaaaaaaa000000000000000000000003",
+                    "offering_uuid": offering.uuid.hex,
+                    "user_uuid": user2.uuid.hex,
+                    "username": "newuser",
+                },
+            ],
+        }
+
+        self._create_test_json(data)
+        output = self._call_import_command("-i", self.test_file_path)
+
+        # The first offering user should have failed
+        self.assertIn("Failed to import offering user", output)
+
+        # The second offering user should have been created successfully
+        self.assertTrue(
+            OfferingUser.objects.filter(
+                uuid="aaaaaaaa000000000000000000000003"
+            ).exists(),
+            "Second offering user should be created despite first one failing",
+        )
