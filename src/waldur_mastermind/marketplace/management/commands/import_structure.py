@@ -1188,7 +1188,8 @@ class Command(BaseCommand):
                                 pass
 
                         if not self.dry_run:
-                            existing_user.save()
+                            with transaction.atomic():
+                                existing_user.save()
 
                         self.stats["users"]["updated"] += 1
                     else:
@@ -1279,7 +1280,8 @@ class Command(BaseCommand):
                         user.set_unusable_password()
 
                     if not self.dry_run:
-                        user.save()
+                        with transaction.atomic():
+                            user.save()
 
                     # Update maps for subsequent lookups
                     user_by_uuid[self._normalize_uuid(uuid)] = user
@@ -1346,7 +1348,8 @@ class Command(BaseCommand):
                             existing_token.user = user
                             if created:
                                 existing_token.created = created
-                            existing_token.save()
+                            with transaction.atomic():
+                                existing_token.save()
                             self.stats["auth_tokens"]["updated"] += 1
                         else:
                             self.stats["auth_tokens"]["skipped"] += 1
@@ -1356,14 +1359,15 @@ class Command(BaseCommand):
                         if user_token:
                             if self.update_existing:
                                 # Replace existing token
-                                user_token.delete()
-                                # Remove old token from maps
-                                token_by_key.pop(user_token.key, None)
-                                token_by_user_id.pop(user.id, None)
-                                token = Token(key=key, user=user)
-                                if created:
-                                    token.created = created
-                                token.save()
+                                with transaction.atomic():
+                                    user_token.delete()
+                                    # Remove old token from maps
+                                    token_by_key.pop(user_token.key, None)
+                                    token_by_user_id.pop(user.id, None)
+                                    token = Token(key=key, user=user)
+                                    if created:
+                                        token.created = created
+                                    token.save()
                                 # Update maps
                                 token_by_key[key] = token
                                 token_by_user_id[user.id] = token
@@ -1380,7 +1384,8 @@ class Command(BaseCommand):
                             token = Token(key=key, user=user)
                             if created:
                                 token.created = created
-                            token.save()
+                            with transaction.atomic():
+                                token.save()
                             # Update maps
                             token_by_key[key] = token
                             token_by_user_id[user.id] = token
@@ -1454,12 +1459,16 @@ class Command(BaseCommand):
 
                     if existing_key:
                         if self.update_existing:
-                            SshPublicKey.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                SshPublicKey.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["ssh_public_keys"]["updated"] += 1
                         else:
                             self.stats["ssh_public_keys"]["skipped"] += 1
                     else:
-                        SshPublicKey.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            SshPublicKey.objects.create(uuid=uuid, **defaults)
                         self.stats["ssh_public_keys"]["created"] += 1
                 else:
                     # Dry run
@@ -1581,12 +1590,14 @@ class Command(BaseCommand):
 
                     if existing_customer:
                         if self.update_existing:
-                            Customer.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Customer.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["customers"]["updated"] += 1
                         else:
                             self.stats["customers"]["skipped"] += 1
                     else:
-                        Customer.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            Customer.objects.create(uuid=uuid, **defaults)
                         self.stats["customers"]["created"] += 1
                 else:
                     # Dry run
@@ -1666,12 +1677,16 @@ class Command(BaseCommand):
 
                     if existing_sp:
                         if self.update_existing:
-                            ServiceProvider.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                ServiceProvider.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["service_providers"]["updated"] += 1
                         else:
                             self.stats["service_providers"]["skipped"] += 1
                     else:
-                        ServiceProvider.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            ServiceProvider.objects.create(uuid=uuid, **defaults)
                         self.stats["service_providers"]["created"] += 1
                 else:
                     # Dry run
@@ -1778,14 +1793,18 @@ class Command(BaseCommand):
                     existing = MaintenanceAnnouncement.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            MaintenanceAnnouncement.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                MaintenanceAnnouncement.objects.filter(
+                                    uuid=uuid
+                                ).update(**defaults)
                             self.stats["maintenance_announcements"]["updated"] += 1
                         else:
                             self.stats["maintenance_announcements"]["skipped"] += 1
                     else:
-                        MaintenanceAnnouncement.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            MaintenanceAnnouncement.objects.create(
+                                uuid=uuid, **defaults
+                            )
                         self.stats["maintenance_announcements"]["created"] += 1
                 else:
                     existing = MaintenanceAnnouncement.objects.filter(
@@ -1863,9 +1882,10 @@ class Command(BaseCommand):
                     ).first()
                     if existing:
                         if self.update_existing:
-                            MaintenanceAnnouncementOffering.objects.filter(
-                                uuid=uuid
-                            ).update(**defaults)
+                            with transaction.atomic():
+                                MaintenanceAnnouncementOffering.objects.filter(
+                                    uuid=uuid
+                                ).update(**defaults)
                             self.stats["maintenance_announcement_offerings"][
                                 "updated"
                             ] += 1
@@ -1874,9 +1894,10 @@ class Command(BaseCommand):
                                 "skipped"
                             ] += 1
                     else:
-                        MaintenanceAnnouncementOffering.objects.create(
-                            uuid=uuid, **defaults
-                        )
+                        with transaction.atomic():
+                            MaintenanceAnnouncementOffering.objects.create(
+                                uuid=uuid, **defaults
+                            )
                         self.stats["maintenance_announcement_offerings"]["created"] += 1
                 else:
                     existing = MaintenanceAnnouncementOffering.objects.filter(
@@ -1938,12 +1959,16 @@ class Command(BaseCommand):
                     existing = SoftwareCatalog.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            SoftwareCatalog.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                SoftwareCatalog.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["software_catalogs"]["updated"] += 1
                         else:
                             self.stats["software_catalogs"]["skipped"] += 1
                     else:
-                        SoftwareCatalog.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            SoftwareCatalog.objects.create(uuid=uuid, **defaults)
                         self.stats["software_catalogs"]["created"] += 1
                 else:
                     existing = SoftwareCatalog.objects.filter(uuid=uuid).exists()
@@ -2007,14 +2032,16 @@ class Command(BaseCommand):
                     existing = OfferingPartition.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            OfferingPartition.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                OfferingPartition.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["offering_partitions"]["updated"] += 1
                         else:
                             self.stats["offering_partitions"]["skipped"] += 1
                     else:
-                        OfferingPartition.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            OfferingPartition.objects.create(uuid=uuid, **defaults)
                         self.stats["offering_partitions"]["created"] += 1
                 else:
                     existing = OfferingPartition.objects.filter(uuid=uuid).exists()
@@ -2097,14 +2124,18 @@ class Command(BaseCommand):
                     existing = OfferingSoftwareCatalog.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            OfferingSoftwareCatalog.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                OfferingSoftwareCatalog.objects.filter(
+                                    uuid=uuid
+                                ).update(**defaults)
                             self.stats["offering_software_catalogs"]["updated"] += 1
                         else:
                             self.stats["offering_software_catalogs"]["skipped"] += 1
                     else:
-                        OfferingSoftwareCatalog.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            OfferingSoftwareCatalog.objects.create(
+                                uuid=uuid, **defaults
+                            )
                         self.stats["offering_software_catalogs"]["created"] += 1
                 else:
                     existing = OfferingSoftwareCatalog.objects.filter(
@@ -2194,12 +2225,14 @@ class Command(BaseCommand):
 
                     if existing_project:
                         if self.update_existing:
-                            Project.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Project.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["projects"]["updated"] += 1
                         else:
                             self.stats["projects"]["skipped"] += 1
                     else:
-                        Project.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            Project.objects.create(uuid=uuid, **defaults)
                         self.stats["projects"]["created"] += 1
                 else:
                     existing = Project.available_objects.filter(uuid=uuid).exists()
@@ -2247,12 +2280,16 @@ class Command(BaseCommand):
 
                     if existing_group:
                         if self.update_existing:
-                            CategoryGroup.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                CategoryGroup.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["category_groups"]["updated"] += 1
                         else:
                             self.stats["category_groups"]["skipped"] += 1
                     else:
-                        CategoryGroup.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            CategoryGroup.objects.create(uuid=uuid, **defaults)
                         self.stats["category_groups"]["created"] += 1
                 else:
                     existing = CategoryGroup.objects.filter(uuid=uuid).exists()
@@ -2321,12 +2358,14 @@ class Command(BaseCommand):
 
                     if existing_category:
                         if self.update_existing:
-                            Category.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Category.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["categories"]["updated"] += 1
                         else:
                             self.stats["categories"]["skipped"] += 1
                     else:
-                        Category.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            Category.objects.create(uuid=uuid, **defaults)
                         self.stats["categories"]["created"] += 1
                 else:
                     existing = Category.objects.filter(uuid=uuid).exists()
@@ -2478,12 +2517,14 @@ class Command(BaseCommand):
 
                     if existing_offering:
                         if self.update_existing:
-                            Offering.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Offering.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["offerings"]["updated"] += 1
                         else:
                             self.stats["offerings"]["skipped"] += 1
                     else:
-                        Offering.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            Offering.objects.create(uuid=uuid, **defaults)
                         self.stats["offerings"]["created"] += 1
                 else:
                     existing = Offering.objects.filter(uuid=uuid).exists()
@@ -2547,14 +2588,16 @@ class Command(BaseCommand):
 
                     if existing_endpoint:
                         if self.update_existing:
-                            OfferingAccessEndpoint.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                OfferingAccessEndpoint.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["offering_endpoints"]["updated"] += 1
                         else:
                             self.stats["offering_endpoints"]["skipped"] += 1
                     else:
-                        OfferingAccessEndpoint.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            OfferingAccessEndpoint.objects.create(uuid=uuid, **defaults)
                         self.stats["offering_endpoints"]["created"] += 1
                 else:
                     # Dry run
@@ -2627,31 +2670,33 @@ class Command(BaseCommand):
 
                     if existing_policy:
                         if self.update_existing:
-                            SlurmPeriodicUsagePolicy.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                SlurmPeriodicUsagePolicy.objects.filter(
+                                    uuid=uuid
+                                ).update(**defaults)
                             self.stats["slurm_periodic_policies"]["updated"] += 1
                         else:
                             self.stats["slurm_periodic_policies"]["skipped"] += 1
                     else:
-                        policy = SlurmPeriodicUsagePolicy.objects.create(
-                            uuid=uuid, **defaults
-                        )
+                        with transaction.atomic():
+                            policy = SlurmPeriodicUsagePolicy.objects.create(
+                                uuid=uuid, **defaults
+                            )
 
-                        # Handle component limits if provided
-                        component_limits = policy_data.get("component_limits", [])
-                        for limit_data in component_limits:
-                            component_type = limit_data.get("type")
-                            limit_value = limit_data.get("limit")
-                            component = offering.components.filter(
-                                type=component_type
-                            ).first()
-                            if component and limit_value is not None:
-                                OfferingComponentLimit.objects.update_or_create(
-                                    policy=policy,
-                                    component=component,
-                                    defaults={"limit": limit_value},
-                                )
+                            # Handle component limits if provided
+                            component_limits = policy_data.get("component_limits", [])
+                            for limit_data in component_limits:
+                                component_type = limit_data.get("type")
+                                limit_value = limit_data.get("limit")
+                                component = offering.components.filter(
+                                    type=component_type
+                                ).first()
+                                if component and limit_value is not None:
+                                    OfferingComponentLimit.objects.update_or_create(
+                                        policy=policy,
+                                        component=component,
+                                        defaults={"limit": limit_value},
+                                    )
 
                         self.stats["slurm_periodic_policies"]["created"] += 1
                 else:
@@ -2754,20 +2799,22 @@ class Command(BaseCommand):
 
                     if existing:
                         if self.update_existing:
-                            SlurmCommandHistory.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                SlurmCommandHistory.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["slurm_command_history"]["updated"] += 1
                         else:
                             self.stats["slurm_command_history"]["skipped"] += 1
                     else:
-                        # Create with specific executed_at (can't use auto_now_add)
-                        history = SlurmCommandHistory(uuid=uuid, **defaults)
-                        history.save()
-                        # Update executed_at since auto_now_add overrides it
-                        SlurmCommandHistory.objects.filter(uuid=uuid).update(
-                            executed_at=executed_at
-                        )
+                        with transaction.atomic():
+                            # Create with specific executed_at (can't use auto_now_add)
+                            history = SlurmCommandHistory(uuid=uuid, **defaults)
+                            history.save()
+                            # Update executed_at since auto_now_add overrides it
+                            SlurmCommandHistory.objects.filter(uuid=uuid).update(
+                                executed_at=executed_at
+                            )
                         self.stats["slurm_command_history"]["created"] += 1
                 else:
                     # Dry run
@@ -2848,12 +2895,14 @@ class Command(BaseCommand):
 
                     if existing_role:
                         if self.update_existing:
-                            Role.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Role.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["roles"]["updated"] += 1
                         else:
                             self.stats["roles"]["skipped"] += 1
                     else:
-                        Role.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            Role.objects.create(uuid=uuid, **defaults)
                         self.stats["roles"]["created"] += 1
                 else:
                     # Dry run
@@ -2919,13 +2968,18 @@ class Command(BaseCommand):
                     new_permissions = set(permissions)
 
                     # Remove permissions not in new set
-                    RolePermission.objects.filter(
-                        role=role, permission__in=current_permissions - new_permissions
-                    ).delete()
+                    with transaction.atomic():
+                        RolePermission.objects.filter(
+                            role=role,
+                            permission__in=current_permissions - new_permissions,
+                        ).delete()
 
                     # Add new permissions
                     for permission in new_permissions - current_permissions:
-                        RolePermission.objects.create(role=role, permission=permission)
+                        with transaction.atomic():
+                            RolePermission.objects.create(
+                                role=role, permission=permission
+                            )
                         self.stats["role_permissions"]["created"] += 1
 
                     # Count unchanged
@@ -3099,12 +3153,14 @@ class Command(BaseCommand):
                         if self.update_existing:
                             for key, value in defaults.items():
                                 setattr(existing, key, value)
-                            existing.save()
+                            with transaction.atomic():
+                                existing.save()
                             self.stats["user_roles"]["updated"] += 1
                         else:
                             self.stats["user_roles"]["skipped"] += 1
                     else:
-                        obj = UserRole.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            obj = UserRole.objects.create(uuid=uuid, **defaults)
                         existing_user_roles[normalized_uuid] = obj
                         self.stats["user_roles"]["created"] += 1
                 else:
@@ -3172,16 +3228,18 @@ class Command(BaseCommand):
 
                     if existing_account:
                         if self.update_existing:
-                            ProjectServiceAccount.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                ProjectServiceAccount.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["project_service_accounts"]["updated"] += 1
                         else:
                             self.stats["project_service_accounts"]["skipped"] += 1
                     else:
-                        ProjectServiceAccount.objects.create(
-                            uuid=UUID(uuid), **defaults
-                        )
+                        with transaction.atomic():
+                            ProjectServiceAccount.objects.create(
+                                uuid=UUID(uuid), **defaults
+                            )
                         self.stats["project_service_accounts"]["created"] += 1
                 else:
                     existing = ProjectServiceAccount.objects.filter(uuid=uuid).exists()
@@ -3248,14 +3306,16 @@ class Command(BaseCommand):
 
                     if existing_account:
                         if self.update_existing:
-                            CustomerServiceAccount.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                CustomerServiceAccount.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["customer_service_accounts"]["updated"] += 1
                         else:
                             self.stats["customer_service_accounts"]["skipped"] += 1
                     else:
-                        CustomerServiceAccount.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            CustomerServiceAccount.objects.create(uuid=uuid, **defaults)
                         self.stats["customer_service_accounts"]["created"] += 1
                 else:
                     existing = CustomerServiceAccount.objects.filter(uuid=uuid).exists()
@@ -3332,12 +3392,16 @@ class Command(BaseCommand):
 
                     if existing_account:
                         if self.update_existing:
-                            CourseAccount.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                CourseAccount.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["course_accounts"]["updated"] += 1
                         else:
                             self.stats["course_accounts"]["skipped"] += 1
                     else:
-                        CourseAccount.objects.create(uuid=UUID(uuid), **defaults)
+                        with transaction.atomic():
+                            CourseAccount.objects.create(uuid=UUID(uuid), **defaults)
                         self.stats["course_accounts"]["created"] += 1
                 else:
                     existing = CourseAccount.objects.filter(uuid=uuid).exists()
@@ -3404,12 +3468,14 @@ class Command(BaseCommand):
 
                     if existing_plan:
                         if self.update_existing:
-                            Plan.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Plan.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["plans"]["updated"] += 1
                         else:
                             self.stats["plans"]["skipped"] += 1
                     else:
-                        Plan.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            Plan.objects.create(uuid=uuid, **defaults)
                         self.stats["plans"]["created"] += 1
                 else:
                     existing = Plan.objects.filter(uuid=uuid).exists()
@@ -3484,14 +3550,16 @@ class Command(BaseCommand):
 
                     if existing_component:
                         if self.update_existing:
-                            OfferingComponent.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                OfferingComponent.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["offering_components"]["updated"] += 1
                         else:
                             self.stats["offering_components"]["skipped"] += 1
                     else:
-                        OfferingComponent.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            OfferingComponent.objects.create(uuid=uuid, **defaults)
                         self.stats["offering_components"]["created"] += 1
                 else:
                     existing = OfferingComponent.objects.filter(uuid=uuid).exists()
@@ -3566,16 +3634,18 @@ class Command(BaseCommand):
 
                     if existing_pc:
                         if self.update_existing:
-                            PlanComponent.objects.filter(
-                                plan=plan, component=component
-                            ).update(**defaults)
+                            with transaction.atomic():
+                                PlanComponent.objects.filter(
+                                    plan=plan, component=component
+                                ).update(**defaults)
                             self.stats["plan_components"]["updated"] += 1
                         else:
                             self.stats["plan_components"]["skipped"] += 1
                     else:
-                        PlanComponent.objects.create(
-                            plan=plan, component=component, **defaults
-                        )
+                        with transaction.atomic():
+                            PlanComponent.objects.create(
+                                plan=plan, component=component, **defaults
+                            )
                         self.stats["plan_components"]["created"] += 1
                 else:
                     existing = PlanComponent.objects.filter(
@@ -3719,12 +3789,13 @@ class Command(BaseCommand):
 
                     if existing_resource:
                         if self.update_existing:
-                            Resource.objects.filter(uuid=uuid).update(**defaults)
-                            # Update created date if provided (requires separate update)
-                            if created:
-                                Resource.objects.filter(uuid=uuid).update(
-                                    created=created
-                                )
+                            with transaction.atomic():
+                                Resource.objects.filter(uuid=uuid).update(**defaults)
+                                # Update created date if provided (requires separate update)
+                                if created:
+                                    Resource.objects.filter(uuid=uuid).update(
+                                        created=created
+                                    )
                             self.stats["resources"]["updated"] += 1
                         else:
                             self.stats["resources"]["skipped"] += 1
@@ -3736,20 +3807,24 @@ class Command(BaseCommand):
                                 object_id=scope_object_id,
                             ).first()
                             if existing_by_scope:
-                                Resource.objects.filter(pk=existing_by_scope.pk).update(
-                                    uuid=uuid, **defaults
-                                )
-                                if created:
-                                    Resource.objects.filter(uuid=uuid).update(
-                                        created=created
-                                    )
+                                with transaction.atomic():
+                                    Resource.objects.filter(
+                                        pk=existing_by_scope.pk
+                                    ).update(uuid=uuid, **defaults)
+                                    if created:
+                                        Resource.objects.filter(uuid=uuid).update(
+                                            created=created
+                                        )
                                 self.stats["resources"]["updated"] += 1
                                 continue
 
-                        Resource.objects.create(uuid=uuid, **defaults)
-                        # Update created date if provided (auto_now_add prevents setting during create)
-                        if created:
-                            Resource.objects.filter(uuid=uuid).update(created=created)
+                        with transaction.atomic():
+                            Resource.objects.create(uuid=uuid, **defaults)
+                            # Update created date if provided (auto_now_add prevents setting during create)
+                            if created:
+                                Resource.objects.filter(uuid=uuid).update(
+                                    created=created
+                                )
                         self.stats["resources"]["created"] += 1
                 else:
                     existing = Resource.objects.filter(uuid=uuid).exists()
@@ -3844,14 +3919,16 @@ class Command(BaseCommand):
 
                     if existing_period:
                         if self.update_existing:
-                            ResourcePlanPeriod.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                ResourcePlanPeriod.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["resource_plan_periods"]["updated"] += 1
                         else:
                             self.stats["resource_plan_periods"]["skipped"] += 1
                     else:
-                        ResourcePlanPeriod.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            ResourcePlanPeriod.objects.create(uuid=uuid, **defaults)
                         self.stats["resource_plan_periods"]["created"] += 1
                 else:
                     existing = ResourcePlanPeriod.objects.filter(uuid=uuid).exists()
@@ -3974,7 +4051,10 @@ class Command(BaseCommand):
 
                     if existing_usage:
                         if self.update_existing:
-                            ComponentUsage.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                ComponentUsage.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["component_usages"]["updated"] += 1
                         else:
                             self.stats["component_usages"]["skipped"] += 1
@@ -3999,9 +4079,10 @@ class Command(BaseCommand):
                                     plan_period__isnull=True,
                                 ).first()
                                 if duplicate_usage:
-                                    ComponentUsage.objects.filter(
-                                        pk=duplicate_usage.pk
-                                    ).update(uuid=uuid, **defaults)
+                                    with transaction.atomic():
+                                        ComponentUsage.objects.filter(
+                                            pk=duplicate_usage.pk
+                                        ).update(uuid=uuid, **defaults)
                                 self.stats["component_usages"]["updated"] += 1
                             else:
                                 self.stdout.write(
@@ -4011,7 +4092,10 @@ class Command(BaseCommand):
                                 )
                                 self.stats["component_usages"]["skipped"] += 1
                         else:
-                            obj = ComponentUsage.objects.create(uuid=uuid, **defaults)
+                            with transaction.atomic():
+                                obj = ComponentUsage.objects.create(
+                                    uuid=uuid, **defaults
+                                )
                             existing_usages[normalized_uuid] = obj
                             if plan_period is None:
                                 duplicate_keys.add(biz_key)
@@ -4102,9 +4186,10 @@ class Command(BaseCommand):
 
                     if existing_user_usage:
                         if self.update_existing:
-                            ComponentUserUsage.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                ComponentUserUsage.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["component_user_usages"]["updated"] += 1
                         else:
                             self.stats["component_user_usages"]["skipped"] += 1
@@ -4117,9 +4202,10 @@ class Command(BaseCommand):
 
                         if duplicate:
                             if self.update_existing:
-                                ComponentUserUsage.objects.filter(
-                                    pk=duplicate.pk
-                                ).update(uuid=uuid, **defaults)
+                                with transaction.atomic():
+                                    ComponentUserUsage.objects.filter(
+                                        pk=duplicate.pk
+                                    ).update(uuid=uuid, **defaults)
                                 self.stats["component_user_usages"]["updated"] += 1
                             else:
                                 self.stdout.write(
@@ -4129,7 +4215,8 @@ class Command(BaseCommand):
                                 )
                                 self.stats["component_user_usages"]["skipped"] += 1
                         else:
-                            ComponentUserUsage.objects.create(uuid=uuid, **defaults)
+                            with transaction.atomic():
+                                ComponentUserUsage.objects.create(uuid=uuid, **defaults)
                             self.stats["component_user_usages"]["created"] += 1
                 else:
                     existing = ComponentUserUsage.objects.filter(uuid=uuid).exists()
@@ -4226,12 +4313,14 @@ class Command(BaseCommand):
 
                     if existing_invoice:
                         if self.update_existing:
-                            Invoice.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Invoice.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["invoices"]["updated"] += 1
                         else:
                             self.stats["invoices"]["skipped"] += 1
                     else:
-                        Invoice.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            Invoice.objects.create(uuid=uuid, **defaults)
                         self.stats["invoices"]["created"] += 1
                 else:
                     existing = Invoice.objects.filter(uuid=uuid).exists()
@@ -4358,12 +4447,14 @@ class Command(BaseCommand):
 
                     if existing_item:
                         if self.update_existing:
-                            InvoiceItem.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                InvoiceItem.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["invoice_items"]["updated"] += 1
                         else:
                             self.stats["invoice_items"]["skipped"] += 1
                     else:
-                        obj = InvoiceItem.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            obj = InvoiceItem.objects.create(uuid=uuid, **defaults)
                         existing_items[normalized_uuid] = obj
                         self.stats["invoice_items"]["created"] += 1
                 else:
@@ -4577,19 +4668,25 @@ class Command(BaseCommand):
 
                     if existing_order:
                         if self.update_existing:
-                            Order.objects.filter(uuid=uuid).update(**defaults)
-                            # Update created timestamp if provided
-                            if created:
-                                Order.objects.filter(uuid=uuid).update(created=created)
+                            with transaction.atomic():
+                                Order.objects.filter(uuid=uuid).update(**defaults)
+                                # Update created timestamp if provided
+                                if created:
+                                    Order.objects.filter(uuid=uuid).update(
+                                        created=created
+                                    )
                             self.stats["orders"]["updated"] += 1
                         else:
                             self.stats["orders"]["skipped"] += 1
                     else:
-                        order = Order.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            order = Order.objects.create(uuid=uuid, **defaults)
+                            # Update created timestamp if provided
+                            if created:
+                                Order.objects.filter(pk=order.pk).update(
+                                    created=created
+                                )
                         existing_orders[normalized_uuid] = order
-                        # Update created timestamp if provided
-                        if created:
-                            Order.objects.filter(pk=order.pk).update(created=created)
                         self.stats["orders"]["created"] += 1
                 else:
                     existing = self._normalize_uuid(uuid) in existing_orders
@@ -4678,12 +4775,18 @@ class Command(BaseCommand):
 
                     if existing_offering_user:
                         if self.update_existing:
-                            OfferingUser.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                OfferingUser.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["offering_users"]["updated"] += 1
                         else:
                             self.stats["offering_users"]["skipped"] += 1
                     else:
-                        obj = OfferingUser.objects.create(uuid=UUID(uuid), **defaults)
+                        with transaction.atomic():
+                            obj = OfferingUser.objects.create(
+                                uuid=UUID(uuid), **defaults
+                            )
                         existing_map[normalized_uuid] = obj
                         self.stats["offering_users"]["created"] += 1
                 else:
@@ -4752,21 +4855,23 @@ class Command(BaseCommand):
 
                     if existing_checklist:
                         if self.update_existing:
-                            Checklist.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Checklist.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["checklists"]["updated"] += 1
                         else:
                             self.stats["checklists"]["skipped"] += 1
                     else:
-                        checklist = Checklist.objects.create(
-                            uuid=UUID(uuid), **defaults
-                        )
-                        # Set timestamps after creation
-                        if created:
-                            checklist.created = created
-                        if modified:
-                            checklist.modified = modified
-                        if created or modified:
-                            checklist.save()
+                        with transaction.atomic():
+                            checklist = Checklist.objects.create(
+                                uuid=UUID(uuid), **defaults
+                            )
+                            # Set timestamps after creation
+                            if created:
+                                checklist.created = created
+                            if modified:
+                                checklist.modified = modified
+                            if created or modified:
+                                checklist.save()
                         self.stats["checklists"]["created"] += 1
                 else:
                     existing = Checklist.objects.filter(uuid=uuid).exists()
@@ -4837,12 +4942,14 @@ class Command(BaseCommand):
 
                     if existing_question:
                         if self.update_existing:
-                            Question.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Question.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["questions"]["updated"] += 1
                         else:
                             self.stats["questions"]["skipped"] += 1
                     else:
-                        Question.objects.create(uuid=UUID(uuid), **defaults)
+                        with transaction.atomic():
+                            Question.objects.create(uuid=UUID(uuid), **defaults)
                         self.stats["questions"]["created"] += 1
                 else:
                     existing = Question.objects.filter(uuid=uuid).exists()
@@ -4902,12 +5009,16 @@ class Command(BaseCommand):
 
                     if existing_option:
                         if self.update_existing:
-                            QuestionOption.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                QuestionOption.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["question_options"]["updated"] += 1
                         else:
                             self.stats["question_options"]["skipped"] += 1
                     else:
-                        QuestionOption.objects.create(uuid=UUID(uuid), **defaults)
+                        with transaction.atomic():
+                            QuestionOption.objects.create(uuid=UUID(uuid), **defaults)
                         self.stats["question_options"]["created"] += 1
                 else:
                     existing = QuestionOption.objects.filter(uuid=uuid).exists()
@@ -4978,14 +5089,18 @@ class Command(BaseCommand):
 
                     if existing_dep:
                         if self.update_existing:
-                            QuestionDependency.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                QuestionDependency.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["question_dependencies"]["updated"] += 1
                         else:
                             self.stats["question_dependencies"]["skipped"] += 1
                     else:
-                        QuestionDependency.objects.create(uuid=UUID(uuid), **defaults)
+                        with transaction.atomic():
+                            QuestionDependency.objects.create(
+                                uuid=UUID(uuid), **defaults
+                            )
                         self.stats["question_dependencies"]["created"] += 1
                 else:
                     existing = QuestionDependency.objects.filter(uuid=uuid).exists()
@@ -5116,9 +5231,10 @@ class Command(BaseCommand):
 
                     if existing_completion:
                         if self.update_existing:
-                            ChecklistCompletion.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                ChecklistCompletion.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["checklist_completions"]["updated"] += 1
                         else:
                             self.stats["checklist_completions"]["skipped"] += 1
@@ -5138,19 +5254,21 @@ class Command(BaseCommand):
                                 existing_by_scope.created = created
                             if modified:
                                 existing_by_scope.modified = modified
-                            existing_by_scope.save()
+                            with transaction.atomic():
+                                existing_by_scope.save()
                             self.stats["checklist_completions"]["updated"] += 1
                         else:
-                            completion = ChecklistCompletion.objects.create(
-                                uuid=UUID(uuid), **defaults
-                            )
-                            # Set timestamps after creation
-                            if created:
-                                completion.created = created
-                            if modified:
-                                completion.modified = modified
-                            if created or modified:
-                                completion.save()
+                            with transaction.atomic():
+                                completion = ChecklistCompletion.objects.create(
+                                    uuid=UUID(uuid), **defaults
+                                )
+                                # Set timestamps after creation
+                                if created:
+                                    completion.created = created
+                                if modified:
+                                    completion.modified = modified
+                                if created or modified:
+                                    completion.save()
                             self.stats["checklist_completions"]["created"] += 1
                 else:
                     existing = ChecklistCompletion.objects.filter(uuid=uuid).exists()
@@ -5267,19 +5385,21 @@ class Command(BaseCommand):
 
                     if existing_answer:
                         if self.update_existing:
-                            Answer.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Answer.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["answers"]["updated"] += 1
                         else:
                             self.stats["answers"]["skipped"] += 1
                     else:
-                        answer = Answer.objects.create(uuid=UUID(uuid), **defaults)
-                        # Set timestamps after creation
-                        if created:
-                            answer.created = created
-                        if modified:
-                            answer.modified = modified
-                        if created or modified:
-                            answer.save()
+                        with transaction.atomic():
+                            answer = Answer.objects.create(uuid=UUID(uuid), **defaults)
+                            # Set timestamps after creation
+                            if created:
+                                answer.created = created
+                            if modified:
+                                answer.modified = modified
+                            if created or modified:
+                                answer.save()
                         self.stats["answers"]["created"] += 1
                 else:
                     existing = Answer.objects.filter(uuid=uuid).exists()
@@ -5463,21 +5583,25 @@ class Command(BaseCommand):
                     ).first()
                     if existing_group_invitation:
                         if self.update_existing:
-                            GroupInvitation.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                GroupInvitation.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["group_invitations"]["updated"] += 1
                         else:
                             self.stats["group_invitations"]["skipped"] += 1
                     else:
-                        group_invitation = GroupInvitation.objects.create(
-                            uuid=UUID(uuid), **defaults
-                        )
-                        # Set timestamps after creation
-                        if created:
-                            group_invitation.created = created
-                        if modified:
-                            group_invitation.modified = modified
-                        if created or modified:
-                            group_invitation.save()
+                        with transaction.atomic():
+                            group_invitation = GroupInvitation.objects.create(
+                                uuid=UUID(uuid), **defaults
+                            )
+                            # Set timestamps after creation
+                            if created:
+                                group_invitation.created = created
+                            if modified:
+                                group_invitation.modified = modified
+                            if created or modified:
+                                group_invitation.save()
                         self.stats["group_invitations"]["created"] += 1
                 else:
                     existing = GroupInvitation.objects.filter(uuid=uuid).exists()
@@ -5688,22 +5812,24 @@ class Command(BaseCommand):
                     existing_invitation = existing_invitations.get(normalized_uuid)
                     if existing_invitation:
                         if self.update_existing:
-                            Invitation.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Invitation.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["invitations"]["updated"] += 1
                         else:
                             self.stats["invitations"]["skipped"] += 1
                     else:
-                        invitation = Invitation.objects.create(
-                            uuid=UUID(uuid), **defaults
-                        )
+                        with transaction.atomic():
+                            invitation = Invitation.objects.create(
+                                uuid=UUID(uuid), **defaults
+                            )
+                            # Set timestamps after creation
+                            if created:
+                                invitation.created = created
+                            if modified:
+                                invitation.modified = modified
+                            if created or modified:
+                                invitation.save()
                         existing_invitations[normalized_uuid] = invitation
-                        # Set timestamps after creation
-                        if created:
-                            invitation.created = created
-                        if modified:
-                            invitation.modified = modified
-                        if created or modified:
-                            invitation.save()
                         self.stats["invitations"]["created"] += 1
                 else:
                     existing = self._normalize_uuid(uuid) in existing_invitations
@@ -5821,23 +5947,25 @@ class Command(BaseCommand):
                     ).first()
                     if existing_permission_request:
                         if self.update_existing:
-                            PermissionRequest.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                PermissionRequest.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["permission_requests"]["updated"] += 1
                         else:
                             self.stats["permission_requests"]["skipped"] += 1
                     else:
-                        permission_request = PermissionRequest.objects.create(
-                            uuid=UUID(uuid), **defaults
-                        )
-                        # Set timestamps after creation
-                        if created:
-                            permission_request.created = created
-                        if modified:
-                            permission_request.modified = modified
-                        if created or modified:
-                            permission_request.save()
+                        with transaction.atomic():
+                            permission_request = PermissionRequest.objects.create(
+                                uuid=UUID(uuid), **defaults
+                            )
+                            # Set timestamps after creation
+                            if created:
+                                permission_request.created = created
+                            if modified:
+                                permission_request.modified = modified
+                            if created or modified:
+                                permission_request.save()
                         self.stats["permission_requests"]["created"] += 1
                 else:
                     existing = PermissionRequest.objects.filter(uuid=uuid).exists()
@@ -5960,8 +6088,26 @@ class Command(BaseCommand):
                     existing_credit = CustomerCredit.objects.filter(uuid=uuid).first()
                     if existing_credit:
                         if self.update_existing:
-                            CustomerCredit.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                CustomerCredit.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
+
+                                # Handle many-to-many offerings relationship
+                                offering_uuids = credit_data.get("offering_uuids", [])
+                                if offering_uuids:
+                                    offerings = Offering.objects.filter(
+                                        uuid__in=offering_uuids
+                                    )
+                                    existing_credit.offerings.set(offerings)
                             self.stats["customer_credits"]["updated"] += 1
+                        else:
+                            self.stats["customer_credits"]["skipped"] += 1
+                    else:
+                        with transaction.atomic():
+                            credit = CustomerCredit.objects.create(
+                                uuid=uuid, **defaults
+                            )
 
                             # Handle many-to-many offerings relationship
                             offering_uuids = credit_data.get("offering_uuids", [])
@@ -5969,17 +6115,7 @@ class Command(BaseCommand):
                                 offerings = Offering.objects.filter(
                                     uuid__in=offering_uuids
                                 )
-                                existing_credit.offerings.set(offerings)
-                        else:
-                            self.stats["customer_credits"]["skipped"] += 1
-                    else:
-                        credit = CustomerCredit.objects.create(uuid=uuid, **defaults)
-
-                        # Handle many-to-many offerings relationship
-                        offering_uuids = credit_data.get("offering_uuids", [])
-                        if offering_uuids:
-                            offerings = Offering.objects.filter(uuid__in=offering_uuids)
-                            credit.offerings.set(offerings)
+                                credit.offerings.set(offerings)
 
                         self.stats["customer_credits"]["created"] += 1
                 else:
@@ -6105,12 +6241,16 @@ class Command(BaseCommand):
                     existing_credit = ProjectCredit.objects.filter(uuid=uuid).first()
                     if existing_credit:
                         if self.update_existing:
-                            ProjectCredit.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                ProjectCredit.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["project_credits"]["updated"] += 1
                         else:
                             self.stats["project_credits"]["skipped"] += 1
                     else:
-                        ProjectCredit.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            ProjectCredit.objects.create(uuid=uuid, **defaults)
                         self.stats["project_credits"]["created"] += 1
                 else:
                     existing = ProjectCredit.objects.filter(uuid=uuid).exists()
@@ -6172,15 +6312,19 @@ class Command(BaseCommand):
                     existing_event = Event.objects.filter(uuid=uuid).first()
                     if existing_event:
                         if self.update_existing:
-                            Event.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Event.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["events"]["updated"] += 1
                         else:
                             self.stats["events"]["skipped"] += 1
                     else:
-                        event = Event.objects.create(uuid=uuid, **defaults)
-                        # Update created timestamp if provided
-                        if created:
-                            Event.objects.filter(pk=event.pk).update(created=created)
+                        with transaction.atomic():
+                            event = Event.objects.create(uuid=uuid, **defaults)
+                            # Update created timestamp if provided
+                            if created:
+                                Event.objects.filter(pk=event.pk).update(
+                                    created=created
+                                )
                         self.stats["events"]["created"] += 1
                 else:
                     existing = Event.objects.filter(uuid=uuid).exists()
@@ -6225,7 +6369,8 @@ class Command(BaseCommand):
             serializer = ConstanceSettingsSerializer(data=normalized_settings)
             if serializer.is_valid():
                 if not self.dry_run:
-                    serializer.save()
+                    with transaction.atomic():
+                        serializer.save()
 
                 for key in normalized_settings:
                     # Count each setting as updated (constance always overwrites)
@@ -6249,7 +6394,8 @@ class Command(BaseCommand):
                     retry_serializer = ConstanceSettingsSerializer(data=valid_settings)
                     if retry_serializer.is_valid():
                         if not self.dry_run:
-                            retry_serializer.save()
+                            with transaction.atomic():
+                                retry_serializer.save()
 
                         for key in valid_settings:
                             self.stats["constance_settings"]["updated"] += 1
@@ -6313,9 +6459,10 @@ class Command(BaseCommand):
                     ).first()
                     if existing:
                         if self.update_existing:
-                            CallManagingOrganisation.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                CallManagingOrganisation.objects.filter(
+                                    uuid=uuid
+                                ).update(**defaults)
                             self.stats["call_managing_organisations"]["updated"] += 1
                         else:
                             self.stats["call_managing_organisations"]["skipped"] += 1
@@ -6326,9 +6473,10 @@ class Command(BaseCommand):
                         ).first()
                         if existing_by_customer:
                             if self.update_existing:
-                                CallManagingOrganisation.objects.filter(
-                                    customer=customer
-                                ).update(**defaults)
+                                with transaction.atomic():
+                                    CallManagingOrganisation.objects.filter(
+                                        customer=customer
+                                    ).update(**defaults)
                                 self.stats["call_managing_organisations"][
                                     "updated"
                                 ] += 1
@@ -6337,9 +6485,10 @@ class Command(BaseCommand):
                                     "skipped"
                                 ] += 1
                         else:
-                            CallManagingOrganisation.objects.create(
-                                uuid=uuid, **defaults
-                            )
+                            with transaction.atomic():
+                                CallManagingOrganisation.objects.create(
+                                    uuid=uuid, **defaults
+                                )
                             self.stats["call_managing_organisations"]["created"] += 1
                 else:
                     existing = CallManagingOrganisation.objects.filter(
@@ -6423,12 +6572,14 @@ class Command(BaseCommand):
                     existing = Call.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            Call.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Call.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["calls"]["updated"] += 1
                         else:
                             self.stats["calls"]["skipped"] += 1
                     else:
-                        Call.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            Call.objects.create(uuid=uuid, **defaults)
                         self.stats["calls"]["created"] += 1
                 else:
                     existing = Call.objects.filter(uuid=uuid).exists()
@@ -6517,14 +6668,16 @@ class Command(BaseCommand):
                     existing = RequestedOffering.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            RequestedOffering.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                RequestedOffering.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["requested_offerings"]["updated"] += 1
                         else:
                             self.stats["requested_offerings"]["skipped"] += 1
                     else:
-                        RequestedOffering.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            RequestedOffering.objects.create(uuid=uuid, **defaults)
                         self.stats["requested_offerings"]["created"] += 1
                 else:
                     existing = RequestedOffering.objects.filter(uuid=uuid).exists()
@@ -6605,14 +6758,16 @@ class Command(BaseCommand):
                     existing = CallResourceTemplate.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            CallResourceTemplate.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                CallResourceTemplate.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["call_resource_templates"]["updated"] += 1
                         else:
                             self.stats["call_resource_templates"]["skipped"] += 1
                     else:
-                        CallResourceTemplate.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            CallResourceTemplate.objects.create(uuid=uuid, **defaults)
                         self.stats["call_resource_templates"]["created"] += 1
                 else:
                     existing = CallResourceTemplate.objects.filter(uuid=uuid).exists()
@@ -6704,12 +6859,14 @@ class Command(BaseCommand):
                     existing = Round.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            Round.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Round.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["rounds"]["updated"] += 1
                         else:
                             self.stats["rounds"]["skipped"] += 1
                     else:
-                        Round.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            Round.objects.create(uuid=uuid, **defaults)
                         self.stats["rounds"]["created"] += 1
                 else:
                     existing = Round.objects.filter(uuid=uuid).exists()
@@ -6799,12 +6956,14 @@ class Command(BaseCommand):
                     existing = Proposal.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            Proposal.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Proposal.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["proposals"]["updated"] += 1
                         else:
                             self.stats["proposals"]["skipped"] += 1
                     else:
-                        Proposal.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            Proposal.objects.create(uuid=uuid, **defaults)
                         self.stats["proposals"]["created"] += 1
                 else:
                     existing = Proposal.objects.filter(uuid=uuid).exists()
@@ -6898,14 +7057,16 @@ class Command(BaseCommand):
                     existing = RequestedResource.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            RequestedResource.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                RequestedResource.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["requested_resources"]["updated"] += 1
                         else:
                             self.stats["requested_resources"]["skipped"] += 1
                     else:
-                        RequestedResource.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            RequestedResource.objects.create(uuid=uuid, **defaults)
                         self.stats["requested_resources"]["created"] += 1
                 else:
                     existing = RequestedResource.objects.filter(uuid=uuid).exists()
@@ -7003,12 +7164,14 @@ class Command(BaseCommand):
                     existing = Review.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            Review.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Review.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["reviews"]["updated"] += 1
                         else:
                             self.stats["reviews"]["skipped"] += 1
                     else:
-                        Review.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            Review.objects.create(uuid=uuid, **defaults)
                         self.stats["reviews"]["created"] += 1
                 else:
                     existing = Review.objects.filter(uuid=uuid).exists()
@@ -7073,21 +7236,26 @@ class Command(BaseCommand):
 
                     if existing_by_uuid:
                         if self.update_existing:
-                            UserAgreement.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                UserAgreement.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["user_agreements"]["updated"] += 1
                         else:
                             self.stats["user_agreements"]["skipped"] += 1
                     elif existing_by_type:
                         # Agreement type already exists with different UUID
                         if self.update_existing:
-                            UserAgreement.objects.filter(
-                                agreement_type=agreement_type
-                            ).update(**defaults)
+                            with transaction.atomic():
+                                UserAgreement.objects.filter(
+                                    agreement_type=agreement_type
+                                ).update(**defaults)
                             self.stats["user_agreements"]["updated"] += 1
                         else:
                             self.stats["user_agreements"]["skipped"] += 1
                     else:
-                        UserAgreement.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            UserAgreement.objects.create(uuid=uuid, **defaults)
                         self.stats["user_agreements"]["created"] += 1
                 else:
                     existing = UserAgreement.objects.filter(uuid=uuid).exists()
@@ -7144,14 +7312,16 @@ class Command(BaseCommand):
                     existing = ExpertiseCategory.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            ExpertiseCategory.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                ExpertiseCategory.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["expertise_categories"]["updated"] += 1
                         else:
                             self.stats["expertise_categories"]["skipped"] += 1
                     else:
-                        ExpertiseCategory.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            ExpertiseCategory.objects.create(uuid=uuid, **defaults)
                         self.stats["expertise_categories"]["created"] += 1
                 else:
                     existing = ExpertiseCategory.objects.filter(uuid=uuid).exists()
@@ -7219,12 +7389,16 @@ class Command(BaseCommand):
                     existing = ReviewerProfile.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            ReviewerProfile.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                ReviewerProfile.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["reviewer_profiles"]["updated"] += 1
                         else:
                             self.stats["reviewer_profiles"]["skipped"] += 1
                     else:
-                        ReviewerProfile.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            ReviewerProfile.objects.create(uuid=uuid, **defaults)
                         self.stats["reviewer_profiles"]["created"] += 1
                 else:
                     existing = ReviewerProfile.objects.filter(uuid=uuid).exists()
@@ -7295,14 +7469,16 @@ class Command(BaseCommand):
                     existing = ReviewerAffiliation.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            ReviewerAffiliation.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                ReviewerAffiliation.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["reviewer_affiliations"]["updated"] += 1
                         else:
                             self.stats["reviewer_affiliations"]["skipped"] += 1
                     else:
-                        ReviewerAffiliation.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            ReviewerAffiliation.objects.create(uuid=uuid, **defaults)
                         self.stats["reviewer_affiliations"]["created"] += 1
                 else:
                     existing = ReviewerAffiliation.objects.filter(uuid=uuid).exists()
@@ -7367,14 +7543,16 @@ class Command(BaseCommand):
                     existing = ReviewerExpertise.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            ReviewerExpertise.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                ReviewerExpertise.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["reviewer_expertise"]["updated"] += 1
                         else:
                             self.stats["reviewer_expertise"]["skipped"] += 1
                     else:
-                        ReviewerExpertise.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            ReviewerExpertise.objects.create(uuid=uuid, **defaults)
                         self.stats["reviewer_expertise"]["created"] += 1
                 else:
                     existing = ReviewerExpertise.objects.filter(uuid=uuid).exists()
@@ -7440,14 +7618,16 @@ class Command(BaseCommand):
                     existing = ReviewerPublication.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            ReviewerPublication.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                ReviewerPublication.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["reviewer_publications"]["updated"] += 1
                         else:
                             self.stats["reviewer_publications"]["skipped"] += 1
                     else:
-                        ReviewerPublication.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            ReviewerPublication.objects.create(uuid=uuid, **defaults)
                         self.stats["reviewer_publications"]["created"] += 1
                 else:
                     existing = ReviewerPublication.objects.filter(uuid=uuid).exists()
@@ -7516,12 +7696,16 @@ class Command(BaseCommand):
                     existing = ReviewerStats.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            ReviewerStats.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                ReviewerStats.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["reviewer_stats"]["updated"] += 1
                         else:
                             self.stats["reviewer_stats"]["skipped"] += 1
                     else:
-                        ReviewerStats.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            ReviewerStats.objects.create(uuid=uuid, **defaults)
                         self.stats["reviewer_stats"]["created"] += 1
                 else:
                     existing = ReviewerStats.objects.filter(uuid=uuid).exists()
@@ -7609,14 +7793,16 @@ class Command(BaseCommand):
                     existing = CallCOIConfiguration.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            CallCOIConfiguration.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                CallCOIConfiguration.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["call_coi_configurations"]["updated"] += 1
                         else:
                             self.stats["call_coi_configurations"]["skipped"] += 1
                     else:
-                        CallCOIConfiguration.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            CallCOIConfiguration.objects.create(uuid=uuid, **defaults)
                         self.stats["call_coi_configurations"]["created"] += 1
                 else:
                     existing = CallCOIConfiguration.objects.filter(uuid=uuid).exists()
@@ -7692,14 +7878,16 @@ class Command(BaseCommand):
                     existing = MatchingConfiguration.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            MatchingConfiguration.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                MatchingConfiguration.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["matching_configurations"]["updated"] += 1
                         else:
                             self.stats["matching_configurations"]["skipped"] += 1
                     else:
-                        MatchingConfiguration.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            MatchingConfiguration.objects.create(uuid=uuid, **defaults)
                         self.stats["matching_configurations"]["created"] += 1
                 else:
                     existing = MatchingConfiguration.objects.filter(uuid=uuid).exists()
@@ -7804,9 +7992,10 @@ class Command(BaseCommand):
                     existing = CallReviewerPool.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            CallReviewerPool.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                CallReviewerPool.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["call_reviewer_pools"]["updated"] += 1
                         else:
                             self.stats["call_reviewer_pools"]["skipped"] += 1
@@ -7814,7 +8003,8 @@ class Command(BaseCommand):
                         pool = CallReviewerPool(uuid=uuid, **defaults)
                         if invitation_token:
                             pool.invitation_token = invitation_token
-                        pool.save()
+                        with transaction.atomic():
+                            pool.save()
                         self.stats["call_reviewer_pools"]["created"] += 1
                 else:
                     existing = CallReviewerPool.objects.filter(uuid=uuid).exists()
@@ -7911,14 +8101,16 @@ class Command(BaseCommand):
                     existing = ConflictOfInterest.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            ConflictOfInterest.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                ConflictOfInterest.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["conflicts_of_interest"]["updated"] += 1
                         else:
                             self.stats["conflicts_of_interest"]["skipped"] += 1
                     else:
-                        ConflictOfInterest.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            ConflictOfInterest.objects.create(uuid=uuid, **defaults)
                         self.stats["conflicts_of_interest"]["created"] += 1
                 else:
                     existing = ConflictOfInterest.objects.filter(uuid=uuid).exists()
@@ -7999,14 +8191,16 @@ class Command(BaseCommand):
                     existing = COIDisclosureForm.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            COIDisclosureForm.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                COIDisclosureForm.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["coi_disclosure_forms"]["updated"] += 1
                         else:
                             self.stats["coi_disclosure_forms"]["skipped"] += 1
                     else:
-                        COIDisclosureForm.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            COIDisclosureForm.objects.create(uuid=uuid, **defaults)
                         self.stats["coi_disclosure_forms"]["created"] += 1
                 else:
                     existing = COIDisclosureForm.objects.filter(uuid=uuid).exists()
@@ -8088,14 +8282,18 @@ class Command(BaseCommand):
                     ).first()
                     if existing:
                         if self.update_existing:
-                            ReviewerProposalAffinity.objects.filter(uuid=uuid).update(
-                                **defaults
-                            )
+                            with transaction.atomic():
+                                ReviewerProposalAffinity.objects.filter(
+                                    uuid=uuid
+                                ).update(**defaults)
                             self.stats["reviewer_proposal_affinities"]["updated"] += 1
                         else:
                             self.stats["reviewer_proposal_affinities"]["skipped"] += 1
                     else:
-                        ReviewerProposalAffinity.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            ReviewerProposalAffinity.objects.create(
+                                uuid=uuid, **defaults
+                            )
                         self.stats["reviewer_proposal_affinities"]["created"] += 1
                 else:
                     existing = ReviewerProposalAffinity.objects.filter(
@@ -8178,12 +8376,14 @@ class Command(BaseCommand):
                     existing = ReviewerBid.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            ReviewerBid.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                ReviewerBid.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["reviewer_bids"]["updated"] += 1
                         else:
                             self.stats["reviewer_bids"]["skipped"] += 1
                     else:
-                        ReviewerBid.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            ReviewerBid.objects.create(uuid=uuid, **defaults)
                         self.stats["reviewer_bids"]["created"] += 1
                 else:
                     existing = ReviewerBid.objects.filter(uuid=uuid).exists()
@@ -8279,12 +8479,16 @@ class Command(BaseCommand):
                     existing = AssignmentBatch.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            AssignmentBatch.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                AssignmentBatch.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["assignment_batches"]["updated"] += 1
                         else:
                             self.stats["assignment_batches"]["skipped"] += 1
                     else:
-                        AssignmentBatch.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            AssignmentBatch.objects.create(uuid=uuid, **defaults)
                         self.stats["assignment_batches"]["created"] += 1
                 else:
                     existing = AssignmentBatch.objects.filter(uuid=uuid).exists()
@@ -8378,12 +8582,16 @@ class Command(BaseCommand):
                     existing = AssignmentItem.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            AssignmentItem.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                AssignmentItem.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["assignment_items"]["updated"] += 1
                         else:
                             self.stats["assignment_items"]["skipped"] += 1
                     else:
-                        AssignmentItem.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            AssignmentItem.objects.create(uuid=uuid, **defaults)
                         self.stats["assignment_items"]["created"] += 1
                 else:
                     existing = AssignmentItem.objects.filter(uuid=uuid).exists()
@@ -8466,12 +8674,16 @@ class Command(BaseCommand):
                     existing = ServiceSettings.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            ServiceSettings.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                ServiceSettings.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
                             self.stats["openstack_service_settings"]["updated"] += 1
                         else:
                             self.stats["openstack_service_settings"]["skipped"] += 1
                     else:
-                        ServiceSettings.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            ServiceSettings.objects.create(uuid=uuid, **defaults)
                         self.stats["openstack_service_settings"]["created"] += 1
                 else:
                     existing = ServiceSettings.objects.filter(uuid=uuid).exists()
@@ -8522,16 +8734,18 @@ class Command(BaseCommand):
                     ).first()
                     if existing:
                         if self.update_existing:
-                            Flavor.objects.filter(
-                                settings=settings, backend_id=backend_id
-                            ).update(**defaults)
+                            with transaction.atomic():
+                                Flavor.objects.filter(
+                                    settings=settings, backend_id=backend_id
+                                ).update(**defaults)
                             self.stats["openstack_flavors"]["updated"] += 1
                         else:
                             self.stats["openstack_flavors"]["skipped"] += 1
                     else:
-                        Flavor.objects.create(
-                            settings=settings, backend_id=backend_id, **defaults
-                        )
+                        with transaction.atomic():
+                            Flavor.objects.create(
+                                settings=settings, backend_id=backend_id, **defaults
+                            )
                         self.stats["openstack_flavors"]["created"] += 1
                 else:
                     existing = Flavor.objects.filter(
@@ -8584,16 +8798,18 @@ class Command(BaseCommand):
                     ).first()
                     if existing:
                         if self.update_existing:
-                            Image.all_objects.filter(
-                                settings=settings, backend_id=backend_id
-                            ).update(**defaults)
+                            with transaction.atomic():
+                                Image.all_objects.filter(
+                                    settings=settings, backend_id=backend_id
+                                ).update(**defaults)
                             self.stats["openstack_images"]["updated"] += 1
                         else:
                             self.stats["openstack_images"]["skipped"] += 1
                     else:
-                        Image(
-                            settings=settings, backend_id=backend_id, **defaults
-                        ).save()
+                        with transaction.atomic():
+                            Image(
+                                settings=settings, backend_id=backend_id, **defaults
+                            ).save()
                         self.stats["openstack_images"]["created"] += 1
                 else:
                     existing = Image.all_objects.filter(
@@ -8667,12 +8883,14 @@ class Command(BaseCommand):
                     existing = Tenant.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            Tenant.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Tenant.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["openstack_tenants"]["updated"] += 1
                         else:
                             self.stats["openstack_tenants"]["skipped"] += 1
                     else:
-                        Tenant.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            Tenant.objects.create(uuid=uuid, **defaults)
                         self.stats["openstack_tenants"]["created"] += 1
                 else:
                     existing = Tenant.objects.filter(uuid=uuid).exists()
@@ -8739,12 +8957,14 @@ class Command(BaseCommand):
                     existing = Instance.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            Instance.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Instance.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["openstack_instances"]["updated"] += 1
                         else:
                             self.stats["openstack_instances"]["skipped"] += 1
                     else:
-                        Instance.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            Instance.objects.create(uuid=uuid, **defaults)
                         self.stats["openstack_instances"]["created"] += 1
                 else:
                     existing = Instance.objects.filter(uuid=uuid).exists()
@@ -8812,12 +9032,14 @@ class Command(BaseCommand):
                     existing = Volume.objects.filter(uuid=uuid).first()
                     if existing:
                         if self.update_existing:
-                            Volume.objects.filter(uuid=uuid).update(**defaults)
+                            with transaction.atomic():
+                                Volume.objects.filter(uuid=uuid).update(**defaults)
                             self.stats["openstack_volumes"]["updated"] += 1
                         else:
                             self.stats["openstack_volumes"]["skipped"] += 1
                     else:
-                        Volume.objects.create(uuid=uuid, **defaults)
+                        with transaction.atomic():
+                            Volume.objects.create(uuid=uuid, **defaults)
                         self.stats["openstack_volumes"]["created"] += 1
                 else:
                     existing = Volume.objects.filter(uuid=uuid).exists()
