@@ -101,10 +101,12 @@ def create_course_account_task(course_account_uuid_hex: str, owner_username: str
             # API disabled in settings — leave record in PENDING state
             return
         temp_account = response_data.get("tempAccount", {})
-        user = core_models.User.objects.create(
+        user, _ = core_models.User.objects.get_or_create(
             username=temp_account["username"],
-            email=temp_account.get("email", course_account.email),
-            description="Course Account",
+            defaults={
+                "email": temp_account.get("email", course_account.email),
+                "description": "Course Account",
+            },
         )
         course_account.user = user
         course_account.set_state_ok()
