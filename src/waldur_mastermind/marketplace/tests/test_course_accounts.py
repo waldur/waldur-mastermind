@@ -211,6 +211,21 @@ class CourseAccountPermissionTest(test.APITestCase):
             f"Expected status code 404, got: {response.status_code}. Response data: {response.data}",
         )
 
+    def test_delete_erred_course_account_without_user(self):
+        """Deleting an ERRED account with no user (task never created one) must not crash."""
+        self.client.force_authenticate(self.fixture.staff)
+        account = factories.CourseAccountFactory(
+            project=self.course_project,
+            user=None,
+            email="no-user@example.com",
+            state=CourseAccountState.ERRED,
+        )
+        url = factories.CourseAccountFactory.get_url(account)
+        response = self.client.delete(url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        account.refresh_from_db()
+        self.assertEqual(account.state, CourseAccountState.CLOSED)
+
     def test_update_operations_are_disabled(self):
         """Test that update operations are disabled"""
         self.client.force_authenticate(self.fixture.staff)

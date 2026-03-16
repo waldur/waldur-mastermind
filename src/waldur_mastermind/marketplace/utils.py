@@ -2825,6 +2825,12 @@ def create_multiple_course_accounts(
 def close_course_account(
     course_account: models.CourseAccount, api_access_token: str | None = None
 ):
+    # No backend account was ever created — nothing to close remotely.
+    if course_account.user is None:
+        course_account.set_state_closed()
+        course_account.save(update_fields=["state"])
+        return
+
     if config.ENABLE_MOCK_COURSE_ACCOUNT_BACKEND:
         logger.info(
             f"Mock mode enabled for delete_course_account: {course_account.user.username}"

@@ -205,7 +205,7 @@ def send_account_message(
             username = service_account.username
             observable_object_type = logging_enums.ObservableObjectType.SERVICE_ACCOUNT
         case course_account if isinstance(account, marketplace_models.CourseAccount):
-            username = course_account.user.username
+            username = course_account.user.username if course_account.user else ""
             observable_object_type = logging_enums.ObservableObjectType.COURSE_ACCOUNT
     payload = {
         "account_uuid": account.uuid.hex,
