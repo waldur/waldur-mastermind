@@ -2563,6 +2563,24 @@ def trigger_scim_sync_on_offering_endpoint_change(
     scim_tasks.sync_users_for_offering_endpoint.delay(instance.offering.uuid.hex)
 
 
+def trigger_scim_sync_on_offering_user_ok(
+    sender, instance: OfferingUser, created=False, **kwargs
+):
+    """Trigger SCIM entitlements synchronization when OfferingUser transitions to OK with username."""
+    if not config.SCIM_MEMBERSHIP_SYNC_ENABLED or not scim_tasks.is_scim_configured():
+        return
+
+    if created or not instance.tracker.has_changed("state"):
+        return
+
+    if instance.state != OfferingUserStates.OK or not instance.username:
+        return
+
+    transaction.on_commit(
+        lambda: scim_tasks.sync_user_entitlements.delay(instance.user.uuid.hex)
+    )
+
+
 def handle_user_role_revoked(
     sender, instance, current_user=None, reason=None, **kwargs
 ):
