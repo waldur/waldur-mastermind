@@ -20,7 +20,8 @@
       "SME becomes provider: AgriSense Spain - Precision agriculture AI",
       "SME becomes provider: CyberGuard Estonia - Cybersecurity AI",
       "End-to-end value chain: AI Factory \u2192 SME Provider \u2192 Enterprise Customer",
-      "Nordic Law Partners consuming LegalAI services built on AI Factory"
+      "Nordic Law Partners consuming LegalAI services built on AI Factory",
+      "OpenNebula VDC provisioning with Keycloak SAML user management"
     ]
   },
   "user_agreements": [
@@ -2641,6 +2642,37 @@
         "service_provider_can_create_offering_user": true
       },
       "getting_started": "## AI-SOC Platform\n\n### Platform Access\nSOC Portal: `https://soc.cyberguard.example.com`\n\n### Capabilities\n- AI-powered alert triage\n- Automated investigation\n- Response playbooks\n- Threat intelligence feeds\n- Compliance reporting\n- Analyst workbench\n\n### Integrations\n- SIEM platforms\n- EDR solutions\n- Cloud security tools\n- Ticketing systems\n- Communication tools\n\n### Support\nCyberGuard SOC: soc@cyberguard.example.com\nEmergency: +372 5XX XXXX (24/7)"
+    },
+    {
+      "uuid": "af200000000000000000000000000090",
+      "name": "OpenNebula VDC",
+      "type": "Marketplace.Slurm",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "afca0000000000000000000000000001",
+      "customer_uuid": "afc00000000000000000000000000001",
+      "description": "Virtual Data Center (VDC) provisioned on OpenNebula with Keycloak SAML integration. Each VDC includes dedicated resource quotas (CPU, RAM, storage), role-based access via Keycloak groups (admin, user, cloud), and automatic SAML-based single sign-on to OpenNebula Sunstone/FireEdge. Users are managed through Waldur team membership — adding a user to the project automatically grants Sunstone access via Keycloak group membership.",
+      "options": {
+        "order": [
+          "vdc_name"
+        ],
+        "options": {
+          "vdc_name": {
+            "type": "string",
+            "label": "VDC Name",
+            "help_text": "Name for the Virtual Data Center (used in group naming)",
+            "required": true
+          }
+        }
+      },
+      "plugin_options": {
+        "backend_type": "opennebula",
+        "resource_type": "vdc",
+        "keycloak_enabled": true,
+        "service_provider_can_create_offering_user": true
+      },
+      "getting_started": "## Getting Started with OpenNebula VDC\n\n### Access Sunstone\nLogin via SSO at your organization's Sunstone URL.\nYour Keycloak account is automatically mapped to the correct VDC and role.\n\n### Roles\n- **Admin**: Full VDC management (groupadmin view)\n- **User**: Standard VM operations (user view)\n- **Cloud**: Simplified cloud interface (cloud view)\n\n### Create a VM\n1. Login to Sunstone via SAML/SSO\n2. Navigate to VMs > Create\n3. Select a template from your VDC\n4. Configure resources within your quota\n5. Deploy\n\n### Quota Management\nResource quotas (CPU, RAM, storage) are managed through Waldur.\nContact your project manager to request quota changes.\n\n### Support\nVDC Support: vdc-support@ai-factory.example.com"
     }
   ],
   "offering_endpoints": [
@@ -3245,6 +3277,33 @@
       "description": "Monthly SOC platform fee",
       "billing_type": "fixed",
       "measured_unit": "month"
+    },
+    {
+      "uuid": "afcb0000000000000000000000009001",
+      "offering_uuid": "af200000000000000000000000000090",
+      "type": "cpu",
+      "name": "CPU",
+      "description": "CPU cores allocated to the VDC",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "afcb0000000000000000000000009002",
+      "offering_uuid": "af200000000000000000000000000090",
+      "type": "ram",
+      "name": "RAM",
+      "description": "Memory allocated to the VDC",
+      "billing_type": "limit",
+      "measured_unit": "MB"
+    },
+    {
+      "uuid": "afcb0000000000000000000000009003",
+      "offering_uuid": "af200000000000000000000000000090",
+      "type": "storage",
+      "name": "Storage",
+      "description": "Storage allocated to the VDC",
+      "billing_type": "limit",
+      "measured_unit": "MB"
     }
   ],
   "plans": [
@@ -3534,6 +3593,20 @@
       "offering_uuid": "af200000000000000000000000000081",
       "unit": "month",
       "description": "AI-SOC Platform - Fully Managed"
+    },
+    {
+      "uuid": "af350a70000000000000000000009001",
+      "name": "Small VDC",
+      "offering_uuid": "af200000000000000000000000000090",
+      "unit": "month",
+      "description": "Small Virtual Data Center — 4 CPU, 8 GB RAM, 100 GB storage"
+    },
+    {
+      "uuid": "af350a70000000000000000000009002",
+      "name": "Medium VDC",
+      "offering_uuid": "af200000000000000000000000000090",
+      "unit": "month",
+      "description": "Medium Virtual Data Center — 16 CPU, 32 GB RAM, 500 GB storage"
     }
   ],
   "plan_components": [
@@ -4034,6 +4107,42 @@
       "component_uuid": "afcb0000000000000000000000008102",
       "price": "7500.00",
       "amount": 1
+    },
+    {
+      "plan_uuid": "af350a70000000000000000000009001",
+      "component_uuid": "afcb0000000000000000000000009001",
+      "price": "5.00",
+      "amount": 4
+    },
+    {
+      "plan_uuid": "af350a70000000000000000000009001",
+      "component_uuid": "afcb0000000000000000000000009002",
+      "price": "0.50",
+      "amount": 8192
+    },
+    {
+      "plan_uuid": "af350a70000000000000000000009001",
+      "component_uuid": "afcb0000000000000000000000009003",
+      "price": "0.02",
+      "amount": 102400
+    },
+    {
+      "plan_uuid": "af350a70000000000000000000009002",
+      "component_uuid": "afcb0000000000000000000000009001",
+      "price": "5.00",
+      "amount": 16
+    },
+    {
+      "plan_uuid": "af350a70000000000000000000009002",
+      "component_uuid": "afcb0000000000000000000000009002",
+      "price": "0.50",
+      "amount": 32768
+    },
+    {
+      "plan_uuid": "af350a70000000000000000000009002",
+      "component_uuid": "afcb0000000000000000000000009003",
+      "price": "0.02",
+      "amount": 512000
     }
   ],
   "resources": [
@@ -4372,6 +4481,42 @@
         "ram": 11520
       },
       "description": "CyberGuard Estonia uses Mistral LLM for security log analysis"
+    },
+    {
+      "uuid": "afce0000000000000000000000000060",
+      "name": "bioml-research-vdc",
+      "offering_uuid": "af200000000000000000000000000090",
+      "project_uuid": "af300000000000000000000000000001",
+      "plan_uuid": "af350a70000000000000000000009002",
+      "state": 2,
+      "backend_id": "bioml-research-vdc",
+      "attributes": {
+        "vdc_name": "bioml-research-vdc"
+      },
+      "limits": {
+        "cpu": 16,
+        "ram": 32768,
+        "storage": 512000
+      },
+      "description": "BioML Research VDC for protein folding and genomics compute workloads"
+    },
+    {
+      "uuid": "afce0000000000000000000000000061",
+      "name": "bioml-dev-vdc",
+      "offering_uuid": "af200000000000000000000000000090",
+      "project_uuid": "af300000000000000000000000000001",
+      "plan_uuid": "af350a70000000000000000000009001",
+      "state": 2,
+      "backend_id": "bioml-dev-vdc",
+      "attributes": {
+        "vdc_name": "bioml-dev-vdc"
+      },
+      "limits": {
+        "cpu": 4,
+        "ram": 8192,
+        "storage": 102400
+      },
+      "description": "BioML development VDC for testing and model prototyping"
     }
   ],
   "user_roles": [
