@@ -2520,9 +2520,9 @@ Enable LLM-based chat feature and calls to the inference service.
 
 **Type:** str
 
-**Default value:** ollama
+**Default value:** vllm
 
-Type of LLM inference backend. For example: openai, ollama.
+Type of LLM inference backend. For example: vllm, openai, ollama.
 
 #### LLM_INFERENCES_API_URL
 
@@ -2543,6 +2543,12 @@ API key for authenticating with the LLM inference service.
 **Default value:** gemma3:27b
 
 Name of the LLM model to use for inference.
+
+#### LLM_COMPLETION_KWARGS
+
+**Type:** dict_field
+
+Override keyword arguments merged on top of provider defaults for LLM chat completion. Supported keys: temperature, top_p, top_k, max_tokens, max_completion_tokens, presence_penalty, frequency_penalty, repetition_penalty, stop, seed, reasoning_effort, extra_body. Leave empty to use provider defaults.
 
 #### LLM_TOKEN_LIMIT_DAILY
 
@@ -2873,3 +2879,13 @@ Minimum allowed RSA key size in bits. Set to 0 to disable the check.
 **Type:** bool
 
 If true, a support ticket is created when a user adds or removes an SSH public key.
+
+### Reporting
+
+#### ENABLED_REPORTING_SCREENS
+
+**Type:** multiple_choice_field
+
+**Default value:** ['resource-usage', 'user-usage', 'quotas', 'usage-monitoring', 'usage-trends', 'organization-summary', 'project-detail', 'resources-geography', 'project-classification', 'usage-by-customer', 'usage-by-org-type', 'usage-by-creator', 'call-performance', 'review-progress', 'resource-demand', 'capacity', 'provider-overview', 'provider-revenue', 'provider-orders', 'provider-resources', 'provider-customers', 'provider-offerings', 'openstack-instances', 'user-demographics', 'user-organizations', 'user-affiliations', 'user-roles', 'growth', 'revenue', 'pricelist', 'orders', 'offering-costs', 'maintenance-overview', 'provisioning-stats']
+
+Select which reporting screens should be visible to users. Uncheck to disable specific reports.
