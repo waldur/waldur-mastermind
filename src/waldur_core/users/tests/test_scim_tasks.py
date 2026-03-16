@@ -899,3 +899,152 @@ class ScimSyncUsersForOfferingTaskTest(BaseScimTestCase):
             u.uuid.hex for u in extra_users
         }
         self.assertEqual(all_batched, expected)
+
+
+@override_config(
+    SCIM_MEMBERSHIP_SYNC_ENABLED=True,
+    SCIM_API_URL="https://scim.example.org",
+    SCIM_API_KEY="secret",
+    SCIM_URN_NAMESPACE="urn:ietf:dev",
+)
+class ScimOfferingUserOkTransitionTest(BaseScimTestCase):
+    """Test trigger_scim_sync_on_offering_user_ok handler."""
+
+    def setUp(self):
+        self.user = structure_factories.UserFactory(username="user@example.org")
+        self.offering = marketplace_factories.OfferingFactory()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_entitlements.delay")
+    def test_triggers_sync_when_transitioning_to_ok_with_username(
+        self, mock_sync_delay
+    ):
+        """SCIM sync is triggered when OfferingUser transitions to OK with username."""
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.user,
+            offering=self.offering,
+            username="",
+            state=OfferingUserStates.CREATION_REQUESTED,
+        )
+
+        # Transition to OK with username
+        offering_user.state = OfferingUserStates.OK
+        offering_user.username = "posixuser"
+        with self.captureOnCommitCallbacks(execute=True):
+            offering_user.save()
+
+        mock_sync_delay.assert_called_once_with(self.user.uuid.hex)
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_entitlements.delay")
+    def test_triggers_sync_when_transitioning_from_creating_to_ok(
+        self, mock_sync_delay
+    ):
+        """SCIM sync is triggered when transitioning from CREATING to OK."""
+        # Create without username to avoid auto-transition to OK
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.user,
+            offering=self.offering,
+            username="",
+            state=OfferingUserStates.CREATING,
+        )
+        offering_user.refresh_from_db()
+
+        offering_user.state = OfferingUserStates.OK
+        offering_user.username = "posixuser"
+        with self.captureOnCommitCallbacks(execute=True):
+            offering_user.save()
+
+        mock_sync_delay.assert_called_once_with(self.user.uuid.hex)
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_entitlements.delay")
+    def test_no_sync_on_creation(self, mock_sync_delay):
+        """No SCIM sync is triggered when OfferingUser is created."""
+        marketplace_models.OfferingUser.objects.create(
+            user=self.user,
+            offering=self.offering,
+            username="posixuser",
+            state=OfferingUserStates.OK,
+        )
+
+        mock_sync_delay.assert_not_called()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_entitlements.delay")
+    def test_no_sync_when_state_unchanged(self, mock_sync_delay):
+        """No SCIM sync when state doesn't change."""
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.user,
+            offering=self.offering,
+            username="posixuser",
+            state=OfferingUserStates.OK,
+        )
+
+        offering_user.username = "newusername"
+        with self.captureOnCommitCallbacks(execute=True):
+            offering_user.save()
+
+        mock_sync_delay.assert_not_called()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_entitlements.delay")
+    def test_no_sync_when_transitioning_away_from_ok(self, mock_sync_delay):
+        """No SCIM sync when transitioning away from OK state."""
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.user,
+            offering=self.offering,
+            username="posixuser",
+            state=OfferingUserStates.OK,
+        )
+
+        offering_user.state = OfferingUserStates.DELETION_REQUESTED
+        with self.captureOnCommitCallbacks(execute=True):
+            offering_user.save()
+
+        mock_sync_delay.assert_not_called()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_entitlements.delay")
+    def test_no_sync_when_username_empty(self, mock_sync_delay):
+        """No SCIM sync when transitioning to OK but username is empty."""
+        offering_user = marketplace_models.OfferingUser.objects.create(
+            user=self.user,
+            offering=self.offering,
+            username="",
+            state=OfferingUserStates.CREATION_REQUESTED,
+        )
+
+        offering_user.state = OfferingUserStates.OK
+        with self.captureOnCommitCallbacks(execute=True):
+            offering_user.save()
+
+        mock_sync_delay.assert_not_called()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_entitlements.delay")
+    def test_no_sync_when_scim_disabled(self, mock_sync_delay):
+        """No SCIM sync when SCIM is disabled."""
+        with override_config(SCIM_MEMBERSHIP_SYNC_ENABLED=False):
+            offering_user = marketplace_models.OfferingUser.objects.create(
+                user=self.user,
+                offering=self.offering,
+                username="",
+                state=OfferingUserStates.CREATION_REQUESTED,
+            )
+
+            offering_user.state = OfferingUserStates.OK
+            offering_user.username = "posixuser"
+            offering_user.save()
+
+        mock_sync_delay.assert_not_called()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_entitlements.delay")
+    def test_no_sync_when_scim_not_configured(self, mock_sync_delay):
+        """No SCIM sync when SCIM is not configured."""
+        with override_config(SCIM_API_URL=""):
+            offering_user = marketplace_models.OfferingUser.objects.create(
+                user=self.user,
+                offering=self.offering,
+                username="",
+                state=OfferingUserStates.CREATION_REQUESTED,
+            )
+
+            offering_user.state = OfferingUserStates.OK
+            offering_user.username = "posixuser"
+            offering_user.save()
+
+        mock_sync_delay.assert_not_called()

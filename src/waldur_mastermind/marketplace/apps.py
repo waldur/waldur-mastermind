@@ -337,6 +337,12 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.send_offering_user_updated_message",
         )
 
+        signals.post_save.connect(
+            handlers.trigger_scim_sync_on_offering_user_ok,
+            sender=models.OfferingUser,
+            dispatch_uid="waldur_mastermind.marketplace.trigger_scim_sync_on_offering_user_ok",
+        )
+
         signals.post_delete.connect(
             handlers.send_offering_user_deleted_message,
             sender=models.OfferingUser,
