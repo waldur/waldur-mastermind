@@ -157,6 +157,49 @@ class CustomerProjectMetadataTest(ProjectMetadataTestMixin, test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("No checklist configured", response.data["detail"])
 
+    def test_checklist_template_with_question_dependencies(self):
+        """Test that checklist template endpoint works when questions have dependencies.
+
+        Regression test for CSCS-2MF: ValueError when an unsaved ChecklistCompletion
+        is used to evaluate question visibility with dependencies.
+        """
+        # Create a dependent question that is only visible when boolean_question is True
+        dependent_question = checklist_factories.QuestionFactory(
+            checklist=self.checklist,
+            description="Confidentiality details",
+            question_type=QuestionTypes.TEXT_AREA,
+            required=False,
+            order=4,
+        )
+        checklist_factories.QuestionDependencyFactory(
+            question=dependent_question,
+            depends_on_question=self.boolean_question,
+            required_answer_value=True,
+            operator="equals",
+        )
+
+        # Assign checklist to customer
+        self.customer.project_metadata_checklist = self.checklist
+        self.customer.save()
+
+        self.client.force_authenticate(self.owner)
+        url = "/api/projects/checklist-template/"
+        response = self.client.get(url, {"parent_uuid": self.customer.uuid.hex})
+
+        # Should return 200, not crash with ValueError
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # The dependent question should NOT be in initial_visible_questions
+        # since there are no answers yet
+        visible_descriptions = [
+            q["description"] for q in response.data["initial_visible_questions"]
+        ]
+        self.assertNotIn("Confidentiality details", visible_descriptions)
+
+        # But it should still appear in all questions
+        all_descriptions = [q["description"] for q in response.data["questions"]]
+        self.assertIn("Confidentiality details", all_descriptions)
+
     def test_invalid_checklist_type_validation(self):
         """Test that non-PROJECT_METADATA checklists are rejected."""
         # Create a different type of checklist

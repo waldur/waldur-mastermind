@@ -540,6 +540,9 @@ class QuestionDependency(core_models.UuidMixin, TimeStampedModel):
 
     def question_is_visible(self, completion):
         """Check if dependency condition is satisfied in the completion context"""
+        if not completion.pk:
+            return False
+
         answer_to_base_question = completion.answers.filter(
             question=self.depends_on_question
         ).first()
