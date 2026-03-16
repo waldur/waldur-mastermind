@@ -8,6 +8,10 @@ from rest_framework import status, test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.input_guards.service import _reset_for_testing
 from waldur_mastermind.chat.models import Message
+from waldur_mastermind.chat.tests.utils import (
+    _make_content_chunk,
+    _mock_openai_client,
+)
 
 
 class PIIIntegrationBaseTest(test.APITestCase):
@@ -99,22 +103,19 @@ class CredentialBlockTest(PIIIntegrationBaseTest):
 class IBANRedactTest(PIIIntegrationBaseTest):
     """Test that IBANs are redacted before reaching the LLM."""
 
-    @mock.patch("waldur_mastermind.chat.views.requests.post")
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
     )
-    def test_iban_redacted_in_llm_context(self, post_mock):
+    def test_iban_redacted_in_llm_context(self, mock_openai_cls):
         """IBAN should be redacted before sending to LLM."""
-        fake_stream = [
-            "data: " + json.dumps({"content": "I can help with that."}),
-        ]
-        post_mock.return_value.__enter__.return_value = mock.Mock(
-            iter_lines=lambda decode_unicode=False: fake_stream,
-            raise_for_status=lambda: None,
+        mock_client = _mock_openai_client(
+            [_make_content_chunk("I can help with that.")]
         )
+        mock_openai_cls.return_value = mock_client
 
         response = self.client.post(
             self.stream_url,
@@ -125,18 +126,18 @@ class IBANRedactTest(PIIIntegrationBaseTest):
 
         # Verify LLM was called (not blocked) — REDACT should still call LLM
         self.assertTrue(
-            post_mock.called,
+            mock_openai_cls.called,
             f"Expected LLM to be called for REDACT action. Stream content: {content[:200]}",
         )
 
-        # Verify the IBAN was redacted in the LLM prompt
-        call_kwargs = post_mock.call_args
-        llm_payload = (
-            call_kwargs[1]["json"] if "json" in call_kwargs[1] else call_kwargs[0][1]
+        # Verify the IBAN was redacted in the messages sent to LLM
+        call_kwargs = mock_client.chat.completions.create.call_args
+        sent_messages = call_kwargs.kwargs.get("messages") or call_kwargs[1].get(
+            "messages"
         )
-        prompt_text = llm_payload.get("input", "")
-        self.assertNotIn("EE382200221020145685", prompt_text)
-        self.assertIn("REDACTED", prompt_text)
+        all_contents = " ".join(m["content"] for m in sent_messages)
+        self.assertNotIn("EE382200221020145685", all_contents)
+        self.assertIn("REDACTED", all_contents)
 
         # Verify PII detection fields are persisted
         user_msg = Message.objects.filter(
@@ -149,22 +150,17 @@ class IBANRedactTest(PIIIntegrationBaseTest):
         self.assertNotIn("EE382200221020145685", user_msg.content)
         self.assertIn("REDACTED", user_msg.content)
 
-    @mock.patch("waldur_mastermind.chat.views.requests.post")
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
     )
-    def test_iban_redact_yields_pii_warning(self, post_mock):
+    def test_iban_redact_yields_pii_warning(self, mock_openai_cls):
         """Redacted message should include a PII warning in the stream."""
-        fake_stream = [
-            "data: " + json.dumps({"content": "I can help."}),
-        ]
-        post_mock.return_value.__enter__.return_value = mock.Mock(
-            iter_lines=lambda decode_unicode=False: fake_stream,
-            raise_for_status=lambda: None,
-        )
+        mock_client = _mock_openai_client([_make_content_chunk("I can help.")])
+        mock_openai_cls.return_value = mock_client
 
         response = self.client.post(
             self.stream_url,
@@ -189,21 +185,18 @@ class IBANRedactTest(PIIIntegrationBaseTest):
 class JWTWarnTest(PIIIntegrationBaseTest):
     """Test that JWTs produce a warning but don't block."""
 
-    @mock.patch("waldur_mastermind.chat.views.requests.post")
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
     )
-    def test_jwt_warned_but_not_blocked(self, post_mock):
-        fake_stream = [
-            "data: " + json.dumps({"content": "I see you have a token."}),
-        ]
-        post_mock.return_value.__enter__.return_value = mock.Mock(
-            iter_lines=lambda decode_unicode=False: fake_stream,
-            raise_for_status=lambda: None,
+    def test_jwt_warned_but_not_blocked(self, mock_openai_cls):
+        mock_client = _mock_openai_client(
+            [_make_content_chunk("I see you have a token.")]
         )
+        mock_openai_cls.return_value = mock_client
 
         jwt_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U"
         response = self.client.post(
@@ -214,7 +207,7 @@ class JWTWarnTest(PIIIntegrationBaseTest):
         content = b"".join(response.streaming_content).decode()
 
         # Should NOT be blocked (LLM was called)
-        self.assertTrue(post_mock.called)
+        self.assertTrue(mock_openai_cls.called)
         # Should contain a warning
         found_warning = False
         for line in content.strip().split("\n"):

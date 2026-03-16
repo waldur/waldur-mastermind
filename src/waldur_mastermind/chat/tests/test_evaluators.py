@@ -33,9 +33,10 @@ class ToolUsageEvaluatorTest(unittest.TestCase):
 
     def test_no_tool_expected_but_tool_called(self):
         """Test that unexpected tool call is detected."""
-        response = '{"tool": "show_user_resources", "arguments": {}}'
+        response = "Here are your resources."
         config = {
             "expected_tool": None,
+            "tool_calls": [{"name": "show_user_resources"}],
             "rationale": "Simple questions should not trigger tools",
         }
 
@@ -49,9 +50,10 @@ class ToolUsageEvaluatorTest(unittest.TestCase):
 
     def test_correct_tool_called(self):
         """Test that correct tool call is detected."""
-        response = '{"tool": "show_user_resources", "arguments": {"user_id": 123}}'
+        response = "Here are your resources."
         config = {
             "expected_tool": "show_user_resources",
+            "tool_calls": [{"name": "show_user_resources"}],
             "rationale": "User requested their resources",
         }
 
@@ -62,7 +64,7 @@ class ToolUsageEvaluatorTest(unittest.TestCase):
         self.assertIn("correctly called tool", result.message.lower())
         self.assertEqual(result.details["expected_tool"], "show_user_resources")
         self.assertEqual(result.details["actual_tool"], "show_user_resources")
-        self.assertEqual(result.details["tool_call"]["tool"], "show_user_resources")
+        self.assertEqual(result.details["tool_call"]["name"], "show_user_resources")
 
     def test_expected_tool_not_called(self):
         """Test that missing expected tool is detected."""
@@ -82,9 +84,10 @@ class ToolUsageEvaluatorTest(unittest.TestCase):
 
     def test_wrong_tool_called(self):
         """Test that incorrect tool call is detected."""
-        response = '{"tool": "create_resource", "arguments": {}}'
+        response = "Creating a resource."
         config = {
             "expected_tool": "show_user_resources",
+            "tool_calls": [{"name": "create_resource"}],
             "rationale": "User asked to view, not create",
         }
 
@@ -96,11 +99,12 @@ class ToolUsageEvaluatorTest(unittest.TestCase):
         self.assertEqual(result.details["expected_tool"], "show_user_resources")
         self.assertEqual(result.details["actual_tool"], "create_resource")
 
-    def test_tool_call_with_markdown_wrapper(self):
-        """Test that tool calls wrapped in markdown are parsed correctly."""
-        response = '```json\n{"tool": "show_user_resources", "arguments": {}}\n```'
+    def test_tool_call_via_native_function_calling(self):
+        """Test that native function calling tool calls are detected via config."""
+        response = "Here are your resources."
         config = {
             "expected_tool": "show_user_resources",
+            "tool_calls": [{"name": "show_user_resources"}],
             "rationale": "User requested resources",
         }
 

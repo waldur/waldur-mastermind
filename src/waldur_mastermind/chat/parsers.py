@@ -1,6 +1,4 @@
-import json
 import logging
-import re
 from collections.abc import Generator
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -8,114 +6,6 @@ from enum import Enum, auto
 from waldur_mastermind.chat.ui_registry import ui_registry
 
 logger = logging.getLogger(__name__)
-
-
-def _extract_json_objects(content: str):
-    """
-    Extract potential JSON objects from text using balanced brace counting.
-    Yields candidate JSON strings that start with { and have balanced braces.
-    """
-    i = 0
-    while i < len(content):
-        # Find next opening brace
-        start = content.find("{", i)
-        if start == -1:
-            break
-
-        # Count balanced braces to find the complete JSON object
-        brace_count = 0
-        in_string = False
-        escape_next = False
-        end = start
-
-        for j in range(start, len(content)):
-            char = content[j]
-
-            if escape_next:
-                escape_next = False
-                continue
-
-            if char == "\\":
-                escape_next = True
-                continue
-
-            if char == '"' and not escape_next:
-                in_string = not in_string
-                continue
-
-            if not in_string:
-                if char == "{":
-                    brace_count += 1
-                elif char == "}":
-                    brace_count -= 1
-                    if brace_count == 0:
-                        end = j + 1
-                        yield content[start:end]
-                        break
-
-        i = end if end > start else start + 1
-
-
-def parse_tool_call(content):
-    """
-    Try to parse a tool call from LLM response content.
-    Handles cases where LLM adds prefix text or wraps in markdown.
-    """
-    content = content.strip()
-
-    # Strip markdown code blocks if present
-    if content.startswith("```"):
-        content = re.sub(r"^```\w*\s*", "", content)
-        content = re.sub(r"\s*```$", "", content)
-        content = content.strip()
-
-    # Try parsing as-is first (handles clean JSON responses)
-    try:
-        data = json.loads(content)
-        if isinstance(data, dict) and "tool" in data:
-            return data
-    except json.JSONDecodeError:
-        pass
-
-    # Try to extract JSON objects from content with prefix/suffix text
-    # Use balanced brace parser to handle nested objects
-    for json_candidate in _extract_json_objects(content):
-        # Quick check: must contain "tool" keyword before expensive JSON parse
-        if '"tool"' not in json_candidate:
-            continue
-
-        try:
-            data = json.loads(json_candidate)
-            if isinstance(data, dict) and "tool" in data:
-                return data
-        except json.JSONDecodeError:
-            continue
-
-    return None
-
-
-def looks_like_tool_call(content: str) -> bool:
-    """
-    Check if content might contain a tool call JSON.
-
-    Only triggers on the specific '{"tool"' pattern the LLM is instructed to
-    produce. Using a bare '{' as the trigger caused false positives: any normal
-    LLM response that mentions a '{variable}', a JSON example, or a dict literal
-    would be incorrectly buffered — and if it turned out not to be a tool call,
-    the fallback path would render the entire response as untyped content.
-
-    The '{"tool"' string is specific enough to avoid false positives in
-    conversational text while still detecting tool calls even when the LLM adds
-    a short preamble or wraps the JSON in a ```json code fence (despite being
-    instructed not to).
-    """
-    stripped = content.strip()
-
-    # Handle markdown code blocks (strip opening fence)
-    if stripped.startswith("```"):
-        stripped = re.sub(r"^```\w*\s*", "", stripped).strip()
-
-    return '{"tool"' in stripped
 
 
 class ParserState(Enum):
@@ -344,18 +234,7 @@ class StreamParser:
     def _render_block_content(
         self, tag: str, content: str
     ) -> Generator[dict, None, None]:
-        """
-        Render a code block using UI registry with fallback.
-
-        For json code blocks, checks if content is a tool call. If so, yields
-        a sentinel dict with key "_tool_call" for LLMStreamer to intercept and
-        execute, instead of rendering the raw JSON to the user.
-        """
-        if tag.lower() == "json":
-            parsed = parse_tool_call(content)
-            if parsed and "tool" in parsed:
-                yield {"_tool_call": parsed}
-                return
+        """Render a code block using UI registry with fallback."""
         try:
             ui_component = ui_registry.create_content_from_block(
                 {"c": content, "t": tag}

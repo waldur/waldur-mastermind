@@ -11,6 +11,10 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.context_assembler import build_context
 from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession
 from waldur_mastermind.chat.prompts import UI_CAPABILITIES
+from waldur_mastermind.chat.tests.utils import (
+    _make_content_chunk,
+    _mock_openai_client,
+)
 
 
 class BuildContextTest(TestCase):
@@ -32,24 +36,26 @@ class BuildContextTest(TestCase):
 
         context = build_context(self.user, "What resources?", thread=self.thread)
 
-        # System prompt present
-        self.assertIn("You are a highly knowledgeable", context)
-        self.assertIn(UI_CAPABILITIES, context)
-        # Tool instructions present
-        self.assertIn("show_user_resources", context)
-        # History present
-        self.assertIn("user: Hello", context)
-        self.assertIn("assistant: Hi there!", context)
-        # Current message present
-        self.assertIn("user: What resources?", context)
+        # context is a list[dict] in OpenAI messages format
+        system_msg = next(m for m in context if m["role"] == "system")
+        self.assertIn("You are a highly knowledgeable", system_msg["content"])
+        self.assertIn(UI_CAPABILITIES, system_msg["content"])
+        self.assertIn("show_user_resources", system_msg["content"])
+        history_roles_contents = [(m["role"], m["content"]) for m in context]
+        self.assertIn(("user", "Hello"), history_roles_contents)
+        self.assertIn(("assistant", "Hi there!"), history_roles_contents)
+        self.assertIn(("user", "What resources?"), history_roles_contents)
 
     def test_no_thread_skips_history(self):
         context = build_context(self.user, "Hello", thread=None)
 
-        self.assertIn("You are a highly knowledgeable", context)
-        self.assertIn("user: Hello", context)
-        # No history section
-        self.assertNotIn("assistant:", context)
+        system_msg = next(m for m in context if m["role"] == "system")
+        self.assertIn("You are a highly knowledgeable", system_msg["content"])
+        roles = [m["role"] for m in context]
+        self.assertIn("user", roles)
+        self.assertNotIn("assistant", roles)
+        user_msgs = [m for m in context if m["role"] == "user"]
+        self.assertTrue(any("Hello" in m["content"] for m in user_msgs))
 
     def test_conversation_history_chronological_order(self):
         Message.objects.create(
@@ -67,10 +73,23 @@ class BuildContextTest(TestCase):
 
         context = build_context(self.user, "Fourth", thread=self.thread)
 
-        first_pos = context.index("user: First")
-        second_pos = context.index("assistant: Second")
-        third_pos = context.index("user: Third")
-        fourth_pos = context.index("user: Fourth")
+        roles_contents = [(m["role"], m["content"]) for m in context]
+        first_pos = next(
+            i for i, (r, c) in enumerate(roles_contents) if r == "user" and c == "First"
+        )
+        second_pos = next(
+            i
+            for i, (r, c) in enumerate(roles_contents)
+            if r == "assistant" and c == "Second"
+        )
+        third_pos = next(
+            i for i, (r, c) in enumerate(roles_contents) if r == "user" and c == "Third"
+        )
+        fourth_pos = next(
+            i
+            for i, (r, c) in enumerate(roles_contents)
+            if r == "user" and c == "Fourth"
+        )
 
         self.assertLess(first_pos, second_pos)
         self.assertLess(second_pos, third_pos)
@@ -91,8 +110,9 @@ class BuildContextTest(TestCase):
         context = build_context(self.user, "Next message", thread=self.thread)
 
         # Only the replacement (which has no replaced_by) should appear
-        self.assertIn("user: Edited", context)
-        self.assertNotIn("user: Original", context)
+        all_contents = [m["content"] for m in context]
+        self.assertIn("Edited", all_contents)
+        self.assertNotIn("Original", all_contents)
 
     @override_constance_config(LLM_CHAT_HISTORY_LIMIT=50)
     def test_caps_at_history_limit(self):
@@ -106,13 +126,54 @@ class BuildContextTest(TestCase):
 
         context = build_context(self.user, "Latest", thread=self.thread)
 
+        all_contents = " ".join(m["content"] for m in context)
         # First 50 messages should be included (sequence_index 1-50 → Message 0-49)
         for i in range(50):
-            self.assertIn(f"Message {i}", context)
+            self.assertIn(f"Message {i}", all_contents)
 
         # Messages beyond 50 should NOT be included
         for i in range(50, 60):
-            self.assertNotIn(f"Message {i}", context)
+            self.assertNotIn(f"Message {i}", all_contents)
+
+    def test_tool_call_history_reconstructed_for_llm(self):
+        """Assistant messages with tool_calls are expanded into assistant + tool messages."""
+        Message.objects.create(
+            thread=self.thread,
+            role="assistant",
+            content="",
+            sequence_index=1,
+            tool_calls=[
+                {
+                    "id": "call_abc123",
+                    "name": "show_user_resources",
+                    "arguments": {},
+                }
+            ],
+        )
+
+        context = build_context(self.user, "Follow-up", thread=self.thread)
+
+        roles = [m["role"] for m in context]
+        # assistant message should be followed by a tool result message
+        asst_idx = next(i for i, m in enumerate(context) if m["role"] == "assistant")
+        self.assertEqual(context[asst_idx + 1]["role"], "tool")
+
+        # assistant message must carry tool_calls in OpenAI format
+        # (content is None because empty string is coerced to None for OpenAI compat)
+        asst_msg = context[asst_idx]
+        self.assertIsNone(asst_msg["content"])
+        self.assertEqual(len(asst_msg["tool_calls"]), 1)
+        tc = asst_msg["tool_calls"][0]
+        self.assertEqual(tc["id"], "call_abc123")
+        self.assertEqual(tc["type"], "function")
+        self.assertEqual(tc["function"]["name"], "show_user_resources")
+        self.assertEqual(tc["function"]["arguments"], "{}")
+
+        # tool message must reference the same call id
+        tool_msg = context[asst_idx + 1]
+        self.assertEqual(tool_msg["tool_call_id"], "call_abc123")
+        self.assertIn("assistant", roles)
+        self.assertIn("tool", roles)
 
     def test_raises_permission_denied_for_other_users_thread(self):
         other_user = structure_factories.UserFactory()
@@ -125,8 +186,9 @@ class BuildContextTest(TestCase):
             thread=self.thread, role="user", content="Old msg", sequence_index=1
         )
         context = build_context(self.user, "Hello", thread=self.thread)
-        self.assertIn("user: Hello", context)
-        self.assertNotIn("Old msg", context)
+        all_contents = " ".join(m["content"] for m in context)
+        self.assertIn("Hello", all_contents)
+        self.assertNotIn("Old msg", all_contents)
 
 
 class ChatStreamIntegrationTest(test.APITestCase):
@@ -142,15 +204,12 @@ class ChatStreamIntegrationTest(test.APITestCase):
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
-    @mock.patch("waldur_mastermind.chat.views.requests.post")
-    def test_stream_response(self, post_mock):
-        fake_stream = [
-            "data: " + json.dumps({"content": "Hello from backend context!"}),
-        ]
-        post_mock.return_value.__enter__.return_value = mock.Mock(
-            iter_lines=lambda decode_unicode=False: fake_stream,
-            raise_for_status=lambda: None,
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_stream_response(self, mock_openai_cls):
+        mock_client = _mock_openai_client(
+            [_make_content_chunk("Hello from backend context!")]
         )
+        mock_openai_cls.return_value = mock_client
 
         response = self.client.post(
             self.stream_url, data={"input": "What resources do I have?"}
@@ -174,19 +233,14 @@ class ChatStreamIntegrationTest(test.APITestCase):
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
-    @mock.patch("waldur_mastermind.chat.views.requests.post")
-    def test_sends_assembled_context_to_llm(self, post_mock):
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_sends_assembled_context_to_llm(self, mock_openai_cls):
         # Use an existing thread so title generation is not triggered
         session = ChatSession.objects.get_or_create(user=self.user)[0]
         thread = ThreadSession.objects.create(chat_session=session)
 
-        fake_stream = [
-            "data: " + json.dumps({"content": "Response"}),
-        ]
-        post_mock.return_value.__enter__.return_value = mock.Mock(
-            iter_lines=lambda decode_unicode=False: fake_stream,
-            raise_for_status=lambda: None,
-        )
+        mock_client = _mock_openai_client([_make_content_chunk("Response")])
+        mock_openai_cls.return_value = mock_client
 
         response = self.client.post(
             self.stream_url,
@@ -195,27 +249,29 @@ class ChatStreamIntegrationTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         list(response.streaming_content)
 
-        # Only one call (main stream) — no title generation for existing thread
-        post_mock.assert_called_once()
-        call_kwargs = post_mock.call_args
-        sent_payload = call_kwargs.kwargs.get("json") or call_kwargs[1].get("json")
-        self.assertIn("You are a highly knowledgeable", sent_payload["input"])
-        self.assertIn("user: Test message", sent_payload["input"])
+        # Only one client instantiated (main stream) — no title generation for existing thread
+        mock_openai_cls.assert_called_once()
+        mock_client.chat.completions.create.assert_called_once()
+        call_kwargs = mock_client.chat.completions.create.call_args
+        sent_messages = call_kwargs.kwargs["messages"]
+        system_content = next(
+            m["content"] for m in sent_messages if m["role"] == "system"
+        )
+        user_content = next(
+            m["content"] for m in reversed(sent_messages) if m["role"] == "user"
+        )
+        self.assertIn("You are a highly knowledgeable", system_content)
+        self.assertIn("Test message", user_content)
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
-    @mock.patch("waldur_mastermind.chat.views.requests.post")
-    def test_persists_raw_input_not_context(self, post_mock):
-        fake_stream = [
-            "data: " + json.dumps({"content": "Assistant reply"}),
-        ]
-        post_mock.return_value.__enter__.return_value = mock.Mock(
-            iter_lines=lambda decode_unicode=False: fake_stream,
-            raise_for_status=lambda: None,
-        )
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_persists_raw_input_not_context(self, mock_openai_cls):
+        mock_client = _mock_openai_client([_make_content_chunk("Assistant reply")])
+        mock_openai_cls.return_value = mock_client
 
         response = self.client.post(self.stream_url, data={"input": "My raw question"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)

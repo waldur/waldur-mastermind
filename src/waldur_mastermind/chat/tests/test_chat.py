@@ -7,6 +7,11 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.models import ChatSession, ThreadSession, TokenQuota
+from waldur_mastermind.chat.tests.utils import (
+    _make_content_chunk,
+    _make_usage_chunk,
+    _mock_openai_client,
+)
 
 
 class ChatBaseTest(test.APITestCase):
@@ -57,26 +62,15 @@ class StreamEndpointTest(ChatBaseTest):
 class StreamResponseTest(ChatBaseTest):
     """Test NDJSON streaming response format."""
 
-    @mock.patch("waldur_mastermind.chat.views.requests.post")
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
-    def test_stream_proxies_ndjson_and_minifies(self, post_mock):
-        upstream_payload = {
-            "content": "Hello",
-            "additional_kwargs": {"foo": "bar"},
-        }
-
-        fake_stream = [
-            "data: " + json.dumps(upstream_payload),
-        ]
-
-        post_mock.return_value.__enter__.return_value = mock.Mock(
-            iter_lines=lambda decode_unicode=False: fake_stream,
-            raise_for_status=lambda: None,
-        )
+    def test_stream_proxies_ndjson_and_minifies(self, mock_openai_cls):
+        mock_client = _mock_openai_client([_make_content_chunk("Hello")])
+        mock_openai_cls.return_value = mock_client
 
         response = self.client.post(
             self.stream_url,
@@ -90,7 +84,6 @@ class StreamResponseTest(ChatBaseTest):
         lines = [line for line in body.splitlines() if line.strip()]
 
         content_found = False
-        upstream_meta_found = False
 
         for line in lines:
             data = json.loads(line)
@@ -99,14 +92,7 @@ class StreamResponseTest(ChatBaseTest):
                 self.assertEqual(data["c"], "Hello")
                 content_found = True
 
-            if "m" in data and "foo" in data["m"]:
-                upstream_meta_found = True
-
         self.assertTrue(content_found, "Did not find chunk with key 'k'='markdown'")
-        self.assertFalse(
-            upstream_meta_found,
-            "Upstream additional_kwargs should not be forwarded to client",
-        )
 
 
 class StreamQuotaIntegrationTest(ChatBaseTest):
@@ -142,21 +128,15 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_TOKEN_LIMIT_MONTHLY=-1,  # Unlimited
     )
-    @mock.patch("waldur_mastermind.chat.views.requests.post")
-    def test_stream_allowed_with_unlimited_quota(self, post_mock):
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_stream_allowed_with_unlimited_quota(self, mock_openai_cls):
         """User with unlimited quota can always stream."""
 
         TokenQuota.for_user(self.user)
         # Leave limits as None (uses system defaults)
 
-        fake_stream = [
-            "data: " + json.dumps({"content": "Hello"}),
-        ]
-
-        post_mock.return_value.__enter__.return_value = mock.Mock(
-            iter_lines=lambda decode_unicode=False: fake_stream,
-            raise_for_status=lambda: None,
-        )
+        mock_client = _mock_openai_client([_make_content_chunk("Hello")])
+        mock_openai_cls.return_value = mock_client
 
         response = self.client.post(
             self.stream_url,
@@ -171,8 +151,8 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_TOKEN_LIMIT_MONTHLY=100,
     )
-    @mock.patch("waldur_mastermind.chat.views.requests.post")
-    def test_usage_recorded_after_stream(self, post_mock):
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_usage_recorded_after_stream(self, mock_openai_cls):
         """Verify that token usage is recorded after successful streaming."""
 
         quota = TokenQuota.for_user(self.user)
@@ -184,21 +164,13 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         session, _ = ChatSession.objects.get_or_create(user=self.user)
         thread = ThreadSession.objects.create(chat_session=session)
 
-        upstream_payload = {
-            "content": "Hello world response",
-            "additional_kwargs": {
-                "usage_metadata": {"input_tokens": 5, "output_tokens": 8}
-            },
-        }
-
-        fake_stream = [
-            "data: " + json.dumps(upstream_payload),
-        ]
-
-        post_mock.return_value.__enter__.return_value = mock.Mock(
-            iter_lines=lambda decode_unicode=False: fake_stream,
-            raise_for_status=lambda: None,
+        mock_client = _mock_openai_client(
+            [
+                _make_content_chunk("Hello world response"),
+                _make_usage_chunk(5, 8),
+            ]
         )
+        mock_openai_cls.return_value = mock_client
 
         response = self.client.post(
             self.stream_url,
@@ -222,8 +194,8 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_TOKEN_LIMIT_MONTHLY=100,
     )
-    @mock.patch("waldur_mastermind.chat.views.requests.post")
-    def test_stream_allowed_near_limit_may_exceed_after(self, post_mock):
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_stream_allowed_near_limit_may_exceed_after(self, mock_openai_cls):
         """User near limit can stream and may exceed limit after actual usage is recorded."""
 
         quota = TokenQuota.for_user(self.user)
@@ -235,21 +207,13 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         session, _ = ChatSession.objects.get_or_create(user=self.user)
         thread = ThreadSession.objects.create(chat_session=session)
 
-        upstream_payload = {
-            "content": "Response",
-            "additional_kwargs": {
-                "usage_metadata": {"input_tokens": 3, "output_tokens": 5}
-            },
-        }
-
-        fake_stream = [
-            "data: " + json.dumps(upstream_payload),
-        ]
-
-        post_mock.return_value.__enter__.return_value = mock.Mock(
-            iter_lines=lambda decode_unicode=False: fake_stream,
-            raise_for_status=lambda: None,
+        mock_client = _mock_openai_client(
+            [
+                _make_content_chunk("Response"),
+                _make_usage_chunk(3, 5),
+            ]
         )
+        mock_openai_cls.return_value = mock_client
 
         # Should be allowed because not yet at limit
         response = self.client.post(

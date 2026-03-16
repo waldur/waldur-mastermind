@@ -985,8 +985,8 @@ CONSTANCE_CONFIG = {
         "Enable LLM-based chat feature and calls to the inference service.",
     ),
     "LLM_INFERENCES_BACKEND_TYPE": (
-        "ollama",
-        "Type of LLM inference backend. For example: openai, ollama.",
+        "vllm",
+        "Type of LLM inference backend. For example: vllm, openai, ollama.",
     ),
     "LLM_INFERENCES_API_URL": (
         "",
@@ -1001,6 +1001,15 @@ CONSTANCE_CONFIG = {
     "LLM_INFERENCES_MODEL": (
         "gemma3:27b",
         "Name of the LLM model to use for inference.",
+    ),
+    "LLM_COMPLETION_KWARGS": (
+        {},
+        "Override keyword arguments merged on top of provider defaults for LLM chat completion. "
+        "Supported keys: temperature, top_p, top_k, max_tokens, max_completion_tokens, "
+        "presence_penalty, frequency_penalty, repetition_penalty, stop, seed, "
+        "reasoning_effort, extra_body. "
+        "Leave empty to use provider defaults.",
+        "dict_field",
     ),
     "LLM_TOKEN_LIMIT_DAILY": (
         -1,
@@ -1459,6 +1468,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "LLM_INFERENCES_API_URL",
         "LLM_INFERENCES_API_TOKEN",
         "LLM_INFERENCES_MODEL",
+        "LLM_COMPLETION_KWARGS",
         "LLM_TOKEN_LIMIT_DAILY",
         "LLM_TOKEN_LIMIT_WEEKLY",
         "LLM_TOKEN_LIMIT_MONTHLY",

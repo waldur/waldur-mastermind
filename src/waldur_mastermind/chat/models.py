@@ -359,6 +359,9 @@ class Message(UuidMixin, TimeStampedModel):
         related_name="replaced_by",
     )
 
+    # Tool calls executed by the assistant to produce this message
+    tool_calls = models.JSONField(default=list, blank=True)
+
     # Prompt injection detection fields
     is_flagged = models.BooleanField(default=False, db_index=True)
     severity = models.CharField(

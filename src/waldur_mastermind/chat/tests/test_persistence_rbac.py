@@ -1,8 +1,8 @@
 import json
 import uuid
-from unittest.mock import Mock, patch
+from contextlib import contextmanager
+from unittest.mock import MagicMock, patch
 
-import requests
 from django.db.models import Max
 from django.urls import reverse
 from freezegun import freeze_time
@@ -10,36 +10,28 @@ from rest_framework import status, test
 
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.chat.llm_streamer import LLMStreamer
 from waldur_mastermind.chat.models import ChatMode, ChatSession, Message, ThreadSession
 from waldur_mastermind.chat.serializers import ChatRequestSerializer
-from waldur_mastermind.chat.views import LLMStreamer
+from waldur_mastermind.chat.tests.utils import (
+    _make_content_chunk,
+    _make_usage_chunk,
+    _mock_openai_client,
+)
 
 
 class LLMStreamerPersistenceTest(test.APITestCase):
     """Verify that LLMStreamer._persist_messages writes (or skips) Message rows."""
 
-    def _fake_response(self, lines):
-        resp = Mock()
-        resp.iter_lines.return_value = lines
-        resp.raise_for_status = Mock()
-        return resp
-
     def _make_thread(self, user):
         session = ChatSession.objects.create(user=user)
         return ThreadSession.objects.create(chat_session=session)
 
-    def _content_and_usage_lines(self, content="Hello"):
-        """Minimal SSE stream: one content chunk, then usage metadata."""
+    def _content_and_usage_chunks(self, content="Hello"):
+        """Minimal OpenAI SDK chunks: one content chunk, then usage metadata."""
         return [
-            "data: " + json.dumps({"content": content}),
-            "data: "
-            + json.dumps(
-                {
-                    "additional_kwargs": {
-                        "usage_metadata": {"input_tokens": 10, "output_tokens": 5}
-                    }
-                }
-            ),
+            _make_content_chunk(content),
+            _make_usage_chunk(10, 5),
         ]
 
     def _pre_create_user_msg(self, thread, content):
@@ -54,16 +46,17 @@ class LLMStreamerPersistenceTest(test.APITestCase):
             sequence_index=last_index + 1,
         )
 
-    def _run_streamer(self, user, thread, original_input, lines, mode=None):
-        resp = self._fake_response(lines)
+    def _run_streamer(self, user, thread, original_input, chunks, mode=None):
         # Pre-create user message like the view does (for non-reload, with thread)
         user_msg = None
         if thread and mode != ChatMode.RELOAD:
             user_msg = self._pre_create_user_msg(thread, original_input)
-        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
-            mock_post.return_value.__enter__.return_value = resp
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.openai.OpenAI"
+        ) as mock_openai_cls:
+            mock_openai_cls.return_value = _mock_openai_client(chunks)
             streamer = LLMStreamer(
-                original_input,
+                [{"role": "user", "content": original_input}],
                 "https://llm/stream",
                 "tok",
                 user=user,
@@ -80,7 +73,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         thread = self._make_thread(user)
 
         self._run_streamer(
-            user, thread, "User question", self._content_and_usage_lines()
+            user, thread, "User question", self._content_and_usage_chunks()
         )
 
         user_msg = Message.objects.get(thread=thread, role=Message.Role.USER)
@@ -94,7 +87,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
     def test_messages_not_persisted_when_thread_is_none(self):
         user = structure_factories.UserFactory()
 
-        self._run_streamer(user, None, "Q", self._content_and_usage_lines())
+        self._run_streamer(user, None, "Q", self._content_and_usage_chunks())
 
         self.assertEqual(Message.objects.count(), 0)
 
@@ -113,7 +106,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
             sequence_index=2,
         )
 
-        self._run_streamer(user, thread, "New Q", self._content_and_usage_lines())
+        self._run_streamer(user, thread, "New Q", self._content_and_usage_chunks())
 
         new_user = Message.objects.get(thread=thread, content="New Q")
         new_asst = Message.objects.get(thread=thread, content="Hello")
@@ -121,24 +114,29 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         self.assertEqual(new_asst.sequence_index, 4)
 
     def test_partial_content_persisted_on_stream_error(self):
-        """The finally block runs even when iter_lines raises mid-stream."""
+        """Unexpected errors are caught, an error frame is yielded, and partial content is persisted."""
         user = structure_factories.UserFactory()
         thread = self._make_thread(user)
 
-        def failing_lines():
-            yield "data: " + json.dumps({"content": "Partial"})
-            raise requests.ConnectionError("dropped")
-
-        resp = Mock()
-        resp.iter_lines.return_value = failing_lines()
-        resp.raise_for_status = Mock()
+        def failing_chunks():
+            yield _make_content_chunk("Partial")
+            raise Exception("dropped")
 
         user_msg = self._pre_create_user_msg(thread, "Q")
 
-        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
-            mock_post.return_value.__enter__.return_value = resp
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.openai.OpenAI"
+        ) as mock_openai_cls:
+            client = MagicMock()
+
+            @contextmanager
+            def _failing_stream(*args, **kwargs):
+                yield failing_chunks()
+
+            client.chat.completions.create.return_value = _failing_stream()
+            mock_openai_cls.return_value = client
             streamer = LLMStreamer(
-                "Q",
+                [{"role": "user", "content": "Q"}],
                 "https://llm/stream",
                 "tok",
                 user=user,
@@ -146,7 +144,11 @@ class LLMStreamerPersistenceTest(test.APITestCase):
                 original_input="Q",
                 user_msg=user_msg,
             )
-            list(streamer)
+            # Exception is caught internally; error frame is yielded and messages persisted
+            frames = list(streamer)
+
+        error_frames = [f for f in frames if '"e"' in f]
+        self.assertTrue(error_frames, "Expected an error frame in the stream output")
 
         self.assertEqual(
             Message.objects.get(thread=thread, role=Message.Role.USER).content, "Q"
@@ -161,16 +163,8 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         user = structure_factories.UserFactory()
         thread = self._make_thread(user)
 
-        metadata_only = [
-            "data: "
-            + json.dumps(
-                {
-                    "additional_kwargs": {
-                        "usage_metadata": {"input_tokens": 5, "output_tokens": 0}
-                    }
-                }
-            ),
-        ]
+        # Only a usage chunk, no content
+        metadata_only = [_make_usage_chunk(5, 0)]
 
         self._run_streamer(user, thread, "Hi", metadata_only)
 
@@ -198,7 +192,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
             user,
             thread,
             "Ignored input",
-            self._content_and_usage_lines("New answer"),
+            self._content_and_usage_chunks("New answer"),
             mode=ChatMode.RELOAD,
         )
 
@@ -229,7 +223,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
             user,
             thread,
             "Question",
-            self._content_and_usage_lines("Answer"),
+            self._content_and_usage_chunks("Answer"),
             mode=ChatMode.RELOAD,
         )
 
@@ -255,11 +249,14 @@ class LLMStreamerPersistenceTest(test.APITestCase):
 
         user_msg = self._pre_create_user_msg(thread, "Question")
 
-        resp = self._fake_response(self._content_and_usage_lines("Answer"))
-        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
-            mock_post.return_value.__enter__.return_value = resp
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.openai.OpenAI"
+        ) as mock_openai_cls:
+            mock_openai_cls.return_value = _mock_openai_client(
+                self._content_and_usage_chunks("Answer")
+            )
             streamer = LLMStreamer(
-                "Question",
+                [{"role": "user", "content": "Question"}],
                 "https://llm/stream",
                 "tok",
                 user=user,
@@ -302,7 +299,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         thread = self._make_thread(user)
 
         self._run_streamer(
-            user, thread, "User question", self._content_and_usage_lines()
+            user, thread, "User question", self._content_and_usage_chunks()
         )
 
         user_msg = Message.objects.get(thread=thread, role=Message.Role.USER)
@@ -318,13 +315,16 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         user = structure_factories.UserFactory()
         thread = self._make_thread(user)
 
-        resp = self._fake_response(self._content_and_usage_lines("Answer"))
         user_msg = self._pre_create_user_msg(thread, "My question")
 
-        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
-            mock_post.return_value.__enter__.return_value = resp
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.openai.OpenAI"
+        ) as mock_openai_cls:
+            mock_openai_cls.return_value = _mock_openai_client(
+                self._content_and_usage_chunks("Answer")
+            )
             streamer = LLMStreamer(
-                "My question",
+                [{"role": "user", "content": "My question"}],
                 "https://llm/stream",
                 "tok",
                 user=user,
@@ -367,11 +367,14 @@ class LLMStreamerPersistenceTest(test.APITestCase):
 
         user_msg = self._pre_create_user_msg(thread, "Q")
 
-        resp = self._fake_response(self._content_and_usage_lines("A"))
-        with patch("waldur_mastermind.chat.views.requests.post") as mock_post:
-            mock_post.return_value.__enter__.return_value = resp
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.openai.OpenAI"
+        ) as mock_openai_cls:
+            mock_openai_cls.return_value = _mock_openai_client(
+                self._content_and_usage_chunks("A")
+            )
             streamer = LLMStreamer(
-                "Q",
+                [{"role": "user", "content": "Q"}],
                 "https://llm/stream",
                 "tok",
                 user=user,
@@ -401,7 +404,9 @@ class LLMStreamerPersistenceTest(test.APITestCase):
 
         frozen_time.tick()
 
-        self._run_streamer(user, thread, "New message", self._content_and_usage_lines())
+        self._run_streamer(
+            user, thread, "New message", self._content_and_usage_chunks()
+        )
 
         thread.refresh_from_db()
         self.assertGreater(thread.modified, initial_modified)

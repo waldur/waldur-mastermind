@@ -52,13 +52,18 @@ class GetToolsPromptTest(TestCase):
         self.assertIsInstance(prompt, str)
 
     def test_includes_tool_names(self):
-        prompt = tool_registry.get_tools_prompt()
-        self.assertIn("show_user_resources", prompt)
+        # Tool names are now passed via the API tools param (get_openai_tools()), not in the prompt
+        openai_tools = tool_registry.get_openai_tools()
+        tool_names = [t["function"]["name"] for t in openai_tools]
+        self.assertIn("show_user_resources", tool_names)
 
     def test_includes_tool_descriptions(self):
-        prompt = tool_registry.get_tools_prompt()
-        tool = tool_registry.get("show_user_resources")
-        self.assertIn(tool.definition.description, prompt)
+        # Tool descriptions are passed via the API tools param (get_openai_tools()), not in the prompt
+        openai_tools = tool_registry.get_openai_tools()
+        show_user_resources_tool = next(
+            t for t in openai_tools if t["function"]["name"] == "show_user_resources"
+        )
+        self.assertTrue(len(show_user_resources_tool["function"]["description"]) > 0)
 
     def test_includes_usage_instructions(self):
         prompt = tool_registry.get_tools_prompt()
@@ -66,7 +71,7 @@ class GetToolsPromptTest(TestCase):
         self.assertIn(tool.definition.usage_instructions, prompt)
 
     def test_tool_with_parameters_shows_parameter_info(self):
-        # Register a temporary tool with parameters to test formatting
+        # Parameters are now in get_openai_tools(), not in the prompt
         class _TempTool(BaseTool):
             @property
             def definition(self):
@@ -94,24 +99,34 @@ class GetToolsPromptTest(TestCase):
 
         tool_registry.register(_TempTool())
         try:
-            prompt = tool_registry.get_tools_prompt()
-            self.assertIn("param1", prompt)
-            self.assertIn("string", prompt)
-            self.assertIn("required", prompt)
-            self.assertIn("param2", prompt)
-            self.assertIn("integer", prompt)
-            self.assertIn("optional", prompt)
+            openai_tools = tool_registry.get_openai_tools()
+            temp_tool = next(
+                t
+                for t in openai_tools
+                if t["function"]["name"] == "test_tool_with_params"
+            )
+            params = temp_tool["function"]["parameters"]
+            self.assertIn("param1", params["properties"])
+            self.assertEqual(params["properties"]["param1"]["type"], "string")
+            self.assertIn("param2", params["properties"])
+            self.assertEqual(params["properties"]["param2"]["type"], "integer")
+            self.assertIn("param1", params["required"])
         finally:
             tool_registry._tools.pop("test_tool_with_params", None)
 
     def test_tool_without_parameters_shows_no_parameters(self):
-        prompt = tool_registry.get_tools_prompt()
-        # show_user_resources has no parameters
-        self.assertIn("no parameters", prompt)
+        # show_user_resources has no parameters — verify via get_openai_tools()
+        openai_tools = tool_registry.get_openai_tools()
+        show_user_resources_tool = next(
+            t for t in openai_tools if t["function"]["name"] == "show_user_resources"
+        )
+        params = show_user_resources_tool["function"]["parameters"]
+        self.assertEqual(params.get("properties", {}), {})
 
     def test_prompt_has_available_tools_section(self):
+        # AVAILABLE TOOLS section was moved to API tools param; it should NOT be in the prompt
         prompt = tool_registry.get_tools_prompt()
-        self.assertIn("AVAILABLE TOOLS", prompt)
+        self.assertNotIn("AVAILABLE TOOLS", prompt)
 
     def test_prompt_has_usage_guidelines_section(self):
         prompt = tool_registry.get_tools_prompt()
