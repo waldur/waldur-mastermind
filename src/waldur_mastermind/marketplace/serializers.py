@@ -4826,6 +4826,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "project_name",
             "project_description",
             "project_end_date",
+            "project_effective_end_date",
             "project_end_date_requested_by",
             "customer_uuid",
             "customer_name",
@@ -4912,6 +4913,11 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
     project_name = serializers.ReadOnlyField(source="project.name")
     project_end_date = serializers.ReadOnlyField(source="project.end_date")
+    project_effective_end_date = serializers.DateField(
+        read_only=True,
+        source="project.end_date_with_grace",
+        help_text="Effective project end date including grace period. After this date, resources will be terminated.",
+    )
     project_end_date_requested_by = serializers.HyperlinkedRelatedField(
         source="project.end_date_requested_by",
         lookup_field="uuid",

@@ -1864,6 +1864,10 @@ def notification_about_project_ending(end_date):
                 "projects/{project_uuid}/", project_uuid=project.uuid.hex
             )
 
+        for project in projects:
+            project.grace_period_days = project.get_grace_period_days()
+            project.effective_end_date = project.get_effective_end_date()
+
         context = {
             "projects": projects,
             "user": user,

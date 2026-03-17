@@ -250,6 +250,15 @@ class ProjectSerializer(
         allow_blank=True,
         help_text="Internal notes visible only to staff and support users (HTML content will be sanitized)",
     )
+    effective_end_date = serializers.DateField(
+        read_only=True,
+        source="end_date_with_grace",
+        help_text="Effective end date including grace period. After this date, project resources will be terminated.",
+    )
+    is_in_grace_period = serializers.BooleanField(
+        read_only=True,
+        help_text="True if the project is past its end date but still within the grace period.",
+    )
 
     class Meta:
         model = models.Project
@@ -285,6 +294,8 @@ class ProjectSerializer(
             "termination_metadata",
             "staff_notes",
             "grace_period_days",
+            "effective_end_date",
+            "is_in_grace_period",
             "user_email_patterns",
             "user_affiliations",
             "user_identity_sources",
@@ -293,6 +304,8 @@ class ProjectSerializer(
             "end_date_requested_by",
             "is_removed",
             "termination_metadata",
+            "effective_end_date",
+            "is_in_grace_period",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
