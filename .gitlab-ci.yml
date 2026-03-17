@@ -1277,3 +1277,17 @@ Update SDK docs generator schema:
 
         echo "Successfully pushed schema update to waldur-sdk-docs-generator."
       fi
+
+Trigger integration tests:
+  stage: validate
+  trigger:
+    project: waldur/waldur-integration-testing
+    branch: main
+    strategy: depend
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      variables:
+        WALDUR_MASTERMIND_IMAGE: "opennode/waldur-mastermind:latest"
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      variables:
+        WALDUR_MASTERMIND_IMAGE: "${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch-amd64"
