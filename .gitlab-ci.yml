@@ -386,13 +386,23 @@ Build docker image for tests:
 
 Publish the latest multiarch docker image:
   extends: .Publish multiarch latest docker image template
+  script:
+    - docker context create builder
+    - docker buildx create builder --use
+    - docker buildx imagetools create --tag opennode/${CI_PROJECT_NAME}:latest opennode/${CI_PROJECT_NAME}:yolo
+
+Publish the YOLO multiarch docker image:
+  extends: .Publish multiarch latest docker image template
+  stage: test
+  variables:
+    IMAGE_TAG: "opennode/${CI_PROJECT_NAME}:yolo"
   before_script:
     # Merge the before_script from the template
     - !reference [
         .Publish multiarch latest docker image template,
         before_script,
       ]
-    - echo '[+] Build and publish latest docker image'
+    - echo '[+] Build and publish yolo docker image'
     - echo $CI_COMMIT_SHA > docker/rootfs/COMMIT_SHA
 
 Publish multiarch docker image with specific version:
