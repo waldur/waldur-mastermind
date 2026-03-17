@@ -2786,20 +2786,17 @@ class ImportStructureCommandTest(TestCase):
         self.assertEqual(restored_link.enabled_cpu_family, ["x86_64"])
         self.assertEqual(restored_link.enabled_cpu_microarchitectures, ["zen3"])
 
-    def test_offering_user_import_continues_after_duplicate_failure(self):
-        """Test that a failed offering user import (e.g. duplicate unique_together)
-        does not prevent subsequent offering users from being imported.
-
-        Regression test: without per-row savepoints, a single IntegrityError
-        taints the outer atomic block and all subsequent rows fail with
-        "An error occurred in the current transaction".
+    def test_offering_user_import_skips_duplicate_offering_user_pair(self):
+        """Test that importing an offering user with a different UUID but the same
+        (offering, user) pair as an existing record is skipped gracefully
+        instead of raising an IntegrityError.
         """
         offering = marketplace_factories.OfferingFactory()
         user1 = structure_factories.UserFactory()
         user2 = structure_factories.UserFactory()
 
-        # Pre-create an offering user so the second entry causes a duplicate
-        marketplace_factories.OfferingUserFactory(
+        # Pre-create an offering user so the second entry has a duplicate pair
+        existing = marketplace_factories.OfferingUserFactory(
             offering=offering,
             user=user1,
             username="existing",
@@ -2808,15 +2805,14 @@ class ImportStructureCommandTest(TestCase):
         data = {
             "offering_users": [
                 {
-                    # This will fail: same (offering, user) pair already exists
-                    # but with a different UUID, triggering IntegrityError
+                    # Different UUID but same (offering, user) pair — should be skipped
                     "uuid": "aaaaaaaa000000000000000000000002",
                     "offering_uuid": offering.uuid.hex,
                     "user_uuid": user1.uuid.hex,
                     "username": "duplicate",
                 },
                 {
-                    # This should succeed despite the previous failure
+                    # This should succeed
                     "uuid": "aaaaaaaa000000000000000000000003",
                     "offering_uuid": offering.uuid.hex,
                     "user_uuid": user2.uuid.hex,
@@ -2828,13 +2824,48 @@ class ImportStructureCommandTest(TestCase):
         self._create_test_json(data)
         output = self._call_import_command("-i", self.test_file_path)
 
-        # The first offering user should have failed
-        self.assertIn("Failed to import offering user", output)
+        # The duplicate pair should NOT cause an error
+        self.assertNotIn("Failed to import offering user", output)
+
+        # The existing offering user should be unchanged (skipped, not updated)
+        existing.refresh_from_db()
+        self.assertEqual(existing.username, "existing")
 
         # The second offering user should have been created successfully
         self.assertTrue(
             OfferingUser.objects.filter(
                 uuid="aaaaaaaa000000000000000000000003"
             ).exists(),
-            "Second offering user should be created despite first one failing",
         )
+
+    def test_offering_user_import_updates_duplicate_pair_when_update_existing(self):
+        """Test that importing an offering user with a duplicate (offering, user)
+        pair updates the existing record when --update-existing is set.
+        """
+        offering = marketplace_factories.OfferingFactory()
+        user1 = structure_factories.UserFactory()
+
+        existing = marketplace_factories.OfferingUserFactory(
+            offering=offering,
+            user=user1,
+            username="old_username",
+        )
+
+        data = {
+            "offering_users": [
+                {
+                    "uuid": "aaaaaaaa000000000000000000000002",
+                    "offering_uuid": offering.uuid.hex,
+                    "user_uuid": user1.uuid.hex,
+                    "username": "new_username",
+                },
+            ],
+        }
+
+        self._create_test_json(data)
+        output = self._call_import_command("-i", self.test_file_path, "--update")
+
+        self.assertNotIn("Failed to import offering user", output)
+
+        existing.refresh_from_db()
+        self.assertEqual(existing.username, "new_username")
