@@ -155,7 +155,7 @@ def execute_script_in_k8s(image, command, src, dry_run=False, **kwargs):
 
     try:
         job_succeeded = k8s_backend.wait_for_k8s_job_completion(
-            job_name, config.K8S_NAMESPACE, timeout=600
+            job_name, config.K8S_NAMESPACE, timeout=config.K8S_JOB_TIMEOUT
         )
         pod_log = k8s_backend.get_k8s_job_result(job_name, config.K8S_NAMESPACE)
     finally:
