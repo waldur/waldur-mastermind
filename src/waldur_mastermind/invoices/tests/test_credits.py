@@ -717,6 +717,142 @@ class ProcessingCreditTest(test.APITestCase):
         self.assertEqual(self.project_credit.expected_consumption, 0)
 
 
+class ExpiredProjectCreditProductionBugTest(test.APITestCase):
+    """Reproduces the production bug where expired project credits keep
+    being used for compensations.
+
+    Production timeline (project a115, SwissAI Initiative):
+    - Project credit created 2025-06-24, end_date=2026-01-01, value≈35k
+    - Monthly compensations deducted normally (Aug-Dec 2025)
+    - Credit should have stopped being used after 2026-01-01
+    - BUG: compensations continued in Jan, Feb 2026
+    - Root cause: set_to_zero_overdue_credits only zeroed CustomerCredits,
+      not ProjectCredits
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.CreditFixture()
+        self.customer_credit = self.fixture.customer_credit
+        self.project_credit = self.fixture.project_credit
+        self.invoice = self.fixture.invoice
+        self.invoice_item = self.fixture.invoice_item
+
+    def _simulate_month_end_old_code(self, effective_date):
+        """Simulates month-end processing as it was BEFORE the fix:
+        set_to_zero_overdue_credits only zeros CustomerCredits."""
+        # Old code: only CustomerCredit zeroing
+        for credit in models.CustomerCredit.objects.filter(
+            end_date__lt=effective_date
+        ).exclude(value=0):
+            credit.value = 0
+            credit.save()
+        # NOTE: ProjectCredit zeroing was MISSING
+        tasks.process_invoice_credits(self.invoice)
+
+    def _simulate_month_end_new_code(self, effective_date):
+        """Simulates month-end processing WITH the fix:
+        set_to_zero_overdue_credits zeros both Customer and ProjectCredits."""
+        tasks.set_to_zero_overdue_credits(effective_date)
+        tasks.process_invoice_credits(self.invoice)
+
+    @freeze_time("2026-02-01")
+    def test_old_code_bug_expired_credit_still_used(self):
+        """Reproduces the bug: with old code, expired project credit
+        continues to be used for compensations."""
+        # Setup: large credits, item cost = 300 (10 * 30)
+        self.customer_credit.value = 100000
+        self.customer_credit.save()
+
+        self.project_credit.value = 50000
+        self.project_credit.end_date = datetime.date(2026, 1, 1)  # Already expired
+        self.project_credit.save()
+
+        # Simulate month-end with OLD code (no ProjectCredit zeroing)
+        self._simulate_month_end_old_code(datetime.date(2026, 2, 1))
+
+        self.project_credit.refresh_from_db()
+        self.customer_credit.refresh_from_db()
+
+        # BUG: expired project credit was still used (value reduced from 50000)
+        self.assertLess(
+            self.project_credit.value,
+            50000,
+            "Bug reproduced: expired project credit was used for compensation",
+        )
+        self.assertGreater(
+            self.project_credit.value,
+            0,
+            "Bug reproduced: expired credit still has remaining value",
+        )
+        # Customer credit was also reduced (both deducted in tandem)
+        self.assertLess(self.customer_credit.value, 100000)
+
+    @freeze_time("2026-02-01")
+    def test_new_code_fix_expired_credit_zeroed(self):
+        """After upgrade: expired project credit is zeroed and stays at zero."""
+        self.customer_credit.value = 100000
+        self.customer_credit.save()
+
+        self.project_credit.value = 50000
+        self.project_credit.end_date = datetime.date(2026, 1, 1)  # Already expired
+        self.project_credit.save()
+
+        # Simulate month-end with NEW code (ProjectCredit zeroing included)
+        self._simulate_month_end_new_code(datetime.date(2026, 2, 1))
+
+        self.project_credit.refresh_from_db()
+        self.customer_credit.refresh_from_db()
+
+        # Project credit must be zero — expired and zeroed
+        self.assertEqual(
+            self.project_credit.value,
+            0,
+            "Expired project credit should be zeroed after upgrade",
+        )
+        # Customer credit unchanged — zeroed project credit blocks fallback
+        self.assertEqual(
+            self.customer_credit.value,
+            100000,
+            "Customer credit should not be used when project credit exists (even zeroed)",
+        )
+
+    @freeze_time("2026-02-01")
+    def test_old_code_then_upgrade(self):
+        """Simulates upgrade scenario: credit was used under old code
+        (no ProjectCredit zeroing), then the new code runs.
+
+        After upgrade, set_to_zero_overdue_credits must zero the credit
+        that was never zeroed by the old code.
+        """
+        # Item cost = 10 * 30 = 300
+        self.customer_credit.value = 100000
+        self.customer_credit.save()
+
+        self.project_credit.value = 50000
+        self.project_credit.end_date = datetime.date(2026, 1, 1)  # Expired
+        self.project_credit.save()
+
+        # Step 1: Old code processed previous invoice — expired credit was
+        # used because old set_to_zero didn't handle ProjectCredits.
+        # Simulate this by just processing the invoice without zeroing.
+        tasks.process_invoice_credits(self.invoice)
+
+        self.project_credit.refresh_from_db()
+        # Old code: credit was used (300 deducted) despite being expired
+        self.assertEqual(self.project_credit.value, Decimal("49700"))
+
+        # Step 2: Upgrade deployed. Next month-end runs NEW code.
+        # set_to_zero_overdue_credits now zeros ProjectCredits.
+        tasks.set_to_zero_overdue_credits(datetime.date(2026, 2, 1))
+
+        self.project_credit.refresh_from_db()
+        self.assertEqual(
+            self.project_credit.value,
+            0,
+            "After upgrade: expired project credit is finally zeroed",
+        )
+
+
 @freeze_time("2025-08-01")
 class CalculateMinimalConsumptionTest(test.APITestCase):
     def setUp(self):
