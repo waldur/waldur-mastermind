@@ -1267,10 +1267,11 @@ Notifies project users about a resource that is nearing its end date.
 
     Hello {{ user.full_name }}!
 
-    The following projects are ending {% if delta == 1 %} tomorrow {% else %} in {{ delta }} days{% endif %}:
+    The following projects will have their resources terminated {% if delta == 1 %} tomorrow {% else %} in {{ delta }} days{% endif %} (on {{ end_date|date:'d/m/Y' }}):
 
     {% for project in projects %}
-        - {{ project.name }} ({{ project.url }})
+        - {{ project.name }} ({{ project.url }}){% if project.grace_period_days %}
+          End date: {{ project.end_date|date:'d/m/Y' }} | Grace period: {{ project.grace_period_days }} days | Termination date: {{ project.effective_end_date|date:'d/m/Y' }}{% endif %}
     {% endfor %}
 
     End of the project will lead to termination of all resources in the project.
@@ -1292,10 +1293,15 @@ Notifies project users about a resource that is nearing its end date.
     </head>
     <body>
     <p>Hello {{ user.full_name }}!</p>
-    <p>The following projects are ending {% if delta == 1 %} tomorrow {% else %} in {{ delta }} days{% endif %}:</p>
+    <p>The following projects will have their resources terminated {% if delta == 1 %} tomorrow {% else %} in {{ delta }} days{% endif %} (on {{ end_date|date:'d/m/Y' }}):</p>
     <ul>
     {% for project in projects %}
-        <li><a href="{{ project.url }}">{{ project.name }}</a></li>
+        <li>
+            <a href="{{ project.url }}">{{ project.name }}</a>
+            {% if project.grace_period_days %}
+            <br /><small>End date: {{ project.end_date|date:'d/m/Y' }} | Grace period: {{ project.grace_period_days }} days | Termination date: {{ project.effective_end_date|date:'d/m/Y' }}</small>
+            {% endif %}
+        </li>
     {% endfor %}
     </ul>
     <p>
