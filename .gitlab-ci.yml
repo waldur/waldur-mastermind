@@ -1288,6 +1288,6 @@ Trigger integration tests:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       variables:
         WALDUR_MASTERMIND_IMAGE: "opennode/waldur-mastermind:latest"
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      variables:
-        WALDUR_MASTERMIND_IMAGE: "${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch-amd64"
+    # - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    #   variables:
+    #     WALDUR_MASTERMIND_IMAGE: "${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch-amd64"
