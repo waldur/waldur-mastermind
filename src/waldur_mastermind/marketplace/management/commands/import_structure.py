@@ -4783,12 +4783,26 @@ class Command(BaseCommand):
                         else:
                             self.stats["offering_users"]["skipped"] += 1
                     else:
-                        with transaction.atomic():
-                            obj = OfferingUser.objects.create(
-                                uuid=UUID(uuid), **defaults
-                            )
-                        existing_map[normalized_uuid] = obj
-                        self.stats["offering_users"]["created"] += 1
+                        # Check if an OfferingUser with the same (offering, user) already exists
+                        existing_by_pair = OfferingUser.objects.filter(
+                            offering=offering, user=user
+                        ).first()
+                        if existing_by_pair:
+                            if self.update_existing:
+                                with transaction.atomic():
+                                    OfferingUser.objects.filter(
+                                        pk=existing_by_pair.pk
+                                    ).update(**defaults)
+                                self.stats["offering_users"]["updated"] += 1
+                            else:
+                                self.stats["offering_users"]["skipped"] += 1
+                        else:
+                            with transaction.atomic():
+                                obj = OfferingUser.objects.create(
+                                    uuid=UUID(uuid), **defaults
+                                )
+                            existing_map[normalized_uuid] = obj
+                            self.stats["offering_users"]["created"] += 1
                 else:
                     existing = self._normalize_uuid(uuid) in existing_map
                     if existing:
