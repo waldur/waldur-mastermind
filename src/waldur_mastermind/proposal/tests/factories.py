@@ -531,6 +531,21 @@ class ConflictOfInterestFactory(
     evidence_data = factory.LazyFunction(dict)
     status = COIStatuses.PENDING
 
+    @classmethod
+    def get_url(cls, coi=None, action=None):
+        if coi is None:
+            coi = ConflictOfInterestFactory()
+        url = "http://testserver" + reverse(
+            "conflict-of-interest-detail",
+            kwargs={"uuid": coi.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("conflict-of-interest-list")
+        return url if action is None else url + action + "/"
+
 
 class COIDisclosureFormFactory(
     factory.django.DjangoModelFactory,
