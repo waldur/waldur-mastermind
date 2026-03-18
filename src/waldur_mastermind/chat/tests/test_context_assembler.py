@@ -201,6 +201,7 @@ class ChatStreamIntegrationTest(test.APITestCase):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -230,6 +231,7 @@ class ChatStreamIntegrationTest(test.APITestCase):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -265,6 +267,7 @@ class ChatStreamIntegrationTest(test.APITestCase):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -284,6 +287,7 @@ class ChatStreamIntegrationTest(test.APITestCase):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )

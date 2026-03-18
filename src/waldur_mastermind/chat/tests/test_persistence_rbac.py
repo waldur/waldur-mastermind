@@ -3,6 +3,7 @@ import uuid
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
 
+from constance.test.unittest import override_config as override_constance_config
 from django.db.models import Max
 from django.urls import reverse
 from freezegun import freeze_time
@@ -412,6 +413,12 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         self.assertGreater(thread.modified, initial_modified)
 
 
+@override_constance_config(
+    LLM_CHAT_ENABLED=True,
+    LLM_CHAT_ENABLED_ROLES="all",
+    LLM_INFERENCES_API_URL="https://example.com/stream",
+    LLM_INFERENCES_API_TOKEN="dummy-token",
+)
 class ChatSessionRBACTest(test.APITestCase):
     """Staff and support see all sessions; audit fires on cross-user retrieve."""
 
@@ -481,6 +488,12 @@ class ChatSessionRBACTest(test.APITestCase):
         mock_event_logger.emit.assert_not_called()
 
 
+@override_constance_config(
+    LLM_CHAT_ENABLED=True,
+    LLM_CHAT_ENABLED_ROLES="all",
+    LLM_INFERENCES_API_URL="https://example.com/stream",
+    LLM_INFERENCES_API_TOKEN="dummy-token",
+)
 class ThreadSessionRBACTest(test.APITestCase):
     """Staff sees all threads, can filter by user, audit fires on cross-user retrieve."""
 
@@ -662,6 +675,12 @@ class ChatRequestSerializerTest(test.APITestCase):
         self.assertIn("edit_message_uuid", serializer.errors)
 
 
+@override_constance_config(
+    LLM_CHAT_ENABLED=True,
+    LLM_CHAT_ENABLED_ROLES="all",
+    LLM_INFERENCES_API_URL="https://example.com/stream",
+    LLM_INFERENCES_API_TOKEN="dummy-token",
+)
 class MessageRBACTest(test.APITestCase):
     """Staff and support can list messages across all users."""
 

@@ -89,6 +89,13 @@ OFFERING_VISIBILITY_CHOICES = [
     ("require_membership", "Hide all unless user belongs to an organization/project"),
 ]
 
+LLM_CHAT_ENABLED_ROLES_CHOICES = [
+    ("disabled", "Disabled"),
+    ("staff", "Staff users"),
+    ("staff_and_support", "Staff and support users"),
+    ("all", "All users"),
+]
+
 NOTIFY_SYSTEM_CHOICES = [
     ("AdminAnnouncement", "AdminAnnouncement"),
     ("BroadcastMessage", "BroadcastMessage"),
@@ -259,6 +266,7 @@ CONSTANCE_CONFIG_CHOICES = {
     "RESTRICTED_OFFERING_VISIBILITY_MODE": OFFERING_VISIBILITY_CHOICES,
     "SSH_KEY_ALLOWED_TYPES": SSH_KEY_TYPE_CHOICES,
     "ENABLED_REPORTING_SCREENS": REPORTING_SCREEN_CHOICES,
+    "LLM_CHAT_ENABLED_ROLES": LLM_CHAT_ENABLED_ROLES_CHOICES,
 }
 
 CONSTANCE_CONFIG = {
@@ -1030,6 +1038,15 @@ CONSTANCE_CONFIG = {
         False,
         "Enable LLM-based chat feature and calls to the inference service.",
     ),
+    "LLM_CHAT_ENABLED_ROLES": (
+        "disabled",
+        "Controls which user roles can access the AI Assistant. "
+        "'disabled': No role-based access. "
+        "'staff': Staff users only. "
+        "'staff_and_support': Staff and support users. "
+        "'all': All authenticated users.",
+        "choice_field",
+    ),
     "LLM_INFERENCES_BACKEND_TYPE": (
         "vllm",
         "Type of LLM inference backend. For example: vllm, openai, ollama.",
@@ -1515,6 +1532,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     ),
     "LLM inference settings": (
         "LLM_CHAT_ENABLED",
+        "LLM_CHAT_ENABLED_ROLES",
         "LLM_INFERENCES_BACKEND_TYPE",
         "LLM_INFERENCES_API_URL",
         "LLM_INFERENCES_API_TOKEN",
@@ -1624,6 +1642,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "ENABLE_ORDER_START_DATE",
     "ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT",
     "LLM_CHAT_ENABLED",
+    "LLM_CHAT_ENABLED_ROLES",
     # Support plugin
     "WALDUR_SUPPORT_ENABLED",
     "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE",

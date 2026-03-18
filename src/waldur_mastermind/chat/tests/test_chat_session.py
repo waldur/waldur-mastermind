@@ -1,6 +1,7 @@
 import json
 from unittest.mock import MagicMock, patch
 
+from constance.test.unittest import override_config as override_constance_config
 from django.urls import reverse
 from rest_framework import status, test
 
@@ -46,6 +47,12 @@ class MessageModelTest(test.APITestCase):
             )
 
 
+@override_constance_config(
+    LLM_CHAT_ENABLED=True,
+    LLM_CHAT_ENABLED_ROLES="all",
+    LLM_INFERENCES_API_URL="https://example.com/stream",
+    LLM_INFERENCES_API_TOKEN="dummy-token",
+)
 class ChatSessionViewSetTest(test.APITestCase):
     """Test ChatSessionViewSet endpoints."""
 
@@ -82,6 +89,12 @@ class ChatSessionViewSetTest(test.APITestCase):
         self.assertEqual(ChatSession.objects.filter(user=self.user).count(), 1)
 
 
+@override_constance_config(
+    LLM_CHAT_ENABLED=True,
+    LLM_CHAT_ENABLED_ROLES="all",
+    LLM_INFERENCES_API_URL="https://example.com/stream",
+    LLM_INFERENCES_API_TOKEN="dummy-token",
+)
 class ThreadSessionViewSetTest(test.APITestCase):
     """Test ThreadSessionViewSet endpoints."""
 

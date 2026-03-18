@@ -53,6 +53,7 @@ class LLMStreamerTest(unittest.TestCase):
             LLM_INFERENCES_API_URL="https://example.com/v1",
             LLM_INFERENCES_API_TOKEN="tok",
             LLM_CHAT_ENABLED=True,
+            LLM_CHAT_ENABLED_ROLES="all",
             LLM_INFERENCES_BACKEND_TYPE="generic",
             LLM_COMPLETION_KWARGS={},
         )
@@ -316,6 +317,7 @@ class LLMStreamerUsageRecordingTest(drf_test.APITestCase):
             LLM_INFERENCES_API_URL="https://example.com/v1",
             LLM_INFERENCES_API_TOKEN="tok",
             LLM_CHAT_ENABLED=True,
+            LLM_CHAT_ENABLED_ROLES="all",
             LLM_INFERENCES_BACKEND_TYPE="generic",
             LLM_COMPLETION_KWARGS={},
         )

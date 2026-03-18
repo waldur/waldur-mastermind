@@ -27,6 +27,7 @@ class StreamEndpointTest(ChatBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -45,6 +46,7 @@ class StreamEndpointTest(ChatBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -65,6 +67,7 @@ class StreamResponseTest(ChatBaseTest):
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -100,6 +103,7 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_TOKEN_LIMIT_MONTHLY=100,
@@ -124,6 +128,7 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_TOKEN_LIMIT_MONTHLY=-1,  # Unlimited
@@ -147,6 +152,7 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_TOKEN_LIMIT_MONTHLY=100,
@@ -190,6 +196,7 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_TOKEN_LIMIT_MONTHLY=100,
@@ -232,6 +239,7 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_TOKEN_LIMIT_MONTHLY="invalid_value",
@@ -249,6 +257,7 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_TOKEN_LIMIT_DAILY=-10,  # Invalid: below -1
