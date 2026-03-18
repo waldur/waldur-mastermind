@@ -117,3 +117,32 @@ class UserRoleSyncAPITest(test.APITestCase):
         topics = [msg["topic"] for msg in messages]
         self.assertTrue(any(self.offering.uuid.hex in topic for topic in topics))
         self.assertTrue(any(offering2.uuid.hex in topic for topic in topics))
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_sync_user_roles_with_creating_resource(self, mocked_publish_messages):
+        """Test that messages are sent when resource is in CREATING state."""
+        self.resource.state = ResourceStates.CREATING
+        self.resource.save(update_fields=["state"])
+
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mocked_publish_messages.assert_called_once()
+
+        messages = mocked_publish_messages.call_args[0][0]
+        self.assertEqual(len(messages), 1)
+
+    @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
+    def test_sync_user_roles_skips_terminated_resource(self, mocked_publish_messages):
+        """Test that no messages are sent when resource is in TERMINATED state."""
+        self.resource.state = ResourceStates.TERMINATED
+        self.resource.save(update_fields=["state"])
+
+        self.client.force_authenticate(self.staff_user)
+
+        response = self.client.post(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        mocked_publish_messages.assert_not_called()

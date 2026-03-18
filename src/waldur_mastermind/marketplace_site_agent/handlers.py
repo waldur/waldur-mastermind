@@ -117,9 +117,10 @@ def process_role_changed(permission: permission_models.UserRole, granted: bool):
     project = permission.scope
     offering_ids = set(
         project.resource_set.filter(
-            state=ResourceStates.OK,
             offering__type=SITE_AGENT_OFFERING,
-        ).values_list("offering", flat=True)
+        )
+        .exclude(state=ResourceStates.TERMINATED)
+        .values_list("offering", flat=True)
     )
 
     if not offering_ids:
