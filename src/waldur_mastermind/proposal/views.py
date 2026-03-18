@@ -3179,6 +3179,8 @@ class ConflictOfInterestViewSet(ActionsViewSet):
         coi.review_notes = serializer.validated_data.get("review_notes", "")
         coi.save()
 
+        self._unblock_related_assignments(coi)
+
         return response.Response(
             self.get_serializer(coi).data,
             status=status.HTTP_200_OK,
@@ -3207,6 +3209,8 @@ class ConflictOfInterestViewSet(ActionsViewSet):
         coi.review_notes = serializer.validated_data.get("review_notes", "")
         coi.management_plan = serializer.validated_data["management_plan"]
         coi.save()
+
+        self._unblock_related_assignments(coi)
 
         return response.Response(
             self.get_serializer(coi).data,
@@ -3282,6 +3286,35 @@ class ConflictOfInterestViewSet(ActionsViewSet):
             reviewer=reviewer.user,
             state__in=[models.Review.States.IN_REVIEW],
         ).update(state=models.Review.States.REJECTED)
+
+    def _unblock_related_assignments(self, coi):
+        """
+        Unblock assignment items that were blocked by this COI.
+
+        Only unblocks items if no other unresolved COIs remain for
+        the same reviewer-proposal pair.
+        """
+        if not coi.proposal or not coi.reviewer:
+            return
+
+        blocked_items = models.AssignmentItem.objects.filter(
+            proposal=coi.proposal,
+            batch__reviewer_pool_entry__reviewer=coi.reviewer,
+            status=models.AssignmentItemStatuses.COI_BLOCKED,
+        )
+
+        for item in blocked_items:
+            # Check if there are other unresolved COIs (pending or recused)
+            # excluding the one being dismissed/waived
+            other_blocking_cois = item.coi_records.filter(
+                status__in=[COIStatuses.PENDING, COIStatuses.RECUSED],
+            ).exclude(pk=coi.pk)
+
+            if not other_blocking_cois.exists():
+                item.status = models.AssignmentItemStatuses.PENDING
+                item.has_coi = False
+                item.save(update_fields=["status", "has_coi"])
+                item.coi_records.remove(coi)
 
     dismiss_permissions = waive_permissions = recuse_permissions = [
         permission_factory(
@@ -3665,6 +3698,66 @@ class CallReviewerPoolViewSet(InvitationAcceptanceMixin, ActionsViewSet):
         )
 
         return response.Response({"detail": _("Invitation declined.")})
+
+    @extend_schema(
+        description="Force-accept a pool invitation (manager override).",
+        request=serializers.ForceAcceptPoolSerializer,
+        responses={200: serializers.CallReviewerPoolSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="force-accept")
+    def force_accept(self, request, uuid=None):
+        """Force-accept a pool invitation with a reason."""
+        invitation = self.get_object()
+
+        if invitation.invitation_status == ReviewerPoolInvitationStatuses.ACCEPTED:
+            return response.Response(
+                {"error": _("This invitation is already accepted.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if invitation.invitation_status not in [
+            ReviewerPoolInvitationStatuses.PENDING,
+            ReviewerPoolInvitationStatuses.DECLINED,
+            ReviewerPoolInvitationStatuses.EXPIRED,
+        ]:
+            return response.Response(
+                {"error": _("This invitation cannot be force-accepted.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if not invitation.reviewer:
+            return response.Response(
+                {
+                    "error": _(
+                        "Cannot force-accept an email-only invitation without a reviewer profile."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = serializers.ForceAcceptPoolSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        invitation.invitation_status = ReviewerPoolInvitationStatuses.ACCEPTED
+        invitation.response_date = timezone.now()
+        invitation.override_reason = serializer.validated_data["override_reason"]
+        invitation.overridden_by = request.user
+        invitation.overridden_at = timezone.now()
+        invitation.save()
+
+        return response.Response(
+            serializers.CallReviewerPoolSerializer(
+                invitation, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    force_accept_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["call.manager"],
+        )
+    ]
 
 
 class COIDetectionJobViewSet(ReadOnlyActionsViewSet):
@@ -4909,6 +5002,54 @@ class AssignmentItemViewSet(ActionsViewSet):
             },
             status=status.HTTP_200_OK,
         )
+
+    @extend_schema(
+        description="Force-unblock a COI-blocked assignment item (manager override).",
+        request=serializers.ForceUnblockSerializer,
+        responses={200: serializers.AssignmentItemSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="force-unblock")
+    def force_unblock(self, request, uuid=None):
+        """Force-unblock a COI-blocked assignment item with a reason."""
+        item: models.AssignmentItem = self.get_object()
+
+        if item.status != models.AssignmentItemStatuses.COI_BLOCKED:
+            return response.Response(
+                {"error": _("Only COI-blocked items can be force-unblocked.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = serializers.ForceUnblockSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        item.status = models.AssignmentItemStatuses.PENDING
+        item.has_coi = False
+        item.override_reason = serializer.validated_data["override_reason"]
+        item.overridden_by = request.user
+        item.overridden_at = timezone.now()
+        item.save(
+            update_fields=[
+                "status",
+                "has_coi",
+                "override_reason",
+                "overridden_by",
+                "overridden_at",
+            ]
+        )
+
+        return response.Response(
+            serializers.AssignmentItemSerializer(
+                item, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_200_OK,
+        )
+
+    force_unblock_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_PROPOSAL_REVIEW,
+            ["batch.call.manager"],
+        )
+    ]
 
 
 class CallAssignmentConfigurationViewSet(ActionsViewSet):

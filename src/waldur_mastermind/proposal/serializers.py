@@ -2202,6 +2202,18 @@ class COIStatusUpdateSerializer(serializers.Serializer):
         return attrs
 
 
+class ForceUnblockSerializer(serializers.Serializer):
+    """Serializer for force-unblocking a COI-blocked assignment item."""
+
+    override_reason = serializers.CharField(required=True)
+
+
+class ForceAcceptPoolSerializer(serializers.Serializer):
+    """Serializer for force-accepting a reviewer pool invitation."""
+
+    override_reason = serializers.CharField(required=True)
+
+
 class COIDisclosureFinancialInterestSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -2393,6 +2405,9 @@ class CallReviewerPoolSerializer(
     reviews_pending = serializers.SerializerMethodField()
     reviews_in_progress = serializers.SerializerMethodField()
     reviews_completed = serializers.SerializerMethodField()
+    overridden_by_name = serializers.ReadOnlyField(
+        source="overridden_by.full_name", default=""
+    )
 
     def get_reviewer_name(self, obj) -> str | None:
         """Get reviewer name from profile or invited_user."""
@@ -2585,6 +2600,9 @@ class CallReviewerPoolSerializer(
             "reviews_pending",
             "reviews_in_progress",
             "reviews_completed",
+            "override_reason",
+            "overridden_by_name",
+            "overridden_at",
         ]
         read_only_fields = [
             "call",
@@ -2598,6 +2616,8 @@ class CallReviewerPoolSerializer(
             "current_assignments",
             "invitation_token",
             "invitation_expires_at",
+            "override_reason",
+            "overridden_at",
         ]
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
@@ -3411,6 +3431,9 @@ class AssignmentItemSerializer(
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     review_uuid = serializers.UUIDField(source="review.uuid", read_only=True)
     coi_count = serializers.SerializerMethodField()
+    overridden_by_name = serializers.ReadOnlyField(
+        source="overridden_by.full_name", default=""
+    )
 
     class Meta:
         model = models.AssignmentItem
@@ -3432,6 +3455,9 @@ class AssignmentItemSerializer(
             "review",
             "review_uuid",
             "reassign_count",
+            "override_reason",
+            "overridden_by_name",
+            "overridden_at",
             "created",
         ]
         read_only_fields = [
@@ -3443,6 +3469,8 @@ class AssignmentItemSerializer(
             "responded_at",
             "review",
             "reassign_count",
+            "override_reason",
+            "overridden_at",
         ]
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},

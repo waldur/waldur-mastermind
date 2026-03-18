@@ -1654,6 +1654,20 @@ class CallReviewerPool(
     )
     invitation_expires_at = models.DateTimeField(null=True, blank=True)
 
+    # Manager override fields
+    override_reason = models.TextField(
+        blank=True,
+        help_text=_("Reason for manager override of invitation status."),
+    )
+    overridden_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    overridden_at = models.DateTimeField(null=True, blank=True)
+
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Permissions:
@@ -2413,6 +2427,20 @@ class AssignmentItem(
         default=0,
         help_text=_("Number of times this proposal has been reassigned."),
     )
+
+    # Manager override fields
+    override_reason = models.TextField(
+        blank=True,
+        help_text=_("Reason for manager override of COI block."),
+    )
+    overridden_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    overridden_at = models.DateTimeField(null=True, blank=True)
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
