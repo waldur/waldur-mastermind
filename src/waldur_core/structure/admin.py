@@ -685,9 +685,16 @@ class CustomerPermissionReviewAdmin(admin.ModelAdmin):
     list_display = ("customer", "is_pending", "reviewer", "created")
 
 
+class ProjectEndDateChangeRequestAdmin(admin.ModelAdmin):
+    list_display = ("project", "requested_end_date", "state", "created_by", "created")
+
+
 admin.site.register(models.Customer, CustomerAdmin)
 admin.site.register(models.ProjectType, admin.ModelAdmin)
 admin.site.register(models.CustomerPermissionReview, CustomerPermissionReviewAdmin)
+admin.site.register(
+    models.ProjectEndDateChangeRequest, ProjectEndDateChangeRequestAdmin
+)
 admin.site.register(models.Project, ProjectAdmin)
 admin.site.register(models.PrivateServiceSettings, PrivateServiceSettingsAdmin)
 admin.site.register(models.SharedServiceSettings, SharedServiceSettingsAdmin)

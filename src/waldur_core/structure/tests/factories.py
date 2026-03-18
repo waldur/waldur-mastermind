@@ -1,11 +1,13 @@
+from datetime import timedelta
 from urllib.parse import urlencode
 
 import factory.fuzzy
+from django.utils import timezone
 from rest_framework.authtoken import models as authtoken_models
 from rest_framework.reverse import reverse
 
 from waldur_core.core import models as core_models
-from waldur_core.core.enums import CoreStates
+from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.tests.types import BaseMetaFactory
 from waldur_core.core.utils import normalize_unicode
 from waldur_core.structure import models
@@ -415,6 +417,35 @@ class ProjectPermissionReviewFactory(
     @classmethod
     def get_list_url(cls):
         return "http://testserver" + reverse("project-permissions-review-list")
+
+
+class ProjectEndDateChangeRequestFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ProjectEndDateChangeRequest],
+):
+    class Meta:
+        model = models.ProjectEndDateChangeRequest
+
+    project = factory.SubFactory(ProjectFactory)
+    created_by = factory.SubFactory(UserFactory)
+    requested_end_date = factory.LazyFunction(
+        lambda: (timezone.now() + timedelta(days=30)).date()
+    )
+    state = ReviewStates.PENDING
+
+    @classmethod
+    def get_url(cls, request=None, action=None):
+        if request is None:
+            request = ProjectEndDateChangeRequestFactory()
+        url = "http://testserver" + reverse(
+            "project-end-date-change-request-detail",
+            kwargs={"uuid": request.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("project-end-date-change-request-list")
 
 
 class UserAgreementFactory(

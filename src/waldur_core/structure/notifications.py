@@ -125,10 +125,32 @@ class StructureRoleGrantedContext(BaseModel):
     )
 
 
+class ProjectEndDateChangeRequestContext(BaseModel):
+    project_end_date_change_request: Any = Field(
+        description="The ProjectEndDateChangeRequest instance. Provides project_end_date_change_request.project.name, requested_end_date, created_by.full_name."
+    )
+    project_url: str = Field(description="A URL to the project's page.")
+
+
 class StructureSection(NotificationSection):
     class Meta:
         key = "structure"
 
+    notification_project_end_date_change_request_created = Notification(
+        key="notification_project_end_date_change_request_created",
+        description="Notifies organization owners when a project member requests to change project end date.",
+        context_model=ProjectEndDateChangeRequestContext,
+    )
+    notification_project_end_date_change_request_approved = Notification(
+        key="notification_project_end_date_change_request_approved",
+        description="Notifies the requester when their project end date change request is approved.",
+        context_model=ProjectEndDateChangeRequestContext,
+    )
+    notification_project_end_date_change_request_rejected = Notification(
+        key="notification_project_end_date_change_request_rejected",
+        description="Notifies the requester when their project end date change request is rejected.",
+        context_model=ProjectEndDateChangeRequestContext,
+    )
     change_email_request = Notification(
         key="change_email_request",
         description="A notification sent out when an email change is requested. Recipient is the old email address.",

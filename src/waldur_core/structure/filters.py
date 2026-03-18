@@ -769,6 +769,27 @@ class ProjectPermissionReviewFilter(PermissionReviewFilter):
         ]
 
 
+class ProjectEndDateChangeRequestFilter(django_filters.FilterSet):
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", field_name="project__uuid", label="Project UUID"
+    )
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        field_name="project__customer__uuid",
+        label="Customer UUID",
+    )
+    created_by_uuid = core_filters.RelatedUUIDFilter(
+        view_name="user-detail",
+        field_name="created_by__uuid",
+        label="Created by UUID",
+    )
+    state = core_filters.ReviewStateFilter()
+
+    class Meta:
+        model = models.ProjectEndDateChangeRequest
+        fields = []
+
+
 class SshKeyFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
     uuid = django_filters.UUIDFilter(label="UUID")
     user_uuid = core_filters.RelatedUUIDFilter(

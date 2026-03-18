@@ -13,6 +13,7 @@ from django.db import models as django_models
 from django.db.models import Q
 from django.template import Template, TemplateSyntaxError
 from django.utils import timezone
+from django.utils import timezone as django_timezone
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions, serializers
@@ -23,7 +24,7 @@ from waldur_core.checklist.models import Checklist
 from waldur_core.core import fields as core_fields
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
-from waldur_core.core.enums import CoreStates
+from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.fields import MappedChoiceField
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
@@ -1100,6 +1101,128 @@ class ProjectPermissionReviewSerializer(BasePermissionReviewSerializer):
         )
         read_only_fields = BasePermissionReviewSerializer.Meta.read_only_fields
         extra_kwargs = BasePermissionReviewSerializer.Meta.extra_kwargs
+
+
+class ProjectEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):
+    project = serializers.HyperlinkedRelatedField(
+        view_name="project-detail",
+        lookup_field="uuid",
+        queryset=models.Project.available_objects.all(),
+    )
+    state = serializers.ReadOnlyField(source="get_state_display")
+    uuid = serializers.UUIDField(read_only=True)
+
+    class Meta:
+        model = models.ProjectEndDateChangeRequest
+        fields = ("project", "requested_end_date", "uuid", "state")
+
+    def validate_project(self, project):
+        user = self.context["request"].user
+        if user.is_staff:
+            raise serializers.ValidationError(
+                _("Staff users should use project edit instead of creating a request.")
+            )
+        accessible = filter_queryset_for_user(
+            models.Project.available_objects.filter(pk=project.pk),
+            user,
+        )
+        if not accessible.exists():
+            raise serializers.ValidationError(
+                _("You don't have access to this project.")
+            )
+        if has_permission(
+            user, PermissionEnum.UPDATE_PROJECT, project
+        ) or has_permission(user, PermissionEnum.UPDATE_PROJECT, project.customer):
+            raise serializers.ValidationError(
+                _(
+                    "You have permission to change project end date directly. "
+                    "Use project edit instead of creating a request."
+                )
+            )
+        return project
+
+    def validate_requested_end_date(self, value):
+        if value and value <= django_timezone.now().date():
+            raise serializers.ValidationError(
+                _("Requested end date must be in the future.")
+            )
+        return value
+
+    def validate(self, attrs):
+        project = attrs.get("project")
+        requested_end_date = attrs.get("requested_end_date")
+        if project and requested_end_date:
+            if models.ProjectEndDateChangeRequest.objects.filter(
+                project=project,
+                requested_end_date=requested_end_date,
+                state=ReviewStates.PENDING,
+            ).exists():
+                raise serializers.ValidationError(
+                    _("A pending request for this project and end date already exists.")
+                )
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context["request"]
+        validated_data["created_by"] = request.user
+        validated_data["state"] = ReviewStates.PENDING
+        return super().create(validated_data)
+
+
+class ProjectEndDateChangeRequestSerializer(serializers.HyperlinkedModelSerializer):
+    @staticmethod
+    def eager_load(queryset, request=None):
+        return queryset.select_related("project__customer", "created_by", "reviewed_by")
+
+    state = serializers.ReadOnlyField(source="get_state_display")
+    project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
+    project_name = serializers.CharField(read_only=True, source="project.name")
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="project.customer.uuid"
+    )
+    customer_name = serializers.CharField(
+        read_only=True, source="project.customer.name"
+    )
+    created_by_full_name = serializers.CharField(
+        read_only=True, source="created_by.full_name", allow_null=True
+    )
+    created_by_uuid = serializers.UUIDField(
+        read_only=True, source="created_by.uuid", allow_null=True
+    )
+    reviewed_by_full_name = serializers.CharField(
+        read_only=True, source="reviewed_by.full_name", allow_null=True
+    )
+    reviewed_by_uuid = serializers.UUIDField(
+        read_only=True, source="reviewed_by.uuid", allow_null=True
+    )
+
+    class Meta:
+        model = models.ProjectEndDateChangeRequest
+        fields = (
+            "url",
+            "uuid",
+            "state",
+            "project",
+            "project_uuid",
+            "project_name",
+            "customer_uuid",
+            "customer_name",
+            "requested_end_date",
+            "created",
+            "created_by_uuid",
+            "created_by_full_name",
+            "reviewed_at",
+            "reviewed_by_uuid",
+            "reviewed_by_full_name",
+            "review_comment",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "project-end-date-change-request-detail",
+            },
+            "project": {"lookup_field": "uuid", "view_name": "project-detail"},
+        }
 
 
 class ProjectPermissionLogSerializer(

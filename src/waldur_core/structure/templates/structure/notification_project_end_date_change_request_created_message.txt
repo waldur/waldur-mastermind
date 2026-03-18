@@ -1,0 +1,8 @@
+Hello!
+
+{{ project_end_date_change_request.created_by.full_name }} has requested to change the end date of project {{ project_end_date_change_request.project.name }} from {{ project_end_date_change_request.project.end_date }} to {{ project_end_date_change_request.requested_end_date }}.
+
+Please review and approve or reject the request:
+{{ project_url }}
+
+Thank you!

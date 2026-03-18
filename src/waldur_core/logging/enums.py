@@ -172,6 +172,13 @@ class EventType(str, Enum):
     PROJECT_UPDATE_REQUEST_APPROVED = "project_update_request_approved"
     PROJECT_UPDATE_REQUEST_CREATED = "project_update_request_created"
     PROJECT_UPDATE_REQUEST_REJECTED = "project_update_request_rejected"
+    PROJECT_END_DATE_CHANGE_REQUEST_APPROVED = (
+        "project_end_date_change_request_approved"
+    )
+    PROJECT_END_DATE_CHANGE_REQUEST_CREATED = "project_end_date_change_request_created"
+    PROJECT_END_DATE_CHANGE_REQUEST_REJECTED = (
+        "project_end_date_change_request_rejected"
+    )
     PROJECT_UPDATE_SUCCEEDED = "project_update_succeeded"
     PROJECT_PERMISSION_REVIEW_CREATED = "project_permission_review_created"
     PROJECT_PERMISSION_REVIEW_CLOSED = "project_permission_review_closed"
