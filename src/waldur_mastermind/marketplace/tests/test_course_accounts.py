@@ -355,6 +355,70 @@ class CourseAccountPermissionTest(test.APITestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], str(account1.uuid))
 
+    @data("staff", "manager", "admin", "owner")
+    def test_authorized_user_can_retry_erred_course_account(self, user):
+        """Test that authorized user can retry an ERRED course account."""
+        self.client.force_authenticate(getattr(self.fixture, user))
+        account = factories.CourseAccountFactory(
+            project=self.course_project,
+            user=self.test_user,
+            state=CourseAccountState.ERRED,
+            error_message="External API error",
+            error_traceback="Traceback ...",
+        )
+        url = factories.CourseAccountFactory.get_url(account) + "retry/"
+        response = self.client.post(url)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_202_ACCEPTED,
+            response.data,
+        )
+        account.refresh_from_db()
+        self.assertEqual(account.state, CourseAccountState.PENDING)
+        self.assertEqual(account.error_message, "")
+        self.assertEqual(account.error_traceback, "")
+
+    @data("user", "customer_support", "member")
+    def test_unauthorized_user_can_not_retry_course_account(self, user):
+        """Test that unauthorized user can't retry a course account."""
+        self.client.force_authenticate(getattr(self.fixture, user))
+        account = factories.CourseAccountFactory(
+            project=self.course_project,
+            user=self.test_user,
+            state=CourseAccountState.ERRED,
+        )
+        url = factories.CourseAccountFactory.get_url(account) + "retry/"
+        response = self.client.post(url)
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND],
+            f"Expected 403 or 404, got: {response.status_code}. Response data: {response.data}",
+        )
+
+    def test_retry_ok_course_account_returns_conflict(self):
+        """Test that retrying an OK account returns 409 Conflict."""
+        self.client.force_authenticate(self.fixture.staff)
+        account = factories.CourseAccountFactory(
+            project=self.course_project,
+            user=self.test_user,
+            state=CourseAccountState.OK,
+        )
+        url = factories.CourseAccountFactory.get_url(account) + "retry/"
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_retry_closed_course_account_returns_conflict(self):
+        """Test that retrying a CLOSED account returns 409 Conflict."""
+        self.client.force_authenticate(self.fixture.staff)
+        account = factories.CourseAccountFactory(
+            project=self.course_project,
+            user=self.test_user,
+            state=CourseAccountState.CLOSED,
+        )
+        url = factories.CourseAccountFactory.get_url(account) + "retry/"
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
 
 @override_waldur_core_settings(
     COURSE_ACCOUNT_USE_API=True,  # Note: typo exists in original code
