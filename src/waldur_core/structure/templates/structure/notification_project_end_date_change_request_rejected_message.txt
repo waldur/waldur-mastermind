@@ -1,0 +1,8 @@
+Hello!
+
+Your request to change the end date of project {{ project_end_date_change_request.project.name }} to {{ project_end_date_change_request.requested_end_date }} has been rejected.
+
+You can view the project here:
+{{ project_url }}
+
+Thank you!

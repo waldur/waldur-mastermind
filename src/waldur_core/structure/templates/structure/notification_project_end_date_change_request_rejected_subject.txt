@@ -1,0 +1,1 @@
+Project end date change request for {{ project_end_date_change_request.project.name }} has been rejected
