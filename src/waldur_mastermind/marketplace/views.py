@@ -11797,9 +11797,9 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
                 project = data.get("project")
                 if project.max_service_accounts is not None:
                     project_service_accounts_count = (
-                        models.ProjectServiceAccount.objects.filter(
-                            project=project
-                        ).count()
+                        models.ProjectServiceAccount.objects.filter(project=project)
+                        .exclude(state=ServiceAccountState.CLOSED)
+                        .count()
                     )
                     if project_service_accounts_count >= project.max_service_accounts:
                         raise ValidationError(
@@ -11811,9 +11811,9 @@ class BaseServiceAccountViewSet(core_views.ActionsViewSet):
                 customer = data.get("customer")
                 if customer.max_service_accounts is not None:
                     customer_service_accounts_count = (
-                        models.CustomerServiceAccount.objects.filter(
-                            customer=customer
-                        ).count()
+                        models.CustomerServiceAccount.objects.filter(customer=customer)
+                        .exclude(state=ServiceAccountState.CLOSED)
+                        .count()
                     )
                     if customer_service_accounts_count >= customer.max_service_accounts:
                         raise ValidationError(

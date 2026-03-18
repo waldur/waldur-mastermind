@@ -515,6 +515,100 @@ class ServiceAccountPermissionTest(BaseServiceAccountTest):
         )
         self.assertIn("Maximum number of service accounts", response.data["detail"])
 
+    def test_closed_project_service_accounts_do_not_count_toward_limit(self):
+        """Test that closed (deleted) service accounts free up slots for new ones"""
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ProjectServiceAccountFactory.get_list_url()
+
+        # Create two service accounts (reaching the limit of 2)
+        response = self.client.post(
+            url,
+            {
+                "project": self.fixture.project.uuid,
+                "description": "project test 1",
+                "preferred_identifier": f"{self.test_identifier}-1",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        response = self.client.post(
+            url,
+            {
+                "project": self.fixture.project.uuid,
+                "description": "project test 2",
+                "preferred_identifier": f"{self.test_identifier}-2",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        # Delete one service account
+        account = models.ProjectServiceAccount.objects.filter(
+            project=self.fixture.project
+        ).first()
+        delete_url = factories.ProjectServiceAccountFactory.get_url(account)
+        response = self.client.delete(delete_url)
+        self.assertEqual(
+            response.status_code, status.HTTP_204_NO_CONTENT, response.data
+        )
+
+        # Should be able to create a new one since a slot freed up
+        response = self.client.post(
+            url,
+            {
+                "project": self.fixture.project.uuid,
+                "description": "project test 3",
+                "preferred_identifier": f"{self.test_identifier}-3",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_closed_customer_service_accounts_do_not_count_toward_limit(self):
+        """Test that closed (deleted) customer service accounts free up slots for new ones"""
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.CustomerServiceAccountFactory.get_list_url()
+
+        # Create two service accounts (reaching the limit of 2)
+        response = self.client.post(
+            url,
+            {
+                "customer": self.fixture.offering_customer.uuid,
+                "description": "customer test 1",
+                "preferred_identifier": f"{self.test_identifier}-1",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        response = self.client.post(
+            url,
+            {
+                "customer": self.fixture.offering_customer.uuid,
+                "description": "customer test 2",
+                "preferred_identifier": f"{self.test_identifier}-2",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        # Delete one service account
+        account = models.CustomerServiceAccount.objects.filter(
+            customer=self.fixture.offering_customer
+        ).first()
+        delete_url = factories.CustomerServiceAccountFactory.get_url(account)
+        response = self.client.delete(delete_url)
+        self.assertEqual(
+            response.status_code, status.HTTP_204_NO_CONTENT, response.data
+        )
+
+        # Should be able to create a new one since a slot freed up
+        response = self.client.post(
+            url,
+            {
+                "customer": self.fixture.offering_customer.uuid,
+                "description": "customer test 3",
+                "preferred_identifier": f"{self.test_identifier}-3",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
     @data("staff", "service_manager", "service_owner")
     def test_can_create_customer_service_account_under_limit(self, user):
         """Test that service account can be created when under customer limit"""
