@@ -13875,10 +13875,38 @@ class CourseAccountViewSet(core_views.ActionsViewSet):
             raise ValidationError({"detail": error_details})
 
     destroy_validators = [
-        core_validators.StateValidator(
-            ServiceAccountState.OK, ServiceAccountState.ERRED
+        core_validators.StateValidator(CourseAccountState.OK, CourseAccountState.ERRED)
+    ]
+
+    @extend_schema(
+        summary="Retry a failed course account",
+        request=None,
+        responses={202: serializers.CourseAccountSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def retry(self, request, uuid=None):
+        instance = self.get_object()
+        instance.error_message = ""
+        instance.error_traceback = ""
+        instance.set_state_pending()
+        instance.save(update_fields=["state", "error_message", "error_traceback"])
+
+        transaction.on_commit(
+            lambda: tasks.create_course_account_task.delay(
+                instance.uuid.hex, request.user.username
+            )
+        )
+
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data, status=status.HTTP_202_ACCEPTED)
+
+    retry_permissions = [
+        permission_factory(
+            PermissionEnum.MANAGE_COURSE_ACCOUNT,
+            ["project", "project.customer"],
         )
     ]
+    retry_validators = [core_validators.StateValidator(CourseAccountState.ERRED)]
 
     @extend_schema(
         summary="Bulk create course accounts",
