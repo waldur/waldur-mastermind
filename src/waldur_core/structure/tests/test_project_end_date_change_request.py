@@ -324,6 +324,52 @@ class ProjectEndDateChangeRequestApproveRejectTest(test.APITestCase):
         self.assertNotEqual(self.project.end_date, self.request.requested_end_date)
 
 
+class ProjectEndDateChangeRequestCancelTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.request = factories.ProjectEndDateChangeRequestFactory(
+            project=self.project,
+            created_by=self.fixture.manager,
+            state=ReviewStates.PENDING,
+            requested_end_date=(timezone.now() + timedelta(days=90)).date(),
+        )
+        self.cancel_url = factories.ProjectEndDateChangeRequestFactory.get_url(
+            self.request, action="cancel"
+        )
+
+    def test_creator_can_cancel_request(self):
+        """User who created the request can cancel it."""
+        self.client.force_authenticate(self.fixture.manager)
+        response = self.client.post(self.cancel_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("detail", response.data)
+        self.assertTrue(response.data["detail"])
+
+        self.request.refresh_from_db()
+        self.assertEqual(self.request.state, ReviewStates.CANCELED)
+
+    def test_other_user_cannot_cancel_request(self):
+        """User who did not create the request cannot cancel it."""
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.cancel_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        self.request.refresh_from_db()
+        self.assertEqual(self.request.state, ReviewStates.PENDING)
+
+    def test_cannot_cancel_non_pending_request(self):
+        """Cannot cancel request that is not pending."""
+        self.request.state = ReviewStates.APPROVED
+        self.request.save()
+        self.client.force_authenticate(self.fixture.manager)
+        response = self.client.post(self.cancel_url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+        self.request.refresh_from_db()
+        self.assertEqual(self.request.state, ReviewStates.APPROVED)
+
+
 @override_settings(task_always_eager=True)
 class ProjectEndDateChangeRequestNotificationTest(test.APITransactionTestCase):
     @mock.patch(
