@@ -202,7 +202,7 @@ Conceal "Change request" from a selection of issue types for non-staff/non-suppo
 
 ## support.enable_llm_assistant
 
-Enable LLM Assistant
+Enable AI Assistant
 
 ## support.pricelist
 

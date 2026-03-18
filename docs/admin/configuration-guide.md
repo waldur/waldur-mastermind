@@ -2548,7 +2548,7 @@ API key for authenticating with the AI Assistant service.
 
 **Type:** str
 
-**Default value:** gemma3:27b
+**Default value:** qwen3.5-122b-nothinking
 
 Name of the AI Assistant model to use for inference.
 
