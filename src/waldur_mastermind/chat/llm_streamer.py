@@ -66,9 +66,9 @@ class LLMStreamer:
         pii_warning=None,
     ):
         self.messages = messages
-        self.model = config.LLM_INFERENCES_MODEL
-        self.backend_type = config.LLM_INFERENCES_BACKEND_TYPE
-        _completion_kwargs = config.LLM_COMPLETION_KWARGS
+        self.model = config.AI_ASSISTANT_MODEL
+        self.backend_type = config.AI_ASSISTANT_BACKEND_TYPE
+        _completion_kwargs = config.AI_ASSISTANT_COMPLETION_KWARGS
         self.completion_kwargs = (
             _completion_kwargs if isinstance(_completion_kwargs, dict) else {}
         )
@@ -117,7 +117,7 @@ class LLMStreamer:
         ignored_keys = set(self.completion_kwargs.keys()) - ALLOWED_COMPLETION_KEYS
         if ignored_keys:
             logger.warning(
-                "LLM_COMPLETION_KWARGS contains protected keys that will be ignored: %s",
+                "AI_ASSISTANT_COMPLETION_KWARGS contains protected keys that will be ignored: %s",
                 ignored_keys,
             )
         for key, value in self.completion_kwargs.items():

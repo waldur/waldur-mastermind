@@ -197,7 +197,7 @@ class SupportSection(FeatureSection):
         'Conceal "Change request" from a selection of issue types for non-staff/non-support users.'
     )
 
-    enable_llm_assistant = Feature("Enable LLM Assistant")
+    enable_llm_assistant = Feature("Enable AI Assistant")
 
 
 class InvitationsSection(FeatureSection):

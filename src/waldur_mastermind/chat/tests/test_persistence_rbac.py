@@ -414,10 +414,10 @@ class LLMStreamerPersistenceTest(test.APITestCase):
 
 
 @override_constance_config(
-    LLM_CHAT_ENABLED=True,
-    LLM_CHAT_ENABLED_ROLES="all",
-    LLM_INFERENCES_API_URL="https://example.com/stream",
-    LLM_INFERENCES_API_TOKEN="dummy-token",
+    AI_ASSISTANT_ENABLED=True,
+    AI_ASSISTANT_ENABLED_ROLES="all",
+    AI_ASSISTANT_API_URL="https://example.com/stream",
+    AI_ASSISTANT_API_TOKEN="dummy-token",
 )
 class ChatSessionRBACTest(test.APITestCase):
     """Staff and support see all sessions; audit fires on cross-user retrieve."""
@@ -489,10 +489,10 @@ class ChatSessionRBACTest(test.APITestCase):
 
 
 @override_constance_config(
-    LLM_CHAT_ENABLED=True,
-    LLM_CHAT_ENABLED_ROLES="all",
-    LLM_INFERENCES_API_URL="https://example.com/stream",
-    LLM_INFERENCES_API_TOKEN="dummy-token",
+    AI_ASSISTANT_ENABLED=True,
+    AI_ASSISTANT_ENABLED_ROLES="all",
+    AI_ASSISTANT_API_URL="https://example.com/stream",
+    AI_ASSISTANT_API_TOKEN="dummy-token",
 )
 class ThreadSessionRBACTest(test.APITestCase):
     """Staff sees all threads, can filter by user, audit fires on cross-user retrieve."""
@@ -676,10 +676,10 @@ class ChatRequestSerializerTest(test.APITestCase):
 
 
 @override_constance_config(
-    LLM_CHAT_ENABLED=True,
-    LLM_CHAT_ENABLED_ROLES="all",
-    LLM_INFERENCES_API_URL="https://example.com/stream",
-    LLM_INFERENCES_API_TOKEN="dummy-token",
+    AI_ASSISTANT_ENABLED=True,
+    AI_ASSISTANT_ENABLED_ROLES="all",
+    AI_ASSISTANT_API_URL="https://example.com/stream",
+    AI_ASSISTANT_API_TOKEN="dummy-token",
 )
 class MessageRBACTest(test.APITestCase):
     """Staff and support can list messages across all users."""

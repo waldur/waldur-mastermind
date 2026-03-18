@@ -15,39 +15,39 @@ logger = logging.getLogger(__name__)
 
 
 class LLMConfigurationHealthCheck(BaseHealthCheckBackend):
-    """Verify LLM settings are configured in Constance."""
+    """Verify AI Assistant settings are configured in Constance."""
 
     critical_service = True
 
     def check_status(self):
-        """Check that all required LLM configuration is set."""
-        if not config.LLM_CHAT_ENABLED:
-            self.add_error(ServiceUnavailable("LLM_CHAT_ENABLED is False"))
+        """Check that all required AI Assistant configurations are set."""
+        if not config.AI_ASSISTANT_ENABLED:
+            self.add_error(ServiceUnavailable("AI_ASSISTANT_ENABLED is False"))
             return
 
-        if not config.LLM_INFERENCES_API_URL:
-            self.add_error(ServiceUnavailable("LLM_INFERENCES_API_URL not set"))
+        if not config.AI_ASSISTANT_API_URL:
+            self.add_error(ServiceUnavailable("AI_ASSISTANT_API_URL not set"))
             return
 
-        if not config.LLM_INFERENCES_API_TOKEN:
-            self.add_error(ServiceUnavailable("LLM_INFERENCES_API_TOKEN not set"))
+        if not config.AI_ASSISTANT_API_TOKEN:
+            self.add_error(ServiceUnavailable("AI_ASSISTANT_API_TOKEN not set"))
 
     def identifier(self):
-        return "LLM Configuration"
+        return "AI Assistant Configuration"
 
 
 class LLMConnectivityHealthCheck(BaseHealthCheckBackend):
-    """Verify LLM API endpoint is reachable."""
+    """Verify AI Assistant API endpoint is reachable."""
 
     critical_service = True
 
     def check_status(self):
-        """Check connectivity to LLM API endpoint."""
+        """Check connectivity to AI Assistant API endpoint."""
         try:
-            url = config.LLM_INFERENCES_API_URL
+            url = config.AI_ASSISTANT_API_URL
             if not url:
                 self.add_error(
-                    ServiceUnavailable("LLM_INFERENCES_API_URL not configured")
+                    ServiceUnavailable("AI_ASSISTANT_API_URL not configured")
                 )
                 return
 
@@ -55,7 +55,7 @@ class LLMConnectivityHealthCheck(BaseHealthCheckBackend):
             # generating a completion. Works for OpenAI, vLLM, and Ollama.
             # Some providers don't implement /models; treat that as connectivity OK.
             client = openai.OpenAI(
-                api_key=config.LLM_INFERENCES_API_TOKEN,
+                api_key=config.AI_ASSISTANT_API_TOKEN,
                 base_url=url,
                 timeout=5.0,
             )
@@ -69,10 +69,10 @@ class LLMConnectivityHealthCheck(BaseHealthCheckBackend):
                     raise
 
         except openai.APIError as e:
-            self.add_error(ServiceUnavailable(f"Cannot reach LLM API: {e}"))
+            self.add_error(ServiceUnavailable(f"Cannot reach AI Assistant API: {e}"))
 
     def identifier(self):
-        return "LLM Connectivity"
+        return "AI Assistant Connectivity"
 
 
 class LLMResponseHealthCheck(BaseHealthCheckBackend):
@@ -84,9 +84,9 @@ class LLMResponseHealthCheck(BaseHealthCheckBackend):
     def check_status(self):
         """Test that LLM can generate a response to a simple prompt."""
         try:
-            url = config.LLM_INFERENCES_API_URL
-            token = config.LLM_INFERENCES_API_TOKEN
-            model = config.LLM_INFERENCES_MODEL
+            url = config.AI_ASSISTANT_API_URL
+            token = config.AI_ASSISTANT_API_TOKEN
+            model = config.AI_ASSISTANT_MODEL
 
             if not url or not token:
                 self.add_error(ServiceUnavailable("LLM not configured"))
@@ -94,10 +94,10 @@ class LLMResponseHealthCheck(BaseHealthCheckBackend):
 
             # Use streaming (same code path as production) to validate the full
             # request → token → streamed-response flow.
-            # Apply LLM_COMPLETION_KWARGS so the health check tests the same
+            # Apply AI_ASSISTANT_COMPLETION_KWARGS so the health check tests the same
             # configuration as production (e.g. reasoning_effort, provider defaults).
-            backend_type = config.LLM_INFERENCES_BACKEND_TYPE
-            completion_kwargs = config.LLM_COMPLETION_KWARGS
+            backend_type = config.AI_ASSISTANT_BACKEND_TYPE
+            completion_kwargs = config.AI_ASSISTANT_COMPLETION_KWARGS
             if not isinstance(completion_kwargs, dict):
                 completion_kwargs = {}
 

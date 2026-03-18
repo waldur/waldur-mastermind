@@ -24,10 +24,10 @@ from waldur_openstack.tests.fixtures import OpenStackFixture
 
 
 @override_constance_config(
-    LLM_CHAT_ENABLED=True,
-    LLM_CHAT_ENABLED_ROLES="all",
-    LLM_INFERENCES_API_URL="https://example.com/stream",
-    LLM_INFERENCES_API_TOKEN="dummy-token",
+    AI_ASSISTANT_ENABLED=True,
+    AI_ASSISTANT_ENABLED_ROLES="all",
+    AI_ASSISTANT_API_URL="https://example.com/stream",
+    AI_ASSISTANT_API_TOKEN="dummy-token",
 )
 class ToolExecutorBaseTest(test.APITestCase):
     def setUp(self):
@@ -354,10 +354,10 @@ class ToolExecutorErrorHandlingTest(ToolExecutorBaseTest):
 
 
 @override_constance_config(
-    LLM_CHAT_ENABLED=True,
-    LLM_CHAT_ENABLED_ROLES="all",
-    LLM_INFERENCES_API_URL="https://example.com/stream",
-    LLM_INFERENCES_API_TOKEN="dummy-token",
+    AI_ASSISTANT_ENABLED=True,
+    AI_ASSISTANT_ENABLED_ROLES="all",
+    AI_ASSISTANT_API_URL="https://example.com/stream",
+    AI_ASSISTANT_API_TOKEN="dummy-token",
 )
 class CreateVMBaseTest(test.APITestCase):
     """Base class for create_vm tests. Sets up full OpenStack environment."""
@@ -808,10 +808,10 @@ class PreviewVMFormModeTest(CreateVMBaseTest):
 
 
 class FlavorImageInputSanitizationTest(CreateVMBaseTest):
-    """Test that LLM-generated descriptions are stripped from flavor/image names."""
+    """Test that AI Assistant-generated descriptions are stripped from flavor/image names."""
 
     def test_flavor_with_parenthetical_description_is_resolved(self):
-        """LLM often appends descriptions like 'm1.small (1 vCPU, 2GB RAM)'."""
+        """AI Assistant often appends descriptions like 'm1.small (1 vCPU, 2GB RAM)'."""
         self.arguments["flavor"] = f"{self.flavor.name} (1 vCPU, 2GB RAM)"
         result = self.tool_executor.execute_tool("create_vm", self.arguments)
 
@@ -820,8 +820,8 @@ class FlavorImageInputSanitizationTest(CreateVMBaseTest):
         self.assertEqual(result["ui_data"]["status"], "success")
 
     def test_image_with_version_appended(self):
-        """LLM might append version info like 'ubuntu22.04 LTS'."""
-        # If image is "ubuntu22.04", LLM might pass "ubuntu22.04 LTS"
+        """AI Assistant might append version info like 'ubuntu22.04 LTS'."""
+        # If image is "ubuntu22.04", AI Assistant might pass "ubuntu22.04 LTS"
         self.arguments["image"] = f"{self.image.name} LTS"
         result = self.tool_executor.execute_tool("create_vm", self.arguments)
 
@@ -846,7 +846,7 @@ class ToolExecutorInjectionDetectionTest(ToolExecutorBaseTest):
     """Tests for injection detection in tool executor."""
 
     @override_constance_config(
-        LLM_INJECTION_ALLOWLIST="",
+        AI_ASSISTANT_INJECTION_ALLOWLIST="",
     )
     def test_injection_blocks(self):
         """Injection payload returns generic error."""
@@ -859,7 +859,7 @@ class ToolExecutorInjectionDetectionTest(ToolExecutorBaseTest):
 
     @mock.patch("waldur_mastermind.chat.tools.executor.get_detection_service")
     @override_constance_config(
-        LLM_INJECTION_ALLOWLIST="",
+        AI_ASSISTANT_INJECTION_ALLOWLIST="",
     )
     def test_injection_service_error_blocks_tool_call(self, mock_get_service):
         """If injection service raises, tool call should be blocked (fail-closed)."""
@@ -869,7 +869,7 @@ class ToolExecutorInjectionDetectionTest(ToolExecutorBaseTest):
         self.assertIn("Unable to process this request", result["error"])
 
     @override_constance_config(
-        LLM_INJECTION_ALLOWLIST="",
+        AI_ASSISTANT_INJECTION_ALLOWLIST="",
     )
     def test_clean_arguments_pass_through(self):
         """Clean tool arguments should not trigger injection detection."""

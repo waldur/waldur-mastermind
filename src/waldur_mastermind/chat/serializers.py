@@ -226,15 +226,15 @@ class TokenQuotaUsageResponseSerializer(serializers.ModelSerializer):
 
     def get_daily_system_default(self, obj) -> int:
         """Get system default daily token limit from constance config."""
-        return config.LLM_TOKEN_LIMIT_DAILY
+        return config.AI_ASSISTANT_TOKEN_LIMIT_DAILY
 
     def get_weekly_system_default(self, obj) -> int:
         """Get system default weekly token limit from constance config."""
-        return config.LLM_TOKEN_LIMIT_WEEKLY
+        return config.AI_ASSISTANT_TOKEN_LIMIT_WEEKLY
 
     def get_monthly_system_default(self, obj) -> int:
         """Get system default monthly token limit from constance config."""
-        return config.LLM_TOKEN_LIMIT_MONTHLY
+        return config.AI_ASSISTANT_TOKEN_LIMIT_MONTHLY
 
     def get_daily_reset_at(self, obj) -> datetime:
         """Calculate next midnight (00:00:00)."""

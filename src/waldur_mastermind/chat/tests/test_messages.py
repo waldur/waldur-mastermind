@@ -7,10 +7,10 @@ from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession
 
 
 @override_constance_config(
-    LLM_CHAT_ENABLED=True,
-    LLM_CHAT_ENABLED_ROLES="all",
-    LLM_INFERENCES_API_URL="https://example.com/stream",
-    LLM_INFERENCES_API_TOKEN="dummy-token",
+    AI_ASSISTANT_ENABLED=True,
+    AI_ASSISTANT_ENABLED_ROLES="all",
+    AI_ASSISTANT_API_URL="https://example.com/stream",
+    AI_ASSISTANT_API_TOKEN="dummy-token",
 )
 class MessageViewSetTest(test.APITestCase):
     """Test MessageViewSet endpoints."""

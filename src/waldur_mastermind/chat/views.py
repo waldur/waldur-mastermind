@@ -47,21 +47,21 @@ logger = logging.getLogger(__name__)
 
 class LLMConfigurationMixin(ConstanceCheckExtensionMixin):
     """
-    Validates that LLM chat is enabled, the user has the required role,
+    Validates that AI Assistant is enabled, the user has the required role,
     and the inference API is properly configured.
 
-    LLM_CHAT_ENABLED (boolean) is the master on/off switch.
-    LLM_CHAT_ENABLED_ROLES controls which user roles can access the feature.
+    AI_ASSISTANT_ENABLED (boolean) is the master on/off switch.
+    AI_ASSISTANT_ENABLED_ROLES controls which user roles can access the feature.
     """
 
-    extension_name = "LLM_CHAT"
+    extension_name = "AI_ASSISTANT"
 
     def initial(self, request, *args, **kwargs):
-        # Check LLM_CHAT_ENABLED boolean via ConstanceCheckExtensionMixin
+        # Check AI_ASSISTANT_ENABLED boolean via ConstanceCheckExtensionMixin
         super().initial(request, *args, **kwargs)
 
         # RBAC: check enabled roles
-        enabled_roles = config.LLM_CHAT_ENABLED_ROLES
+        enabled_roles = config.AI_ASSISTANT_ENABLED_ROLES
         user = request.user
         if enabled_roles == "disabled":
             raise rf_exceptions.PermissionDenied(_("AI Assistant is not available."))
@@ -83,16 +83,16 @@ class LLMConfigurationMixin(ConstanceCheckExtensionMixin):
             )
 
         # Validate additional API settings
-        if not config.LLM_INFERENCES_API_URL:
+        if not config.AI_ASSISTANT_API_URL:
             exc = rf_exceptions.APIException(
-                _("LLM inference API URL is not configured."),
+                _("AI Assistant API URL is not configured."),
             )
             exc.status_code = status.HTTP_409_CONFLICT
             raise exc
 
-        if not config.LLM_INFERENCES_API_TOKEN:
+        if not config.AI_ASSISTANT_API_TOKEN:
             exc = rf_exceptions.APIException(
-                _("LLM inference API token is not configured."),
+                _("AI Assistant API token is not configured."),
             )
             exc.status_code = status.HTTP_409_CONFLICT
             raise exc
@@ -326,8 +326,8 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
 
         streamer = LLMStreamer(
             messages=llm_prompt,
-            url=config.LLM_INFERENCES_API_URL,
-            token=config.LLM_INFERENCES_API_TOKEN,
+            url=config.AI_ASSISTANT_API_URL,
+            token=config.AI_ASSISTANT_API_TOKEN,
             user=user,
             thread=thread,
             original_input=stored_content,

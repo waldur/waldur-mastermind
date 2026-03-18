@@ -26,16 +26,16 @@ class StreamEndpointTest(ChatBaseTest):
     """Test stream endpoint validation and configuration checks."""
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
     )
     def test_missing_input_returns_400(self):
         response = self.client.post(self.stream_url, data={})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @override_constance_config(LLM_CHAT_ENABLED=False)
+    @override_constance_config(AI_ASSISTANT_ENABLED=False)
     def test_returns_424_if_chat_disabled(self):
         response = self.client.post(
             self.stream_url,
@@ -45,10 +45,10 @@ class StreamEndpointTest(ChatBaseTest):
         self.assertEqual(response.data["detail"], "Extension is disabled.")
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
     )
     def test_returns_409_if_inference_url_missing(self):
         response = self.client.post(
@@ -57,7 +57,7 @@ class StreamEndpointTest(ChatBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         self.assertEqual(
-            response.data["detail"], "LLM inference API URL is not configured."
+            response.data["detail"], "AI Assistant API URL is not configured."
         )
 
 
@@ -66,10 +66,10 @@ class StreamResponseTest(ChatBaseTest):
 
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
     )
     def test_stream_proxies_ndjson_and_minifies(self, mock_openai_cls):
         mock_client = _mock_openai_client([_make_content_chunk("Hello")])
@@ -102,11 +102,11 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
     """Test quota validation and usage recording integration with streaming."""
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_TOKEN_LIMIT_MONTHLY=100,
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_TOKEN_LIMIT_MONTHLY=100,
     )
     def test_stream_rejected_when_quota_exceeded(self):
         """User cannot stream if already at or over quota limit."""
@@ -127,11 +127,11 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         self.assertIn("Monthly", str(response.data))
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_TOKEN_LIMIT_MONTHLY=-1,  # Unlimited
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_TOKEN_LIMIT_MONTHLY=-1,  # Unlimited
     )
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     def test_stream_allowed_with_unlimited_quota(self, mock_openai_cls):
@@ -151,11 +151,11 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_TOKEN_LIMIT_MONTHLY=100,
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_TOKEN_LIMIT_MONTHLY=100,
     )
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     def test_usage_recorded_after_stream(self, mock_openai_cls):
@@ -166,7 +166,7 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         quota.save()
         initial_usage = quota.monthly_usage
 
-        # Use existing thread to avoid title-generation LLM call
+        # Use existing thread to avoid title-generation AI Assistant call
         session, _ = ChatSession.objects.get_or_create(user=self.user)
         thread = ThreadSession.objects.create(chat_session=session)
 
@@ -195,11 +195,11 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         self.assertEqual(final_usage - initial_usage, expected_increase)
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_TOKEN_LIMIT_MONTHLY=100,
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_TOKEN_LIMIT_MONTHLY=100,
     )
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     def test_stream_allowed_near_limit_may_exceed_after(self, mock_openai_cls):
@@ -210,7 +210,7 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         quota.monthly_usage = 95  # Near limit but not at/over
         quota.save()
 
-        # Use existing thread to avoid title-generation LLM call
+        # Use existing thread to avoid title-generation AI Assistant call
         session, _ = ChatSession.objects.get_or_create(user=self.user)
         thread = ThreadSession.objects.create(chat_session=session)
 
@@ -238,11 +238,11 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         self.assertEqual(quota.monthly_usage, 103)  # 95 + 3 + 5 = 103 (over limit)
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_TOKEN_LIMIT_MONTHLY="invalid_value",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_TOKEN_LIMIT_MONTHLY="invalid_value",
     )
     def test_stream_fails_with_invalid_constance_config(self):
         """Stream request fails when constance config has invalid value."""
@@ -256,11 +256,11 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_TOKEN_LIMIT_DAILY=-10,  # Invalid: below -1
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_TOKEN_LIMIT_DAILY=-10,  # Invalid: below -1
     )
     def test_stream_fails_with_invalid_negative_limit(self):
         """Stream request fails when constance has limit below -1."""

@@ -114,7 +114,7 @@ class BuildContextTest(TestCase):
         self.assertIn("Edited", all_contents)
         self.assertNotIn("Original", all_contents)
 
-    @override_constance_config(LLM_CHAT_HISTORY_LIMIT=50)
+    @override_constance_config(AI_ASSISTANT_HISTORY_LIMIT=50)
     def test_caps_at_history_limit(self):
         for i in range(60):
             Message.objects.create(
@@ -180,7 +180,7 @@ class BuildContextTest(TestCase):
         with self.assertRaises(PermissionDenied):
             build_context(other_user, "Hello", thread=self.thread)
 
-    @override_constance_config(LLM_CHAT_HISTORY_LIMIT=-1)
+    @override_constance_config(AI_ASSISTANT_HISTORY_LIMIT=-1)
     def test_invalid_history_limit_skips_history(self):
         Message.objects.create(
             thread=self.thread, role="user", content="Old msg", sequence_index=1
@@ -200,10 +200,10 @@ class ChatStreamIntegrationTest(test.APITestCase):
         self.stream_url = reverse("chat-stream")
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
     )
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     def test_stream_response(self, mock_openai_cls):
@@ -230,10 +230,10 @@ class ChatStreamIntegrationTest(test.APITestCase):
         self.assertTrue(content_found)
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
     )
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     def test_sends_assembled_context_to_llm(self, mock_openai_cls):
@@ -266,10 +266,10 @@ class ChatStreamIntegrationTest(test.APITestCase):
         self.assertIn("Test message", user_content)
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
     )
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     def test_persists_raw_input_not_context(self, mock_openai_cls):
@@ -286,10 +286,10 @@ class ChatStreamIntegrationTest(test.APITestCase):
         self.assertEqual(user_msg.content, "My raw question")
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
     )
     def test_missing_input_rejected(self):
         response = self.client.post(self.stream_url, data={})

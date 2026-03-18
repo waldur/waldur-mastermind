@@ -37,7 +37,7 @@ class ChatSessionCleanupTest(test.APITestCase):
             modified=now - timedelta(days=100)
         )
 
-    @override_constance_config(LLM_CHAT_SESSION_RETENTION_DAYS=90)
+    @override_constance_config(AI_ASSISTANT_SESSION_RETENTION_DAYS=90)
     def test_cleanup_deletes_old_sessions(self):
         result = tasks.cleanup_old_chat_sessions()
 
@@ -46,7 +46,7 @@ class ChatSessionCleanupTest(test.APITestCase):
         self.assertTrue(ChatSession.objects.filter(pk=self.recent_session.pk).exists())
         self.assertFalse(ChatSession.objects.filter(pk=self.old_session.pk).exists())
 
-    @override_constance_config(LLM_CHAT_SESSION_RETENTION_DAYS=-1)
+    @override_constance_config(AI_ASSISTANT_SESSION_RETENTION_DAYS=-1)
     def test_cleanup_disabled(self):
         result = tasks.cleanup_old_chat_sessions()
 
@@ -54,7 +54,7 @@ class ChatSessionCleanupTest(test.APITestCase):
         self.assertEqual(result["deleted_count"], 0)
         self.assertEqual(ChatSession.objects.count(), 2)
 
-    @override_constance_config(LLM_CHAT_SESSION_RETENTION_DAYS=90)
+    @override_constance_config(AI_ASSISTANT_SESSION_RETENTION_DAYS=90)
     def test_cleanup_cascades_deletion(self):
         tasks.cleanup_old_chat_sessions()
 
@@ -65,7 +65,7 @@ class ChatSessionCleanupTest(test.APITestCase):
             Message.objects.filter(thread__chat_session=self.old_session).count(), 0
         )
 
-    @override_constance_config(LLM_CHAT_SESSION_RETENTION_DAYS=90)
+    @override_constance_config(AI_ASSISTANT_SESSION_RETENTION_DAYS=90)
     def test_cleanup_nothing_to_delete(self):
         self.old_session.delete()
 

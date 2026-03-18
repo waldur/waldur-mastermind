@@ -12,7 +12,7 @@ class ToolDefinition(BaseModel):
     meta: dict | None = Field(default=None)
 
     # Per-tool prompt fragments, auto-assembled into the system prompt by ToolRegistry.
-    # usage_instructions: when/when-not to use this tool (decision heuristics for LLM).
+    # usage_instructions: when/when-not to use this tool (decision heuristics for AI Assistant).
     # workflow_instructions: multi-step sequences involving this tool (e.g. VM creation phases).
     usage_instructions: str = ""
     workflow_instructions: str = ""
@@ -53,10 +53,10 @@ class BaseTool(ABC):
 
         Args:
             user: The authenticated Django user.
-            arguments: Tool arguments from the LLM (validated against inputSchema).
+            arguments: Tool arguments from the AI Assistant (validated against inputSchema).
 
         Returns:
-            dict with keys: type ("success" or "error"), summary (str for LLM context),
+            dict with keys: type ("success" or "error"), summary (str for AI Assistant context),
             and optionally: data (dict), ui_component (str), ui_data (dict).
         """
 
