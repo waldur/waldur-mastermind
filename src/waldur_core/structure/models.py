@@ -29,7 +29,9 @@ from reversion import revisions as reversion
 from waldur_core.checklist import models as checklist_models
 from waldur_core.checklist.enums import ChecklistTypes
 from waldur_core.core import fields as core_fields
+from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core.fields import COUNTRIES_DICT, JSONField
 from waldur_core.core.models import User
 from waldur_core.core.validators import (
@@ -1518,3 +1520,42 @@ class ProjectDigestConfiguration(
 
     def __str__(self):
         return f"Digest config for {self.customer} ({self.frequency})"
+
+
+class ProjectEndDateChangeRequest(core_models.UuidMixin, core_mixins.ReviewMixin):
+    """
+    Request from project member (without UPDATE_PROJECT) to change project end date.
+    Organization owners can approve or reject.
+    """
+
+    class Meta:
+        ordering = ["created"]
+        verbose_name = _("Project end date change request")
+        verbose_name_plural = _("Project end date change requests")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "requested_end_date"],
+                condition=Q(state=ReviewStates.PENDING),
+                name="unique_pending_request_per_project_date",
+            )
+        ]
+
+    tracker = cast(FieldInstanceTracker, FieldTracker())
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="end_date_change_requests",
+    )
+    requested_end_date = models.DateField(
+        help_text=_("The requested new end date for the project"),
+    )
+    created_by = models.ForeignKey(
+        "core.User",
+        on_delete=models.SET_NULL,
+        related_name="+",
+        null=True,
+    )
+
+    class Permissions:
+        customer_path = "project__customer"
+        project_path = "project"

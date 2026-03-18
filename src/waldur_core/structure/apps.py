@@ -26,6 +26,7 @@ class StructureConfig(AppConfig):
         from waldur_core.structure.models import (
             AccessSubnet,
             BaseResource,
+            ProjectEndDateChangeRequest,
             VirtualMachine,
         )
         from waldur_core.users.models import PermissionRequest
@@ -172,6 +173,12 @@ class StructureConfig(AppConfig):
             handlers.delete_project_metadata_completions,
             sender=Customer,
             dispatch_uid="waldur_core.structure.delete_project_metadata_completions",
+        )
+
+        signals.post_save.connect(
+            handlers.log_project_end_date_change_request_events,
+            sender=ProjectEndDateChangeRequest,
+            dispatch_uid="waldur_core.structure.log_project_end_date_change_request_events",
         )
 
     def _register_digest_providers(self):

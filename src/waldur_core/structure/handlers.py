@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from waldur_core.checklist.models import ChecklistCompletion
 from waldur_core.core import utils as core_utils
-from waldur_core.core.enums import CoreStates
+from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.models import ChangeEmailRequest, StateMixin
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
@@ -19,6 +19,7 @@ from waldur_core.structure.models import (
     BaseResource,
     Customer,
     Project,
+    ProjectEndDateChangeRequest,
     ServiceSettings,
 )
 
@@ -520,6 +521,56 @@ def create_existing_projects_completions(sender, instance, **kwargs):
             checklist=customer.project_metadata_checklist,
             scope_content_type=project_content_type,
             scope_object_id=project.id,
+        )
+
+
+def log_project_end_date_change_request_events(
+    sender, instance: ProjectEndDateChangeRequest, created=False, **kwargs
+):
+    """Log events when project end date change request is created or reviewed."""
+    event_context = {
+        "project_end_date_change_request": instance,
+        "project": instance.project,
+    }
+    if created:
+        transaction.on_commit(
+            lambda: tasks.send_project_end_date_change_request_notification.delay(
+                instance.uuid.hex
+            )
+        )
+        event_logger.emit(
+            "Project end date change request has been created.",
+            event_type=EventType.PROJECT_END_DATE_CHANGE_REQUEST_CREATED,
+            event_context=event_context,
+            scopes=[instance.project],
+        )
+        return
+
+    if not instance.tracker.has_changed("state"):
+        return
+    if instance.state == ReviewStates.APPROVED:
+        transaction.on_commit(
+            lambda: tasks.send_project_end_date_change_request_approved_notification.delay(
+                instance.uuid.hex
+            )
+        )
+        event_logger.emit(
+            "Project end date change request has been approved.",
+            event_type=EventType.PROJECT_END_DATE_CHANGE_REQUEST_APPROVED,
+            event_context=event_context,
+            scopes=[instance.project],
+        )
+    elif instance.state == ReviewStates.REJECTED:
+        transaction.on_commit(
+            lambda: tasks.send_project_end_date_change_request_rejected_notification.delay(
+                instance.uuid.hex
+            )
+        )
+        event_logger.emit(
+            "Project end date change request has been rejected.",
+            event_type=EventType.PROJECT_END_DATE_CHANGE_REQUEST_REJECTED,
+            event_context=event_context,
+            scopes=[instance.project],
         )
 
 

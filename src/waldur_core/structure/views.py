@@ -44,8 +44,8 @@ from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
-from waldur_core.core.enums import CoreStates
-from waldur_core.core.serializers import EmptySerializer
+from waldur_core.core.enums import CoreStates, ReviewStates
+from waldur_core.core.serializers import EmptySerializer, ReviewCommentSerializer
 from waldur_core.core.user_attributes import get_profile_completeness_details
 from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.core.views import ActionsViewSet
@@ -2100,6 +2100,76 @@ class ProjectPermissionReviewViewSet(
             scopes=[review.project],
         )
         return Response(status=status.HTTP_200_OK)
+
+
+def user_can_approve_project_end_date_change_request(
+    request, view, obj: models.ProjectEndDateChangeRequest | None = None
+):
+    """Only users with UPDATE_PROJECT on customer or project can approve/reject."""
+    if not obj:
+        return
+    if has_permission(
+        request.user, PermissionEnum.UPDATE_PROJECT, obj.project.customer
+    ):
+        return
+    if has_permission(request.user, PermissionEnum.UPDATE_PROJECT, obj.project):
+        return
+    raise PermissionDenied()
+
+
+class ProjectEndDateChangeRequestViewSet(
+    core_mixins.EagerLoadMixin, core_views.ActionsViewSet
+):
+    queryset = models.ProjectEndDateChangeRequest.objects.all()
+    approve_permissions = reject_permissions = [
+        user_can_approve_project_end_date_change_request
+    ]
+    serializer_class = serializers.ProjectEndDateChangeRequestSerializer
+    create_serializer_class = serializers.ProjectEndDateChangeRequestCreateSerializer
+    filter_backends = [filters.GenericRoleFilter, DjangoFilterBackend]
+    filterset_class = filters.ProjectEndDateChangeRequestFilter
+    disabled_actions = ["update", "partial_update", "destroy"]
+    lookup_field = "uuid"
+
+    @extend_schema(
+        request=ReviewCommentSerializer,
+        responses=None,
+        description="Approve project end date change request",
+    )
+    @action(detail=True, methods=["post"])
+    def approve(self, request, **kwargs):
+        review_request: models.ProjectEndDateChangeRequest = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.validated_data.get("comment")
+        with transaction.atomic():
+            review_request.approve(request.user, comment)
+            # Update project end_date on approval
+            review_request.project.end_date = review_request.requested_end_date
+            review_request.project.end_date_requested_by = request.user
+            review_request.project.save(
+                update_fields=["end_date", "end_date_requested_by"]
+            )
+        return Response(status=status.HTTP_200_OK)
+
+    @extend_schema(
+        request=ReviewCommentSerializer,
+        responses=None,
+        description="Reject project end date change request",
+    )
+    @action(detail=True, methods=["post"])
+    def reject(self, request, **kwargs):
+        review_request: models.ProjectEndDateChangeRequest = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.validated_data.get("comment")
+        review_request.reject(request.user, comment)
+        return Response(status=status.HTTP_200_OK)
+
+    approve_serializer_class = reject_serializer_class = ReviewCommentSerializer
+    approve_validators = reject_validators = [
+        core_validators.StateValidator(ReviewStates.PENDING, state_enum=ReviewStates)
+    ]
 
 
 @extend_schema_view(

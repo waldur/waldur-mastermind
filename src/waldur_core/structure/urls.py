@@ -15,6 +15,11 @@ def register_in(router):
         views.ProjectPermissionReviewViewSet,
         basename="project-permissions-review",
     )
+    router.register(
+        r"project-end-date-change-requests",
+        views.ProjectEndDateChangeRequestViewSet,
+        basename="project-end-date-change-request",
+    )
     router.register(r"service-settings", views.ServiceSettingsViewSet)
     router.register(r"users", views.UserViewSet)
     router.register(r"keys", views.SshKeyViewSet)
