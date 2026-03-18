@@ -88,9 +88,10 @@ def push_user_role_sync_message(project: structure_models.Project) -> None:
     logger.info("Sending user role sync message for project %s", project)
     offering_ids = set(
         project.resource_set.filter(
-            state=marketplace_models.ResourceStates.OK,
             offering__type=SITE_AGENT_OFFERING,
-        ).values_list("offering", flat=True)
+        )
+        .exclude(state=marketplace_models.ResourceStates.TERMINATED)
+        .values_list("offering", flat=True)
     )
     if not offering_ids:
         logger.debug("No relevant offerings found for project %s", project)
