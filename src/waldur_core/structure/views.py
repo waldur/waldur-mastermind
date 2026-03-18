@@ -2110,9 +2110,7 @@ def user_can_approve_project_end_date_change_request(
         return
     if has_permission(
         request.user, PermissionEnum.UPDATE_PROJECT, obj.project.customer
-    ):
-        return
-    if has_permission(request.user, PermissionEnum.UPDATE_PROJECT, obj.project):
+    ) or has_permission(request.user, PermissionEnum.UPDATE_PROJECT, obj.project):
         return
     raise PermissionDenied()
 
@@ -2166,8 +2164,25 @@ class ProjectEndDateChangeRequestViewSet(
         review_request.reject(request.user, comment)
         return Response(status=status.HTTP_200_OK)
 
+    @extend_schema(
+        responses=None,
+        description="Cancel project end date change request. Only the creator can cancel.",
+    )
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, **kwargs):
+        review_request: models.ProjectEndDateChangeRequest = self.get_object()
+        if review_request.created_by != request.user:
+            raise PermissionDenied(
+                _("You can only cancel your own project end date change requests.")
+            )
+        review_request.cancel()
+        return Response(
+            {"detail": _("Project end date change request has been canceled.")},
+            status=status.HTTP_200_OK,
+        )
+
     approve_serializer_class = reject_serializer_class = ReviewCommentSerializer
-    approve_validators = reject_validators = [
+    approve_validators = reject_validators = cancel_validators = [
         core_validators.StateValidator(ReviewStates.PENDING, state_enum=ReviewStates)
     ]
 
