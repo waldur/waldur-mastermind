@@ -2508,15 +2508,15 @@ Sweden Business Register API client secret
 
 Norway Business Register API server URL
 
-### LLM inference settings
+### AI assistant settings
 
-#### LLM_CHAT_ENABLED
+#### AI_ASSISTANT_ENABLED
 
 **Type:** bool
 
-Enable LLM-based chat feature and calls to the inference service.
+Enable AI Assistant feature and calls to the inference service.
 
-#### LLM_CHAT_ENABLED_ROLES
+#### AI_ASSISTANT_ENABLED_ROLES
 
 **Type:** choice_field
 
@@ -2524,41 +2524,41 @@ Enable LLM-based chat feature and calls to the inference service.
 
 Controls which user roles can access the AI Assistant. 'disabled': No role-based access. 'staff': Staff users only. 'staff_and_support': Staff and support users. 'all': All authenticated users.
 
-#### LLM_INFERENCES_BACKEND_TYPE
+#### AI_ASSISTANT_BACKEND_TYPE
 
 **Type:** str
 
 **Default value:** vllm
 
-Type of LLM inference backend. For example: vllm, openai, ollama.
+Type of AI Assistant backend. For example: vllm, openai, ollama.
 
-#### LLM_INFERENCES_API_URL
+#### AI_ASSISTANT_API_URL
 
 **Type:** url_field
 
-Base URL for LLM inference service API.
+Base URL for AI Assistant service API.
 
-#### LLM_INFERENCES_API_TOKEN
+#### AI_ASSISTANT_API_TOKEN
 
 **Type:** secret_field
 
-API key for authenticating with the LLM inference service.
+API key for authenticating with the AI Assistant service.
 
-#### LLM_INFERENCES_MODEL
+#### AI_ASSISTANT_MODEL
 
 **Type:** str
 
 **Default value:** gemma3:27b
 
-Name of the LLM model to use for inference.
+Name of the AI Assistant model to use for inference.
 
-#### LLM_COMPLETION_KWARGS
+#### AI_ASSISTANT_COMPLETION_KWARGS
 
 **Type:** dict_field
 
-Override keyword arguments merged on top of provider defaults for LLM chat completion. Supported keys: temperature, top_p, top_k, max_tokens, max_completion_tokens, presence_penalty, frequency_penalty, repetition_penalty, stop, seed, reasoning_effort, extra_body. Leave empty to use provider defaults.
+Override keyword arguments merged on top of provider defaults for AI Assistant chat completion. Supported keys: temperature, top_p, top_k, max_tokens, max_completion_tokens, presence_penalty, frequency_penalty, repetition_penalty, stop, seed, reasoning_effort, extra_body. Leave empty to use provider defaults.
 
-#### LLM_TOKEN_LIMIT_DAILY
+#### AI_ASSISTANT_TOKEN_LIMIT_DAILY
 
 **Type:** int
 
@@ -2566,7 +2566,7 @@ Override keyword arguments merged on top of provider defaults for LLM chat compl
 
 Default daily token limit (integer). -1 means unlimited.
 
-#### LLM_TOKEN_LIMIT_WEEKLY
+#### AI_ASSISTANT_TOKEN_LIMIT_WEEKLY
 
 **Type:** int
 
@@ -2574,7 +2574,7 @@ Default daily token limit (integer). -1 means unlimited.
 
 Default weekly token limit (integer). -1 means unlimited.
 
-#### LLM_TOKEN_LIMIT_MONTHLY
+#### AI_ASSISTANT_TOKEN_LIMIT_MONTHLY
 
 **Type:** int
 
@@ -2582,23 +2582,23 @@ Default weekly token limit (integer). -1 means unlimited.
 
 Default monthly token limit (integer). -1 means unlimited.
 
-#### LLM_CHAT_SESSION_RETENTION_DAYS
+#### AI_ASSISTANT_SESSION_RETENTION_DAYS
 
 **Type:** int
 
 **Default value:** 90
 
-Number of days to retain chat sessions before automatic deletion. Set to -1 to disable automatic cleanup.
+Number of days to retain AI Assistant sessions before automatic deletion. Set to -1 to disable automatic cleanup.
 
-#### LLM_CHAT_HISTORY_LIMIT
+#### AI_ASSISTANT_HISTORY_LIMIT
 
 **Type:** int
 
 **Default value:** 50
 
-Maximum number of past messages included in the LLM context window.
+Maximum number of past messages included in the AI Assistant context window.
 
-#### LLM_INJECTION_ALLOWLIST
+#### AI_ASSISTANT_INJECTION_ALLOWLIST
 
 **Type:** str
 

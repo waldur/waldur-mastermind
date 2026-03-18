@@ -196,9 +196,9 @@ class RegexDetector(BaseDetector):
 
     def _is_allowlisted(self, text: str) -> bool:
         try:
-            allowlist_raw = getattr(config, "LLM_INJECTION_ALLOWLIST", "")
+            allowlist_raw = getattr(config, "AI_ASSISTANT_INJECTION_ALLOWLIST", "")
         except Exception:
-            logger.exception("Failed to read LLM_INJECTION_ALLOWLIST config")
+            logger.exception("Failed to read AI_ASSISTANT_INJECTION_ALLOWLIST config")
             return False
         allowlist = [
             phrase.strip() for phrase in allowlist_raw.split(",") if phrase.strip()

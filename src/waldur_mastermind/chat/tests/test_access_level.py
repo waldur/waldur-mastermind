@@ -4,10 +4,10 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 
-LLM_ENABLED_CONFIG = {
-    "LLM_CHAT_ENABLED": True,
-    "LLM_INFERENCES_API_URL": "https://example.com/stream",
-    "LLM_INFERENCES_API_TOKEN": "dummy-token",
+AI_ASSISTANT_ENABLED_CONFIG = {
+    "AI_ASSISTANT_ENABLED": True,
+    "AI_ASSISTANT_API_URL": "https://example.com/stream",
+    "AI_ASSISTANT_API_TOKEN": "dummy-token",
 }
 
 
@@ -29,19 +29,25 @@ class StreamAccessLevelTest(AccessLevelBaseTest):
 
     # --- staff level ---
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="staff")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="staff"
+    )
     def test_staff_level_allows_staff(self):
         self.client.force_authenticate(user=self.staff_user)
         response = self.client.post(self.stream_url, data={"input": "Hello"})
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="staff")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="staff"
+    )
     def test_staff_level_denies_support(self):
         self.client.force_authenticate(user=self.support_user)
         response = self.client.post(self.stream_url, data={"input": "Hello"})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="staff")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="staff"
+    )
     def test_staff_level_denies_regular_user(self):
         self.client.force_authenticate(user=self.regular_user)
         response = self.client.post(self.stream_url, data={"input": "Hello"})
@@ -50,7 +56,7 @@ class StreamAccessLevelTest(AccessLevelBaseTest):
     # --- staff_and_support level ---
 
     @override_constance_config(
-        **LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="staff_and_support"
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="staff_and_support"
     )
     def test_staff_and_support_level_allows_staff(self):
         self.client.force_authenticate(user=self.staff_user)
@@ -58,7 +64,7 @@ class StreamAccessLevelTest(AccessLevelBaseTest):
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @override_constance_config(
-        **LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="staff_and_support"
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="staff_and_support"
     )
     def test_staff_and_support_level_allows_support(self):
         self.client.force_authenticate(user=self.support_user)
@@ -66,7 +72,7 @@ class StreamAccessLevelTest(AccessLevelBaseTest):
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @override_constance_config(
-        **LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="staff_and_support"
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="staff_and_support"
     )
     def test_staff_and_support_level_denies_regular_user(self):
         self.client.force_authenticate(user=self.regular_user)
@@ -75,7 +81,9 @@ class StreamAccessLevelTest(AccessLevelBaseTest):
 
     # --- all level ---
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="all")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="all"
+    )
     def test_all_level_allows_regular_user(self):
         self.client.force_authenticate(user=self.regular_user)
         response = self.client.post(self.stream_url, data={"input": "Hello"})
@@ -83,15 +91,19 @@ class StreamAccessLevelTest(AccessLevelBaseTest):
 
     # --- disabled roles ---
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="disabled")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="disabled"
+    )
     def test_disabled_roles_denies_staff(self):
         self.client.force_authenticate(user=self.staff_user)
         response = self.client.post(self.stream_url, data={"input": "Hello"})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    # --- LLM_CHAT_ENABLED=False takes precedence ---
+    # --- AI_ASSISTANT_ENABLED=False takes precedence ---
 
-    @override_constance_config(LLM_CHAT_ENABLED=False, LLM_CHAT_ENABLED_ROLES="all")
+    @override_constance_config(
+        AI_ASSISTANT_ENABLED=False, AI_ASSISTANT_ENABLED_ROLES="all"
+    )
     def test_chat_disabled_returns_424(self):
         self.client.force_authenticate(user=self.staff_user)
         response = self.client.post(self.stream_url, data={"input": "Hello"})
@@ -99,7 +111,9 @@ class StreamAccessLevelTest(AccessLevelBaseTest):
 
     # --- unauthenticated ---
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="all")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="all"
+    )
     def test_unauthenticated_returns_401(self):
         response = self.client.post(self.stream_url, data={"input": "Hello"})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -108,27 +122,33 @@ class StreamAccessLevelTest(AccessLevelBaseTest):
 class SessionAccessLevelTest(AccessLevelBaseTest):
     """Test access level enforcement on chat session endpoint."""
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="staff")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="staff"
+    )
     def test_staff_level_allows_staff(self):
         self.client.force_authenticate(user=self.staff_user)
         response = self.client.get(self.current_session_url)
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="staff")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="staff"
+    )
     def test_staff_level_denies_regular_user(self):
         self.client.force_authenticate(user=self.regular_user)
         response = self.client.get(self.current_session_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     @override_constance_config(
-        **LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="staff_and_support"
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="staff_and_support"
     )
     def test_staff_and_support_level_allows_support(self):
         self.client.force_authenticate(user=self.support_user)
         response = self.client.get(self.current_session_url)
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="all")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="all"
+    )
     def test_all_level_allows_regular_user(self):
         self.client.force_authenticate(user=self.regular_user)
         response = self.client.get(self.current_session_url)
@@ -138,19 +158,25 @@ class SessionAccessLevelTest(AccessLevelBaseTest):
 class ThreadAccessLevelTest(AccessLevelBaseTest):
     """Test access level enforcement on thread endpoint."""
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="staff")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="staff"
+    )
     def test_staff_level_allows_staff(self):
         self.client.force_authenticate(user=self.staff_user)
         response = self.client.get(self.threads_url)
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="staff")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="staff"
+    )
     def test_staff_level_denies_regular_user(self):
         self.client.force_authenticate(user=self.regular_user)
         response = self.client.get(self.threads_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="all")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="all"
+    )
     def test_all_level_allows_regular_user(self):
         self.client.force_authenticate(user=self.regular_user)
         response = self.client.get(self.threads_url)
@@ -160,19 +186,25 @@ class ThreadAccessLevelTest(AccessLevelBaseTest):
 class MessageAccessLevelTest(AccessLevelBaseTest):
     """Test access level enforcement on message endpoint."""
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="staff")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="staff"
+    )
     def test_staff_level_allows_staff(self):
         self.client.force_authenticate(user=self.staff_user)
         response = self.client.get(self.messages_url)
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="staff")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="staff"
+    )
     def test_staff_level_denies_regular_user(self):
         self.client.force_authenticate(user=self.regular_user)
         response = self.client.get(self.messages_url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="all")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="all"
+    )
     def test_all_level_allows_regular_user(self):
         self.client.force_authenticate(user=self.regular_user)
         response = self.client.get(self.messages_url)
@@ -182,7 +214,9 @@ class MessageAccessLevelTest(AccessLevelBaseTest):
 class ToolAccessLevelTest(AccessLevelBaseTest):
     """Test access level enforcement on tool execute endpoint."""
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="staff")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="staff"
+    )
     def test_staff_level_allows_staff(self):
         self.client.force_authenticate(user=self.staff_user)
         response = self.client.post(
@@ -193,7 +227,9 @@ class ToolAccessLevelTest(AccessLevelBaseTest):
         # Staff passes access check; 400/422 from tool validation is expected
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="staff")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="staff"
+    )
     def test_staff_level_denies_regular_user(self):
         self.client.force_authenticate(user=self.regular_user)
         response = self.client.post(
@@ -203,7 +239,9 @@ class ToolAccessLevelTest(AccessLevelBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
-    @override_constance_config(**LLM_ENABLED_CONFIG, LLM_CHAT_ENABLED_ROLES="all")
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="all"
+    )
     def test_all_level_allows_regular_user(self):
         self.client.force_authenticate(user=self.regular_user)
         response = self.client.post(

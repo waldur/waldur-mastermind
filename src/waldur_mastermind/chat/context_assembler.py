@@ -15,7 +15,7 @@ from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
 
-# Messages with injection at MEDIUM severity or above are excluded from LLM context history.
+# Messages with injection at MEDIUM severity or above are excluded from AI Assistant context history.
 # LOW severity messages are kept since they only indicate possible, not confirmed, injections.
 # PII-only messages (no injection categories) are kept because their content is already redacted.
 EXCLUDED_SEVERITIES = [
@@ -31,14 +31,14 @@ def _get_thread_messages(thread):
     Excludes messages with injection severity >= MEDIUM (medium, high, critical).
     LOW severity messages are kept since they only indicate possible, not confirmed, injections.
     PII-only messages (no injection categories) are always kept because their content
-    is already redacted and safe to include in LLM context.
+    is already redacted and safe to include in AI Assistant context.
 
     Returns None if history limit is invalid, empty queryset if no messages.
     """
-    limit = config.LLM_CHAT_HISTORY_LIMIT
+    limit = config.AI_ASSISTANT_HISTORY_LIMIT
     if not isinstance(limit, int) or limit <= 0:
         logger.warning(
-            "Invalid LLM_CHAT_HISTORY_LIMIT value: %s.",
+            "Invalid AI_ASSISTANT_HISTORY_LIMIT value: %s.",
             limit,
         )
         return None
@@ -72,11 +72,11 @@ def _get_thread_messages(thread):
 
 def build_context(user, user_input, thread=None) -> list[dict]:
     """
-    Build the messages array for the LLM in OpenAI chat completions format.
+    Build the messages array for the AI Assistant in OpenAI chat completions format.
 
     Assembles:
       1. System message (persona + tool usage guidelines + UI capabilities)
-      2. Conversation history from DB (limited by LLM_CHAT_HISTORY_LIMIT, chronological)
+      2. Conversation history from DB (limited by AI_ASSISTANT_HISTORY_LIMIT, chronological)
       3. Current user message
     """
     if thread and thread.chat_session.user != user:

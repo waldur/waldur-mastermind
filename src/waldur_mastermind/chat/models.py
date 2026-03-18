@@ -79,17 +79,17 @@ class TokenQuota(UuidMixin, TimeStampedModel):
         "daily": (
             "daily_usage",
             "daily_limit",
-            "LLM_TOKEN_LIMIT_DAILY",
+            "AI_ASSISTANT_TOKEN_LIMIT_DAILY",
         ),
         "weekly": (
             "weekly_usage",
             "weekly_limit",
-            "LLM_TOKEN_LIMIT_WEEKLY",
+            "AI_ASSISTANT_TOKEN_LIMIT_WEEKLY",
         ),
         "monthly": (
             "monthly_usage",
             "monthly_limit",
-            "LLM_TOKEN_LIMIT_MONTHLY",
+            "AI_ASSISTANT_TOKEN_LIMIT_MONTHLY",
         ),
     }
 

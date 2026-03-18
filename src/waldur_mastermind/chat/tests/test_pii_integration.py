@@ -29,11 +29,11 @@ class CredentialBlockTest(PIIIntegrationBaseTest):
     """Test that credentials are blocked at the API level."""
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_INJECTION_ALLOWLIST="",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_INJECTION_ALLOWLIST="",
     )
     def test_private_key_blocked(self):
         """Private key in message should be blocked and PII fields persisted."""
@@ -58,11 +58,11 @@ class CredentialBlockTest(PIIIntegrationBaseTest):
         self.assertIn("pii_private_key", user_msg.pii_categories)
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_INJECTION_ALLOWLIST="",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_INJECTION_ALLOWLIST="",
     )
     def test_github_token_blocked(self):
         response = self.client.post(
@@ -74,11 +74,11 @@ class CredentialBlockTest(PIIIntegrationBaseTest):
         self.assertIn("I'm sorry, I can't help with that request", content)
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_INJECTION_ALLOWLIST="",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_INJECTION_ALLOWLIST="",
     )
     def test_credential_block_yields_pii_warning(self):
         """Blocked credential message should include a PII warning in the stream."""
@@ -104,18 +104,18 @@ class CredentialBlockTest(PIIIntegrationBaseTest):
 
 
 class IBANRedactTest(PIIIntegrationBaseTest):
-    """Test that IBANs are redacted before reaching the LLM."""
+    """Test that IBANs are redacted before reaching the AI Assistant."""
 
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_INJECTION_ALLOWLIST="",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_INJECTION_ALLOWLIST="",
     )
     def test_iban_redacted_in_llm_context(self, mock_openai_cls):
-        """IBAN should be redacted before sending to LLM."""
+        """IBAN should be redacted before sending to AI Assistant."""
         mock_client = _mock_openai_client(
             [_make_content_chunk("I can help with that.")]
         )
@@ -128,13 +128,13 @@ class IBANRedactTest(PIIIntegrationBaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = b"".join(response.streaming_content).decode()
 
-        # Verify LLM was called (not blocked) — REDACT should still call LLM
+        # Verify AI Assistant was called (not blocked) — REDACT should still call AI Assistant
         self.assertTrue(
             mock_openai_cls.called,
-            f"Expected LLM to be called for REDACT action. Stream content: {content[:200]}",
+            f"Expected AI Assistant to be called for REDACT action. Stream content: {content[:200]}",
         )
 
-        # Verify the IBAN was redacted in the messages sent to LLM
+        # Verify the IBAN was redacted in the messages sent to AI Assistant
         call_kwargs = mock_client.chat.completions.create.call_args
         sent_messages = call_kwargs.kwargs.get("messages") or call_kwargs[1].get(
             "messages"
@@ -156,11 +156,11 @@ class IBANRedactTest(PIIIntegrationBaseTest):
 
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_INJECTION_ALLOWLIST="",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_INJECTION_ALLOWLIST="",
     )
     def test_iban_redact_yields_pii_warning(self, mock_openai_cls):
         """Redacted message should include a PII warning in the stream."""
@@ -192,11 +192,11 @@ class JWTWarnTest(PIIIntegrationBaseTest):
 
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_INJECTION_ALLOWLIST="",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_INJECTION_ALLOWLIST="",
     )
     def test_jwt_warned_but_not_blocked(self, mock_openai_cls):
         mock_client = _mock_openai_client(
@@ -212,7 +212,7 @@ class JWTWarnTest(PIIIntegrationBaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = b"".join(response.streaming_content).decode()
 
-        # Should NOT be blocked (LLM was called)
+        # Should NOT be blocked (AI Assistant was called)
         self.assertTrue(mock_openai_cls.called)
         # Should contain a warning
         found_warning = False
@@ -239,11 +239,11 @@ class DatabaseURLBlockTest(PIIIntegrationBaseTest):
     """Test that database connection strings are blocked at the API level."""
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_INJECTION_ALLOWLIST="",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_INJECTION_ALLOWLIST="",
     )
     def test_database_url_blocked(self):
         """Database connection string should be blocked."""
@@ -266,11 +266,11 @@ class DatabaseURLBlockTest(PIIIntegrationBaseTest):
         self.assertIn("pii_database_url", user_msg.pii_categories)
 
     @override_constance_config(
-        LLM_CHAT_ENABLED=True,
-        LLM_CHAT_ENABLED_ROLES="all",
-        LLM_INFERENCES_API_URL="https://example.com/stream",
-        LLM_INFERENCES_API_TOKEN="dummy-token",
-        LLM_INJECTION_ALLOWLIST="",
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_INJECTION_ALLOWLIST="",
     )
     def test_password_context_blocked(self):
         """Password=value context should be blocked."""

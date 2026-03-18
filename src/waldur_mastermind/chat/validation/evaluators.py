@@ -13,10 +13,10 @@ class Evaluator(ABC):
     @abstractmethod
     def evaluate(self, response_text: str, config: dict) -> EvaluationResult:
         """
-        Evaluate an LLM response against criteria.
+        Evaluate an AI Assistant response against criteria.
 
         Args:
-            response_text: The LLM's response text
+            response_text: The AI Assistant's response text
             config: Evaluator-specific configuration
 
         Returns:

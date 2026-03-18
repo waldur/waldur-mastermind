@@ -23,7 +23,7 @@ FALLBACK_DEFAULTS = {
     "top_p": 0.8,
 }
 
-# Keys that admin config (LLM_COMPLETION_KWARGS) is permitted to set.
+# Keys that admin config (AI_ASSISTANT_COMPLETION_KWARGS) is permitted to set.
 # Anything not in this list is silently ignored, preventing injection of
 # structural fields (model, messages, stream, tools, …) or transport-layer
 # overrides (extra_headers, extra_query, timeout, …).

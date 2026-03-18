@@ -9,7 +9,7 @@ class ToolRegistry:
     """Central registry for chat tools.
 
     Handles tool registration, lookup, and auto-assembly of the tools section
-    of the LLM system prompt from per-tool prompt fragments.
+    of the AI Assistant system prompt from per-tool prompt fragments.
     """
 
     def __init__(self):

@@ -49,13 +49,13 @@ class LLMStreamerTest(unittest.TestCase):
         # Patch constance config to avoid DB access and patch the OpenAI client
         config_patcher = patch(
             "waldur_mastermind.chat.llm_streamer.config",
-            LLM_INFERENCES_MODEL="test-model",
-            LLM_INFERENCES_API_URL="https://example.com/v1",
-            LLM_INFERENCES_API_TOKEN="tok",
-            LLM_CHAT_ENABLED=True,
-            LLM_CHAT_ENABLED_ROLES="all",
-            LLM_INFERENCES_BACKEND_TYPE="generic",
-            LLM_COMPLETION_KWARGS={},
+            AI_ASSISTANT_MODEL="test-model",
+            AI_ASSISTANT_API_URL="https://example.com/v1",
+            AI_ASSISTANT_API_TOKEN="tok",
+            AI_ASSISTANT_ENABLED=True,
+            AI_ASSISTANT_ENABLED_ROLES="all",
+            AI_ASSISTANT_BACKEND_TYPE="generic",
+            AI_ASSISTANT_COMPLETION_KWARGS={},
         )
         self.mock_config = config_patcher.start()
         self.addCleanup(config_patcher.stop)
@@ -313,13 +313,13 @@ class LLMStreamerUsageRecordingTest(drf_test.APITestCase):
     def setUp(self):
         config_patcher = patch(
             "waldur_mastermind.chat.llm_streamer.config",
-            LLM_INFERENCES_MODEL="test-model",
-            LLM_INFERENCES_API_URL="https://example.com/v1",
-            LLM_INFERENCES_API_TOKEN="tok",
-            LLM_CHAT_ENABLED=True,
-            LLM_CHAT_ENABLED_ROLES="all",
-            LLM_INFERENCES_BACKEND_TYPE="generic",
-            LLM_COMPLETION_KWARGS={},
+            AI_ASSISTANT_MODEL="test-model",
+            AI_ASSISTANT_API_URL="https://example.com/v1",
+            AI_ASSISTANT_API_TOKEN="tok",
+            AI_ASSISTANT_ENABLED=True,
+            AI_ASSISTANT_ENABLED_ROLES="all",
+            AI_ASSISTANT_BACKEND_TYPE="generic",
+            AI_ASSISTANT_COMPLETION_KWARGS={},
         )
         config_patcher.start()
         self.addCleanup(config_patcher.stop)
@@ -448,12 +448,12 @@ class LLMStreamerCompletionKwargsTest(unittest.TestCase):
         return call_kwargs
 
     def test_default_provider_kwargs_ollama(self):
-        """backend=ollama, LLM_COMPLETION_KWARGS={} => temperature=0.7, top_p=0.8."""
+        """backend=ollama, AI_ASSISTANT_COMPLETION_KWARGS={} => temperature=0.7, top_p=0.8."""
         with patch(
             "waldur_mastermind.chat.llm_streamer.config",
-            LLM_INFERENCES_MODEL="test-model",
-            LLM_INFERENCES_BACKEND_TYPE="ollama",
-            LLM_COMPLETION_KWARGS={},
+            AI_ASSISTANT_MODEL="test-model",
+            AI_ASSISTANT_BACKEND_TYPE="ollama",
+            AI_ASSISTANT_COMPLETION_KWARGS={},
         ) as mock_config:
             streamer = self._make_streamer_with_config(mock_config)
             kwargs = self._call_and_get_kwargs(streamer)
@@ -464,12 +464,12 @@ class LLMStreamerCompletionKwargsTest(unittest.TestCase):
         self.assertNotIn("extra_body", kwargs)
 
     def test_default_provider_kwargs_vllm(self):
-        """backend=vllm, LLM_COMPLETION_KWARGS={} => includes presence_penalty and extra_body."""
+        """backend=vllm, AI_ASSISTANT_COMPLETION_KWARGS={} => includes presence_penalty and extra_body."""
         with patch(
             "waldur_mastermind.chat.llm_streamer.config",
-            LLM_INFERENCES_MODEL="test-model",
-            LLM_INFERENCES_BACKEND_TYPE="vllm",
-            LLM_COMPLETION_KWARGS={},
+            AI_ASSISTANT_MODEL="test-model",
+            AI_ASSISTANT_BACKEND_TYPE="vllm",
+            AI_ASSISTANT_COMPLETION_KWARGS={},
         ) as mock_config:
             streamer = self._make_streamer_with_config(mock_config)
             kwargs = self._call_and_get_kwargs(streamer)
@@ -484,12 +484,12 @@ class LLMStreamerCompletionKwargsTest(unittest.TestCase):
         )
 
     def test_override_merges_with_provider(self):
-        """backend=vllm, LLM_COMPLETION_KWARGS={"temperature": 0.5} => temperature=0.5 + rest of vllm defaults."""
+        """backend=vllm, AI_ASSISTANT_COMPLETION_KWARGS={"temperature": 0.5} => temperature=0.5 + rest of vllm defaults."""
         with patch(
             "waldur_mastermind.chat.llm_streamer.config",
-            LLM_INFERENCES_MODEL="test-model",
-            LLM_INFERENCES_BACKEND_TYPE="vllm",
-            LLM_COMPLETION_KWARGS={"temperature": 0.5},
+            AI_ASSISTANT_MODEL="test-model",
+            AI_ASSISTANT_BACKEND_TYPE="vllm",
+            AI_ASSISTANT_COMPLETION_KWARGS={"temperature": 0.5},
         ) as mock_config:
             streamer = self._make_streamer_with_config(mock_config)
             kwargs = self._call_and_get_kwargs(streamer)
@@ -499,12 +499,12 @@ class LLMStreamerCompletionKwargsTest(unittest.TestCase):
         self.assertEqual(kwargs["presence_penalty"], 1.5)
 
     def test_unknown_provider_uses_fallback(self):
-        """backend='custom_provider', LLM_COMPLETION_KWARGS={} => FALLBACK_DEFAULTS applied."""
+        """backend='custom_provider', AI_ASSISTANT_COMPLETION_KWARGS={} => FALLBACK_DEFAULTS applied."""
         with patch(
             "waldur_mastermind.chat.llm_streamer.config",
-            LLM_INFERENCES_MODEL="test-model",
-            LLM_INFERENCES_BACKEND_TYPE="custom_provider",
-            LLM_COMPLETION_KWARGS={},
+            AI_ASSISTANT_MODEL="test-model",
+            AI_ASSISTANT_BACKEND_TYPE="custom_provider",
+            AI_ASSISTANT_COMPLETION_KWARGS={},
         ) as mock_config:
             streamer = self._make_streamer_with_config(mock_config)
             kwargs = self._call_and_get_kwargs(streamer)
@@ -514,12 +514,12 @@ class LLMStreamerCompletionKwargsTest(unittest.TestCase):
         self.assertNotIn("presence_penalty", kwargs)
 
     def test_protected_keys_ignored(self):
-        """LLM_COMPLETION_KWARGS with protected keys are ignored and a warning is logged."""
+        """AI_ASSISTANT_COMPLETION_KWARGS with protected keys are ignored and a warning is logged."""
         with patch(
             "waldur_mastermind.chat.llm_streamer.config",
-            LLM_INFERENCES_MODEL="real-model",
-            LLM_INFERENCES_BACKEND_TYPE="ollama",
-            LLM_COMPLETION_KWARGS={"model": "evil-model", "temperature": 0.5},
+            AI_ASSISTANT_MODEL="real-model",
+            AI_ASSISTANT_BACKEND_TYPE="ollama",
+            AI_ASSISTANT_COMPLETION_KWARGS={"model": "evil-model", "temperature": 0.5},
         ) as mock_config:
             streamer = self._make_streamer_with_config(mock_config)
             with patch("waldur_mastermind.chat.llm_streamer.logger") as mock_logger:
@@ -532,12 +532,12 @@ class LLMStreamerCompletionKwargsTest(unittest.TestCase):
         self.assertIn("protected keys", warning_call[0])
 
     def test_empty_override(self):
-        """LLM_COMPLETION_KWARGS={} => pure provider defaults, no extra keys."""
+        """AI_ASSISTANT_COMPLETION_KWARGS={} => pure provider defaults, no extra keys."""
         with patch(
             "waldur_mastermind.chat.llm_streamer.config",
-            LLM_INFERENCES_MODEL="test-model",
-            LLM_INFERENCES_BACKEND_TYPE="openai",
-            LLM_COMPLETION_KWARGS={},
+            AI_ASSISTANT_MODEL="test-model",
+            AI_ASSISTANT_BACKEND_TYPE="openai",
+            AI_ASSISTANT_COMPLETION_KWARGS={},
         ) as mock_config:
             streamer = self._make_streamer_with_config(mock_config)
             kwargs = self._call_and_get_kwargs(streamer)

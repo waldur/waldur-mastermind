@@ -48,10 +48,10 @@ class MessageModelTest(test.APITestCase):
 
 
 @override_constance_config(
-    LLM_CHAT_ENABLED=True,
-    LLM_CHAT_ENABLED_ROLES="all",
-    LLM_INFERENCES_API_URL="https://example.com/stream",
-    LLM_INFERENCES_API_TOKEN="dummy-token",
+    AI_ASSISTANT_ENABLED=True,
+    AI_ASSISTANT_ENABLED_ROLES="all",
+    AI_ASSISTANT_API_URL="https://example.com/stream",
+    AI_ASSISTANT_API_TOKEN="dummy-token",
 )
 class ChatSessionViewSetTest(test.APITestCase):
     """Test ChatSessionViewSet endpoints."""
@@ -90,10 +90,10 @@ class ChatSessionViewSetTest(test.APITestCase):
 
 
 @override_constance_config(
-    LLM_CHAT_ENABLED=True,
-    LLM_CHAT_ENABLED_ROLES="all",
-    LLM_INFERENCES_API_URL="https://example.com/stream",
-    LLM_INFERENCES_API_TOKEN="dummy-token",
+    AI_ASSISTANT_ENABLED=True,
+    AI_ASSISTANT_ENABLED_ROLES="all",
+    AI_ASSISTANT_API_URL="https://example.com/stream",
+    AI_ASSISTANT_API_TOKEN="dummy-token",
 )
 class ThreadSessionViewSetTest(test.APITestCase):
     """Test ThreadSessionViewSet endpoints."""
@@ -208,7 +208,7 @@ class ThreadTitleGenerationTest(test.APITestCase):
 
     @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     def test_new_thread_gets_llm_generated_title(self, mock_openai_cls):
-        """New thread's name is updated with the title from a second LLM call."""
+        """New thread's name is updated with the title from a second AI Assistant call."""
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client
         mock_client.chat.completions.create.side_effect = [
@@ -249,7 +249,7 @@ class ThreadTitleGenerationTest(test.APITestCase):
 
     @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     def test_title_generation_failure_does_not_break_stream(self, mock_openai_cls):
-        """If the title LLM call fails, the main response still works and name stays default."""
+        """If the title AI Assistant call fails, the main response still works and name stays default."""
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client
         mock_client.chat.completions.create.side_effect = [
@@ -288,7 +288,7 @@ class ThreadTitleGenerationTest(test.APITestCase):
 
     @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     def test_empty_title_leaves_default_name(self, mock_openai_cls):
-        """If the LLM returns only whitespace/quotes, the default name is kept."""
+        """If the AI Assistant returns only whitespace/quotes, the default name is kept."""
         mock_client = MagicMock()
         mock_openai_cls.return_value = mock_client
         mock_client.chat.completions.create.side_effect = [

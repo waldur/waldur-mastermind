@@ -89,7 +89,7 @@ OFFERING_VISIBILITY_CHOICES = [
     ("require_membership", "Hide all unless user belongs to an organization/project"),
 ]
 
-LLM_CHAT_ENABLED_ROLES_CHOICES = [
+AI_ASSISTANT_ENABLED_ROLES_CHOICES = [
     ("disabled", "Disabled"),
     ("staff", "Staff users"),
     ("staff_and_support", "Staff and support users"),
@@ -266,7 +266,7 @@ CONSTANCE_CONFIG_CHOICES = {
     "RESTRICTED_OFFERING_VISIBILITY_MODE": OFFERING_VISIBILITY_CHOICES,
     "SSH_KEY_ALLOWED_TYPES": SSH_KEY_TYPE_CHOICES,
     "ENABLED_REPORTING_SCREENS": REPORTING_SCREEN_CHOICES,
-    "LLM_CHAT_ENABLED_ROLES": LLM_CHAT_ENABLED_ROLES_CHOICES,
+    "AI_ASSISTANT_ENABLED_ROLES": AI_ASSISTANT_ENABLED_ROLES_CHOICES,
 }
 
 CONSTANCE_CONFIG = {
@@ -1033,12 +1033,12 @@ CONSTANCE_CONFIG = {
         "Norway Business Register API server URL",
         "url_field",
     ),
-    # LLM inference settings
-    "LLM_CHAT_ENABLED": (
+    # AI assistant settings
+    "AI_ASSISTANT_ENABLED": (
         False,
-        "Enable LLM-based chat feature and calls to the inference service.",
+        "Enable AI Assistant feature and calls to the inference service.",
     ),
-    "LLM_CHAT_ENABLED_ROLES": (
+    "AI_ASSISTANT_ENABLED_ROLES": (
         "disabled",
         "Controls which user roles can access the AI Assistant. "
         "'disabled': No role-based access. "
@@ -1047,54 +1047,54 @@ CONSTANCE_CONFIG = {
         "'all': All authenticated users.",
         "choice_field",
     ),
-    "LLM_INFERENCES_BACKEND_TYPE": (
+    "AI_ASSISTANT_BACKEND_TYPE": (
         "vllm",
-        "Type of LLM inference backend. For example: vllm, openai, ollama.",
+        "Type of AI Assistant backend. For example: vllm, openai, ollama.",
     ),
-    "LLM_INFERENCES_API_URL": (
+    "AI_ASSISTANT_API_URL": (
         "",
-        "Base URL for LLM inference service API.",
+        "Base URL for AI Assistant service API.",
         "url_field",
     ),
-    "LLM_INFERENCES_API_TOKEN": (
+    "AI_ASSISTANT_API_TOKEN": (
         "",
-        "API key for authenticating with the LLM inference service.",
+        "API key for authenticating with the AI Assistant service.",
         "secret_field",
     ),
-    "LLM_INFERENCES_MODEL": (
-        "gemma3:27b",
-        "Name of the LLM model to use for inference.",
+    "AI_ASSISTANT_MODEL": (
+        "qwen3.5-122b-nothinking",
+        "Name of the AI Assistant model to use for inference.",
     ),
-    "LLM_COMPLETION_KWARGS": (
+    "AI_ASSISTANT_COMPLETION_KWARGS": (
         {},
-        "Override keyword arguments merged on top of provider defaults for LLM chat completion. "
+        "Override keyword arguments merged on top of provider defaults for AI Assistant chat completion. "
         "Supported keys: temperature, top_p, top_k, max_tokens, max_completion_tokens, "
         "presence_penalty, frequency_penalty, repetition_penalty, stop, seed, "
         "reasoning_effort, extra_body. "
         "Leave empty to use provider defaults.",
         "dict_field",
     ),
-    "LLM_TOKEN_LIMIT_DAILY": (
+    "AI_ASSISTANT_TOKEN_LIMIT_DAILY": (
         -1,
         "Default daily token limit (integer). -1 means unlimited.",
     ),
-    "LLM_TOKEN_LIMIT_WEEKLY": (
+    "AI_ASSISTANT_TOKEN_LIMIT_WEEKLY": (
         -1,
         "Default weekly token limit (integer). -1 means unlimited.",
     ),
-    "LLM_TOKEN_LIMIT_MONTHLY": (
+    "AI_ASSISTANT_TOKEN_LIMIT_MONTHLY": (
         -1,
         "Default monthly token limit (integer). -1 means unlimited.",
     ),
-    "LLM_CHAT_SESSION_RETENTION_DAYS": (
+    "AI_ASSISTANT_SESSION_RETENTION_DAYS": (
         90,
-        "Number of days to retain chat sessions before automatic deletion. Set to -1 to disable automatic cleanup.",
+        "Number of days to retain AI Assistant sessions before automatic deletion. Set to -1 to disable automatic cleanup.",
     ),
-    "LLM_CHAT_HISTORY_LIMIT": (
+    "AI_ASSISTANT_HISTORY_LIMIT": (
         50,
-        "Maximum number of past messages included in the LLM context window.",
+        "Maximum number of past messages included in the AI Assistant context window.",
     ),
-    "LLM_INJECTION_ALLOWLIST": (
+    "AI_ASSISTANT_INJECTION_ALLOWLIST": (
         "",
         "Comma-separated allowlist phrases that bypass injection detection.",
     ),
@@ -1530,20 +1530,20 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ONBOARDING_BOLAGSVERKET_CLIENT_SECRET",
         "ONBOARDING_BREG_API_URL",
     ),
-    "LLM inference settings": (
-        "LLM_CHAT_ENABLED",
-        "LLM_CHAT_ENABLED_ROLES",
-        "LLM_INFERENCES_BACKEND_TYPE",
-        "LLM_INFERENCES_API_URL",
-        "LLM_INFERENCES_API_TOKEN",
-        "LLM_INFERENCES_MODEL",
-        "LLM_COMPLETION_KWARGS",
-        "LLM_TOKEN_LIMIT_DAILY",
-        "LLM_TOKEN_LIMIT_WEEKLY",
-        "LLM_TOKEN_LIMIT_MONTHLY",
-        "LLM_CHAT_SESSION_RETENTION_DAYS",
-        "LLM_CHAT_HISTORY_LIMIT",
-        "LLM_INJECTION_ALLOWLIST",
+    "AI assistant settings": (
+        "AI_ASSISTANT_ENABLED",
+        "AI_ASSISTANT_ENABLED_ROLES",
+        "AI_ASSISTANT_BACKEND_TYPE",
+        "AI_ASSISTANT_API_URL",
+        "AI_ASSISTANT_API_TOKEN",
+        "AI_ASSISTANT_MODEL",
+        "AI_ASSISTANT_COMPLETION_KWARGS",
+        "AI_ASSISTANT_TOKEN_LIMIT_DAILY",
+        "AI_ASSISTANT_TOKEN_LIMIT_WEEKLY",
+        "AI_ASSISTANT_TOKEN_LIMIT_MONTHLY",
+        "AI_ASSISTANT_SESSION_RETENTION_DAYS",
+        "AI_ASSISTANT_HISTORY_LIMIT",
+        "AI_ASSISTANT_INJECTION_ALLOWLIST",
     ),
     "Software catalog settings": (
         "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED",
@@ -1641,8 +1641,8 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "MARKETPLACE_LANDING_PAGE",
     "ENABLE_ORDER_START_DATE",
     "ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT",
-    "LLM_CHAT_ENABLED",
-    "LLM_CHAT_ENABLED_ROLES",
+    "AI_ASSISTANT_ENABLED",
+    "AI_ASSISTANT_ENABLED_ROLES",
     # Support plugin
     "WALDUR_SUPPORT_ENABLED",
     "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE",

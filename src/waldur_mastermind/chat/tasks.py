@@ -48,12 +48,12 @@ def cleanup_old_chat_sessions():
     Delete chat sessions older than the configured retention period.
 
     Deletes ChatSession objects where the modified timestamp is older than
-    LLM_CHAT_SESSION_RETENTION_DAYS. Cascading delete will automatically remove
+    AI_ASSISTANT_SESSION_RETENTION_DAYS. Cascading delete will automatically remove
     related ThreadSession and Message objects.
 
     Returns a dict with status and deleted_count.
     """
-    retention_days = config.LLM_CHAT_SESSION_RETENTION_DAYS
+    retention_days = config.AI_ASSISTANT_SESSION_RETENTION_DAYS
 
     if retention_days <= 0:
         logger.info(
