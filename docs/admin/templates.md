@@ -275,11 +275,102 @@ Owner of
 
 ```
 
+### notification_project_end_date_change_request_created_subject.txt (waldur_core.structure)
+
+```txt
+
+Project end date change request for {{ project_end_date_change_request.project.name }}
+
+```
+
+### notification_project_end_date_change_request_rejected_message.html (waldur_core.structure)
+
+```html
+
+<p>Hello!</p>
+<p>Your request to change the end date of project <strong>{{ project_end_date_change_request.project.name }}</strong> to <strong>{{ project_end_date_change_request.requested_end_date }}</strong> has been rejected.</p>
+<p>You can <a href="{{ project_url }}">view the project here</a>.</p>
+<p>Thank you!</p>
+
+```
+
+### notification_project_end_date_change_request_rejected_subject.txt (waldur_core.structure)
+
+```txt
+
+Project end date change request for {{ project_end_date_change_request.project.name }} has been rejected
+
+```
+
+### notification_project_end_date_change_request_approved_subject.txt (waldur_core.structure)
+
+```txt
+
+Project end date change request for {{ project_end_date_change_request.project.name }} has been approved
+
+```
+
+### notification_project_end_date_change_request_rejected_message.txt (waldur_core.structure)
+
+```txt
+
+Hello!
+
+Your request to change the end date of project {{ project_end_date_change_request.project.name }} to {{ project_end_date_change_request.requested_end_date }} has been rejected.
+
+You can view the project here:
+{{ project_url }}
+
+Thank you!
+
+```
+
+### notification_project_end_date_change_request_created_message.txt (waldur_core.structure)
+
+```txt
+
+Hello!
+
+{{ project_end_date_change_request.created_by.full_name }} has requested to change the end date of project {{ project_end_date_change_request.project.name }} from {{ project_end_date_change_request.project.end_date }} to {{ project_end_date_change_request.requested_end_date }}.
+
+Please review and approve or reject the request:
+{{ project_url }}
+
+Thank you!
+
+```
+
+### notification_project_end_date_change_request_created_message.html (waldur_core.structure)
+
+```html
+
+<p>Hello!</p>
+<p>{{ project_end_date_change_request.created_by.full_name }} has requested to change the end date of project <strong>{{ project_end_date_change_request.project.name }}</strong> to <strong>{{ project_end_date_change_request.requested_end_date }}</strong>.</p>
+<p>Please <a href="{{ project_url }}">review and approve or reject the request</a>.</p>
+<p>Thank you!</p>
+
+```
+
 ### structure_role_granted_message.html (waldur_core.structure)
 
 ```html
 
 <p>Role {{ permission.role }}  for {{ structure }} has been granted.</p>
+
+```
+
+### notification_project_end_date_change_request_approved_message.txt (waldur_core.structure)
+
+```txt
+
+Hello!
+
+Your request to change the end date of project {{ project_end_date_change_request.project.name }} to {{ project_end_date_change_request.requested_end_date }} has been approved.
+
+You can view the project here:
+{{ project_url }}
+
+Thank you!
 
 ```
 
@@ -317,6 +408,17 @@ User {{user.full_name}} (id={{ user.id }}) profile has been updated:
 ```txt
 
 {% load i18n %}{% blocktrans with org=organization_name %}Project Summary - {{ org }}{% endblocktrans %}
+
+```
+
+### notification_project_end_date_change_request_approved_message.html (waldur_core.structure)
+
+```html
+
+<p>Hello!</p>
+<p>Your request to change the end date of project <strong>{{ project_end_date_change_request.project.name }}</strong> to <strong>{{ project_end_date_change_request.requested_end_date }}</strong> has been approved.</p>
+<p>You can <a href="{{ project_url }}">view the project here</a>.</p>
+<p>Thank you!</p>
 
 ```
 

@@ -163,6 +163,7 @@ td:nth-child(4) {
 | `log_customer_delete` | `Django Signal (post_delete)` | `structure.Customer` | Log customer deletion. |
 | `log_customer_save` | `Django Signal (post_save)` | `structure.Customer` | Log customer creation and updates. |
 | `log_project_delete` | `Django Signal (post_delete)` | `structure.Project` | Log project deletion. |
+| `log_project_end_date_change_request_events` | `Django Signal (post_save)` | `structure.ProjectEndDateChangeRequest` | Log events when project end date change request is created or reviewed. |
 | `log_project_save` | `Django Signal (post_save)` | `structure.Project` | Log project creation and updates. |
 | `log_resource_action` | `Custom Signal (post_transition)` | `waldur_aws.Instance` | Log resource state transitions. |
 | `log_resource_action` | `Custom Signal (post_transition)` | `waldur_aws.Volume` | Log resource state transitions. |
@@ -867,11 +868,11 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 783
+Total unique handlers found: 784
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 408 handlers
+- **waldur_core**: 409 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_keycloak**: 9 handlers
 - **waldur_lexis**: 1 handlers

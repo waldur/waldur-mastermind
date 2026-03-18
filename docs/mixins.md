@@ -82,7 +82,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ProjectMetadataTestMixin`](#projectmetadatatestmixin) | `waldur_core.structure.tests.test_project_metadata` | Shared test setup and utilities for project metadata tests |
 | [`AvailabilityCheckViewMixin`](#availabilitycheckviewmixin) | `waldur_core.structure.views` | A viewset that provides default `create()`, `retrieve()`, `update()`, `partia... |
 | [`CheckExtensionMixin`](#checkextensionmixin) | `waldur_freeipa.views` | Raise exception if extension is disabled |
-| [`LLMConfigurationMixin`](#llmconfigurationmixin) | `waldur_mastermind.chat.views` | Validates that LLM chat is enabled and properly configured |
+| [`LLMConfigurationMixin`](#llmconfigurationmixin) | `waldur_mastermind.chat.views` | Validates that LLM chat is enabled, the user has the required role, and the i... |
 | [`PeriodMixin`](#periodmixin) | `waldur_mastermind.invoices.models` | Make subclasses preserve the alters_data attribute on overridden methods |
 | [`ConnectedResourceMixin`](#connectedresourcemixin) | `waldur_mastermind.marketplace.admin` | Protects object from modification if there are connected resources |
 | [`ParentInlineMixin`](#parentinlinemixin) | `waldur_mastermind.marketplace.admin` | Mixin to get parent object from request in Django admin inline views |
@@ -1170,8 +1170,11 @@ Raise exception if extension is disabled
 
 **Description:**
 
-Validates that LLM chat is enabled and properly configured.
-Extends ConstanceCheckExtensionMixin to check LLM_CHAT_ENABLED flag.
+Validates that LLM chat is enabled, the user has the required role,
+and the inference API is properly configured.
+
+LLM_CHAT_ENABLED (boolean) is the master on/off switch.
+LLM_CHAT_ENABLED_ROLES controls which user roles can access the feature.
 
 **Base classes:** `ConstanceCheckExtensionMixin`
 

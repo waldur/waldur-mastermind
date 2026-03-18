@@ -32,6 +32,126 @@ A notification sent out when an email change is requested. Recipient is the old 
 
 ```
 
+### structure.notification_project_end_date_change_request_approved
+
+Notifies the requester when their project end date change request is approved.
+
+#### Templates
+
+=== "structure/notification_project_end_date_change_request_approved_subject.txt"
+
+```txt
+
+    Project end date change request for {{ project_end_date_change_request.project.name }} has been approved
+
+```
+
+=== "structure/notification_project_end_date_change_request_approved_message.txt"
+
+```txt
+
+    Hello!
+
+    Your request to change the end date of project {{ project_end_date_change_request.project.name }} to {{ project_end_date_change_request.requested_end_date }} has been approved.
+
+    You can view the project here:
+    {{ project_url }}
+
+    Thank you!
+
+```
+
+=== "structure/notification_project_end_date_change_request_approved_message.html"
+
+```txt
+
+    <p>Hello!</p>
+    <p>Your request to change the end date of project <strong>{{ project_end_date_change_request.project.name }}</strong> to <strong>{{ project_end_date_change_request.requested_end_date }}</strong> has been approved.</p>
+    <p>You can <a href="{{ project_url }}">view the project here</a>.</p>
+    <p>Thank you!</p>
+
+```
+
+### structure.notification_project_end_date_change_request_created
+
+Notifies organization owners when a project member requests to change project end date.
+
+#### Templates
+
+=== "structure/notification_project_end_date_change_request_created_subject.txt"
+
+```txt
+
+    Project end date change request for {{ project_end_date_change_request.project.name }}
+
+```
+
+=== "structure/notification_project_end_date_change_request_created_message.txt"
+
+```txt
+
+    Hello!
+
+    {{ project_end_date_change_request.created_by.full_name }} has requested to change the end date of project {{ project_end_date_change_request.project.name }} from {{ project_end_date_change_request.project.end_date }} to {{ project_end_date_change_request.requested_end_date }}.
+
+    Please review and approve or reject the request:
+    {{ project_url }}
+
+    Thank you!
+
+```
+
+=== "structure/notification_project_end_date_change_request_created_message.html"
+
+```txt
+
+    <p>Hello!</p>
+    <p>{{ project_end_date_change_request.created_by.full_name }} has requested to change the end date of project <strong>{{ project_end_date_change_request.project.name }}</strong> to <strong>{{ project_end_date_change_request.requested_end_date }}</strong>.</p>
+    <p>Please <a href="{{ project_url }}">review and approve or reject the request</a>.</p>
+    <p>Thank you!</p>
+
+```
+
+### structure.notification_project_end_date_change_request_rejected
+
+Notifies the requester when their project end date change request is rejected.
+
+#### Templates
+
+=== "structure/notification_project_end_date_change_request_rejected_subject.txt"
+
+```txt
+
+    Project end date change request for {{ project_end_date_change_request.project.name }} has been rejected
+
+```
+
+=== "structure/notification_project_end_date_change_request_rejected_message.txt"
+
+```txt
+
+    Hello!
+
+    Your request to change the end date of project {{ project_end_date_change_request.project.name }} to {{ project_end_date_change_request.requested_end_date }} has been rejected.
+
+    You can view the project here:
+    {{ project_url }}
+
+    Thank you!
+
+```
+
+=== "structure/notification_project_end_date_change_request_rejected_message.html"
+
+```txt
+
+    <p>Hello!</p>
+    <p>Your request to change the end date of project <strong>{{ project_end_date_change_request.project.name }}</strong> to <strong>{{ project_end_date_change_request.requested_end_date }}</strong> has been rejected.</p>
+    <p>You can <a href="{{ project_url }}">view the project here</a>.</p>
+    <p>Thank you!</p>
+
+```
+
 ### structure.notifications_profile_changes_operator
 
 A notification sent to Waldur operators when a user's profile is updated.

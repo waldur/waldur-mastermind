@@ -2516,6 +2516,14 @@ Norway Business Register API server URL
 
 Enable LLM-based chat feature and calls to the inference service.
 
+#### LLM_CHAT_ENABLED_ROLES
+
+**Type:** choice_field
+
+**Default value:** disabled
+
+Controls which user roles can access the AI Assistant. 'disabled': No role-based access. 'staff': Staff users only. 'staff_and_support': Staff and support users. 'all': All authenticated users.
+
 #### LLM_INFERENCES_BACKEND_TYPE
 
 **Type:** str
