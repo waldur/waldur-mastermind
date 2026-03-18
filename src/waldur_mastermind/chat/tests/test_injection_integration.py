@@ -44,6 +44,7 @@ class InjectionBlockTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -59,6 +60,7 @@ class InjectionBlockTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -74,6 +76,7 @@ class InjectionBlockTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -94,6 +97,7 @@ class ContextAwareRejectionTest(InjectionIntegrationBaseTest):
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -146,6 +150,7 @@ class ContextAwareRejectionTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -162,6 +167,7 @@ class ContextAwareRejectionTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -189,6 +195,7 @@ class CleanInputPassthroughTest(InjectionIntegrationBaseTest):
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -214,6 +221,7 @@ class InjectionPersistenceTest(InjectionIntegrationBaseTest):
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -249,6 +257,7 @@ class CannedResponsePersistenceTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -293,6 +302,7 @@ class MessageFilterTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -539,6 +549,7 @@ class InjectionFieldsVisibilityTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -561,6 +572,7 @@ class InjectionFieldsVisibilityTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -583,6 +595,7 @@ class InjectionFieldsVisibilityTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -621,6 +634,7 @@ class InjectionDetectionErrorHandlingTest(InjectionIntegrationBaseTest):
     @mock.patch("waldur_mastermind.chat.views.get_detection_service")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -639,6 +653,7 @@ class InjectionDetectionErrorHandlingTest(InjectionIntegrationBaseTest):
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -665,6 +680,7 @@ class ToolExecuteInjectionTest(InjectionIntegrationBaseTest):
     @mock.patch("waldur_mastermind.chat.views.validate_tool_call")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -693,6 +709,7 @@ class ToolExecuteInjectionTest(InjectionIntegrationBaseTest):
     @mock.patch("waldur_mastermind.chat.views.validate_tool_call")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -722,6 +739,7 @@ class FlaggedMessagesExcludedFromContextTest(test.APITestCase):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_CHAT_HISTORY_LIMIT=50,
@@ -765,6 +783,7 @@ class FlaggedMessagesExcludedFromContextTest(test.APITestCase):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_CHAT_HISTORY_LIMIT=50,
@@ -817,6 +836,7 @@ class BuildRejectionInputTest(test.APITestCase):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_CHAT_HISTORY_LIMIT=0,
@@ -834,6 +854,7 @@ class BuildRejectionInputTest(test.APITestCase):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_CHAT_HISTORY_LIMIT=50,
@@ -888,6 +909,7 @@ class ContextAssemblerHistoryLimitEdgeCaseTest(test.APITestCase):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_CHAT_HISTORY_LIMIT=0,
@@ -905,6 +927,7 @@ class ContextAssemblerHistoryLimitEdgeCaseTest(test.APITestCase):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_CHAT_HISTORY_LIMIT=-5,
@@ -944,6 +967,7 @@ class StreamEditModeTest(InjectionIntegrationBaseTest):
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -983,6 +1007,7 @@ class StreamEditModeTest(InjectionIntegrationBaseTest):
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -1020,6 +1045,7 @@ class StreamEditModeTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -1057,6 +1083,7 @@ class StreamEditModeTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -1075,6 +1102,7 @@ class StreamEditModeTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -1093,6 +1121,7 @@ class StreamEditModeTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -1147,6 +1176,7 @@ class StreamEditModeLowSeverityTest(InjectionIntegrationBaseTest):
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -1220,6 +1250,7 @@ class ThreadSessionFilterTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -1233,6 +1264,7 @@ class ThreadSessionFilterTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -1246,6 +1278,7 @@ class ThreadSessionFilterTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -1259,6 +1292,7 @@ class ThreadSessionFilterTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -1272,6 +1306,7 @@ class ThreadSessionFilterTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -1324,6 +1359,7 @@ class CrossUserEditProtectionTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -1346,6 +1382,7 @@ class EditModeSerializerValidationTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
     )
@@ -1369,6 +1406,7 @@ class AuditEventInjectionTest(InjectionIntegrationBaseTest):
     @mock.patch("waldur_mastermind.chat.views.event_logger")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -1434,6 +1472,7 @@ class StreamReloadModeInjectionTest(InjectionIntegrationBaseTest):
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -1476,6 +1515,7 @@ class StreamReloadModeInjectionTest(InjectionIntegrationBaseTest):
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",
@@ -1508,6 +1548,7 @@ class InjectionWithPIIRedactionTest(InjectionIntegrationBaseTest):
 
     @override_constance_config(
         LLM_CHAT_ENABLED=True,
+        LLM_CHAT_ENABLED_ROLES="all",
         LLM_INFERENCES_API_URL="https://example.com/stream",
         LLM_INFERENCES_API_TOKEN="dummy-token",
         LLM_INJECTION_ALLOWLIST="",

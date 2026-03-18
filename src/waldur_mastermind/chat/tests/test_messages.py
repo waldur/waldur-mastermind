@@ -1,3 +1,4 @@
+from constance.test.unittest import override_config as override_constance_config
 from django.urls import reverse
 from rest_framework import status, test
 
@@ -5,6 +6,12 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession
 
 
+@override_constance_config(
+    LLM_CHAT_ENABLED=True,
+    LLM_CHAT_ENABLED_ROLES="all",
+    LLM_INFERENCES_API_URL="https://example.com/stream",
+    LLM_INFERENCES_API_TOKEN="dummy-token",
+)
 class MessageViewSetTest(test.APITestCase):
     """Test MessageViewSet endpoints."""
 

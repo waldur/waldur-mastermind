@@ -23,6 +23,12 @@ from waldur_openstack.tests import factories as openstack_factories
 from waldur_openstack.tests.fixtures import OpenStackFixture
 
 
+@override_constance_config(
+    LLM_CHAT_ENABLED=True,
+    LLM_CHAT_ENABLED_ROLES="all",
+    LLM_INFERENCES_API_URL="https://example.com/stream",
+    LLM_INFERENCES_API_TOKEN="dummy-token",
+)
 class ToolExecutorBaseTest(test.APITestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
@@ -347,6 +353,12 @@ class ToolExecutorErrorHandlingTest(ToolExecutorBaseTest):
         self.assertIn("error occurred", result["summary"].lower())
 
 
+@override_constance_config(
+    LLM_CHAT_ENABLED=True,
+    LLM_CHAT_ENABLED_ROLES="all",
+    LLM_INFERENCES_API_URL="https://example.com/stream",
+    LLM_INFERENCES_API_TOKEN="dummy-token",
+)
 class CreateVMBaseTest(test.APITestCase):
     """Base class for create_vm tests. Sets up full OpenStack environment."""
 

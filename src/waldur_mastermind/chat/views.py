@@ -47,15 +47,40 @@ logger = logging.getLogger(__name__)
 
 class LLMConfigurationMixin(ConstanceCheckExtensionMixin):
     """
-    Validates that LLM chat is enabled and properly configured.
-    Extends ConstanceCheckExtensionMixin to check LLM_CHAT_ENABLED flag.
+    Validates that LLM chat is enabled, the user has the required role,
+    and the inference API is properly configured.
+
+    LLM_CHAT_ENABLED (boolean) is the master on/off switch.
+    LLM_CHAT_ENABLED_ROLES controls which user roles can access the feature.
     """
 
     extension_name = "LLM_CHAT"
 
     def initial(self, request, *args, **kwargs):
-        # Call parent to check LLM_CHAT_ENABLED via ConstanceCheckExtensionMixin
+        # Check LLM_CHAT_ENABLED boolean via ConstanceCheckExtensionMixin
         super().initial(request, *args, **kwargs)
+
+        # RBAC: check enabled roles
+        enabled_roles = config.LLM_CHAT_ENABLED_ROLES
+        user = request.user
+        if enabled_roles == "disabled":
+            raise rf_exceptions.PermissionDenied(_("AI Assistant is not available."))
+        elif enabled_roles == "staff":
+            if not user.is_staff:
+                raise rf_exceptions.PermissionDenied(
+                    _("AI Assistant is currently available to staff users only.")
+                )
+        elif enabled_roles == "staff_and_support":
+            if not (user.is_staff or user.is_support):
+                raise rf_exceptions.PermissionDenied(
+                    _(
+                        "AI Assistant is currently available to staff and support users only."
+                    )
+                )
+        elif enabled_roles != "all":
+            raise rf_exceptions.PermissionDenied(
+                _("AI Assistant access is not configured correctly.")
+            )
 
         # Validate additional API settings
         if not config.LLM_INFERENCES_API_URL:
@@ -428,7 +453,7 @@ class TokenQuotaViewSet(ActionsViewSet):
     set_quota_serializer_class = serializers.SetTokenQuotaSerializer
 
 
-class ToolViewSet(viewsets.ViewSet):
+class ToolViewSet(LLMConfigurationMixin, viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -539,7 +564,7 @@ class MessageFilter(django_filters.FilterSet):
         fields = ["thread", "is_flagged"]
 
 
-class ChatSessionViewSet(ActionsViewSet):
+class ChatSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
     """
     ViewSet for ChatSession model.
     Users can get or create their chat session.
@@ -572,7 +597,7 @@ class ChatSessionViewSet(ActionsViewSet):
         return Response(serializers.ChatSessionSerializer(session).data)
 
 
-class ThreadSessionViewSet(ActionsViewSet):
+class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
     """
     ViewSet for ThreadSession model.
     Provides read-only access and archive/unarchive actions for chat threads.
@@ -636,7 +661,7 @@ class ThreadSessionViewSet(ActionsViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class MessageViewSet(ActionsViewSet):
+class MessageViewSet(LLMConfigurationMixin, ActionsViewSet):
     """
     ViewSet for Message model.
     Provides read-only list access for chat messages.
