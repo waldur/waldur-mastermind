@@ -3,7 +3,7 @@ from datetime import datetime
 
 from constance import config as constance_config
 from dbtemplates.models import Template
-from dbtemplates.utils.cache import remove_cached_template
+from dbtemplates.utils.cache import add_template_to_cache
 from django.conf import settings as django_settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -2566,7 +2566,13 @@ class NotificationTemplateViewSet(ActionsViewSet):
                 name=name, content=new_content
             )
 
-        remove_cached_template(template_dbtemplates)
+        # Explicitly refresh the dbtemplates cache entry.  remove_cached_template()
+        # would be a no-op here because a freshly-created Template has no sites yet,
+        # and it never clears the "notfound" sentinel the loader plants on a DB miss.
+        # add_template_to_cache() does all three steps: removes the old positive entry,
+        # removes the notfound sentinel, and writes the new content into cache — so the
+        # override takes effect on the very next email send without a process restart.
+        add_template_to_cache(template_dbtemplates)
         logger.info(message)
         return Response({"detail": _(message)}, status=status.HTTP_200_OK)
 
