@@ -2,12 +2,21 @@ import logging
 
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
-from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import models, utils
+from . import models, tasks
 from .models import ProjectEstimatedCostPolicy
 
 logger = logging.getLogger(__name__)
+
+_CUSTOMER_POLICY_PATH = "waldur_mastermind.policy.models.CustomerEstimatedCostPolicy"
+_PROJECT_POLICY_PATH = "waldur_mastermind.policy.models.ProjectEstimatedCostPolicy"
+_OFFERING_USAGE_POLICY_PATH = "waldur_mastermind.policy.models.OfferingUsagePolicy"
+_OFFERING_ESTIMATED_COST_POLICY_PATH = (
+    "waldur_mastermind.policy.models.OfferingEstimatedCostPolicy"
+)
+_CUSTOMER_COMPONENT_USAGE_POLICY_PATH = (
+    "waldur_mastermind.policy.models.CustomerComponentUsagePolicy"
+)
 
 
 def customer_estimated_cost_policy_trigger_handler(
@@ -15,15 +24,10 @@ def customer_estimated_cost_policy_trigger_handler(
 ):
     """Evaluate customer cost policies when invoice items are updated."""
     invoice_item = instance
-    policies = models.CustomerEstimatedCostPolicy.objects.filter(
-        scope=invoice_item.invoice.customer
+    tasks.evaluate_policies_async.delay(
+        _CUSTOMER_POLICY_PATH,
+        {"scope_id": invoice_item.invoice.customer_id},
     )
-    if policies.count() > 0:
-        logger.info(
-            "Evaluating %s customer policies after invoice item update",
-            policies.count(),
-        )
-        utils.evaluate_policies(policies)
 
 
 def project_estimated_cost_policy_trigger_handler(
@@ -31,33 +35,35 @@ def project_estimated_cost_policy_trigger_handler(
 ):
     """Evaluate project cost policies when invoice items are updated."""
     invoice_item = instance
-    policies = models.ProjectEstimatedCostPolicy.objects.filter(
-        scope=invoice_item.project
+    tasks.evaluate_policies_async.delay(
+        _PROJECT_POLICY_PATH,
+        {"scope_id": invoice_item.project_id},
     )
-    if policies.count() > 0:
-        logger.info(
-            "Evaluating %s project policies after invoice item update", policies.count()
-        )
-        utils.evaluate_policies(policies)
 
 
-def get_offering_trigger_handler(klass):
+def get_offering_trigger_handler(klass_path):
     def handler(sender, instance, created=False, **kwargs):
         resource = instance.resource
 
         if resource:
-            policies = klass.objects.filter(
-                scope=resource.offering,
-                organization_groups__in=resource.project.customer.organization_groups.all(),
+            org_group_ids = list(
+                resource.project.customer.organization_groups.values_list(
+                    "id", flat=True
+                )
             )
-
-            utils.evaluate_policies(policies)
+            tasks.evaluate_policies_async.delay(
+                klass_path,
+                {
+                    "scope_id": resource.offering_id,
+                    "organization_groups__in": org_group_ids,
+                },
+            )
 
     return handler
 
 
 offering_usage_policy_trigger_handler = get_offering_trigger_handler(
-    models.OfferingUsagePolicy
+    _OFFERING_USAGE_POLICY_PATH,
 )
 
 
@@ -70,8 +76,6 @@ def slurm_periodic_usage_policy_trigger_handler(
     This avoids blocking the ComponentUsage creation request with heavy
     policy evaluation logic by delegating to Celery background tasks.
     """
-    from . import tasks  # Import here to avoid circular imports
-
     component_usage = instance
     resource = component_usage.resource
 
@@ -99,7 +103,7 @@ def slurm_periodic_usage_policy_trigger_handler(
 
 
 offering_estimated_cost_policy_trigger_handler = get_offering_trigger_handler(
-    models.OfferingEstimatedCostPolicy
+    _OFFERING_ESTIMATED_COST_POLICY_PATH,
 )
 
 
@@ -112,13 +116,13 @@ def customer_component_usage_policy_trigger_handler(
     if not usage:
         return
 
-    policies = models.CustomerComponentUsagePolicy.objects.filter(
-        scope=usage.resource.project.customer,
-        component_limits_set__component=usage.component,
-    ).distinct()
-
-    if policies.count() > 0:
-        utils.evaluate_policies(policies)
+    tasks.evaluate_policies_async.delay(
+        _CUSTOMER_COMPONENT_USAGE_POLICY_PATH,
+        {
+            "scope_id": usage.resource.project.customer_id,
+            "component_limits_set__component_id": usage.component_id,
+        },
+    )
 
 
 def get_estimated_cost_policy_handler_for_observable_class(klass, observable_class):
@@ -189,29 +193,17 @@ def customer_credit_changed_handler(
         return
 
     logger.info(
-        "%s has changed, looking up customer and project policies", customer_credit
+        "%s has changed, scheduling async customer and project policy evaluation",
+        customer_credit,
     )
-    customer_policies = models.CustomerEstimatedCostPolicy.objects.filter(
-        scope=customer_credit.customer
+    tasks.evaluate_policies_async.delay(
+        _CUSTOMER_POLICY_PATH,
+        {"scope_id": customer_credit.customer_id},
     )
-    if customer_policies.count() > 0:
-        logger.info(
-            "%s customer policies are found, evaluating them", customer_policies.count()
-        )
-        utils.evaluate_policies(customer_policies)
-    else:
-        logger.info("Customer policies are not found, skipping evaluation")
-
-    project_policies = models.ProjectEstimatedCostPolicy.objects.filter(
-        scope__customer=customer_credit.customer
+    tasks.evaluate_policies_async.delay(
+        _PROJECT_POLICY_PATH,
+        {"scope__customer_id": customer_credit.customer_id},
     )
-    if project_policies.count() > 0:
-        logger.info(
-            "%s project policies are found, evaluating them", customer_credit.customer
-        )
-        utils.evaluate_policies(project_policies)
-    else:
-        logger.info("Project policies are not found, skipping evaluation")
 
 
 def project_credit_changed_handler(
@@ -222,40 +214,36 @@ def project_credit_changed_handler(
     if not project_credit.tracker.has_changed("value"):
         return
 
-    logger.info("%s has changed, looking up project policies", project_credit)
-    project_policies = models.ProjectEstimatedCostPolicy.objects.filter(
-        scope=project_credit.project
+    logger.info(
+        "%s has changed, scheduling async project policy evaluation", project_credit
     )
-    if project_policies.count() > 0:
-        logger.info(
-            "%s project policies are found, evaluating them", project_credit.project
-        )
-        utils.evaluate_policies(project_policies)
-    else:
-        logger.info("Project policies are not found, skipping evaluation")
+    tasks.evaluate_policies_async.delay(
+        _PROJECT_POLICY_PATH,
+        {"scope_id": project_credit.project_id},
+    )
 
 
 def customer_credit_offerings_list_changed_handler(
     sender, instance, action, reverse, model, pk_set, **kwargs
 ):
     if action in ("post_add", "post_remove", "post_clear"):
-        # Handle the case when pk_set is None (e.g., during clear() operation)
         if pk_set is None:
             # For clear operations, evaluate policies for the customer credit instance
-            policies = models.CustomerEstimatedCostPolicy.objects.filter(
-                scope_id=instance.customer_id
+            tasks.evaluate_policies_async.delay(
+                _CUSTOMER_POLICY_PATH,
+                {"scope_id": instance.customer_id},
             )
         else:
-            offerings = marketplace_models.Offering.objects.filter(pk__in=pk_set)
-            customer_ids = invoices_models.CustomerCredit.objects.filter(
-                offerings__in=offerings
-            ).values_list("customer_id", flat=True)
-            policies = models.CustomerEstimatedCostPolicy.objects.filter(
-                scope_id__in=customer_ids
+            customer_ids = list(
+                invoices_models.CustomerCredit.objects.filter(
+                    offerings__pk__in=list(pk_set),
+                ).values_list("customer_id", flat=True)
             )
-
-        if policies.count() > 0:
-            utils.evaluate_policies(policies)
+            if customer_ids:
+                tasks.evaluate_policies_async.delay(
+                    _CUSTOMER_POLICY_PATH,
+                    {"scope_id__in": customer_ids},
+                )
 
 
 def run_reset_actions_upon_cost_policy_deletion(

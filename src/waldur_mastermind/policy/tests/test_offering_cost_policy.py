@@ -1,4 +1,5 @@
 from ddt import data, ddt
+from django.test import override_settings
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
@@ -130,6 +131,7 @@ class UpdatePolicyTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
 
+@override_settings(task_always_eager=True)
 class OfferingEstimatedCostPolicyTriggerTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()
