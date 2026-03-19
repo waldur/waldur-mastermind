@@ -1,6 +1,7 @@
 import datetime
 
 from ddt import data, ddt
+from django.test import override_settings
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -143,6 +144,7 @@ class UpdatePolicyTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
+@override_settings(task_always_eager=True)
 class OfferingUsagePolicyTriggerTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OfferingUsagePolicyFixture()

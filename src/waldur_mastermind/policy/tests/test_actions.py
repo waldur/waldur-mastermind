@@ -1,6 +1,8 @@
 from unittest import mock
 
 from ddt import data, ddt
+from django.db.models.signals import post_save
+from django.test import override_settings
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -17,10 +19,11 @@ from waldur_mastermind.marketplace.enums import (
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.policy import tasks
+from waldur_mastermind.policy import policy_actions, tasks
 from waldur_mastermind.policy.tests import factories
 
 
+@override_settings(task_always_eager=True)
 @freeze_time("2024-09-01")
 @ddt
 class ActionsTest(test.APITestCase):
@@ -423,3 +426,169 @@ class ActionsTest(test.APITestCase):
         self.assertTrue(
             logging_models.Event.objects.filter(event_type="policy_notification")
         )
+
+
+@freeze_time("2024-09-01")
+class PolicyActionsPostSaveSignalTest(test.APITestCase):
+    """Test that policy actions use .save() so that post_save signals fire.
+
+    This is a regression test for a bug where .update() was used instead of
+    .save(), causing Django post_save signals to be bypassed. Without signals,
+    the site agent handler never fires and STOMP notifications are not sent.
+    """
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.project = self.fixture.project
+        self.customer = self.fixture.customer
+        self.resource = self.fixture.resource
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+        self.policy = factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.project, created_by=self.fixture.user
+        )
+
+    def _setup_offering(self, **plugin_options):
+        offering = self.resource.offering
+        offering.plugin_options.update(plugin_options)
+        offering.save()
+
+    def _connect_signal(self):
+        handler = mock.MagicMock()
+        post_save.connect(handler, sender=marketplace_models.Resource)
+        self.addCleanup(
+            post_save.disconnect, handler, sender=marketplace_models.Resource
+        )
+        return handler
+
+    def test_request_downscaling_triggers_post_save(self):
+        self._setup_offering(supports_downscaling=True)
+        handler = self._connect_signal()
+
+        policy_actions.request_downscaling(self.policy)
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.downscaled)
+        handler.assert_called()
+        saved_instance = handler.call_args[1]["instance"]
+        self.assertTrue(saved_instance.downscaled)
+
+    def test_reset_downscaling_triggers_post_save(self):
+        self._setup_offering(supports_downscaling=True)
+        self.resource.downscaled = True
+        self.resource.save()
+
+        handler = self._connect_signal()
+
+        policy_actions.reset_downscaling(self.policy)
+
+        self.resource.refresh_from_db()
+        self.assertFalse(self.resource.downscaled)
+        handler.assert_called()
+        saved_instance = handler.call_args[1]["instance"]
+        self.assertFalse(saved_instance.downscaled)
+
+    def test_request_pausing_triggers_post_save(self):
+        self._setup_offering(supports_pausing=True)
+        handler = self._connect_signal()
+
+        policy_actions.request_pausing(self.policy)
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.paused)
+        handler.assert_called()
+        saved_instance = handler.call_args[1]["instance"]
+        self.assertTrue(saved_instance.paused)
+
+    def test_reset_pausing_triggers_post_save(self):
+        self._setup_offering(supports_pausing=True)
+        self.resource.paused = True
+        self.resource.save()
+
+        handler = self._connect_signal()
+
+        policy_actions.reset_pausing(self.policy)
+
+        self.resource.refresh_from_db()
+        self.assertFalse(self.resource.paused)
+        handler.assert_called()
+        saved_instance = handler.call_args[1]["instance"]
+        self.assertFalse(saved_instance.paused)
+
+    def test_restrict_members_triggers_post_save(self):
+        self._setup_offering(service_provider_can_create_offering_user=True)
+        handler = self._connect_signal()
+
+        policy_actions.restrict_members(self.policy)
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.restrict_member_access)
+        handler.assert_called()
+        saved_instance = handler.call_args[1]["instance"]
+        self.assertTrue(saved_instance.restrict_member_access)
+
+    def test_reset_member_restriction_triggers_post_save(self):
+        self._setup_offering(service_provider_can_create_offering_user=True)
+        self.resource.restrict_member_access = True
+        self.resource.save()
+
+        handler = self._connect_signal()
+
+        policy_actions.reset_member_restriction(self.policy)
+
+        self.resource.refresh_from_db()
+        self.assertFalse(self.resource.restrict_member_access)
+        handler.assert_called()
+        saved_instance = handler.call_args[1]["instance"]
+        self.assertFalse(saved_instance.restrict_member_access)
+
+    def test_request_downscaling_skips_noop_save(self):
+        """When resource is already downscaled, no save should occur."""
+        self._setup_offering(supports_downscaling=True)
+        self.resource.downscaled = True
+        self.resource.save()
+
+        handler = self._connect_signal()
+        policy_actions.request_downscaling(self.policy)
+        handler.assert_not_called()
+
+    def test_reset_downscaling_skips_noop_save(self):
+        """When resource is already not downscaled, no save should occur."""
+        self._setup_offering(supports_downscaling=True)
+        handler = self._connect_signal()
+        policy_actions.reset_downscaling(self.policy)
+        handler.assert_not_called()
+
+    def test_request_pausing_skips_noop_save(self):
+        """When resource is already paused, no save should occur."""
+        self._setup_offering(supports_pausing=True)
+        self.resource.paused = True
+        self.resource.save()
+
+        handler = self._connect_signal()
+        policy_actions.request_pausing(self.policy)
+        handler.assert_not_called()
+
+    def test_reset_pausing_skips_noop_save(self):
+        """When resource is already not paused, no save should occur."""
+        self._setup_offering(supports_pausing=True)
+        handler = self._connect_signal()
+        policy_actions.reset_pausing(self.policy)
+        handler.assert_not_called()
+
+    def test_restrict_members_skips_noop_save(self):
+        """When resource already has restricted access, no save should occur."""
+        self._setup_offering(service_provider_can_create_offering_user=True)
+        self.resource.restrict_member_access = True
+        self.resource.save()
+
+        handler = self._connect_signal()
+        policy_actions.restrict_members(self.policy)
+        handler.assert_not_called()
+
+    def test_reset_member_restriction_skips_noop_save(self):
+        """When resource already has unrestricted access, no save should occur."""
+        self._setup_offering(service_provider_can_create_offering_user=True)
+        handler = self._connect_signal()
+        policy_actions.reset_member_restriction(self.policy)
+        handler.assert_not_called()

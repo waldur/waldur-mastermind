@@ -233,15 +233,20 @@ def request_downscaling(policy: models.Policy):
         logger.error(f"Unsupported policy scope type: {type(policy.scope)}")
         return
 
-    resources.update(downscaled=True)
+    resource_names = []
+    for resource in resources:
+        if not resource.downscaled:
+            resource.downscaled = True
+            resource.save(update_fields=["downscaled"])
+            resource_names.append(resource.name)
     logger.info(
         "Policy action request_downscaling has been triggered. Policy UUID: %s. Resources: %s",
         policy.uuid.hex,
-        ", ".join([r.name for r in resources]),
+        ", ".join(resource_names),
     )
     event_logger.emit(
         "Cost policy has been triggered and downscaling has been requested. Resources: %s"
-        % ", ".join([str(r) for r in resources]),
+        % ", ".join(resource_names),
         event_type=EventType.REQUEST_DOWNSCALING,
         event_context={"policy_uuid": policy.uuid.hex},
         scopes=[],
@@ -268,11 +273,16 @@ def reset_downscaling(policy: models.Policy):
         logger.error(f"Unsupported policy scope type: {type(policy.scope)}")
         return
 
-    resources.update(downscaled=False)
+    resource_names = []
+    for resource in resources:
+        if resource.downscaled:
+            resource.downscaled = False
+            resource.save(update_fields=["downscaled"])
+            resource_names.append(resource.name)
     logger.info(
         "Policy action reset_downscaling has been triggered. Policy UUID: %s. Resources: %s",
         policy.uuid.hex,
-        ", ".join([r.name for r in resources]),
+        ", ".join(resource_names),
     )
 
 
@@ -291,16 +301,20 @@ def restrict_members(policy: models.Policy):
         logger.error(f"Unsupported policy scope type: {type(policy.scope)}")
         return
 
-    resources.update(restrict_member_access=True)
-
+    resource_names = []
+    for resource in resources:
+        if not resource.restrict_member_access:
+            resource.restrict_member_access = True
+            resource.save(update_fields=["restrict_member_access"])
+            resource_names.append(resource.name)
     logger.info(
         "Policy action restrict_members has been triggered. Policy UUID: %s. Resources: %s",
         policy.uuid.hex,
-        ", ".join([r.name for r in resources]),
+        ", ".join(resource_names),
     )
     event_logger.emit(
         "Cost policy has been triggered and account removal has been requested. Resources: %s"
-        % ", ".join([str(r) for r in resources]),
+        % ", ".join(resource_names),
         event_type=EventType.RESTRICT_MEMBERS,
         event_context={"policy_uuid": policy.uuid.hex},
         scopes=[],
@@ -322,12 +336,16 @@ def reset_member_restriction(policy: models.Policy):
         logger.error(f"Unsupported policy scope type: {type(policy.scope)}")
         return
 
-    resources.update(restrict_member_access=False)
-
+    resource_names = []
+    for resource in resources:
+        if resource.restrict_member_access:
+            resource.restrict_member_access = False
+            resource.save(update_fields=["restrict_member_access"])
+            resource_names.append(f"{resource.name} ({resource.slug})")
     logger.info(
         "Policy action restrict_members has been reset. Policy UUID: %s. Resources: %s",
         policy.uuid.hex,
-        ", ".join([f"{r.name} ({r.slug})" for r in resources]),
+        ", ".join(resource_names),
     )
 
 
@@ -346,15 +364,20 @@ def request_pausing(policy: models.Policy):
         logger.error(f"Unsupported policy scope type: {type(policy.scope)}")
         return
 
-    resources.update(paused=True)
+    resource_names = []
+    for resource in resources:
+        if not resource.paused:
+            resource.paused = True
+            resource.save(update_fields=["paused"])
+            resource_names.append(resource.name)
     logger.info(
         "Policy action request_pausing has been triggered. Policy UUID: %s. Resources: %s",
         policy.uuid.hex,
-        ", ".join([r.name for r in resources]),
+        ", ".join(resource_names),
     )
     event_logger.emit(
         "Cost policy has been triggered and pausing has been requested. Resources: %s"
-        % ", ".join([str(r) for r in resources]),
+        % ", ".join(resource_names),
         event_type=EventType.BLOCK_MODIFICATION_OF_EXISTING_RESOURCES,
         event_context={"policy_uuid": policy.uuid.hex},
         scopes=[],
@@ -376,11 +399,16 @@ def reset_pausing(policy: models.Policy):
         logger.error(f"Unsupported policy scope type: {type(policy.scope)}")
         return
 
-    resources.update(paused=False)
+    resource_names = []
+    for resource in resources:
+        if resource.paused:
+            resource.paused = False
+            resource.save(update_fields=["paused"])
+            resource_names.append(resource.name)
     logger.info(
         "Policy action reset_pausing has been triggered. Policy UUID: %s. Resources: %s",
         policy.uuid.hex,
-        ", ".join([r.name for r in resources]),
+        ", ".join(resource_names),
     )
 
 

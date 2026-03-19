@@ -1,4 +1,5 @@
 from ddt import data, ddt
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework import status, test
 
@@ -264,6 +265,7 @@ class CustomerComponentUsagePolicyValidationTest(test.APITestCase):
         )
 
 
+@override_settings(task_always_eager=True)
 class CustomerComponentUsagePolicyTriggerTest(test.APITestCase):
     def setUp(self):
         self.fixture = marketplace_fixtures.MarketplaceFixture()

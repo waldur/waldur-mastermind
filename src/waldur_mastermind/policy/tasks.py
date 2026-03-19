@@ -4,6 +4,7 @@ from celery import shared_task
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.module_loading import import_string
 
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
@@ -16,6 +17,27 @@ from waldur_mastermind.policy import models
 from . import utils
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(name="waldur_mastermind.policy.evaluate_policies_async")
+def evaluate_policies_async(policy_class_path, filters):
+    """Evaluate policies matching the given filters in a background task.
+
+    Args:
+        policy_class_path: Dotted path to the policy model class,
+            e.g. "waldur_mastermind.policy.models.ProjectEstimatedCostPolicy".
+        filters: A dict of keyword arguments passed to queryset.filter().
+    """
+    klass = import_string(policy_class_path)
+    policies = klass.objects.filter(**filters).distinct()
+    if policies.exists():
+        logger.info(
+            "Evaluating %d %s policies asynchronously (filters=%s)",
+            policies.count(),
+            klass.__name__,
+            filters,
+        )
+        utils.evaluate_policies(policies)
 
 
 @shared_task

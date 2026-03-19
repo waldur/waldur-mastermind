@@ -1,6 +1,7 @@
 from unittest import mock
 
 from ddt import data, ddt
+from django.test import override_settings
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -15,6 +16,7 @@ from waldur_mastermind.policy.models import CustomerEstimatedCostPolicy
 from waldur_mastermind.policy.tests import factories
 
 
+@override_settings(task_always_eager=True)
 @freeze_time("2024-09-01")
 class ActionsFunctionsTest(test.APITestCase):
     def setUp(self):
