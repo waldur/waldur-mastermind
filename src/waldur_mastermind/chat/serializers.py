@@ -290,6 +290,7 @@ class MessageSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
+    content_display = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Message
@@ -298,6 +299,7 @@ class MessageSerializer(serializers.ModelSerializer):
             "thread",
             "role",
             "content",
+            "content_display",
             "tool_calls",
             "sequence_index",
             "replaces",
@@ -321,6 +323,19 @@ class MessageSerializer(serializers.ModelSerializer):
             "pii_categories",
             "action_taken",
         )
+
+    def get_content_display(self, obj) -> str:
+        if obj.content:
+            return obj.content
+        if obj.tool_calls:
+            parts = []
+            for call in obj.tool_calls:
+                name = call.get("name", "")
+                args = call.get("arguments", {})
+                args_str = ", ".join(f'{k}="{v}"' for k, v in args.items())
+                parts.append(f"{name}({args_str})")
+            return f"[Tool: {', '.join(parts)}]"
+        return ""
 
     def get_fields(self):
         fields = super().get_fields()

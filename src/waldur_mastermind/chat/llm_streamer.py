@@ -259,24 +259,6 @@ class LLMStreamer:
             if tool_block:
                 yield self._format_ndjson(tool_block)
 
-    def _effective_content(self) -> str:
-        """Return accumulated content, or a tool-call summary if content is empty."""
-        if self.accumulated_content:
-            return self.accumulated_content
-        if self.tool_calls:
-            parts = []
-            for entry in self.tool_calls.values():
-                if not entry["name"]:
-                    continue
-                try:
-                    args = json.loads(entry["arguments"]) if entry["arguments"] else {}
-                except json.JSONDecodeError:
-                    args = {}
-                args_str = ", ".join(f"{k}={v!r}" for k, v in args.items())
-                parts.append(f"{entry['name']}({args_str})")
-            return f"[Tool: {', '.join(parts)}]"
-        return self.accumulated_content
-
     def _serialized_tool_calls(self) -> list[dict]:
         """Return tool calls in a clean format for DB storage."""
         result = []
@@ -329,7 +311,7 @@ class LLMStreamer:
                         persisted_assistant_msg = models.Message.objects.create(
                             thread=locked_thread,
                             role=models.Message.Role.ASSISTANT,
-                            content=self._effective_content(),
+                            content=self.accumulated_content,
                             sequence_index=last_assistant.sequence_index,
                             replaces=last_assistant,
                             tool_calls=self._serialized_tool_calls(),
@@ -365,7 +347,7 @@ class LLMStreamer:
                     persisted_assistant_msg = models.Message.objects.create(
                         thread=locked_thread,
                         role=models.Message.Role.ASSISTANT,
-                        content=self._effective_content(),
+                        content=self.accumulated_content,
                         sequence_index=persisted_user_msg.sequence_index + 1,
                         tool_calls=self._serialized_tool_calls(),
                     )
