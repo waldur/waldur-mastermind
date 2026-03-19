@@ -1,3 +1,5 @@
+import os
+
 from waldur_core.server.base_settings import *  # noqa
 
 DEBUG = True
@@ -7,17 +9,22 @@ SECRET_KEY = "..."
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "postgres",
-        "USER": "postgres",
-        "PASSWORD": "postgres",
-        "HOST": "db",
-        "PORT": "5432",
+        "NAME": os.environ.get("WALDUR_DB_NAME", "postgres"),
+        "USER": os.environ.get("WALDUR_DB_USER", "postgres"),
+        "PASSWORD": os.environ.get("WALDUR_DB_PASSWORD", "postgres"),
+        "HOST": os.environ.get("WALDUR_DB_HOST", "db"),
+        "PORT": os.environ.get("WALDUR_DB_PORT", "5432"),
     }
 }
 
-CELERY_BROKER_URL = "amqp://rabbitmq:rabbitmq@queue:5672"
+CELERY_BROKER_URL = os.environ.get(
+    "CELERY_BROKER_URL", "amqp://rabbitmq:rabbitmq@queue:5672"
+)
 
-CELERY_RESULT_BACKEND = f"db+postgresql+psycopg://{DATABASES['default']['USER']}:{DATABASES['default']['PASSWORD']}@{DATABASES['default']['HOST']}:{DATABASES['default']['PORT']}/{DATABASES['default']['NAME']}"
+CELERY_RESULT_BACKEND = os.environ.get(
+    "CELERY_RESULT_BACKEND",
+    f"db+postgresql+psycopg://{DATABASES['default']['USER']}:{DATABASES['default']['PASSWORD']}@{DATABASES['default']['HOST']}:{DATABASES['default']['PORT']}/{DATABASES['default']['NAME']}",
+)
 
 STATIC_ROOT = "static"
 
