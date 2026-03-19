@@ -349,8 +349,8 @@ def send_project_end_date_change_request_notification(request_uuid):
         len(mails),
     )
     project_url = core_utils.format_homeport_link(
-        "organization/{customer_uuid}/project-end-date-change-requests/",
-        customer_uuid=request.project.customer.uuid.hex,
+        "projects/{project_uuid}/manage/?tab=end-date-change-requests",
+        project_uuid=request.project.uuid.hex,
     )
     context = {
         "project_end_date_change_request": request,
