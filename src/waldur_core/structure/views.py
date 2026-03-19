@@ -2165,6 +2165,7 @@ class ProjectEndDateChangeRequestViewSet(
         return Response(status=status.HTTP_200_OK)
 
     @extend_schema(
+        request=None,
         responses=None,
         description="Cancel project end date change request. Only the creator can cancel.",
     )

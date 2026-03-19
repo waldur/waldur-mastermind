@@ -1114,7 +1114,7 @@ class ProjectEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.ProjectEndDateChangeRequest
-        fields = ("project", "requested_end_date", "uuid", "state")
+        fields = ("project", "requested_end_date", "comment", "uuid", "state")
 
     def validate_project(self, project):
         user = self.context["request"].user
@@ -1208,6 +1208,7 @@ class ProjectEndDateChangeRequestSerializer(serializers.HyperlinkedModelSerializ
             "customer_uuid",
             "customer_name",
             "requested_end_date",
+            "comment",
             "created",
             "created_by_uuid",
             "created_by_full_name",

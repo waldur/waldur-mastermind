@@ -1555,6 +1555,11 @@ class ProjectEndDateChangeRequest(core_models.UuidMixin, core_mixins.ReviewMixin
         related_name="+",
         null=True,
     )
+    comment = models.TextField(
+        blank=True,
+        null=True,
+        help_text=_("Optional comment from the requester"),
+    )
 
     class Permissions:
         customer_path = "project__customer"
