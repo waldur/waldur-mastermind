@@ -9,6 +9,8 @@ from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_script import models as marketplace_script_models
 from waldur_mastermind.marketplace_script import tasks as marketplace_script_tasks
+from waldur_mastermind.policy import utils as policy_utils
+from waldur_mastermind.policy.tests import factories as policy_factories
 
 from . import fixtures
 
@@ -103,9 +105,6 @@ class DryRunTest(test.APITestCase):
         self.assertFalse(dry_run.order)
 
     def test_async_dry_run_does_not_trigger_policy_evaluation(self, execute_script):
-        from waldur_mastermind.policy.handlers import utils as policy_utils
-        from waldur_mastermind.policy.tests import factories as policy_factories
-
         execute_script.return_value = "test output"
 
         # Patch policy evaluation
@@ -135,9 +134,6 @@ class DryRunTest(test.APITestCase):
             evaluate_policies_mock.assert_not_called()
 
     def test_dry_run_does_not_trigger_policy_evaluation(self, execute_script):
-        from waldur_mastermind.policy.handlers import utils as policy_utils
-        from waldur_mastermind.policy.tests import factories as policy_factories
-
         execute_script.return_value = "test output"
 
         # Patch policy evaluation
