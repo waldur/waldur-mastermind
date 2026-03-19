@@ -479,3 +479,26 @@ class SingleLogoFileUploadTest(test.APITestCase):
         response = self.client.get(self.url)
         self.assertIsInstance(response.data["SIDEBAR_LOGO_DARK"], str)
         self.assertIn("de", response.data["LOGIN_LOGO_MULTILINGUAL"])
+
+    def test_staff_can_clear_image_setting_with_empty_string(self):
+        """
+        Staff can clear an image setting by sending {"POWERED_BY_LOGO": ""} (JSON).
+        """
+        self.client.force_login(self.staff)
+        response = self.client.post(
+            self.url,
+            {"POWERED_BY_LOGO": ""},
+            format="json",
+        )
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_200_OK,
+            msg=response.data if response.status_code != 200 else None,
+        )
+        response = self.client.get(self.url)
+        self.assertIn("POWERED_BY_LOGO", response.data)
+        self.assertIn(
+            response.data["POWERED_BY_LOGO"],
+            ("", None),
+            msg="Cleared logo should be empty string or null",
+        )

@@ -157,6 +157,17 @@ class JsonListSerializerField(serializers.ListField):
         return value
 
 
+class ClearableImageField(serializers.ImageField):
+    """
+    ImageField that accepts empty string or null to clear the value.
+    """
+
+    def to_internal_value(self, data):
+        if data is None or data == "":
+            return None
+        return super().to_internal_value(data)
+
+
 class MultilingualImageSerializerField(serializers.DictField):
     """
     A field for handling language-specific image uploads.
@@ -626,7 +637,7 @@ class ConstanceSettingsSerializer(serializers.Serializer):
             if config_type is str:
                 field_class = serializers.CharField
             if config_type == "image_field":
-                field_class = serializers.ImageField
+                field_class = ClearableImageField
             if config_type == "email_field":
                 field_class = serializers.EmailField
             if config_type is int:
