@@ -1589,7 +1589,7 @@ class Resource(
 
     @transition(
         field=state,
-        source=[States.TERMINATED],
+        source=[States.TERMINATED, States.ERRED],
         target=States.CREATING,
     )
     def set_state_creating(self):

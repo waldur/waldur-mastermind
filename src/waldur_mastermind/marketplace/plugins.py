@@ -72,6 +72,7 @@ class PluginManager:
         :key get_available_resource_actions: function which returns list of strings
         identifying available resource actions
         :key is_interruptible: optional boolean indicated whether order of offering can be interrupted.
+        :key supports_order_retry: optional boolean indicating whether erred orders can be retried.
         """
         self.backends[offering_type] = kwargs
 
@@ -251,6 +252,22 @@ class PluginManager:
             if fn:
                 actions.extend(fn(resource))
         return actions
+
+    def supports_order_retry(self, offering_type):
+        """
+        Returns true if erred orders for this offering type can be retried.
+        """
+        return self.backends.get(offering_type, {}).get("supports_order_retry", False)
+
+    def list_retryable_offerings(self):
+        """
+        Returns list of offering types that support order retry.
+        """
+        return [
+            offering_type
+            for offering_type, backend in self.backends.items()
+            if backend.get("supports_order_retry", False)
+        ]
 
     def list_interruptible_offerings(self):
         """

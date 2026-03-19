@@ -74,8 +74,9 @@ stateDiagram-v2
     EXECUTING --> DONE : Processing complete
     EXECUTING --> ERRED : Processing failed
 
+    ERRED --> EXECUTING : Retry (if supported)
+
     DONE --> [*]
-    ERRED --> [*]
     CANCELED --> [*]
     REJECTED --> [*]
 ```
@@ -90,7 +91,7 @@ stateDiagram-v2
 | **PENDING_START_DATE** | Awaiting the order's specified start date. | Activation when a future start date is set on the order. |
 | **EXECUTING** | Resource provisioning in progress | Processor execution |
 | **DONE** | Order completed successfully | Resource provisioning success |
-| **ERRED** | Order failed with errors | Processing errors |
+| **ERRED** | Order failed with errors. Can be retried if the offering type supports it. | Processing errors |
 | **CANCELED** | Order canceled by user/system | User cancellation |
 | **REJECTED** | Order rejected by provider | Provider rejection |
 
@@ -114,6 +115,7 @@ stateDiagram-v2
     TERMINATING --> TERMINATED : Deletion success
     TERMINATING --> ERRED : Deletion failed
 
+    ERRED --> CREATING : Retry create
     ERRED --> OK : Error resolved
     ERRED --> UPDATING : Retry update
     ERRED --> TERMINATING : Force deletion
@@ -131,6 +133,37 @@ stateDiagram-v2
 | **TERMINATING** | Resource being deleted | Monitor progress |
 | **TERMINATED** | Resource deleted | Archive, billing |
 | **ERRED** | Resource in error state | Retry, investigate, delete |
+
+### Retrying Erred Orders
+
+When an order fails due to transient errors, authorized users can retry it instead of creating a new order.
+
+**Endpoint**: `POST /api/marketplace-orders/{uuid}/retry/`
+
+**Constraints**:
+
+- The offering type must have `supports_order_retry` enabled in the plugin registry
+- Order must be in `ERRED` state
+- Order must have an associated resource
+
+Currently supported offering types: **Site Agent** (`Marketplace.Slurm`) and **Basic** (`Marketplace.Basic`). Other offering types can opt in by setting `supports_order_retry=True` in their `manager.register()` call.
+
+**Permission**: `APPROVE_ORDER` on the offering's customer or the offering itself (staff, offering owners, offering managers).
+
+**Behavior**:
+
+The endpoint resets both the order and its resource to active processing states within a single transaction:
+
+- **Order**: state reset to `EXECUTING`, `error_message`, `error_traceback`, and `completed_at` cleared
+- **Resource**: state reset based on order type, `error_message` and `error_traceback` cleared
+
+| Order Type | Resource State After Retry |
+|------------|---------------------------|
+| CREATE | CREATING |
+| UPDATE | UPDATING |
+| TERMINATE | TERMINATING |
+
+After the state reset, `process_order` is triggered via Celery to reprocess the order. For agent-driven offerings (site agent), the processor is a no-op and the agent picks up the order independently.
 
 ## Billing System
 

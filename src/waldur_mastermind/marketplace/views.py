@@ -5639,6 +5639,42 @@ class OfferingTypeValidator:
             )
 
 
+def _validate_offering_supports_retry(order: models.Order):
+    if not plugins.manager.supports_order_retry(order.offering.type):
+        raise rf_exceptions.MethodNotAllowed(
+            _("Retry is not supported for offerings of type %s" % order.offering.type)
+        )
+
+
+_RESOURCE_FAILURE_EVENTS = {
+    OrderTypes.CREATE: (
+        EventType.MARKETPLACE_RESOURCE_CREATE_FAILED,
+        "Resource {resource_name} creation has failed.",
+    ),
+    OrderTypes.UPDATE: (
+        EventType.MARKETPLACE_RESOURCE_UPDATE_FAILED,
+        "Resource {resource_name} update has failed.",
+    ),
+    OrderTypes.TERMINATE: (
+        EventType.MARKETPLACE_RESOURCE_TERMINATE_FAILED,
+        "Resource {resource_name} deletion has failed.",
+    ),
+}
+
+
+def _emit_resource_failure_event(order, resource):
+    event_info = _RESOURCE_FAILURE_EVENTS.get(order.type)
+    if event_info:
+        event_type, message = event_info
+        event_logger.emit(
+            message,
+            event_type=event_type,
+            event_context={"resource": resource},
+            scopes=log.get_resource_scopes(resource),
+            level="error",
+        )
+
+
 @extend_schema_view(
     list=extend_schema(
         summary="List orders",
@@ -6222,16 +6258,106 @@ class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
 
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        error_message = serializer.validated_data["error_message"]
-        error_traceback = serializer.validated_data["error_traceback"]
 
-        callbacks.sync_order_state(order, OrderStates.ERRED)
-        order.error_message = error_message
-        order.error_traceback = error_traceback
-        order.save(update_fields=["error_message", "error_traceback"])
+        with transaction.atomic():
+            order.set_state_erred()
+            order.error_message = serializer.validated_data["error_message"]
+            order.error_traceback = serializer.validated_data["error_traceback"]
+            order.save(update_fields=["state", "error_message", "error_traceback"])
+
+            resource = order.resource
+            if resource:
+                resource = models.Resource.objects.select_for_update().get(
+                    pk=resource.pk
+                )
+                if order.type == OrderTypes.TERMINATE:
+                    if resource.state != ResourceStates.OK:
+                        resource.set_state_ok()
+                        resource.save(update_fields=["state"])
+                else:
+                    if resource.state != ResourceStates.ERRED:
+                        resource.set_state_erred()
+                        resource.save(update_fields=["state"])
+
+                _emit_resource_failure_event(order, resource)
+
         return Response(status=status.HTTP_200_OK)
 
     set_state_erred_serializer_class = serializers.OrderErrorDetailsSerializer
+
+    retry_validators = [
+        core_validators.StateValidator(OrderStates.ERRED, state_enum=OrderStates),
+        _validate_offering_supports_retry,
+    ]
+
+    retry_permissions = [
+        permission_factory(
+            PermissionEnum.APPROVE_ORDER,
+            ["offering.customer", "offering"],
+        )
+    ]
+
+    @extend_schema(
+        summary="Retry an erred order",
+        description="Resets an erred order and its resource back to an active state so that the order can be reprocessed.",
+        request=None,
+        responses={200: None},
+    )
+    @action(detail=True, methods=["post"])
+    def retry(self, request, uuid=None):
+        order: models.Order = self.get_object()
+
+        with transaction.atomic():
+            order = models.Order.objects.select_for_update().get(pk=order.pk)
+
+            if order.state != OrderStates.ERRED:
+                raise rf_exceptions.ValidationError(
+                    _("Order must be in erred state to retry.")
+                )
+
+            resource = order.resource
+            resource = models.Resource.objects.select_for_update().get(pk=resource.pk)
+
+            try:
+                if order.type == OrderTypes.CREATE:
+                    resource.set_state_creating()
+                elif order.type == OrderTypes.UPDATE:
+                    resource.set_state_updating()
+                elif order.type == OrderTypes.TERMINATE:
+                    resource.set_state_terminating()
+                else:
+                    raise rf_exceptions.ValidationError(
+                        _("Retry is not supported for %(type)s orders.")
+                        % {"type": order.get_type_display()}
+                    )
+            except TransitionNotAllowed:
+                raise rf_exceptions.ValidationError(
+                    _(
+                        "Cannot retry: resource state %(state)s does not allow transition."
+                    )
+                    % {"state": resource.get_state_display()}
+                )
+
+            resource.error_message = ""
+            resource.error_traceback = ""
+            resource.save(update_fields=["state", "error_message", "error_traceback"])
+
+            order.set_state_executing()
+            order.error_message = ""
+            order.error_traceback = ""
+            order.completed_at = None
+            order.save(
+                update_fields=[
+                    "state",
+                    "error_message",
+                    "error_traceback",
+                    "completed_at",
+                ]
+            )
+
+        tasks.process_order_on_commit(order, request.user)
+
+        return Response(status=status.HTTP_200_OK)
 
     destroy_permissions = [
         permission_factory(
