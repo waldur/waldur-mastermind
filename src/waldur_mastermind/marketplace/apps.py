@@ -268,6 +268,7 @@ class MarketplaceConfig(AppConfig):
             enable_remote_support=True,
             can_update_limits=True,
             can_terminate_order=True,
+            supports_order_retry=True,
         )
 
         structure_signals.project_moved.connect(

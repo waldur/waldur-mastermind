@@ -27,6 +27,7 @@ class MarketplaceSlurmConfig(AppConfig):
             can_update_limits=True,
             enable_remote_support=True,
             pull_resource_executor=executors.AgentResourcePullExecutor,
+            supports_order_retry=True,
         )
 
         signals.post_save.connect(

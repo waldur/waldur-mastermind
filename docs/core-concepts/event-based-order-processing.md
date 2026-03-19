@@ -395,7 +395,7 @@ The system includes:
 
 - Graceful connection handling
 - Signal handlers for proper shutdown
-- Retry mechanisms for order processing
+- Retry mechanisms for order processing — erred orders can be explicitly retried via `POST /api/marketplace-orders/{uuid}/retry/` for offering types that opt in with `supports_order_retry=True` (see [Retrying Erred Orders](marketplace.md#retrying-erred-orders))
 - Error logging and optional Sentry integration
 
 ## Integration Examples
