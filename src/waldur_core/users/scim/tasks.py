@@ -171,20 +171,6 @@ def sync_user(user: User, client: ScimClient, urn_namespace: str) -> None:
 
     try:
         if should_have_entitlements:
-            entitlements_to_add = [
-                entitlement
-                for entitlement in expected_entitlements
-                if entitlement not in remote_entitlements
-            ]
-            if entitlements_to_add:
-                logger.info(
-                    "SCIM add %d entitlements for user %s: %s",
-                    len(entitlements_to_add),
-                    user.username,
-                    entitlements_to_add,
-                )
-                client.add_entitlements(user.username, entitlements_to_add)
-
             # Find entitlements to remove (stale - no longer in expected)
             entitlements_to_remove = [
                 entitlement
@@ -199,6 +185,20 @@ def sync_user(user: User, client: ScimClient, urn_namespace: str) -> None:
                     entitlements_to_remove,
                 )
                 client.remove_entitlements(user.username, entitlements_to_remove)
+
+            entitlements_to_add = [
+                entitlement
+                for entitlement in expected_entitlements
+                if entitlement not in remote_entitlements
+            ]
+            if entitlements_to_add:
+                logger.info(
+                    "SCIM add %d entitlements for user %s: %s",
+                    len(entitlements_to_add),
+                    user.username,
+                    entitlements_to_add,
+                )
+                client.add_entitlements(user.username, entitlements_to_add)
         else:
             # User shouldn't have entitlements - remove all entitlements
             if remote_entitlements:
