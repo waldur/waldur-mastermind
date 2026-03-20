@@ -909,6 +909,27 @@ class InstanceUpdatePortsTest(test.APITestCase):
             self.instance.ports.filter(subnet=self.fixture.subnet).exists()
         )
 
+    def test_fixed_ips_are_saved_when_updating_ports(self):
+        subnet = factories.SubNetFactory(tenant=self.fixture.tenant)
+        fixed_ips = [{"ip_address": "192.168.0.10", "subnet_id": subnet.backend_id}]
+
+        response = self.client.post(
+            self.url,
+            data={
+                "ports": [
+                    {
+                        "subnet": factories.SubNetFactory.get_url(subnet),
+                        "fixed_ips": fixed_ips,
+                    },
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        port = self.instance.ports.filter(subnet=subnet).first()
+        self.assertIsNotNone(port)
+        self.assertEqual(port.fixed_ips, fixed_ips)
+
 
 class InstanceUpdateFloatingIPsTest(test.APITestCase):
     action_name = "update_floating_ips"
