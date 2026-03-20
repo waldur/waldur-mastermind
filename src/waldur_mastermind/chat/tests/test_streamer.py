@@ -272,14 +272,67 @@ class LLMStreamerTest(unittest.TestCase):
             streamer = self._make_streamer(chunks, user=mock_user)
             output = [json.loads(c) for c in streamer]
 
+        # Loading indicator emitted before tool execution
+        self.assertTrue(
+            any(e.get("k") == "load" and e.get("t") == "tool" for e in output),
+            f"Did not find tool loading indicator. Output: {output}",
+        )
+
+        # Tool result rendered as table
         self.assertTrue(
             any(e.get("k") == "table" and e.get("n") == 0 for e in output),
             f"Did not find tool result rendered as table. Output: {output}",
         )
+
+        # Loading indicator appears before tool result
+        load_idx = next(
+            i
+            for i, e in enumerate(output)
+            if e.get("k") == "load" and e.get("t") == "tool"
+        )
+        table_idx = next(i for i, e in enumerate(output) if e.get("k") == "table")
+        self.assertLess(load_idx, table_idx)
+
         mock_exec.assert_called_once_with("show_user_resources", {})
 
+    def test_streamer_stores_tool_result_for_persistence(self):
+        """Test that tool results are stored in tool_calls for DB persistence."""
+        tc = _make_tool_call_delta(
+            0, name="show_user_resources", arguments="{}", call_id="call_abc"
+        )
+        chunks = [_make_chunk(tool_calls=[tc])]
+
+        tool_result = {
+            "type": "success",
+            "summary": "Found 1 resource",
+            "ui_component": "table",
+            "ui_data": {
+                "h": ["Name", "State"],
+                "r": [["VM1", "OK"]],
+                "n": 1,
+            },
+        }
+
+        mock_user = Mock()
+        mock_user.id = 1
+        mock_user.username = "testuser"
+
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool"
+        ) as mock_exec:
+            mock_exec.return_value = tool_result
+            streamer = self._make_streamer(chunks, user=mock_user)
+            list(streamer)  # Consume the stream
+
+        # Verify serialized tool calls include the result
+        serialized = streamer._serialized_tool_calls()
+        self.assertEqual(len(serialized), 1)
+        self.assertIn("result", serialized[0])
+        self.assertEqual(serialized[0]["result"]["k"], "table")
+        self.assertEqual(serialized[0]["result"]["n"], 1)
+
     def test_streamer_hides_tool_errors(self):
-        """Test that tool errors are not displayed to users."""
+        """Test that tool errors are not displayed to users and not persisted."""
         tc = _make_tool_call_delta(
             0, name="unknown_tool", arguments="{}", call_id="call_x"
         )
@@ -305,6 +358,11 @@ class LLMStreamerTest(unittest.TestCase):
                 self.assertNotIn("Unknown tool", event["c"])
 
         mock_exec.assert_called_once()
+
+        # Error results should NOT be stored for persistence
+        serialized = streamer._serialized_tool_calls()
+        self.assertEqual(len(serialized), 1)
+        self.assertNotIn("result", serialized[0])
 
 
 class LLMStreamerUsageRecordingTest(drf_test.APITestCase):
@@ -424,6 +482,100 @@ class LLMStreamerUsageRecordingTest(drf_test.APITestCase):
         self.assertEqual(quota.daily_usage, 0)
         self.assertEqual(quota.weekly_usage, 0)
         self.assertEqual(quota.monthly_usage, 0)
+
+
+class LLMStreamerErrorMessagesTest(unittest.TestCase):
+    """Test that specific OpenAI errors yield distinct user-facing messages."""
+
+    def setUp(self):
+        config_patcher = patch(
+            "waldur_mastermind.chat.llm_streamer.config",
+            AI_ASSISTANT_MODEL="test-model",
+            AI_ASSISTANT_API_URL="https://example.com/v1",
+            AI_ASSISTANT_API_TOKEN="tok",
+            AI_ASSISTANT_ENABLED=True,
+            AI_ASSISTANT_ENABLED_ROLES="all",
+            AI_ASSISTANT_BACKEND_TYPE="generic",
+            AI_ASSISTANT_COMPLETION_KWARGS={},
+        )
+        config_patcher.start()
+        self.addCleanup(config_patcher.stop)
+
+    def _make_error_streamer(self, error):
+        """Return a streamer whose stream raises the given error."""
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "tok",
+            user=None,
+        )
+
+        @contextmanager
+        def _error_stream(_):
+            raise error
+            yield  # noqa: unreachable — makes it a generator
+
+        streamer.client = MagicMock()
+        streamer.client.chat.completions.create.return_value = _error_stream(None)
+        return streamer
+
+    def _get_error_message(self, streamer):
+        """Consume the streamer and return the error message from the 'e' event."""
+        events = [json.loads(line) for line in streamer]
+        error_events = [e for e in events if "e" in e]
+        self.assertEqual(len(error_events), 1, f"Expected 1 error event, got {events}")
+        return error_events[0]["e"]
+
+    def test_authentication_error(self):
+        error = openai.AuthenticationError(
+            "invalid api key",
+            response=MagicMock(),
+            body=None,
+        )
+        msg = self._get_error_message(self._make_error_streamer(error))
+        self.assertIn("authentication", msg.lower())
+
+    def test_rate_limit_error(self):
+        error = openai.RateLimitError(
+            "rate limit",
+            response=MagicMock(),
+            body=None,
+        )
+        msg = self._get_error_message(self._make_error_streamer(error))
+        self.assertIn("rate limit", msg.lower())
+
+    def test_connection_error(self):
+        error = openai.APIConnectionError(request=MagicMock())
+        msg = self._get_error_message(self._make_error_streamer(error))
+        self.assertIn("connect", msg.lower())
+
+    def test_timeout_error(self):
+        error = openai.APITimeoutError(request=MagicMock())
+        msg = self._get_error_message(self._make_error_streamer(error))
+        self.assertIn("timed out", msg.lower())
+
+    def test_internal_server_error(self):
+        error = openai.InternalServerError(
+            "internal error",
+            response=MagicMock(),
+            body=None,
+        )
+        msg = self._get_error_message(self._make_error_streamer(error))
+        self.assertIn("unavailable", msg.lower())
+
+    def test_generic_api_error_fallback(self):
+        error = openai.APIStatusError(
+            "bad request",
+            response=MagicMock(),
+            body=None,
+        )
+        msg = self._get_error_message(self._make_error_streamer(error))
+        self.assertIn("error", msg.lower())
+
+    def test_unexpected_exception_uses_default(self):
+        error = RuntimeError("something broke")
+        msg = self._get_error_message(self._make_error_streamer(error))
+        self.assertIn("interrupted", msg.lower())
 
 
 class LLMStreamerCompletionKwargsTest(unittest.TestCase):

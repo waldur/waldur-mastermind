@@ -117,11 +117,12 @@ def _get_conversation_history(thread) -> list[dict]:
             result.append(msg)
             # OpenAI requires tool role messages after assistant tool_calls
             for tc in tool_calls:
+                summary = tc.get("summary", "Done")
                 result.append(
                     {
                         "role": "tool",
                         "tool_call_id": tc["id"],
-                        "content": "(result was displayed to user)",
+                        "content": summary,
                     }
                 )
         elif content:

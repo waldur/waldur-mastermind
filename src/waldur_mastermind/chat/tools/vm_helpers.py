@@ -428,7 +428,6 @@ def format_vm_form(name: str, project: Project, tenant: Tenant) -> dict:
         "ui_data": {
             "name": name,
             "status": "form",
-            "content": "Please select a flavor and image for your VM.",
             "project": project.name,
             "organization": project.customer.name,
             "project_uuid": str(project.uuid),
@@ -445,8 +444,6 @@ def format_vm_preview(
     ram_gb = flavor.ram / 1024  # Convert MiB to GB
     flavor_display = f"{flavor.name} ({flavor.cores} vCPU, {ram_gb:.0f}GB RAM)"
 
-    intro = f"I'll help you create a VM in {project.name}. Based on your request, here's what I'm planning to create:"
-
     return {
         "type": "success",
         "summary": "VM preview ready for confirmation",
@@ -456,7 +453,6 @@ def format_vm_preview(
             "flavor": flavor_display,
             "image": image.name,
             "status": "preview",
-            "content": intro,
             "project": project.name,
             "organization": project.customer.name,
             "project_uuid": str(project.uuid),

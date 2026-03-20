@@ -41,7 +41,7 @@ class BuildContextTest(TestCase):
         self.assertIn("You are a highly knowledgeable", system_msg["content"])
         self.assertIn("SCOPE: WALDUR CLOUD MANAGEMENT ONLY", system_msg["content"])
         self.assertIn(UI_CAPABILITIES, system_msg["content"])
-        self.assertIn("show_user_resources", system_msg["content"])
+        self.assertIn("TOOL USAGE GUIDELINES", system_msg["content"])
         history_roles_contents = [(m["role"], m["content"]) for m in context]
         self.assertIn(("user", "Hello"), history_roles_contents)
         self.assertIn(("assistant", "Hi there!"), history_roles_contents)

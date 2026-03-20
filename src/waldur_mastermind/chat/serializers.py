@@ -86,7 +86,6 @@ class ChatResponseSerializer(serializers.Serializer):
     - name: VM name
     - flavor: Flavor display string (e.g. 'm1.small (2 vCPU, 4GB RAM)')
     - image: Image name
-    - content: Intro text or form instructions
     - project: Project name
     - organization: Organization/customer name
     - project_uuid: Project UUID
@@ -101,7 +100,7 @@ class ChatResponseSerializer(serializers.Serializer):
         {"k":"markdown","c":"Hello!"}
         {"k":"code","c":"print('hi')","t":"python"}
         {"k":"table","h":["Name","State"],"r":[["VM1","OK"]],"n":1}
-        {"k":"vm_order","status":"project_form","name":"","content":"...","projects":[...]}
+        {"k":"vm_order","status":"project_form","name":"","projects":[...]}
         {"k":"vm_order","status":"form","name":"my-vm","project":"Acme","flavors":[...],"images":[...]}
         {"k":"vm_order","status":"preview","name":"my-vm","flavor":"m1.small (2 vCPU, 4GB RAM)","image":"Ubuntu 22.04"}
         {"k":"vm_order","status":"success","name":"my-vm","order_id":"uuid","message":"VM order created."}

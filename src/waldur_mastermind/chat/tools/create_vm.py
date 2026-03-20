@@ -38,8 +38,8 @@ class CreateVMTool(BaseTool):
                 "NEVER use this without showing preview first."
             ),
             usage_instructions=(
-                "ONLY use create_vm after the user has confirmed a VM preview.\n"
-                "NEVER use without first showing a preview_vm result and receiving explicit user confirmation."
+                "ONLY use this tool after the user has confirmed a VM preview.\n"
+                "NEVER use without first showing a preview result and receiving explicit user confirmation."
             ),
             workflow_instructions="""\
 === VM CREATION WORKFLOW ===

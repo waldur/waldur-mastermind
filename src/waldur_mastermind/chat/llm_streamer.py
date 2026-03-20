@@ -23,6 +23,17 @@ from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
 
+# Maps specific OpenAI exception types to user-facing error messages.
+# Looked up by exact type in the `except openai.APIError` handler;
+# unmatched subclasses fall back to a generic message.
+_LLM_ERROR_MESSAGES: dict[type, str] = {
+    openai.AuthenticationError: "AI service authentication failed. Please contact your administrator.",
+    openai.RateLimitError: "AI service rate limit reached. Please wait and try again.",
+    openai.APITimeoutError: "AI service request timed out. Please try again.",
+    openai.APIConnectionError: "Could not connect to AI service. Please try again later.",
+    openai.InternalServerError: "AI service is temporarily unavailable. Please try again later.",
+}
+
 
 def validate_tool_call(tool_name, user):
     """Validates if the tool exists and user is authenticated."""
@@ -207,12 +218,20 @@ class LLMStreamer:
             self._generate_thread_name()
 
         except openai.APIError as e:
-            yield from self._handle_stream_error(e, "Upstream LLM request failed.")
+            user_msg = _LLM_ERROR_MESSAGES.get(
+                type(e),
+                "AI service encountered an error. Please try again later.",
+            )
+            yield from self._handle_stream_error(
+                e,
+                "Upstream LLM request failed.",
+                user_msg=user_msg,
+            )
         except Exception as e:
             yield from self._handle_stream_error(
                 e,
                 "Unexpected error during LLM streaming — this is a bug.",
-                logging.CRITICAL,
+                log_level=logging.CRITICAL,
             )
 
         finally:
@@ -223,14 +242,16 @@ class LLMStreamer:
                 self._persist_messages()
 
     def _handle_stream_error(
-        self, exc: Exception, log_msg: str, log_level: int = logging.ERROR
+        self,
+        exc: Exception,
+        log_msg: str,
+        log_level: int = logging.ERROR,
+        user_msg: str = "Chat processing was interrupted. Please try again later.",
     ):
         """Log an error, emit an error NDJSON line, and persist messages."""
         logger.log(log_level, log_msg, exc_info=True)
         self.error = str(exc)
-        yield self._format_ndjson(
-            {"e": "Chat processing was interrupted. Please try again later."}
-        )
+        yield self._format_ndjson({"e": user_msg})
         self._persist_messages()
         if self._persisted_message_meta:
             yield self._format_ndjson({"m": self._persisted_message_meta})
@@ -250,12 +271,20 @@ class LLMStreamer:
                 )
                 continue
 
+            # Emit loading indicator so the frontend can show an inline spinner
+            yield self._format_ndjson({"k": "load", "t": "tool"})
+
             logger.debug(
                 "Executing tool call",
                 extra={"tool_name": tool_name, "user_id": self.user.id},
             )
             result = tool_executor.execute_tool(tool_name, arguments)
             tool_block = self.parser.parse_tool_result(result)
+
+            # Store result for DB persistence (None for hidden errors)
+            entry["_result_block"] = tool_block
+            entry["_summary"] = result.get("summary", "")
+
             if tool_block:
                 yield self._format_ndjson(tool_block)
 
@@ -267,9 +296,19 @@ class LLMStreamer:
                 arguments = json.loads(entry["arguments"]) if entry["arguments"] else {}
             except json.JSONDecodeError:
                 arguments = {}
-            result.append(
-                {"id": entry["id"], "name": entry["name"], "arguments": arguments}
-            )
+            tc_data = {"id": entry["id"], "name": entry["name"], "arguments": arguments}
+
+            # Include rendered tool result for history reconstruction
+            tool_block = entry.get("_result_block")
+            if tool_block:
+                tc_data["result"] = tool_block
+
+            # Include summary for LLM context in subsequent turns
+            summary = entry.get("_summary")
+            if summary:
+                tc_data["summary"] = summary
+
+            result.append(tc_data)
         return result
 
     def _persist_messages(self):

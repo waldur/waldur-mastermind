@@ -234,7 +234,6 @@ class ToolExecutorListProjectsTest(ToolExecutorBaseTest):
         self.assertEqual(result["ui_component"], "vm_order")
         self.assertEqual(result["ui_data"]["status"], "project_form")
         self.assertIn("projects", result["ui_data"])
-        self.assertIn("content", result["ui_data"])
 
     def test_returns_projects_for_admin_user(self):
         result = self.tool_executor.execute_tool("list_projects", {})

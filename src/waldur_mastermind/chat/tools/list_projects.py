@@ -35,7 +35,7 @@ class ListProjectsTool(BaseTool):
                 "required": [],
             },
             usage_instructions=(
-                "ONLY use list_projects when the user asks to create a VM but has NOT specified a project:\n"
+                "ONLY use this tool when the user asks to create a VM but has NOT specified a project:\n"
                 "  ✓ CORRECT: 'create a VM' (no project given)\n"
                 "  ✗ WRONG: 'what is a project?', 'explain projects', 'list my resources'"
             ),
@@ -140,7 +140,6 @@ class ListProjectsTool(BaseTool):
             "ui_data": {
                 "name": "",
                 "status": "project_form",
-                "content": "Please select a project to create your VM in.",
                 "projects": projects,
             },
         }
