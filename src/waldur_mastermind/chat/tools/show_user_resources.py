@@ -25,7 +25,7 @@ class ShowUserResourcesTool(BaseTool):
                 "required": [],
             },
             usage_instructions=(
-                "ONLY use show_user_resources when the user EXPLICITLY asks to "
+                "ONLY use this tool when the user EXPLICITLY asks to "
                 "see/list/display/show their actual deployed resources (VMs, instances, services):\n"
                 "  ✓ CORRECT: 'show my resources', 'list my VMs', 'display my resources'\n"
                 "  ✗ WRONG: 'show my offerings', 'show my projects', 'show my organizations', "

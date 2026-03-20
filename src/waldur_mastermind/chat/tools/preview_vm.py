@@ -32,7 +32,7 @@ class PreviewVMTool(BaseTool):
                 "Call with all parameters to show a preview card. NEVER create a VM without showing preview first."
             ),
             usage_instructions=(
-                "ONLY use preview_vm during the VM creation workflow after a project has been selected.\n"
+                "ONLY use this tool during the VM creation workflow after a project has been selected.\n"
                 "Do NOT use for general questions about VMs or resources."
             ),
             inputSchema={
