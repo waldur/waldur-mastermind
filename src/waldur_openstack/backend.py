@@ -5296,9 +5296,9 @@ class OpenStackBackend(ServiceBackend):
         for new_port in new_ports:
             port_payload = {
                 "network_id": new_port.subnet.network.backend_id,
-                # If you specify only a subnet ID, OpenStack Networking
-                # allocates an available IP from that subnet to the port.
-                "fixed_ips": [
+                "fixed_ips": new_port.fixed_ips
+                if new_port.fixed_ips
+                else [
                     {
                         "subnet_id": new_port.subnet.backend_id,
                     }

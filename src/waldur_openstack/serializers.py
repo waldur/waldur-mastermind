@@ -4456,6 +4456,7 @@ class OpenStackInstancePortsUpdateSerializer(serializers.Serializer):
                     tenant=port.subnet.tenant,
                     project=port.subnet.project,
                     service_settings=port.subnet.service_settings,
+                    fixed_ips=port.fixed_ips or [],
                 )
 
         return instance
