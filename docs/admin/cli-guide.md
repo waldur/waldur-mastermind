@@ -764,14 +764,15 @@ options:
 
 ## load_notifications
 
-Import notifications to DB
+Sync notifications and their templates from a JSON/YAML config file to the DB.
 
 ```bash
 
 usage: waldur load_notifications notifications_file
 
 positional arguments:
-  notifications_file  Specifies location of notifications file.
+  notifications_file  Path to a JSON or YAML file mapping notification keys to
+                      their enabled status (bool).
 
 ```
 
@@ -942,19 +943,18 @@ positional arguments:
 
 ## override_templates
 
-Override templates
+Override dbtemplates content from a YAML file. Use --clean to remove DB templates not present in the file.
 
 ```bash
 
-usage: waldur override_templates [-c CLEAN] templates_file
+usage: waldur override_templates [-c] templates_file
 
 positional arguments:
-  templates_file        Specifies location of templates file.
+  templates_file  Path to a YAML file mapping template names to their content.
 
 options:
-  -c CLEAN, --clean CLEAN
-                        This flag means total synchronization with the
-                        template file you pass.
+  -c, --clean     Remove DB templates whose names are not present in the file
+                  (full sync mode).
 
 ```
 
