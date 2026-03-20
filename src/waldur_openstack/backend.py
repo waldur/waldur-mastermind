@@ -5289,44 +5289,56 @@ class OpenStackBackend(ServiceBackend):
                 except neutron_exceptions.NeutronClientException as e:
                     raise OpenStackBackendError(e)
 
-        # create new ports
+        # create or attach ports not yet on the instance
         new_ports = instance.ports.exclude(
             backend_id__in=[ip["id"] for ip in backend_ports]
         )
         for new_port in new_ports:
-            port_payload = {
-                "network_id": new_port.subnet.network.backend_id,
-                "fixed_ips": new_port.fixed_ips
-                if new_port.fixed_ips
-                else [
-                    {
-                        "subnet_id": new_port.subnet.backend_id,
-                    }
-                ],
-                "security_groups": list(
-                    instance.security_groups.exclude(backend_id="").values_list(
-                        "backend_id", flat=True
-                    )
-                ),
-            }
             try:
-                logger.debug(
-                    "About to create network port for instance %s in subnet %s.",
-                    instance.backend_id,
-                    new_port.subnet.backend_id,
-                )
-                backend_port = neutron.create_port({"port": port_payload})["port"]
-                nova.servers.interface_attach(
-                    instance.backend_id, backend_port["id"], None, None
-                )
+                if new_port.backend_id:
+                    # Existing port — attach it to the instance directly
+                    logger.debug(
+                        "About to attach existing port %s to instance %s.",
+                        new_port.backend_id,
+                        instance.backend_id,
+                    )
+                    nova.servers.interface_attach(
+                        instance.backend_id, new_port.backend_id, None, None
+                    )
+                else:
+                    # New port — create in OpenStack and attach
+                    port_payload = {
+                        "network_id": new_port.subnet.network.backend_id,
+                        "fixed_ips": new_port.fixed_ips
+                        if new_port.fixed_ips
+                        else [
+                            {
+                                "subnet_id": new_port.subnet.backend_id,
+                            }
+                        ],
+                        "security_groups": list(
+                            instance.security_groups.exclude(backend_id="").values_list(
+                                "backend_id", flat=True
+                            )
+                        ),
+                    }
+                    logger.debug(
+                        "About to create network port for instance %s in subnet %s.",
+                        instance.backend_id,
+                        new_port.subnet.backend_id,
+                    )
+                    created_port = neutron.create_port({"port": port_payload})["port"]
+                    nova.servers.interface_attach(
+                        instance.backend_id, created_port["id"], None, None
+                    )
+                    new_port.mac_address = created_port["mac_address"]
+                    new_port.fixed_ips = created_port["fixed_ips"]
+                    new_port.backend_id = created_port["id"]
+                    new_port.save()
             except neutron_exceptions.NeutronClientException as e:
                 raise OpenStackBackendError(e)
             except nova_exceptions.ClientException as e:
                 raise OpenStackBackendError(e)
-            new_port.mac_address = backend_port["mac_address"]
-            new_port.fixed_ips = backend_port["fixed_ips"]
-            new_port.backend_id = backend_port["id"]
-            new_port.save()
 
     @log_backend_action()
     def create_instance_ports(self, instance: models.Instance):

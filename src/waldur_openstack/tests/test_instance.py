@@ -930,6 +930,40 @@ class InstanceUpdatePortsTest(test.APITestCase):
         self.assertIsNotNone(port)
         self.assertEqual(port.fixed_ips, fixed_ips)
 
+    def test_existing_port_is_reused_when_updating_ports(self):
+        existing_port = factories.PortFactory(
+            tenant=self.fixture.tenant,
+            network=self.fixture.subnet.network,
+            subnet=self.fixture.subnet,
+            service_settings=self.fixture.tenant.service_settings,
+            project=self.fixture.tenant.project,
+            status="DOWN",
+        )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "ports": [
+                    {
+                        "port": factories.PortFactory.get_url(existing_port),
+                        "subnet": factories.SubNetFactory.get_url(self.fixture.subnet),
+                    },
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        existing_port.refresh_from_db()
+        self.assertEqual(existing_port.instance, self.instance)
+        # No extra port should be created for the same subnet
+        self.assertEqual(
+            self.instance.ports.filter(subnet=self.fixture.subnet).count(), 1
+        )
+        self.assertEqual(
+            self.instance.ports.filter(subnet=self.fixture.subnet).first().pk,
+            existing_port.pk,
+        )
+
 
 class InstanceUpdateFloatingIPsTest(test.APITestCase):
     action_name = "update_floating_ips"
