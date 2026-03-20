@@ -12,7 +12,7 @@ from rest_framework import exceptions as rf_exceptions
 from waldur_mastermind.chat import models
 from waldur_mastermind.chat.models import TokenQuota
 from waldur_mastermind.chat.parsers import StreamParser
-from waldur_mastermind.chat.prompts import TITLE_GENERATION_PROMPT
+from waldur_mastermind.chat.prompts.rejection import TITLE_GENERATION_PROMPT
 from waldur_mastermind.chat.providers import (
     ALLOWED_COMPLETION_KEYS,
     FALLBACK_DEFAULTS,

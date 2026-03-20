@@ -1,6 +1,8 @@
 from django.test import TestCase
 
-from waldur_mastermind.chat import prompts
+from waldur_mastermind.chat.prompts.assembly import SYSTEM_PROMPT
+from waldur_mastermind.chat.prompts.persona import PERSONA
+from waldur_mastermind.chat.prompts.ui_capabilities import UI_CAPABILITIES
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.registry import tool_registry
 
@@ -135,26 +137,26 @@ class GetToolsPromptTest(TestCase):
 
 class UICapabilitiesTest(TestCase):
     def test_ui_capabilities_is_string(self):
-        self.assertIsInstance(prompts.UI_CAPABILITIES, str)
+        self.assertIsInstance(UI_CAPABILITIES, str)
 
     def test_includes_mermaid_capabilities(self):
-        self.assertIn("mermaid", prompts.UI_CAPABILITIES.lower())
-        self.assertIn("```mermaid", prompts.UI_CAPABILITIES)
+        self.assertIn("mermaid", UI_CAPABILITIES.lower())
+        self.assertIn("```mermaid", UI_CAPABILITIES)
 
     def test_includes_code_capabilities(self):
-        self.assertIn("code", prompts.UI_CAPABILITIES.lower())
-        self.assertIn("```python", prompts.UI_CAPABILITIES)
+        self.assertIn("code", UI_CAPABILITIES.lower())
+        self.assertIn("```python", UI_CAPABILITIES)
 
     def test_includes_table_capabilities(self):
-        self.assertIn("table", prompts.UI_CAPABILITIES.lower())
+        self.assertIn("table", UI_CAPABILITIES.lower())
 
 
 class SystemPromptTest(TestCase):
     def test_system_prompt_is_string(self):
-        self.assertIsInstance(prompts.SYSTEM_PROMPT, str)
+        self.assertIsInstance(SYSTEM_PROMPT, str)
 
     def test_system_prompt_has_persona(self):
-        self.assertIn(prompts.PERSONA, prompts.SYSTEM_PROMPT)
+        self.assertIn(PERSONA, SYSTEM_PROMPT)
 
     def test_system_prompt_has_placeholders(self):
-        self.assertIn("{tools}", prompts.SYSTEM_PROMPT)
+        self.assertIn("{tools}", SYSTEM_PROMPT)

@@ -7,10 +7,8 @@ from rest_framework.exceptions import PermissionDenied
 
 from waldur_mastermind.chat.input_guards import SeverityLevel
 from waldur_mastermind.chat.models import Message
-from waldur_mastermind.chat.prompts import (
-    REJECTION_SYSTEM_PROMPT,
-    SYSTEM_PROMPT,
-)
+from waldur_mastermind.chat.prompts.assembly import SYSTEM_PROMPT
+from waldur_mastermind.chat.prompts.rejection import REJECTION_SYSTEM_PROMPT
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)

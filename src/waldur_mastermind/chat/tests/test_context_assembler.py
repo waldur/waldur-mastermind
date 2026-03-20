@@ -10,7 +10,7 @@ from rest_framework.exceptions import PermissionDenied
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.context_assembler import build_context
 from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession
-from waldur_mastermind.chat.prompts import UI_CAPABILITIES
+from waldur_mastermind.chat.prompts.ui_capabilities import UI_CAPABILITIES
 from waldur_mastermind.chat.tests.utils import (
     _make_content_chunk,
     _mock_openai_client,
@@ -39,6 +39,7 @@ class BuildContextTest(TestCase):
         # context is a list[dict] in OpenAI messages format
         system_msg = next(m for m in context if m["role"] == "system")
         self.assertIn("You are a highly knowledgeable", system_msg["content"])
+        self.assertIn("SCOPE: WALDUR CLOUD MANAGEMENT ONLY", system_msg["content"])
         self.assertIn(UI_CAPABILITIES, system_msg["content"])
         self.assertIn("show_user_resources", system_msg["content"])
         history_roles_contents = [(m["role"], m["content"]) for m in context]
