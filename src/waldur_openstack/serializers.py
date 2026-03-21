@@ -4443,21 +4443,26 @@ class OpenStackInstancePortsUpdateSerializer(serializers.Serializer):
         models.Port.objects.filter(instance=instance, network__isnull=False).exclude(
             subnet__in=new_subnets
         ).delete()
-        # create new ports
+        # create or attach ports
         for port in ports:
-            match = models.Port.objects.filter(
-                instance=instance, subnet=port.subnet
-            ).first()
-            if not match:
-                models.Port.objects.create(
-                    instance=instance,
-                    subnet=port.subnet,
-                    network=port.subnet.network,
-                    tenant=port.subnet.tenant,
-                    project=port.subnet.project,
-                    service_settings=port.subnet.service_settings,
-                    fixed_ips=port.fixed_ips or [],
-                )
+            if port.pk:
+                # Existing port returned by serializer — attach it to the instance
+                port.instance = instance
+                port.save(update_fields=["instance"])
+            else:
+                match = models.Port.objects.filter(
+                    instance=instance, subnet=port.subnet
+                ).first()
+                if not match:
+                    models.Port.objects.create(
+                        instance=instance,
+                        subnet=port.subnet,
+                        network=port.subnet.network,
+                        tenant=port.subnet.tenant,
+                        project=port.subnet.project,
+                        service_settings=port.subnet.service_settings,
+                        fixed_ips=port.fixed_ips or [],
+                    )
 
         return instance
 
