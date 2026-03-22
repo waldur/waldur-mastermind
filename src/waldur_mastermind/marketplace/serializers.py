@@ -5452,6 +5452,8 @@ class RenewalEstimateResponseSerializer(serializers.Serializer):
 
 
 class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):
+    """Deprecated: Use ResourceEndDateSerializer instead."""
+
     class Meta:
         model = models.Resource
         fields = ("end_date",)
@@ -5475,6 +5477,18 @@ class ResourceEndDateByProviderSerializer(serializers.ModelSerializer):
                 _("Please set at least 7 days in advance.")
             )
         return end_date
+
+    def save(self, **kwargs):
+        resource = super().save(**kwargs)
+        user = self.context["request"].user
+        resource.end_date_requested_by = user
+        resource.save(update_fields=["end_date_requested_by"])
+
+
+class ResourceEndDateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Resource
+        fields = ("end_date",)
 
     def save(self, **kwargs):
         resource = super().save(**kwargs)

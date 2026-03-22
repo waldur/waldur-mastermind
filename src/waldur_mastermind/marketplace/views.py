@@ -7009,15 +7009,31 @@ class BaseResourceViewSet(
 
     @extend_schema(
         summary="Set end date of the resource by staff",
-        description="Allows a staff user to set or update the end date for a resource, which will schedule it for termination.",
+        description="Deprecated: Use set_end_date instead. Allows a staff user to set or update the end date for a resource.",
         request=serializers.ResourceEndDateByProviderSerializer,
         responses={status.HTTP_200_OK: None},
+        deprecated=True,
     )
     @action(detail=True, methods=["post"])
     def set_end_date_by_staff(self, request, uuid=None):
         return self._set_end_date(request, True)
 
     set_end_date_by_staff_permissions = [structure_permissions.is_staff]
+
+    def _set_end_date_v2(self, request, template):
+        resource: models.Resource = self.get_object()
+        serializer = serializers.ResourceEndDateSerializer(
+            data=request.data, instance=resource, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        transaction.on_commit(
+            lambda: tasks.notify_about_resource_termination.delay(
+                resource.uuid.hex, request.user.uuid.hex, False
+            )
+        )
+        log.log_resource_end_date_has_been_updated(resource, request.user, template)
+        return Response(status=status.HTTP_200_OK)
 
     @extend_schema(
         summary="Get GLauth user configuration for a resource",
@@ -7306,6 +7322,24 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
             "plan",
         )
         return queryset
+
+    @extend_schema(
+        summary="Set end date of the resource",
+        description="Allows a consumer (customer owner) to set or update the end date for a resource.",
+        request=serializers.ResourceEndDateSerializer,
+        responses={status.HTTP_200_OK: None},
+    )
+    @action(detail=True, methods=["post"])
+    def set_end_date(self, request, uuid=None):
+        template = (
+            "End date of marketplace resource %(resource_name)s has been updated by consumer."
+            " End date: %(end_date)s."
+            " User: %(user)s."
+        )
+        return self._set_end_date_v2(request, template)
+
+    set_end_date_permissions = [permissions.user_can_set_end_date_as_consumer]
+    set_end_date_serializer_class = serializers.ResourceEndDateSerializer
 
     @extend_schema(
         summary="Suggest a resource name",
@@ -7711,9 +7745,10 @@ class ProviderResourceViewSet(BaseResourceViewSet):
 
     @extend_schema(
         summary="Set end date by provider",
-        description="Allows a service provider to set or update the end date for a resource, scheduling it for termination. A notification is sent to the consumer.",
+        description="Deprecated: Use set_end_date instead. Allows a service provider to set or update the end date for a resource.",
         request=serializers.ResourceEndDateByProviderSerializer,
         responses={200: None},
+        deprecated=True,
     )
     @action(detail=True, methods=["post"])
     def set_end_date_by_provider(self, request, uuid=None):
@@ -7722,6 +7757,24 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     set_end_date_by_provider_permissions = [
         permissions.user_can_set_end_date_by_provider
     ]
+
+    @extend_schema(
+        summary="Set end date of the resource",
+        description="Allows a service provider to set or update the end date for a resource.",
+        request=serializers.ResourceEndDateSerializer,
+        responses={status.HTTP_200_OK: None},
+    )
+    @action(detail=True, methods=["post"])
+    def set_end_date(self, request, uuid=None):
+        template = (
+            "End date of marketplace resource %(resource_name)s has been updated by provider."
+            " End date: %(end_date)s."
+            " User: %(user)s."
+        )
+        return self._set_end_date_v2(request, template)
+
+    set_end_date_permissions = [permissions.user_can_set_end_date_as_provider]
+    set_end_date_serializer_class = serializers.ResourceEndDateSerializer
 
     @extend_schema(
         summary="Set resource backend ID",

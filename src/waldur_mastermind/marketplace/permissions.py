@@ -137,6 +137,18 @@ def user_can_set_end_date_by_provider(
     raise exceptions.PermissionDenied()
 
 
+user_can_set_end_date_as_consumer = permission_factory(
+    PermissionEnum.SET_RESOURCE_END_DATE,
+    ["project.customer", "project"],
+)
+
+
+user_can_set_end_date_as_provider = permission_factory(
+    PermissionEnum.SET_RESOURCE_END_DATE,
+    ["offering.customer", "offering"],
+)
+
+
 def user_can_update_thumbnail(request, view, obj: models.Offering | None = None):
     if not obj:
         return

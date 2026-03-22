@@ -200,10 +200,12 @@ class ResourceQuerySet(django_models.QuerySet["models.Resource"]):
 
         connected_customers = get_connected_customers(user)
         connected_service_providers = get_connected_serviceproviders(user)
+        connected_offerings = get_connected_offerings(user)
 
         return self.filter(
             Q(offering__customer__in=connected_customers)
             | Q(offering__customer__serviceprovider__in=connected_service_providers)
+            | Q(offering__in=connected_offerings)
         ).distinct()
 
     def filter_for_user(self, user):

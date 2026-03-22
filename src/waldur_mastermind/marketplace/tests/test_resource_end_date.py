@@ -6,7 +6,12 @@ from rest_framework import status, test
 
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole, ServiceProviderRole
+from waldur_core.permissions.fixtures import (
+    CustomerRole,
+    OfferingRole,
+    ProjectRole,
+    ServiceProviderRole,
+)
 from waldur_core.structure.tests.factories import ProjectFactory
 from waldur_mastermind.common.utils import parse_date
 from waldur_mastermind.marketplace.enums import (
@@ -399,3 +404,184 @@ class ResourcePrepaidUpdateTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
         self.prepaid_resource.refresh_from_db()
         self.assertEqual(self.prepaid_resource.end_date, datetime.date(2025, 1, 1))
+
+
+@ddt
+class ConsumerSetEndDateTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+        self.url = factories.ResourceFactory.get_url(self.resource, "set_end_date")
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
+
+    def make_request(self, user, payload):
+        self.client.force_authenticate(user)
+        return self.client.post(self.url, payload)
+
+    @freeze_time("2020-01-01")
+    def test_customer_owner_can_set_end_date(self):
+        response = self.make_request(self.fixture.owner, {"end_date": "2020-02-01"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.end_date, parse_date("2020-02-01"))
+        self.assertEqual(self.resource.end_date_requested_by, self.fixture.owner)
+
+    @freeze_time("2020-01-01")
+    def test_project_admin_can_set_end_date(self):
+        response = self.make_request(self.fixture.admin, {"end_date": "2020-02-01"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.end_date, parse_date("2020-02-01"))
+
+    @freeze_time("2020-01-01")
+    def test_no_7_day_minimum_restriction(self):
+        response = self.make_request(self.fixture.owner, {"end_date": "2020-01-02"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.end_date, parse_date("2020-01-02"))
+
+    @freeze_time("2020-01-01")
+    def test_no_90_day_invoice_restriction(self):
+        from waldur_mastermind.invoices.tests.factories import (
+            InvoiceFactory,
+            InvoiceItemFactory,
+        )
+
+        invoice = InvoiceFactory(customer=self.fixture.customer)
+        InvoiceItemFactory(invoice=invoice, resource=self.resource)
+        response = self.make_request(self.fixture.owner, {"end_date": "2020-02-01"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @freeze_time("2020-01-01")
+    def test_can_clear_end_date(self):
+        self.resource.end_date = parse_date("2020-06-01")
+        self.resource.save()
+        response = self.make_request(self.fixture.owner, {"end_date": None})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertIsNone(self.resource.end_date)
+
+    @data("staff", "owner", "admin")
+    @freeze_time("2020-01-01")
+    def test_permission_positive(self, user):
+        response = self.make_request(
+            getattr(self.fixture, user), {"end_date": "2020-02-01"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data("manager", "member")
+    @freeze_time("2020-01-01")
+    def test_permission_negative(self, user):
+        response = self.make_request(
+            getattr(self.fixture, user), {"end_date": "2020-02-01"}
+        )
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND],
+        )
+
+    @freeze_time("2020-01-01")
+    def test_audit_log_is_created(self):
+        response = self.make_request(self.fixture.owner, {"end_date": "2020-02-01"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                message__contains="End date of marketplace resource %s has been updated by consumer."
+                % self.resource.name
+            ).exists()
+        )
+
+
+@ddt
+class ProviderSetEndDateTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+        self.url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, "set_end_date"
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
+        OfferingRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
+
+    def make_request(self, user, payload):
+        self.client.force_authenticate(user)
+        return self.client.post(self.url, payload)
+
+    @freeze_time("2020-01-01")
+    def test_offering_owner_can_set_end_date(self):
+        response = self.make_request(
+            self.fixture.offering_owner, {"end_date": "2020-02-01"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.end_date, parse_date("2020-02-01"))
+        self.assertEqual(
+            self.resource.end_date_requested_by, self.fixture.offering_owner
+        )
+
+    @freeze_time("2020-01-01")
+    def test_no_7_day_minimum_restriction(self):
+        response = self.make_request(
+            self.fixture.offering_owner, {"end_date": "2020-01-02"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.end_date, parse_date("2020-01-02"))
+
+    @freeze_time("2020-01-01")
+    def test_no_90_day_invoice_restriction(self):
+        from waldur_mastermind.invoices.tests.factories import (
+            InvoiceFactory,
+            InvoiceItemFactory,
+        )
+
+        invoice = InvoiceFactory(customer=self.fixture.offering_customer)
+        InvoiceItemFactory(invoice=invoice, resource=self.resource)
+        response = self.make_request(
+            self.fixture.offering_owner, {"end_date": "2020-02-01"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @freeze_time("2020-01-01")
+    def test_can_clear_end_date(self):
+        self.resource.end_date = parse_date("2020-06-01")
+        self.resource.save()
+        response = self.make_request(self.fixture.offering_owner, {"end_date": None})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertIsNone(self.resource.end_date)
+
+    @data("staff", "offering_owner", "service_manager", "offering_manager")
+    @freeze_time("2020-01-01")
+    def test_permission_positive(self, user):
+        response = self.make_request(
+            getattr(self.fixture, user), {"end_date": "2020-02-01"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data("admin", "manager", "member", "owner", "customer_support")
+    @freeze_time("2020-01-01")
+    def test_permission_negative(self, user):
+        response = self.make_request(
+            getattr(self.fixture, user), {"end_date": "2020-02-01"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @freeze_time("2020-01-01")
+    def test_audit_log_is_created(self):
+        response = self.make_request(
+            self.fixture.offering_owner, {"end_date": "2020-02-01"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                message__contains="End date of marketplace resource %s has been updated by provider."
+                % self.resource.name
+            ).exists()
+        )
