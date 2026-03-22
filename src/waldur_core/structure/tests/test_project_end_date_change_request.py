@@ -475,3 +475,57 @@ class ProjectEndDateChangeRequestEventTest(test.APITestCase):
             ).count(),
             initial_count + 1,
         )
+
+
+class ProjectEndDateUpdatedAtTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.url = factories.ProjectFactory.get_url(self.project)
+
+    def test_end_date_updated_at_is_set_when_end_date_changes(self):
+        self.assertIsNone(self.project.end_date_updated_at)
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(
+            self.url, {"end_date": "2030-01-01"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project.refresh_from_db()
+        self.assertIsNotNone(self.project.end_date_updated_at)
+
+    def test_end_date_updated_at_not_changed_when_other_fields_change(self):
+        self.assertIsNone(self.project.end_date_updated_at)
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.patch(self.url, {"name": "new name"}, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project.refresh_from_db()
+        self.assertIsNone(self.project.end_date_updated_at)
+
+    def test_end_date_updated_at_in_api_response(self):
+        self.client.force_authenticate(self.fixture.staff)
+        self.client.patch(self.url, {"end_date": "2030-01-01"}, format="json")
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("end_date_updated_at", response.data)
+        self.assertIsNotNone(response.data["end_date_updated_at"])
+
+    def test_end_date_updated_at_set_on_approval(self):
+        """end_date_updated_at is set when end_date changes via change request approval."""
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
+        self.addCleanup(
+            lambda: CustomerRole.OWNER.delete_permission(PermissionEnum.UPDATE_PROJECT)
+        )
+        change_request = factories.ProjectEndDateChangeRequestFactory(
+            project=self.project,
+            created_by=self.fixture.manager,
+            state=ReviewStates.PENDING,
+            requested_end_date=(timezone.now() + timedelta(days=90)).date(),
+        )
+        approve_url = factories.ProjectEndDateChangeRequestFactory.get_url(
+            change_request, action="approve"
+        )
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(approve_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.project.refresh_from_db()
+        self.assertIsNotNone(self.project.end_date_updated_at)

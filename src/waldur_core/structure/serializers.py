@@ -284,6 +284,7 @@ class ProjectSerializer(
             "start_date",
             "end_date",
             "end_date_requested_by",
+            "end_date_updated_at",
             "oecd_fos_2007_code",
             "oecd_fos_2007_label",
             "is_industry",
@@ -303,6 +304,7 @@ class ProjectSerializer(
         )
         read_only_fields = (
             "end_date_requested_by",
+            "end_date_updated_at",
             "is_removed",
             "termination_metadata",
             "effective_end_date",

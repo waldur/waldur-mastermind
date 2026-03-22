@@ -787,6 +787,11 @@ class Project(
         null=True,
         related_name="+",
     )
+    end_date_updated_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=_("Timestamp of the last end_date change."),
+    )
     type = models.ForeignKey(
         ProjectType,
         verbose_name=_("project type"),
@@ -836,6 +841,16 @@ class Project(
     available_objects = SoftDeletableManager()
     objects = models.Manager()
     id: int
+
+    def save(self, *args, **kwargs):
+        end_date_changed = not self._state.adding and self.tracker.has_changed(
+            "end_date"
+        )
+        super().save(*args, **kwargs)
+        if end_date_changed:
+            Project.objects.filter(pk=self.pk).update(
+                end_date_updated_at=timezone.now()
+            )
 
     def get_grace_period_days(self):
         """Get the grace period days, with project-level setting overriding customer-level."""
