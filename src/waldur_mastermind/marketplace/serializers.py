@@ -4915,6 +4915,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
     project_end_date = serializers.ReadOnlyField(source="project.end_date")
     project_effective_end_date = serializers.DateField(
         read_only=True,
+        allow_null=True,
         source="project.end_date_with_grace",
         help_text="Effective project end date including grace period. After this date, resources will be terminated.",
     )
@@ -4923,6 +4924,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         lookup_field="uuid",
         view_name="user-detail",
         read_only=True,
+        allow_null=True,
     )
     project_description = serializers.ReadOnlyField(source="project.description")
     customer_name = serializers.ReadOnlyField(source="project.customer.name")
