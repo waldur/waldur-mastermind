@@ -253,6 +253,7 @@ class ProjectSerializer(
     )
     effective_end_date = serializers.DateField(
         read_only=True,
+        allow_null=True,
         source="end_date_with_grace",
         help_text="Effective end date including grace period. After this date, project resources will be terminated.",
     )
