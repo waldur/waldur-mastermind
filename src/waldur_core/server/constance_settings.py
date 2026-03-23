@@ -196,6 +196,7 @@ REPORTING_SCREEN_CHOICES = [
     ("provider-offerings", "Provider: Provider offerings"),
     ("openstack-instances", "Provider: OpenStack instances"),
     # Users
+    ("user-analytics", "Users: Analytics"),
     ("user-demographics", "Users: Demographics"),
     ("user-organizations", "Users: Organizations"),
     ("user-affiliations", "Users: Affiliations"),
