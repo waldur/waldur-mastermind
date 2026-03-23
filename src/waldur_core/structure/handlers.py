@@ -550,8 +550,10 @@ def log_project_end_date_change_request_events(
         return
     if instance.state == ReviewStates.APPROVED:
         transaction.on_commit(
-            lambda: tasks.send_project_end_date_change_request_approved_notification.delay(
-                instance.uuid.hex
+            lambda: (
+                tasks.send_project_end_date_change_request_approved_notification.delay(
+                    instance.uuid.hex
+                )
             )
         )
         event_logger.emit(
@@ -562,8 +564,10 @@ def log_project_end_date_change_request_events(
         )
     elif instance.state == ReviewStates.REJECTED:
         transaction.on_commit(
-            lambda: tasks.send_project_end_date_change_request_rejected_notification.delay(
-                instance.uuid.hex
+            lambda: (
+                tasks.send_project_end_date_change_request_rejected_notification.delay(
+                    instance.uuid.hex
+                )
             )
         )
         event_logger.emit(

@@ -1762,8 +1762,9 @@ class OpenStackNetworkSerializer(
         return [
             (
                 "segmentation_id",
-                lambda user: user.is_authenticated
-                and (user.is_staff or user.is_support),
+                lambda user: (
+                    user.is_authenticated and (user.is_staff or user.is_support)
+                ),
             ),
         ]
 

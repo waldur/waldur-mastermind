@@ -328,8 +328,8 @@ class TestUpdateCommentFromJira(APITestCase):
 
         # Make the mock work with dictionary access as well for Service Desk API
         self.backend_comment.__getitem__ = lambda _, key: self.service_desk_comment[key]
-        self.backend_comment.get = (
-            lambda _, key, default=None: self.service_desk_comment.get(key, default)
+        self.backend_comment.get = lambda _, key, default=None: (
+            self.service_desk_comment.get(key, default)
         )
 
         # Helper method to sync changes between attribute and dictionary access

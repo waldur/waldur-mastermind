@@ -569,8 +569,8 @@ class ScimReconcileTasksTest(BaseScimTestCase):
         client = mock.Mock(spec=ScimClient)
         client.build_entitlement = ScimClient.build_entitlement
         client.get_user.return_value = {"entitlements": []}
-        mock_batch_delay.side_effect = (
-            lambda *args, **kwargs: tasks.sync_user_batch_entitlements(*args, **kwargs)
+        mock_batch_delay.side_effect = lambda *args, **kwargs: (
+            tasks.sync_user_batch_entitlements(*args, **kwargs)
         )
 
         with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):
@@ -607,8 +607,8 @@ class ScimReconcileTasksTest(BaseScimTestCase):
         client.build_entitlement = ScimClient.build_entitlement
         client.get_user.return_value = {"entitlements": []}
         # Let the mock execute the batch tasks synchronously
-        mock_batch_delay.side_effect = (
-            lambda *args, **kwargs: tasks.sync_user_batch_entitlements(*args, **kwargs)
+        mock_batch_delay.side_effect = lambda *args, **kwargs: (
+            tasks.sync_user_batch_entitlements(*args, **kwargs)
         )
 
         with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):

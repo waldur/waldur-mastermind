@@ -181,8 +181,8 @@ class CommentDeleteTest(base.BaseTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_user_can_delete_new_comment_if_zammad_is_used(self):
-        self.mock_get_active_backend().comment_destroy_is_available = (
-            lambda x: ZammadServiceBackend.comment_destroy_is_available(None, x)
+        self.mock_get_active_backend().comment_destroy_is_available = lambda x: (
+            ZammadServiceBackend.comment_destroy_is_available(None, x)
         )
         self.client.force_authenticate(self.fixture.staff)
 
@@ -198,8 +198,8 @@ class CommentDeleteTest(base.BaseTest):
             )
 
     def test_user_can_not_delete_old_comment_if_zammad_is_used(self):
-        self.mock_get_active_backend().comment_destroy_is_available = (
-            lambda x: ZammadServiceBackend.comment_destroy_is_available(None, x)
+        self.mock_get_active_backend().comment_destroy_is_available = lambda x: (
+            ZammadServiceBackend.comment_destroy_is_available(None, x)
         )
         self.client.force_authenticate(self.fixture.staff)
 
