@@ -548,7 +548,7 @@ class CreateVMValidationErrorTest(CreateVMBaseTest):
         self.assertEqual(result["type"], "validation_error")
         self.assertEqual(result["ui_component"], "vm_order")
         self.assertEqual(result["ui_data"]["status"], "error")
-        self.assertIn("No active plan", result["ui_data"]["error"])
+        self.assertIn("none have an active plan", result["ui_data"]["error"])
 
     def test_flavor_ram_below_image_minimum(self):
         # Image requires 1024 MiB RAM; set flavor RAM below that threshold
@@ -602,6 +602,117 @@ class CreateVMOfferingScopeTest(CreateVMBaseTest):
         result = self.tool_executor.execute_tool("create_vm", self.arguments)
 
         self.assertEqual(result["type"], "success")
+
+    def test_offering_without_active_plan_is_skipped(self):
+        # Archive the plan on the existing offering so it has no active plan
+        self.plan.archived = True
+        self.plan.save()
+
+        # Create a second offering with an active plan
+        good_offering = marketplace_factories.OfferingFactory(
+            scope=self.tenant,
+            type=OPENSTACK_INSTANCE_OFFERING,
+            state=OfferingStates.ACTIVE,
+            customer=self.fixture.customer,
+        )
+        marketplace_factories.PlanFactory(offering=good_offering)
+
+        result = self.tool_executor.execute_tool("create_vm", self.arguments)
+
+        self.assertEqual(result["type"], "success")
+        order = Order.objects.filter(offering=good_offering).first()
+        self.assertIsNotNone(order)
+
+
+class CreateVMMultipleOfferingsTest(CreateVMBaseTest):
+    """Tests for offering selection when multiple offerings are available."""
+
+    def _make_second_offering(self):
+        """Create a second offering + plan for the same customer, scoped to the same tenant."""
+        offering = marketplace_factories.OfferingFactory(
+            scope=self.tenant,
+            type=OPENSTACK_INSTANCE_OFFERING,
+            state=OfferingStates.ACTIVE,
+            customer=self.fixture.customer,
+        )
+        marketplace_factories.PlanFactory(offering=offering)
+        return offering
+
+    def test_single_offering_auto_selected(self):
+        preview_args = {
+            "project_uuid": str(self.fixture.project.uuid),
+            "name": "test-vm",
+        }
+        result = self.tool_executor.execute_tool("preview_vm", preview_args)
+
+        self.assertEqual(result["type"], "success")
+        self.assertEqual(result["ui_data"]["status"], "form")
+
+    def test_multiple_offerings_returns_offering_form(self):
+        second_offering = self._make_second_offering()
+        preview_args = {
+            "project_uuid": str(self.fixture.project.uuid),
+            "name": "test-vm",
+        }
+        result = self.tool_executor.execute_tool("preview_vm", preview_args)
+
+        self.assertEqual(result["type"], "success")
+        self.assertEqual(result["ui_data"]["status"], "offering_form")
+        offering_uuids = {o["uuid"] for o in result["ui_data"]["offerings"]}
+        self.assertIn(str(self.offering.uuid), offering_uuids)
+        self.assertIn(str(second_offering.uuid), offering_uuids)
+
+    def test_offering_uuid_selects_correct_offering(self):
+        self._make_second_offering()
+        preview_args = {
+            "project_uuid": str(self.fixture.project.uuid),
+            "name": "test-vm",
+            "offering_uuid": str(self.offering.uuid),
+        }
+        result = self.tool_executor.execute_tool("preview_vm", preview_args)
+
+        self.assertEqual(result["type"], "success")
+        self.assertEqual(result["ui_data"]["status"], "form")
+
+    def test_invalid_offering_uuid_returns_error(self):
+        self._make_second_offering()
+        preview_args = {
+            "project_uuid": str(self.fixture.project.uuid),
+            "name": "test-vm",
+            "offering_uuid": "00000000000000000000000000000000",
+        }
+        result = self.tool_executor.execute_tool("preview_vm", preview_args)
+
+        self.assertEqual(result["type"], "validation_error")
+        self.assertIn("not available", result["ui_data"]["error"])
+
+    def test_malformed_offering_uuid_string_returns_error(self):
+        self._make_second_offering()
+        preview_args = {
+            "project_uuid": str(self.fixture.project.uuid),
+            "name": "test-vm",
+            "offering_uuid": "not-a-uuid",
+        }
+        result = self.tool_executor.execute_tool("preview_vm", preview_args)
+
+        self.assertEqual(result["type"], "validation_error")
+        self.assertIn("Invalid offering UUID", result["ui_data"]["error"])
+
+    def test_create_vm_with_offering_uuid(self):
+        self._make_second_offering()
+        self.arguments["offering_uuid"] = str(self.offering.uuid)
+        result = self.tool_executor.execute_tool("create_vm", self.arguments)
+
+        self.assertEqual(result["type"], "success")
+        order = Order.objects.filter(offering=self.offering).first()
+        self.assertIsNotNone(order)
+
+    def test_create_vm_without_offering_uuid_when_multiple_exist(self):
+        self._make_second_offering()
+        result = self.tool_executor.execute_tool("create_vm", self.arguments)
+
+        self.assertEqual(result["type"], "validation_error")
+        self.assertIn("offering_uuid", result["ui_data"]["error"])
 
 
 class CreateVMProjectResolutionTest(CreateVMBaseTest):

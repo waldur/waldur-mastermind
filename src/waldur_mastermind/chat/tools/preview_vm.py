@@ -6,8 +6,10 @@ from rest_framework.exceptions import ValidationError
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.chat.tools.vm_helpers import (
+    MultipleOfferingsAvailable,
     format_vm_error,
     format_vm_form,
+    format_vm_offering_form,
     format_vm_preview,
     get_offering,
     get_project,
@@ -54,6 +56,10 @@ class PreviewVMTool(BaseTool):
                         "type": "string",
                         "description": "Operating system image name or description (e.g., 'Ubuntu', 'CentOS', 'Debian', 'Windows'). Will be resolved to an available image from the OpenStack tenant. Optional - if omitted, a form with available options will be shown.",
                     },
+                    "offering_uuid": {
+                        "type": "string",
+                        "description": "UUID of the offering to use. Required when multiple offerings are available for the project.",
+                    },
                     "network_uuid": {
                         "type": "string",
                         "description": "Network UUID or 'default' to use the default network. If not provided, will use the first available network.",
@@ -83,7 +89,14 @@ class PreviewVMTool(BaseTool):
     def execute(self, user, arguments: dict) -> dict:
         try:
             project = get_project(user, arguments.get("project_uuid"))
-            offering = get_offering(user, project)
+            try:
+                offering = get_offering(
+                    user, project, offering_uuid=arguments.get("offering_uuid")
+                )
+            except MultipleOfferingsAvailable as e:
+                return format_vm_offering_form(
+                    arguments.get("name", ""), project, e.offerings
+                )
             tenant = offering.scope
 
             # If flavor or image missing, return form with available options

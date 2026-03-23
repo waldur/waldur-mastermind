@@ -87,7 +87,9 @@ ui_registry.register(
                 "type": "string"
             },  # Flavor display (e.g., "m1.small (2 vCPU, 4GB RAM)")
             "image": {"type": "string"},  # Image name
-            "status": {"type": "string"},  # Order state (form/preview/success/error)
+            "status": {
+                "type": "string"
+            },  # Order state (offering_form/form/preview/success/error)
             "message": {"type": "string"},  # Success message (optional)
             "error": {"type": "string"},  # Error message (optional)
             "content": {
@@ -101,6 +103,9 @@ ui_registry.register(
             "projects": {
                 "type": "array"
             },  # Available projects list (project_form mode only)
+            "offerings": {
+                "type": "array"
+            },  # Available offerings list (offering_form mode only)
         },
     },
 )

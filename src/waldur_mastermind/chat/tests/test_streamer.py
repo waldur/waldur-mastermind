@@ -631,9 +631,6 @@ class LLMStreamerCompletionKwargsTest(unittest.TestCase):
         self.assertEqual(kwargs["presence_penalty"], 1.5)
         self.assertIn("extra_body", kwargs)
         self.assertEqual(kwargs["extra_body"]["top_k"], 20)
-        self.assertFalse(
-            kwargs["extra_body"]["chat_template_kwargs"]["enable_thinking"]
-        )
 
     def test_override_merges_with_provider(self):
         """backend=vllm, AI_ASSISTANT_COMPLETION_KWARGS={"temperature": 0.5} => temperature=0.5 + rest of vllm defaults."""

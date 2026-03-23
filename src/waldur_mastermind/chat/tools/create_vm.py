@@ -7,6 +7,7 @@ from rest_framework.exceptions import ValidationError
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.chat.tools.vm_helpers import (
+    MultipleOfferingsAvailable,
     build_order_attributes,
     format_vm_error,
     format_vm_success,
@@ -52,8 +53,10 @@ For VM creation requests, follow this EXACT sequence:
 - CRITICAL: When the user selects a project, use the UUID from the table (e.g. "66f82a86c3074626a825ee72a09bee67"), NOT the project name. Multiple projects can share the same name; only the UUID uniquely identifies the project.
 
 **Phase 1: Show Configuration Form**
-- Once you have the project UUID and a VM name, call preview_vm with ONLY project_uuid (use the UUID, not the name) and name (DO NOT include flavor or image)
-- This shows a form with available flavor and image options to the user
+- Once you have the project UUID and a VM name, call preview_vm with ONLY project_uuid, name, and offering_uuid if already known (DO NOT include flavor or image)
+- If preview_vm returns status="offering_form": the project has multiple providers — show the offerings table and ask "Which provider would you like to use?", wait for the user's selection, then call preview_vm again with offering_uuid included
+- CRITICAL: Use the offering UUID from the table, not the name. If only one offering exists it is selected automatically and you will receive status="form" directly.
+- If preview_vm returns status="form": a form with available flavor and image options is shown to the user
 - Wait for the user to submit their selections from the form
 
 **Phase 2: Show Preview**
@@ -86,6 +89,10 @@ For VM creation requests, follow this EXACT sequence:
                     "image": {
                         "type": "string",
                         "description": "Operating system image name or description (e.g., 'Ubuntu', 'CentOS', 'Debian', 'Windows'). Will be resolved to an available image from the OpenStack tenant.",
+                    },
+                    "offering_uuid": {
+                        "type": "string",
+                        "description": "UUID of the offering to use. Required when multiple offerings are available for the project. Obtained from a previous offering_form response.",
                     },
                     "network_uuid": {
                         "type": "string",
@@ -122,7 +129,9 @@ For VM creation requests, follow this EXACT sequence:
         with transaction.atomic():
             try:
                 project = get_project(user, arguments["project_uuid"])
-                offering = get_offering(user, project)
+                offering = get_offering(
+                    user, project, offering_uuid=arguments.get("offering_uuid")
+                )
                 tenant = offering.scope
                 flavor = resolve_flavor(tenant, arguments["flavor"])
                 image = resolve_image(tenant, arguments["image"])
@@ -138,6 +147,12 @@ For VM creation requests, follow this EXACT sequence:
                 plan = get_plan(offering)
                 order = submit_order(user, project, offering, plan, attrs)
                 return format_vm_success(order, flavor, image, project)
+            except MultipleOfferingsAvailable:
+                return format_vm_error(
+                    "Multiple offerings are available for this project. "
+                    "Call preview_vm first (with only project_uuid and name) to see "
+                    "the available offerings, then include the selected offering_uuid."
+                )
             except (ValueError, ValidationError, PermissionDenied) as e:
                 if isinstance(e, ValidationError):
                     detail = e.detail
