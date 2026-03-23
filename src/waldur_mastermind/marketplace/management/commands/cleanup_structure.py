@@ -3,6 +3,7 @@ import time
 from django.core.management.base import BaseCommand
 from django.db import connection, transaction
 from django.db.models import signals
+from rest_framework.authtoken.models import Token
 
 from waldur_core.checklist.models import (
     Answer,
@@ -129,6 +130,7 @@ class Command(BaseCommand):
             "category_groups": {"deleted": 0, "errors": 0},
             "user_agreements": {"deleted": 0, "errors": 0},
             "customers": {"deleted": 0, "errors": 0},
+            "auth_tokens": {"deleted": 0, "errors": 0},
             "users": {"deleted": 0, "errors": 0},
             "permission_requests": {"deleted": 0, "errors": 0},
             "invitations": {"deleted": 0, "errors": 0},
@@ -362,6 +364,7 @@ class Command(BaseCommand):
 
             # Delete users last
             if not skip_users:
+                self._safe_cleanup(self.cleanup_auth_tokens)
                 self._safe_cleanup(self.cleanup_users)
 
             if self.dry_run:
@@ -458,6 +461,7 @@ class Command(BaseCommand):
 
         # Add users if not skipped
         if not skip_users:
+            tables.append(("auth_tokens", "authtoken_token"))
             tables.append(("users", "core_user"))
 
         with transaction.atomic():
@@ -546,6 +550,20 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.WARNING(f"Failed to delete events: {e}"))
             self.stats["events"]["errors"] += 1
+
+    def cleanup_auth_tokens(self):
+        """Delete all auth tokens."""
+        self.stdout.write("Deleting auth tokens...")
+        try:
+            if not self.dry_run:
+                count = Token.objects.count()
+                Token.objects.all().delete()
+                self.stats["auth_tokens"]["deleted"] = count
+            else:
+                self.stats["auth_tokens"]["deleted"] = Token.objects.count()
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"Failed to delete auth tokens: {e}"))
+            self.stats["auth_tokens"]["errors"] += 1
 
     def cleanup_users(self):
         """Delete all user data."""
