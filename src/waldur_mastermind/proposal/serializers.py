@@ -35,6 +35,7 @@ from waldur_mastermind.proposal.enums import (
     COITypes,
     ProposalStates,
     RequestedOfferingStates,
+    ReviewerPoolInvitationStatuses,
     RoundStatuses,
 )
 
@@ -2408,6 +2409,22 @@ class CallReviewerPoolSerializer(
     overridden_by_name = serializers.ReadOnlyField(
         source="overridden_by.full_name", default=""
     )
+    invitation_link = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_invitation_link(self, obj) -> str | None:
+        """Return the frontend invitation link path for pending invitations.
+
+        This is a frontend SPA route (not a backend API URL), so we cannot
+        use Django's reverse(). The frontend route is defined in
+        waldur-homeport/src/proposals/routes.ts as /reviewer-invitation/:token/.
+        """
+        if (
+            obj.invitation_status != ReviewerPoolInvitationStatuses.PENDING
+            or not obj.invitation_token
+        ):
+            return None
+        return f"/reviewer-invitation/{obj.invitation_token}/"
 
     def get_reviewer_name(self, obj) -> str | None:
         """Get reviewer name from profile or invited_user."""
@@ -2555,18 +2572,6 @@ class CallReviewerPoolSerializer(
             state=models.Review.States.SUBMITTED,
         ).count()
 
-    def to_representation(self, instance):
-        """Hide invitation_token from authenticated responses.
-
-        The token is only needed for public unauthenticated endpoints.
-        Authenticated users should use UUID-based endpoints instead.
-        """
-        data = super().to_representation(instance)
-        request = self.context.get("request")
-        if request and request.user.is_authenticated:
-            data.pop("invitation_token", None)
-        return data
-
     class Meta:
         model = models.CallReviewerPool
         fields = [
@@ -2592,7 +2597,7 @@ class CallReviewerPoolSerializer(
             "current_assignments",
             "expertise_match_score",
             "invited_by_name",
-            "invitation_token",
+            "invitation_link",
             "invitation_expires_at",
             "created",
             "coi_count",
@@ -2614,7 +2619,6 @@ class CallReviewerPoolSerializer(
             "response_date",
             "decline_reason",
             "current_assignments",
-            "invitation_token",
             "invitation_expires_at",
             "override_reason",
             "overridden_at",
