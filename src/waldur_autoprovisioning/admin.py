@@ -23,8 +23,8 @@ class RuleForm(forms.ModelForm):
             ].queryset = marketplace_models.Plan.objects.select_related(
                 "offering"
             ).order_by("offering__name", "name")
-            self.fields["plan"].label_from_instance = (
-                lambda obj: f"{obj.offering.name} | {obj.name}"
+            self.fields["plan"].label_from_instance = lambda obj: (
+                f"{obj.offering.name} | {obj.name}"
             )
 
 

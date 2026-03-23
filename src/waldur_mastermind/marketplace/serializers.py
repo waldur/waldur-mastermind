@@ -7624,6 +7624,32 @@ class OfferingStatsCounterSerializer(serializers.Serializer):
     count = serializers.IntegerField(help_text="Number of offerings")
 
 
+class UserNationalityStatsSerializer(serializers.Serializer):
+    nationality = serializers.CharField(help_text="Nationality code")
+    count = serializers.IntegerField(help_text="Number of users")
+
+
+class UserResidenceCountryStatsSerializer(serializers.Serializer):
+    country_of_residence = serializers.CharField(help_text="Country of residence code")
+    count = serializers.IntegerField(help_text="Number of users")
+
+
+class ProjectCreationTrendSerializer(serializers.Serializer):
+    """Monthly creation trend data point."""
+
+    month = serializers.CharField(help_text="Month in YYYY-MM format")
+    count = serializers.IntegerField(help_text="Number of items created")
+
+
+class TopServiceProviderByResourcesSerializer(serializers.Serializer):
+    """Service provider ranked by active resource count."""
+
+    customer_uuid = serializers.UUIDField(help_text="UUID of the service provider")
+    customer_name = serializers.CharField(help_text="Name of the service provider")
+    resources_count = serializers.IntegerField(help_text="Number of active resources")
+    projects_count = serializers.IntegerField(help_text="Number of distinct projects")
+
+
 class MarketplaceCustomerStatsSerializer(CountStatsSerializer):
     abbreviation = serializers.SerializerMethodField(
         help_text="Customer abbreviation from the record"

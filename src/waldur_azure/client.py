@@ -177,7 +177,7 @@ class AzureClient:
             # XXX Fix a list of publishers we trust
             if selected_provider:
                 publishers = list(
-                    filter(lambda x: (x.name in selected_provider), publishers)
+                    filter(lambda x: x.name in selected_provider, publishers)
                 )
 
             for publisher in publishers:

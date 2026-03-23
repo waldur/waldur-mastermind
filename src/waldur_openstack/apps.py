@@ -47,8 +47,9 @@ class OpenStackConfig(AppConfig):
             structure_models.ServiceSettings.add_quota_field(
                 name="openstack_%s" % resource,
                 quota_field=QuotaField(
-                    creation_condition=lambda service_settings: service_settings.type
-                    == OpenStackConfig.service_name
+                    creation_condition=lambda service_settings: (
+                        service_settings.type == OpenStackConfig.service_name
+                    )
                 ),
             )
 

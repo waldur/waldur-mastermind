@@ -22,7 +22,9 @@ def create_notification_about_permission_request_has_been_submitted(
         return
 
     transaction.on_commit(
-        lambda: tasks.send_mail_notification_about_permission_request_has_been_submitted.delay(
-            permission_request.id
+        lambda: (
+            tasks.send_mail_notification_about_permission_request_has_been_submitted.delay(
+                permission_request.id
+            )
         )
     )

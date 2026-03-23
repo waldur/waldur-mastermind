@@ -26,8 +26,8 @@ class TestMessageStateTracker(unittest.TestCase):
         self.cache_patcher = mock.patch("django.core.cache.cache")
         self.mock_cache = self.cache_patcher.start()
         self.mock_cache.get.side_effect = lambda k: self.cache_data.get(k)
-        self.mock_cache.set.side_effect = (
-            lambda k, v, *args, **kwargs: self.cache_data.__setitem__(k, v)
+        self.mock_cache.set.side_effect = lambda k, v, *args, **kwargs: (
+            self.cache_data.__setitem__(k, v)
         )
 
     def tearDown(self):
@@ -146,8 +146,8 @@ class TestSequenceNumbers(unittest.TestCase):
             return self.cache_data[key]
 
         self.mock_cache.incr.side_effect = mock_incr
-        self.mock_cache.set.side_effect = (
-            lambda k, v, **kwargs: self.cache_data.__setitem__(k, v)
+        self.mock_cache.set.side_effect = lambda k, v, **kwargs: (
+            self.cache_data.__setitem__(k, v)
         )
 
     def tearDown(self):

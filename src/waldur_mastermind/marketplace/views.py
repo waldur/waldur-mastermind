@@ -9545,6 +9545,119 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
         return Response(status=status.HTTP_200_OK, data=serializer.data)
 
     @extend_schema(
+        description="Return user count per nationality.",
+        responses=serializers.UserNationalityStatsSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def user_nationality(self, request):
+        stats = (
+            core_models.User.objects.values("nationality")
+            .annotate(count=Count("nationality"))
+            .order_by("-count")
+        )
+        serializer = serializers.UserNationalityStatsSerializer(stats, many=True)
+        return Response(status=status.HTTP_200_OK, data=serializer.data)
+
+    @extend_schema(
+        description="Return user count per residence country.",
+        responses=serializers.UserResidenceCountryStatsSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def user_residence_country(self, request):
+        stats = (
+            core_models.User.objects.values("country_of_residence")
+            .annotate(count=Count("country_of_residence"))
+            .order_by("-count")
+        )
+        serializer = serializers.UserResidenceCountryStatsSerializer(stats, many=True)
+        return Response(status=status.HTTP_200_OK, data=serializer.data)
+
+    @extend_schema(
+        description="Return project creation counts grouped by month.",
+        responses=serializers.ProjectCreationTrendSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def project_creation_trend(self, request):
+        monthly_counts = (
+            structure_models.Project.available_objects.annotate(
+                month=TruncMonth("created")
+            )
+            .values("month")
+            .annotate(count=Count("id"))
+            .order_by("month")
+        )
+        data = [
+            {
+                "month": item["month"].strftime("%Y-%m")
+                if item["month"]
+                else "unknown",
+                "count": item["count"],
+            }
+            for item in monthly_counts
+        ]
+        serializer = serializers.ProjectCreationTrendSerializer(data, many=True)
+        return Response(status=status.HTTP_200_OK, data=serializer.data)
+
+    @extend_schema(
+        description="Return resource creation counts grouped by month.",
+        responses=serializers.ProjectCreationTrendSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def resource_creation_trend(self, request):
+        monthly_counts = (
+            models.Resource.objects.annotate(month=TruncMonth("created"))
+            .values("month")
+            .annotate(count=Count("id"))
+            .order_by("month")
+        )
+        data = [
+            {
+                "month": item["month"].strftime("%Y-%m")
+                if item["month"]
+                else "unknown",
+                "count": item["count"],
+            }
+            for item in monthly_counts
+        ]
+        serializer = serializers.ProjectCreationTrendSerializer(data, many=True)
+        return Response(status=status.HTTP_200_OK, data=serializer.data)
+
+    @extend_schema(
+        description="Return top service providers by number of active resources.",
+        parameters=[
+            OpenApiParameter(
+                name="limit",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="Number of top providers to return. Default is 5.",
+            ),
+        ],
+        responses=serializers.TopServiceProviderByResourcesSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def top_service_providers_by_resources(self, request):
+        try:
+            limit = int(request.query_params.get("limit", 5))
+        except ValueError:
+            limit = 5
+        result = (
+            self.get_active_resources()
+            .values(
+                customer_uuid=F("offering__customer__uuid"),
+                customer_name=F("offering__customer__name"),
+            )
+            .annotate(
+                resources_count=Count("id"),
+                projects_count=Count("project_id", distinct=True),
+            )
+            .order_by("-resources_count")[:limit]
+        )
+        serializer = serializers.TopServiceProviderByResourcesSerializer(
+            result, many=True
+        )
+        return Response(status=status.HTTP_200_OK, data=serializer.data)
+
+    @extend_schema(
         description="Retrieve statistics about the number of offerings, grouped by category and service provider.",
         responses=serializers.OfferingStatsCounterSerializer(many=True),
     )
@@ -9670,9 +9783,10 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
                     try:
                         prev = next(
                             filter(
-                                lambda x: x["offering_uuid"]
-                                == resource["offering__uuid"]
-                                and x["name"] == name,
+                                lambda x: (
+                                    x["offering_uuid"] == resource["offering__uuid"]
+                                    and x["name"] == name
+                                ),
                                 data,
                             )
                         )
@@ -10412,6 +10526,14 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
     @extend_schema(
         description="Count active resources grouped by offering.",
+        parameters=[
+            OpenApiParameter(
+                name="limit",
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description="Limit number of results (e.g. top N offerings). No limit by default.",
+            ),
+        ],
         responses=serializers.OfferingStatsSerializer(many=True),
     )
     @action(detail=False, methods=["get"])
@@ -10420,8 +10542,14 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             self.get_active_resources()
             .values("offering__uuid", "offering__name", "offering__country")
             .annotate(count=Count("id"))
-            .order_by()
+            .order_by("-count")
         )
+        limit = request.query_params.get("limit")
+        if limit:
+            try:
+                result = result[: int(limit)]
+            except ValueError:
+                pass
 
         return Response(
             serializers.OfferingStatsSerializer(result, many=True).data,

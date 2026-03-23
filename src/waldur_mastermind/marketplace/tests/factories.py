@@ -1058,7 +1058,9 @@ class SoftwareTargetFactory(
     target_name = factory.Iterator(["x86_64", "aarch64", "ppc64le"])
     target_subtype = "generic"
     location = factory.LazyAttribute(
-        lambda obj: f"/cvmfs/software.eessi.io/versions/2023.06/software/linux/{obj.target_name}/{obj.target_subtype}"
+        lambda obj: (
+            f"/cvmfs/software.eessi.io/versions/2023.06/software/linux/{obj.target_name}/{obj.target_subtype}"
+        )
     )
     metadata = factory.LazyAttribute(lambda obj: {"full_arch": obj.target_name})
     gpu_architectures = factory.LazyAttribute(lambda obj: [])

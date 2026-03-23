@@ -2385,3 +2385,123 @@ class ProjectsLimitsGroupedByOecdTest(test.APITestCase):
         self.client.force_authenticate(user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class UserStatsTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.staff = self.fixture.staff
+        self.support = self.fixture.global_support
+        self.user = self.fixture.user
+
+        structure_factories.UserFactory.create_batch(
+            3, nationality="EE", country_of_residence="EE"
+        )
+        structure_factories.UserFactory.create_batch(
+            2, nationality="FI", country_of_residence="FI"
+        )
+        structure_factories.UserFactory.create_batch(
+            1, nationality="", country_of_residence="LV"
+        )
+
+    def test_staff_can_access_user_stats(self):
+        self.client.force_authenticate(self.staff)
+
+        # Test nationality
+        response = self.client.get("/api/marketplace-stats/user_nationality/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            any(
+                item["nationality"] == "EE" and item["count"] == 3
+                for item in response.data
+            )
+        )
+
+        # Test residence
+        response = self.client.get("/api/marketplace-stats/user_residence_country/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            any(
+                item["country_of_residence"] == "EE" and item["count"] == 3
+                for item in response.data
+            )
+        )
+
+    def test_support_can_access_user_stats(self):
+        self.client.force_authenticate(self.support)
+        response = self.client.get("/api/marketplace-stats/user_nationality/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_regular_user_cannot_access_user_stats(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/marketplace-stats/user_nationality/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_anonymous_user_cannot_access_user_stats(self):
+        response = self.client.get("/api/marketplace-stats/user_nationality/")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+
+@ddt
+class CreationTrendStatsTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+    @data("staff", "global_support")
+    def test_staff_can_access_project_creation_trend(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get("/api/marketplace-stats/project_creation_trend/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(len(response.data) > 0)
+        self.assertIn("month", response.data[0])
+        self.assertIn("count", response.data[0])
+
+    @data("staff", "global_support")
+    def test_staff_can_access_resource_creation_trend(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get("/api/marketplace-stats/resource_creation_trend/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data("owner", "user", "customer_support", "admin", "manager")
+    def test_user_cannot_access_creation_trends(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get("/api/marketplace-stats/project_creation_trend/")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+@ddt
+class TopProviderStatsTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+    @data("staff", "global_support")
+    def test_staff_can_access_top_service_providers_by_resources(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            "/api/marketplace-stats/top_service_providers_by_resources/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @data("staff", "global_support")
+    def test_count_active_resources_grouped_by_offering_with_limit(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            "/api/marketplace-stats/count_active_resources_grouped_by_offering/",
+            {"limit": 2},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(len(response.data) <= 2)
+
+    @data("owner", "user", "customer_support", "admin", "manager")
+    def test_user_cannot_access_top_providers(self, user):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            "/api/marketplace-stats/top_service_providers_by_resources/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
