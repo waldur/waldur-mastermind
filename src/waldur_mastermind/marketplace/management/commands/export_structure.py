@@ -51,6 +51,11 @@ from waldur_mastermind.marketplace.models import (
     ServiceProvider,
     SoftwareCatalog,
 )
+from waldur_mastermind.policy.models import (
+    CustomerEstimatedCostPolicy,
+    ProjectEstimatedCostPolicy,
+    SlurmPeriodicUsagePolicy,
+)
 from waldur_mastermind.proposal.models import (
     AssignmentBatch,
     AssignmentItem,
@@ -276,6 +281,19 @@ class Command(BaseCommand):
             ),
             "offering_software_catalogs": self.log_export_step(
                 "offering_software_catalogs", self.export_offering_software_catalogs
+            ),
+            # Policy exports
+            "project_estimated_cost_policies": self.log_export_step(
+                "project_estimated_cost_policies",
+                self.export_project_estimated_cost_policies,
+            ),
+            "customer_estimated_cost_policies": self.log_export_step(
+                "customer_estimated_cost_policies",
+                self.export_customer_estimated_cost_policies,
+            ),
+            "slurm_periodic_policies": self.log_export_step(
+                "slurm_periodic_policies",
+                self.export_slurm_periodic_policies,
             ),
             # OpenStack backend model exports
             "openstack_service_settings": self.log_export_step(
@@ -2172,3 +2190,117 @@ class Command(BaseCommand):
                 }
             )
         return volumes
+
+    def export_project_estimated_cost_policies(self):
+        """Export project estimated cost policies."""
+        policies = []
+        for policy in ProjectEstimatedCostPolicy.objects.select_related(
+            "scope", "created_by"
+        ).order_by("scope__name"):
+            policies.append(
+                {
+                    "uuid": policy.uuid.hex,
+                    "project_uuid": policy.scope.uuid.hex,
+                    "project_name": policy.scope.name,
+                    "limit_cost": policy.limit_cost,
+                    "period": policy.period,
+                    "actions": policy.actions,
+                    "options": policy.options,
+                    "has_fired": policy.has_fired,
+                    "fired_datetime": policy.fired_datetime.isoformat()
+                    if policy.fired_datetime
+                    else None,
+                    "created_by_uuid": policy.created_by.uuid.hex
+                    if policy.created_by
+                    else None,
+                    "created": policy.created.isoformat() if policy.created else None,
+                    "modified": policy.modified.isoformat()
+                    if policy.modified
+                    else None,
+                }
+            )
+        return policies
+
+    def export_customer_estimated_cost_policies(self):
+        """Export customer estimated cost policies."""
+        policies = []
+        for policy in CustomerEstimatedCostPolicy.objects.select_related(
+            "scope", "created_by"
+        ).order_by("scope__name"):
+            policies.append(
+                {
+                    "uuid": policy.uuid.hex,
+                    "customer_uuid": policy.scope.uuid.hex,
+                    "customer_name": policy.scope.name,
+                    "limit_cost": policy.limit_cost,
+                    "period": policy.period,
+                    "actions": policy.actions,
+                    "options": policy.options,
+                    "has_fired": policy.has_fired,
+                    "fired_datetime": policy.fired_datetime.isoformat()
+                    if policy.fired_datetime
+                    else None,
+                    "created_by_uuid": policy.created_by.uuid.hex
+                    if policy.created_by
+                    else None,
+                    "created": policy.created.isoformat() if policy.created else None,
+                    "modified": policy.modified.isoformat()
+                    if policy.modified
+                    else None,
+                }
+            )
+        return policies
+
+    def export_slurm_periodic_policies(self):
+        """Export SLURM periodic usage policies with component limits."""
+        policies = []
+        for policy in (
+            SlurmPeriodicUsagePolicy.objects.select_related("scope", "created_by")
+            .prefetch_related(
+                "component_limits_set__component",
+                "organization_groups",
+            )
+            .order_by("scope__name")
+        ):
+            component_limits = []
+            for cl in policy.component_limits_set.all():
+                component_limits.append(
+                    {
+                        "type": cl.component.type,
+                        "limit": cl.limit,
+                    }
+                )
+            policies.append(
+                {
+                    "uuid": policy.uuid.hex,
+                    "offering_uuid": policy.scope.uuid.hex,
+                    "offering_name": policy.scope.name,
+                    "apply_to_all": policy.apply_to_all,
+                    "actions": policy.actions,
+                    "options": policy.options,
+                    "limit_type": policy.limit_type,
+                    "tres_billing_enabled": policy.tres_billing_enabled,
+                    "tres_billing_weights": policy.tres_billing_weights,
+                    "carryover_factor": policy.carryover_factor,
+                    "grace_ratio": policy.grace_ratio,
+                    "carryover_enabled": policy.carryover_enabled,
+                    "raw_usage_reset": policy.raw_usage_reset,
+                    "qos_strategy": policy.qos_strategy,
+                    "has_fired": policy.has_fired,
+                    "fired_datetime": policy.fired_datetime.isoformat()
+                    if policy.fired_datetime
+                    else None,
+                    "created_by_uuid": policy.created_by.uuid.hex
+                    if policy.created_by
+                    else None,
+                    "organization_group_uuids": [
+                        og.uuid.hex for og in policy.organization_groups.all()
+                    ],
+                    "component_limits": component_limits,
+                    "created": policy.created.isoformat() if policy.created else None,
+                    "modified": policy.modified.isoformat()
+                    if policy.modified
+                    else None,
+                }
+            )
+        return policies

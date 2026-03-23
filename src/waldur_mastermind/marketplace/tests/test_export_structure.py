@@ -13,6 +13,7 @@ from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.policy.tests import factories as policy_factories
 
 
 class ExportStructureCommandTest(TestCase):
@@ -1535,3 +1536,66 @@ class ExportStructureCommandTest(TestCase):
         self.assertEqual(len(data["software_catalogs"]), 0)
         self.assertEqual(len(data["offering_partitions"]), 0)
         self.assertEqual(len(data["offering_software_catalogs"]), 0)
+
+    def test_export_project_estimated_cost_policies(self):
+        """Test that project estimated cost policies are exported correctly."""
+        policy = policy_factories.ProjectEstimatedCostPolicyFactory(
+            limit_cost=500,
+            actions="notify_project_team,block_creation_of_new_resources",
+        )
+
+        self._call_export_command()
+        data = self._load_exported_json()
+
+        self.assertIn("project_estimated_cost_policies", data)
+        policies = data["project_estimated_cost_policies"]
+        self.assertEqual(len(policies), 1)
+        exported = policies[0]
+        self.assertEqual(exported["uuid"], policy.uuid.hex)
+        self.assertEqual(exported["project_uuid"], policy.scope.uuid.hex)
+        self.assertEqual(exported["limit_cost"], 500)
+        self.assertEqual(
+            exported["actions"],
+            "notify_project_team,block_creation_of_new_resources",
+        )
+
+    def test_export_customer_estimated_cost_policies(self):
+        """Test that customer estimated cost policies are exported correctly."""
+        policy = policy_factories.CustomerEstimatedCostPolicyFactory(
+            limit_cost=1000,
+            actions="notify_organization_owners",
+        )
+
+        self._call_export_command()
+        data = self._load_exported_json()
+
+        self.assertIn("customer_estimated_cost_policies", data)
+        policies = data["customer_estimated_cost_policies"]
+        self.assertEqual(len(policies), 1)
+        exported = policies[0]
+        self.assertEqual(exported["uuid"], policy.uuid.hex)
+        self.assertEqual(exported["customer_uuid"], policy.scope.uuid.hex)
+        self.assertEqual(exported["limit_cost"], 1000)
+        self.assertEqual(exported["actions"], "notify_organization_owners")
+
+    def test_export_slurm_periodic_policies(self):
+        """Test that SLURM periodic usage policies are exported correctly."""
+        policy = policy_factories.SlurmPeriodicUsagePolicyFactory(
+            limit_type="GrpTRESMins",
+            carryover_factor=75,
+            grace_ratio=0.3,
+        )
+
+        self._call_export_command()
+        data = self._load_exported_json()
+
+        self.assertIn("slurm_periodic_policies", data)
+        policies = data["slurm_periodic_policies"]
+        self.assertEqual(len(policies), 1)
+        exported = policies[0]
+        self.assertEqual(exported["uuid"], policy.uuid.hex)
+        self.assertEqual(exported["offering_uuid"], policy.scope.uuid.hex)
+        self.assertEqual(exported["limit_type"], "GrpTRESMins")
+        self.assertEqual(exported["carryover_factor"], 75)
+        self.assertAlmostEqual(exported["grace_ratio"], 0.3)
+        self.assertIn("component_limits", exported)

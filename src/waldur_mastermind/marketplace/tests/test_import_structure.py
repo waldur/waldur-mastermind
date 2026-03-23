@@ -34,6 +34,12 @@ from waldur_mastermind.marketplace.models import (
     SoftwareCatalog,
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
+from waldur_mastermind.policy.models import (
+    CustomerEstimatedCostPolicy,
+    ProjectEstimatedCostPolicy,
+    SlurmPeriodicUsagePolicy,
+)
+from waldur_mastermind.policy.tests import factories as policy_factories
 
 
 class ImportStructureCommandTest(TestCase):
@@ -2869,3 +2875,135 @@ class ImportStructureCommandTest(TestCase):
 
         existing.refresh_from_db()
         self.assertEqual(existing.username, "new_username")
+
+    def test_import_project_estimated_cost_policies(self):
+        """Test that project estimated cost policies are imported correctly."""
+        project = structure_factories.ProjectFactory()
+        policy_uuid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+        data = {
+            "project_estimated_cost_policies": [
+                {
+                    "uuid": policy_uuid,
+                    "project_uuid": project.uuid.hex,
+                    "limit_cost": 500,
+                    "period": 2,
+                    "actions": "notify_project_team",
+                    "options": {},
+                    "has_fired": False,
+                }
+            ]
+        }
+
+        self._create_test_json(data)
+        self._call_import_command("-i", self.test_file_path)
+
+        self.assertEqual(ProjectEstimatedCostPolicy.objects.count(), 1)
+        policy = ProjectEstimatedCostPolicy.objects.first()
+        self.assertEqual(str(policy.uuid), policy_uuid)
+        self.assertEqual(policy.scope, project)
+        self.assertEqual(policy.limit_cost, 500)
+        self.assertEqual(policy.actions, "notify_project_team")
+
+    def test_import_customer_estimated_cost_policies(self):
+        """Test that customer estimated cost policies are imported correctly."""
+        customer = structure_factories.CustomerFactory()
+        policy_uuid = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+
+        data = {
+            "customer_estimated_cost_policies": [
+                {
+                    "uuid": policy_uuid,
+                    "customer_uuid": customer.uuid.hex,
+                    "limit_cost": 1000,
+                    "period": 3,
+                    "actions": "notify_organization_owners",
+                    "options": {},
+                    "has_fired": False,
+                }
+            ]
+        }
+
+        self._create_test_json(data)
+        self._call_import_command("-i", self.test_file_path)
+
+        self.assertEqual(CustomerEstimatedCostPolicy.objects.count(), 1)
+        policy = CustomerEstimatedCostPolicy.objects.first()
+        self.assertEqual(str(policy.uuid), policy_uuid)
+        self.assertEqual(policy.scope, customer)
+        self.assertEqual(policy.limit_cost, 1000)
+
+    def test_import_project_cost_policy_skips_missing_project(self):
+        """Test that import skips policies referencing nonexistent projects."""
+        data = {
+            "project_estimated_cost_policies": [
+                {
+                    "uuid": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+                    "project_uuid": "00000000-0000-0000-0000-000000000000",
+                    "limit_cost": 100,
+                    "actions": "notify_project_team",
+                }
+            ]
+        }
+
+        self._create_test_json(data)
+        self._call_import_command("-i", self.test_file_path)
+
+        self.assertEqual(ProjectEstimatedCostPolicy.objects.count(), 0)
+
+    def test_cleanup_deletes_cost_policies(self):
+        """Test that cleanup_structure deletes cost policies."""
+        policy_factories.ProjectEstimatedCostPolicyFactory()
+        policy_factories.CustomerEstimatedCostPolicyFactory()
+
+        self.assertEqual(ProjectEstimatedCostPolicy.objects.count(), 1)
+        self.assertEqual(CustomerEstimatedCostPolicy.objects.count(), 1)
+
+        output = StringIO()
+        call_command("cleanup_structure", stdout=output)
+
+        self.assertEqual(ProjectEstimatedCostPolicy.objects.count(), 0)
+        self.assertEqual(CustomerEstimatedCostPolicy.objects.count(), 0)
+
+    def test_cleanup_deletes_slurm_periodic_policies(self):
+        """Test that cleanup_structure deletes SLURM periodic policies."""
+        policy_factories.SlurmPeriodicUsagePolicyFactory()
+
+        self.assertEqual(SlurmPeriodicUsagePolicy.objects.count(), 1)
+
+        output = StringIO()
+        call_command("cleanup_structure", stdout=output)
+
+        self.assertEqual(SlurmPeriodicUsagePolicy.objects.count(), 0)
+
+    def test_export_import_roundtrip_cost_policies(self):
+        """Test that cost policies survive export → cleanup → import cycle."""
+        project_policy = policy_factories.ProjectEstimatedCostPolicyFactory(
+            limit_cost=500,
+        )
+        customer_policy = policy_factories.CustomerEstimatedCostPolicyFactory(
+            limit_cost=1000,
+        )
+
+        # Export
+        export_path = os.path.join(self.temp_dir, "export.json")
+        call_command("export_structure", "-o", export_path, stdout=StringIO())
+
+        # Cleanup
+        call_command("cleanup_structure", stdout=StringIO())
+        self.assertEqual(ProjectEstimatedCostPolicy.objects.count(), 0)
+        self.assertEqual(CustomerEstimatedCostPolicy.objects.count(), 0)
+
+        # Import
+        call_command("import_structure", "-i", export_path, stdout=StringIO())
+
+        self.assertEqual(ProjectEstimatedCostPolicy.objects.count(), 1)
+        self.assertEqual(CustomerEstimatedCostPolicy.objects.count(), 1)
+
+        imported_project_policy = ProjectEstimatedCostPolicy.objects.first()
+        self.assertEqual(str(imported_project_policy.uuid), str(project_policy.uuid))
+        self.assertEqual(imported_project_policy.limit_cost, 500)
+
+        imported_customer_policy = CustomerEstimatedCostPolicy.objects.first()
+        self.assertEqual(str(imported_customer_policy.uuid), str(customer_policy.uuid))
+        self.assertEqual(imported_customer_policy.limit_cost, 1000)
