@@ -116,6 +116,50 @@ class MessageViewSetTest(test.APITestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["content"], "Edited")
 
+    def test_content_display_with_content_only(self):
+        """content_display returns content when no tool calls."""
+        msg = Message.objects.create(
+            thread=self.thread,
+            role=Message.Role.ASSISTANT,
+            content="Hello world",
+            sequence_index=1,
+        )
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = next(d for d in response.data if d["uuid"] == str(msg.uuid))
+        self.assertEqual(data["content_display"], "Hello world")
+
+    def test_content_display_with_tool_calls_only(self):
+        """content_display shows tool call when no text content."""
+        msg = Message.objects.create(
+            thread=self.thread,
+            role=Message.Role.ASSISTANT,
+            content="",
+            tool_calls=[{"name": "list_projects", "arguments": {}}],
+            sequence_index=1,
+        )
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = next(d for d in response.data if d["uuid"] == str(msg.uuid))
+        self.assertEqual(data["content_display"], "[Tool: list_projects()]")
+
+    def test_content_display_with_content_and_tool_calls(self):
+        """content_display includes both text and tool call when both are present."""
+        msg = Message.objects.create(
+            thread=self.thread,
+            role=Message.Role.ASSISTANT,
+            content="Let me look that up.",
+            tool_calls=[{"name": "show_user_resources", "arguments": {"limit": "5"}}],
+            sequence_index=1,
+        )
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = next(d for d in response.data if d["uuid"] == str(msg.uuid))
+        self.assertEqual(
+            data["content_display"],
+            'Let me look that up.\n[Tool: show_user_resources(limit="5")]',
+        )
+
     def test_filter_by_thread(self):
         """list endpoint can filter messages by thread UUID."""
         thread2 = ThreadSession.objects.create(chat_session=self.session)

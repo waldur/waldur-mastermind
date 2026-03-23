@@ -324,17 +324,18 @@ class MessageSerializer(serializers.ModelSerializer):
         )
 
     def get_content_display(self, obj) -> str:
+        parts = []
         if obj.content:
-            return obj.content
+            parts.append(obj.content)
         if obj.tool_calls:
-            parts = []
+            tool_parts = []
             for call in obj.tool_calls:
                 name = call.get("name", "")
                 args = call.get("arguments", {})
                 args_str = ", ".join(f'{k}="{v}"' for k, v in args.items())
-                parts.append(f"{name}({args_str})")
-            return f"[Tool: {', '.join(parts)}]"
-        return ""
+                tool_parts.append(f"{name}({args_str})")
+            parts.append(f"[Tool: {', '.join(tool_parts)}]")
+        return "\n".join(parts)
 
     def get_fields(self):
         fields = super().get_fields()
