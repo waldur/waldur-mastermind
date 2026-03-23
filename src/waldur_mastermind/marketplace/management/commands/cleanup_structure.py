@@ -13,7 +13,14 @@ from waldur_core.checklist.models import (
 )
 from waldur_core.core.middleware import skip_side_effects
 from waldur_core.core.models import User
-from waldur_core.logging.models import Event, Feed
+from waldur_core.logging.models import (
+    EmailHook,
+    Event,
+    EventSubscription,
+    Feed,
+    UserDataAccessLog,
+    WebHook,
+)
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.models import (
     Customer,
@@ -131,6 +138,10 @@ class Command(BaseCommand):
             "user_agreements": {"deleted": 0, "errors": 0},
             "customers": {"deleted": 0, "errors": 0},
             "auth_tokens": {"deleted": 0, "errors": 0},
+            "user_data_access_logs": {"deleted": 0, "errors": 0},
+            "webhooks": {"deleted": 0, "errors": 0},
+            "email_hooks": {"deleted": 0, "errors": 0},
+            "event_subscriptions": {"deleted": 0, "errors": 0},
             "users": {"deleted": 0, "errors": 0},
             "permission_requests": {"deleted": 0, "errors": 0},
             "invitations": {"deleted": 0, "errors": 0},
@@ -365,6 +376,11 @@ class Command(BaseCommand):
             # Delete users last
             if not skip_users:
                 self._safe_cleanup(self.cleanup_auth_tokens)
+                # Logging tables with FK to core_user must be deleted before users
+                self._safe_cleanup(self.cleanup_user_data_access_logs)
+                self._safe_cleanup(self.cleanup_webhooks)
+                self._safe_cleanup(self.cleanup_email_hooks)
+                self._safe_cleanup(self.cleanup_event_subscriptions)
                 self._safe_cleanup(self.cleanup_users)
 
             if self.dry_run:
@@ -462,6 +478,11 @@ class Command(BaseCommand):
         # Add users if not skipped
         if not skip_users:
             tables.append(("auth_tokens", "authtoken_token"))
+            # Logging tables with FK to core_user must be deleted before users
+            tables.append(("user_data_access_logs", "logging_userdataaccesslog"))
+            tables.append(("webhooks", "logging_webhook"))
+            tables.append(("email_hooks", "logging_emailhook"))
+            tables.append(("event_subscriptions", "logging_eventsubscription"))
             tables.append(("users", "core_user"))
 
         with transaction.atomic():
@@ -476,13 +497,14 @@ class Command(BaseCommand):
 
     def _fast_delete_table(self, cursor, stat_key, table_name, max_retries=3):
         """
-        Delete a table using TRUNCATE CASCADE, falling back to DELETE FROM
-        if a deadlock is detected. Retries on deadlock up to max_retries times.
+        Delete a table using TRUNCATE CASCADE with retries on deadlock.
 
         TRUNCATE acquires AccessExclusiveLock on the target table and all
         tables referenced via CASCADE, which can deadlock with concurrent
-        processes (e.g. Celery workers, API requests). DELETE FROM uses
-        row-level locks and is less prone to deadlocks.
+        processes (e.g. Celery workers, API requests). On deadlock, we retry
+        TRUNCATE CASCADE after a delay rather than falling back to DELETE FROM,
+        because DELETE FROM does not cascade and will fail on tables with
+        unhandled foreign key dependencies.
         """
         for attempt in range(max_retries):
             sid = transaction.savepoint()
@@ -491,16 +513,9 @@ class Command(BaseCommand):
                 count = cursor.fetchone()[0]
 
                 if not self.dry_run:
-                    if attempt == 0:
-                        # First attempt: use TRUNCATE CASCADE for speed
-                        cursor.execute(
-                            f"TRUNCATE TABLE {table_name} CASCADE"  # noqa: S608
-                        )
-                    else:
-                        # Retry attempts: use DELETE FROM to avoid table-level locks
-                        cursor.execute(
-                            f"DELETE FROM {table_name}"  # noqa: S608
-                        )
+                    cursor.execute(
+                        f"TRUNCATE TABLE {table_name} CASCADE"  # noqa: S608
+                    )
 
                 transaction.savepoint_commit(sid)
                 self.stats[stat_key]["deleted"] = count
@@ -511,7 +526,7 @@ class Command(BaseCommand):
                     wait = 2**attempt
                     self.stdout.write(
                         self.style.WARNING(
-                            f"Deadlock on {stat_key}, retrying with DELETE in {wait}s "
+                            f"Deadlock on {stat_key}, retrying TRUNCATE CASCADE in {wait}s "
                             f"(attempt {attempt + 2}/{max_retries})..."
                         )
                     )
@@ -564,6 +579,70 @@ class Command(BaseCommand):
         except Exception as e:
             self.stdout.write(self.style.WARNING(f"Failed to delete auth tokens: {e}"))
             self.stats["auth_tokens"]["errors"] += 1
+
+    def cleanup_user_data_access_logs(self):
+        """Delete all user data access logs."""
+        self.stdout.write("Deleting user data access logs...")
+        try:
+            if not self.dry_run:
+                count = UserDataAccessLog.objects.count()
+                UserDataAccessLog.objects.all().delete()
+                self.stats["user_data_access_logs"]["deleted"] = count
+            else:
+                self.stats["user_data_access_logs"]["deleted"] = (
+                    UserDataAccessLog.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete user data access logs: {e}")
+            )
+            self.stats["user_data_access_logs"]["errors"] += 1
+
+    def cleanup_webhooks(self):
+        """Delete all webhook configurations."""
+        self.stdout.write("Deleting webhooks...")
+        try:
+            if not self.dry_run:
+                count = WebHook.objects.count()
+                WebHook.objects.all().delete()
+                self.stats["webhooks"]["deleted"] = count
+            else:
+                self.stats["webhooks"]["deleted"] = WebHook.objects.count()
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"Failed to delete webhooks: {e}"))
+            self.stats["webhooks"]["errors"] += 1
+
+    def cleanup_email_hooks(self):
+        """Delete all email hook configurations."""
+        self.stdout.write("Deleting email hooks...")
+        try:
+            if not self.dry_run:
+                count = EmailHook.objects.count()
+                EmailHook.objects.all().delete()
+                self.stats["email_hooks"]["deleted"] = count
+            else:
+                self.stats["email_hooks"]["deleted"] = EmailHook.objects.count()
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"Failed to delete email hooks: {e}"))
+            self.stats["email_hooks"]["errors"] += 1
+
+    def cleanup_event_subscriptions(self):
+        """Delete all event subscriptions."""
+        self.stdout.write("Deleting event subscriptions...")
+        try:
+            if not self.dry_run:
+                count = EventSubscription.objects.count()
+                EventSubscription.objects.all().delete()
+                self.stats["event_subscriptions"]["deleted"] = count
+            else:
+                self.stats["event_subscriptions"]["deleted"] = (
+                    EventSubscription.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(f"Failed to delete event subscriptions: {e}")
+            )
+            self.stats["event_subscriptions"]["errors"] += 1
 
     def cleanup_users(self):
         """Delete all user data."""
