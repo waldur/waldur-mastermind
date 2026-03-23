@@ -209,7 +209,9 @@ def cleanup_orphaned_k8s_resources():
             namespace, label_selector=WALDUR_K8S_LABEL_SELECTOR
         )
     except KubernetesException:
-        logger.exception("Failed to list Kubernetes Jobs for orphan cleanup")
+        logger.warning(
+            "Failed to list Kubernetes Jobs for orphan cleanup", exc_info=True
+        )
         jobs = []
 
     for job in jobs:
@@ -231,7 +233,9 @@ def cleanup_orphaned_k8s_resources():
             namespace, label_selector=WALDUR_K8S_LABEL_SELECTOR
         )
     except KubernetesException:
-        logger.exception("Failed to list Kubernetes ConfigMaps for orphan cleanup")
+        logger.warning(
+            "Failed to list Kubernetes ConfigMaps for orphan cleanup", exc_info=True
+        )
         config_maps = []
 
     for cm in config_maps:
