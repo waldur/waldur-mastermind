@@ -8,7 +8,6 @@ PROVIDER_DEFAULTS = {
         "top_p": 0.8,
         "presence_penalty": 1.5,
         "extra_body": {
-            "chat_template_kwargs": {"enable_thinking": False},
             "top_k": 20,
         },
     },

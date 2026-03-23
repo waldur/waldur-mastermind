@@ -167,6 +167,10 @@ class ChatResponseSerializer(serializers.Serializer):
         required=False,
         help_text="Available project options [{name, organization, uuid}]. Present when status='project_form'.",
     )
+    offerings = serializers.ListField(
+        required=False,
+        help_text="Available offering options [{uuid, name}]. Present when status='offering_form'.",
+    )
 
 
 class TokenQuotaUsageResponseSerializer(serializers.ModelSerializer):

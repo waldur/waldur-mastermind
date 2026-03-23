@@ -88,15 +88,25 @@ def get_project(user, project_uuid: str) -> Project:
     return project
 
 
-def get_offering(user, project: Project) -> Offering:
-    """Find an active OpenStack Instance offering accessible to the project.
+class MultipleOfferingsAvailable(Exception):
+    """Raised when multiple valid offerings exist and the user must choose one."""
 
-    Prefers project-specific private offerings over customer-level ones,
-    and customer-level over global shared offerings. This ensures the correct
-    tenant (and its networks) is used when multiple offerings are available.
+    def __init__(self, offerings):
+        self.offerings = list(offerings)
+
+
+def get_offerings(project: Project):
+    """Return all valid OpenStack Instance offerings for a project, ordered by specificity.
+
+    Specificity: project-scoped (0) > customer-scoped (1) > global shared (2).
+    Only offerings with at least one non-archived plan are included.
     """
     customer = project.customer
-    offering = (
+    has_active_plan = Plan.objects.filter(
+        offering=django_models.OuterRef("pk"),
+        archived=False,
+    )
+    return (
         Offering.objects.filter(
             type=OPENSTACK_INSTANCE_OFFERING,
             state__in=(OfferingStates.ACTIVE, OfferingStates.PAUSED),
@@ -108,6 +118,7 @@ def get_offering(user, project: Project) -> Offering:
             | django_models.Q(customer=customer)
             | django_models.Q(project=project)
         )
+        .filter(django_models.Exists(has_active_plan))
         .annotate(
             _specificity=django_models.Case(
                 django_models.When(project=project, then=0),
@@ -117,14 +128,80 @@ def get_offering(user, project: Project) -> Offering:
             )
         )
         .order_by("_specificity", "name")
-        .first()
     )
 
-    if not offering:
-        raise ValueError(
-            "No OpenStack Instance offering is available for this project. "
-            "Contact your administrator to set up an OpenStack offering."
-        )
+
+def get_offering(user, project: Project, offering_uuid: str = None) -> Offering:
+    """Resolve a single OpenStack Instance offering for the project.
+
+    If offering_uuid is given, validates and returns that specific offering.
+    If not given and exactly one offering is available, returns it automatically.
+    If not given and multiple offerings are available, raises MultipleOfferingsAvailable.
+    """
+    customer = project.customer
+    offerings = get_offerings(project)
+
+    if offering_uuid:
+        try:
+            uuid_obj = uuid_module.UUID(offering_uuid)
+        except (ValueError, AttributeError):
+            raise ValueError(f"Invalid offering UUID: {offering_uuid}") from None
+        offering = offerings.filter(uuid=uuid_obj).first()
+        if not offering:
+            raise ValueError(
+                "The selected offering is not available for this project. "
+                "Please choose a valid offering."
+            )
+    else:
+        all_offerings = list(offerings)
+        if not all_offerings:
+            # Check whether offerings exist but have no active plans
+            no_plan_exists = (
+                Offering.objects.filter(
+                    type=OPENSTACK_INSTANCE_OFFERING,
+                    state__in=(OfferingStates.ACTIVE, OfferingStates.PAUSED),
+                    object_id__isnull=False,
+                    content_type__isnull=False,
+                )
+                .filter(
+                    django_models.Q(customer__isnull=True)
+                    | django_models.Q(customer=customer)
+                    | django_models.Q(project=project)
+                )
+                .exists()
+            )
+            if no_plan_exists:
+                raise ValueError(
+                    "OpenStack Instance offerings exist for this project, "
+                    "but none have an active plan. Contact your administrator."
+                )
+            raise ValueError(
+                "No OpenStack Instance offering is available for this project. "
+                "Contact your administrator to set up an OpenStack offering."
+            )
+        if len(all_offerings) > 1:
+            # Filter out shared offerings restricted by org groups before presenting
+            # the list to the user, so they only see offerings they can actually use.
+            if not user.is_staff:
+                all_offerings = [
+                    o
+                    for o in all_offerings
+                    if not (
+                        o.shared
+                        and o.organization_groups.exists()
+                        and not customer.organization_groups.filter(
+                            id__in=o.organization_groups.all()
+                        ).exists()
+                    )
+                ]
+            if not all_offerings:
+                raise ValueError(
+                    "No OpenStack Instance offering is available for this project. "
+                    "Contact your administrator to set up an OpenStack offering."
+                )
+            if len(all_offerings) > 1:
+                raise MultipleOfferingsAvailable(all_offerings)
+        offering = all_offerings[0]
 
     # Shared offerings may be restricted by organization groups.
     # Staff users bypass this check (matches validate_public_offering logic).
@@ -433,6 +510,23 @@ def format_vm_form(name: str, project: Project, tenant: Tenant) -> dict:
             "project_uuid": str(project.uuid),
             "flavors": flavors,
             "images": images,
+        },
+    }
+
+
+def format_vm_offering_form(name: str, project: Project, offerings) -> dict:
+    """Format an offering selection form when multiple offerings are available."""
+    return {
+        "type": "success",
+        "summary": "Multiple offerings available — please select one",
+        "ui_component": "vm_order",
+        "ui_data": {
+            "name": name,
+            "status": "offering_form",
+            "project": project.name,
+            "organization": project.customer.name,
+            "project_uuid": str(project.uuid),
+            "offerings": [{"uuid": str(o.uuid), "name": o.name} for o in offerings],
         },
     }
 
