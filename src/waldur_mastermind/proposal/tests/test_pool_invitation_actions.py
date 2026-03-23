@@ -243,8 +243,8 @@ class PoolInvitationDeclineTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
 
-class PoolInvitationTokenHidingTest(test.APITestCase):
-    """Tests that invitation_token is hidden from authenticated responses."""
+class PoolInvitationLinkTest(test.APITestCase):
+    """Tests that invitation_link is exposed instead of raw invitation_token."""
 
     def setUp(self):
         self.call = factories.CallFactory()
@@ -259,19 +259,7 @@ class PoolInvitationTokenHidingTest(test.APITestCase):
             invitation_status=ReviewerPoolInvitationStatuses.PENDING,
         )
 
-    def test_token_hidden_in_list_response(self):
-        self.client.force_authenticate(self.reviewer_user)
-        response = self.client.get(
-            factories.CallReviewerPoolFactory.get_list_url(),
-            {"my_invitations": "true"},
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertGreater(len(response.data), 0)
-        # Token should not be in response for authenticated users
-        self.assertNotIn("invitation_token", response.data[0])
-
-    def test_token_hidden_in_detail_response(self):
+    def test_token_not_exposed_in_response(self):
         self.client.force_authenticate(self.reviewer_user)
         response = self.client.get(
             factories.CallReviewerPoolFactory.get_url(self.pool_entry),
@@ -279,3 +267,24 @@ class PoolInvitationTokenHidingTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertNotIn("invitation_token", response.data)
+
+    def test_invitation_link_returned_for_pending(self):
+        self.client.force_authenticate(self.reviewer_user)
+        response = self.client.get(
+            factories.CallReviewerPoolFactory.get_url(self.pool_entry),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("invitation_link", response.data)
+        self.assertIn("/reviewer-invitation/", response.data["invitation_link"])
+
+    def test_invitation_link_null_for_accepted(self):
+        self.pool_entry.invitation_status = ReviewerPoolInvitationStatuses.ACCEPTED
+        self.pool_entry.save()
+        self.client.force_authenticate(self.reviewer_user)
+        response = self.client.get(
+            factories.CallReviewerPoolFactory.get_url(self.pool_entry),
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["invitation_link"])
