@@ -62,7 +62,9 @@ from waldur_mastermind.marketplace.models import (
     SoftwareCatalog,
 )
 from waldur_mastermind.policy.models import (
+    CustomerEstimatedCostPolicy,
     OfferingComponentLimit,
+    ProjectEstimatedCostPolicy,
     SlurmCommandHistory,
     SlurmPeriodicUsagePolicy,
 )
@@ -146,6 +148,18 @@ class Command(BaseCommand):
             "category_groups": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "categories": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
             "offerings": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "project_estimated_cost_policies": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "customer_estimated_cost_policies": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "slurm_periodic_policies": {
                 "created": 0,
                 "updated": 0,
@@ -680,6 +694,20 @@ class Command(BaseCommand):
             "slurm_periodic_policies",
             lambda: self.import_slurm_periodic_policies(
                 data.get("slurm_periodic_policies", [])
+            ),
+        )
+
+        # Import cost policies (depends on projects and customers)
+        self._safe_import(
+            "project_estimated_cost_policies",
+            lambda: self.import_project_estimated_cost_policies(
+                data.get("project_estimated_cost_policies", [])
+            ),
+        )
+        self._safe_import(
+            "customer_estimated_cost_policies",
+            lambda: self.import_customer_estimated_cost_policies(
+                data.get("customer_estimated_cost_policies", [])
             ),
         )
 
@@ -2617,6 +2645,174 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["offering_endpoints"]["errors"] += 1
+
+    def import_project_estimated_cost_policies(self, policies_data):
+        """Import project estimated cost policies."""
+        self.stdout.write("Importing project estimated cost policies...")
+
+        for policy_data in policies_data:
+            try:
+                uuid = policy_data.get("uuid")
+                project_uuid = policy_data.get("project_uuid")
+
+                if not uuid or not project_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping project cost policy without UUID or project_uuid"
+                        )
+                    )
+                    self.stats["project_estimated_cost_policies"]["errors"] += 1
+                    continue
+
+                project = Project.objects.filter(uuid=project_uuid).first()
+                if not project:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping project cost policy {uuid}: project {project_uuid} not found"
+                        )
+                    )
+                    self.stats["project_estimated_cost_policies"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "scope": project,
+                    "limit_cost": policy_data.get("limit_cost", 0),
+                    "period": policy_data.get("period", 2),
+                    "actions": policy_data.get("actions", "notify_project_team"),
+                    "options": policy_data.get("options", {}),
+                    "has_fired": policy_data.get("has_fired", False),
+                }
+
+                if not self.dry_run:
+                    existing = ProjectEstimatedCostPolicy.objects.filter(
+                        uuid=uuid
+                    ).first()
+                    if existing:
+                        if self.update_existing:
+                            with transaction.atomic():
+                                ProjectEstimatedCostPolicy.objects.filter(
+                                    uuid=uuid
+                                ).update(**defaults)
+                            self.stats["project_estimated_cost_policies"][
+                                "updated"
+                            ] += 1
+                        else:
+                            self.stats["project_estimated_cost_policies"][
+                                "skipped"
+                            ] += 1
+                    else:
+                        with transaction.atomic():
+                            ProjectEstimatedCostPolicy.objects.create(
+                                uuid=uuid, **defaults
+                            )
+                        self.stats["project_estimated_cost_policies"]["created"] += 1
+                else:
+                    existing = ProjectEstimatedCostPolicy.objects.filter(
+                        uuid=uuid
+                    ).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["project_estimated_cost_policies"][
+                                "updated"
+                            ] += 1
+                        else:
+                            self.stats["project_estimated_cost_policies"][
+                                "skipped"
+                            ] += 1
+                    else:
+                        self.stats["project_estimated_cost_policies"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import project cost policy {policy_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["project_estimated_cost_policies"]["errors"] += 1
+
+    def import_customer_estimated_cost_policies(self, policies_data):
+        """Import customer estimated cost policies."""
+        self.stdout.write("Importing customer estimated cost policies...")
+
+        for policy_data in policies_data:
+            try:
+                uuid = policy_data.get("uuid")
+                customer_uuid = policy_data.get("customer_uuid")
+
+                if not uuid or not customer_uuid:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            "Skipping customer cost policy without UUID or customer_uuid"
+                        )
+                    )
+                    self.stats["customer_estimated_cost_policies"]["errors"] += 1
+                    continue
+
+                customer = Customer.objects.filter(uuid=customer_uuid).first()
+                if not customer:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping customer cost policy {uuid}: customer {customer_uuid} not found"
+                        )
+                    )
+                    self.stats["customer_estimated_cost_policies"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "scope": customer,
+                    "limit_cost": policy_data.get("limit_cost", 0),
+                    "period": policy_data.get("period", 2),
+                    "actions": policy_data.get("actions", "notify_organization_owners"),
+                    "options": policy_data.get("options", {}),
+                    "has_fired": policy_data.get("has_fired", False),
+                }
+
+                if not self.dry_run:
+                    existing = CustomerEstimatedCostPolicy.objects.filter(
+                        uuid=uuid
+                    ).first()
+                    if existing:
+                        if self.update_existing:
+                            with transaction.atomic():
+                                CustomerEstimatedCostPolicy.objects.filter(
+                                    uuid=uuid
+                                ).update(**defaults)
+                            self.stats["customer_estimated_cost_policies"][
+                                "updated"
+                            ] += 1
+                        else:
+                            self.stats["customer_estimated_cost_policies"][
+                                "skipped"
+                            ] += 1
+                    else:
+                        with transaction.atomic():
+                            CustomerEstimatedCostPolicy.objects.create(
+                                uuid=uuid, **defaults
+                            )
+                        self.stats["customer_estimated_cost_policies"]["created"] += 1
+                else:
+                    existing = CustomerEstimatedCostPolicy.objects.filter(
+                        uuid=uuid
+                    ).exists()
+                    if existing:
+                        if self.update_existing:
+                            self.stats["customer_estimated_cost_policies"][
+                                "updated"
+                            ] += 1
+                        else:
+                            self.stats["customer_estimated_cost_policies"][
+                                "skipped"
+                            ] += 1
+                    else:
+                        self.stats["customer_estimated_cost_policies"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import customer cost policy {policy_data.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["customer_estimated_cost_policies"]["errors"] += 1
 
     def import_slurm_periodic_policies(self, policies_data):
         """Import SLURM periodic usage policies."""

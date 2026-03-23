@@ -52,6 +52,11 @@ from waldur_mastermind.marketplace.models import (
     SoftwareTarget,
     SoftwareVersion,
 )
+from waldur_mastermind.policy.models import (
+    CustomerEstimatedCostPolicy,
+    ProjectEstimatedCostPolicy,
+    SlurmPeriodicUsagePolicy,
+)
 from waldur_mastermind.proposal.models import (
     Call,
     CallManagingOrganisation,
@@ -154,6 +159,9 @@ class Command(BaseCommand):
             "openstack_images": {"deleted": 0, "errors": 0},
             "openstack_flavors": {"deleted": 0, "errors": 0},
             "openstack_service_settings": {"deleted": 0, "errors": 0},
+            "project_estimated_cost_policies": {"deleted": 0, "errors": 0},
+            "customer_estimated_cost_policies": {"deleted": 0, "errors": 0},
+            "slurm_periodic_policies": {"deleted": 0, "errors": 0},
         }
         self.dry_run = False
 
@@ -337,6 +345,11 @@ class Command(BaseCommand):
             self._safe_cleanup(self.cleanup_software_versions)
             self._safe_cleanup(self.cleanup_software_packages)
             self._safe_cleanup(self.cleanup_software_catalogs)
+
+            # Delete policies (depends on offerings, projects, customers)
+            self._safe_cleanup(self.cleanup_slurm_periodic_policies)
+            self._safe_cleanup(self.cleanup_project_estimated_cost_policies)
+            self._safe_cleanup(self.cleanup_customer_estimated_cost_policies)
 
             # Delete offerings, service providers, projects, customers, categories
             self._safe_cleanup(self.cleanup_offerings)
@@ -1435,6 +1448,66 @@ class Command(BaseCommand):
                 self.style.WARNING(f"Failed to delete OpenStack service settings: {e}")
             )
             self.stats["openstack_service_settings"]["errors"] += 1
+
+    def cleanup_project_estimated_cost_policies(self):
+        """Delete project estimated cost policies."""
+        self.stdout.write("Deleting project estimated cost policies...")
+        try:
+            if not self.dry_run:
+                count = ProjectEstimatedCostPolicy.objects.count()
+                ProjectEstimatedCostPolicy.objects.all().delete()
+                self.stats["project_estimated_cost_policies"]["deleted"] = count
+            else:
+                self.stats["project_estimated_cost_policies"]["deleted"] = (
+                    ProjectEstimatedCostPolicy.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Failed to delete project estimated cost policies: {e}"
+                )
+            )
+            self.stats["project_estimated_cost_policies"]["errors"] += 1
+
+    def cleanup_customer_estimated_cost_policies(self):
+        """Delete customer estimated cost policies."""
+        self.stdout.write("Deleting customer estimated cost policies...")
+        try:
+            if not self.dry_run:
+                count = CustomerEstimatedCostPolicy.objects.count()
+                CustomerEstimatedCostPolicy.objects.all().delete()
+                self.stats["customer_estimated_cost_policies"]["deleted"] = count
+            else:
+                self.stats["customer_estimated_cost_policies"]["deleted"] = (
+                    CustomerEstimatedCostPolicy.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Failed to delete customer estimated cost policies: {e}"
+                )
+            )
+            self.stats["customer_estimated_cost_policies"]["errors"] += 1
+
+    def cleanup_slurm_periodic_policies(self):
+        """Delete SLURM periodic usage policies."""
+        self.stdout.write("Deleting SLURM periodic usage policies...")
+        try:
+            if not self.dry_run:
+                count = SlurmPeriodicUsagePolicy.objects.count()
+                SlurmPeriodicUsagePolicy.objects.all().delete()
+                self.stats["slurm_periodic_policies"]["deleted"] = count
+            else:
+                self.stats["slurm_periodic_policies"]["deleted"] = (
+                    SlurmPeriodicUsagePolicy.objects.count()
+                )
+        except Exception as e:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Failed to delete SLURM periodic usage policies: {e}"
+                )
+            )
+            self.stats["slurm_periodic_policies"]["errors"] += 1
 
     def print_summary(self):
         """Print cleanup summary statistics."""
