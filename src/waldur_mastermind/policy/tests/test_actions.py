@@ -592,3 +592,301 @@ class PolicyActionsPostSaveSignalTest(test.APITestCase):
         handler = self._connect_signal()
         policy_actions.reset_member_restriction(self.policy)
         handler.assert_not_called()
+
+
+@freeze_time("2024-09-01")
+class PolicyActionReversionTest(test.APITestCase):
+    """Test that resource-modifying policy actions create reversion entries."""
+
+    def setUp(self):
+        import reversion
+
+        self.reversion = reversion
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.project = self.fixture.project
+        self.customer = self.fixture.customer
+        self.resource = self.fixture.resource
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+        self.policy = factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.project, created_by=self.fixture.user
+        )
+
+    def _setup_offering(self, **plugin_options):
+        offering = self.resource.offering
+        offering.plugin_options.update(plugin_options)
+        offering.save()
+
+    def _get_versions(self):
+        from reversion.models import Version
+
+        return Version.objects.get_for_object(self.resource)
+
+    def test_request_downscaling_creates_revision(self):
+        self._setup_offering(supports_downscaling=True)
+        policy_actions.request_downscaling(self.policy)
+
+        versions = self._get_versions()
+        self.assertGreaterEqual(versions.count(), 1)
+        latest = versions.first()
+        self.assertIn(self.policy.uuid.hex, latest.revision.comment)
+        self.assertIn("request_downscaling", latest.revision.comment)
+        self.assertEqual(latest.revision.user.username, "system_robot")
+
+    def test_reset_downscaling_creates_revision(self):
+        self._setup_offering(supports_downscaling=True)
+        self.resource.downscaled = True
+        self.resource.save()
+
+        policy_actions.reset_downscaling(self.policy)
+
+        versions = self._get_versions()
+        self.assertGreaterEqual(versions.count(), 1)
+        latest = versions.first()
+        self.assertIn("reset_downscaling", latest.revision.comment)
+        self.assertEqual(latest.revision.user.username, "system_robot")
+
+    def test_request_pausing_creates_revision(self):
+        self._setup_offering(supports_pausing=True)
+        policy_actions.request_pausing(self.policy)
+
+        versions = self._get_versions()
+        self.assertGreaterEqual(versions.count(), 1)
+        latest = versions.first()
+        self.assertIn("request_pausing", latest.revision.comment)
+        self.assertIn(self.policy.uuid.hex, latest.revision.comment)
+
+    def test_reset_pausing_creates_revision(self):
+        self._setup_offering(supports_pausing=True)
+        self.resource.paused = True
+        self.resource.save()
+
+        policy_actions.reset_pausing(self.policy)
+
+        versions = self._get_versions()
+        self.assertGreaterEqual(versions.count(), 1)
+        latest = versions.first()
+        self.assertIn("reset_pausing", latest.revision.comment)
+
+    def test_restrict_members_creates_revision(self):
+        self._setup_offering(service_provider_can_create_offering_user=True)
+        policy_actions.restrict_members(self.policy)
+
+        versions = self._get_versions()
+        self.assertGreaterEqual(versions.count(), 1)
+        latest = versions.first()
+        self.assertIn("restrict_members", latest.revision.comment)
+        self.assertIn(self.policy.uuid.hex, latest.revision.comment)
+
+    def test_reset_member_restriction_creates_revision(self):
+        self._setup_offering(service_provider_can_create_offering_user=True)
+        self.resource.restrict_member_access = True
+        self.resource.save()
+
+        policy_actions.reset_member_restriction(self.policy)
+
+        versions = self._get_versions()
+        self.assertGreaterEqual(versions.count(), 1)
+        latest = versions.first()
+        self.assertIn("reset_member_restriction", latest.revision.comment)
+
+    def test_policy_attribution_stored_in_attributes(self):
+        """Verify _policy_attribution metadata is stored on the resource."""
+        self._setup_offering(supports_pausing=True)
+        policy_actions.request_pausing(self.policy)
+
+        self.resource.refresh_from_db()
+        attribution = self.resource.attributes.get("_policy_attribution", {})
+        self.assertIn("paused", attribution)
+        self.assertEqual(attribution["paused"]["policy_uuid"], self.policy.uuid.hex)
+        self.assertEqual(attribution["paused"]["action"], "request_pausing")
+        self.assertEqual(
+            attribution["paused"]["policy_class"], "ProjectEstimatedCostPolicy"
+        )
+
+
+@freeze_time("2024-09-01")
+class PolicyActionEventScopesTest(test.APITestCase):
+    """Test that policy action events are scoped to the correct resources/projects/customers."""
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.project = self.fixture.project
+        self.customer = self.fixture.customer
+        self.resource = self.fixture.resource
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+        self.policy = factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.project, created_by=self.fixture.user
+        )
+
+    def _setup_offering(self, **plugin_options):
+        offering = self.resource.offering
+        offering.plugin_options.update(plugin_options)
+        offering.save()
+
+    def _get_feeds_for_event_type(self, event_type_value):
+        events = logging_models.Event.objects.filter(event_type=event_type_value)
+        if not events.exists():
+            return logging_models.Feed.objects.none()
+        return logging_models.Feed.objects.filter(event__in=events)
+
+    def test_request_downscaling_event_scoped_to_resource(self):
+        self._setup_offering(supports_downscaling=True)
+        policy_actions.request_downscaling(self.policy)
+
+        feeds = self._get_feeds_for_event_type("request_downscaling")
+        self.assertTrue(feeds.exists())
+        scope_ids = set(feeds.values_list("object_id", flat=True))
+        self.assertIn(self.resource.id, scope_ids)
+        self.assertIn(self.project.id, scope_ids)
+
+    def test_reset_downscaling_event_scoped_to_resource(self):
+        self._setup_offering(supports_downscaling=True)
+        self.resource.downscaled = True
+        self.resource.save()
+
+        policy_actions.reset_downscaling(self.policy)
+
+        feeds = self._get_feeds_for_event_type("reset_downscaling")
+        self.assertTrue(feeds.exists())
+        scope_ids = set(feeds.values_list("object_id", flat=True))
+        self.assertIn(self.resource.id, scope_ids)
+
+    def test_request_pausing_event_uses_correct_type(self):
+        """Verify request_pausing uses REQUEST_PAUSING, not BLOCK_MODIFICATION."""
+        self._setup_offering(supports_pausing=True)
+        policy_actions.request_pausing(self.policy)
+
+        events = logging_models.Event.objects.filter(event_type="request_pausing")
+        self.assertTrue(events.exists())
+        # Ensure the old incorrect type is not used
+        wrong_events = logging_models.Event.objects.filter(
+            event_type="block_modification_of_existing_resources",
+            message__icontains="pausing",
+        )
+        self.assertFalse(wrong_events.exists())
+
+    def test_restrict_members_event_scoped_to_resource(self):
+        self._setup_offering(service_provider_can_create_offering_user=True)
+        policy_actions.restrict_members(self.policy)
+
+        feeds = self._get_feeds_for_event_type("restrict_members")
+        self.assertTrue(feeds.exists())
+        scope_ids = set(feeds.values_list("object_id", flat=True))
+        self.assertIn(self.resource.id, scope_ids)
+
+    def test_notify_project_team_event_scoped_to_project(self):
+        policy_actions.notify_project_team(self.policy)
+
+        feeds = self._get_feeds_for_event_type("notify_project_team")
+        self.assertTrue(feeds.exists())
+        scope_ids = set(feeds.values_list("object_id", flat=True))
+        self.assertIn(self.project.id, scope_ids)
+        self.assertIn(self.customer.id, scope_ids)
+
+
+@freeze_time("2024-09-01")
+class PolicyActionBulkPerformanceTest(test.APITestCase):
+    """Test that bulk optimisations work correctly with many resources."""
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.project = self.fixture.project
+        self.customer = self.fixture.customer
+        self.offering = self.fixture.resource.offering
+        self.offering.plugin_options.update(
+            {
+                "supports_downscaling": True,
+                "supports_pausing": True,
+                "service_provider_can_create_offering_user": True,
+            }
+        )
+        self.offering.save()
+        self.policy = factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.project, created_by=self.fixture.user
+        )
+
+        # Create multiple resources in the same project/offering
+        self.resources = [self.fixture.resource]
+        for i in range(4):
+            resource = marketplace_factories.ResourceFactory(
+                project=self.project,
+                offering=self.offering,
+                state=ResourceStates.OK,
+            )
+            self.resources.append(resource)
+
+    def test_bulk_downscaling_creates_events_for_all_resources(self):
+        policy_actions.request_downscaling(self.policy)
+
+        events = logging_models.Event.objects.filter(event_type="request_downscaling")
+        self.assertEqual(events.count(), 5)
+
+        for resource in self.resources:
+            resource.refresh_from_db()
+            self.assertTrue(resource.downscaled)
+
+        feeds = logging_models.Feed.objects.filter(event__in=events)
+        # Each resource gets 3 feeds: resource + project + customer
+        self.assertEqual(feeds.count(), 5 * 3)
+
+    def test_bulk_downscaling_creates_revisions_for_all_resources(self):
+        from reversion.models import Version
+
+        policy_actions.request_downscaling(self.policy)
+
+        for resource in self.resources:
+            versions = Version.objects.get_for_object(resource)
+            self.assertGreaterEqual(versions.count(), 1)
+            self.assertIn("request_downscaling", versions.first().revision.comment)
+
+    def test_bulk_pausing_creates_events_for_all_resources(self):
+        policy_actions.request_pausing(self.policy)
+
+        events = logging_models.Event.objects.filter(event_type="request_pausing")
+        self.assertEqual(events.count(), 5)
+
+        for resource in self.resources:
+            resource.refresh_from_db()
+            self.assertTrue(resource.paused)
+
+    def test_bulk_reset_only_affects_flagged_resources(self):
+        """Reset should only create events for resources that actually change."""
+        # Only downscale 2 of 5
+        for resource in self.resources[:2]:
+            resource.downscaled = True
+            resource.save()
+
+        policy_actions.reset_downscaling(self.policy)
+
+        events = logging_models.Event.objects.filter(event_type="reset_downscaling")
+        self.assertEqual(events.count(), 2)
+
+        for resource in self.resources:
+            resource.refresh_from_db()
+            self.assertFalse(resource.downscaled)
+
+    def test_bulk_action_stores_attribution_on_all_resources(self):
+        policy_actions.restrict_members(self.policy)
+
+        for resource in self.resources:
+            resource.refresh_from_db()
+            self.assertTrue(resource.restrict_member_access)
+            attribution = resource.attributes.get("_policy_attribution", {})
+            self.assertIn("restrict_member_access", attribution)
+            self.assertEqual(
+                attribution["restrict_member_access"]["policy_uuid"],
+                self.policy.uuid.hex,
+            )
+
+    def test_noop_bulk_action_creates_no_events(self):
+        """If all resources already have the target value, no events should be created."""
+        for resource in self.resources:
+            resource.paused = True
+            resource.save()
+
+        policy_actions.request_pausing(self.policy)
+
+        events = logging_models.Event.objects.filter(event_type="request_pausing")
+        self.assertEqual(events.count(), 0)

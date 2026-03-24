@@ -202,6 +202,11 @@ class EventType(str, Enum):
     )
     REQUEST_DOWNSCALING = "request_downscaling"
     REQUEST_PAUSING = "request_pausing"
+    REQUEST_SLURM_RESOURCE_DOWNSCALING = "request_slurm_resource_downscaling"
+    REQUEST_SLURM_RESOURCE_PAUSING = "request_slurm_resource_pausing"
+    RESET_DOWNSCALING = "reset_downscaling"
+    RESET_MEMBER_RESTRICTION = "reset_member_restriction"
+    RESET_PAUSING = "reset_pausing"
     RESOURCE_ASSIGN_FLOATING_IP_FAILED = "resource_assign_floating_ip_failed"
     RESOURCE_ASSIGN_FLOATING_IP_SCHEDULED = "resource_assign_floating_ip_scheduled"
     RESOURCE_ASSIGN_FLOATING_IP_SUCCEEDED = "resource_assign_floating_ip_succeeded"
@@ -489,6 +494,14 @@ EVENT_GROUP_MAPPING = {
         EventType.MARKETPLACE_RESOURCE_DOWNSCALED,
         EventType.MARKETPLACE_RESOURCE_ERRED_ON_BACKEND,
         EventType.MARKETPLACE_RESOURCE_PAUSED,
+        EventType.REQUEST_DOWNSCALING,
+        EventType.REQUEST_PAUSING,
+        EventType.REQUEST_SLURM_RESOURCE_DOWNSCALING,
+        EventType.REQUEST_SLURM_RESOURCE_PAUSING,
+        EventType.RESET_DOWNSCALING,
+        EventType.RESET_MEMBER_RESTRICTION,
+        EventType.RESET_PAUSING,
+        EventType.RESTRICT_MEMBERS,
         EventType.SLURM_POLICY_EVALUATION,
         EventType.MARKETPLACE_RESOURCE_TERMINATE_CANCELED,
         EventType.MARKETPLACE_RESOURCE_TERMINATE_FAILED,
