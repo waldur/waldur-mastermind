@@ -122,6 +122,18 @@ class UserSection(FeatureSection):
         "Show identity bridge information in user profiles and admin views."
     )
 
+    conceal_api_token = Feature(
+        "Hide API token management tab from non-staff and non-support users."
+    )
+
+    conceal_permission_requests = Feature(
+        "Hide permission requests tab from non-staff and non-support users."
+    )
+
+    conceal_remote_accounts = Feature(
+        "Hide remote accounts tab from non-staff and non-support users."
+    )
+
 
 class MarketplaceSection(FeatureSection):
     class Meta:
