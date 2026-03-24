@@ -1885,6 +1885,30 @@ class ProviderResourcesStatsTest(test.APITestCase):
         # Total excludes terminated resources
         self.assertGreaterEqual(response.data["total"], 1)
 
+    def test_resource_counts_by_state_uses_human_readable_names(self):
+        """Test that by_state dictionary uses human-readable state names as keys."""
+        factories.ResourceFactory(
+            offering=self.fixture.offering,
+            state=ResourceStates.OK,
+        )
+        factories.ResourceFactory(
+            offering=self.fixture.offering,
+            state=ResourceStates.ERRED,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url, {"provider_uuid": str(self.fixture.service_provider.uuid)}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        by_state = response.data["by_state"]
+        self.assertIn("OK", by_state)
+        self.assertIn("Erred", by_state)
+        # Verify they are not numeric strings (which would be '1', '2' etc.)
+        self.assertNotIn(str(ResourceStates.OK), by_state)
+        self.assertNotIn(str(ResourceStates.ERRED), by_state)
+
     def test_resource_counts_by_offering(self):
         """Test that resources are grouped by offering."""
         factories.ResourceFactory(

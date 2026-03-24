@@ -11209,11 +11209,13 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
         # Total and by state
         total = queryset.exclude(state=ResourceStates.TERMINATED).count()
-        state_counts = dict(
-            queryset.values("state")
+        state_names = dict(models.Resource.States.CHOICES)
+        state_counts = {
+            state_names[state]: count
+            for state, count in queryset.values("state")
             .annotate(count=Count("id"))
             .values_list("state", "count")
-        )
+        }
 
         # By offering (top 10)
         by_offering = list(
