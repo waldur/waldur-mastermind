@@ -1896,6 +1896,35 @@ class ResourceBackendIDTest(test.APITestCase):
 
 
 @ddt
+class ResourceEffectiveIDTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, action="set_effective_id"
+        )
+
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_BACKEND_ID)
+
+    def make_request(self, role):
+        self.client.force_authenticate(role)
+        payload = {"effective_id": "new_effective_id"}
+        return self.client.post(self.url, payload)
+
+    @data("staff", "offering_owner", "service_owner")
+    def test_user_can_set_effective_id_of_resource(self, user):
+        response = self.make_request(getattr(self.fixture, user))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.effective_id, "new_effective_id")
+
+    @data("owner", "admin", "manager")
+    def test_user_can_not_set_effective_id_of_resource(self, user):
+        response = self.make_request(getattr(self.fixture, user))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+@ddt
 class ResourceBackendMetadataTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = MarketplaceFixture()
