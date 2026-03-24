@@ -212,6 +212,18 @@ Render marketplace plan components pricelist in support workspace.
 
 Enable VM type overview in support workspace.
 
+## user.conceal_api_token
+
+Hide API token management tab from non-staff and non-support users.
+
+## user.conceal_permission_requests
+
+Hide permission requests tab from non-staff and non-support users.
+
+## user.conceal_remote_accounts
+
+Hide remote accounts tab from non-staff and non-support users.
+
 ## user.disable_user_termination
 
 Disable user termination in user workspace.
