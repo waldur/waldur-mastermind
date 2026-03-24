@@ -5546,6 +5546,12 @@ class ResourceBackendIDSerializer(serializers.ModelSerializer):
         fields = ("backend_id",)
 
 
+class ResourceEffectiveIDSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Resource
+        fields = ("effective_id",)
+
+
 class OrderBackendIDSerializer(serializers.ModelSerializer):
     backend_id = serializers.CharField(write_only=True, required=True, max_length=255)
 

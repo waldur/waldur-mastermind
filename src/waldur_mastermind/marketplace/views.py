@@ -7821,6 +7821,46 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     set_backend_id_serializer_class = serializers.ResourceBackendIDSerializer
 
     @extend_schema(
+        summary="Set resource effective ID",
+        description="Allows a service provider to set or update the effective ID for a resource. The effective ID represents the backend identifier assigned by a downstream provider in federated Waldur deployments.",
+        request=serializers.ResourceEffectiveIDSerializer,
+        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def set_effective_id(self, request, uuid=None):
+        resource = cast(models.Resource, self.get_object())
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_effective_id = serializer.validated_data["effective_id"]
+        old_effective_id = resource.effective_id
+        if new_effective_id != old_effective_id:
+            resource.effective_id = new_effective_id
+            resource.save(update_fields=["effective_id"])
+            logger.info(
+                "%s has changed effective_id from %s to %s",
+                request.user.full_name,
+                old_effective_id,
+                new_effective_id,
+            )
+            return Response(
+                {"status": _("Resource effective_id has been changed.")},
+                status=status.HTTP_200_OK,
+            )
+        else:
+            return Response(
+                {"status": _("Resource effective_id is not changed.")},
+                status=status.HTTP_200_OK,
+            )
+
+    set_effective_id_permissions = [
+        permission_factory(
+            PermissionEnum.SET_RESOURCE_BACKEND_ID,
+            ["offering", "offering.customer"],
+        )
+    ]
+    set_effective_id_serializer_class = serializers.ResourceEffectiveIDSerializer
+
+    @extend_schema(
         summary="Update resource options directly",
         description="Allows a service provider to directly update the options of a resource without creating an order. This is typically used for administrative changes or backend synchronization.",
         request=serializers.ResourceOptionsSerializer,
