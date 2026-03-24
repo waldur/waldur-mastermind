@@ -218,6 +218,13 @@
 - openstack_subnet_pulled
 - openstack_subnet_updated
 - openstack_tenant_quota_limit_updated
+- request_downscaling
+- request_pausing
+- request_slurm_resource_downscaling
+- request_slurm_resource_pausing
+- reset_downscaling
+- reset_member_restriction
+- reset_pausing
 - resource_assign_floating_ip_failed
 - resource_assign_floating_ip_scheduled
 - resource_assign_floating_ip_succeeded
@@ -278,6 +285,7 @@
 - resource_update_security_groups_scheduled
 - resource_update_security_groups_succeeded
 - resource_update_succeeded
+- restrict_members
 - slurm_policy_evaluation
 
 ## Review
