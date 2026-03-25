@@ -11,7 +11,9 @@ from waldur_mastermind.marketplace.enums import SITE_AGENT_OFFERING
 logger = logging.getLogger(__name__)
 
 
-def push_resource_update_message(resource: marketplace_models.Resource) -> None:
+def push_resource_update_message(
+    resource: marketplace_models.Resource, force: bool = False
+) -> None:
     """
     Push resource update message to queue topic for notification purposes.
 
@@ -24,9 +26,13 @@ def push_resource_update_message(resource: marketplace_models.Resource) -> None:
 
     Uses MessageStateTracker to skip sending if content hasn't changed since
     the last send, preventing redundant messages from periodic sync tasks.
+    User-triggered callers should pass force=True to always send.
 
     Args:
         resource: Resource instance containing the updated information
+        force: If True, always send the message regardless of whether
+            content has changed. The cache is still updated so that
+            subsequent periodic checks remain accurate.
 
     Example payload:
         {
@@ -53,12 +59,14 @@ def push_resource_update_message(resource: marketplace_models.Resource) -> None:
         }
     )
 
-    # Check if content has changed since last send (idempotency)
-    if not logging_utils.MessageStateTracker.should_send_message(
+    # Always call should_send_message to keep cache updated.
+    # When force=True (user-triggered), ignore the result and send anyway.
+    should_send = logging_utils.MessageStateTracker.should_send_message(
         resource.uuid.hex,
         logging_enums.ObservableObjectType.RESOURCE.value,
         payload,
-    ):
+    )
+    if not force and not should_send:
         logger.debug(
             "Skipping resource update message for %s (content unchanged)", resource
         )

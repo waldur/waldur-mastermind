@@ -205,7 +205,7 @@ def send_resource_update_message_to_queue(
     ):
         return
 
-    utils.push_resource_update_message(instance)
+    utils.push_resource_update_message(instance, force=True)
 
 
 def send_account_message(
