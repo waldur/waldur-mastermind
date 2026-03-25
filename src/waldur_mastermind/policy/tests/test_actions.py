@@ -890,3 +890,57 @@ class PolicyActionBulkPerformanceTest(test.APITestCase):
 
         events = logging_models.Event.objects.filter(event_type="request_pausing")
         self.assertEqual(events.count(), 0)
+
+
+@freeze_time("2024-09-01")
+class PolicyActionReentrantSignalTest(test.APITestCase):
+    """Test that policy actions don't crash when another policy on the same
+    project uses block_modification_of_existing_resources.
+
+    Regression test: resource.save() inside a policy action triggers post_save,
+    which re-evaluates all policies on the project. If a block_modification
+    policy has already fired, it raises PolicyException, crashing the original
+    action. The fix sets is_mocked on the resource to skip re-entrant evaluation.
+    """
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.project = self.fixture.project
+        self.resource = self.fixture.resource
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+        self.resource.offering.plugin_options["supports_pausing"] = True
+        self.resource.offering.save()
+
+        # Policy 1: the action we want to test
+        self.pause_policy = factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.project,
+            created_by=self.fixture.user,
+            actions="request_pausing",
+        )
+
+        # Policy 2: a block_modification policy that has already fired
+        # (threshold actions run when has_fired=True on the post_save handler)
+        self.block_policy = factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.project,
+            created_by=self.fixture.user,
+            actions="block_modification_of_existing_resources",
+            has_fired=True,
+        )
+
+    def test_request_pausing_succeeds_with_block_modification_policy(self):
+        """request_pausing must not be blocked by a sibling block_modification policy."""
+        # This would raise PolicyException without the is_mocked fix
+        policy_actions.request_pausing(self.pause_policy)
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.paused)
+
+    def test_downscaling_succeeds_with_block_modification_policy(self):
+        self.resource.offering.plugin_options["supports_downscaling"] = True
+        self.resource.offering.save()
+
+        policy_actions.request_downscaling(self.pause_policy)
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.downscaled)

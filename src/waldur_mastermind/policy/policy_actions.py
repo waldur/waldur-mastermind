@@ -78,10 +78,17 @@ def _save_resource_with_reversion(
     if system_robot is None:
         system_robot = get_system_robot()
 
-    with reversion.create_revision():
-        resource.save(update_fields=[field_name, "attributes"])
-        reversion.set_user(system_robot)
-        reversion.set_comment(comment)
+    # Mark as mocked to prevent re-entrant policy evaluation: the resource.save()
+    # triggers post_save → policy handler, which would evaluate other policies on the
+    # same project and potentially raise PolicyException, crashing the current action.
+    resource.is_mocked = True
+    try:
+        with reversion.create_revision():
+            resource.save(update_fields=[field_name, "attributes"])
+            reversion.set_user(system_robot)
+            reversion.set_comment(comment)
+    finally:
+        resource.is_mocked = False
 
 
 def _emit_events_bulk(pending_events):
