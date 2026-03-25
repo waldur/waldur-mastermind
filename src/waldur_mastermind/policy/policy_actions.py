@@ -57,15 +57,25 @@ def _save_resource_with_reversion(
     setattr(resource, field_name, new_value)
 
     scope_name = str(policy.scope) if policy.scope else ""
-    created_by_name = ""
-    if policy.created_by:
-        created_by_name = policy.created_by.full_name or policy.created_by.username
+
+    # Collect policy details for audit trail (varies by policy type)
+    policy_details = {}
+    if hasattr(policy, "limit_cost"):
+        policy_details["limit_cost"] = str(policy.limit_cost)
+    if hasattr(policy, "limit_type"):
+        policy_details["limit_type"] = policy.limit_type
+    if hasattr(policy, "grace_ratio"):
+        policy_details["grace_ratio"] = str(policy.grace_ratio)
+    if hasattr(policy, "actions") and isinstance(policy.actions, str):
+        policy_details["actions"] = policy.actions
 
     comment = (
         f"Policy action '{action_name}': {field_name} changed from {old_value} to {new_value}. "
         f"Policy: {type(policy).__name__} {policy.uuid.hex}. "
-        f"Scope: {scope_name}. Created by: {created_by_name}."
+        f"Scope: {scope_name}."
     )
+    if policy_details.get("limit_cost"):
+        comment += f" Threshold: {policy_details['limit_cost']}."
     if extra_comment:
         comment += f" {extra_comment}"
 
@@ -78,8 +88,8 @@ def _save_resource_with_reversion(
         "policy_uuid": policy.uuid.hex,
         "action": action_name,
         "scope_name": scope_name,
-        "created_by": created_by_name,
         "timestamp": timezone.now().isoformat(),
+        **policy_details,
     }
     resource.attributes["_policy_attribution"] = attribution
 
