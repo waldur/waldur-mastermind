@@ -107,8 +107,8 @@ def sync_resource(serialized_instance):
     logger.info("Syncing resource %s", serialized_instance)
     resource = core_utils.deserialize_instance(serialized_instance)
     logger.info("Resource %s deserialized", resource)
-    # Push update message to Waldur Site Agent
-    utils.push_resource_update_message(resource)
+    # Push update message to Waldur Site Agent (force=True: user-triggered via pull API)
+    utils.push_resource_update_message(resource, force=True)
 
 
 @shared_task(
