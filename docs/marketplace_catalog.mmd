@@ -101,6 +101,10 @@ classDiagram
         +OfferingComponent overage_component [FK]
         +int min_prepaid_duration
         +int max_prepaid_duration
+        +int prepaid_duration_step
+        +int min_renewal_duration
+        +int max_renewal_duration
+        +int renewal_duration_step
     }
     Attribute "*" -- "1" Section : section
     AttributeOption "*" -- "1" Attribute : attribute
