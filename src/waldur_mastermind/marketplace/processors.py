@@ -3,6 +3,7 @@ import logging
 from django.db import models as django_models
 from django.db import transaction
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers, status
 from rest_framework.reverse import reverse
 
@@ -227,6 +228,71 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
         """
         Unified handler for processing both renewals and limit updates.
         """
+        # Validate renewal duration constraints from the offering component
+        if is_renewal:
+            raw_extension_months = self.order.attributes.get("extension_months")
+            if raw_extension_months is not None:
+                try:
+                    extension_months = int(raw_extension_months)
+                except (TypeError, ValueError):
+                    extension_months = None
+            else:
+                extension_months = None
+            if extension_months is not None:
+                resource = self.order.resource
+                for component in resource.offering.components.filter(is_prepaid=True):
+                    min_dur = component.min_renewal_duration
+                    max_dur = component.max_renewal_duration
+                    step = component.renewal_duration_step or 1
+
+                    if min_dur is not None and extension_months < min_dur:
+                        signals.resource_limit_update_failed.send(
+                            sender=resource.__class__,
+                            order=self.order,
+                            error_message=_(
+                                "Renewal of {d} months is less than the minimum "
+                                "of {min} months for component '{name}'."
+                            ).format(
+                                d=extension_months,
+                                min=min_dur,
+                                name=component.name,
+                            ),
+                        )
+                        return
+
+                    if max_dur is not None and extension_months > max_dur:
+                        signals.resource_limit_update_failed.send(
+                            sender=resource.__class__,
+                            order=self.order,
+                            error_message=_(
+                                "Renewal of {d} months exceeds the maximum "
+                                "of {max} months for component '{name}'."
+                            ).format(
+                                d=extension_months,
+                                max=max_dur,
+                                name=component.name,
+                            ),
+                        )
+                        return
+
+                    if step > 1:
+                        base = min_dur or 0
+                        if (extension_months - base) % step != 0:
+                            signals.resource_limit_update_failed.send(
+                                sender=resource.__class__,
+                                order=self.order,
+                                error_message=_(
+                                    "Renewal of {d} months is not a valid step for "
+                                    "component '{name}' (step={step}, base={base})."
+                                ).format(
+                                    d=extension_months,
+                                    name=component.name,
+                                    step=step,
+                                    base=base,
+                                ),
+                            )
+                            return
+
         try:
             # The underlying `update_limits_process` method in the plugin-specific
             # processor will handle the backend call. It might need to be

@@ -7687,7 +7687,9 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
     @action(detail=True, methods=["post"])
     def estimate_renewal(self, request, uuid=None):
         resource = self.get_object()
-        serializer = serializers.RenewalEstimateRequestSerializer(data=request.data)
+        serializer = serializers.RenewalEstimateRequestSerializer(
+            data=request.data, context={"resource": resource}
+        )
         serializer.is_valid(raise_exception=True)
         estimate = resource.get_renewal_estimate(
             serializer.validated_data["extension_months"],

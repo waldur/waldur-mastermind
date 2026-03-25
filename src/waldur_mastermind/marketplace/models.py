@@ -1073,6 +1073,34 @@ class OfferingComponent(
     )
     min_prepaid_duration = models.IntegerField(blank=True, null=True)
     max_prepaid_duration = models.IntegerField(blank=True, null=True)
+    prepaid_duration_step = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        default=None,
+        help_text=_(
+            "Step size in months for the initial prepaid duration at order creation. "
+            "If set, only multiples of this value (starting from min_prepaid_duration) "
+            "are valid. Defaults to 1 (any value between min and max)."
+        ),
+    )
+    min_renewal_duration = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        help_text=_("Minimum number of months allowed for a renewal."),
+    )
+    max_renewal_duration = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        help_text=_("Maximum number of months allowed for a renewal."),
+    )
+    renewal_duration_step = models.PositiveIntegerField(
+        blank=True,
+        null=True,
+        help_text=_(
+            "Step size in months for renewal. Only multiples of this value "
+            "(starting from min_renewal_duration) are valid. Defaults to 1."
+        ),
+    )
     objects = managers.MixinManager("scope")
 
     def validate_amount(self, resource, amount, date):
