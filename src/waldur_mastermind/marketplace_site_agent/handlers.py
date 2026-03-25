@@ -1,5 +1,7 @@
 import logging
 
+from django.contrib.contenttypes.models import ContentType
+
 from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.logging import enums as logging_enums
 from waldur_core.logging import tasks as logging_tasks
@@ -92,12 +94,30 @@ def send_offering_user_username_message(
     if not offering_user.username:
         return
 
+    project_ct = ContentType.objects.get_for_model(structure_models.Project)
+    user_project_ids = permission_models.UserRole.objects.filter(
+        user=offering_user.user,
+        is_active=True,
+        content_type=project_ct,
+    ).values_list("object_id", flat=True)
+
+    resource_backend_ids = list(
+        marketplace_models.Resource.objects.filter(
+            offering=offering_user.offering,
+            project_id__in=user_project_ids,
+        )
+        .exclude(state=ResourceStates.TERMINATED)
+        .exclude(backend_id="")
+        .values_list("backend_id", flat=True)
+    )
+
     payload = {
         "username": offering_user.username,
         "offering_user_uuid": offering_user.uuid.hex,
         "user_uuid": offering_user.user.uuid.hex,
         "state": offering_user.state,
         "action": "username_set",
+        "resource_backend_ids": resource_backend_ids,
     }
     messages = marketplace_utils.prepare_messages(
         offering_user.offering,
