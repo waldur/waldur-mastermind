@@ -1188,9 +1188,12 @@ class TagSerializer(
         user = request.user
         offerings = tag.offerings.all()
 
-        # Staff sees all
-        if user.is_staff or user.is_support:
+        # Staff and support see all
+        if not user.is_anonymous and (user.is_staff or user.is_support):
             return offerings.count()
+
+        if user.is_anonymous:
+            return offerings.filter(state=models.Offering.States.ACTIVE).count()
 
         # Get connected customers for this user that have service providers
         connected_customers = get_connected_customers(user)

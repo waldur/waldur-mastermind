@@ -1758,13 +1758,13 @@ class CategoryGroupViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
     ) = [structure_permissions.is_staff]
 
 
-class TagViewSet(core_views.ActionsViewSet):
+class TagViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
     """
     Manage offering tags.
 
     Staff users have full control.
     Service providers can create tags and modify/delete their own tags.
-    All authenticated users can list and retrieve tags.
+    All users (including anonymous) can list and retrieve tags.
     """
 
     queryset = models.Tag.objects.all()
