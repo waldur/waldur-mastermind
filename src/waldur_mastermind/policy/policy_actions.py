@@ -56,9 +56,15 @@ def _save_resource_with_reversion(
     old_value = getattr(resource, field_name)
     setattr(resource, field_name, new_value)
 
+    scope_name = str(policy.scope) if policy.scope else ""
+    created_by_name = ""
+    if policy.created_by:
+        created_by_name = policy.created_by.full_name or policy.created_by.username
+
     comment = (
         f"Policy action '{action_name}': {field_name} changed from {old_value} to {new_value}. "
-        f"Policy: {type(policy).__name__} {policy.uuid.hex}."
+        f"Policy: {type(policy).__name__} {policy.uuid.hex}. "
+        f"Scope: {scope_name}. Created by: {created_by_name}."
     )
     if extra_comment:
         comment += f" {extra_comment}"
@@ -71,6 +77,8 @@ def _save_resource_with_reversion(
         "policy_class": type(policy).__name__,
         "policy_uuid": policy.uuid.hex,
         "action": action_name,
+        "scope_name": scope_name,
+        "created_by": created_by_name,
         "timestamp": timezone.now().isoformat(),
     }
     resource.attributes["_policy_attribution"] = attribution
