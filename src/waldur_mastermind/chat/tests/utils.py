@@ -3,6 +3,30 @@
 from contextlib import contextmanager
 from unittest.mock import MagicMock
 
+# Patch target for _SynchronousThread — use with @mock.patch(SYNC_THREAD_PATCH, ...)
+SYNC_THREAD_PATCH = "waldur_mastermind.chat.llm_streamer.threading.Thread"
+
+
+class _SynchronousThread:
+    """Drop-in for threading.Thread that runs target in the calling thread.
+
+    Allows LLMStreamer tests to use APITestCase instead of
+    APITransactionTestCase by keeping DB operations on the test's connection.
+    """
+
+    def __init__(self, target=None, name=None, daemon=None, **kwargs):
+        self._target = target
+
+    def start(self):
+        if self._target:
+            self._target()
+
+    def join(self, timeout=None):
+        pass
+
+    def is_alive(self):
+        return False
+
 
 @contextmanager
 def _fake_stream(chunks):

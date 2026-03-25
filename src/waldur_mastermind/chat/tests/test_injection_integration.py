@@ -22,8 +22,10 @@ from waldur_mastermind.chat.input_guards.service import _reset_for_testing
 from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession
 from waldur_mastermind.chat.serializers import ChatRequestSerializer
 from waldur_mastermind.chat.tests.utils import (
+    SYNC_THREAD_PATCH,
     _make_content_chunk,
     _mock_openai_client,
+    _SynchronousThread,
 )
 from waldur_mastermind.chat.tools.executor import ToolExecutor
 
@@ -944,6 +946,7 @@ class ContextAssemblerHistoryLimitEdgeCaseTest(test.APITestCase):
         self.assertIn("Hi there", all_contents)
 
 
+@mock.patch(SYNC_THREAD_PATCH, _SynchronousThread)
 class StreamEditModeTest(InjectionIntegrationBaseTest):
     """Test EDIT mode on the stream endpoint."""
 
@@ -1153,6 +1156,7 @@ class StreamEditModeTest(InjectionIntegrationBaseTest):
         self.assertEqual(response.status_code, 400)
 
 
+@mock.patch(SYNC_THREAD_PATCH, _SynchronousThread)
 class StreamEditModeLowSeverityTest(InjectionIntegrationBaseTest):
     """Test that EDIT mode with LOW/MEDIUM injection flags the message but still calls AI Assistant."""
 

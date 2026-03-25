@@ -1,4 +1,5 @@
 import json
+import threading
 import unittest
 from contextlib import contextmanager
 from unittest.mock import MagicMock, Mock, patch
@@ -10,9 +11,11 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.llm_streamer import LLMStreamer
 from waldur_mastermind.chat.models import TokenQuota
 from waldur_mastermind.chat.tests.utils import (
+    SYNC_THREAD_PATCH,
     _make_chunk,
     _make_tool_call_delta,
     _mock_openai_client,
+    _SynchronousThread,
 )
 from waldur_mastermind.chat.ui_registry import ui_registry  # noqa: F401
 
@@ -44,9 +47,11 @@ def _messages(text="hi"):
     return [{"role": "user", "content": text}]
 
 
-class LLMStreamerTest(unittest.TestCase):
+class _LLMStreamerTestBase:
+    """Shared setUp and helpers for LLM streamer tests."""
+
     def setUp(self):
-        # Patch constance config to avoid DB access and patch the OpenAI client
+        super().setUp()
         config_patcher = patch(
             "waldur_mastermind.chat.llm_streamer.config",
             AI_ASSISTANT_MODEL="test-model",
@@ -70,6 +75,8 @@ class LLMStreamerTest(unittest.TestCase):
         streamer.client = _mock_openai_client(chunks)
         return streamer
 
+
+class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
     def test_streamer_parses_content(self):
         chunks = [_make_chunk(content="Hello")]
         streamer = self._make_streamer(chunks)
@@ -365,27 +372,180 @@ class LLMStreamerTest(unittest.TestCase):
         self.assertNotIn("result", serialized[0])
 
 
-class LLMStreamerUsageRecordingTest(drf_test.APITestCase):
-    """Test that LLMStreamer persists token usage to TokenQuota after streaming."""
+class LLMStreamerDisconnectTest(_LLMStreamerTestBase, unittest.TestCase):
+    """Test that client disconnects do not lose LLM response content."""
 
-    def setUp(self):
-        config_patcher = patch(
-            "waldur_mastermind.chat.llm_streamer.config",
-            AI_ASSISTANT_MODEL="test-model",
-            AI_ASSISTANT_API_URL="https://example.com/v1",
-            AI_ASSISTANT_API_TOKEN="tok",
-            AI_ASSISTANT_ENABLED=True,
-            AI_ASSISTANT_ENABLED_ROLES="all",
-            AI_ASSISTANT_BACKEND_TYPE="generic",
-            AI_ASSISTANT_COMPLETION_KWARGS={},
+    def test_disconnect_preserves_full_content(self):
+        """When client disconnects mid-stream, worker accumulates full LLM response."""
+        gate = threading.Event()
+
+        def slow_chunks():
+            yield _make_chunk(content="Hello ")
+            gate.wait(timeout=10)
+            yield _make_chunk(content="beautiful ")
+            yield _make_chunk(content="world")
+
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
         )
-        config_patcher.start()
-        self.addCleanup(config_patcher.stop)
+        mock_client = MagicMock()
+        mock_stream = MagicMock()
+        mock_stream.__enter__ = Mock(return_value=slow_chunks())
+        mock_stream.__exit__ = Mock(return_value=False)
+        mock_client.chat.completions.create.return_value = mock_stream
+        streamer.client = mock_client
 
-    def _make_streamer(self, chunks, user=None):
-        streamer = LLMStreamer(_messages(), "https://example.com/v1", "tok", user=user)
-        streamer.client = _mock_openai_client(chunks)
-        return streamer
+        gen = iter(streamer)
+        next(gen)
+        gen.close()
+
+        gate.set()
+
+        self.assertIsNotNone(streamer._worker_thread)
+        streamer._worker_thread.join(timeout=5)
+        self.assertFalse(streamer._worker_thread.is_alive())
+
+        self.assertEqual(streamer.accumulated_content, "Hello beautiful world")
+
+    def test_disconnect_does_not_block_worker(self):
+        """Worker thread completes promptly after client disconnects, even with many chunks."""
+        chunks = [_make_chunk(content=f"chunk{i} ") for i in range(500)]
+        streamer = self._make_streamer(chunks)
+        gen = iter(streamer)
+
+        next(gen)
+        gen.close()
+
+        # Worker should finish in reasonable time (not stuck on full queue)
+        streamer._worker_thread.join(timeout=10)
+        self.assertFalse(
+            streamer._worker_thread.is_alive(),
+            "Worker thread is still alive after timeout — likely blocked on full queue",
+        )
+
+    def test_canned_response_no_worker_thread(self):
+        """Canned response path runs synchronously without spawning a worker thread."""
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            canned_response="This input has been blocked.",
+        )
+        list(streamer)
+
+        self.assertIsNone(streamer._worker_thread)
+        self.assertEqual(streamer.accumulated_content, "This input has been blocked.")
+
+    def test_normal_stream_completes_identically(self):
+        """Normal (no disconnect) stream produces the same output as before."""
+        chunks = [
+            _make_chunk(content="Hello world"),
+            _make_chunk(usage={"prompt_tokens": 10, "completion_tokens": 5}),
+        ]
+        streamer = self._make_streamer(chunks)
+        output = list(streamer)
+
+        found = any(
+            json.loads(c).get("k") == "markdown"
+            and json.loads(c).get("c") == "Hello world"
+            for c in output
+        )
+        self.assertTrue(found, f"Did not find expected content in: {output}")
+        self.assertEqual(streamer.accumulated_content, "Hello world")
+
+    def test_client_gone_set_after_disconnect(self):
+        """_client_gone event is set after client disconnects via GeneratorExit."""
+        chunks = [_make_chunk(content="Hello")]
+        streamer = self._make_streamer(chunks)
+        gen = iter(streamer)
+
+        next(gen)
+        self.assertFalse(streamer._client_gone.is_set())
+        gen.close()
+
+        self.assertTrue(streamer._client_gone.is_set())
+
+    @patch("waldur_mastermind.chat.llm_streamer._WORKER_TIMEOUT", 0)
+    def test_timeout_path_persists_via_worker(self):
+        """When the consumer times out, the worker still persists messages."""
+        # Use an event to hold the worker back so the consumer hits
+        # an Empty queue.get() and triggers the timeout check.
+        gate = threading.Event()
+
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+        )
+
+        persist_call_count = 0
+        original_persist = streamer._persist_messages
+
+        def counting_persist():
+            nonlocal persist_call_count
+            persist_call_count += 1
+            original_persist()
+
+        streamer._persist_messages = counting_persist
+
+        def delayed_workflow():
+            gate.wait(timeout=10)
+            # Simulate a minimal LLM response
+            streamer.accumulated_content = "delayed"
+
+        streamer._run_llm_workflow = delayed_workflow
+
+        # Consume: the consumer should time out while the worker is blocked
+        output = list(streamer)
+
+        # Release the worker so it can finish
+        gate.set()
+
+        if streamer._worker_thread:
+            streamer._worker_thread.join(timeout=5)
+
+        # The timeout path must set _client_gone so _enqueue discards
+        self.assertTrue(streamer._client_gone.is_set())
+        # Worker always persists exactly once
+        self.assertEqual(persist_call_count, 1)
+        # Verify timeout error event was sent to client
+        parsed = [json.loads(line) for line in output]
+        error_events = [e for e in parsed if "e" in e]
+        self.assertTrue(
+            any("timed out" in e.get("e", "").lower() for e in error_events),
+            f"Expected timeout error event in output: {output}",
+        )
+
+    def test_error_during_disconnect_still_completes(self):
+        """If LLM errors while client is disconnected, worker still finishes."""
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+        )
+
+        @contextmanager
+        def _error_stream(_):
+            yield iter([_make_chunk(content="partial")])
+            raise openai.APIConnectionError(request=MagicMock())
+
+        streamer.client = MagicMock()
+        streamer.client.chat.completions.create.return_value = _error_stream(None)
+
+        gen = iter(streamer)
+        next(gen)
+        gen.close()
+
+        streamer._worker_thread.join(timeout=5)
+        self.assertFalse(streamer._worker_thread.is_alive())
+        self.assertEqual(streamer.accumulated_content, "partial")
+
+
+@patch(SYNC_THREAD_PATCH, _SynchronousThread)
+class LLMStreamerUsageRecordingTest(_LLMStreamerTestBase, drf_test.APITestCase):
+    """Test that LLMStreamer persists token usage to TokenQuota after streaming."""
 
     def test_records_usage_after_successful_stream(self):
         """Token counts from OpenAI usage chunk are persisted to TokenQuota."""
@@ -484,22 +644,8 @@ class LLMStreamerUsageRecordingTest(drf_test.APITestCase):
         self.assertEqual(quota.monthly_usage, 0)
 
 
-class LLMStreamerErrorMessagesTest(unittest.TestCase):
+class LLMStreamerErrorMessagesTest(_LLMStreamerTestBase, unittest.TestCase):
     """Test that specific OpenAI errors yield distinct user-facing messages."""
-
-    def setUp(self):
-        config_patcher = patch(
-            "waldur_mastermind.chat.llm_streamer.config",
-            AI_ASSISTANT_MODEL="test-model",
-            AI_ASSISTANT_API_URL="https://example.com/v1",
-            AI_ASSISTANT_API_TOKEN="tok",
-            AI_ASSISTANT_ENABLED=True,
-            AI_ASSISTANT_ENABLED_ROLES="all",
-            AI_ASSISTANT_BACKEND_TYPE="generic",
-            AI_ASSISTANT_COMPLETION_KWARGS={},
-        )
-        config_patcher.start()
-        self.addCleanup(config_patcher.stop)
 
     def _make_error_streamer(self, error):
         """Return a streamer whose stream raises the given error."""
