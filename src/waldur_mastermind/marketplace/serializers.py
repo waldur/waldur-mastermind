@@ -2287,6 +2287,10 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             "overage_component",
             "min_prepaid_duration",
             "max_prepaid_duration",
+            "prepaid_duration_step",
+            "min_renewal_duration",
+            "max_renewal_duration",
+            "renewal_duration_step",
         )
         extra_kwargs = {
             "billing_type": {"required": True},
@@ -2325,6 +2329,53 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
         overage_component = cast(
             models.OfferingComponent | None, attrs.get("overage_component")
         )
+
+        if not is_prepaid:
+            # Clear renewal/prepaid duration constraints if the component is not prepaid.
+            for field in (
+                "min_prepaid_duration",
+                "max_prepaid_duration",
+                "prepaid_duration_step",
+                "min_renewal_duration",
+                "max_renewal_duration",
+                "renewal_duration_step",
+            ):
+                if field in attrs:
+                    raise serializers.ValidationError(
+                        {field: _("This field can only be set on prepaid components.")}
+                    )
+
+        # Cross-field validation for prepaid duration range
+        min_prepaid = attrs.get("min_prepaid_duration")
+        max_prepaid = attrs.get("max_prepaid_duration")
+        if (
+            min_prepaid is not None
+            and max_prepaid is not None
+            and min_prepaid > max_prepaid
+        ):
+            raise serializers.ValidationError(
+                {
+                    "min_prepaid_duration": _(
+                        "Minimum prepaid duration must not exceed the maximum."
+                    )
+                }
+            )
+
+        # Cross-field validation for renewal duration range
+        min_renewal = attrs.get("min_renewal_duration")
+        max_renewal = attrs.get("max_renewal_duration")
+        if (
+            min_renewal is not None
+            and max_renewal is not None
+            and min_renewal > max_renewal
+        ):
+            raise serializers.ValidationError(
+                {
+                    "min_renewal_duration": _(
+                        "Minimum renewal duration must not exceed the maximum."
+                    )
+                }
+            )
 
         if overage_component:
             # Rule 1: The current component must be prepaid to have an overage component.
@@ -3788,6 +3839,57 @@ class BaseItemSerializer(
         return fields
 
 
+def _validate_prepaid_duration_against_component(
+    duration_in_months: int, component, field_name: str
+):
+    """
+    Validate duration against a single component's min/max/step constraints.
+    Raises serializers.ValidationError if invalid.
+    """
+    min_dur = component.min_prepaid_duration
+    max_dur = component.max_prepaid_duration
+    step = component.prepaid_duration_step or 1
+
+    if min_dur is not None and duration_in_months < min_dur:
+        raise serializers.ValidationError(
+            {
+                field_name: _(
+                    "The selected duration of {d} months is less than the minimum "
+                    "required duration of {min} months for component '{name}'."
+                ).format(d=duration_in_months, min=min_dur, name=component.name)
+            }
+        )
+
+    if max_dur is not None and duration_in_months > max_dur:
+        raise serializers.ValidationError(
+            {
+                field_name: _(
+                    "The selected duration of {d} months exceeds the maximum "
+                    "allowed duration of {max} months for component '{name}'."
+                ).format(d=duration_in_months, max=max_dur, name=component.name)
+            }
+        )
+
+    if step > 1:
+        base = min_dur or 0
+        if (duration_in_months - base) % step != 0:
+            raise serializers.ValidationError(
+                {
+                    field_name: _(
+                        "The selected duration of {d} months is not valid for component '{name}'. "
+                        "Valid durations start at {base} months with a step of {step} months "
+                        "(e.g. {base}, {next}, ...)."
+                    ).format(
+                        d=duration_in_months,
+                        name=component.name,
+                        base=base,
+                        step=step,
+                        next=base + step,
+                    )
+                }
+            )
+
+
 class BaseOrderSerializer(BaseItemSerializer):
     class Meta(BaseItemSerializer.Meta):
         model = models.Order
@@ -4652,41 +4754,9 @@ class OrderCreateSerializer(
 
         # Check against every prepaid component's duration limits
         for component in prepaid_components:
-            # Check minimum duration
-            if (
-                component.min_prepaid_duration
-                and duration_in_months < component.min_prepaid_duration
-            ):
-                raise ValidationError(
-                    {
-                        "attributes.end_date": _(
-                            "The selected duration of {calculated_duration} months is less than "
-                            "the minimum required duration of {min_duration} months for component '{component_name}'."
-                        ).format(
-                            calculated_duration=duration_in_months,
-                            min_duration=component.min_prepaid_duration,
-                            component_name=component.name,
-                        )
-                    }
-                )
-
-            # Check maximum duration
-            if (
-                component.max_prepaid_duration
-                and duration_in_months > component.max_prepaid_duration
-            ):
-                raise ValidationError(
-                    {
-                        "attributes.end_date": _(
-                            "The selected duration of {calculated_duration} months exceeds "
-                            "the maximum allowed duration of {max_duration} months for component '{component_name}'."
-                        ).format(
-                            calculated_duration=duration_in_months,
-                            max_duration=component.max_prepaid_duration,
-                            component_name=component.name,
-                        )
-                    }
-                )
+            _validate_prepaid_duration_against_component(
+                duration_in_months, component, "attributes.end_date"
+            )
 
     def _validate_plan_for_create(self, attrs, offering):
         """
@@ -5389,14 +5459,70 @@ class ResourceUpdateSerializer(serializers.ModelSerializer):
         return resource
 
 
+def _validate_renewal_duration_against_component(
+    duration_in_months: int, component, field_name: str
+):
+    """
+    Validate renewal duration against a component's renewal-specific
+    min/max/step constraints. Raises serializers.ValidationError if invalid.
+    """
+    min_dur = component.min_renewal_duration
+    max_dur = component.max_renewal_duration
+    step = component.renewal_duration_step or 1
+
+    if min_dur is not None and duration_in_months < min_dur:
+        raise serializers.ValidationError(
+            {
+                field_name: _(
+                    "The renewal duration of {d} months is less than the minimum "
+                    "allowed renewal duration of {min} months for component '{name}'."
+                ).format(d=duration_in_months, min=min_dur, name=component.name)
+            }
+        )
+
+    if max_dur is not None and duration_in_months > max_dur:
+        raise serializers.ValidationError(
+            {
+                field_name: _(
+                    "The renewal duration of {d} months exceeds the maximum "
+                    "allowed renewal duration of {max} months for component '{name}'."
+                ).format(d=duration_in_months, max=max_dur, name=component.name)
+            }
+        )
+
+    if step > 1:
+        base = min_dur or 0
+        if (duration_in_months - base) % step != 0:
+            raise serializers.ValidationError(
+                {
+                    field_name: _(
+                        "The renewal duration of {d} months is not valid for component '{name}'. "
+                        "Valid durations start at {base} months with a step of {step} months "
+                        "(e.g. {base}, {next}, ...)."
+                    ).format(
+                        d=duration_in_months,
+                        name=component.name,
+                        base=base,
+                        step=step,
+                        next=base + step,
+                    )
+                }
+            )
+
+
+MAX_RENEWAL_MONTHS = (
+    600  # 50-year hard cap; per-component max_renewal_duration governs normal cases
+)
+
+
 class ResourceRenewSerializer(serializers.Serializer):
     """
     Serializer for validating the payload of a prepaid resource renewal action.
     """
 
     extension_months = serializers.IntegerField(
-        min_value=12,
-        max_value=60,  # Sensible upper limit
+        min_value=1,
+        max_value=MAX_RENEWAL_MONTHS,
         help_text=_("Number of months to extend the subscription by."),
     )
     limits = serializers.DictField(
@@ -5417,21 +5543,42 @@ class ResourceRenewSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         """
-        Ensure the resource is a renewable prepaid resource.
+        Ensure the resource is a renewable prepaid resource and validate renewal
+        duration constraints from the offering component.
         """
         resource: models.Resource = self.context["resource"]
-        if not resource.offering.components.filter(is_prepaid=True).exists():
+        prepaid_components = resource.offering.components.filter(is_prepaid=True)
+        if not prepaid_components.exists():
             raise serializers.ValidationError(
                 _("This action is only available for prepaid resources.")
             )
+        extension_months = attrs.get("extension_months")
+        if extension_months is not None:
+            for component in prepaid_components:
+                _validate_renewal_duration_against_component(
+                    extension_months, component, "extension_months"
+                )
         return attrs
 
 
 class RenewalEstimateRequestSerializer(serializers.Serializer):
-    extension_months = serializers.IntegerField(min_value=1, max_value=60)
+    extension_months = serializers.IntegerField(
+        min_value=1, max_value=MAX_RENEWAL_MONTHS
+    )
     limits = serializers.DictField(
         child=serializers.IntegerField(min_value=0), required=False
     )
+
+    def validate(self, attrs):
+        resource = self.context.get("resource")
+        if resource is not None:
+            extension_months = attrs.get("extension_months")
+            if extension_months is not None:
+                for component in resource.offering.components.filter(is_prepaid=True):
+                    _validate_renewal_duration_against_component(
+                        extension_months, component, "extension_months"
+                    )
+        return attrs
 
 
 class RenewalEstimateComponentSerializer(serializers.Serializer):

@@ -1,11 +1,19 @@
 import datetime
 
+from dateutil.relativedelta import relativedelta
+from django.test import TestCase
+from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status
 
-from waldur_mastermind.marketplace import models
+from waldur_mastermind.marketplace import models, serializers, signals
 from waldur_mastermind.marketplace.enums import (
+    BASIC_OFFERING,
+    BillingTypes,
     OfferingStates,
+    OrderStates,
+    OrderTypes,
+    ResourceStates,
 )
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.test_order_crud import BaseOrderCreateTest
@@ -262,3 +270,200 @@ class OrderCreatePrepaidTest(BaseOrderCreateTest):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+
+class RenewalSerializerConstraintsTest(TestCase):
+    """Tests for ResourceRenewSerializer renewal-specific duration constraints."""
+
+    def setUp(self):
+        self.offering = factories.OfferingFactory(state=models.Offering.States.ACTIVE)
+        self.prepaid_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            is_prepaid=True,
+            billing_type=BillingTypes.ONE_TIME,
+            min_renewal_duration=12,
+            max_renewal_duration=60,
+            renewal_duration_step=12,
+        )
+        self.resource = factories.ResourceFactory(
+            offering=self.offering,
+            state=ResourceStates.OK,
+            end_date=timezone.now().date() + relativedelta(months=1),
+        )
+
+    def _validate(self, extension_months):
+        serializer = serializers.ResourceRenewSerializer(
+            data={"extension_months": extension_months},
+            context={"resource": self.resource},
+        )
+        serializer.is_valid(raise_exception=True)
+        return serializer.validated_data
+
+    def test_valid_extension_equals_min(self):
+        # 12 months: equals min, valid step (12-12)%12 == 0
+        data = self._validate(12)
+        self.assertEqual(data["extension_months"], 12)
+
+    def test_valid_extension_multiple_of_step(self):
+        # 24 months: (24-12)%12 == 0
+        data = self._validate(24)
+        self.assertEqual(data["extension_months"], 24)
+
+    def test_invalid_extension_wrong_step(self):
+        # 18 months: (18-12)%12 == 6 != 0
+        from rest_framework.exceptions import ValidationError
+
+        with self.assertRaises(ValidationError) as ctx:
+            self._validate(18)
+        self.assertIn("extension_months", ctx.exception.detail)
+
+    def test_invalid_extension_below_min(self):
+        # 6 months: below min of 12
+        # Note: the serializer field has min_value=12 so this will fail at field level.
+        # Set min_renewal_duration to something higher than 12 to test our validation.
+        self.prepaid_component.min_renewal_duration = 24
+        self.prepaid_component.max_renewal_duration = 60
+        self.prepaid_component.renewal_duration_step = None
+        self.prepaid_component.save()
+
+        from rest_framework.exceptions import ValidationError
+
+        with self.assertRaises(ValidationError) as ctx:
+            self._validate(12)
+        self.assertIn("extension_months", ctx.exception.detail)
+        self.assertIn("less than the minimum", str(ctx.exception.detail))
+
+    def test_invalid_extension_above_max(self):
+        # 72 months: above max of 60. The field allows up to 60 via max_value,
+        # so set max_renewal_duration lower than the field max to test our validation.
+        self.prepaid_component.min_renewal_duration = 12
+        self.prepaid_component.max_renewal_duration = 36
+        self.prepaid_component.renewal_duration_step = None
+        self.prepaid_component.save()
+
+        from rest_framework.exceptions import ValidationError
+
+        with self.assertRaises(ValidationError) as ctx:
+            self._validate(48)
+        self.assertIn("extension_months", ctx.exception.detail)
+        self.assertIn("exceeds the maximum", str(ctx.exception.detail))
+
+    def test_no_constraints_allows_any_positive_value(self):
+        # Clear all renewal constraints
+        self.prepaid_component.min_renewal_duration = None
+        self.prepaid_component.max_renewal_duration = None
+        self.prepaid_component.renewal_duration_step = None
+        self.prepaid_component.save()
+
+        # Any value within field bounds should be valid
+        data = self._validate(36)
+        self.assertEqual(data["extension_months"], 36)
+
+
+class CreateOrderUsesPrepaidConstraintsTest(BaseOrderCreateTest):
+    """Confirm CREATE order validation uses prepaid (not renewal) fields."""
+
+    @freeze_time("2024-01-01")
+    def test_create_order_uses_min_prepaid_duration_not_renewal(self):
+        # Arrange: min_prepaid_duration=3, min_renewal_duration=12
+        # A 2-month order should fail due to min_prepaid_duration=3
+        offering = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        factories.OfferingComponentFactory(
+            offering=offering,
+            is_prepaid=True,
+            billing_type=BillingTypes.ONE_TIME,
+            min_prepaid_duration=3,
+            max_prepaid_duration=24,
+            min_renewal_duration=12,
+            max_renewal_duration=60,
+        )
+        # 2024-03-01 is 2 months from 2024-01-01, less than min_prepaid_duration=3
+        response = self.create_order(
+            self.fixture.owner,
+            offering,
+            add_payload={"attributes": {"end_date": "2024-03-01"}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("attributes.end_date", response.data)
+        self.assertIn(
+            "less than the minimum required duration",
+            response.data["attributes.end_date"][0],
+        )
+
+
+class ProcessorRenewalConstraintsTest(TestCase):
+    """Tests for renewal duration constraint validation in the update processor."""
+
+    def setUp(self):
+        self.offering = factories.OfferingFactory(
+            type=BASIC_OFFERING,
+            state=models.Offering.States.ACTIVE,
+        )
+        self.prepaid_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            is_prepaid=True,
+            billing_type=BillingTypes.ONE_TIME,
+            min_renewal_duration=12,
+            max_renewal_duration=60,
+            renewal_duration_step=12,
+        )
+        self.plan = factories.PlanFactory(offering=self.offering)
+        self.resource = factories.ResourceFactory(
+            offering=self.offering,
+            plan=self.plan,
+            state=ResourceStates.OK,
+            end_date=timezone.now().date() + relativedelta(months=1),
+        )
+
+    def _make_renewal_order(self, extension_months):
+        return factories.OrderFactory(
+            offering=self.offering,
+            plan=self.plan,
+            resource=self.resource,
+            type=OrderTypes.UPDATE,
+            state=OrderStates.EXECUTING,
+            attributes={"action": "renew", "extension_months": extension_months},
+        )
+
+    def test_processor_sends_failure_signal_for_invalid_step(self):
+        # 18 months: (18-12)%12 != 0 — invalid step
+        order = self._make_renewal_order(18)
+        failure_signals = []
+
+        def capture_signal(sender, order, error_message, **kwargs):
+            failure_signals.append(error_message)
+
+        signals.resource_limit_update_failed.connect(capture_signal)
+        try:
+            from waldur_mastermind.marketplace import processors
+
+            processor = processors.BasicUpdateResourceProcessor(order)
+            processor._process_renewal_or_limit_update(
+                order.created_by, is_renewal=True
+            )
+        finally:
+            signals.resource_limit_update_failed.disconnect(capture_signal)
+
+        self.assertEqual(len(failure_signals), 1)
+        self.assertIn("not a valid step", failure_signals[0])
+
+    def test_processor_succeeds_for_valid_renewal(self):
+        # 24 months: (24-12)%12 == 0 — valid
+        order = self._make_renewal_order(24)
+        failure_signals = []
+
+        def capture_signal(sender, order, error_message, **kwargs):
+            failure_signals.append(error_message)
+
+        signals.resource_limit_update_failed.connect(capture_signal)
+        try:
+            from waldur_mastermind.marketplace import processors
+
+            processor = processors.BasicUpdateResourceProcessor(order)
+            processor._process_renewal_or_limit_update(
+                order.created_by, is_renewal=True
+            )
+        finally:
+            signals.resource_limit_update_failed.disconnect(capture_signal)
+
+        self.assertEqual(len(failure_signals), 0)

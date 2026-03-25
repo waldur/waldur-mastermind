@@ -3734,6 +3734,14 @@ class Command(BaseCommand):
                     "max_value": component_data.get("max_value"),
                     "min_prepaid_duration": component_data.get("min_prepaid_duration"),
                     "max_prepaid_duration": component_data.get("max_prepaid_duration"),
+                    "prepaid_duration_step": component_data.get(
+                        "prepaid_duration_step"
+                    ),
+                    "min_renewal_duration": component_data.get("min_renewal_duration"),
+                    "max_renewal_duration": component_data.get("max_renewal_duration"),
+                    "renewal_duration_step": component_data.get(
+                        "renewal_duration_step"
+                    ),
                     "is_prepaid": component_data.get("is_prepaid", False),
                     "article_code": component_data.get("article_code", ""),
                     "backend_id": component_data.get("backend_id", ""),
