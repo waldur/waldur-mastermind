@@ -1,10 +1,13 @@
 import json
 import logging
+import queue
+import threading
+import time
 
 import httpx
 import openai
 from constance import config
-from django.db import transaction
+from django.db import connections, transaction
 from django.db.models import Max
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
@@ -32,7 +35,29 @@ _LLM_ERROR_MESSAGES: dict[type, str] = {
     openai.APITimeoutError: "AI service request timed out. Please try again.",
     openai.APIConnectionError: "Could not connect to AI service. Please try again later.",
     openai.InternalServerError: "AI service is temporarily unavailable. Please try again later.",
+    openai.NotFoundError: "AI model not found. Please check the configured model name.",
+    openai.BadRequestError: "AI service rejected the request. Please try again or contact your administrator.",
 }
+
+# Maximum time (seconds) the consumer loop waits for the worker to finish.
+_WORKER_TIMEOUT = 300
+
+# Maximum number of NDJSON items buffered between the worker and consumer threads.
+_QUEUE_MAXSIZE = 256
+
+
+class _StreamDone:
+    """Sentinel placed on queue to signal the worker has finished."""
+
+
+class _StreamError:
+    """Placed on queue when the worker encounters an error.
+
+    Carries pre-formatted NDJSON error line(s) for the client.
+    """
+
+    def __init__(self, ndjson_lines: list[str]):
+        self.ndjson_lines = ndjson_lines
 
 
 def validate_tool_call(tool_name, user):
@@ -53,6 +78,10 @@ class LLMStreamer:
     """
     Handles the stateful logic of streaming and buffering NDJSON responses
     from an upstream LLM provider.
+
+    The LLM HTTP call runs in a background thread so that a client disconnect
+    does not abort the upstream connection. The full response is always
+    received and persisted regardless of client state.
 
     Bandwidth optimizations:
     1. NDJSON Protocol: Removes 'data:' prefix and double newlines (SSE overhead).
@@ -102,9 +131,13 @@ class LLMStreamer:
         self.mode = mode
         self.user_msg = user_msg
         self._persisted_message_meta = None
-        self._messages_persisted = False
         self.canned_response = canned_response
         self.pii_warning = pii_warning
+
+        # Thread-based streaming infrastructure
+        self._queue: queue.Queue = queue.Queue(maxsize=_QUEUE_MAXSIZE)
+        self._client_gone = threading.Event()
+        self._worker_thread: threading.Thread | None = None
 
     def _format_ndjson(self, data: dict) -> str:
         """Helper to format a dict as a Newline Delimited JSON line."""
@@ -150,6 +183,20 @@ class LLMStreamer:
 
         return self.client.chat.completions.create(**kwargs)
 
+    def _enqueue(self, item):
+        """Put an item on the queue, respecting the client-gone flag.
+
+        When the client has disconnected we silently discard items so the
+        worker thread is never blocked on a full queue that nobody drains.
+        """
+        while not self._client_gone.is_set():
+            try:
+                self._queue.put(item, timeout=0.5)
+                return
+            except queue.Full:
+                continue
+        # Client is gone; silently discard.
+
     def __iter__(self):
         if self.thread:
             yield self._format_ndjson({"m": {"thread_uuid": str(self.thread.uuid)}})
@@ -158,106 +205,155 @@ class LLMStreamer:
         if self.pii_warning:
             yield self._format_ndjson({"w": self.pii_warning})
 
-        self._messages_persisted = False
-
-        try:
-            # Blocked input: stream canned rejection, persist, and skip the LLM call
-            if self.canned_response:
-                self.accumulated_content = self.canned_response
-                for block in self.parser.parse(self.canned_response):
-                    yield self._format_ndjson(block)
-                for block in self.parser.flush():
-                    yield self._format_ndjson(block)
-                self._persist_messages()
-                if self._persisted_message_meta:
-                    yield self._format_ndjson({"m": self._persisted_message_meta})
-                self._generate_thread_name()
-                return
-
-            with self._stream_completion(self.messages) as stream:
-                for chunk in stream:
-                    if not chunk.choices:
-                        # Final usage-only chunk
-                        if chunk.usage:
-                            self.input_tokens = chunk.usage.prompt_tokens or 0
-                            self.output_tokens = chunk.usage.completion_tokens or 0
-                        continue
-
-                    delta = chunk.choices[0].delta
-
-                    if delta.content:
-                        self.accumulated_content += delta.content
-                        for block in self.parser.parse(delta.content):
-                            yield self._format_ndjson(block)
-
-                    if delta.tool_calls:
-                        for tc in delta.tool_calls:
-                            entry = self.tool_calls.setdefault(
-                                tc.index,
-                                {"id": "", "name": "", "arguments": ""},
-                            )
-                            if tc.id:
-                                entry["id"] = tc.id
-                            if tc.function:
-                                if tc.function.name:
-                                    entry["name"] = tc.function.name
-                                if tc.function.arguments:
-                                    entry["arguments"] += tc.function.arguments
-
+        # Blocked input: stream canned rejection synchronously (no LLM call)
+        if self.canned_response:
+            self.accumulated_content = self.canned_response
+            for block in self.parser.parse(self.canned_response):
+                yield self._format_ndjson(block)
             for block in self.parser.flush():
                 yield self._format_ndjson(block)
-
-            # Execute any tool calls that were streamed
-            if self.tool_calls and self.user:
-                yield from self._execute_tool_calls(self.tool_calls)
-
-            # Normal completion: persist and yield UUIDs
             self._persist_messages()
             if self._persisted_message_meta:
                 yield self._format_ndjson({"m": self._persisted_message_meta})
             self._generate_thread_name()
+            self._record_usage()
+            return
 
+        # Start worker thread for LLM streaming
+        self._worker_thread = threading.Thread(
+            target=self._llm_worker,
+            name="llm-streamer-worker",
+            daemon=True,
+        )
+        self._worker_thread.start()
+
+        # Consume queue and yield to client
+        start = time.monotonic()
+        try:
+            while True:
+                try:
+                    item = self._queue.get(timeout=1.0)
+                except queue.Empty:
+                    if time.monotonic() - start > _WORKER_TIMEOUT:
+                        logger.error(
+                            "LLM worker thread exceeded %ds timeout", _WORKER_TIMEOUT
+                        )
+                        yield self._format_ndjson(
+                            {"e": "Request timed out. Please try again."}
+                        )
+                        self._client_gone.set()
+                        return
+                    continue
+
+                if isinstance(item, _StreamDone):
+                    break
+                elif isinstance(item, _StreamError):
+                    yield from item.ndjson_lines
+                    # Continue draining — _StreamDone arrives after the
+                    # worker's finally block finishes all DB operations.
+                else:
+                    yield item
+                    start = time.monotonic()
+        except GeneratorExit:
+            # Client disconnected. Signal worker but let it finish on its own.
+            self._client_gone.set()
+            return
+        except Exception:
+            # Unexpected error — let the worker handle DB ops.
+            self._client_gone.set()
+            raise
+
+    def _llm_worker(self):
+        """Background thread: consume LLM stream, enqueue NDJSON.
+
+        All DB operations (persist, thread naming, usage recording) are
+        handled here in the ``finally`` block, keeping persistence in a
+        single code path regardless of whether the client is still connected.
+        """
+        try:
+            self._run_llm_workflow()
         except openai.APIError as e:
             user_msg = _LLM_ERROR_MESSAGES.get(
                 type(e),
                 "AI service encountered an error. Please try again later.",
             )
-            yield from self._handle_stream_error(
-                e,
-                "Upstream LLM request failed.",
-                user_msg=user_msg,
-            )
+            logger.error("Upstream LLM request failed.", exc_info=True)
+            self.error = str(e)
+            self._enqueue(_StreamError([self._format_ndjson({"e": user_msg})]))
         except Exception as e:
-            yield from self._handle_stream_error(
-                e,
+            logger.critical(
                 "Unexpected error during LLM streaming — this is a bug.",
-                log_level=logging.CRITICAL,
+                exc_info=True,
             )
-
+            self.error = str(e)
+            self._enqueue(
+                _StreamError(
+                    [
+                        self._format_ndjson(
+                            {
+                                "e": "Chat processing was interrupted. Please try again later."
+                            }
+                        )
+                    ]
+                )
+            )
         finally:
-            # Always record usage, even if stream was interrupted (GeneratorExit)
+            # Always persist — worker is the single owner of DB operations.
+            self._persist_messages()
+            self._generate_thread_name()
             self._record_usage()
-            # Safety net for GeneratorExit - can't yield here
-            if not self._messages_persisted:
-                self._persist_messages()
+            # Enqueue metadata for the client before signaling completion.
+            # If client is gone, _enqueue silently discards — that's fine.
+            if self._persisted_message_meta:
+                self._enqueue(self._format_ndjson({"m": self._persisted_message_meta}))
+            self._enqueue(_StreamDone())
+            # Clean up DB connections owned by this thread.
+            # Skip when running synchronously on the main thread (e.g. tests)
+            # to avoid destroying the caller's connection.
+            if threading.current_thread() is not threading.main_thread():
+                connections.close_all()
 
-    def _handle_stream_error(
-        self,
-        exc: Exception,
-        log_msg: str,
-        log_level: int = logging.ERROR,
-        user_msg: str = "Chat processing was interrupted. Please try again later.",
-    ):
-        """Log an error, emit an error NDJSON line, and persist messages."""
-        logger.log(log_level, log_msg, exc_info=True)
-        self.error = str(exc)
-        yield self._format_ndjson({"e": user_msg})
-        self._persist_messages()
-        if self._persisted_message_meta:
-            yield self._format_ndjson({"m": self._persisted_message_meta})
+    def _run_llm_workflow(self):
+        """Execute the full LLM streaming workflow (runs in worker thread)."""
+        with self._stream_completion(self.messages) as stream:
+            for chunk in stream:
+                if not chunk.choices:
+                    # Final usage-only chunk
+                    if chunk.usage:
+                        self.input_tokens = chunk.usage.prompt_tokens or 0
+                        self.output_tokens = chunk.usage.completion_tokens or 0
+                    continue
 
-    def _execute_tool_calls(self, tool_calls: dict[int, dict]):
-        """Execute all streamed tool calls and yield UI component results."""
+                delta = chunk.choices[0].delta
+
+                if delta.content:
+                    self.accumulated_content += delta.content
+                    for block in self.parser.parse(delta.content):
+                        self._enqueue(self._format_ndjson(block))
+
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        entry = self.tool_calls.setdefault(
+                            tc.index,
+                            {"id": "", "name": "", "arguments": ""},
+                        )
+                        if tc.id:
+                            entry["id"] = tc.id
+                        if tc.function:
+                            if tc.function.name:
+                                entry["name"] = tc.function.name
+                            if tc.function.arguments:
+                                entry["arguments"] += tc.function.arguments
+
+        for block in self.parser.flush():
+            self._enqueue(self._format_ndjson(block))
+
+        # Execute any tool calls that were streamed
+        if self.tool_calls and self.user:
+            self._execute_tool_calls_worker(self.tool_calls)
+
+    def _execute_tool_calls_worker(self, tool_calls: dict[int, dict]):
+        """Execute all streamed tool calls and enqueue UI component results."""
         tool_executor = ToolExecutor(self.user)
         for entry in tool_calls.values():
             tool_name = entry["name"]
@@ -272,7 +368,7 @@ class LLMStreamer:
                 continue
 
             # Emit loading indicator so the frontend can show an inline spinner
-            yield self._format_ndjson({"k": "load", "t": "tool"})
+            self._enqueue(self._format_ndjson({"k": "load", "t": "tool"}))
 
             logger.debug(
                 "Executing tool call",
@@ -286,7 +382,7 @@ class LLMStreamer:
             entry["_summary"] = result.get("summary", "")
 
             if tool_block:
-                yield self._format_ndjson(tool_block)
+                self._enqueue(self._format_ndjson(tool_block))
 
     def _serialized_tool_calls(self) -> list[dict]:
         """Return tool calls in a clean format for DB storage."""
@@ -312,10 +408,13 @@ class LLMStreamer:
         return result
 
     def _persist_messages(self):
-        """
-        Save user and assistant messages to the thread.
+        """Save user and assistant messages to the thread.
+
         In reload/edit mode, replace the last assistant message.
         In edit mode, user message was pre-created in stream().
+
+        Called once per request: from the worker thread's ``finally`` block
+        (LLM path) or inline in ``__iter__`` (canned response path).
         """
         if not self.thread:
             return
@@ -330,7 +429,10 @@ class LLMStreamer:
                 persisted_assistant_msg = None
                 effective_mode = self.mode
 
-                if effective_mode in (models.ChatMode.RELOAD, models.ChatMode.EDIT):
+                if effective_mode in (
+                    models.ChatMode.RELOAD,
+                    models.ChatMode.EDIT,
+                ):
                     # For EDIT mode, user message was pre-created in stream()
                     if effective_mode == models.ChatMode.EDIT and self.user_msg:
                         persisted_user_msg = self.user_msg
@@ -365,7 +467,10 @@ class LLMStreamer:
                         effective_mode = None
 
                 # Normal mode (or fallback from reload/edit)
-                if effective_mode not in (models.ChatMode.RELOAD, models.ChatMode.EDIT):
+                if effective_mode not in (
+                    models.ChatMode.RELOAD,
+                    models.ChatMode.EDIT,
+                ):
                     if self.user_msg:
                         # User message was pre-created in the view
                         persisted_user_msg = self.user_msg
@@ -405,8 +510,6 @@ class LLMStreamer:
                 # Update thread's modified timestamp to reflect latest message
                 locked_thread.save(update_fields=["modified"])
 
-                self._messages_persisted = True
-
         except Exception as e:
             logger.error(
                 "Failed to persist messages for thread %s: %s",
@@ -420,6 +523,10 @@ class LLMStreamer:
         Generate a short title for a new thread via a second LLM call.
         Updates the thread name in DB. Failures are logged but never break
         the main response.
+
+        Note: mutates ``input_tokens``/``output_tokens`` via ``+=``. This is
+        safe because only the worker thread calls this method (or the main
+        thread for the canned-response path where no worker exists).
         """
         if not self.is_new_thread or not self.thread or not self.original_input:
             return

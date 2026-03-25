@@ -14,9 +14,11 @@ from waldur_mastermind.chat.models import (
     TokenQuota,
 )
 from waldur_mastermind.chat.tests.utils import (
+    SYNC_THREAD_PATCH,
     _fake_stream,
     _make_content_chunk,
     _make_usage_chunk,
+    _SynchronousThread,
 )
 
 
@@ -185,6 +187,7 @@ class ThreadSessionViewSetTest(test.APITestCase):
         self.assertEqual(response.data[0]["message_count"], 2)
 
 
+@patch(SYNC_THREAD_PATCH, _SynchronousThread)
 class ThreadTitleGenerationTest(test.APITestCase):
     """Tests for server-side thread title generation via _generate_thread_name."""
 

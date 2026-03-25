@@ -15,12 +15,15 @@ from waldur_mastermind.chat.llm_streamer import LLMStreamer
 from waldur_mastermind.chat.models import ChatMode, ChatSession, Message, ThreadSession
 from waldur_mastermind.chat.serializers import ChatRequestSerializer
 from waldur_mastermind.chat.tests.utils import (
+    SYNC_THREAD_PATCH,
     _make_content_chunk,
     _make_usage_chunk,
     _mock_openai_client,
+    _SynchronousThread,
 )
 
 
+@patch(SYNC_THREAD_PATCH, _SynchronousThread)
 class LLMStreamerPersistenceTest(test.APITestCase):
     """Verify that LLMStreamer._persist_messages writes (or skips) Message rows."""
 

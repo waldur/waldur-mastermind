@@ -8,9 +8,11 @@ from rest_framework import status, test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.models import ChatSession, ThreadSession, TokenQuota
 from waldur_mastermind.chat.tests.utils import (
+    SYNC_THREAD_PATCH,
     _make_content_chunk,
     _make_usage_chunk,
     _mock_openai_client,
+    _SynchronousThread,
 )
 
 
@@ -98,6 +100,7 @@ class StreamResponseTest(ChatBaseTest):
         self.assertTrue(content_found, "Did not find chunk with key 'k'='markdown'")
 
 
+@mock.patch(SYNC_THREAD_PATCH, _SynchronousThread)
 class StreamQuotaIntegrationTest(ChatBaseTest):
     """Test quota validation and usage recording integration with streaming."""
 
