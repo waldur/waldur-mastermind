@@ -31,6 +31,8 @@ from waldur_core.core.validators import (
     is_potentially_dangerous_regex,
     validate_iso_3166_alpha2,
     validate_name,
+    validate_nationalities,
+    validate_personal_title,
     validate_phone_number,
     validate_refeds_assurance_list,
     validate_schac_organization_type,
@@ -429,6 +431,7 @@ class User(
         _("personal title"),
         max_length=50,
         blank=True,
+        validators=[validate_personal_title],
         help_text=_("Honorific title (Mr, Ms, Dr, Prof, etc.)"),
     )
     place_of_birth = models.CharField(
@@ -454,6 +457,7 @@ class User(
     nationalities = models.JSONField(
         default=list,
         blank=True,
+        validators=[validate_nationalities],
         help_text=_("List of all citizenships (ISO 3166-1 alpha-2 codes)"),
     )
 

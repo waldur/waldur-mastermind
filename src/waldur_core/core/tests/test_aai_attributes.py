@@ -8,6 +8,8 @@ from django.test import TestCase
 from waldur_core.core import models
 from waldur_core.core.validators import (
     validate_iso_3166_alpha2,
+    validate_nationalities,
+    validate_personal_title,
     validate_refeds_assurance_list,
     validate_schac_organization_type,
 )
@@ -87,6 +89,64 @@ class SCHACOrganizationTypeValidatorTest(TestCase):
         validate_schac_organization_type(None)
 
 
+class PersonalTitleValidatorTest(TestCase):
+    """Test personal title validator."""
+
+    def test_valid_titles(self):
+        """Test that valid personal titles pass validation."""
+        valid_titles = ["Mr", "Ms", "Mrs", "Miss", "Dr", "Prof", "Sir", "Dame"]
+        for title in valid_titles:
+            try:
+                validate_personal_title(title)
+            except ValidationError:
+                self.fail(f"Valid title '{title}' failed validation")
+
+    def test_invalid_titles(self):
+        """Test that invalid personal titles raise ValidationError."""
+        invalid_titles = ["Example", "King", "Emperor", "mr", "doctor", "<script>"]
+        for title in invalid_titles:
+            with self.assertRaises(ValidationError, msg=f"'{title}' should be invalid"):
+                validate_personal_title(title)
+
+    def test_empty_value(self):
+        """Test that empty value is allowed."""
+        validate_personal_title("")
+        validate_personal_title(None)
+
+
+class NationalitiesValidatorTest(TestCase):
+    """Test nationalities list validator."""
+
+    def test_valid_nationalities(self):
+        """Test that valid nationality lists pass validation."""
+        validate_nationalities(["FI", "EE", "SE"])
+        validate_nationalities(["US"])
+        validate_nationalities(["fi", "ee"])  # case-insensitive
+
+    def test_invalid_country_code(self):
+        """Test that invalid country codes raise ValidationError."""
+        with self.assertRaises(ValidationError):
+            validate_nationalities(["Example2"])
+
+        with self.assertRaises(ValidationError):
+            validate_nationalities(["FI", "XX"])
+
+    def test_non_list_type(self):
+        """Test that non-list type raises ValidationError."""
+        with self.assertRaises(ValidationError):
+            validate_nationalities("FI")
+
+    def test_non_string_items(self):
+        """Test that non-string items raise ValidationError."""
+        with self.assertRaises(ValidationError):
+            validate_nationalities([123])
+
+    def test_empty_value(self):
+        """Test that empty values are allowed."""
+        validate_nationalities([])
+        validate_nationalities(None)
+
+
 class REFEDSAssuranceListValidatorTest(TestCase):
     """Test REFEDS assurance list validator."""
 
@@ -147,13 +207,20 @@ class UserExtendedProfileFieldsTest(TestCase):
             self.assertEqual(self.user.gender, code)
 
     def test_personal_title_field(self):
-        """Test personal title field."""
-        titles = ["Mr", "Ms", "Dr", "Prof", "Mx"]
+        """Test personal title field with valid values."""
+        titles = ["Mr", "Ms", "Dr", "Prof", "Dame"]
         for title in titles:
             self.user.personal_title = title
+            self.user.full_clean()
             self.user.save()
             self.user.refresh_from_db()
             self.assertEqual(self.user.personal_title, title)
+
+    def test_personal_title_rejects_invalid(self):
+        """Test that invalid personal title is rejected."""
+        self.user.personal_title = "Example1"
+        with self.assertRaises(ValidationError):
+            self.user.full_clean()
 
     def test_country_fields(self):
         """Test country code fields."""
@@ -171,10 +238,17 @@ class UserExtendedProfileFieldsTest(TestCase):
         """Test nationalities JSON field stores list of country codes."""
         nationalities = ["FI", "EE", "SE"]
         self.user.nationalities = nationalities
+        self.user.full_clean()
         self.user.save()
         self.user.refresh_from_db()
 
         self.assertEqual(self.user.nationalities, nationalities)
+
+    def test_nationalities_rejects_invalid(self):
+        """Test that invalid nationalities are rejected."""
+        self.user.nationalities = ["Example2"]
+        with self.assertRaises(ValidationError):
+            self.user.full_clean()
 
     def test_organization_type_field(self):
         """Test organization type field."""
