@@ -37,6 +37,7 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core.authentication import refresh_token, set_authentication_method
 from waldur_core.core.models import User
 from waldur_core.core.serializers import EmptySerializer
+from waldur_core.core.user_attributes import get_federated_identity_sync_allowed_fields
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.serializers import IdentityBridgeStatsSerializer
@@ -46,6 +47,7 @@ from .serializers import (
     AuthSerializer,
     DiscoverMetadataRequestSerializer,
     DiscoverMetadataResponseSerializer,
+    IdentityBridgeAllowedFieldsSerializer,
     IdentityBridgeRemoveResultSerializer,
     IdentityBridgeRemoveSerializer,
     IdentityBridgeRequestSerializer,
@@ -708,3 +710,36 @@ class IdentityBridgeStatsView(generics.GenericAPIView):
 
         data = get_identity_bridge_stats()
         return Response(data, status=status.HTTP_200_OK)
+
+
+class IdentityBridgeAllowedFieldsView(generics.GenericAPIView):
+    """Returns the list of attribute fields accepted by the Identity Bridge."""
+
+    filter_backends = []
+    pagination_class = None
+    serializer_class = IdentityBridgeAllowedFieldsSerializer
+
+    @extend_schema(
+        summary="Get allowed Identity Bridge fields",
+        description=(
+            "Returns the list of user attribute fields that the Identity Bridge "
+            "currently accepts. Useful for clients to pre-filter payloads. "
+            "Requires staff or identity manager permissions."
+        ),
+        responses={200: IdentityBridgeAllowedFieldsSerializer},
+    )
+    def get(self, request, *args, **kwargs):
+        if not config.FEDERATED_IDENTITY_SYNC_ENABLED:
+            return Response(
+                "Identity Bridge is disabled.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        caller = request.user
+        if not caller.is_staff and not caller.is_identity_manager:
+            return Response(
+                "Only staff and identity managers can access this.",
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        allowed = sorted(get_federated_identity_sync_allowed_fields())
+        serializer = IdentityBridgeAllowedFieldsSerializer({"allowed_fields": allowed})
+        return Response(serializer.data)
