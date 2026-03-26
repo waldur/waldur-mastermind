@@ -1884,3 +1884,134 @@ class SoftwarePackageGPUFilterTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
+
+
+class SoftwarePackageCPUFilterTest(test.APITestCase):
+    """Test CPU-related filters for software packages, versions, and targets."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory()
+        self.catalog = factories.SoftwareCatalogFactory(name="EESSI", version="2023.06")
+        factories.OfferingSoftwareCatalogFactory(
+            offering=self.offering,
+            catalog=self.catalog,
+            enabled_cpu_family=["x86_64", "aarch64"],
+            enabled_cpu_microarchitectures=["generic", "a64fx"],
+        )
+
+        self.multiarch_pkg = factories.SoftwarePackageFactory(
+            catalog=self.catalog, name="OpenMPI"
+        )
+        multiarch_version = factories.SoftwareVersionFactory(
+            package=self.multiarch_pkg, version="5.0.2"
+        )
+        factories.SoftwareTargetFactory(
+            version=multiarch_version,
+            target_type="cpu_architecture",
+            target_name="x86_64",
+            target_subtype="generic",
+            location="/cvmfs/software.eessi.io/versions/2023.06/software/linux/x86_64/generic",
+        )
+        factories.SoftwareTargetFactory(
+            version=multiarch_version,
+            target_type="cpu_architecture",
+            target_name="aarch64",
+            target_subtype="a64fx",
+            location="/cvmfs/software.eessi.io/versions/2023.06/software/linux/aarch64/a64fx",
+        )
+
+        self.x86_pkg = factories.SoftwarePackageFactory(
+            catalog=self.catalog, name="HDF5"
+        )
+        x86_version = factories.SoftwareVersionFactory(
+            package=self.x86_pkg, version="1.14.3"
+        )
+        factories.SoftwareTargetFactory(
+            version=x86_version,
+            target_type="cpu_architecture",
+            target_name="x86_64",
+            target_subtype="generic",
+        )
+
+        self.pkg_url = factories.SoftwarePackageFactory.get_list_url()
+        self.ver_url = factories.SoftwareVersionFactory.get_list_url()
+        self.tgt_url = factories.SoftwareTargetFactory.get_list_url()
+
+    def test_filter_packages_by_cpu_family(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.pkg_url + f"?offering_uuid={self.offering.uuid.hex}&cpu_family=aarch64"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(names, {"OpenMPI"})
+
+    def test_filter_packages_by_cpu_microarchitecture(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.pkg_url
+            + f"?offering_uuid={self.offering.uuid.hex}&cpu_microarchitecture=a64fx"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(names, {"OpenMPI"})
+
+    def test_filter_packages_by_cpu_microarchitecture_multiple_query_params_uses_last_value(
+        self,
+    ):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.pkg_url
+            + f"?offering_uuid={self.offering.uuid.hex}"
+            + "&cpu_family=aarch64"
+            + "&cpu_microarchitecture=a64fx"
+            + "&cpu_microarchitecture=generic"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = {pkg["name"] for pkg in response.data}
+        self.assertEqual(names, {"OpenMPI"})
+
+    def test_filter_versions_by_cpu_family(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.ver_url + "?cpu_family=aarch64")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        versions = {v["version"] for v in response.data}
+        self.assertEqual(versions, {"5.0.2"})
+
+    def test_filter_versions_by_cpu_microarchitecture(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.ver_url + "?cpu_microarchitecture=a64fx")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        versions = {v["version"] for v in response.data}
+        self.assertEqual(versions, {"5.0.2"})
+
+    def test_filter_targets_by_cpu_family(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.tgt_url + "?cpu_family=aarch64")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["target_name"], "aarch64")
+
+    def test_filter_targets_by_cpu_microarchitecture(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.tgt_url + "?cpu_microarchitecture=a64fx")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["target_subtype"], "a64fx")
+
+    def test_filter_targets_by_path_uses_location(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.tgt_url + "?path=/cvmfs/software.eessi.io/versions/"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertGreaterEqual(len(response.data), 1)

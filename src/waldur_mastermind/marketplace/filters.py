@@ -732,12 +732,16 @@ class SoftwarePackageFilter(django_filters.FilterSet):
 
     def filter_cpu_family(self, queryset, name, value):
         """Filter packages with versions available for CPU family."""
-        return queryset.filter(versions__targets__cpu_family=value).distinct()
+        return queryset.filter(
+            versions__targets__target_type="cpu_architecture",
+            versions__targets__target_name=value,
+        ).distinct()
 
     def filter_cpu_microarchitecture(self, queryset, name, value):
         """Filter packages with versions available for CPU microarchitecture."""
         return queryset.filter(
-            versions__targets__cpu_microarchitecture=value
+            versions__targets__target_type="cpu_architecture",
+            versions__targets__target_subtype=value,
         ).distinct()
 
     def filter_has_version(self, queryset, name, value):
@@ -826,9 +830,9 @@ class SoftwareVersionFilter(django_filters.FilterSet):
         label="Version (exact)",
         help_text="Filter versions by exact version string",
     )
-    cpu_family = django_filters.CharFilter(field_name="targets__cpu_family")
+    cpu_family = django_filters.CharFilter(method="filter_cpu_family")
     cpu_microarchitecture = django_filters.CharFilter(
-        field_name="targets__cpu_microarchitecture"
+        method="filter_cpu_microarchitecture"
     )
     toolchain_families_compatibility = django_filters.CharFilter(
         method="filter_toolchain_families_compatibility",
@@ -891,6 +895,18 @@ class SoftwareVersionFilter(django_filters.FilterSet):
             package__catalog__offerings__offering__uuid=value
         ).distinct()
 
+    def filter_cpu_family(self, queryset, name, value):
+        return queryset.filter(
+            targets__target_type="cpu_architecture",
+            targets__target_name=value,
+        ).distinct()
+
+    def filter_cpu_microarchitecture(self, queryset, name, value):
+        return queryset.filter(
+            targets__target_type="cpu_architecture",
+            targets__target_subtype=value,
+        ).distinct()
+
     def filter_toolchain_families_compatibility(self, queryset, name, value):
         """Filter versions compatible with a specific toolchain family."""
         return queryset.filter(
@@ -938,9 +954,16 @@ class SoftwareTargetFilter(django_filters.FilterSet):
     offering_uuid = core_filters.RelatedUUIDFilter(
         view_name="marketplace-provider-offering-detail", method="filter_offering_uuid"
     )
-    cpu_family = django_filters.CharFilter(lookup_expr="icontains")
-    cpu_microarchitecture = django_filters.CharFilter(lookup_expr="icontains")
-    path = django_filters.CharFilter(lookup_expr="icontains")
+    cpu_family = django_filters.CharFilter(method="filter_cpu_family")
+    cpu_microarchitecture = django_filters.CharFilter(
+        method="filter_cpu_microarchitecture"
+    )
+    path = django_filters.CharFilter(
+        field_name="location",
+        lookup_expr="icontains",
+        label="Path",
+        help_text="Filter targets by location/path (case-insensitive partial match)",
+    )
     target_type = django_filters.CharFilter(
         lookup_expr="iexact",
         label="Target type",
@@ -970,8 +993,8 @@ class SoftwareTargetFilter(django_filters.FilterSet):
 
     o = django_filters.OrderingFilter(
         fields=(
-            ("cpu_family", "cpu_family"),
-            ("cpu_microarchitecture", "cpu_microarchitecture"),
+            ("target_name", "cpu_family"),
+            ("target_subtype", "cpu_microarchitecture"),
             ("version__package__name", "package_name"),
             ("target_type", "target_type"),
             ("target_name", "target_name"),
@@ -995,6 +1018,18 @@ class SoftwareTargetFilter(django_filters.FilterSet):
         return queryset.filter(
             version__package__catalog__offerings__offering__uuid=value
         ).distinct()
+
+    def filter_cpu_family(self, queryset, name, value):
+        return queryset.filter(
+            target_type="cpu_architecture",
+            target_name__iexact=value,
+        )
+
+    def filter_cpu_microarchitecture(self, queryset, name, value):
+        return queryset.filter(
+            target_type="cpu_architecture",
+            target_subtype__iexact=value,
+        )
 
     def filter_has_gpu(self, queryset, name, value):
         """Filter targets that have GPU architectures."""
