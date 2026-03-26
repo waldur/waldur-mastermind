@@ -13,7 +13,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.users.scim import tasks
 from waldur_core.users.scim.client import ScimClient, ScimError
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import OfferingUserStates
+from waldur_mastermind.marketplace.enums import OfferingUserStates, ResourceStates
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
@@ -1046,5 +1046,58 @@ class ScimOfferingUserOkTransitionTest(BaseScimTestCase):
             offering_user.state = OfferingUserStates.OK
             offering_user.username = "posixuser"
             offering_user.save()
+
+        mock_sync_delay.assert_not_called()
+
+
+@override_config(
+    SCIM_MEMBERSHIP_SYNC_ENABLED=True,
+    SCIM_API_URL="https://scim.example.org",
+    SCIM_API_KEY="secret",
+    SCIM_URN_NAMESPACE="urn:ietf:dev",
+)
+class ScimResourceOkTransitionTest(BaseScimTestCase):
+    """Test trigger_scim_sync_on_resource_ok handler."""
+
+    def setUp(self):
+        self.project = structure_factories.ProjectFactory()
+        self.offering = marketplace_factories.OfferingFactory()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
+    def test_triggers_sync_when_transitioning_to_ok(self, mock_sync_delay):
+        resource = marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=self.offering,
+            state=ResourceStates.CREATING,
+        )
+
+        resource.state = ResourceStates.OK
+        with self.captureOnCommitCallbacks(execute=True):
+            resource.save()
+
+        mock_sync_delay.assert_called_once_with(self.offering.uuid.hex)
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
+    def test_no_sync_when_state_unchanged(self, mock_sync_delay):
+        marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=self.offering,
+            state=ResourceStates.OK,
+        )
+
+        mock_sync_delay.assert_not_called()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_users_for_offering_endpoint.delay")
+    def test_no_sync_when_scim_disabled(self, mock_sync_delay):
+        resource = marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=self.offering,
+            state=ResourceStates.CREATING,
+        )
+
+        with override_config(SCIM_MEMBERSHIP_SYNC_ENABLED=False):
+            resource.state = ResourceStates.OK
+            with self.captureOnCommitCallbacks(execute=True):
+                resource.save()
 
         mock_sync_delay.assert_not_called()

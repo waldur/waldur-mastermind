@@ -288,6 +288,11 @@ class MarketplaceConfig(AppConfig):
             sender=models.Resource,
             dispatch_uid="waldur_mastermind.marketplace.resource_state_has_been_changed",
         )
+        signals.post_save.connect(
+            handlers.trigger_scim_sync_on_resource_ok,
+            sender=models.Resource,
+            dispatch_uid="waldur_mastermind.marketplace.trigger_scim_sync_on_resource_ok",
+        )
 
         signals.post_save.connect(
             handlers.resource_has_been_changed,
