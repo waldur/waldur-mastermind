@@ -418,6 +418,39 @@ class ISO3166Alpha2Validator:
 validate_iso_3166_alpha2 = ISO3166Alpha2Validator()
 
 
+VALID_PERSONAL_TITLES = {"Mr", "Ms", "Mrs", "Miss", "Dr", "Prof", "Sir", "Dame"}
+
+
+def validate_personal_title(value):
+    """Validate personal title against a set of allowed values."""
+    if not value:
+        return
+    if value not in VALID_PERSONAL_TITLES:
+        raise ValidationError(
+            _("Invalid personal title '%(value)s'. Allowed values are: %(allowed)s."),
+            params={
+                "value": value,
+                "allowed": ", ".join(sorted(VALID_PERSONAL_TITLES)),
+            },
+        )
+
+
+def validate_nationalities(value):
+    """Validate that nationalities is a list of valid ISO 3166-1 alpha-2 codes."""
+    if not value:
+        return
+    if not isinstance(value, list):
+        raise ValidationError(_("Nationalities must be a list."))
+    for item in value:
+        if not isinstance(item, str):
+            raise ValidationError(_("Each nationality must be a string."))
+        if item.upper() not in ISO_3166_1_ALPHA_2_CODES:
+            raise ValidationError(
+                _("'%(value)s' is not a valid ISO 3166-1 alpha-2 country code."),
+                params={"value": item},
+            )
+
+
 def validate_schac_organization_type(value):
     """
     Validate SCHAC homeOrganizationType URN format.
