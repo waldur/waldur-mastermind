@@ -351,6 +351,10 @@ class IdentityBridgeResultSerializer(serializers.Serializer):
     updated_fields = serializers.ListField(child=serializers.CharField())
 
 
+class IdentityBridgeAllowedFieldsSerializer(serializers.Serializer):
+    allowed_fields = serializers.ListField(child=serializers.CharField())
+
+
 class IdentityBridgeRemoveSerializer(serializers.Serializer):
     username = serializers.CharField(
         max_length=128,

@@ -16,6 +16,7 @@ from waldur_core.structure.tests import factories as structure_factories
 BRIDGE_URL = reverse("auth_identity_bridge")
 BRIDGE_REMOVE_URL = reverse("auth_identity_bridge_remove")
 BRIDGE_STATS_URL = reverse("auth_identity_bridge_stats")
+BRIDGE_ALLOWED_FIELDS_URL = reverse("auth_identity_bridge_allowed_fields")
 
 
 class IdentityBridgePermissionTest(TestCase):
@@ -746,3 +747,56 @@ class LegacySourceMigrationTest(TestCase):
         self.assertIn("first_name", user.attribute_sources)
         self.assertEqual(user.attribute_sources["first_name"]["source"], "isd:eduteams")
         self.assertIn("isd:eduteams", user.active_isds)
+
+
+class IdentityBridgeAllowedFieldsTest(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    @override_config(FEDERATED_IDENTITY_SYNC_ENABLED=True)
+    def test_anonymous_returns_401(self):
+        response = self.client.get(BRIDGE_ALLOWED_FIELDS_URL)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    @override_config(FEDERATED_IDENTITY_SYNC_ENABLED=True)
+    def test_regular_user_returns_403(self):
+        user = structure_factories.UserFactory()
+        self.client.force_authenticate(user)
+        response = self.client.get(BRIDGE_ALLOWED_FIELDS_URL)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @override_config(FEDERATED_IDENTITY_SYNC_ENABLED=False)
+    def test_feature_flag_disabled_returns_403(self):
+        user = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user)
+        response = self.client.get(BRIDGE_ALLOWED_FIELDS_URL)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @override_config(
+        FEDERATED_IDENTITY_SYNC_ENABLED=True,
+        FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES=["first_name", "last_name", "email"],
+    )
+    def test_staff_gets_allowed_fields(self):
+        user = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user)
+        response = self.client.get(BRIDGE_ALLOWED_FIELDS_URL)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("allowed_fields", response.data)
+        # The result is the three-way intersection, so at minimum these should be present
+        # (assuming they're also in WRITABLE_USER_FIELDS and enabled profile attributes)
+        for field in ["email", "first_name", "last_name"]:
+            self.assertIn(field, response.data["allowed_fields"])
+
+    @override_config(
+        FEDERATED_IDENTITY_SYNC_ENABLED=True,
+        FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES=["first_name", "last_name", "email"],
+    )
+    def test_identity_manager_gets_allowed_fields(self):
+        user = structure_factories.UserFactory(
+            is_identity_manager=True,
+            managed_isds=["isd:puhuri"],
+        )
+        self.client.force_authenticate(user)
+        response = self.client.get(BRIDGE_ALLOWED_FIELDS_URL)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("allowed_fields", response.data)

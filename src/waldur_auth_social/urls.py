@@ -19,6 +19,11 @@ urlpatterns = [
         name="auth_identity_bridge_remove",
     ),
     path(
+        "api/identity-bridge/allowed-fields/",
+        views.IdentityBridgeAllowedFieldsView.as_view(),
+        name="auth_identity_bridge_allowed_fields",
+    ),
+    path(
         "api/identity-bridge/stats/",
         views.IdentityBridgeStatsView.as_view(),
         name="auth_identity_bridge_stats",
