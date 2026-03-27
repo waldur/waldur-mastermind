@@ -320,6 +320,12 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.log_offering_user_username_updated,
+            sender=models.OfferingUser,
+            dispatch_uid="waldur_mastermind.marketplace.log_offering_user_username_updated",
+        )
+
+        signals.post_save.connect(
             handlers.create_offering_user_checklist_completions,
             sender=models.OfferingUser,
             dispatch_uid="waldur_mastermind.marketplace.create_offering_user_checklist_completions",

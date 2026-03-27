@@ -1,3 +1,4 @@
+import logging
 from unittest import mock
 
 from constance.test.unittest import override_config
@@ -282,6 +283,21 @@ class OfferingUsersUpdateTest(test.APITestCase):
         self.offering_user.refresh_from_db()
         self.assertEqual("new_username", self.offering_user.username)
 
+    def test_username_update_is_logged(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        url = self.get_url(self.offering_user)
+
+        with self.assertLogs(
+            "waldur_mastermind.marketplace.views", level=logging.INFO
+        ) as logs:
+            response = self.client.patch(url, {"username": "new_username"})
+
+        self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
+        self.assertTrue(
+            any("OfferingUser username update via API" in line for line in logs.output),
+            logs.output,
+        )
+
     @data("customer_support", "service_manager")
     def test_unauthorized_user_can_not_update_offering_user(self, user):
         response = self.update_offering_user(user, self.offering_user)
@@ -359,6 +375,56 @@ class OfferingUsersHandlerTest(test.APITestCase):
                 event_type="marketplace_offering_user_deleted"
             ).exists()
         )
+
+    def test_when_offering_user_username_is_changed_audit_log_is_generated(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_USER)
+        self.fixture.offering.customer.add_user(self.fixture.staff, CustomerRole.OWNER)
+
+        offering_user = OfferingUser.objects.create(
+            offering=self.fixture.offering,
+            user=self.fixture.user,
+            username="initial",
+        )
+        models.UserOfferingConsent.objects.create(
+            user=self.fixture.user,
+            offering=self.fixture.offering,
+            version="1.0",
+        )
+
+        url = OfferingUserFactory.get_url(offering_user)
+
+        response = self.client.patch(url, {"username": "new_username"})
+        self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
+
+        event = (
+            Event.objects.filter(event_type="marketplace_offering_user_updated")
+            .order_by("-created")
+            .first()
+        )
+        self.assertIsNotNone(event)
+        self.assertEqual(event.context["old_username"], "initial")
+        self.assertEqual(event.context["new_username"], "new_username")
+        self.assertEqual(
+            event.context["affected_user_uuid"], self.fixture.user.uuid.hex
+        )
+        self.assertIn("ip_address", event.context)
+
+        response = self.client.patch(url, {"username": ""})
+        self.assertEqual(status.HTTP_200_OK, response.status_code, response.data)
+
+        event = (
+            Event.objects.filter(event_type="marketplace_offering_user_updated")
+            .order_by("-created")
+            .first()
+        )
+        self.assertIsNotNone(event)
+        self.assertEqual(event.context["old_username"], "new_username")
+        self.assertEqual(event.context["new_username"], "")
+        self.assertEqual(
+            event.context["affected_user_uuid"], self.fixture.user.uuid.hex
+        )
+        self.assertIn("ip_address", event.context)
 
 
 @ddt
