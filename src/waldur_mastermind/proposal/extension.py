@@ -52,6 +52,11 @@ class ProposalExtension(WaldurExtension):
                 "schedule": timedelta(hours=24),
                 "args": (),
             },
+            "notify-reviewer-on-review-deadline-approaching": {
+                "task": "waldur_mastermind.proposal.notify_reviewer_on_review_deadline_approaching",
+                "schedule": timedelta(hours=24),
+                "args": (),
+            },
             "mark-expired-assignment-batches": {
                 "task": "waldur_mastermind.proposal.mark_expired_assignment_batches",
                 "schedule": timedelta(minutes=15),

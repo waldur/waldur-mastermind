@@ -1,13 +1,15 @@
+import datetime
 from unittest import mock
 
 from ddt import data, ddt
 from django.core import mail
 from django.test import override_settings
+from django.utils import timezone
 from rest_framework import status, test
 
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.proposal import models
+from waldur_mastermind.proposal import models, tasks
 from waldur_mastermind.proposal.enums import ProposalStates
 from waldur_mastermind.proposal.tests import fixtures
 
@@ -162,6 +164,67 @@ class ReviewUpdateTest(test.APITestCase):
         response = self.client.patch(self.url, payload)
         self.review.refresh_from_db()
         return response
+
+
+class ReviewDeadlineReminderNotificationTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.review = self.fixture.review
+
+        self.review.proposal.round.review_duration_in_days = 3
+        self.review.proposal.round.save(update_fields=["review_duration_in_days"])
+
+    @override_settings(task_always_eager=True)
+    def test_reviewer_is_notified_when_review_deadline_is_within_three_days(self):
+        structure_factories.NotificationFactory(
+            key="proposal.review_deadline_approaching",
+        )
+
+        tasks.notify_reviewer_on_review_deadline_approaching()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.review.reviewer.email])
+        self.assertIn(self.review.proposal.name, mail.outbox[0].subject)
+        self.assertIn(self.review.reviewer.full_name, mail.outbox[0].body)
+        self.assertIn(self.review.proposal.round.call.name, mail.outbox[0].body)
+
+    @override_settings(task_always_eager=True)
+    def test_reviewer_is_not_notified_before_three_day_window(self):
+        structure_factories.NotificationFactory(
+            key="proposal.review_deadline_approaching",
+        )
+        self.review.proposal.round.review_duration_in_days = 4
+        self.review.proposal.round.save(update_fields=["review_duration_in_days"])
+
+        tasks.notify_reviewer_on_review_deadline_approaching()
+
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(task_always_eager=True)
+    def test_reviewer_is_not_notified_after_review_deadline_has_passed(self):
+        structure_factories.NotificationFactory(
+            key="proposal.review_deadline_approaching",
+        )
+        models.Review.objects.filter(pk=self.review.pk).update(
+            created=timezone.now() - datetime.timedelta(days=5)
+        )
+        self.review.refresh_from_db()
+
+        tasks.notify_reviewer_on_review_deadline_approaching()
+
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(task_always_eager=True)
+    def test_submitted_review_is_not_notified(self):
+        structure_factories.NotificationFactory(
+            key="proposal.review_deadline_approaching",
+        )
+        self.review.state = models.Review.States.SUBMITTED
+        self.review.save(update_fields=["state"])
+
+        tasks.notify_reviewer_on_review_deadline_approaching()
+
+        self.assertEqual(len(mail.outbox), 0)
 
 
 @ddt
