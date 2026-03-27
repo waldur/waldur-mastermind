@@ -1285,10 +1285,8 @@ Trigger integration tests:
     project: waldur/waldur-integration-testing
     branch: main
     strategy: depend
+  variables:
+    WALDUR_MASTERMIND_IMAGE: "${CI_REGISTRY_IMAGE}:latest"
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-      variables:
-        WALDUR_MASTERMIND_IMAGE: "${CI_REGISTRY_IMAGE}:latest"
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-      variables:
-        WALDUR_MASTERMIND_IMAGE: "${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch-amd64"

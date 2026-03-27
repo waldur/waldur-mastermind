@@ -30,10 +30,14 @@ class ProjectEstimatedCostPolicyFilter(PolicyFilter):
     project_uuid = core_filters.RelatedUUIDFilter(
         view_name="project-detail", field_name="scope__uuid"
     )
+    query = django_filters.CharFilter(method="filter_query")
 
     class Meta:
         model = models.ProjectEstimatedCostPolicy
         fields = []
+
+    def filter_query(self, queryset, name, value):
+        return queryset.filter(scope__name__icontains=value)
 
 
 class CustomerEstimatedCostPolicyFilter(PolicyFilter):
