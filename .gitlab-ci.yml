@@ -390,6 +390,7 @@ Publish the latest multiarch docker image:
     - docker context create builder
     - docker buildx create builder --use
     - docker buildx imagetools create --tag opennode/${CI_PROJECT_NAME}:latest opennode/${CI_PROJECT_NAME}:yolo
+    - docker buildx imagetools create --tag ${CI_REGISTRY_IMAGE}:latest opennode/${CI_PROJECT_NAME}:yolo
 
 Publish the YOLO multiarch docker image:
   extends: .Publish multiarch latest docker image template
@@ -1287,7 +1288,7 @@ Trigger integration tests:
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
       variables:
-        WALDUR_MASTERMIND_IMAGE: "opennode/waldur-mastermind:latest"
-    # - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    #   variables:
-    #     WALDUR_MASTERMIND_IMAGE: "${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch-amd64"
+        WALDUR_MASTERMIND_IMAGE: "${CI_REGISTRY_IMAGE}:latest"
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      variables:
+        WALDUR_MASTERMIND_IMAGE: "${CI_REGISTRY_IMAGE}:${CI_MERGE_REQUEST_ID}-multiarch-amd64"
