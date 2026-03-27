@@ -447,6 +447,14 @@ class ServiceProviderViewSet(UserRoleMixin, PublicViewsetMixin, BaseMarketplaceV
             if username:
                 offering_user.username = username
                 offering_user.save()  # This triggers the FSM transition via model save method
+            else:
+                logger.info(
+                    "ServiceProvider set_offerings_username called with empty username: service_provider_uuid=%s user_uuid=%s offering_id=%s actor_uuid=%s",
+                    uuid,
+                    user_uuid.hex,
+                    offering_id,
+                    getattr(request.user, "uuid", None) and request.user.uuid.hex,
+                )
 
         return Response(
             {
@@ -8816,6 +8824,24 @@ class OfferingUsersViewSet(
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.OfferingUserFilter
+
+    def perform_update(self, serializer):
+        instance: models.OfferingUser = serializer.instance
+
+        old_username = instance.username
+        new_username = serializer.validated_data.get("username", old_username)
+
+        serializer.save()
+
+        if "username" in serializer.validated_data and old_username != new_username:
+            logger.info(
+                "OfferingUser username update via API: offering_user_uuid=%s offering_uuid=%s old_username=%r new_username=%r source_user_uuid=%s",
+                instance.uuid.hex,
+                instance.offering.uuid.hex,
+                old_username,
+                new_username,
+                getattr(self.request.user, "uuid", None) and self.request.user.uuid.hex,
+            )
 
     def _offering_user_or_service_provider_permission(request, view, obj=None):
         """

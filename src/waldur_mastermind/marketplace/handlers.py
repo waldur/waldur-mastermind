@@ -1291,6 +1291,32 @@ def log_offering_user_deleted(sender, instance: OfferingUser, **kwargs):
     )
 
 
+def log_offering_user_username_updated(
+    sender, instance: OfferingUser, created=False, **kwargs
+):
+    if created:
+        return
+    if not instance.tracker.has_changed("username"):
+        return
+
+    old_username = instance.tracker.previous("username")
+    new_username = instance.username
+
+    event_logger.emit(
+        "Offering user username changed for {offering_user_uuid}: '{old_username}' -> '{new_username}'.",
+        event_type=EventType.MARKETPLACE_OFFERING_USER_UPDATED,
+        event_context={
+            "offering_user_uuid": instance.uuid.hex,
+            "old_username": old_username or "",
+            "new_username": new_username or "",
+            "changed_fields": ["username"],
+            "offering": instance.offering,
+            "affected_user": instance.user,
+        },
+        scopes=[instance.offering, instance.offering.customer],
+    )
+
+
 def create_offering_user_checklist_completions(
     sender, instance: OfferingUser, created=False, **kwargs
 ):
@@ -1630,7 +1656,15 @@ def update_offering_user_username_after_offering_settings_change(
 
     for offering_user in offering_users:
         new_username = utils.generate_username(offering_user.user, offering)
-        logger.info("New username for %s is %s", offering_user, new_username)
+        old_username = offering_user.username
+        logger.info(
+            "OfferingUser username refresh after offering plugin_options change: offering_user_uuid=%s offering_uuid=%s old_username=%r new_username=%r affected_user_uuid=%s",
+            offering_user.uuid.hex,
+            offering.uuid.hex,
+            old_username,
+            new_username,
+            offering_user.user.uuid.hex,
+        )
         offering_user.username = new_username
 
         utils.setup_linux_related_data(offering_user, offering)
@@ -1663,8 +1697,16 @@ def update_offering_user_username_after_user_change(sender, instance: User, **kw
 
     for offering_user in offering_users:
         offering = offering_user.offering
+        old_username = offering_user.username
         new_username = utils.generate_username(user, offering)
-        logger.info("Setting username for %s to %s", offering_user, new_username)
+        logger.info(
+            "OfferingUser username refresh after user.details change: offering_user_uuid=%s offering_uuid=%s old_username=%r new_username=%r affected_user_uuid=%s",
+            offering_user.uuid.hex,
+            offering.uuid.hex,
+            old_username,
+            new_username,
+            user.uuid.hex,
+        )
         offering_user.username = new_username
 
         utils.setup_linux_related_data(offering_user, offering)
@@ -1702,9 +1744,17 @@ def update_offering_user_username_after_freeipa_profile_update(
             offering_user,
             profile,
         )
+        old_username = offering_user.username
         new_username = utils.generate_username(profile.user, offering_user.offering)
 
-        logger.info("Setting username for %s to %s", offering_user, new_username)
+        logger.info(
+            "OfferingUser username refresh after FreeIPA profile update: offering_user_uuid=%s offering_uuid=%s old_username=%r new_username=%r affected_user_uuid=%s",
+            offering_user.uuid.hex,
+            offering_user.offering.uuid.hex,
+            old_username,
+            new_username,
+            profile.user.uuid.hex,
+        )
         offering_user.username = new_username
         # Call save() without update_fields to trigger state transition logic in OfferingUser.save()
         # This ensures state is updated from CREATION_REQUESTED to OK when username becomes available
