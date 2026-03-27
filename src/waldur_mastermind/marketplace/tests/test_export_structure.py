@@ -116,11 +116,12 @@ class ExportStructureCommandTest(TestCase):
             7200,
         )
 
-        # Verify user with unlimited token (token_lifetime = None)
+        # Verify user with unlimited token (token_lifetime = None → exported as -1)
         self.assertIn("user_unlimited", exported_users)
-        self.assertIsNone(
+        self.assertEqual(
             exported_users["user_unlimited"]["token_lifetime"],
-            "token_lifetime should be None for unlimited tokens",
+            -1,
+            "token_lifetime should be -1 for unlimited tokens",
         )
 
     def test_export_customers_with_all_fields(self):

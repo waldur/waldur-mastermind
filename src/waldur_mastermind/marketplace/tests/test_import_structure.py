@@ -2179,6 +2179,62 @@ class ImportStructureCommandTest(TestCase):
             "token_lifetime should be None (unlimited) but was overwritten with default",
         )
 
+    def test_import_new_user_with_minus_one_token_lifetime(self):
+        """Test that token_lifetime=-1 (new export format for unlimited) is converted to None."""
+        new_user_uuid = "550e8400-e29b-41d4-a716-446655440333"
+
+        test_data = {
+            "users": [
+                {
+                    "uuid": new_user_uuid,
+                    "email": "minus1user@example.com",
+                    "username": "new_user_minus1_token",
+                    "first_name": "MinusOne",
+                    "last_name": "User",
+                    "token_lifetime": -1,  # New export format for unlimited
+                }
+            ]
+        }
+
+        self._create_test_json(test_data)
+        self._call_import_command("-i", self.test_file_path)
+
+        from waldur_core.core.models import User
+
+        new_user = User.all_objects.filter(uuid=new_user_uuid).first()
+        self.assertIsNotNone(new_user)
+        self.assertIsNone(
+            new_user.token_lifetime,
+            "token_lifetime=-1 should be imported as None (unlimited)",
+        )
+
+    def test_update_existing_user_with_minus_one_token_lifetime(self):
+        """Test that updating a user with token_lifetime=-1 sets it to None."""
+        existing_user = structure_factories.UserFactory(
+            email="existing@example.com",
+            username="existing_user",
+            token_lifetime=7200,
+        )
+
+        test_data = {
+            "users": [
+                {
+                    "uuid": str(existing_user.uuid),
+                    "email": "existing@example.com",
+                    "username": "existing_user",
+                    "first_name": "Test",
+                    "last_name": "User",
+                    "token_lifetime": -1,
+                }
+            ]
+        }
+
+        self._create_test_json(test_data)
+        self._call_import_command("-i", self.test_file_path, "--update")
+
+        existing_user.refresh_from_db()
+        self.assertIsNone(existing_user.token_lifetime)
+
     # Credit Import Tests
 
     def test_import_customer_credits_with_all_fields(self):

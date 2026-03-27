@@ -417,7 +417,9 @@ class Command(BaseCommand):
                     if user.date_joined
                     else None,
                     # Additional fields identified in analysis
-                    "token_lifetime": user.token_lifetime,
+                    "token_lifetime": user.token_lifetime
+                    if user.token_lifetime is not None
+                    else -1,
                     "details": user.details,
                     "notifications_enabled": user.notifications_enabled,
                     "is_identity_manager": user.is_identity_manager,
