@@ -314,6 +314,52 @@ def notify_reviewer_about_assignment(review_uuid):
     )
 
 
+@shared_task(
+    name="waldur_mastermind.proposal.notify_reviewer_on_review_deadline_approaching"
+)
+def notify_reviewer_on_review_deadline_approaching():
+    now = timezone.now()
+    reviews = proposal_models.Review.objects.filter(
+        state=proposal_models.Review.States.IN_REVIEW,
+        proposal__round__call__state=CallStates.ACTIVE,
+    ).select_related("reviewer", "proposal", "proposal__round", "proposal__round__call")
+
+    for review in reviews:
+        review_deadline = review.review_end_date
+        if not review_deadline:
+            continue
+
+        if review_deadline <= now:
+            continue
+
+        time_remaining_days = (review_deadline.date() - now.date()).days
+        if time_remaining_days < 0 or time_remaining_days > 3:
+            continue
+
+        if not review.reviewer or not review.reviewer.email:
+            logger.warning(
+                f"Cannot send review deadline reminder. Review {review.uuid} reviewer has no valid email."
+            )
+            continue
+
+        context = {
+            "site_name": config.SITE_NAME,
+            "reviewer_name": review.reviewer.full_name,
+            "proposal_name": review.proposal.name,
+            "call_name": review.proposal.round.call.name,
+            "review_deadline": review_deadline,
+            "time_remaining_days": time_remaining_days,
+            "review_url": core_utils.format_homeport_link("reviews/"),
+        }
+
+        core_utils.broadcast_mail(
+            "proposal",
+            "review_deadline_approaching",
+            context,
+            [review.reviewer.email],
+        )
+
+
 @shared_task(name="waldur_mastermind.proposal.notify_reviewer_on_proposal_decision")
 def notify_reviewer_on_proposal_decision(proposal_uuid):
     proposal = proposal_models.Proposal.objects.get(uuid=proposal_uuid)
@@ -564,23 +610,29 @@ def notify_manager_on_round_cutoff():
 )
 def notify_proposal_creator_on_submission_deadline_approaching():
     now = timezone.now()
-    target_date = (now + timedelta(days=3)).date()
     proposals = proposal_models.Proposal.objects.filter(
         state=ProposalStates.DRAFT,
         round__call__state=CallStates.ACTIVE,
-        round__cutoff_time__date=target_date,
+        round__cutoff_time__gt=now,
     ).select_related("round", "round__call", "created_by")
 
     for proposal in proposals:
+        time_remaining = proposal.round.cutoff_time - now
+        if time_remaining.total_seconds() <= 0:
+            continue
+
+        if time_remaining > timedelta(days=3):
+            continue
+
+        total_seconds = int(time_remaining.total_seconds())
+        remaining_days, remainder = divmod(total_seconds, 24 * 60 * 60)
+
         if not proposal.created_by or not proposal.created_by.email:
             logger.warning(
                 f"Cannot send submission deadline reminder. Proposal {proposal.uuid} creator has no valid email."
             )
             continue
 
-        time_remaining = proposal.round.cutoff_time - now
-        total_seconds = max(int(time_remaining.total_seconds()), 0)
-        remaining_days, remainder = divmod(total_seconds, 24 * 60 * 60)
         remaining_hours = remainder // (60 * 60)
 
         proposal_url = core_utils.format_homeport_link(

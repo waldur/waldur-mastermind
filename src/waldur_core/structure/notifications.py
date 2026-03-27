@@ -915,6 +915,18 @@ class ReviewAssignedContext(BaseModel):
     )
 
 
+class ReviewDeadlineApproachingContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    reviewer_name: str = Field(description="Full name of the reviewer.")
+    proposal_name: str = Field(description="Name of the proposal under review.")
+    call_name: str = Field(description="Name of the call.")
+    review_deadline: Any = Field(description="The review due date and time.")
+    time_remaining_days: int = Field(
+        description="Whole number of days remaining until the review deadline."
+    )
+    review_url: str = Field(description="A URL where the reviewer can continue review.")
+
+
 class ProposalDecisionForReviewerContext(BaseModel):
     site_name: str = Field(description="Name of the site from settings.")
     proposal_state: str = Field(
@@ -1044,7 +1056,7 @@ class ProposalSection(NotificationSection):
     )
     proposal_submission_deadline_approaching = Notification(
         key="proposal_submission_deadline_approaching",
-        description="Reminds proposal creators to submit draft proposals 3 days before the round cutoff.",
+        description="Reminds proposal creators to submit draft proposals during the last 3 days before the round cutoff.",
         context_model=ProposalSubmissionDeadlineApproachingContext,
     )
     requested_offering_decision = Notification(
@@ -1056,6 +1068,11 @@ class ProposalSection(NotificationSection):
         key="review_assigned",
         description="A notification to a reviewer about a new review assignment.",
         context_model=ReviewAssignedContext,
+    )
+    review_deadline_approaching = Notification(
+        key="review_deadline_approaching",
+        description="Reminds reviewers to submit in-review assignments 3 days before deadline.",
+        context_model=ReviewDeadlineApproachingContext,
     )
     review_rejected = Notification(
         key="review_rejected",

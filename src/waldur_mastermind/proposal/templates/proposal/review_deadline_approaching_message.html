@@ -1,0 +1,22 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Review deadline reminder</title>
+</head>
+<body>
+    <p>Dear {{ reviewer_name }},</p>
+
+    <p>This is a friendly reminder that your review for the proposal "{{ proposal_name }}" in call "{{ call_name }}" is due soon.</p>
+
+    <p><strong>Review deadline:</strong><br>
+        - Due date: {{ review_deadline }}<br>
+        - Time remaining: {{ time_remaining_days }} days
+    </p>
+
+    <p>Please log in to the platform to complete and submit your review as soon as possible. If you have any questions or need assistance, please contact the call manager.</p>
+
+    <p>Continue review: <a href="{{ review_url }}">{{ review_url }}</a></p>
+
+    <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
+</body>
+</html>
