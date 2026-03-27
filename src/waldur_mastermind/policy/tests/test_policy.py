@@ -604,3 +604,32 @@ class UpdatePolicyTest(test.APITestCase):
     def test_project_member_can_not_update_policy(self, user):
         response = self._update_policy(user)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
+class ProjectCostPolicyQueryFilterTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.project = self.fixture.project
+        self.project.name = "Alpha Research Lab"
+        self.project.save()
+        self.policy = factories.ProjectEstimatedCostPolicyFactory(scope=self.project)
+        self.url = factories.ProjectEstimatedCostPolicyFactory.get_list_url()
+
+    def test_query_filters_by_project_name(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"query": "Alpha"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["scope_name"], "Alpha Research Lab")
+
+    def test_query_excludes_non_matching(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"query": "Nonexistent"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_query_is_case_insensitive(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url, {"query": "alpha"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
