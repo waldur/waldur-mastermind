@@ -1,4 +1,5 @@
 import logging
+from datetime import timedelta
 from typing import Any, cast
 
 from celery import shared_task
@@ -555,6 +556,55 @@ def notify_manager_on_round_cutoff():
             "round_closing_for_managers",
             context,
             manager_emails,
+        )
+
+
+@shared_task(
+    name="waldur_mastermind.proposal.notify_proposal_creator_on_submission_deadline_approaching"
+)
+def notify_proposal_creator_on_submission_deadline_approaching():
+    now = timezone.now()
+    target_date = (now + timedelta(days=3)).date()
+    proposals = proposal_models.Proposal.objects.filter(
+        state=ProposalStates.DRAFT,
+        round__call__state=CallStates.ACTIVE,
+        round__cutoff_time__date=target_date,
+    ).select_related("round", "round__call", "created_by")
+
+    for proposal in proposals:
+        if not proposal.created_by or not proposal.created_by.email:
+            logger.warning(
+                f"Cannot send submission deadline reminder. Proposal {proposal.uuid} creator has no valid email."
+            )
+            continue
+
+        time_remaining = proposal.round.cutoff_time - now
+        total_seconds = max(int(time_remaining.total_seconds()), 0)
+        remaining_days, remainder = divmod(total_seconds, 24 * 60 * 60)
+        remaining_hours = remainder // (60 * 60)
+
+        proposal_url = core_utils.format_homeport_link(
+            "proposals/{proposal_uuid}/",
+            proposal_uuid=proposal.uuid,
+        )
+
+        context = {
+            "site_name": config.SITE_NAME,
+            "proposal_creator_name": proposal.created_by.full_name,
+            "proposal_name": proposal.name,
+            "call_name": proposal.round.call.name,
+            "round_name": proposal.round.name,
+            "deadline_date": proposal.round.cutoff_time,
+            "time_remaining_days": remaining_days,
+            "time_remaining_hours": remaining_hours,
+            "proposal_url": proposal_url,
+        }
+
+        core_utils.broadcast_mail(
+            "proposal",
+            "proposal_submission_deadline_approaching",
+            context,
+            [proposal.created_by.email],
         )
 
 

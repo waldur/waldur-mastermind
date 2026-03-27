@@ -1,0 +1,18 @@
+Dear {{ proposal_creator_name }},
+
+This is a friendly reminder that the submission deadline for your draft proposal "{{ proposal_name }}" in call "{{ call_name }}" is approaching.
+
+Deadline information:
+- Round: {{ round_name }}
+- Submission deadline: {{ deadline_date }}
+- Time remaining: {{ time_remaining_days }} days {{ time_remaining_hours }} hours
+
+Your proposal is currently in DRAFT state. To be considered for review, you must submit your proposal before the deadline.
+
+Please ensure you have completed all required sections and finalized your resource requests before submission.
+
+Complete and submit proposal: {{ proposal_url }}
+
+Any proposals left in draft state after the deadline will be automatically canceled and will not be considered for resource allocation.
+
+This is an automated message from the {{ site_name }}. Please do not reply to this email.

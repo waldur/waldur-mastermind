@@ -47,6 +47,11 @@ class ProposalExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "notify-proposal-creator-on-submission-deadline-approaching": {
+                "task": "waldur_mastermind.proposal.notify_proposal_creator_on_submission_deadline_approaching",
+                "schedule": timedelta(hours=24),
+                "args": (),
+            },
             "mark-expired-assignment-batches": {
                 "task": "waldur_mastermind.proposal.mark_expired_assignment_batches",
                 "schedule": timedelta(minutes=15),

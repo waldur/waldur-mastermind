@@ -350,6 +350,68 @@ class RoundNotificationsTest(test.APITestCase):
         self.assertIn(self.call.name, body)
         self.assertIn(self.round.get_review_strategy_display(), body)
 
+    @override_settings(task_always_eager=True)
+    def test_proposal_creator_is_notified_before_submission_deadline(self):
+        structure_factories.NotificationFactory(
+            key="proposal.proposal_submission_deadline_approaching",
+        )
+
+        self.round.cutoff_time = timezone.now() + datetime.timedelta(days=3)
+        self.round.save(update_fields=["cutoff_time"])
+
+        tasks.notify_proposal_creator_on_submission_deadline_approaching()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(self.fixture.proposal.created_by.email, mail.outbox[0].to)
+        self.assertIn(self.fixture.proposal.name, mail.outbox[0].subject)
+        self.assertIn(self.call.name, mail.outbox[0].subject)
+        self.assertIn(self.round.name, mail.outbox[0].body)
+        self.assertIn(
+            "This is a friendly reminder that the submission deadline for your draft proposal",
+            mail.outbox[0].body,
+        )
+
+    @override_settings(task_always_eager=True)
+    def test_submitted_proposals_are_not_notified_before_submission_deadline(self):
+        structure_factories.NotificationFactory(
+            key="proposal.proposal_submission_deadline_approaching",
+        )
+
+        self.round.cutoff_time = timezone.now() + datetime.timedelta(days=3)
+        self.round.save(update_fields=["cutoff_time"])
+        self.fixture.proposal.state = ProposalStates.SUBMITTED
+        self.fixture.proposal.save(update_fields=["state"])
+
+        tasks.notify_proposal_creator_on_submission_deadline_approaching()
+
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(task_always_eager=True)
+    def test_proposal_creator_is_not_notified_before_three_day_window(self):
+        structure_factories.NotificationFactory(
+            key="proposal.proposal_submission_deadline_approaching",
+        )
+
+        self.round.cutoff_time = timezone.now() + datetime.timedelta(days=4)
+        self.round.save(update_fields=["cutoff_time"])
+
+        tasks.notify_proposal_creator_on_submission_deadline_approaching()
+
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(task_always_eager=True)
+    def test_proposal_creator_is_not_notified_after_round_cutoff_passed(self):
+        structure_factories.NotificationFactory(
+            key="proposal.proposal_submission_deadline_approaching",
+        )
+
+        self.round.cutoff_time = timezone.now() - datetime.timedelta(hours=1)
+        self.round.save(update_fields=["cutoff_time"])
+
+        tasks.notify_proposal_creator_on_submission_deadline_approaching()
+
+        self.assertEqual(len(mail.outbox), 0)
+
 
 class RoundSlugGenerationTest(test.APITestCase):
     def setUp(self):
