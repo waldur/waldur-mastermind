@@ -154,6 +154,18 @@ def create_issue(order, description, summary, confirmation_comment=None):
         except ServiceBackendError as e:
             logger.exception("Unable to create confirmation comment: %s", e)
 
+    if order.attachment:
+        try:
+            attachment = support_models.Attachment.objects.create(
+                issue=issue,
+                file=order.attachment,
+            )
+            active_backend.create_attachment(attachment)
+        except Exception as e:
+            logger.exception(
+                "Unable to attach purchase order for order %s: %s", order.uuid, e
+            )
+
     return issue
 
 

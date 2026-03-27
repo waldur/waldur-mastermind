@@ -6,6 +6,7 @@ from unittest import mock
 from ddt import data, ddt
 from django.contrib.contenttypes.models import ContentType
 from django.core import mail
+from django.core.files.base import ContentFile
 from django.template import Context, Template
 from django.test import override_settings
 from freezegun import freeze_time
@@ -189,6 +190,37 @@ class RequestCreateTest(BaseTest):
         self.mock_get_active_backend().create_confirmation_comment.assert_called_once_with(
             mock.ANY, "template_confirmation_comment"
         )
+
+    def test_purchase_order_is_attached_to_issue(self):
+        fixture = fixtures.ProjectFixture()
+        offering = marketplace_factories.OfferingFactory(type=SUPPORT_OFFERING)
+
+        order = marketplace_factories.OrderFactory(
+            offering=offering,
+            attributes={"name": "item_name", "description": "Description"},
+            state=OrderStates.EXECUTING,
+            attachment=ContentFile(b"%PDF-1.4 test content", name="purchase_order.pdf"),
+        )
+
+        marketplace_utils.process_order(order, fixture.staff)
+        issue = get_order_issue(order)
+        self.assertTrue(support_models.Attachment.objects.filter(issue=issue).exists())
+        self.mock_get_active_backend().create_attachment.assert_called_once()
+
+    def test_purchase_order_is_not_attached_when_order_has_no_attachment(self):
+        fixture = fixtures.ProjectFixture()
+        offering = marketplace_factories.OfferingFactory(type=SUPPORT_OFFERING)
+
+        order = marketplace_factories.OrderFactory(
+            offering=offering,
+            attributes={"name": "item_name", "description": "Description"},
+            state=OrderStates.EXECUTING,
+        )
+
+        marketplace_utils.process_order(order, fixture.staff)
+        issue = get_order_issue(order)
+        self.assertFalse(support_models.Attachment.objects.filter(issue=issue).exists())
+        self.mock_get_active_backend().create_attachment.assert_not_called()
 
     def test_set_creation_ticket_id_as_backend_id_of_resource(self):
         def mock_create_issue(issue):
