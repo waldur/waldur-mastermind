@@ -1137,8 +1137,9 @@ class Command(BaseCommand):
 
                         # Additional fields
                         if "token_lifetime" in user_data:
-                            existing_user.token_lifetime = user_data.get(
-                                "token_lifetime"
+                            token_lifetime = user_data.get("token_lifetime")
+                            existing_user.token_lifetime = (
+                                None if token_lifetime == -1 else token_lifetime
                             )
                         existing_user.details = user_data.get("details", {})
                         existing_user.notifications_enabled = user_data.get(
@@ -1295,9 +1296,12 @@ class Command(BaseCommand):
                         user.civil_number = user_data.get("civil_number")
 
                     # Handle token_lifetime - only set if provided in data
-                    # Mark the instance to prevent signal handler from overriding
+                    # -1 means endless (None in DB), mark instance to prevent signal override
                     if "token_lifetime" in user_data:
-                        user.token_lifetime = user_data.get("token_lifetime")
+                        token_lifetime = user_data.get("token_lifetime")
+                        user.token_lifetime = (
+                            None if token_lifetime == -1 else token_lifetime
+                        )
                         user._token_lifetime_explicitly_set = True
 
                     # Set password if provided, otherwise set unusable password
