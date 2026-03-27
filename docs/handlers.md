@@ -639,6 +639,7 @@ td:nth-child(4) {
 | `log_offering_role_deleted` | `Django Signal (post_delete)` | `marketplace.OfferingUserRole` | Log offering role deletion. |
 | `log_offering_user_created` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Log offering user creation. |
 | `log_offering_user_deleted` | `Django Signal (post_delete)` | `marketplace.OfferingUser` | Log offering user deletion. |
+| `log_offering_user_username_updated` | `Django Signal (post_save)` | `marketplace.OfferingUser` | No description |
 | `log_order_events` | `Django Signal (post_save)` | `marketplace.Order` | Log order creation and state transition events. |
 | `log_request_events` | `Django Signal (post_save)` | `marketplace_remote.ProjectUpdateRequest` | No description |
 | `log_resource_events` | `Django Signal (post_save)` | `marketplace.Resource` | Log resource creation request events. |
@@ -760,6 +761,7 @@ td:nth-child(4) {
 | `trigger_scim_sync_on_offering_endpoint_change` | `Django Signal (post_save)` | `marketplace.OfferingAccessEndpoint` | Trigger SCIM entitlements synchronization when offering SSH endpoints change. |
 | `trigger_scim_sync_on_offering_endpoint_change` | `Django Signal (post_delete)` | `marketplace.OfferingAccessEndpoint` | Trigger SCIM entitlements synchronization when offering SSH endpoints change. |
 | `trigger_scim_sync_on_offering_user_ok` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Trigger SCIM entitlements synchronization when OfferingUser transitions to OK with username. |
+| `trigger_scim_sync_on_resource_ok` | `Django Signal (post_save)` | `marketplace.Resource` | Trigger SCIM entitlements synchronization when resource transitions to OK. |
 | `trigger_user_action_recalculation_on_order_state_change` | `Django Signal (post_save)` | `marketplace.Order` | Trigger immediate UserAction recalculation when Order state changes. |
 | `update_argocd_secret_when_resource_options_changed` | `Django Signal (post_save)` | `marketplace.Resource` | No description |
 | `update_cache_when_invoice_item_is_deleted` | `Django Signal (post_delete)` | `invoices.InvoiceItem` | No description |
@@ -868,7 +870,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 784
+Total unique handlers found: 786
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
@@ -876,7 +878,7 @@ Total unique handlers found: 784
 - **waldur_freeipa**: 12 handlers
 - **waldur_keycloak**: 9 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 308 handlers
+- **waldur_mastermind**: 310 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers

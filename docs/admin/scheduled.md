@@ -60,6 +60,8 @@ td:nth-child(4) {
 | `notification_about_project_ending` | `waldur_mastermind.marketplace.notification_about_project_ending` | Cron: `0 10 * * * (m/h/dM/MY/d)` | Send notifications about projects ending in 1 day and 7 days. |
 | `notification_about_resource_ending` | `waldur_mastermind.marketplace.notification_about_resource_ending` | Cron: `0 10 * * * (m/h/dM/MY/d)` | Send notifications about resources ending in 1 day and 7 days. |
 | `notify-managers-of-expired-batches` | `waldur_mastermind.proposal.notify_managers_of_expired_batches` | 30 minutes | Notify call managers when batches expire without response. |
+| `notify-proposal-creator-on-submission-deadline-approaching` | `waldur_mastermind.proposal.notify_proposal_creator_on_submission_deadline_approaching` | 1 day | No description available |
+| `notify-reviewer-on-review-deadline-approaching` | `waldur_mastermind.proposal.notify_reviewer_on_review_deadline_approaching` | 1 day | No description available |
 | `notify_about_stale_resource` | `waldur_mastermind.marketplace.notify_about_stale_resource` | Cron: `0 15 5 * * (m/h/dM/MY/d)` | Notify customers about resources that have not generated invoice items in the last 3 months. |
 | `notify_manager_on_round_cutoff` | `waldur_mastermind.proposal.notify_manager_on_round_cutoff` | 1 hour | No description available |
 | `notify_reviewer_on_round_start` | `waldur_mastermind.proposal.notify_reviewer_on_round_start` | 1 day | No description available |

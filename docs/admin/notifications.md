@@ -3187,6 +3187,79 @@ A notification about the proposal state changes (submitted → in review → acc
 
 ```
 
+### proposal.proposal_submission_deadline_approaching
+
+Reminds proposal creators to submit draft proposals during the last 3 days before the round cutoff.
+
+#### Templates
+
+=== "proposal/proposal_submission_deadline_approaching_subject.txt"
+
+```txt
+
+    Reminder: Proposal {{ proposal_name }} submission deadline approaching for {{ call_name }}
+
+```
+
+=== "proposal/proposal_submission_deadline_approaching_message.txt"
+
+```txt
+
+    Dear {{ proposal_creator_name }},
+
+    This is a friendly reminder that the submission deadline for your draft proposal "{{ proposal_name }}" in call "{{ call_name }}" is approaching.
+
+    Deadline information:
+    - Round: {{ round_name }}
+    - Submission deadline: {{ deadline_date }}
+    - Time remaining: {{ time_remaining_days }} days {{ time_remaining_hours }} hours
+
+    Your proposal is currently in DRAFT state. To be considered for review, you must submit your proposal before the deadline.
+
+    Please ensure you have completed all required sections and finalized your resource requests before submission.
+
+    Complete and submit proposal: {{ proposal_url }}
+
+    Any proposals left in draft state after the deadline will be automatically canceled and will not be considered for resource allocation.
+
+    This is an automated message from the {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/proposal_submission_deadline_approaching_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Proposal submission deadline reminder</title>
+    </head>
+    <body>
+        <p>Dear {{ proposal_creator_name }},</p>
+
+        <p>This is a friendly reminder that the submission deadline for your draft proposal "{{ proposal_name }}" in call "{{ call_name }}" is approaching.</p>
+
+        <p><strong>Deadline information:</strong><br>
+            - Round: {{ round_name }}<br>
+            - Submission deadline: {{ deadline_date }}<br>
+            - Time remaining: {{ time_remaining_days }} days {{ time_remaining_hours }} hours
+        </p>
+
+        <p>Your proposal is currently in <strong>DRAFT</strong> state. To be considered for review, you must submit your proposal before the deadline.</p>
+
+        <p>Please ensure you have completed all required sections and finalized your resource requests before submission.</p>
+
+        <p>Complete and submit proposal: <a href="{{ proposal_url }}">{{ proposal_url }}</a></p>
+
+        <p>Any proposals left in draft state after the deadline will be automatically canceled and will not be considered for resource allocation.</p>
+
+        <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
+    </body>
+    </html>
+
+```
+
 ### proposal.requested_offering_decision
 
 A notification to call manager about the decision on requested offering (accepted/rejected).
@@ -3331,6 +3404,69 @@ A notification to a reviewer about a new review assignment.
     <p>If you accept this assignment, you'll be able to access the full proposal content and submit your review.</p>
 
     <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+    </body>
+    </html>
+
+```
+
+### proposal.review_deadline_approaching
+
+Reminds reviewers to submit in-review assignments 3 days before deadline.
+
+#### Templates
+
+=== "proposal/review_deadline_approaching_subject.txt"
+
+```txt
+
+    Reminder: Review due in {{ time_remaining_days }} days for {{ proposal_name }}
+
+```
+
+=== "proposal/review_deadline_approaching_message.txt"
+
+```txt
+
+    Dear {{ reviewer_name }},
+
+    This is a friendly reminder that your review for the proposal "{{ proposal_name }}" in call "{{ call_name }}" is due soon.
+
+    Review deadline:
+    - Due date: {{ review_deadline }}
+    - Time remaining: {{ time_remaining_days }} days
+
+    Please log in to the platform to complete and submit your review as soon as possible. If you have any questions or need assistance, please contact the call manager.
+
+    Continue review: {{ review_url }}
+
+    This is an automated message from the {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/review_deadline_approaching_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Review deadline reminder</title>
+    </head>
+    <body>
+        <p>Dear {{ reviewer_name }},</p>
+
+        <p>This is a friendly reminder that your review for the proposal "{{ proposal_name }}" in call "{{ call_name }}" is due soon.</p>
+
+        <p><strong>Review deadline:</strong><br>
+            - Due date: {{ review_deadline }}<br>
+            - Time remaining: {{ time_remaining_days }} days
+        </p>
+
+        <p>Please log in to the platform to complete and submit your review as soon as possible. If you have any questions or need assistance, please contact the call manager.</p>
+
+        <p>Continue review: <a href="{{ review_url }}">{{ review_url }}</a></p>
+
+        <p>This is an automated message from the {{ site_name }}. Please do not reply to this email.</p>
     </body>
     </html>
 
