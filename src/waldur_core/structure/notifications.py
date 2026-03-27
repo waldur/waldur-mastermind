@@ -972,6 +972,26 @@ class RoundClosingForManagersContext(BaseModel):
     round_url: str = Field(description="A URL to the round management page.")
 
 
+class ProposalSubmissionDeadlineApproachingContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    proposal_creator_name: str = Field(
+        description="Full name of the proposal creator receiving the reminder."
+    )
+    proposal_name: str = Field(description="Name of the draft proposal.")
+    call_name: str = Field(description="Name of the call for proposals.")
+    round_name: str = Field(description="Name of the round containing the proposal.")
+    deadline_date: Any = Field(
+        description="Proposal submission deadline date and time."
+    )
+    time_remaining_days: int = Field(
+        description="Whole number of days remaining until the submission deadline."
+    )
+    time_remaining_hours: int = Field(
+        description="Whole number of hours remaining after remaining days are excluded."
+    )
+    proposal_url: str = Field(description="A URL to the proposal details page.")
+
+
 class ReviewsCompleteContext(BaseModel):
     site_name: str = Field(description="The name of the site from settings.")
     proposal_name: str = Field(
@@ -1021,6 +1041,11 @@ class ProposalSection(NotificationSection):
         key="proposal_state_changed",
         description="A notification about the proposal state changes (submitted → in review → accepted/rejected).",
         context_model=ProposalStateChangedContext,
+    )
+    proposal_submission_deadline_approaching = Notification(
+        key="proposal_submission_deadline_approaching",
+        description="Reminds proposal creators to submit draft proposals 3 days before the round cutoff.",
+        context_model=ProposalSubmissionDeadlineApproachingContext,
     )
     requested_offering_decision = Notification(
         key="requested_offering_decision",

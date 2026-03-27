@@ -1,0 +1,1 @@
+Reminder: Proposal {{ proposal_name }} submission deadline approaching for {{ call_name }}
