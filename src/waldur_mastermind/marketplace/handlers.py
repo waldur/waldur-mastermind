@@ -683,15 +683,16 @@ def _get_current_total(component, resource, instance):
         return models.ComponentUsage.objects.filter(
             resource=resource, component=component
         ).aggregate(total=Sum("usage"))["total"] or Decimal(0)
-    return instance.usage
+    return Decimal(str(instance.usage))
 
 
 def _get_previous_total(current_total, instance, created):
+    usage = Decimal(str(instance.usage))
     if created:
-        return current_total - instance.usage
+        return current_total - usage
     previous_raw = instance.tracker.previous("usage")
     previous = Decimal(str(previous_raw)) if previous_raw is not None else Decimal(0)
-    return current_total - (instance.usage - previous)
+    return current_total - (usage - previous)
 
 
 def _check_and_notify_at_threshold(instance, created, threshold_factor, task):
