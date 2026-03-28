@@ -1,9 +1,11 @@
 import datetime
+import threading
 from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 
 from ddt import data, ddt
 from django.db.models.aggregates import Sum
+from django.test import TransactionTestCase
 from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -1074,3 +1076,77 @@ class CompensationQueryOptimizationTest(test.APITestCase):
                 len(actual_compensations) > 0,
                 "No compensations were generated when no credit offerings specified",
             )
+
+
+@freeze_time("2024-03-01")
+class ConcurrentCreditDeductionTest(TransactionTestCase):
+    """WAL-9806: Verify that concurrent invoice credit processing does not lose updates.
+
+    Without proper locking, two concurrent process_invoice_credits() calls for the
+    same customer can both read the same credit value, each deduct their amount,
+    and the last save wins — losing one deduction entirely.
+    """
+
+    def test_concurrent_credit_deduction_preserves_both(self):
+        """Two concurrent compensations must both deduct from the same credit."""
+        customer = structure_factories.CustomerFactory()
+        credit = factories.CustomerCreditFactory(
+            customer=customer, value=Decimal("100.00")
+        )
+
+        project = structure_factories.ProjectFactory(customer=customer)
+
+        offering = marketplace_factories.OfferingFactory(customer=customer)
+        resource1 = marketplace_factories.ResourceFactory(
+            project=project, offering=offering
+        )
+        resource2 = marketplace_factories.ResourceFactory(
+            project=project, offering=offering
+        )
+
+        invoice1 = factories.InvoiceFactory(customer=customer, month=3, year=2024)
+        factories.InvoiceItemFactory(
+            invoice=invoice1,
+            resource=resource1,
+            project=project,
+            unit_price=Decimal("40.00"),
+            quantity=1,
+        )
+
+        invoice2 = factories.InvoiceFactory(customer=customer, month=2, year=2024)
+        factories.InvoiceItemFactory(
+            invoice=invoice2,
+            resource=resource2,
+            project=project,
+            unit_price=Decimal("30.00"),
+            quantity=1,
+        )
+
+        barrier = threading.Barrier(2, timeout=10)
+        errors = []
+
+        def process_with_barrier(invoice):
+            try:
+                barrier.wait()
+                tasks.process_invoice_credits(invoice)
+            except Exception as e:
+                errors.append(e)
+
+        t1 = threading.Thread(target=process_with_barrier, args=(invoice1,))
+        t2 = threading.Thread(target=process_with_barrier, args=(invoice2,))
+        t1.start()
+        t2.start()
+        t1.join(timeout=15)
+        t2.join(timeout=15)
+
+        self.assertEqual(errors, [], f"Threads raised errors: {errors}")
+
+        credit.refresh_from_db()
+        # Expected: 100 - 40 - 30 = 30
+        # Without locking: 60 or 70 (one deduction lost)
+        self.assertEqual(
+            credit.value,
+            Decimal("30.00"),
+            f"Credit should be 30 (100 - 40 - 30), got {credit.value}. "
+            "Lost update indicates missing database locking.",
+        )
