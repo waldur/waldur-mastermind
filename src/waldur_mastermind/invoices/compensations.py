@@ -62,7 +62,7 @@ class MonthlyCompensation:
             project_credit.project: project_credit
             for project_credit in models.ProjectCredit.objects.filter(
                 project_id__in=items_projects_ids
-            ).select_related("project")  # Prefetch related project data
+            ).select_related("project")
         }
         credit_offerings = list(self.credit.offerings.all())
         credit_offering_ids = (

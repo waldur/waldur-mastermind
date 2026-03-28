@@ -370,38 +370,59 @@ def send_monthly_invoicing_reports_about_customers():
 def set_to_zero_overdue_credits(effective_date=None):
     if effective_date is None:
         effective_date = timezone.localtime(timezone.now()).date()
-    for credit in models.CustomerCredit.objects.filter(
-        end_date__lt=effective_date
-    ).exclude(value=0):
-        credit.value = 0
-        credit.save()
-        event_logger.emit(
-            "Credit has been set to zero due as the end date {credit_end_date} has arrived.",
-            event_type=EventType.SET_TO_ZERO_OVERDUE_CREDIT,
-            event_context={
-                "customer": credit.customer,
-                "credit_end_date": credit.end_date,
-            },
-        )
-    for project_credit in models.ProjectCredit.objects.filter(
-        end_date__lt=effective_date
-    ).exclude(value=0):
-        project_credit.value = 0
-        project_credit.save()
-        event_logger.emit(
-            "Project credit has been set to zero as the end date {credit_end_date} has arrived.",
-            event_type=EventType.SET_TO_ZERO_OVERDUE_CREDIT,
-            event_context={
-                "customer": project_credit.project.customer,
-                "project": project_credit.project,
-                "credit_end_date": project_credit.end_date,
-            },
-        )
+    with transaction.atomic():
+        for credit in (
+            models.CustomerCredit.objects.select_for_update()
+            .filter(end_date__lt=effective_date)
+            .exclude(value=0)
+        ):
+            credit.value = 0
+            credit.save(update_fields=["value"])
+            event_logger.emit(
+                "Credit has been set to zero due as the end date {credit_end_date} has arrived.",
+                event_type=EventType.SET_TO_ZERO_OVERDUE_CREDIT,
+                event_context={
+                    "customer": credit.customer,
+                    "credit_end_date": credit.end_date,
+                },
+            )
+        for project_credit in (
+            models.ProjectCredit.objects.select_for_update()
+            .filter(end_date__lt=effective_date)
+            .exclude(value=0)
+        ):
+            project_credit.value = 0
+            project_credit.save(update_fields=["value"])
+            event_logger.emit(
+                "Project credit has been set to zero as the end date {credit_end_date} has arrived.",
+                event_type=EventType.SET_TO_ZERO_OVERDUE_CREDIT,
+                event_context={
+                    "customer": project_credit.project.customer,
+                    "project": project_credit.project,
+                    "credit_end_date": project_credit.end_date,
+                },
+            )
 
 
 def process_invoice_credits(invoice: models.Invoice):
-    """Process credits for a given invoice"""
+    """Process credits for a given invoice.
+
+    Uses select_for_update() to lock credit rows before reading,
+    preventing lost updates when concurrent workers process invoices
+    for the same customer. See WAL-9806.
+    """
     with transaction.atomic():
+        # Lock the customer credit row to prevent concurrent modifications.
+        # The MonthlyCompensation will re-read the credit, but the lock
+        # ensures no other transaction can modify it until we commit.
+        models.CustomerCredit.objects.select_for_update().filter(
+            customer=invoice.customer
+        ).exists()
+        # Also lock project credits that might be consumed.
+        models.ProjectCredit.objects.select_for_update().filter(
+            project__customer=invoice.customer
+        ).exists()
+
         monthly_compensation = compensations.MonthlyCompensation(
             invoice.customer, invoice=invoice
         )

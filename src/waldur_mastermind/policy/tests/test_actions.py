@@ -1,8 +1,10 @@
+import threading
 from unittest import mock
 
 from ddt import data, ddt
 from django.db.models.signals import post_save
-from django.test import override_settings
+from django.test import TransactionTestCase, override_settings
+from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status, test
 
@@ -19,7 +21,7 @@ from waldur_mastermind.marketplace.enums import (
 )
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
-from waldur_mastermind.policy import policy_actions, tasks
+from waldur_mastermind.policy import policy_actions, tasks, utils
 from waldur_mastermind.policy.tests import factories
 
 
@@ -944,3 +946,97 @@ class PolicyActionReentrantSignalTest(test.APITestCase):
 
         self.resource.refresh_from_db()
         self.assertTrue(self.resource.downscaled)
+
+
+@override_settings(task_always_eager=True)
+class ConcurrentPolicyEvaluationTest(TransactionTestCase):
+    """WAL-9807: Verify that concurrent policy evaluations fire actions exactly once.
+
+    Without atomic CAS on has_fired, two concurrent evaluate_policies() calls
+    can both read has_fired=False, both fire actions, and both save has_fired=True.
+    """
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.policy = factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.fixture.project,
+            created_by=self.fixture.user,
+        )
+        self.policy.actions = "request_pausing"
+        self.policy.limit_cost = (
+            0  # Any cost exceeds limit, so is_triggered() returns True
+        )
+        self.policy.save()
+
+        self.resource = self.fixture.resource
+        self.resource.offering.plugin_options = {"supports_pausing": True}
+        self.resource.offering.save()
+        self.resource.state = marketplace_models.Resource.States.OK
+        self.resource.save()
+
+        # Use existing invoice from fixture or get/create one
+        from waldur_mastermind.invoices.models import Invoice
+
+        now = timezone.now()
+        invoice, _ = Invoice.objects.get_or_create(
+            customer=self.fixture.customer,
+            month=now.month,
+            year=now.year,
+            defaults={"tax_percent": 0},
+        )
+        invoices_factories.InvoiceItemFactory(
+            invoice=invoice,
+            resource=self.resource,
+            project=self.fixture.project,
+            unit_price=50,
+            quantity=1,
+        )
+
+    def test_concurrent_evaluation_fires_actions_once(self):
+        """Two concurrent evaluations must fire policy actions exactly once.
+
+        With atomic CAS on has_fired, only one of two concurrent workers
+        will successfully transition has_fired from False to True.
+        We verify this by checking how many times the resource was paused.
+        """
+        barrier = threading.Barrier(2, timeout=10)
+        errors = []
+
+        def evaluate_after_barrier():
+            try:
+                barrier.wait()
+                from waldur_mastermind.policy.models import (
+                    ProjectEstimatedCostPolicy,
+                )
+
+                policies = ProjectEstimatedCostPolicy.objects.filter(pk=self.policy.pk)
+                utils.evaluate_policies(policies)
+            except Exception as e:
+                errors.append(e)
+
+        t1 = threading.Thread(target=evaluate_after_barrier)
+        t2 = threading.Thread(target=evaluate_after_barrier)
+        t1.start()
+        t2.start()
+        t1.join(timeout=15)
+        t2.join(timeout=15)
+
+        self.assertEqual(errors, [], f"Threads raised errors: {errors}")
+
+        self.policy.refresh_from_db()
+        self.assertTrue(self.policy.has_fired)
+
+        # Check that policy was only marked as fired once by counting
+        # the reversion entries — each fire creates one revision.
+        from reversion.models import Version
+
+        versions = Version.objects.get_for_object(self.resource)
+        pause_versions = [
+            v for v in versions if "request_pausing" in (v.revision.comment or "")
+        ]
+        self.assertEqual(
+            len(pause_versions),
+            1,
+            f"Resource was paused {len(pause_versions)} times, expected exactly 1. "
+            "Double-fire indicates missing atomic CAS on has_fired.",
+        )
