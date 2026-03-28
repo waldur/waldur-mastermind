@@ -34,6 +34,19 @@ FONT_FAMILY_CHOICES = [
     ("Maven Pro", "Maven Pro"),
 ]
 
+MARKETPLACE_LAYOUT_MODE_CHOICES = [
+    ("classic", "Classic"),
+    ("sidebar", "Sidebar"),
+    ("carousel", "Carousel"),
+]
+
+MARKETPLACE_CARD_STYLE_CHOICES = [
+    ("compact", "Compact"),
+    ("detailed", "Detailed"),
+    ("list", "List"),
+    ("minimal", "Minimal"),
+]
+
 LOGIN_PAGE_LAYOUT_CHOICES = [
     ("split-screen", "Split-screen"),
     ("centered-card", "Centered-card"),
@@ -253,6 +266,8 @@ CONSTANCE_CONFIG_CHOICES = {
     "SIDEBAR_STYLE": SIDEBAR_STYLE_CHOICES,
     "FONT_FAMILY": FONT_FAMILY_CHOICES,
     "LOGIN_PAGE_LAYOUT": LOGIN_PAGE_LAYOUT_CHOICES,
+    "MARKETPLACE_LAYOUT_MODE": MARKETPLACE_LAYOUT_MODE_CHOICES,
+    "MARKETPLACE_CARD_STYLE": MARKETPLACE_CARD_STYLE_CHOICES,
     "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE": SUPPORT_BACKEND_CHOICES,
     "ZAMMAD_ARTICLE_TYPE": ZAMMAD_ARTICLE_TYPE_CHOICES,
     "DEFAULT_OFFERING_USER_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
@@ -333,6 +348,16 @@ CONSTANCE_CONFIG = {
     "MARKETPLACE_LANDING_PAGE": (
         "Marketplace",
         "Marketplace landing page title.",
+    ),
+    "MARKETPLACE_LAYOUT_MODE": (
+        "classic",
+        "Default marketplace layout mode.",
+        "choice_field",
+    ),
+    "MARKETPLACE_CARD_STYLE": (
+        "detailed",
+        "Default marketplace offering card style.",
+        "choice_field",
     ),
     "ENABLE_STALE_RESOURCE_NOTIFICATIONS": (
         False,
@@ -1296,6 +1321,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "SITE_PHONE",
         "CURRENCY_NAME",
         "MARKETPLACE_LANDING_PAGE",
+        "MARKETPLACE_LAYOUT_MODE",
+        "MARKETPLACE_CARD_STYLE",
         "COUNTRIES",
     ),
     "Marketplace visibility & access": (
@@ -1640,6 +1667,8 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "LOGIN_PAGE_CAROUSEL_SLIDES",
     "LOGIN_PAGE_NEWS",
     "MARKETPLACE_LANDING_PAGE",
+    "MARKETPLACE_LAYOUT_MODE",
+    "MARKETPLACE_CARD_STYLE",
     "ENABLE_ORDER_START_DATE",
     "ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT",
     "AI_ASSISTANT_ENABLED",
