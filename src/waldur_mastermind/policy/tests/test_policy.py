@@ -633,3 +633,55 @@ class ProjectCostPolicyQueryFilterTest(test.APITestCase):
         response = self.client.get(self.url, {"query": "alpha"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
+
+
+@override_settings(task_always_eager=True)
+@freeze_time("2024-09-01")
+class AffectedResourcesCountTest(test.APITestCase):
+    """WAL-9808: Verify affected_resources_count in cost policy API response."""
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.policy = factories.ProjectEstimatedCostPolicyFactory(
+            scope=self.fixture.project,
+            actions="request_pausing",
+            limit_cost=10,
+        )
+        self.resource = self.fixture.resource
+        self.resource.offering.plugin_options = {"supports_pausing": True}
+        self.resource.offering.save()
+        self.url = factories.ProjectEstimatedCostPolicyFactory.get_list_url()
+
+    def test_count_is_zero_when_policy_not_fired(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]["affected_resources_count"], 0)
+
+    def test_count_reflects_paused_resources(self):
+        # Fire the policy and pause the resource
+        policy_actions.request_pausing(self.policy)
+        self.policy.has_fired = True
+        self.policy.save()
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.paused)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]["affected_resources_count"], 1)
+
+    def test_count_excludes_resources_without_offering_support(self):
+        # Pause resource but disable offering support
+        self.resource.paused = True
+        self.resource.save()
+        self.resource.offering.plugin_options = {"supports_pausing": False}
+        self.resource.offering.save()
+        self.policy.has_fired = True
+        self.policy.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]["affected_resources_count"], 0)
