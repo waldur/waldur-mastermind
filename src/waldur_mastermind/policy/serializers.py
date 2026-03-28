@@ -4,6 +4,7 @@ from typing import cast
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
@@ -14,8 +15,11 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.permissions import _get_customer
 from waldur_mastermind.invoices.models import CustomerCredit, PeriodMixin, ProjectCredit
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import BillingTypes
-from waldur_mastermind.policy.policy_actions import POLICY_ACTIONS
+from waldur_mastermind.marketplace.enums import BillingTypes, ResourceStates
+from waldur_mastermind.policy.policy_actions import (
+    POLICY_ACTIONS,
+    _filter_resources_by_scope,
+)
 
 from . import models
 from .models import LIMIT_PERIOD_TO_POLICY_PERIOD
@@ -34,6 +38,34 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
     )
     has_fired = serializers.BooleanField(read_only=True)
     fired_datetime = serializers.DateTimeField(read_only=True)
+    affected_resources_count = serializers.SerializerMethodField()
+
+    def get_affected_resources_count(self, instance) -> int:
+        if not instance.has_fired:
+            return 0
+        actions = set((instance.actions or "").split(","))
+        qs = marketplace_models.Resource.objects.exclude(
+            state__in=(ResourceStates.TERMINATED, ResourceStates.TERMINATING)
+        )
+        qs = _filter_resources_by_scope(qs, instance)
+        if qs is None:
+            return 0
+        q = Q()
+        if "request_pausing" in actions:
+            q |= Q(paused=True, offering__plugin_options__supports_pausing=True)
+        if "request_downscaling" in actions:
+            q |= Q(
+                downscaled=True,
+                offering__plugin_options__supports_downscaling=True,
+            )
+        if "restrict_members" in actions:
+            q |= Q(
+                restrict_member_access=True,
+                offering__plugin_options__service_provider_can_create_offering_user=True,
+            )
+        if not q:
+            return 0
+        return qs.filter(q).count()
 
     def validate_actions(self, value):
         if not value:
@@ -141,6 +173,7 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
             "has_fired",
             "fired_datetime",
             "options",
+            "affected_resources_count",
         )
         extra_kwargs = {
             "url": {
