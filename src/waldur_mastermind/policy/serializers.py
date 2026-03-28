@@ -12,6 +12,7 @@ from rest_framework import serializers
 from waldur_core.core import serializers as core_serializers
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure import models as structure_models
+from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.permissions import _get_customer
 from waldur_mastermind.invoices.models import CustomerCredit, PeriodMixin, ProjectCredit
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -50,6 +51,13 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
         qs = _filter_resources_by_scope(qs, instance)
         if qs is None:
             return 0
+
+        # Filter by user visibility to prevent information disclosure.
+        # Non-staff users should only see counts of resources they have access to.
+        request = self.context.get("request")
+        if request and request.user and not request.user.is_staff:
+            qs = filter_queryset_for_user(qs, request.user)
+
         q = Q()
         if "request_pausing" in actions:
             q |= Q(paused=True, offering__plugin_options__supports_pausing=True)

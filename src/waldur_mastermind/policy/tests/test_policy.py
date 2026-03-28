@@ -685,3 +685,31 @@ class AffectedResourcesCountTest(test.APITestCase):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data[0]["affected_resources_count"], 0)
+
+    def test_count_filtered_by_user_permissions(self):
+        """affected_resources_count applies user permission filtering.
+
+        The count uses filter_queryset_for_user for non-staff users to prevent
+        information disclosure. In practice, users who can see a policy already
+        have access to its scope resources (enforced by GenericRoleFilter on
+        the policy viewset), so this is a defense-in-depth measure.
+        """
+        # Fire the policy and pause the resource
+        policy_actions.request_pausing(self.policy)
+        self.policy.has_fired = True
+        self.policy.save()
+
+        self.resource.refresh_from_db()
+        self.assertTrue(self.resource.paused)
+
+        # Owner has access to the project and can see the policy + count
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]["affected_resources_count"], 1)
+
+        # A user with no role cannot even see the policy
+        self.client.force_authenticate(self.fixture.user)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
