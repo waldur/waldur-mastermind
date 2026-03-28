@@ -1198,6 +1198,22 @@ It is used in marketplace order details and invoices for currency formatting.
 
 Marketplace landing page title.
 
+#### MARKETPLACE_LAYOUT_MODE
+
+**Type:** choice_field
+
+**Default value:** classic
+
+Default marketplace layout mode.
+
+#### MARKETPLACE_CARD_STYLE
+
+**Type:** choice_field
+
+**Default value:** detailed
+
+Default marketplace offering card style.
+
 #### COUNTRIES
 
 **Type:** country_list_field
