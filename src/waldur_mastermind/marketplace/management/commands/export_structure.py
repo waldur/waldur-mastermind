@@ -15,6 +15,8 @@ from waldur_core.checklist.models import (
     QuestionOption,
 )
 from waldur_core.core.models import User
+from waldur_core.logging.enums import EVENT_GROUP_MAPPING, EventGroup, EventType
+from waldur_core.logging.models import Event
 from waldur_core.permissions.models import Role, RolePermission, UserRole
 from waldur_core.structure.models import (
     Customer,
@@ -112,6 +114,11 @@ class Command(BaseCommand):
             action="store_true",
             help="Enable verbose logging output",
         )
+        parser.add_argument(
+            "--include-events",
+            action="store_true",
+            help="Include audit log events related to invoicing, credits and policies.",
+        )
 
     def log_export_step(self, step_name, export_function):
         """Helper method to log and time export steps."""
@@ -139,6 +146,7 @@ class Command(BaseCommand):
     def handle(self, **options):
         output_path = options["output"]
         verbose = options.get("verbose", False)
+        include_events = options.get("include_events", False)
 
         # Setup logging level
         if verbose:
@@ -315,6 +323,9 @@ class Command(BaseCommand):
                 "openstack_volumes", self.export_openstack_volumes
             ),
         }
+
+        if include_events:
+            data["events"] = self.log_export_step("events", self.export_events)
 
         export_elapsed = time.time() - export_start_time
         self.logger.info(f"Data export completed in {export_elapsed:.2f}s")
@@ -2306,3 +2317,33 @@ class Command(BaseCommand):
                 }
             )
         return policies
+
+    def export_events(self):
+        """Export audit log events related to invoicing, credits and policies."""
+        event_types = set()
+        for group in [EventGroup.INVOICES, EventGroup.CREDITS]:
+            event_types.update(
+                item.value for item in EVENT_GROUP_MAPPING.get(group, [])
+            )
+        event_types.update(
+            [
+                EventType.POLICY_NOTIFICATION.value,
+                EventType.SLURM_POLICY_EVALUATION.value,
+                EventType.REQUEST_SLURM_RESOURCE_DOWNSCALING.value,
+                EventType.REQUEST_SLURM_RESOURCE_PAUSING.value,
+            ]
+        )
+        events = []
+        for event in Event.objects.filter(event_type__in=sorted(event_types)).order_by(
+            "created"
+        ):
+            events.append(
+                {
+                    "uuid": event.uuid.hex,
+                    "event_type": event.event_type,
+                    "message": event.message,
+                    "context": event.context,
+                    "created": event.created.isoformat(),
+                }
+            )
+        return events
