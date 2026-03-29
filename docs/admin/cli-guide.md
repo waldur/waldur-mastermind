@@ -479,12 +479,14 @@ waldur export_structure --output /path/to/structure.json
 
 ```bash
 
-usage: waldur export_structure -o OUTPUT [--verbose]
+usage: waldur export_structure -o OUTPUT [--verbose] [--include-events]
 
 options:
   -o OUTPUT, --output OUTPUT
                         Path to the output JSON file.
   --verbose             Enable verbose logging output
+  --include-events      Include audit log events related to invoicing, credits
+                        and policies.
 
 ```
 
