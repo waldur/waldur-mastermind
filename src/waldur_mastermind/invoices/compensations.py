@@ -272,7 +272,7 @@ class MonthlyCompensation:
         models.InvoiceItem.objects.bulk_create(self.compensations)
 
         for pc in self.projects_credits:
-            pc.save()
+            pc.save(update_fields=["value"])
 
         self.credit.save(update_fields=["value"])
 
@@ -395,7 +395,7 @@ class MonthlyCompensation:
         self.credit.value += max(
             applied_compensations_sum, self.credit.minimal_consumption
         )
-        self.credit.save()
+        self.credit.save(update_fields=["value"])
         log.log_roll_back_customer_credit(
             self.credit.customer,
             old_credit_value,
@@ -419,7 +419,7 @@ class MonthlyCompensation:
                 value = value[0] * -1
                 old_project_credit_value = project_credit.value
                 project_credit.value += value
-                project_credit.save()
+                project_credit.save(update_fields=["value"])
                 log.log_roll_back_project_credit(
                     self.credit.customer,
                     project_credit.project,

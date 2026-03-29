@@ -14,6 +14,7 @@ from django.utils import timezone
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
+from waldur_core.logging.middleware import set_current_user
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices.utils import get_previous_month
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
@@ -31,6 +32,7 @@ def create_monthly_invoices():
       and freeze their items (or transition to "pending_finalization" if grace period is configured).
     - Create new invoice for every customer in current month if not created yet.
     """
+    set_current_user(core_utils.get_system_robot())
     copy_future_price_to_current_price()
 
     grace_hours = settings.WALDUR_INVOICES.get(
@@ -104,6 +106,7 @@ def finalize_previous_invoices():
     No-op when there are no PENDING_FINALIZATION invoices or when the
     grace period has not yet elapsed.
     """
+    set_current_user(core_utils.get_system_robot())
     pending_invoices = models.Invoice.objects.filter(
         state=models.Invoice.States.PENDING_FINALIZATION,
     )
@@ -368,6 +371,7 @@ def send_monthly_invoicing_reports_about_customers():
 
 
 def set_to_zero_overdue_credits(effective_date=None):
+    set_current_user(core_utils.get_system_robot())
     if effective_date is None:
         effective_date = timezone.localtime(timezone.now()).date()
     with transaction.atomic():

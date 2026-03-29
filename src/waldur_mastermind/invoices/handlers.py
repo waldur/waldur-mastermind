@@ -18,7 +18,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import ResourceStates
 
-from .models import CustomerCredit, Invoice, InvoiceItem
+from .models import CustomerCredit, Invoice, InvoiceItem, ProjectCredit
 
 logger = logging.getLogger(__name__)
 
@@ -212,6 +212,11 @@ def create_recurring_usage_if_invoice_has_been_created(
 
 
 def log_credit(sender, instance: CustomerCredit, created=False, **kwargs):
+    # Skip update events for programmatic saves (e.g. compensation, zeroing).
+    # Those flows emit their own specific events (REDUCTION_OF_*, SET_TO_ZERO_*).
+    if kwargs.get("update_fields"):
+        return
+
     credit = instance
 
     if created:
@@ -234,6 +239,39 @@ def log_credit(sender, instance: CustomerCredit, created=False, **kwargs):
                 "customer": credit.customer,
             },
             scopes=[credit.customer],
+        )
+
+
+def log_project_credit(sender, instance: ProjectCredit, created=False, **kwargs):
+    # Skip update events for programmatic saves (e.g. compensation, zeroing).
+    # Those flows emit their own specific events (REDUCTION_OF_*, SET_TO_ZERO_*).
+    if kwargs.get("update_fields"):
+        return
+
+    credit = instance
+
+    if created:
+        event_logger.emit(
+            "{project_name} project credit has been created. Value: {new_value}",
+            event_type=EventType.CREATE_OF_PROJECT_CREDIT_BY_STAFF,
+            event_context={
+                "new_value": int(credit.value),
+                "customer": credit.project.customer,
+                "project": credit.project,
+            },
+            scopes=[credit.project.customer],
+        )
+    elif credit.tracker.has_changed("value"):
+        event_logger.emit(
+            "{project_name} project credit has been updated from {old_value} to {new_value}.",
+            event_type=EventType.UPDATE_OF_PROJECT_CREDIT_BY_STAFF,
+            event_context={
+                "new_value": int(credit.value),
+                "old_value": int(credit.tracker.previous("value")),
+                "customer": credit.project.customer,
+                "project": credit.project,
+            },
+            scopes=[credit.project.customer],
         )
 
 
