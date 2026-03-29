@@ -641,6 +641,7 @@ td:nth-child(4) {
 | `log_offering_user_deleted` | `Django Signal (post_delete)` | `marketplace.OfferingUser` | Log offering user deletion. |
 | `log_offering_user_username_updated` | `Django Signal (post_save)` | `marketplace.OfferingUser` | No description |
 | `log_order_events` | `Django Signal (post_save)` | `marketplace.Order` | Log order creation and state transition events. |
+| `log_project_credit` | `Django Signal (post_save)` | `invoices.ProjectCredit` | No description |
 | `log_request_events` | `Django Signal (post_save)` | `marketplace_remote.ProjectUpdateRequest` | No description |
 | `log_resource_events` | `Django Signal (post_save)` | `marketplace.Resource` | Log resource creation request events. |
 | `log_resource_robot_account_created_or_updated` | `Django Signal (post_save)` | `marketplace.RobotAccount` | Log resource robot account creation and updates. |
@@ -870,7 +871,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 786
+Total unique handlers found: 787
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
@@ -878,7 +879,7 @@ Total unique handlers found: 786
 - **waldur_freeipa**: 12 handlers
 - **waldur_keycloak**: 9 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 310 handlers
+- **waldur_mastermind**: 311 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
