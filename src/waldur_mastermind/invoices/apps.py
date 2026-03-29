@@ -73,6 +73,12 @@ class InvoiceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.log_project_credit,
+            sender=models.ProjectCredit,
+            dispatch_uid="waldur_mastermind.invoices.log_project_credit",
+        )
+
+        signals.post_save.connect(
             handlers.log_invoice_item_save,
             sender=models.InvoiceItem,
             dispatch_uid="waldur_mastermind.invoices.log_invoice_item_save",

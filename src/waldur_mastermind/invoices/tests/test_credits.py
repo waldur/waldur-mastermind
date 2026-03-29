@@ -226,6 +226,11 @@ class ProjectCreditCreateTest(test.APITestCase):
     def test_user_with_access_can_create_credit(self, user):
         response = self.create_credit(user)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="create_of_project_credit_by_staff"
+            ).exists()
+        )
 
     @data("global_support", "manager", "admin", "user")
     def test_user_cannot_create_credit(self, user):
@@ -248,6 +253,11 @@ class ProjectCreditUpdateTest(test.APITestCase):
     def test_user_with_access_can_update_credit(self, user):
         response = self.update_credit(user)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="update_of_project_credit_by_staff"
+            ).exists()
+        )
 
     @data("manager", "admin", "user")
     def test_user_cannot_update_credit(self, user):
@@ -439,6 +449,86 @@ class CustomerCreditTest(test.APITestCase):
         self.assertEqual(pc_no_end.value, 200)
         # Customer credit should not be affected
         self.assertEqual(customer_credit.value, old_customer_value)
+
+    def test_set_to_zero_includes_system_robot_in_event_context(self):
+        """Events from set_to_zero_overdue_credits should have system robot user context."""
+        factories.CustomerCreditFactory(
+            end_date=datetime.date.today() - datetime.timedelta(days=31)
+        )
+        tasks.set_to_zero_overdue_credits()
+        event = logging_models.Event.objects.filter(
+            event_type="set_to_zero_overdue_credit"
+        ).first()
+        self.assertIsNotNone(event)
+        self.assertIn("user_uuid", event.context)
+        self.assertEqual(event.context["user_full_name"], "System Robot")
+
+    def test_compensation_does_not_produce_update_of_credit_by_staff_event(self):
+        """When compensation reduces credit, only REDUCTION events should fire,
+        not the misleading update_of_credit_by_staff event."""
+        credit = factories.CustomerCreditFactory(
+            customer=self.invoice.customer,
+            value=self.invoice.total * 2,
+        )
+        tasks.process_invoice_credits(self.invoice)
+        credit.refresh_from_db()
+        # REDUCTION event should exist
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="reduction_of_customer_credit"
+            ).exists()
+        )
+        # update_of_credit_by_staff should NOT exist (it's a side effect of credit.save())
+        self.assertFalse(
+            logging_models.Event.objects.filter(
+                event_type="update_of_credit_by_staff"
+            ).exists()
+        )
+
+    def test_compensation_does_not_produce_update_of_project_credit_by_staff_event(
+        self,
+    ):
+        """When compensation reduces project credit, only REDUCTION events should fire,
+        not the misleading update_of_project_credit_by_staff event."""
+        project = structure_factories.ProjectFactory(customer=self.invoice.customer)
+        self.invoice_item.project = project
+        self.invoice_item.save()
+        factories.CustomerCreditFactory(
+            customer=self.invoice.customer,
+            value=self.invoice.total * 2,
+        )
+        factories.ProjectCreditFactory(
+            project=project,
+            value=self.invoice.total * 2,
+        )
+        tasks.process_invoice_credits(self.invoice)
+        # REDUCTION event should exist
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="reduction_of_project_credit"
+            ).exists()
+        )
+        # update_of_project_credit_by_staff should NOT exist
+        self.assertFalse(
+            logging_models.Event.objects.filter(
+                event_type="update_of_project_credit_by_staff"
+            ).exists()
+        )
+
+    def test_api_update_still_produces_update_of_credit_by_staff_event(self):
+        """When staff updates credit via API, update_of_credit_by_staff should fire."""
+        credit = factories.CustomerCreditFactory(
+            customer=self.fixture.customer, value=1000
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.CustomerCreditFactory.get_url(credit)
+        response = self.client.patch(url, {"value": 500})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="update_of_credit_by_staff"
+            ).exists()
+        )
 
 
 @freeze_time("2024-01-01")
