@@ -1319,11 +1319,43 @@ class UserSerializer(
         # Use prefetched permissions if available (from UserViewSet.get_queryset)
         # to avoid N+1 queries. Fall back to query for backwards compatibility.
         if hasattr(user, "prefetched_permissions"):
-            perms = [perm for perm in user.prefetched_permissions if perm.scope]
+            perms = list(user.prefetched_permissions)
         else:
-            perms = UserRole.objects.filter(user=user, is_active=True)
-            perms = [perm for perm in perms if perm.scope]
-        serializer = PermissionSerializer(instance=perms, many=True)
+            perms = list(
+                UserRole.objects.filter(user=user, is_active=True).select_related(
+                    "user", "role", "created_by", "content_type"
+                )
+            )
+
+        # Batch-load scope objects (Project, Customer) to avoid N+1 queries
+        # when PermissionSerializer accesses scope.uuid, scope.customer.uuid, etc.
+        scope_ids_by_ct = {}
+        for perm in perms:
+            if perm.content_type_id and perm.object_id:
+                scope_ids_by_ct.setdefault(perm.content_type_id, []).append(
+                    perm.object_id
+                )
+
+        scope_objects = {}
+        for ct_id, obj_ids in scope_ids_by_ct.items():
+            ct = ContentType.objects.get_for_id(ct_id)
+            model_class = ct.model_class()
+            if model_class is None:
+                continue
+            qs = model_class.objects.filter(id__in=obj_ids)
+            if hasattr(model_class, "customer_id"):
+                qs = qs.select_related("customer")
+            for obj in qs:
+                scope_objects[(ct_id, obj.id)] = obj
+
+        valid_perms = []
+        for perm in perms:
+            scope = scope_objects.get((perm.content_type_id, perm.object_id))
+            if scope is not None:
+                perm.scope = scope
+                valid_perms.append(perm)
+
+        serializer = PermissionSerializer(instance=valid_perms, many=True)
         return serializer.data
 
     def get_requested_email(self, user: core_models.User) -> str | None:
