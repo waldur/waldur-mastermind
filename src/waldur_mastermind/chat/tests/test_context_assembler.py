@@ -38,8 +38,8 @@ class BuildContextTest(TestCase):
 
         # context is a list[dict] in OpenAI messages format
         system_msg = next(m for m in context if m["role"] == "system")
-        self.assertIn("You are a highly knowledgeable", system_msg["content"])
-        self.assertIn("SCOPE: WALDUR CLOUD MANAGEMENT ONLY", system_msg["content"])
+        self.assertIn("a highly knowledgeable", system_msg["content"])
+        self.assertIn("SCOPE: Waldur CLOUD MANAGEMENT ONLY", system_msg["content"])
         self.assertIn(UI_CAPABILITIES, system_msg["content"])
         self.assertIn("TOOL USAGE GUIDELINES", system_msg["content"])
         history_roles_contents = [(m["role"], m["content"]) for m in context]
@@ -51,12 +51,21 @@ class BuildContextTest(TestCase):
         context = build_context(self.user, "Hello", thread=None)
 
         system_msg = next(m for m in context if m["role"] == "system")
-        self.assertIn("You are a highly knowledgeable", system_msg["content"])
+        self.assertIn("a highly knowledgeable", system_msg["content"])
         roles = [m["role"] for m in context]
         self.assertIn("user", roles)
         self.assertNotIn("assistant", roles)
         user_msgs = [m for m in context if m["role"] == "user"]
         self.assertTrue(any("Hello" in m["content"] for m in user_msgs))
+
+    @override_constance_config(AI_ASSISTANT_NAME="Mari", SITE_NAME="ETAIS")
+    def test_custom_assistant_identity_in_system_prompt(self):
+        context = build_context(self.user, "Hello", thread=None)
+        system_msg = next(m for m in context if m["role"] == "system")
+        self.assertIn("Mari", system_msg["content"])
+        self.assertIn("ETAIS", system_msg["content"])
+        self.assertNotIn("{assistant_name}", system_msg["content"])
+        self.assertNotIn("{organization}", system_msg["content"])
 
     def test_conversation_history_chronological_order(self):
         Message.objects.create(
@@ -263,7 +272,7 @@ class ChatStreamIntegrationTest(test.APITestCase):
         user_content = next(
             m["content"] for m in reversed(sent_messages) if m["role"] == "user"
         )
-        self.assertIn("You are a highly knowledgeable", system_content)
+        self.assertIn("a highly knowledgeable", system_content)
         self.assertIn("Test message", user_content)
 
     @override_constance_config(

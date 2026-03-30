@@ -7,8 +7,8 @@ from rest_framework.exceptions import PermissionDenied
 
 from waldur_mastermind.chat.input_guards import SeverityLevel
 from waldur_mastermind.chat.models import Message
-from waldur_mastermind.chat.prompts.assembly import SYSTEM_PROMPT
-from waldur_mastermind.chat.prompts.rejection import REJECTION_SYSTEM_PROMPT
+from waldur_mastermind.chat.prompts.assembly import SYSTEM_PROMPT_TEMPLATE
+from waldur_mastermind.chat.prompts.rejection import REJECTION_SYSTEM_PROMPT_TEMPLATE
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,11 @@ def build_context(user, user_input, thread=None) -> list[dict]:
         raise PermissionDenied("Thread does not belong to the requesting user.")
 
     tools_prompt = tool_registry.get_tools_prompt()
-    system_prompt = SYSTEM_PROMPT.format(tools=tools_prompt)
+    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+        tools=tools_prompt,
+        assistant_name=config.AI_ASSISTANT_NAME,
+        organization=config.SITE_NAME,
+    )
 
     messages = [{"role": "system", "content": system_prompt}]
 
@@ -142,4 +146,7 @@ def build_rejection_input(thread) -> list[dict] | None:
     if not history:
         return None
 
-    return [{"role": "system", "content": REJECTION_SYSTEM_PROMPT}, *history]
+    rejection_prompt = REJECTION_SYSTEM_PROMPT_TEMPLATE.format(
+        organization=config.SITE_NAME,
+    )
+    return [{"role": "system", "content": rejection_prompt}, *history]

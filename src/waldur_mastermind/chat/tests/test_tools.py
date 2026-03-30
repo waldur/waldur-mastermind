@@ -1,7 +1,7 @@
 from django.test import TestCase
 
-from waldur_mastermind.chat.prompts.assembly import SYSTEM_PROMPT
-from waldur_mastermind.chat.prompts.persona import PERSONA
+from waldur_mastermind.chat.prompts.assembly import SYSTEM_PROMPT_TEMPLATE
+from waldur_mastermind.chat.prompts.persona import PERSONA_TEMPLATE
 from waldur_mastermind.chat.prompts.ui_capabilities import UI_CAPABILITIES
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.registry import tool_registry
@@ -152,11 +152,26 @@ class UICapabilitiesTest(TestCase):
 
 
 class SystemPromptTest(TestCase):
-    def test_system_prompt_is_string(self):
-        self.assertIsInstance(SYSTEM_PROMPT, str)
+    def test_system_prompt_template_is_string(self):
+        self.assertIsInstance(SYSTEM_PROMPT_TEMPLATE, str)
 
-    def test_system_prompt_has_persona(self):
-        self.assertIn(PERSONA, SYSTEM_PROMPT)
+    def test_system_prompt_template_has_persona(self):
+        self.assertIn(PERSONA_TEMPLATE, SYSTEM_PROMPT_TEMPLATE)
 
-    def test_system_prompt_has_placeholders(self):
-        self.assertIn("{tools}", SYSTEM_PROMPT)
+    def test_system_prompt_template_has_placeholders(self):
+        self.assertIn("{tools}", SYSTEM_PROMPT_TEMPLATE)
+        self.assertIn("{assistant_name}", SYSTEM_PROMPT_TEMPLATE)
+        self.assertIn("{organization}", SYSTEM_PROMPT_TEMPLATE)
+
+    def test_system_prompt_template_formats_correctly(self):
+        result = SYSTEM_PROMPT_TEMPLATE.format(
+            tools="[tool prompt]",
+            assistant_name="TestBot",
+            organization="TestOrg",
+        )
+        self.assertIn("TestBot", result)
+        self.assertIn("TestOrg", result)
+        self.assertIn("[tool prompt]", result)
+        self.assertNotIn("{assistant_name}", result)
+        self.assertNotIn("{organization}", result)
+        self.assertNotIn("{tools}", result)
