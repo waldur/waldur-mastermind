@@ -2249,14 +2249,35 @@ def update_single_software_catalog(catalog_uuid_hex):
         )
 
     loader_class = catalog_config["loader_class"]
-    loader_kwargs = catalog_config["loader_kwargs"]
+    loader_kwargs = dict(catalog_config["loader_kwargs"])
+    # Use the catalog's stored version instead of auto-detecting.
+    # Without this, auto-detect picks the latest version (e.g. 2025.06)
+    # and older catalogs (e.g. 2023.06) never get their data loaded.
+    loader_kwargs["catalog_version"] = catalog.version
     loader = loader_class(**loader_kwargs)
 
-    _update_catalog_with_error_handling(
-        loader=loader,
-        catalog_name=catalog.name,
-        catalog_type=catalog.catalog_type,
-    )
+    try:
+        update_existing = config.SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES
+        catalog.last_update_attempt = timezone.now()
+        catalog.save(update_fields=["last_update_attempt"])
+
+        loader.load_catalog(
+            update_existing=update_existing,
+            dry_run=False,
+            catalog=catalog,
+            sync=True,
+        )
+
+        catalog.last_successful_update = timezone.now()
+        catalog.update_errors = ""
+        catalog.save(update_fields=["last_successful_update", "update_errors"])
+    except Exception as e:
+        error_msg = f"Catalog update failed: {e}"
+        logger.error(error_msg, exc_info=True)
+        catalog.update_errors = error_msg
+        catalog.save(update_fields=["update_errors"])
+        raise
+
     logger.info(f"Successfully updated catalog {catalog.name} (uuid={catalog.uuid})")
 
 
