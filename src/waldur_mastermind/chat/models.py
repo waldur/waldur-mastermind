@@ -314,6 +314,14 @@ class ThreadSession(UuidMixin, TimeStampedModel):
     name = models.CharField(_("name"), max_length=150, default="New chat")
     flags = models.JSONField(default=dict, blank=True)
     is_archived = models.BooleanField(default=False)
+    cancel_requested_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text=_(
+            "Set when user requests stream cancellation; cleared after stream completes."
+        ),
+    )
 
     class Meta:
         verbose_name = _("Thread session")
@@ -349,7 +357,9 @@ class Message(UuidMixin, TimeStampedModel):
         ThreadSession, on_delete=models.CASCADE, related_name="messages"
     )
     role = models.CharField(max_length=10, choices=Role.choices)
-    content = models.TextField()  # Stored as plaintext
+    content = models.TextField(
+        blank=True
+    )  # blank=True allows streaming placeholder (content="")
     sequence_index = models.PositiveIntegerField()
     replaces = models.ForeignKey(
         "self",

@@ -1,4 +1,5 @@
 import json
+import uuid
 from unittest import mock
 
 from constance.test.unittest import override_config as override_constance_config
@@ -6,7 +7,12 @@ from django.urls import reverse
 from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.chat.models import ChatSession, ThreadSession, TokenQuota
+from waldur_mastermind.chat.models import (
+    ChatSession,
+    Message,
+    ThreadSession,
+    TokenQuota,
+)
 from waldur_mastermind.chat.tests.utils import (
     SYNC_THREAD_PATCH,
     _make_content_chunk,
@@ -245,6 +251,47 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         AI_ASSISTANT_ENABLED_ROLES="all",
         AI_ASSISTANT_API_URL="https://example.com/stream",
         AI_ASSISTANT_API_TOKEN="dummy-token",
+    )
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_two_messages_have_correct_sequence_order(self, mock_openai_cls):
+        """Sequential messages land in correct order: UserA, AsstA, UserB, AsstB."""
+        session, _ = ChatSession.objects.get_or_create(user=self.user)
+        thread = ThreadSession.objects.create(chat_session=session)
+
+        mock_openai_cls.return_value = _mock_openai_client(
+            [_make_content_chunk("Response A")]
+        )
+        r1 = self.client.post(
+            self.stream_url,
+            data={"input": "Question A", "thread_uuid": str(thread.uuid)},
+        )
+        list(r1.streaming_content)
+
+        mock_openai_cls.return_value = _mock_openai_client(
+            [_make_content_chunk("Response B")]
+        )
+        r2 = self.client.post(
+            self.stream_url,
+            data={"input": "Question B", "thread_uuid": str(thread.uuid)},
+        )
+        list(r2.streaming_content)
+
+        msgs = list(Message.objects.filter(thread=thread).order_by("sequence_index"))
+        self.assertEqual(len(msgs), 4)
+        self.assertEqual(msgs[0].role, Message.Role.USER)
+        self.assertEqual(msgs[0].content, "Question A")
+        self.assertEqual(msgs[1].role, Message.Role.ASSISTANT)
+        self.assertEqual(msgs[1].content, "Response A")
+        self.assertEqual(msgs[2].role, Message.Role.USER)
+        self.assertEqual(msgs[2].content, "Question B")
+        self.assertEqual(msgs[3].role, Message.Role.ASSISTANT)
+        self.assertEqual(msgs[3].content, "Response B")
+
+    @override_constance_config(
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
         AI_ASSISTANT_TOKEN_LIMIT_MONTHLY="invalid_value",
     )
     def test_stream_fails_with_invalid_constance_config(self):
@@ -275,3 +322,49 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         )
 
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+
+@override_constance_config(
+    AI_ASSISTANT_ENABLED=True,
+    AI_ASSISTANT_ENABLED_ROLES="all",
+    AI_ASSISTANT_API_URL="https://example.com/stream",
+    AI_ASSISTANT_API_TOKEN="dummy-token",
+)
+class CancelEndpointTest(ChatBaseTest):
+    """Test the POST /chat-threads/{uuid}/cancel/ endpoint."""
+
+    def _make_thread(self):
+        session, _ = ChatSession.objects.get_or_create(user=self.user)
+        return ThreadSession.objects.create(chat_session=session, name="test")
+
+    def test_cancel_sets_flag(self):
+        thread = self._make_thread()
+        url = reverse("chat-thread-cancel", kwargs={"uuid": thread.uuid})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        thread.refresh_from_db()
+        self.assertIsNotNone(thread.cancel_requested_at)
+
+    def test_cancel_is_idempotent(self):
+        thread = self._make_thread()
+        url = reverse("chat-thread-cancel", kwargs={"uuid": thread.uuid})
+        self.client.post(url)
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_cancel_returns_404_for_unknown_thread(self):
+        url = reverse("chat-thread-cancel", kwargs={"uuid": uuid.uuid4()})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_cancel_returns_404_for_other_users_thread(self):
+        other_user = structure_factories.UserFactory()
+        other_session, _ = ChatSession.objects.get_or_create(user=other_user)
+        other_thread = ThreadSession.objects.create(chat_session=other_session)
+        url = reverse("chat-thread-cancel", kwargs={"uuid": other_thread.uuid})
+        response = self.client.post(url)
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

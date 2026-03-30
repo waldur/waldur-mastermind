@@ -50,11 +50,54 @@ class LLMStreamerPersistenceTest(test.APITestCase):
             sequence_index=last_index + 1,
         )
 
+    def _pre_create_assistant_placeholder(self, thread, user_msg=None, replace=False):
+        """Simulate what ChatViewSet._persist_messages() does for the assistant slot.
+
+        replace=True for EDIT/RELOAD (replaces last active assistant).
+        replace=False for normal mode (appends at user_msg.sequence_index + 1).
+        """
+        if replace:
+            last_assistant = (
+                thread.messages.filter(
+                    role=Message.Role.ASSISTANT,
+                    replaced_by__isnull=True,
+                )
+                .order_by("-sequence_index")
+                .first()
+            )
+            if last_assistant:
+                return Message.objects.create(
+                    thread=thread,
+                    role=Message.Role.ASSISTANT,
+                    content="",
+                    sequence_index=last_assistant.sequence_index,
+                    replaces=last_assistant,
+                )
+            return None
+        if user_msg:
+            return Message.objects.create(
+                thread=thread,
+                role=Message.Role.ASSISTANT,
+                content="",
+                sequence_index=user_msg.sequence_index + 1,
+            )
+        return None
+
     def _run_streamer(self, user, thread, original_input, chunks, mode=None):
-        # Pre-create user message like the view does (for non-reload, with thread)
+        # Pre-create messages like the view does
         user_msg = None
-        if thread and mode != ChatMode.RELOAD:
-            user_msg = self._pre_create_user_msg(thread, original_input)
+        assistant_msg = None
+        if thread:
+            if mode != ChatMode.RELOAD:
+                user_msg = self._pre_create_user_msg(thread, original_input)
+            if mode in (ChatMode.RELOAD, ChatMode.EDIT):
+                assistant_msg = self._pre_create_assistant_placeholder(
+                    thread, replace=True
+                )
+            else:
+                assistant_msg = self._pre_create_assistant_placeholder(
+                    thread, user_msg=user_msg
+                )
         with patch(
             "waldur_mastermind.chat.llm_streamer.openai.OpenAI"
         ) as mock_openai_cls:
@@ -68,6 +111,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
                 original_input=original_input,
                 mode=mode,
                 user_msg=user_msg,
+                assistant_msg=assistant_msg,
             )
             list(streamer)  # generator must be fully consumed for finally block
 
