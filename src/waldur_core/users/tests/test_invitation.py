@@ -842,6 +842,74 @@ class InvitationCreateTest(BaseInvitationTest):
         }
 
 
+class InvitationEmailRestrictionTest(test.APITestCase):
+    def setUp(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        self.customer = structure_factories.CustomerFactory()
+        self.project = structure_factories.ProjectFactory(customer=self.customer)
+
+    def test_invitation_blocked_when_email_does_not_match_customer_pattern(self):
+        self.customer.user_email_patterns = [r".*@example\.com$"]
+        self.customer.save()
+
+        self.client.force_authenticate(user=self.staff)
+        payload = {
+            "email": "user@gmail.com",
+            "scope": structure_factories.CustomerFactory.get_url(self.customer),
+            "role": CustomerRole.OWNER.uuid.hex,
+        }
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
+
+    def test_invitation_allowed_when_email_matches_customer_pattern(self):
+        self.customer.user_email_patterns = [r".*@example\.com$"]
+        self.customer.save()
+
+        self.client.force_authenticate(user=self.staff)
+        payload = {
+            "email": "user@example.com",
+            "scope": structure_factories.CustomerFactory.get_url(self.customer),
+            "role": CustomerRole.OWNER.uuid.hex,
+        }
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_invitation_blocked_by_parent_customer_pattern_for_project_scope(self):
+        self.customer.user_email_patterns = [r".*@example\.com$"]
+        self.customer.save()
+
+        self.client.force_authenticate(user=self.staff)
+        payload = {
+            "email": "user@gmail.com",
+            "scope": structure_factories.ProjectFactory.get_url(self.project),
+            "role": ProjectRole.ADMIN.uuid.hex,
+        }
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("email", response.data)
+
+    def test_invitation_allowed_when_no_patterns_configured(self):
+        self.client.force_authenticate(user=self.staff)
+        payload = {
+            "email": "anyone@anywhere.com",
+            "scope": structure_factories.CustomerFactory.get_url(self.customer),
+            "role": CustomerRole.OWNER.uuid.hex,
+        }
+        response = self.client.post(
+            factories.InvitationBaseFactory.get_list_url(), data=payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
 @ddt
 class InvitationCancelTest(BaseInvitationTest):
     @data("staff", "customer_owner", "project_manager")

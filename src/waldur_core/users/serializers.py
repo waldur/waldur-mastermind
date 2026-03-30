@@ -5,10 +5,12 @@ from django.utils.translation import gettext as _
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from waldur_core.core.models import UserDetailsMatchMixin
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import get_valid_models
+from waldur_core.structure.models import Customer
 from waldur_core.structure.permissions import _get_customer
 from waldur_core.users import models
 from waldur_core.users.enums import InvitationState
@@ -475,9 +477,10 @@ class InvitationSerializer(BaseInvitationSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         scope = attrs["scope"]
+        email = attrs["email"]
         duplicates = get_invitation_duplicates(
             scope,
-            [{"email": attrs["email"], "role": attrs["role"]}],
+            [{"email": email, "role": attrs["role"]}],
         )
         if duplicates:
             raise serializers.ValidationError(
@@ -487,7 +490,38 @@ class InvitationSerializer(BaseInvitationSerializer):
                     )
                 }
             )
+
+        # Validate email against scope's email patterns
+        self._validate_email_against_scope_patterns(email, scope)
+
         return attrs
+
+    @staticmethod
+    def _validate_email_against_scope_patterns(email, scope):
+        """Check that the invitation email matches the scope's user_email_patterns.
+
+        For projects, also checks parent customer patterns.
+        """
+        scopes_to_check = [scope]
+        if hasattr(scope, "customer") and isinstance(scope.customer, Customer):
+            scopes_to_check.append(scope.customer)
+
+        for s in scopes_to_check:
+            patterns = getattr(s, "user_email_patterns", None)
+            if not patterns:
+                continue
+            if not any(
+                UserDetailsMatchMixin._is_pattern_match(p, email) for p in patterns
+            ):
+                scope_name = s._meta.verbose_name
+                raise serializers.ValidationError(
+                    {
+                        "email": _(
+                            "Email does not match the membership restrictions of the %s."
+                        )
+                        % scope_name,
+                    }
+                )
 
     def get_fields(self):
         """Filter invitation fields based on INVITATION_ALLOWED_FIELDS setting.
