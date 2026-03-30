@@ -403,11 +403,13 @@ class LLMStreamer:
         """Execute the full LLM streaming workflow (runs in worker thread)."""
         with self._stream_completion(self.messages) as stream:
             for chunk in stream:
+                # Capture usage from any chunk — some providers attach it
+                # to a chunk that still has a (empty-delta) choices entry.
+                if chunk.usage:
+                    self.input_tokens += chunk.usage.prompt_tokens or 0
+                    self.output_tokens += chunk.usage.completion_tokens or 0
+
                 if not chunk.choices:
-                    # Final usage-only chunk — always process for token tracking
-                    if chunk.usage:
-                        self.input_tokens = chunk.usage.prompt_tokens or 0
-                        self.output_tokens = chunk.usage.completion_tokens or 0
                     continue
 
                 # Client cancelled — persist partial content immediately,
@@ -655,12 +657,11 @@ class LLMStreamer:
 
             with self._stream_completion(title_messages, include_tools=False) as stream:
                 for chunk in stream:
+                    if chunk.usage:
+                        self.input_tokens += chunk.usage.prompt_tokens or 0
+                        self.output_tokens += chunk.usage.completion_tokens or 0
+
                     if not chunk.choices:
-                        if chunk.usage:
-                            # Title generation is billed to the user's quota
-                            # intentionally — it is LLM work done on their behalf.
-                            self.input_tokens += chunk.usage.prompt_tokens or 0
-                            self.output_tokens += chunk.usage.completion_tokens or 0
                         continue
                     content = chunk.choices[0].delta.content
                     if content:
