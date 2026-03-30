@@ -1559,6 +1559,57 @@ class CallManagingOrganisationStatSerializer(serializers.Serializer):
     offering_requests_pending = serializers.IntegerField(read_only=True)
 
 
+class CallPerformanceStatSerializer(serializers.Serializer):
+    call_uuid = serializers.UUIDField(read_only=True)
+    call_name = serializers.CharField(read_only=True)
+    managing_organization_name = serializers.CharField(read_only=True)
+    state = serializers.CharField(read_only=True)
+    total_proposals = serializers.IntegerField(read_only=True)
+    proposals_draft = serializers.IntegerField(read_only=True)
+    proposals_submitted = serializers.IntegerField(read_only=True)
+    proposals_in_review = serializers.IntegerField(read_only=True)
+    proposals_accepted = serializers.IntegerField(read_only=True)
+    proposals_rejected = serializers.IntegerField(read_only=True)
+    proposals_canceled = serializers.IntegerField(read_only=True)
+    acceptance_rate = serializers.FloatField(read_only=True)
+    total_reviews = serializers.IntegerField(read_only=True)
+    reviews_completed = serializers.IntegerField(read_only=True)
+    average_score = serializers.FloatField(read_only=True, allow_null=True)
+    active_rounds = serializers.IntegerField(read_only=True)
+    last_submission_date = serializers.DateField(read_only=True, allow_null=True)
+
+
+class ReviewProgressStatSerializer(serializers.Serializer):
+    reviewer_uuid = serializers.UUIDField(read_only=True)
+    reviewer_name = serializers.CharField(read_only=True)
+    reviewer_email = serializers.EmailField(read_only=True)
+    total_assigned = serializers.IntegerField(read_only=True)
+    pending = serializers.IntegerField(read_only=True)
+    in_progress = serializers.IntegerField(read_only=True)
+    completed = serializers.IntegerField(read_only=True)
+    declined = serializers.IntegerField(read_only=True)
+    average_score = serializers.FloatField(read_only=True, allow_null=True)
+    average_review_time_days = serializers.FloatField(read_only=True, allow_null=True)
+    completion_rate = serializers.FloatField(read_only=True)
+
+
+class ResourceDemandStatSerializer(serializers.Serializer):
+    offering_uuid = serializers.UUIDField(read_only=True)
+    offering_name = serializers.CharField(read_only=True)
+    offering_type = serializers.CharField(read_only=True)
+    provider_name = serializers.CharField(read_only=True)
+    proposal_count = serializers.IntegerField(read_only=True)
+    request_count = serializers.IntegerField(read_only=True)
+    approved_count = serializers.IntegerField(read_only=True)
+    pending_count = serializers.IntegerField(read_only=True)
+    total_requested_limits = serializers.DictField(
+        child=serializers.FloatField(), read_only=True
+    )
+    total_approved_limits = serializers.DictField(
+        child=serializers.FloatField(), read_only=True
+    )
+
+
 class CallAttachDocumentsSerializer(serializers.Serializer):
     documents = serializers.ListField(child=serializers.FileField())
     description = serializers.CharField(required=False)

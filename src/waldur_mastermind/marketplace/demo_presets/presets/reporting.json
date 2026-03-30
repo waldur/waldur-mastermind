@@ -1,0 +1,274 @@
+{
+  "_metadata": {
+    "title": "Reporting & Analytics Demo",
+    "description": "Preset focused on providing comprehensive statistics for reporting dashboards: Call Performance, Review Progress, and Resource Demand.",
+    "version": "1.1.0"
+  },
+  "users": [
+    {
+      "uuid": "f4000000000000000000000000000001",
+      "username": "staff_reporting",
+      "email": "staff@reporting.demo",
+      "first_name": "Reporting",
+      "last_name": "Staff",
+      "is_staff": true,
+      "password": "demo"
+    },
+    {
+      "uuid": "f4000000000000000000000000000002",
+      "username": "owner_reporting",
+      "email": "owner@reporting.demo",
+      "first_name": "Org",
+      "last_name": "Owner",
+      "password": "demo"
+    },
+    {
+      "uuid": "f4000000000000000000000000000003",
+      "username": "reviewer_alice",
+      "email": "alice@reporting.demo",
+      "first_name": "Alice",
+      "last_name": "Reviewer",
+      "password": "demo"
+    },
+    {
+      "uuid": "f4000000000000000000000000000004",
+      "username": "reviewer_bob",
+      "email": "bob@reporting.demo",
+      "first_name": "Bob",
+      "last_name": "Reviewer",
+      "password": "demo"
+    },
+    {
+      "uuid": "f4000000000000000000000000000005",
+      "username": "reviewer_charlie",
+      "email": "charlie@reporting.demo",
+      "first_name": "Charlie",
+      "last_name": "Reviewer",
+      "password": "demo"
+    }
+  ],
+  "customers": [
+    {
+      "uuid": "f4000000000000000000000000000101",
+      "name": "Reporting Bureau",
+      "abbreviation": "RB",
+      "email": "contact@reporting.demo",
+      "country": "EE"
+    }
+  ],
+  "service_providers": [
+    {
+      "uuid": "f4000000000000000000000000000181",
+      "customer_uuid": "f4000000000000000000000000000101",
+      "description": "Provider of research infrastructure."
+    }
+  ],
+  "call_managing_organisations": [
+    {
+      "uuid": "f4000000000000000000000000000201",
+      "customer_uuid": "f4000000000000000000000000000101",
+      "description": "Department managing research grants and hardware allocations."
+    }
+  ],
+  "calls": [
+    {
+      "uuid": "f4000000000000000000000000000301",
+      "manager_uuid": "f4000000000000000000000000000201",
+      "name": "General Research Call 2026",
+      "description": "Main grant program for year 2026.",
+      "state": "active"
+    },
+    {
+      "uuid": "f4000000000000000000000000000302",
+      "manager_uuid": "f4000000000000000000000000000201",
+      "name": "Legacy HPC Call 2025",
+      "description": "Archived call for high performance computing projects.",
+      "state": "archived"
+    }
+  ],
+  "categories": [
+    {
+      "uuid": "f4000000000000000000000000000601",
+      "title": "Computation"
+    }
+  ],
+  "offerings": [
+    {
+      "uuid": "f4000000000000000000000000000701",
+      "category_uuid": "f4000000000000000000000000000601",
+      "customer_uuid": "f4000000000000000000000000000101",
+      "name": "Standard Cloud VM",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true
+    },
+    {
+      "uuid": "f4000000000000000000000000000702",
+      "category_uuid": "f4000000000000000000000000000601",
+      "customer_uuid": "f4000000000000000000000000000101",
+      "name": "High Performance Cluster",
+      "type": "SlurmInvoices.SlurmPackage",
+      "state": 2,
+      "shared": true,
+      "billable": true
+    },
+    {
+      "uuid": "f4000000000000000000000000000755",
+      "category_uuid": "f4000000000000000000000000000601",
+      "customer_uuid": "f4000000000000000000000000000101",
+      "name": "AI Model Training GPU",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true
+    }
+  ],
+  "requested_offerings": [
+    {
+      "uuid": "f4000000000000000000000000000801",
+      "call_uuid": "f4000000000000000000000000000301",
+      "offering_uuid": "f4000000000000000000000000000701",
+      "state": "accepted"
+    },
+    {
+      "uuid": "f4000000000000000000000000000802",
+      "call_uuid": "f4000000000000000000000000000301",
+      "offering_uuid": "f4000000000000000000000000000702",
+      "state": "accepted"
+    },
+    {
+      "uuid": "f4000000000000000000000000000855",
+      "call_uuid": "f4000000000000000000000000000301",
+      "offering_uuid": "f4000000000000000000000000000755",
+      "state": "accepted"
+    }
+  ],
+  "rounds": [
+    {
+      "uuid": "f4000000000000000000000000000311",
+      "call_uuid": "f4000000000000000000000000000301",
+      "start_time": "2026-01-01T00:00:00Z",
+      "cutoff_time": "2026-12-31T23:59:59Z",
+      "review_strategy": "after_round",
+      "deciding_entity": "at_manager"
+    },
+    {
+      "uuid": "f4000000000000000000000000000321",
+      "call_uuid": "f4000000000000000000000000000302",
+      "start_time": "2025-01-01T00:00:00Z",
+      "cutoff_time": "2025-12-31T23:59:59Z",
+      "review_strategy": "after_round",
+      "deciding_entity": "at_manager"
+    }
+  ],
+  "proposals": [
+    {
+      "uuid": "f4000000000000000000000000000401",
+      "round_uuid": "f4000000000000000000000000000311",
+      "name": "Quantum Error Correction",
+      "state": "accepted",
+      "created": "2026-02-10T10:00:00Z"
+    },
+    {
+      "uuid": "f4000000000000000000000000000402",
+      "round_uuid": "f4000000000000000000000000000311",
+      "name": "Climate Modeling Phase II",
+      "state": "rejected",
+      "created": "2026-02-15T14:30:00Z"
+    },
+    {
+      "uuid": "f4000000000000000000000000000403",
+      "round_uuid": "f4000000000000000000000000000311",
+      "name": "Machine Learning for Genomics",
+      "state": "in_review",
+      "created": "2026-03-01T09:15:00Z"
+    },
+    {
+      "uuid": "f4000000000000000000000000000404",
+      "round_uuid": "f4000000000000000000000000000311",
+      "name": "Smart City Logistics",
+      "state": "submitted",
+      "created": "2026-03-20T16:20:00Z"
+    },
+    {
+      "uuid": "f4000000000000000000000000000421",
+      "round_uuid": "f4000000000000000000000000000321",
+      "name": "Legacy Project Alpha",
+      "state": "accepted",
+      "created": "2025-05-10T08:00:00Z"
+    }
+  ],
+  "requested_resources": [
+    {
+      "uuid": "f4000000000000000000000000000901",
+      "proposal_uuid": "f4000000000000000000000000000401",
+      "requested_offering_uuid": "f4000000000000000000000000000801",
+      "limits": {
+        "vcpu": 16,
+        "ram": 32,
+        "storage": 500
+      }
+    },
+    {
+      "uuid": "f4000000000000000000000000000902",
+      "proposal_uuid": "f4000000000000000000000000000401",
+      "requested_offering_uuid": "f4000000000000000000000000000802",
+      "limits": {
+        "cpu_hours": 10000,
+        "gpu_hours": 500
+      }
+    },
+    {
+      "uuid": "f4000000000000000000000000000903",
+      "proposal_uuid": "f4000000000000000000000000000403",
+      "requested_offering_uuid": "f4000000000000000000000000000855",
+      "limits": {
+        "vcpu": 32,
+        "ram": 64,
+        "storage": 1024,
+        "gpu": 4
+      }
+    },
+    {
+      "uuid": "f4000000000000000000000000000904",
+      "proposal_uuid": "f4000000000000000000000000000404",
+      "requested_offering_uuid": "f4000000000000000000000000000855",
+      "limits": {
+        "vcpu": 8,
+        "ram": 16,
+        "storage": 100,
+        "gpu": 1
+      }
+    }
+  ],
+  "reviews": [
+    {
+      "uuid": "f4000000000000000000000000000501",
+      "proposal_uuid": "f4000000000000000000000000000401",
+      "reviewer_uuid": "f4000000000000000000000000000003",
+      "state": "submitted",
+      "summary_score": 8.5
+    },
+    {
+      "uuid": "f4000000000000000000000000000502",
+      "proposal_uuid": "f4000000000000000000000000000401",
+      "reviewer_uuid": "f4000000000000000000000000000004",
+      "state": "submitted",
+      "summary_score": 9.2
+    },
+    {
+      "uuid": "f4000000000000000000000000000503",
+      "proposal_uuid": "f4000000000000000000000000000402",
+      "reviewer_uuid": "f4000000000000000000000000000003",
+      "state": "submitted",
+      "summary_score": 3.0
+    },
+    {
+      "uuid": "f4000000000000000000000000000504",
+      "proposal_uuid": "f4000000000000000000000000000403",
+      "reviewer_uuid": "f4000000000000000000000000000005",
+      "state": "in_review"
+    }
+  ]
+}
