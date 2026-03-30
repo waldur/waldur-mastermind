@@ -4,7 +4,17 @@ from datetime import datetime, timedelta
 from typing import cast
 
 from django.contrib.auth import get_user_model
-from django.db.models import Count, OuterRef, ProtectedError, Q
+from django.db.models import (
+    Avg,
+    Count,
+    DurationField,
+    ExpressionWrapper,
+    F,
+    Max,
+    OuterRef,
+    ProtectedError,
+    Q,
+)
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone as timezone
@@ -169,6 +179,224 @@ class CallManagingOrganisationViewSet(
             },
             status=status.HTTP_200_OK,
         )
+
+    @extend_schema(
+        description="Get call performance statistics across all calls.",
+        responses={200: serializers.CallPerformanceStatSerializer(many=True)},
+    )
+    @decorators.action(detail=False)
+    def global_stats_performance(self, request):
+        if not request.user.is_staff:
+            raise exceptions.PermissionDenied()
+        calls = models.Call.objects.all()
+        now = timezone.now()
+        data = []
+        for call in calls:
+            proposals = models.Proposal.objects.filter(round__call=call)
+            proposals_counts = proposals.aggregate(
+                total=Count("id"),
+                draft=Count("id", filter=Q(state=ProposalStates.DRAFT)),
+                submitted=Count("id", filter=Q(state=ProposalStates.SUBMITTED)),
+                in_review=Count("id", filter=Q(state=ProposalStates.IN_REVIEW)),
+                accepted=Count("id", filter=Q(state=ProposalStates.ACCEPTED)),
+                rejected=Count("id", filter=Q(state=ProposalStates.REJECTED)),
+                canceled=Count("id", filter=Q(state=ProposalStates.CANCELED)),
+                last_submission=Max(
+                    "created",
+                    filter=Q(
+                        state__in=[
+                            ProposalStates.SUBMITTED,
+                            ProposalStates.ACCEPTED,
+                            ProposalStates.REJECTED,
+                        ]
+                    ),
+                ),
+            )
+
+            reviews = models.Review.objects.filter(proposal__round__call=call)
+            reviews_stats = reviews.aggregate(
+                total=Count("id"),
+                completed=Count("id", filter=Q(state=models.Review.States.SUBMITTED)),
+                avg_score=Avg(
+                    "summary_score", filter=Q(state=models.Review.States.SUBMITTED)
+                ),
+            )
+
+            active_rounds = call.round_set.filter(
+                start_time__lte=now, cutoff_time__gte=now
+            ).count()
+
+            accepted = proposals_counts["accepted"]
+            rejected = proposals_counts["rejected"]
+            total_decided = accepted + rejected
+            acceptance_rate = (
+                (accepted / total_decided * 100) if total_decided > 0 else 0
+            )
+
+            data.append(
+                {
+                    "call_uuid": call.uuid,
+                    "call_name": call.name,
+                    "managing_organization_name": call.manager.customer.name,
+                    "state": call.state,
+                    "total_proposals": proposals_counts["total"],
+                    "proposals_draft": proposals_counts["draft"],
+                    "proposals_submitted": proposals_counts["submitted"],
+                    "proposals_in_review": proposals_counts["in_review"],
+                    "proposals_accepted": proposals_counts["accepted"],
+                    "proposals_rejected": proposals_counts["rejected"],
+                    "proposals_canceled": proposals_counts["canceled"],
+                    "acceptance_rate": acceptance_rate,
+                    "total_reviews": reviews_stats["total"],
+                    "reviews_completed": reviews_stats["completed"],
+                    "average_score": reviews_stats["avg_score"],
+                    "active_rounds": active_rounds,
+                    "last_submission_date": proposals_counts["last_submission"].date()
+                    if proposals_counts["last_submission"]
+                    else None,
+                }
+            )
+
+        serializer = serializers.CallPerformanceStatSerializer(data, many=True)
+        return response.Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Get review progress statistics across all reviewers.",
+        responses={200: serializers.ReviewProgressStatSerializer(many=True)},
+    )
+    @decorators.action(detail=False)
+    def global_stats_review_progress(self, request):
+        if not request.user.is_staff:
+            raise exceptions.PermissionDenied()
+        reviews = models.Review.objects.all()
+        reviewers = User.objects.filter(
+            id__in=reviews.values_list("reviewer_id", flat=True)
+        ).distinct()
+
+        data = []
+        for reviewer in reviewers:
+            reviewer_reviews = reviews.filter(reviewer=reviewer)
+            stats = reviewer_reviews.aggregate(
+                total=Count("id"),
+                pending=Count("id", filter=Q(state=models.Review.States.IN_REVIEW)),
+                completed=Count("id", filter=Q(state=models.Review.States.SUBMITTED)),
+                rejected=Count("id", filter=Q(state=models.Review.States.REJECTED)),
+                avg_score=Avg(
+                    "summary_score", filter=Q(state=models.Review.States.SUBMITTED)
+                ),
+            )
+
+            # Calculate average review time in days for completed reviews
+            completed_reviews = reviewer_reviews.filter(
+                state=models.Review.States.SUBMITTED
+            )
+            durations = completed_reviews.annotate(
+                duration=ExpressionWrapper(
+                    F("modified") - F("created"), output_field=DurationField()
+                )
+            ).aggregate(avg_duration=Avg("duration"))
+
+            avg_time = (
+                durations["avg_duration"].total_seconds() / 86400
+                if durations["avg_duration"]
+                else None
+            )
+
+            total = stats["total"]
+            completion_rate = (stats["completed"] / total * 100) if total > 0 else 0
+
+            data.append(
+                {
+                    "reviewer_uuid": reviewer.uuid,
+                    "reviewer_name": reviewer.full_name,
+                    "reviewer_email": reviewer.email,
+                    "total_assigned": total,
+                    "pending": stats["pending"],
+                    "in_progress": stats["pending"],  # For now same as pending
+                    "completed": stats["completed"],
+                    "declined": stats["rejected"],
+                    "average_score": stats["avg_score"],
+                    "average_review_time_days": avg_time,
+                    "completion_rate": completion_rate,
+                }
+            )
+
+        serializer = serializers.ReviewProgressStatSerializer(data, many=True)
+        return response.Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description="Get resource demand statistics across all calls and offerings.",
+        responses={200: serializers.ResourceDemandStatSerializer(many=True)},
+    )
+    @decorators.action(detail=False)
+    def global_stats_resource_demand(self, request):
+        if not request.user.is_staff:
+            raise exceptions.PermissionDenied()
+        requested_offerings = models.RequestedOffering.objects.all()
+        offerings = marketplace_models.Offering.objects.filter(
+            id__in=requested_offerings.values_list("offering_id", flat=True)
+        ).distinct()
+
+        data = []
+        for offering in offerings:
+            offer_requests = requested_offerings.filter(offering=offering)
+            resources = models.RequestedResource.objects.filter(
+                requested_offering__in=offer_requests
+            )
+
+            stats = resources.aggregate(
+                proposal_count=Count("proposal", distinct=True),
+                request_count=Count("id"),
+                approved_count=Count(
+                    "id", filter=Q(proposal__state=ProposalStates.ACCEPTED)
+                ),
+                pending_count=Count(
+                    "id",
+                    filter=Q(
+                        proposal__state__in=[
+                            ProposalStates.SUBMITTED,
+                            ProposalStates.IN_REVIEW,
+                        ]
+                    ),
+                ),
+            )
+
+            total_requested_limits = {}
+            total_approved_limits = {}
+
+            all_resources = resources.all()
+            for res in all_resources:
+                limits = res.limits or {}
+                for key, val in limits.items():
+                    try:
+                        fval = float(val)
+                        total_requested_limits[key] = (
+                            total_requested_limits.get(key, 0) + fval
+                        )
+                        if res.proposal.state == ProposalStates.ACCEPTED:
+                            total_approved_limits[key] = (
+                                total_approved_limits.get(key, 0) + fval
+                            )
+                    except (ValueError, TypeError):
+                        continue
+
+            data.append(
+                {
+                    "offering_uuid": offering.uuid,
+                    "offering_name": offering.name,
+                    "offering_type": offering.type,
+                    "provider_name": offering.customer.name,
+                    "proposal_count": stats["proposal_count"],
+                    "request_count": stats["request_count"],
+                    "approved_count": stats["approved_count"],
+                    "pending_count": stats["pending_count"],
+                    "total_requested_limits": total_requested_limits,
+                    "total_approved_limits": total_approved_limits,
+                }
+            )
+
+        serializer = serializers.ResourceDemandStatSerializer(data, many=True)
+        return response.Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class PublicCallViewSet(viewsets.ReadOnlyModelViewSet):
