@@ -5,11 +5,17 @@ from contextlib import contextmanager
 from unittest.mock import MagicMock, Mock, patch
 
 import openai
+from django.utils import timezone
 from rest_framework import test as drf_test
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.chat.llm_streamer import LLMStreamer
-from waldur_mastermind.chat.models import TokenQuota
+from waldur_mastermind.chat.llm_streamer import _CANCEL_CHECK_INTERVAL, LLMStreamer
+from waldur_mastermind.chat.models import (
+    ChatSession,
+    Message,
+    ThreadSession,
+    TokenQuota,
+)
 from waldur_mastermind.chat.tests.utils import (
     SYNC_THREAD_PATCH,
     _make_chunk,
@@ -373,14 +379,22 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
 
 
 class LLMStreamerDisconnectTest(_LLMStreamerTestBase, unittest.TestCase):
-    """Test that client disconnects do not lose LLM response content."""
+    """Test that client disconnects freeze content accumulation.
 
-    def test_disconnect_preserves_full_content(self):
-        """When client disconnects mid-stream, worker accumulates full LLM response."""
+    When the client disconnects (or cancels), the worker keeps draining the
+    LLM stream so it can capture the final usage-only chunk (accurate token
+    counts), but content and tool-call accumulation is skipped.
+    """
+
+    def test_disconnect_accumulates_full_content(self):
+        """When client disconnects mid-stream, worker keeps accumulating all content."""
         gate = threading.Event()
+        # First chunk must be >= 50 chars so the parser flushes to the queue
+        # and next(gen) on the main thread can return.
+        first_chunk = "A" * 60
 
         def slow_chunks():
-            yield _make_chunk(content="Hello ")
+            yield _make_chunk(content=first_chunk)
             gate.wait(timeout=10)
             yield _make_chunk(content="beautiful ")
             yield _make_chunk(content="world")
@@ -407,7 +421,10 @@ class LLMStreamerDisconnectTest(_LLMStreamerTestBase, unittest.TestCase):
         streamer._worker_thread.join(timeout=5)
         self.assertFalse(streamer._worker_thread.is_alive())
 
-        self.assertEqual(streamer.accumulated_content, "Hello beautiful world")
+        # All content accumulated — disconnect doesn't freeze content
+        self.assertEqual(
+            streamer.accumulated_content, first_chunk + "beautiful " + "world"
+        )
 
     def test_disconnect_does_not_block_worker(self):
         """Worker thread completes promptly after client disconnects, even with many chunks."""
@@ -424,6 +441,87 @@ class LLMStreamerDisconnectTest(_LLMStreamerTestBase, unittest.TestCase):
             streamer._worker_thread.is_alive(),
             "Worker thread is still alive after timeout — likely blocked on full queue",
         )
+
+    def test_disconnect_still_records_usage(self):
+        """Usage chunk is still processed even after client disconnect."""
+        gate = threading.Event()
+        # First chunk must be >= 50 chars so the parser flushes to the queue
+        first_chunk = "B" * 60
+
+        def chunks_with_usage():
+            yield _make_chunk(content=first_chunk)
+            gate.wait(timeout=10)
+            yield _make_chunk(content="world")
+            yield _make_chunk(usage={"prompt_tokens": 42, "completion_tokens": 18})
+
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+        )
+        mock_client = MagicMock()
+        mock_stream = MagicMock()
+        mock_stream.__enter__ = Mock(return_value=chunks_with_usage())
+        mock_stream.__exit__ = Mock(return_value=False)
+        mock_client.chat.completions.create.return_value = mock_stream
+        streamer.client = mock_client
+
+        gen = iter(streamer)
+        next(gen)
+        gen.close()
+
+        gate.set()
+
+        streamer._worker_thread.join(timeout=5)
+
+        # All content accumulated — disconnect doesn't freeze content
+        self.assertEqual(streamer.accumulated_content, first_chunk + "world")
+        # Usage chunk was still processed
+        self.assertEqual(streamer.input_tokens, 42)
+        self.assertEqual(streamer.output_tokens, 18)
+
+    def test_disconnect_skips_tool_execution(self):
+        """Tool calls are not executed when client has disconnected."""
+        gate = threading.Event()
+        tc1 = _make_tool_call_delta(0, name="show_user_resources", call_id="call_abc")
+        tc2 = _make_tool_call_delta(0, arguments="{}")
+        # First chunk must be >= 50 chars so the parser flushes to the queue
+        first_chunk = "C" * 60
+
+        def chunks_with_tool():
+            yield _make_chunk(content=first_chunk)
+            gate.wait(timeout=10)
+            yield _make_chunk(tool_calls=[tc1])
+            yield _make_chunk(tool_calls=[tc2])
+
+        mock_user = Mock()
+        mock_user.id = 1
+        mock_user.username = "testuser"
+
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            user=mock_user,
+        )
+        mock_client = MagicMock()
+        mock_stream = MagicMock()
+        mock_stream.__enter__ = Mock(return_value=chunks_with_tool())
+        mock_stream.__exit__ = Mock(return_value=False)
+        mock_client.chat.completions.create.return_value = mock_stream
+        streamer.client = mock_client
+
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool"
+        ) as mock_exec:
+            gen = iter(streamer)
+            next(gen)
+            gen.close()
+
+            gate.set()
+            streamer._worker_thread.join(timeout=5)
+
+            mock_exec.assert_not_called()
 
     def test_canned_response_no_worker_thread(self):
         """Canned response path runs synchronously without spawning a worker thread."""
@@ -841,3 +939,259 @@ class LLMStreamerCompletionKwargsTest(unittest.TestCase):
         self.assertEqual(kwargs["top_p"], 0.8)
         self.assertNotIn("presence_penalty", kwargs)
         self.assertNotIn("extra_body", kwargs)
+
+
+@patch(SYNC_THREAD_PATCH, _SynchronousThread)
+class LLMStreamerCancelViaDBTest(_LLMStreamerTestBase, drf_test.APITestCase):
+    """Test cross-process cancellation via the cancel_requested_at DB flag."""
+
+    def _make_thread_session(self):
+        user = structure_factories.UserFactory()
+        session = ChatSession.objects.create(user=user)
+        return ThreadSession.objects.create(chat_session=session, name="test")
+
+    def test_cancel_via_db_freezes_content(self):
+        """Setting cancel_requested_at on ThreadSession freezes content accumulation."""
+        thread = self._make_thread_session()
+
+        # Generate enough chunks to trigger at least one DB cancel check.
+        # First _CANCEL_CHECK_INTERVAL chunks are accumulated normally,
+        # then the DB check fires and content freezes.
+        total_chunks = _CANCEL_CHECK_INTERVAL + 10
+        chunks = [_make_chunk(content=f"w{i} ") for i in range(total_chunks)]
+        chunks.append(
+            _make_chunk(usage={"prompt_tokens": 100, "completion_tokens": 50})
+        )
+
+        # Set the cancel flag in DB before streaming starts
+        ThreadSession.objects.filter(pk=thread.pk).update(
+            cancel_requested_at=timezone.now()
+        )
+
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            thread=thread,
+        )
+        streamer.client = _mock_openai_client(chunks)
+        list(streamer)
+
+        # Content should be frozen at or before the cancel check interval
+        word_count = len(streamer.accumulated_content.strip().split())
+        self.assertLessEqual(word_count, _CANCEL_CHECK_INTERVAL)
+        # Usage was still recorded
+        self.assertEqual(streamer.input_tokens, 100)
+        self.assertEqual(streamer.output_tokens, 50)
+
+    def test_cancel_flag_cleared_after_stream(self):
+        """cancel_requested_at is reset to None after the worker completes."""
+        thread = self._make_thread_session()
+
+        ThreadSession.objects.filter(pk=thread.pk).update(
+            cancel_requested_at=timezone.now()
+        )
+
+        chunks = [
+            _make_chunk(content="Hello"),
+            _make_chunk(usage={"prompt_tokens": 10, "completion_tokens": 5}),
+        ]
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            thread=thread,
+        )
+        streamer.client = _mock_openai_client(chunks)
+        list(streamer)
+
+        thread.refresh_from_db()
+        self.assertIsNone(thread.cancel_requested_at)
+
+    def test_persist_normal_updates_placeholder_not_insert(self):
+        """_persist_normal() updates the pre-created placeholder instead of inserting a new row."""
+        thread = self._make_thread_session()
+        user_msg = Message.objects.create(
+            thread=thread, role=Message.Role.USER, content="hi", sequence_index=1
+        )
+        placeholder = Message.objects.create(
+            thread=thread, role=Message.Role.ASSISTANT, content="", sequence_index=2
+        )
+
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            thread=thread,
+            user_msg=user_msg,
+            assistant_msg=placeholder,
+        )
+        streamer.client = _mock_openai_client([_make_chunk(content="Hello world")])
+        list(streamer)
+
+        placeholder.refresh_from_db()
+        self.assertEqual(placeholder.content, "Hello world")
+        # No extra row should have been inserted
+        self.assertEqual(Message.objects.filter(thread=thread).count(), 2)
+
+    def test_supersession_via_newer_user_message(self):
+        """Worker detects supersession when a newer user message appears on the thread."""
+        thread = self._make_thread_session()
+
+        # Simulate the old stream's pre-created user message
+        old_user_msg = Message.objects.create(
+            thread=thread,
+            role=Message.Role.USER,
+            content="old question",
+            sequence_index=1,
+        )
+        assistant_placeholder = Message.objects.create(
+            thread=thread,
+            role=Message.Role.ASSISTANT,
+            content="",
+            sequence_index=2,
+        )
+
+        total_chunks = _CANCEL_CHECK_INTERVAL + 10
+        chunks = [_make_chunk(content=f"w{i} ") for i in range(total_chunks)]
+        chunks.append(
+            _make_chunk(usage={"prompt_tokens": 100, "completion_tokens": 50})
+        )
+
+        # Simulate a new stream creating a newer user message
+        Message.objects.create(
+            thread=thread,
+            role=Message.Role.USER,
+            content="new question",
+            sequence_index=3,
+        )
+
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            thread=thread,
+            user_msg=old_user_msg,
+            assistant_msg=assistant_placeholder,
+        )
+        streamer.client = _mock_openai_client(chunks)
+        list(streamer)
+
+        # Content should be frozen at or before the cancel check interval
+        word_count = len(streamer.accumulated_content.strip().split())
+        self.assertLessEqual(word_count, _CANCEL_CHECK_INTERVAL)
+        # Usage was still recorded (stream drained for usage-only chunk)
+        self.assertEqual(streamer.input_tokens, 100)
+        self.assertEqual(streamer.output_tokens, 50)
+
+    def test_supersession_detected_even_when_cancel_flag_cleared(self):
+        """The exact race: cancel flag cleared by new stream() call,
+        but supersession is still detected via the newer user message."""
+        thread = self._make_thread_session()
+
+        old_user_msg = Message.objects.create(
+            thread=thread,
+            role=Message.Role.USER,
+            content="old question",
+            sequence_index=1,
+        )
+
+        # Cancel was set then cleared by new stream() call — the race condition
+        thread.cancel_requested_at = None
+        thread.save(update_fields=["cancel_requested_at"])
+
+        # New stream created a newer user message
+        Message.objects.create(
+            thread=thread,
+            role=Message.Role.USER,
+            content="new question",
+            sequence_index=3,
+        )
+
+        total_chunks = _CANCEL_CHECK_INTERVAL + 10
+        chunks = [_make_chunk(content=f"w{i} ") for i in range(total_chunks)]
+        chunks.append(_make_chunk(usage={"prompt_tokens": 50, "completion_tokens": 25}))
+
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            thread=thread,
+            user_msg=old_user_msg,
+        )
+        streamer.client = _mock_openai_client(chunks)
+        list(streamer)
+
+        word_count = len(streamer.accumulated_content.strip().split())
+        self.assertLessEqual(word_count, _CANCEL_CHECK_INTERVAL)
+
+    def test_explicit_cancel_still_works_without_newer_message(self):
+        """Explicit cancel (stop button) still works when there's no newer user message."""
+        thread = self._make_thread_session()
+
+        old_user_msg = Message.objects.create(
+            thread=thread,
+            role=Message.Role.USER,
+            content="question",
+            sequence_index=1,
+        )
+
+        ThreadSession.objects.filter(pk=thread.pk).update(
+            cancel_requested_at=timezone.now()
+        )
+
+        total_chunks = _CANCEL_CHECK_INTERVAL + 10
+        chunks = [_make_chunk(content=f"w{i} ") for i in range(total_chunks)]
+        chunks.append(
+            _make_chunk(usage={"prompt_tokens": 100, "completion_tokens": 50})
+        )
+
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            thread=thread,
+            user_msg=old_user_msg,
+        )
+        streamer.client = _mock_openai_client(chunks)
+        list(streamer)
+
+        word_count = len(streamer.accumulated_content.strip().split())
+        self.assertLessEqual(word_count, _CANCEL_CHECK_INTERVAL)
+
+    def test_no_false_positive_from_own_assistant_placeholder(self):
+        """The worker's own assistant placeholder should not trigger supersession."""
+        thread = self._make_thread_session()
+
+        user_msg = Message.objects.create(
+            thread=thread,
+            role=Message.Role.USER,
+            content="question",
+            sequence_index=1,
+        )
+        # Own assistant placeholder (higher seq, but role=ASSISTANT)
+        Message.objects.create(
+            thread=thread,
+            role=Message.Role.ASSISTANT,
+            content="",
+            sequence_index=2,
+        )
+
+        chunks = [_make_chunk(content=f"w{i} ") for i in range(30)]
+        chunks.append(
+            _make_chunk(usage={"prompt_tokens": 100, "completion_tokens": 50})
+        )
+
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            thread=thread,
+            user_msg=user_msg,
+        )
+        streamer.client = _mock_openai_client(chunks)
+        list(streamer)
+
+        # Should NOT be cancelled — all 30 words should be accumulated
+        word_count = len(streamer.accumulated_content.strip().split())
+        self.assertEqual(word_count, 30)

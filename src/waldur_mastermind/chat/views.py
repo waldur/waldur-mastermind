@@ -5,6 +5,8 @@ from constance import config
 from django.db import transaction
 from django.db.models import Count, Max, Q
 from django.http import StreamingHttpResponse
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -181,6 +183,194 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             exc.status_code = status.HTTP_409_CONFLICT
             raise exc
 
+    def _resolve_thread(self, user, thread_uuid):
+        """Look up an existing thread or create a new one.
+
+        Returns (thread, is_new_thread).
+        """
+        if thread_uuid:
+            try:
+                thread = models.ThreadSession.objects.get(
+                    uuid=thread_uuid, chat_session__user=user
+                )
+            except models.ThreadSession.DoesNotExist:
+                raise rf_exceptions.NotFound("Thread not found.")
+
+            # Clear any stale cancel flag from a previous stream that may not
+            # have completed cleanly (e.g. process killed mid-stream).
+            if thread.cancel_requested_at is not None:
+                thread.cancel_requested_at = None
+                thread.save(update_fields=["cancel_requested_at"])
+
+            return thread, False
+
+        session, _created = models.ChatSession.objects.get_or_create(user=user)
+        thread = models.ThreadSession.objects.create(chat_session=session)
+        return thread, True
+
+    def _build_llm_prompt(self, user, thread, raw_message, detection_result):
+        """Prepare the LLM prompt, canned response, and PII warning.
+
+        Returns (llm_prompt, canned_response, pii_warning).
+        """
+        canned_response = None
+        pii_warning = None
+
+        if detection_result.action == DetectionAction.BLOCK:
+            rejection_prompt = build_rejection_input(thread)
+            if rejection_prompt:
+                llm_prompt = rejection_prompt
+            else:
+                llm_prompt = []
+                canned_response = CANNED_REJECTION_MESSAGE
+            # Send PII-specific warning to frontend if the block involves PII
+            if detection_result.pii.pii_detections:
+                pii_warning = detection_result.pii.user_message
+        else:
+            is_redacted = detection_result.action == DetectionAction.REDACT
+            user_input = (
+                detection_result.pii.redacted_text if is_redacted else raw_message
+            )
+            llm_prompt = build_context(
+                user=user,
+                user_input=user_input,
+                thread=thread,
+            )
+            if is_redacted or detection_result.action == DetectionAction.WARN:
+                pii_warning = detection_result.pii.user_message
+
+        return llm_prompt, canned_response, pii_warning
+
+    def _create_edit_message(
+        self, locked_thread, user, edit_message_uuid, stored_content
+    ):
+        """Validate and create a replacement for an edited user message.
+
+        Must be called inside transaction.atomic() with locked_thread
+        already acquired via select_for_update().
+        """
+        try:
+            original_msg = models.Message.objects.select_for_update().get(
+                uuid=edit_message_uuid,
+                thread=locked_thread,
+                thread__chat_session__user=user,
+            )
+        except models.Message.DoesNotExist:
+            logger.warning(
+                "Edit mode: message %s not found in thread %s for user %s",
+                edit_message_uuid,
+                locked_thread.uuid,
+                user.username,
+            )
+            raise rf_exceptions.NotFound("Message not found.")
+
+        if original_msg.role != models.Message.Role.USER:
+            logger.warning(
+                "Edit mode: attempted to edit non-user message %s (role=%s)",
+                edit_message_uuid,
+                original_msg.role,
+            )
+            raise ValidationError(_("Can only edit user messages."))
+
+        last_user_msg = (
+            locked_thread.messages.filter(
+                role=models.Message.Role.USER,
+                replaced_by__isnull=True,
+            )
+            .order_by("-sequence_index")
+            .first()
+        )
+        if original_msg != last_user_msg:
+            logger.warning(
+                "Edit mode: attempted to edit non-last user message %s in thread %s",
+                edit_message_uuid,
+                locked_thread.uuid,
+            )
+            raise ValidationError(_("Can only edit the last user message."))
+
+        return models.Message.objects.create(
+            thread=locked_thread,
+            role=models.Message.Role.USER,
+            content=stored_content,
+            sequence_index=original_msg.sequence_index,
+            replaces=original_msg,
+        )
+
+    def _persist_messages(
+        self, thread, mode, edit_message_uuid, user, stored_content, detection_result
+    ):
+        """Pre-create user message and assistant placeholder atomically.
+
+        For all modes the assistant placeholder is reserved upfront so a
+        reconnecting client (or a rapid follow-up request) cannot claim
+        the same sequence_index before the background worker persists.
+
+        Returns (user_msg, assistant_placeholder).
+        """
+        if not thread:
+            return None, None
+
+        with transaction.atomic():
+            locked_thread = models.ThreadSession.objects.select_for_update().get(
+                pk=thread.pk
+            )
+
+            user_msg = None
+            assistant_placeholder = None
+
+            if mode == models.ChatMode.EDIT:
+                user_msg = self._create_edit_message(
+                    locked_thread, user, edit_message_uuid, stored_content
+                )
+            elif mode != models.ChatMode.RELOAD:
+                # Normal mode: create user message at next index
+                last_index = (
+                    locked_thread.messages.aggregate(Max("sequence_index"))[
+                        "sequence_index__max"
+                    ]
+                    or 0
+                )
+                user_msg = models.Message.objects.create(
+                    thread=locked_thread,
+                    role=models.Message.Role.USER,
+                    content=stored_content,
+                    sequence_index=last_index + 1,
+                )
+
+            # Create assistant placeholder for every mode
+            if mode in (models.ChatMode.EDIT, models.ChatMode.RELOAD):
+                # Replace the last active assistant message
+                last_assistant = (
+                    locked_thread.messages.filter(
+                        role=models.Message.Role.ASSISTANT,
+                        replaced_by__isnull=True,
+                    )
+                    .order_by("-sequence_index")
+                    .first()
+                )
+                if last_assistant:
+                    assistant_placeholder = models.Message.objects.create(
+                        thread=locked_thread,
+                        role=models.Message.Role.ASSISTANT,
+                        content="",
+                        sequence_index=last_assistant.sequence_index,
+                        replaces=last_assistant,
+                    )
+            else:
+                # Normal mode: new assistant slot at next index
+                assistant_placeholder = models.Message.objects.create(
+                    thread=locked_thread,
+                    role=models.Message.Role.ASSISTANT,
+                    content="",
+                    sequence_index=user_msg.sequence_index + 1,
+                )
+
+            if detection_result.is_flagged and user_msg:
+                user_msg.apply_detection_result(detection_result)
+                locked_thread.update_detection_flags()
+
+        return user_msg, assistant_placeholder
+
     @extend_schema(
         request=serializers.ChatRequestSerializer,
         responses={
@@ -197,132 +387,22 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
 
         mode = serializer.validated_data.get("mode")
         edit_message_uuid = serializer.validated_data.get("edit_message_uuid")
-
-        # Prompt injection detection (between quota check and streaming)
-        detection_result = self._check_input(user, serializer.validated_data["input"])
-        is_blocked = detection_result.action == DetectionAction.BLOCK
-        is_redacted = detection_result.action == DetectionAction.REDACT
-        is_warned = detection_result.action == DetectionAction.WARN
-
-        is_new_thread = False
-        thread_uuid = serializer.validated_data.get("thread_uuid")
-        if thread_uuid:
-            try:
-                thread = models.ThreadSession.objects.get(
-                    uuid=thread_uuid, chat_session__user=user
-                )
-            except models.ThreadSession.DoesNotExist:
-                raise rf_exceptions.NotFound("Thread not found.")
-        else:
-            session, _created = models.ChatSession.objects.get_or_create(user=user)
-            thread = models.ThreadSession.objects.create(chat_session=session)
-            is_new_thread = True
-
-        # For blocked input, try context-aware LLM rejection first, fall back to static
         raw_message = serializer.validated_data["input"]
-        canned_response = None
-        pii_warning = None
 
-        if is_blocked:
-            rejection_prompt = build_rejection_input(thread)
-            if rejection_prompt:
-                llm_prompt = rejection_prompt
-            else:
-                llm_prompt = []
-                canned_response = CANNED_REJECTION_MESSAGE
-            # Send PII-specific warning to frontend if the block involves PII
-            if detection_result.pii.pii_detections:
-                pii_warning = detection_result.pii.user_message
-        else:
-            # Use redacted text when PII was redacted, original text otherwise
-            user_input = (
-                detection_result.pii.redacted_text if is_redacted else raw_message
-            )
-            llm_prompt = build_context(
-                user=user,
-                user_input=user_input,
-                thread=thread,
-            )
-            if is_redacted or is_warned:
-                pii_warning = detection_result.pii.user_message
+        detection_result = self._check_input(user, raw_message)
 
-        # Pre-create user message so it persists even if the client disconnects
-        user_msg = None
-        # Use redacted/blocked text from PII result if available, else raw
+        thread, is_new_thread = self._resolve_thread(
+            user, serializer.validated_data.get("thread_uuid")
+        )
+
+        llm_prompt, canned_response, pii_warning = self._build_llm_prompt(
+            user, thread, raw_message, detection_result
+        )
+
         stored_content = detection_result.pii.redacted_text or raw_message
-        if thread and mode != models.ChatMode.RELOAD:
-            with transaction.atomic():
-                locked_thread = models.ThreadSession.objects.select_for_update().get(
-                    pk=thread.pk
-                )
-
-                if mode == models.ChatMode.EDIT:
-                    # Lock and validate the target message
-                    try:
-                        original_msg = models.Message.objects.select_for_update().get(
-                            uuid=edit_message_uuid,
-                            thread=locked_thread,
-                            thread__chat_session__user=user,
-                        )
-                    except models.Message.DoesNotExist:
-                        logger.warning(
-                            "Edit mode: message %s not found in thread %s for user %s",
-                            edit_message_uuid,
-                            locked_thread.uuid,
-                            user.username,
-                        )
-                        raise rf_exceptions.NotFound("Message not found.")
-
-                    if original_msg.role != models.Message.Role.USER:
-                        logger.warning(
-                            "Edit mode: attempted to edit non-user message %s (role=%s)",
-                            edit_message_uuid,
-                            original_msg.role,
-                        )
-                        raise ValidationError(_("Can only edit user messages."))
-
-                    last_user_msg = (
-                        locked_thread.messages.filter(
-                            role=models.Message.Role.USER,
-                            replaced_by__isnull=True,
-                        )
-                        .order_by("-sequence_index")
-                        .first()
-                    )
-                    if original_msg != last_user_msg:
-                        logger.warning(
-                            "Edit mode: attempted to edit non-last user message %s in thread %s",
-                            edit_message_uuid,
-                            locked_thread.uuid,
-                        )
-                        raise ValidationError(_("Can only edit the last user message."))
-
-                    # Create replacement at same sequence_index
-                    user_msg = models.Message.objects.create(
-                        thread=locked_thread,
-                        role=models.Message.Role.USER,
-                        content=stored_content,
-                        sequence_index=original_msg.sequence_index,
-                        replaces=original_msg,
-                    )
-                else:
-                    # Normal mode: create new user message at next index
-                    last_index = (
-                        locked_thread.messages.aggregate(Max("sequence_index"))[
-                            "sequence_index__max"
-                        ]
-                        or 0
-                    )
-                    user_msg = models.Message.objects.create(
-                        thread=locked_thread,
-                        role=models.Message.Role.USER,
-                        content=stored_content,
-                        sequence_index=last_index + 1,
-                    )
-
-                if detection_result.is_flagged:
-                    user_msg.apply_detection_result(detection_result)
-                    locked_thread.update_detection_flags()
+        user_msg, assistant_placeholder = self._persist_messages(
+            thread, mode, edit_message_uuid, user, stored_content, detection_result
+        )
 
         streamer = LLMStreamer(
             messages=llm_prompt,
@@ -334,6 +414,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             is_new_thread=is_new_thread,
             mode=mode,
             user_msg=user_msg,
+            assistant_msg=assistant_placeholder,
             canned_response=canned_response,
             pii_warning=pii_warning,
         )
@@ -659,6 +740,33 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
         thread.is_archived = False
         thread.save(update_fields=["is_archived"])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        summary="Cancel active stream",
+        description="Request cancellation of the active LLM stream for this thread.",
+        responses={200: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def cancel(self, request, uuid=None):
+        """Request cancellation of the active LLM stream.
+
+        Sets a DB flag that the streaming worker polls. Works across
+        gunicorn workers because the flag lives in PostgreSQL.  The
+        flag is idempotent and cleared automatically when the worker
+        finishes, so fire-and-forget from the frontend is safe.
+        """
+        thread = get_object_or_404(
+            models.ThreadSession.objects.filter(chat_session__user=request.user),
+            uuid=uuid,
+        )
+        thread.cancel_requested_at = timezone.now()
+        thread.save(update_fields=["cancel_requested_at"])
+        logger.info(
+            "Cancel requested for thread %s by user %s",
+            thread.uuid,
+            request.user.username,
+        )
+        return Response(status=status.HTTP_200_OK)
 
 
 class MessageViewSet(LLMConfigurationMixin, ActionsViewSet):
