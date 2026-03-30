@@ -132,10 +132,6 @@ Show OpenStack tenant migrations action and tab
 
 Render estimated cost column in projects list.
 
-## project.mandatory_end_date
-
-Make the project end date mandatory.
-
 ## project.mandatory_start_date
 
 Make the project start date mandatory.

@@ -2526,6 +2526,14 @@ Norway Business Register API server URL
 
 ### AI assistant settings
 
+#### AI_ASSISTANT_NAME
+
+**Type:** str
+
+**Default value:** Waldur Assistant
+
+Display name for the AI Assistant persona (e.g. 'Mari', 'Waldur Assistant').
+
 #### AI_ASSISTANT_ENABLED
 
 **Type:** bool
