@@ -84,8 +84,6 @@ class ProjectSection(FeatureSection):
 
     mandatory_start_date = Feature("Make the project start date mandatory.")
 
-    mandatory_end_date = Feature("Make the project end date mandatory.")
-
     show_permission_reviews = Feature(
         "Allows to show permission reviews tab and popups for projects."
     )
