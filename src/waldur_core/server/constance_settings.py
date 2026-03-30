@@ -1124,6 +1124,10 @@ CONSTANCE_CONFIG = {
         "",
         "Comma-separated allowlist phrases that bypass injection detection.",
     ),
+    "AI_ASSISTANT_NAME": (
+        "Waldur Assistant",
+        "Display name for the AI Assistant persona (e.g. 'Mari', 'Waldur Assistant').",
+    ),
     # Software catalog settings
     "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED": (
         False,
@@ -1559,6 +1563,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ONBOARDING_BREG_API_URL",
     ),
     "AI assistant settings": (
+        "AI_ASSISTANT_NAME",
         "AI_ASSISTANT_ENABLED",
         "AI_ASSISTANT_ENABLED_ROLES",
         "AI_ASSISTANT_BACKEND_TYPE",

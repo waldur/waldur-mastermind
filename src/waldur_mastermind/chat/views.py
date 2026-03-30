@@ -41,7 +41,7 @@ from waldur_mastermind.chat.input_guards import (
 )
 from waldur_mastermind.chat.llm_streamer import LLMStreamer, validate_tool_call
 from waldur_mastermind.chat.models import TokenQuota
-from waldur_mastermind.chat.prompts.rejection import CANNED_REJECTION_MESSAGE
+from waldur_mastermind.chat.prompts.rejection import CANNED_REJECTION_MESSAGE_TEMPLATE
 from waldur_mastermind.chat.tools.executor import ToolExecutor
 
 logger = logging.getLogger(__name__)
@@ -222,7 +222,9 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
                 llm_prompt = rejection_prompt
             else:
                 llm_prompt = []
-                canned_response = CANNED_REJECTION_MESSAGE
+                canned_response = CANNED_REJECTION_MESSAGE_TEMPLATE.format(
+                    organization=config.SITE_NAME,
+                )
             # Send PII-specific warning to frontend if the block involves PII
             if detection_result.pii.pii_detections:
                 pii_warning = detection_result.pii.user_message
