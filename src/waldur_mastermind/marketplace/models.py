@@ -1223,7 +1223,7 @@ class Plan(
                 price = component_prices.get(key, 0)
                 limit = limits.get(key, 0)
                 factor = factors.get(key, 1)
-                cost += Decimal(price) * limit / factor
+                cost += Decimal(price) * Decimal(str(limit)) / Decimal(str(factor))
 
         return cost
 

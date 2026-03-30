@@ -33,6 +33,31 @@ class OrderEstimateTest(test.APITestCase):
         # Expected cost = 5 * 10 = 50
         self.assertEqual(order.old_cost_estimate, 50)
 
+    def test_old_cost_estimate_with_float_limits(self):
+        """Limits from JSON attributes are stored as floats.
+        Ensure get_estimate handles Decimal * float without TypeError."""
+        offering = factories.OfferingFactory()
+        plan = factories.PlanFactory(offering=offering)
+
+        component = models.OfferingComponent.objects.create(
+            offering=offering,
+            type="cpu",
+            billing_type=BillingTypes.LIMIT,
+            limit_period=LimitPeriods.MONTH,
+            limit_amount=100,
+        )
+        models.PlanComponent.objects.create(
+            plan=plan,
+            component=component,
+            price=10,
+        )
+
+        # Simulate JSON-deserialized limits (floats, not ints)
+        old_limits = {"cpu": 5.0}
+        order = factories.OrderFactory(plan=plan, attributes={"old_limits": old_limits})
+
+        self.assertEqual(order.old_cost_estimate, 50)
+
     def test_old_cost_estimate_without_limits(self):
         offering = factories.OfferingFactory()
         plan = factories.PlanFactory(offering=offering)
