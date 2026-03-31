@@ -1,7 +1,13 @@
+import json
+import tempfile
+
 from dbtemplates.models import Template
 from ddt import data, ddt
+from django.core.management import call_command
+from django.test import TestCase
 from rest_framework import status, test
 
+from waldur_core.core.models import Notification
 from waldur_core.structure.tests import factories, fixtures
 
 
@@ -249,3 +255,71 @@ class NotificationTemplateFilterTest(test.APITestCase):
             {"name_exact": "invitation_approved"},
         )
         self.assertEqual(len(response.json()), 1)
+
+
+class LoadNotificationsCommandTest(TestCase):
+    """Tests for the load_notifications management command."""
+
+    def _write_json(self, data):
+        f = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+        json.dump(data, f)
+        f.close()
+        return f.name
+
+    def test_empty_config_does_not_override_enabled_notification(self):
+        """A notification enabled via API stays enabled when config is empty."""
+        notification = factories.NotificationFactory(
+            key="users.invitation_created", enabled=True
+        )
+        call_command("load_notifications", self._write_json({}))
+        notification.refresh_from_db()
+        self.assertTrue(notification.enabled)
+
+    def test_empty_config_does_not_override_disabled_notification(self):
+        """A notification disabled via API stays disabled when config is empty."""
+        notification = factories.NotificationFactory(
+            key="users.invitation_created", enabled=False
+        )
+        call_command("load_notifications", self._write_json({}))
+        notification.refresh_from_db()
+        self.assertFalse(notification.enabled)
+
+    def test_missing_file_does_not_override_enabled_notification(self):
+        """A notification enabled via API stays enabled when file is missing."""
+        notification = factories.NotificationFactory(
+            key="users.invitation_created", enabled=True
+        )
+        call_command("load_notifications", "/nonexistent/notifications.json")
+        notification.refresh_from_db()
+        self.assertTrue(notification.enabled)
+
+    def test_explicit_true_enables_notification(self):
+        """An explicit true in the config enables a disabled notification."""
+        notification = factories.NotificationFactory(
+            key="users.invitation_created", enabled=False
+        )
+        call_command(
+            "load_notifications",
+            self._write_json({"users.invitation_created": True}),
+        )
+        notification.refresh_from_db()
+        self.assertTrue(notification.enabled)
+
+    def test_explicit_false_disables_notification(self):
+        """An explicit false in the config disables an enabled notification."""
+        notification = factories.NotificationFactory(
+            key="users.invitation_created", enabled=True
+        )
+        call_command(
+            "load_notifications",
+            self._write_json({"users.invitation_created": False}),
+        )
+        notification.refresh_from_db()
+        self.assertFalse(notification.enabled)
+
+    def test_new_notification_created_as_disabled_by_default(self):
+        """Notifications not in the DB are created with enabled=False."""
+        Notification.objects.filter(key="users.invitation_created").delete()
+        call_command("load_notifications", self._write_json({}))
+        notification = Notification.objects.get(key="users.invitation_created")
+        self.assertFalse(notification.enabled)

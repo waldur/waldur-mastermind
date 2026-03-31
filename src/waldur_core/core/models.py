@@ -992,7 +992,7 @@ class Notification(UuidMixin, DescribableMixin, TimeStampedModel):
 
     key = models.CharField(max_length=255, unique=True, blank=False)
     enabled = models.BooleanField(
-        default=True, help_text=_("Indicates if notification is enabled or disabled")
+        default=False, help_text=_("Indicates if notification is enabled or disabled")
     )
     templates = models.ManyToManyField(NotificationTemplate)
 

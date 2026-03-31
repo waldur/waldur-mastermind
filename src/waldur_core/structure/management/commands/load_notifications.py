@@ -8,19 +8,46 @@ template on first use.
 
 Template content overrides are handled separately by the override_templates command.
 
+All notifications are **disabled by default**. To enable specific notifications,
+list them explicitly in the input file with a value of ``true``.
+
+If the input file does not exist, all registered notifications are synced with
+their model defaults (disabled) and no enabled status is overridden.
+
 Input file format (JSON or YAML):
 
     Each top-level key is a notification key (e.g. "users.invitation_created").
     The value is a bool that sets the notification's enabled/disabled status.
+    Only keys present in the file are overridden; absent keys keep their
+    current database value (disabled on first creation).
+
+    Example JSON:
+
+        {
+            "users.invitation_created": true,
+            "users.invitation_approved": true,
+            "marketplace.notification_usages": true,
+            "invoices.notification": false
+        }
 
     Example YAML:
 
         users.invitation_created: true
+        users.invitation_approved: true
+        marketplace.notification_usages: true
         invoices.notification: false
+
+    In waldur-helm, set ``waldur.notifications`` in values.yaml:
+
+        waldur:
+          notifications:
+            users.invitation_created: true
+            users.invitation_approved: true
 """
 
 import json
 import logging
+import os
 
 import yaml
 from dbtemplates.models import Template as DBTemplate
@@ -61,7 +88,17 @@ class Command(BaseCommand):
     # ------------------------------------------------------------------
 
     def handle(self, *args, **options):
-        notifications = self._load_file(options["notifications_file"])
+        filepath = options["notifications_file"]
+        if not os.path.exists(filepath):
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Notifications file not found: {filepath}, "
+                    "syncing registered notifications with defaults only."
+                )
+            )
+            notifications = {}
+        else:
+            notifications = self._load_file(filepath)
         self._warn_unknown_keys(notifications)
 
         for notification_data in self._iter_registered_notifications():
