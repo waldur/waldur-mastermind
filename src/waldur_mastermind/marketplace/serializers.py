@@ -5113,9 +5113,13 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             if component.limit_period == LimitPeriods.QUARTERLY:
                 quarter_start = core_utils.get_current_quarter_start()
                 quarter_end = core_utils.get_current_quarter_end()
-                usages = usages.filter(date__gte=quarter_start, date__lte=quarter_end)
+                usages = usages.filter(
+                    billing_period__gte=quarter_start, billing_period__lte=quarter_end
+                )
             elif component.limit_period == LimitPeriods.ANNUAL:
-                usages = usages.filter(date__year__gte=datetime.date.today().year)
+                usages = usages.filter(
+                    billing_period__year__gte=datetime.date.today().year
+                )
             elif component.limit_period == LimitPeriods.TOTAL:
                 pass  # We sum all usages
 

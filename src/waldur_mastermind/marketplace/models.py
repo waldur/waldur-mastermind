@@ -1110,7 +1110,7 @@ class OfferingComponent(
         usages = ComponentUsage.objects.filter(resource=resource, component=self)
 
         if self.limit_period == LimitPeriods.MONTH:
-            usages = usages.filter(date=core_utils.month_start(date))
+            usages = usages.filter(billing_period=core_utils.month_start(date))
         elif self.limit_period == LimitPeriods.QUARTERLY:
             # Convert date to datetime for quarter calculations
             if isinstance(date, timezone.datetime):
@@ -1124,10 +1124,11 @@ class OfferingComponent(
             quarter_start = core_utils.get_quarter_start(datetime_obj)
             quarter_end = core_utils.get_quarter_end(datetime_obj)
             usages = usages.filter(
-                date__gte=quarter_start.date(), date__lte=quarter_end.date()
+                billing_period__gte=quarter_start.date(),
+                billing_period__lte=quarter_end.date(),
             )
         elif self.limit_period == LimitPeriods.ANNUAL:
-            usages = usages.filter(date__year=date.year)
+            usages = usages.filter(billing_period__year=date.year)
 
         total = usages.aggregate(models.Sum("usage"))["usage__sum"] or 0
 

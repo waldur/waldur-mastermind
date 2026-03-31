@@ -1302,11 +1302,14 @@ class CustomerResourceQuotasTest(test.APITestCase):
             offering=self.offering,
             limits={"disk": 100},
         )
+        self.current_billing_period = datetime.date(2025, 10, 1)
+        self.previous_billing_period = datetime.date(2025, 8, 1)
         self.limit_usage = marketplace_factories.ComponentUsageFactory(
             resource=self.limit_based_resource,
             component=self.limit_based_component,
             usage=10,
             date=self.current_date,
+            billing_period=self.current_billing_period,
         )
         # create another limit_usage with 2 months back date
         marketplace_factories.ComponentUsageFactory(
@@ -1314,6 +1317,7 @@ class CustomerResourceQuotasTest(test.APITestCase):
             component=self.limit_based_component,
             usage=15,
             date=self.previous_month_date,
+            billing_period=self.previous_billing_period,
         )
         # create new usages for current month
         self.current_month_cpu_usage1 = marketplace_factories.ComponentUsageFactory(
@@ -1321,18 +1325,21 @@ class CustomerResourceQuotasTest(test.APITestCase):
             component=self.component1,  # CPU component
             usage=5,
             date=self.current_date,
+            billing_period=self.current_billing_period,
         )
         self.previous_month_cpu_usage1 = marketplace_factories.ComponentUsageFactory(
             resource=self.resource1,
             component=self.component1,  # CPU component
             usage=3,
             date=self.previous_month_date,
+            billing_period=self.previous_billing_period,
         )
         self.current_month_cpu_usage2 = marketplace_factories.ComponentUsageFactory(
             resource=self.resource2,
             component=self.component1,  # CPU component
             usage=2,
             date=self.current_date,
+            billing_period=self.current_billing_period,
         )
 
         self.current_month_ram_usage1 = marketplace_factories.ComponentUsageFactory(
@@ -1340,18 +1347,21 @@ class CustomerResourceQuotasTest(test.APITestCase):
             component=self.component2,  # RAM component
             usage=10,
             date=self.current_date,
+            billing_period=self.current_billing_period,
         )
         self.previous_month_ram_usage1 = marketplace_factories.ComponentUsageFactory(
             resource=self.resource1,
             component=self.component2,  # RAM component
             usage=8,
             date=self.previous_month_date,
+            billing_period=self.previous_billing_period,
         )
         self.current_month_ram_usage2 = marketplace_factories.ComponentUsageFactory(
             resource=self.resource2,
             component=self.component2,
             usage=4,
             date=self.current_date,
+            billing_period=self.current_billing_period,
         )
         self.url = factories.CustomerFactory.get_url(self.customer, "stats")
 
