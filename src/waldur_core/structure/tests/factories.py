@@ -297,6 +297,7 @@ class NotificationFactory(
     metaclass=BaseMetaFactory[core_models.Notification],
 ):
     key = factory.Sequence(lambda n: "Notification_%s" % n)
+    enabled = True
 
     class Meta:
         model = core_models.Notification
