@@ -1646,6 +1646,15 @@ def update_offering_user_username_after_offering_settings_change(
     ):
         return
 
+    old_plugin_options = offering.tracker.previous("plugin_options") or {}
+    new_plugin_options = offering.plugin_options or {}
+    default_policy = utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value
+    old_policy = old_plugin_options.get("username_generation_policy", default_policy)
+    new_policy = new_plugin_options.get("username_generation_policy", default_policy)
+
+    if old_policy == new_policy:
+        return
+
     offering_users = models.OfferingUser.objects.filter(
         offering=offering,
         state__in=[
