@@ -300,11 +300,13 @@ def get_components_usage_data_from_resources(
 
                 if for_current_month:
                     usages = usages.filter(
-                        date__year=current_date.year,
-                        date__month=current_date.month,
+                        billing_period__year=current_date.year,
+                        billing_period__month=current_date.month,
                     )
                 elif component.limit_period == LimitPeriods.ANNUAL:
-                    usages = usages.filter(date__year__gte=datetime.date.today().year)
+                    usages = usages.filter(
+                        billing_period__year__gte=datetime.date.today().year
+                    )
 
                 total_usage = usages.aggregate(total=Sum("usage"))["total"] or 0
                 component_limit_usage[component.type] += float(total_usage)
