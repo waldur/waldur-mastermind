@@ -420,6 +420,63 @@ class UpdateOfferingUserUsernameAfterUserChangeTest(APITestCase):
         self.assertEqual(offering_user.username, "old_username")
 
 
+class UpdateOfferingUserUsernameAfterOfferingSettingsChangeTest(APITestCase):
+    def setUp(self):
+        self.old_username = "old_username"
+        self.site_username = "site-user"
+        self.preserved_username = "preserved_username"
+        self.offering = factories.OfferingFactory(
+            type=BASIC_OFFERING,
+            plugin_options={
+                "username_generation_policy": utils.UsernameGenerationPolicy.WALDUR_USERNAME.value
+            },
+        )
+
+        self.offering_user = factories.OfferingUserFactory(
+            offering=self.offering,
+            username=self.old_username,
+        )
+
+    def test_update_offering_user_username_when_username_generation_policy_changes(
+        self,
+    ):
+        self.offering.plugin_options["username_generation_policy"] = (
+            utils.UsernameGenerationPolicy.IDENTITY_CLAIM.value
+        )
+        self.offering_user.user.details = {"site_username": self.site_username}
+        self.offering_user.user.save()
+        self.offering.save()
+
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.username, self.site_username)
+
+    def test_do_not_update_offering_user_username_when_unrelated_plugin_option_changes(
+        self,
+    ):
+        self.offering.plugin_options["offering_user_auto_deletion"] = True
+        self.offering.save()
+
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.username, self.old_username)
+
+    def test_do_not_clear_offering_user_username_for_service_provider_policy_on_unrelated_change(
+        self,
+    ):
+        self.offering.plugin_options = {
+            "username_generation_policy": utils.UsernameGenerationPolicy.SERVICE_PROVIDER.value
+        }
+        self.offering.save()
+
+        self.offering_user.username = self.preserved_username
+        self.offering_user.save()
+
+        self.offering.plugin_options["offering_user_auto_deletion"] = True
+        self.offering.save()
+
+        self.offering_user.refresh_from_db()
+        self.assertEqual(self.offering_user.username, self.preserved_username)
+
+
 class SetOrderCompletionTimestampTest(APITestCase):
     def setUp(self):
         self.fixed_time = datetime.datetime(2025, 5, 23, 12, 0, 0)
