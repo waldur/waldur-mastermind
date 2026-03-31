@@ -6435,19 +6435,41 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
             if not plan_period:
                 plan_period = utils.get_plan_period(resource, now)
 
-            usage, created = models.ComponentUsage.objects.update_or_create(
+            # Look up by (resource, component, billing_period) only —
+            # plan_period is a mutable attribute, not part of the identity.
+            # This prevents duplicates when plan_period changes from None
+            # to a real value (e.g. after historical backfill).
+            existing_qs = models.ComponentUsage.objects.filter(
                 resource=resource,
                 component=component,
-                plan_period=plan_period,
                 billing_period=billing_period,
-                defaults={
-                    "usage": amount,
-                    "date": now,
-                    "description": description,
-                    "recurring": recurring,
-                    "modified_by": user,
-                },
             )
+            existing = existing_qs.first()
+            if existing:
+                # Clean up legacy duplicates (same billing period, different plan_periods)
+                existing_qs.exclude(pk=existing.pk).delete()
+                existing.plan_period = plan_period
+                existing.usage = amount
+                existing.date = now
+                existing.description = description
+                existing.recurring = recurring
+                existing.modified_by = user
+                existing.save()
+                usage = existing
+                created = False
+            else:
+                usage = models.ComponentUsage.objects.create(
+                    resource=resource,
+                    component=component,
+                    plan_period=plan_period,
+                    billing_period=billing_period,
+                    usage=amount,
+                    date=now,
+                    description=description,
+                    recurring=recurring,
+                    modified_by=user,
+                )
+                created = True
             if created:
                 logger.info(
                     f"Usage has been created for {resource}, component: {component.type}, value: {amount}"

@@ -944,6 +944,180 @@ class SetUserUsageDuplicateComponentTest(test.APITestCase):
         self.assertEqual(user_usage.usage, 25)
 
 
+class HistoricalUsagePlanPeriodDuplicateTest(test.APITestCase):
+    """Reproducer for site-agent historical usage creating duplicate
+    ComponentUsage records — one with plan_period=None and one with
+    plan_period set — for the same (resource, component, billing_period).
+
+    Root cause: when the historical date predates the ResourcePlanPeriod.start,
+    get_plan_period() returns None. A later submission (after the plan period
+    is extended or a new one created) returns a real plan_period. The unique
+    constraints allow both records to coexist.
+    """
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.plan = factories.PlanFactory(offering=self.offering)
+        self.offering_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.USAGE,
+            type="cpu",
+        )
+        factories.PlanComponentFactory(
+            plan=self.plan, component=self.offering_component
+        )
+        self.resource = models.Resource.objects.create(
+            offering=self.offering,
+            plan=self.plan,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+        )
+        # Plan period starts 2024-06-01 — does NOT cover historical months
+        self.plan_period = models.ResourcePlanPeriod.objects.create(
+            resource=self.resource,
+            plan=self.plan,
+            start=datetime.datetime(2024, 6, 1, tzinfo=datetime.UTC),
+            end=None,
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_USAGE)
+
+    @freeze_time("2024-07-15")
+    def test_historical_usage_before_plan_period_creates_record_with_null_plan_period(
+        self,
+    ):
+        """When historical date predates plan_period.start, the created
+        ComponentUsage has plan_period=None."""
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Submit usage for March 2024 — before plan period start (June 2024)
+        payload = {
+            "resource": self.resource.uuid.hex,
+            "usages": [{"type": "cpu", "amount": 100}],
+            "date": "2024-03-15T10:00:00Z",
+        }
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        usage = models.ComponentUsage.objects.get(
+            resource=self.resource,
+            component=self.offering_component,
+            billing_period=datetime.date(2024, 3, 1),
+        )
+        # plan_period is None because no ResourcePlanPeriod covers March 2024
+        self.assertIsNone(usage.plan_period)
+
+    @freeze_time("2024-07-15")
+    def test_resubmission_after_plan_period_extended_updates_existing_record(self):
+        """After a wider plan period is created, re-submitting usage for the
+        same month updates the existing record's plan_period instead of
+        creating a duplicate."""
+        self.client.force_authenticate(self.fixture.staff)
+
+        # Step 1: Submit historical usage for March 2024 (before plan period)
+        payload = {
+            "resource": self.resource.uuid.hex,
+            "usages": [{"type": "cpu", "amount": 100}],
+            "date": "2024-03-15T10:00:00Z",
+        }
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify: 1 record with plan_period=None
+        usages = models.ComponentUsage.objects.filter(
+            resource=self.resource,
+            component=self.offering_component,
+            billing_period=datetime.date(2024, 3, 1),
+        )
+        self.assertEqual(usages.count(), 1)
+        self.assertIsNone(usages.first().plan_period)
+
+        # Step 2: A wider plan period is created (e.g., by get_or_create_plan_period
+        # or migration 0122) that covers historical dates
+        wide_plan_period = models.ResourcePlanPeriod.objects.create(
+            resource=self.resource,
+            plan=self.plan,
+            start=datetime.datetime(2024, 1, 1, tzinfo=datetime.UTC),
+            end=datetime.datetime(2024, 6, 1, tzinfo=datetime.UTC),
+        )
+
+        # Step 3: Re-submit usage for the same month (e.g., site agent re-run)
+        payload["usages"][0]["amount"] = 200
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Fixed: only 1 record, plan_period updated to the new one
+        usages = models.ComponentUsage.objects.filter(
+            resource=self.resource,
+            component=self.offering_component,
+            billing_period=datetime.date(2024, 3, 1),
+        )
+        self.assertEqual(usages.count(), 1)
+        usage = usages.first()
+        self.assertEqual(usage.plan_period, wide_plan_period)
+        self.assertEqual(usage.usage, 200)
+
+    @freeze_time("2024-07-15")
+    def test_legacy_duplicates_cleaned_up_on_resubmission(self):
+        """Pre-existing duplicate ComponentUsage records (from before the fix)
+        are cleaned up when new usage is submitted for the same month."""
+        self.client.force_authenticate(self.fixture.staff)
+
+        billing_period = datetime.date(2024, 3, 1)
+        backfill_date = datetime.datetime(2024, 3, 15, 10, 0, 0, tzinfo=datetime.UTC)
+
+        # Simulate pre-existing duplicates: one with plan_period=None, one with plan_period set
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=None,
+            component=self.offering_component,
+            usage=100,
+            date=backfill_date,
+            billing_period=billing_period,
+        )
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.offering_component,
+            usage=50,
+            date=backfill_date,
+            billing_period=billing_period,
+        )
+        self.assertEqual(
+            models.ComponentUsage.objects.filter(
+                resource=self.resource,
+                component=self.offering_component,
+                billing_period=billing_period,
+            ).count(),
+            2,
+        )
+
+        # Re-submit usage — should consolidate into a single record
+        payload = {
+            "resource": self.resource.uuid.hex,
+            "usages": [{"type": "cpu", "amount": 300}],
+            "date": "2024-03-15T10:00:00Z",
+        }
+        response = self.client.post(
+            "/api/marketplace-component-usages/set_usage/", payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        usages = models.ComponentUsage.objects.filter(
+            resource=self.resource,
+            component=self.offering_component,
+            billing_period=billing_period,
+        )
+        self.assertEqual(usages.count(), 1)
+        self.assertEqual(usages.first().usage, 300)
+
+
 @freeze_time("2024-02-15")  # Current time: February 2024
 class UsageBackfillInvoiceTest(test.APITestCase):
     def setUp(self):
