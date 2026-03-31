@@ -985,22 +985,30 @@ def import_current_usages(resource):
             continue
 
         plan_period = get_plan_period(resource, date)
+        billing_period = core_utils.month_start(date)
 
-        component_usage_object, created = models.ComponentUsage.objects.get_or_create(
+        # Look up by (resource, component, billing_period) only —
+        # plan_period is mutable and should not be part of the identity.
+        existing_qs = models.ComponentUsage.objects.filter(
             resource=resource,
             component=offering_component,
-            billing_period=core_utils.month_start(date),
-            plan_period=plan_period,
-            defaults={
-                "usage": component_usage,
-                "date": date,
-            },
+            billing_period=billing_period,
         )
-        if not created:
-            component_usage_object.usage = max(
-                component_usage, component_usage_object.usage
+        existing = existing_qs.first()
+        if existing:
+            existing_qs.exclude(pk=existing.pk).delete()
+            existing.plan_period = plan_period
+            existing.usage = max(component_usage, existing.usage)
+            existing.save()
+        else:
+            models.ComponentUsage.objects.create(
+                resource=resource,
+                component=offering_component,
+                billing_period=billing_period,
+                plan_period=plan_period,
+                usage=component_usage,
+                date=date,
             )
-            component_usage_object.save()
 
 
 def format_limits_list(components_map, limits):
