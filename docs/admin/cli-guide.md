@@ -133,6 +133,19 @@ positional arguments:
 
 ```
 
+## backfill_plan_periods
+
+Backfill plan_period on ComponentUsage records where it is NULL. This fixes incorrect quarterly/annual/total usage calculations caused by ComponentUsage records created without a plan_period.
+
+```bash
+
+usage: waldur backfill_plan_periods [--dry-run]
+
+options:
+  --dry-run  Only show what would be done without making changes.
+
+```
+
 ## clean_celery_results
 
 Clean up old Celery task results from the database to prevent bloat.
