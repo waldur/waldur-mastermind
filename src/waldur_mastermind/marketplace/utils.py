@@ -1276,7 +1276,8 @@ def generate_glauth_records_for_offering_users(offering, offering_users):
 
         # Use prefetched SSH keys (no additional query)
         ssh_keys = [
-            f'"{ssh_key.public_key}"' for ssh_key in user.sshpublickey_set.all()
+            f'"{escape_toml_string(ssh_key.public_key)}"'
+            for ssh_key in user.sshpublickey_set.all()
         ]
         ssh_keys_line = ",\n    ".join(ssh_keys)
 
@@ -1293,27 +1294,27 @@ def generate_glauth_records_for_offering_users(offering, offering_users):
         record = textwrap.dedent(
             f"""
         [[users]]
-          name = "{user.get_username()}"
-          givenname="{user.first_name}"
-          sn="{user.last_name}"
-          mail = "{user.email}"
+          name = "{escape_toml_string(user.get_username())}"
+          givenname="{escape_toml_string(user.first_name)}"
+          sn="{escape_toml_string(user.last_name)}"
+          mail = "{escape_toml_string(user.email)}"
           uidnumber = {uidnumber}
           primarygroup = {primarygroup}
           otherGroups = [{other_groups}]
           sshkeys = [{ssh_keys_line}]
-          loginShell = "{login_shell}"
-          homeDir = "{home_dir}"
+          loginShell = "{escape_toml_string(login_shell)}"
+          homeDir = "{escape_toml_string(home_dir)}"
           passsha256 = "{password_sha256}"
           disabled = {user_disabled_status}
             [[users.customattributes]]
-            preferredUsername = ["{username}"]
+            preferredUsername = ["{escape_toml_string(username)}"]
         """
         )
 
         record += textwrap.dedent(
             f"""
         [[groups]]
-          name = "{username}"
+          name = "{escape_toml_string(username)}"
           gidnumber = {primarygroup}
         """
         )
@@ -1332,7 +1333,7 @@ def generate_glauth_records_for_robot_accounts(offering, robot_accounts):
 
     robot_account_records = []
     for robot_account in robot_accounts:
-        ssh_keys = robot_account.keys
+        ssh_keys = [f'"{escape_toml_string(key)}"' for key in robot_account.keys]
         ssh_keys_line = ",\n    ".join(ssh_keys)
 
         username = robot_account.username
@@ -1345,22 +1346,22 @@ def generate_glauth_records_for_robot_accounts(offering, robot_accounts):
         record = textwrap.dedent(
             f"""
         [[users]]
-          name = "{username}"
+          name = "{escape_toml_string(username)}"
           uidnumber = {uidnumber}
           primarygroup = {primarygroup}
-          sshkeys = ["{ssh_keys_line}"]
-          loginShell = "{login_shell}"
-          homeDir = "{home_dir}"
+          sshkeys = [{ssh_keys_line}]
+          loginShell = "{escape_toml_string(login_shell)}"
+          homeDir = "{escape_toml_string(home_dir)}"
           passsha256 = "{password_sha256}"
             [[users.customattributes]]
-            preferredUsername = ["{username}"]
+            preferredUsername = ["{escape_toml_string(username)}"]
         """
         )
 
         record += textwrap.dedent(
             f"""
         [[groups]]
-          name = "{username}"
+          name = "{escape_toml_string(username)}"
           gidnumber = {primarygroup}
         """
         )
@@ -1368,6 +1369,14 @@ def generate_glauth_records_for_robot_accounts(offering, robot_accounts):
         robot_account_records.append(record)
 
     return robot_account_records
+
+
+def escape_toml_string(value):
+    """Escape a string for safe inclusion in a TOML double-quoted string.
+
+    Backslashes and double quotes must be escaped to produce valid TOML.
+    """
+    return value.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def sanitize_name(name):
