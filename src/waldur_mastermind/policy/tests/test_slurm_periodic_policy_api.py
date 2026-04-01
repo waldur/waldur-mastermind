@@ -1,5 +1,4 @@
 import datetime
-from unittest.mock import patch
 
 from ddt import data, ddt, unpack
 from freezegun import freeze_time
@@ -664,12 +663,9 @@ class SlurmPeriodicUsagePolicyPreviewPeriodTest(test.APITestCase):
             date=billing_period,
         )
 
-    @patch("waldur_mastermind.policy.views.timezone")
-    def test_monthly_policy_preview_uses_current_month_only(self, mock_timezone):
+    @freeze_time("2026-03-15")
+    def test_monthly_policy_preview_uses_current_month_only(self):
         """Preview with monthly policy should only count current month's usage."""
-        mock_timezone.now.return_value = datetime.datetime(
-            2026, 3, 15, tzinfo=datetime.UTC
-        )
 
         SlurmPeriodicUsagePolicyFactory(
             scope=self.offering,
@@ -700,12 +696,9 @@ class SlurmPeriodicUsagePolicyPreviewPeriodTest(test.APITestCase):
         self.assertAlmostEqual(response.data["current_usage"], 0.36, places=2)
         self.assertEqual(response.data["current_qos_status"], "normal")
 
-    @patch("waldur_mastermind.policy.views.timezone")
-    def test_quarterly_policy_preview_sums_all_months_in_quarter(self, mock_timezone):
+    @freeze_time("2026-03-15")
+    def test_quarterly_policy_preview_sums_all_months_in_quarter(self):
         """Preview with quarterly policy should sum all months in the quarter."""
-        mock_timezone.now.return_value = datetime.datetime(
-            2026, 3, 15, tzinfo=datetime.UTC
-        )
 
         SlurmPeriodicUsagePolicyFactory(
             scope=self.offering,
@@ -734,15 +727,10 @@ class SlurmPeriodicUsagePolicyPreviewPeriodTest(test.APITestCase):
         # Should sum all Q1 months: 0.20 + 0.30 + 0.10 = 0.60
         self.assertAlmostEqual(response.data["current_usage"], 0.60, places=2)
 
-    @patch("waldur_mastermind.policy.views.timezone")
-    def test_monthly_policy_preview_not_blocked_when_quarterly_would_be(
-        self, mock_timezone
-    ):
+    @freeze_time("2026-03-15")
+    def test_monthly_policy_preview_not_blocked_when_quarterly_would_be(self):
         """Monthly policy should show normal when only current month is under limit,
         even if quarterly sum would exceed it."""
-        mock_timezone.now.return_value = datetime.datetime(
-            2026, 3, 15, tzinfo=datetime.UTC
-        )
 
         SlurmPeriodicUsagePolicyFactory(
             scope=self.offering,
@@ -775,12 +763,9 @@ class SlurmPeriodicUsagePolicyPreviewPeriodTest(test.APITestCase):
         # But monthly policy should NOT show that
         self.assertAlmostEqual(response.data["current_usage"], 0.36, places=2)
 
-    @patch("waldur_mastermind.policy.views.timezone")
-    def test_total_policy_preview_sums_all_usage(self, mock_timezone):
+    @freeze_time("2026-03-15")
+    def test_total_policy_preview_sums_all_usage(self):
         """Preview with TOTAL period should sum usage across all time."""
-        mock_timezone.now.return_value = datetime.datetime(
-            2026, 3, 15, tzinfo=datetime.UTC
-        )
 
         SlurmPeriodicUsagePolicyFactory(
             scope=self.offering,
@@ -811,12 +796,9 @@ class SlurmPeriodicUsagePolicyPreviewPeriodTest(test.APITestCase):
         # Should sum ALL usage: 0.10 + 0.20 + 0.30 + 0.40 = 1.00
         self.assertAlmostEqual(response.data["current_usage"], 1.00, places=2)
 
-    @patch("waldur_mastermind.policy.views.timezone")
-    def test_total_policy_preview_has_no_carryover(self, mock_timezone):
+    @freeze_time("2026-03-15")
+    def test_total_policy_preview_has_no_carryover(self):
         """Preview with TOTAL period should not apply carryover since there's no previous period."""
-        mock_timezone.now.return_value = datetime.datetime(
-            2026, 3, 15, tzinfo=datetime.UTC
-        )
 
         SlurmPeriodicUsagePolicyFactory(
             scope=self.offering,
@@ -849,12 +831,9 @@ class SlurmPeriodicUsagePolicyPreviewPeriodTest(test.APITestCase):
             response.data["base_allocation"],
         )
 
-    @patch("waldur_mastermind.policy.views.timezone")
-    def test_annual_policy_preview_sums_current_year(self, mock_timezone):
+    @freeze_time("2026-03-15")
+    def test_annual_policy_preview_sums_current_year(self):
         """Preview with MONTH_12 period should sum usage for the current year only."""
-        mock_timezone.now.return_value = datetime.datetime(
-            2026, 3, 15, tzinfo=datetime.UTC
-        )
 
         SlurmPeriodicUsagePolicyFactory(
             scope=self.offering,
