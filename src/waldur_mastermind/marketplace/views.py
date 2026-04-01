@@ -14765,3 +14765,103 @@ class DemoPresetViewSet(rf_viewsets.GenericViewSet):
 
         response_serializer = serializers.DemoPresetLoadResponseSerializer(result)
         return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+
+class ArticleCodeUpdateViewSet(rf_viewsets.GenericViewSet):
+    permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
+    serializer_class = serializers.ArticleCodeUpdatePreviewSerializer
+    queryset = models.OfferingComponent.objects.none()
+
+    def _get_filtered_components(self, validated_data):
+        qs = models.OfferingComponent.objects.filter(
+            article_code__contains=validated_data["search"]
+        ).select_related("offering", "offering__customer", "offering__category")
+
+        if "offering_category_uuid" in validated_data:
+            qs = qs.filter(
+                offering__category__uuid=validated_data["offering_category_uuid"]
+            )
+        if "offering_customer_uuid" in validated_data:
+            qs = qs.filter(
+                offering__customer__uuid=validated_data["offering_customer_uuid"]
+            )
+        if "offering_state" in validated_data:
+            qs = qs.filter(offering__state=validated_data["offering_state"])
+        if "offering_name" in validated_data:
+            qs = qs.filter(offering__name__icontains=validated_data["offering_name"])
+        return qs
+
+    @extend_schema(
+        summary="Preview article code replacements",
+        responses={200: serializers.ArticleCodeUpdatePreviewItemSerializer(many=True)},
+    )
+    @action(detail=False, methods=["post"])
+    def preview(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        components = self._get_filtered_components(serializer.validated_data)
+        search = serializer.validated_data["search"]
+        replace = serializer.validated_data.get("replace", "")
+
+        items = []
+        for comp in components:
+            new_code = comp.article_code.replace(search, replace)
+            if len(new_code) > 30:
+                continue  # Skip components where replacement exceeds max length
+            items.append(
+                {
+                    "component_uuid": comp.uuid,
+                    "component_type": comp.type,
+                    "component_name": comp.name,
+                    "offering_uuid": comp.offering.uuid,
+                    "offering_name": comp.offering.name,
+                    "offering_customer_name": comp.offering.customer.name,
+                    "old_article_code": comp.article_code,
+                    "new_article_code": new_code,
+                }
+            )
+        response_serializer = serializers.ArticleCodeUpdatePreviewItemSerializer(
+            items, many=True
+        )
+        return Response(response_serializer.data)
+
+    @extend_schema(
+        summary="Apply article code replacements",
+        request=serializers.ArticleCodeUpdateApplySerializer,
+        responses={200: serializers.ArticleCodeUpdateApplyResponseSerializer},
+    )
+    @action(detail=False, methods=["post"])
+    def apply(self, request):
+        serializer = serializers.ArticleCodeUpdateApplySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        search = serializer.validated_data["search"]
+        replace = serializer.validated_data.get("replace", "")
+        component_uuids = serializer.validated_data["component_uuids"]
+
+        with transaction.atomic():
+            components = list(
+                models.OfferingComponent.objects.select_for_update().filter(
+                    uuid__in=component_uuids, article_code__contains=search
+                )
+            )
+            if len(components) != len(component_uuids):
+                raise ValidationError(
+                    _(
+                        "Some components no longer match the search string. "
+                        "Please refresh the preview."
+                    )
+                )
+            for comp in components:
+                new_code = comp.article_code.replace(search, replace)
+                if len(new_code) > 30:
+                    raise ValidationError(
+                        _(
+                            "Replacement would exceed maximum article code length "
+                            "for component '%(name)s' (%(type)s)."
+                        )
+                        % {"name": comp.name, "type": comp.type}
+                    )
+                comp.article_code = new_code
+            models.OfferingComponent.objects.bulk_update(components, ["article_code"])
+
+        return Response({"updated_count": len(components)})

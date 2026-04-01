@@ -262,6 +262,11 @@ def register_in(router):
         views.DemoPresetViewSet,
         basename="marketplace-demo-preset",
     )
+    router.register(
+        r"marketplace-article-code-update",
+        views.ArticleCodeUpdateViewSet,
+        basename="marketplace-article-code-update",
+    )
 
 
 urlpatterns = [
