@@ -1,5 +1,7 @@
 import logging
 
+from django.core.cache import cache
+
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
 
@@ -7,6 +9,54 @@ from . import models, tasks
 from .models import ProjectEstimatedCostPolicy
 
 logger = logging.getLogger(__name__)
+
+# Debounce interval for cost policy evaluation (seconds).
+# During month-boundary windows, hundreds of invoice items are created rapidly
+# by the site agent. Each save triggers policy evaluation, but the compensation
+# calculation depends on ALL items being present (shared credit is consumed
+# sequentially). Debouncing ensures evaluation runs after the burst settles.
+# Configurable via settings.WALDUR_COST_POLICY_DEBOUNCE_SECONDS.
+COST_POLICY_DEBOUNCE_SECONDS = 120
+
+
+def _get_debounce_seconds():
+    from django.conf import settings
+
+    return getattr(
+        settings, "WALDUR_COST_POLICY_DEBOUNCE_SECONDS", COST_POLICY_DEBOUNCE_SECONDS
+    )
+
+
+def _debounced_evaluate(policy_path, filters, cache_key):
+    """Schedule a debounced policy evaluation.
+
+    Uses cache.add() (atomic SETNX) to ensure only one task is scheduled
+    per cache_key within the debounce window. Subsequent triggers for the
+    same key are silently dropped — the scheduled task will pick up all
+    changes when it runs.
+
+    The cache key is set with a timeout equal to the debounce interval.
+    After that time, both the cache key expires (allowing new triggers)
+    and the scheduled task executes (evaluating with complete data).
+    """
+    debounce_seconds = _get_debounce_seconds()
+    if debounce_seconds <= 0:
+        # Debounce disabled — evaluate immediately (used in tests).
+        tasks.evaluate_policies_async.delay(policy_path, filters)
+        return
+    if not cache.add(cache_key, True, timeout=debounce_seconds):
+        return  # Evaluation already scheduled for this scope
+    logger.info(
+        "Debounce: scheduling %s (key %s), countdown=%ds",
+        policy_path,
+        cache_key,
+        debounce_seconds,
+    )
+    tasks.evaluate_policies_async.apply_async(
+        args=[policy_path, filters],
+        countdown=debounce_seconds,
+    )
+
 
 _CUSTOMER_POLICY_PATH = "waldur_mastermind.policy.models.CustomerEstimatedCostPolicy"
 _PROJECT_POLICY_PATH = "waldur_mastermind.policy.models.ProjectEstimatedCostPolicy"
@@ -24,9 +74,11 @@ def customer_estimated_cost_policy_trigger_handler(
 ):
     """Evaluate customer cost policies when invoice items are updated."""
     invoice_item = instance
-    tasks.evaluate_policies_async.delay(
+    customer_id = invoice_item.invoice.customer_id
+    _debounced_evaluate(
         _CUSTOMER_POLICY_PATH,
-        {"scope_id": invoice_item.invoice.customer_id},
+        {"scope_id": customer_id},
+        f"cost_policy_debounce:customer:{customer_id}",
     )
 
 
@@ -35,9 +87,11 @@ def project_estimated_cost_policy_trigger_handler(
 ):
     """Evaluate project cost policies when invoice items are updated."""
     invoice_item = instance
-    tasks.evaluate_policies_async.delay(
+    project_id = invoice_item.project_id
+    _debounced_evaluate(
         _PROJECT_POLICY_PATH,
-        {"scope_id": invoice_item.project_id},
+        {"scope_id": project_id},
+        f"cost_policy_debounce:project:{project_id}",
     )
 
 
@@ -196,13 +250,16 @@ def customer_credit_changed_handler(
         "%s has changed, scheduling async customer and project policy evaluation",
         customer_credit,
     )
-    tasks.evaluate_policies_async.delay(
+    customer_id = customer_credit.customer_id
+    _debounced_evaluate(
         _CUSTOMER_POLICY_PATH,
-        {"scope_id": customer_credit.customer_id},
+        {"scope_id": customer_id},
+        f"cost_policy_debounce:customer:{customer_id}",
     )
-    tasks.evaluate_policies_async.delay(
+    _debounced_evaluate(
         _PROJECT_POLICY_PATH,
-        {"scope__customer_id": customer_credit.customer_id},
+        {"scope__customer_id": customer_id},
+        f"cost_policy_debounce:projects_of_customer:{customer_id}",
     )
 
 
@@ -217,9 +274,11 @@ def project_credit_changed_handler(
     logger.info(
         "%s has changed, scheduling async project policy evaluation", project_credit
     )
-    tasks.evaluate_policies_async.delay(
+    project_id = project_credit.project_id
+    _debounced_evaluate(
         _PROJECT_POLICY_PATH,
-        {"scope_id": project_credit.project_id},
+        {"scope_id": project_id},
+        f"cost_policy_debounce:project:{project_id}",
     )
 
 

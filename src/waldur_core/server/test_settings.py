@@ -42,3 +42,7 @@ CELERY_RESULT_BACKEND = "cache+memory://"
 # can cause spurious 429 responses. Throttling is not relevant for
 # functional test correctness.
 REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []  # noqa: F405
+
+# Disable cost policy debouncing in tests so evaluations happen immediately.
+# Tests that specifically test debounce behavior override this per-test.
+WALDUR_COST_POLICY_DEBOUNCE_SECONDS = 0

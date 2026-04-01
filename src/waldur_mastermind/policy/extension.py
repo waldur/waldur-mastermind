@@ -23,7 +23,7 @@ class PolicyExtension(WaldurExtension):
         return {
             "check-polices": {
                 "task": "waldur_mastermind.policy.check_polices",
-                "schedule": crontab(day_of_month=1),
+                "schedule": crontab(hour=2, minute=0),
                 "args": (),
             },
             "cleanup-slurm-evaluation-logs": {

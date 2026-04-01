@@ -38,3 +38,7 @@ CELERY_RESULT_BACKEND = "cache+memory://"
 # transactions), the in-memory throttle cache persists across tests and
 # can cause spurious 429 responses.
 REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []  # noqa: F405
+
+# Disable cost policy debouncing in tests so evaluations happen immediately.
+# Tests that specifically test debounce behavior override this per-test.
+WALDUR_COST_POLICY_DEBOUNCE_SECONDS = 0
