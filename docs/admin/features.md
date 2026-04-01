@@ -72,6 +72,14 @@ Hide audit log tab from non-staff and non-support users.
 
 Conceal offering pricing tab in the offering's public view.
 
+## marketplace.conceal_pending_consumer_orders
+
+Hide pending consumer orders section from the pending confirmations drawer.
+
+## marketplace.conceal_pending_provider_orders
+
+Hide pending provider orders section from the pending confirmations drawer.
+
 ## marketplace.conceal_prices
 
 Do not render prices in order details.
