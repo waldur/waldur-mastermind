@@ -2628,7 +2628,33 @@ Maximum number of past messages included in the AI Assistant context window.
 
 Comma-separated allowlist phrases that bypass injection detection.
 
-### Software catalog settings
+### Software catalog general
+
+#### SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES
+
+**Type:** bool
+
+**Default value:** True
+
+Update existing packages during catalog refresh
+
+#### SOFTWARE_CATALOG_CLEANUP_ENABLED
+
+**Type:** bool
+
+**Default value:** True
+
+Enable automatic cleanup of old catalog data
+
+#### SOFTWARE_CATALOG_RETENTION_DAYS
+
+**Type:** int
+
+**Default value:** 90
+
+Number of days to retain old catalog versions
+
+### Software catalog EESSI
 
 #### SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED
 
@@ -2658,6 +2684,8 @@ Base URL for EESSI API data
 
 Include extension packages (Python, R packages, etc.) from EESSI
 
+### Software catalog Spack
+
 #### SOFTWARE_CATALOG_SPACK_UPDATE_ENABLED
 
 **Type:** bool
@@ -2677,30 +2705,6 @@ Spack catalog version to load (auto-detect if empty)
 **Default value:** <https://raw.githubusercontent.com/spack/packages.spack.io/refs/heads/gh-pages/data/repology.json>
 
 URL for Spack repology.json data
-
-#### SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES
-
-**Type:** bool
-
-**Default value:** True
-
-Update existing packages during catalog refresh
-
-#### SOFTWARE_CATALOG_CLEANUP_ENABLED
-
-**Type:** bool
-
-**Default value:** True
-
-Enable automatic cleanup of old catalog data
-
-#### SOFTWARE_CATALOG_RETENTION_DAYS
-
-**Type:** int
-
-**Default value:** 90
-
-Number of days to retain old catalog versions
 
 ### System Logging
 
