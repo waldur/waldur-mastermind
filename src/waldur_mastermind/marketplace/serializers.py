@@ -11488,3 +11488,73 @@ class OpenStackInstanceAggregateSerializer(serializers.Serializer):
     total_floating_ips = serializers.IntegerField(
         help_text="Total number of floating IPs"
     )
+
+
+class ArticleCodeUpdatePreviewSerializer(serializers.Serializer):
+    search = serializers.CharField(
+        max_length=30,
+        min_length=1,
+        help_text="Substring to search for in article codes.",
+    )
+    replace = serializers.CharField(
+        max_length=30,
+        allow_blank=True,
+        default="",
+        help_text="Replacement string.",
+    )
+    offering_category_uuid = serializers.UUIDField(
+        required=False,
+        help_text="Filter by offering category UUID.",
+    )
+    offering_customer_uuid = serializers.UUIDField(
+        required=False,
+        help_text="Filter by service provider (customer) UUID.",
+    )
+    offering_state = NaturalChoiceField(
+        choices=OfferingStates.CHOICES,
+        required=False,
+        help_text="Filter by offering state.",
+    )
+    offering_name = serializers.CharField(
+        required=False,
+        help_text="Filter by offering name (case-insensitive substring match).",
+    )
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        search = attrs["search"]
+        replace = attrs.get("replace", "")
+        max_length = 30
+        # Check that replacement won't produce article codes exceeding max_length.
+        # Worst case: the entire article code is the search string repeated.
+        if len(replace) > len(search):
+            growth = len(replace) - len(search)
+            max_occurrences = max_length // len(search)
+            if max_length + growth * max_occurrences > max_length:
+                # We can't predict exact length without seeing real data,
+                # so we validate individual results in the view.
+                pass
+        return attrs
+
+
+class ArticleCodeUpdateApplySerializer(ArticleCodeUpdatePreviewSerializer):
+    component_uuids = serializers.ListField(
+        child=serializers.UUIDField(),
+        min_length=1,
+        help_text="UUIDs of components to update (from preview results).",
+    )
+
+
+class ArticleCodeUpdatePreviewItemSerializer(serializers.Serializer):
+    component_uuid = serializers.UUIDField()
+    component_type = serializers.CharField()
+    component_name = serializers.CharField()
+    offering_uuid = serializers.UUIDField()
+    offering_name = serializers.CharField()
+    offering_customer_name = serializers.CharField()
+    old_article_code = serializers.CharField()
+    new_article_code = serializers.CharField()
+
+
+class ArticleCodeUpdateApplyResponseSerializer(serializers.Serializer):
+    updated_count = serializers.IntegerField()
