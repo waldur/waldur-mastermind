@@ -191,6 +191,14 @@ class MarketplaceSection(FeatureSection):
         "Hide audit log tab from non-staff and non-support users."
     )
 
+    conceal_pending_provider_orders = Feature(
+        "Hide pending provider orders section from the pending confirmations drawer."
+    )
+
+    conceal_pending_consumer_orders = Feature(
+        "Hide pending consumer orders section from the pending confirmations drawer."
+    )
+
 
 class SupportSection(FeatureSection):
     class Meta:
