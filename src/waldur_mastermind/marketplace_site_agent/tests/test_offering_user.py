@@ -386,6 +386,18 @@ class OfferingUserGlauthConfigTest(test.APITestCase):
         )
         self.assertIsNotNone(integration_status.last_request_timestamp)
 
+    def test_glauth_config_escapes_backslashes_in_ssh_keys(self):
+        """SSH keys with backslashes in comments must be escaped for valid TOML."""
+        structure_factories.SshPublicKeyFactory(
+            user=self.fixture.manager,
+            public_key=r"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINweobRRnzaUEIM5nbLFGm/MuFcioMwFtKkycv2m781l ul\sd41041@LAP-113622",
+        )
+        self.client.force_login(self.fixture.offering_owner)
+        response = self.client.get(self.fixture.url)
+        self.assertEqual(200, response.status_code)
+        self.assertIn(r"ul\\sd41041@LAP-113622", response.data)
+        self.assertNotIn(r"ul\sd41041@LAP-113622", response.data)
+
 
 @ddt
 class OfferingUserGlauthConfigQueryCountTest(test.APITestCase):
