@@ -225,6 +225,80 @@ class AnnualLimitUsageBillingPeriodEdgeCaseTest(test.APITestCase):
 
 
 # ---------------------------------------------------------------------------
+# Bug: get_limit_usage must include records with plan_period=None
+# ---------------------------------------------------------------------------
+
+
+@freeze_time("2026-03-15")
+class TotalLimitUsageWithNullPlanPeriodTest(test.APITestCase):
+    """
+    Regression test: ComponentUsage records with plan_period=None
+    (created by site agent via set_usage) must be included in
+    limit_usage calculation. Previously, .exclude(plan_period=None)
+    filtered them out, causing the panel to show 0 usage.
+    """
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.resource, self.component, self.plan_period = _create_limit_resource(
+            self.fixture, LimitPeriods.TOTAL
+        )
+
+    def test_usage_with_null_plan_period_is_included_for_total(self):
+        """Usage reported by site agent (plan_period=None) should be counted."""
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=None,
+            component=self.component,
+            usage=25,
+            date=datetime.datetime(2026, 3, 1, 12, 0, 0, tzinfo=datetime.UTC),
+            billing_period=datetime.date(2026, 3, 1),
+        )
+
+        limit_usage = ResourceSerializer().get_limit_usage(self.resource)
+        self.assertEqual(limit_usage.get("cpu"), 25)
+
+    def test_mixed_null_and_non_null_plan_periods_are_summed(self):
+        """Both plan_period=None and plan_period=X records should be summed."""
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=None,
+            component=self.component,
+            usage=25,
+            date=datetime.datetime(2026, 2, 1, 12, 0, 0, tzinfo=datetime.UTC),
+            billing_period=datetime.date(2026, 2, 1),
+        )
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=self.plan_period,
+            component=self.component,
+            usage=10,
+            date=datetime.datetime(2026, 3, 1, 12, 0, 0, tzinfo=datetime.UTC),
+            billing_period=datetime.date(2026, 3, 1),
+        )
+
+        limit_usage = ResourceSerializer().get_limit_usage(self.resource)
+        self.assertEqual(limit_usage.get("cpu"), 35)  # 25 + 10
+
+    def test_quarterly_also_includes_null_plan_period(self):
+        """Same fix applies to quarterly period."""
+        self.component.limit_period = LimitPeriods.QUARTERLY
+        self.component.save()
+
+        models.ComponentUsage.objects.create(
+            resource=self.resource,
+            plan_period=None,
+            component=self.component,
+            usage=42,
+            date=datetime.datetime(2026, 1, 15, 12, 0, 0, tzinfo=datetime.UTC),
+            billing_period=datetime.date(2026, 1, 1),
+        )
+
+        limit_usage = ResourceSerializer().get_limit_usage(self.resource)
+        self.assertEqual(limit_usage.get("cpu"), 42)
+
+
+# ---------------------------------------------------------------------------
 # Bug 1 applied to validate_amount: must filter on billing_period, not date
 # ---------------------------------------------------------------------------
 

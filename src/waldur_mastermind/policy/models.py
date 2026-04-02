@@ -35,6 +35,9 @@ LIMIT_PERIOD_TO_POLICY_PERIOD = {
     LimitPeriods.TOTAL: invoices_models.PeriodMixin.Periods.TOTAL,
 }
 
+# Reverse mapping: PeriodMixin.Periods → LimitPeriods
+POLICY_PERIOD_TO_LIMIT_PERIOD = {v: k for k, v in LIMIT_PERIOD_TO_POLICY_PERIOD.items()}
+
 
 class Policy(
     TimeStampedModel,
@@ -1190,10 +1193,20 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
     def _get_current_period_usage(self, resource, current_period):
         """Get per-component usage for resource in current period.
 
+        Delegates to the shared get_current_period_usage() so the UI
+        panel and policy enforcement use the same ComponentUsage aggregation.
+
         Returns:
             dict[str, float]: Usage per component type
         """
-        return self._get_period_usage(resource, current_period)
+        # Local import to avoid circular dependency:
+        # policy.models → marketplace.utils → marketplace.models
+        from waldur_mastermind.marketplace.utils import get_current_period_usage
+
+        limit_period = self._get_component_limit_period()
+        if not limit_period:
+            limit_period = POLICY_PERIOD_TO_LIMIT_PERIOD.get(self.period)
+        return get_current_period_usage(resource, limit_period=limit_period)
 
     def apply_policy_actions(self, resource):
         """Apply policy actions - calculate and send settings to site agent."""

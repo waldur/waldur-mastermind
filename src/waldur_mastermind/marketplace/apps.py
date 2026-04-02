@@ -61,6 +61,12 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.sync_current_usages_from_component_usage,
+            sender=models.ComponentUsage,
+            dispatch_uid="waldur_mastermind.marketplace.sync_current_usages",
+        )
+
+        signals.post_save.connect(
             handlers.create_screenshot_thumbnail,
             sender=models.Screenshot,
             dispatch_uid="waldur_mastermind.marketplace.create_screenshot_thumbnail",

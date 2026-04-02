@@ -175,9 +175,8 @@ def import_usage(resource: marketplace_models.Resource):
     if not tenant:
         return
 
-    resource.current_usages = import_quotas(resource.offering, tenant.quota_usages)
-    resource.save(update_fields=["current_usages"])
-    import_current_usages(resource)
+    usages = import_quotas(resource.offering, tenant.quota_usages)
+    import_current_usages(resource, usages)
 
 
 def import_limits(resource: marketplace_models.Resource):

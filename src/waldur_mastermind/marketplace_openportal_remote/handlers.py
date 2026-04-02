@@ -96,13 +96,6 @@ def update_component_quota(sender, instance, created=False, **kwargs):
         resource.limits = new_limits
         resource.save(update_fields=["limits"])
 
-    if resource.current_usages != new_usages:
-        logger.debug(
-            f"Syncing usages for OpenPortal Remote. Allocation: {allocation}. Old usages: {resource.current_usages}. New usages: {new_usages}",
-        )
-        resource.current_usages = new_usages
-        resource.save(update_fields=["current_usages"])
-
 
 def create_offering_user_for_openportal_remote_user(sender, allocation, user, **kwargs):
     logger.info(

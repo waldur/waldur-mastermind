@@ -653,6 +653,40 @@ def connect_resource_metadata_handlers(*resources):
         )
 
 
+def sync_current_usages_from_component_usage(
+    sender, instance: models.ComponentUsage, **kwargs
+):
+    """Update resource.current_usages for the saved component.
+
+    Triggered on every ComponentUsage save. Uses the latest record
+    (by billing_period) for the component that was just saved, and
+    updates only that entry in current_usages.
+
+    Replaces the pattern where each backend handler manually set
+    current_usages — that approach caused stale values because the
+    snapshot was never reset across period boundaries.
+    """
+    resource = instance.resource
+    component_type = instance.component.type
+
+    latest = (
+        models.ComponentUsage.objects.filter(
+            resource=resource, component=instance.component
+        )
+        .order_by("-billing_period")
+        .first()
+    )
+    if not latest:
+        return
+
+    new_value = float(latest.usage)
+    current = resource.current_usages or {}
+    if current.get(component_type) != new_value:
+        current[component_type] = new_value
+        resource.current_usages = current
+        resource.save(update_fields=["current_usages"])
+
+
 def update_or_create_quotas(resource: Resource):
     components_map = resource.offering.get_limit_components()
     for key, value in resource.limits.items():

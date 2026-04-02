@@ -1,11 +1,9 @@
-import datetime
 import logging
-from collections import defaultdict
 from typing import Any
 
 from django.conf import settings
 from django.db import transaction
-from django.db.models import QuerySet, Sum
+from django.db.models import QuerySet
 from django.utils.translation import gettext_lazy as _
 from rest_framework.exceptions import ValidationError
 
@@ -15,11 +13,7 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure.signals import project_moved
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.enums import (
-    BillingTypes,
-    LimitPeriods,
-    ResourceStates,
-)
+from waldur_mastermind.marketplace.enums import ResourceStates
 
 logger = logging.getLogger(__name__)
 
@@ -243,88 +237,8 @@ def get_components_usage_data_from_resources(
     resources: QuerySet[marketplace_models.Resource],
     for_current_month: bool = False,
 ) -> list[dict[str, Any]]:
-    offerings = marketplace_models.Offering.objects.filter(
-        id__in=resources.values_list("offering_id", flat=True)
-    ).distinct()
+    from waldur_mastermind.marketplace.utils import (
+        get_components_usage_data,
+    )
 
-    components = marketplace_models.OfferingComponent.objects.filter(
-        offering__in=offerings
-    ).distinct()
-
-    component_usage = defaultdict(float)
-    component_limit = defaultdict(float)
-    component_limit_usage = defaultdict(float)
-
-    current_date = datetime.date.today()
-
-    for resource in resources:
-        for component_type, usage in resource.current_usages.items():
-            # When filtering for current month, get usage from ComponentUsage instead of current_usages
-            if not for_current_month:
-                component_usage[component_type] += float(usage)
-
-        for component_type, limit in resource.limits.items():
-            if limit is not None:
-                component_limit[component_type] += float(limit)
-
-        usage_components = resource.offering.components.filter(
-            billing_type=BillingTypes.USAGE
-        )
-        limit_components = resource.offering.components.filter(
-            billing_type=BillingTypes.LIMIT
-        )
-
-        if for_current_month:
-            for component in usage_components:
-                usages = marketplace_models.ComponentUsage.objects.filter(
-                    resource=resource,
-                    component=component,
-                    date__year=current_date.year,
-                    date__month=current_date.month,
-                )
-                total_usage = usages.aggregate(total=Sum("usage"))["total"] or 0
-                component_usage[component.type] += float(total_usage)
-
-        for component in limit_components:
-            if not for_current_month and component.limit_period in (
-                None,
-                LimitPeriods.MONTH,
-            ):
-                component_limit_usage[component.type] += float(
-                    resource.current_usages.get(component.type, 0)
-                )
-            else:
-                usages = marketplace_models.ComponentUsage.objects.filter(
-                    resource=resource, component=component
-                ).exclude(plan_period=None)
-
-                if for_current_month:
-                    usages = usages.filter(
-                        billing_period__year=current_date.year,
-                        billing_period__month=current_date.month,
-                    )
-                elif component.limit_period == LimitPeriods.ANNUAL:
-                    usages = usages.filter(
-                        billing_period__year__gte=datetime.date.today().year
-                    )
-
-                total_usage = usages.aggregate(total=Sum("usage"))["total"] or 0
-                component_limit_usage[component.type] += float(total_usage)
-
-    components_data = {}
-    for component in components:
-        if component.type not in components_data:
-            components_data[component.type] = {
-                "type": component.type,
-                "name": component.name,
-                "description": component.description,
-                "measured_unit": component.measured_unit,
-                "billing_type": component.billing_type,
-                "usage": component_usage.get(component.type, 0),
-                "limit_usage": component_limit_usage.get(component.type, 0),
-                "limit": component_limit.get(component.type, None),
-                "offering_name": component.offering.name,
-                "offering_uuid": component.offering.uuid.hex,
-            }
-
-    return list(components_data.values())
+    return get_components_usage_data(resources, for_current_month)

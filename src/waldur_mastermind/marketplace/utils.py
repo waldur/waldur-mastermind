@@ -967,10 +967,12 @@ def get_or_create_plan_period(resource: models.Resource, date):
     return plan_period
 
 
-def import_current_usages(resource):
+def import_current_usages(resource, usages=None):
     date = datetime.date.today()
+    if usages is None:
+        usages = resource.current_usages
 
-    for component_type, component_usage in resource.current_usages.items():
+    for component_type, component_usage in usages.items():
         try:
             offering_component = models.OfferingComponent.objects.get(
                 offering=resource.offering, type=component_type
@@ -1009,6 +1011,138 @@ def import_current_usages(resource):
                 usage=component_usage,
                 date=date,
             )
+
+
+def get_current_period_usage(resource, limit_period=None):
+    """Get per-component usage for a resource in the current period.
+
+    Shared between the resource serializer (panel display) and the
+    SLURM policy (QOS enforcement), ensuring both show the same numbers.
+
+    Always queries ComponentUsage records as the source of truth.
+    For each component, the effective period is determined by:
+    1. The ``limit_period`` argument (if provided)
+    2. The component's own ``limit_period`` field
+
+    Args:
+        resource: Marketplace Resource instance
+        limit_period: Override period for all components.
+            If None, each component's own limit_period is used.
+
+    Returns:
+        dict[str, float]: Component type → aggregated usage amount
+    """
+    result = {}
+
+    for component in resource.offering.components.all():
+        effective_period = limit_period or component.limit_period
+
+        usages = models.ComponentUsage.objects.filter(
+            resource=resource, component=component
+        )
+
+        if effective_period in (None, LimitPeriods.MONTH):
+            month_start = core_utils.month_start(datetime.date.today())
+            usages = usages.filter(billing_period=month_start)
+        elif effective_period == LimitPeriods.QUARTERLY:
+            quarter_start = core_utils.get_current_quarter_start()
+            quarter_end = core_utils.get_current_quarter_end()
+            usages = usages.filter(
+                billing_period__gte=quarter_start, billing_period__lte=quarter_end
+            )
+        elif effective_period == LimitPeriods.ANNUAL:
+            usages = usages.filter(billing_period__year__gte=datetime.date.today().year)
+        elif effective_period == LimitPeriods.TOTAL:
+            pass  # Sum all usages
+
+        result[component.type] = float(
+            usages.aggregate(total=Sum("usage"))["total"] or 0
+        )
+
+    return result
+
+
+def get_components_usage_data(resources, for_current_month=False):
+    """Aggregate per-component usage and limit stats across resources.
+
+    Used by the Customer/Project stats endpoints. All usage data is
+    sourced from ComponentUsage records (not current_usages snapshot).
+    """
+    from collections import defaultdict
+
+    offerings = models.Offering.objects.filter(
+        id__in=resources.values_list("offering_id", flat=True)
+    ).distinct()
+
+    components = models.OfferingComponent.objects.filter(
+        offering__in=offerings
+    ).distinct()
+
+    component_usage = defaultdict(float)
+    component_limit = defaultdict(float)
+    component_limit_usage = defaultdict(float)
+
+    current_date = datetime.date.today()
+
+    for resource in resources:
+        for component_type, limit in resource.limits.items():
+            if limit is not None:
+                component_limit[component_type] += float(limit)
+
+        usage_components = resource.offering.components.filter(
+            billing_type=BillingTypes.USAGE
+        )
+        limit_components = resource.offering.components.filter(
+            billing_type=BillingTypes.LIMIT
+        )
+
+        for component in usage_components:
+            if for_current_month:
+                usages = models.ComponentUsage.objects.filter(
+                    resource=resource,
+                    component=component,
+                    billing_period__year=current_date.year,
+                    billing_period__month=current_date.month,
+                )
+                total_usage = usages.aggregate(total=Sum("usage"))["total"] or 0
+                component_usage[component.type] += float(total_usage)
+            else:
+                latest = (
+                    models.ComponentUsage.objects.filter(
+                        resource=resource, component=component
+                    )
+                    .order_by("-billing_period")
+                    .first()
+                )
+                if latest:
+                    component_usage[component.type] += float(latest.usage)
+
+        limit_override = LimitPeriods.MONTH if for_current_month else None
+        limit_period_usage = get_current_period_usage(
+            resource, limit_period=limit_override
+        )
+        for component in limit_components:
+            component_limit_usage[component.type] += limit_period_usage.get(
+                component.type, 0
+            )
+
+    components_data = {}
+    for component in components:
+        if component.type not in components_data:
+            components_data[component.type] = {
+                "type": component.type,
+                "name": component.name,
+                "description": component.description,
+                "measured_unit": component.measured_unit,
+                "billing_type": component.billing_type,
+                "usage": component_usage.get(component.type, 0),
+                "limit_usage": component_limit_usage.get(component.type, 0),
+                "limit": component_limit.get(component.type, None),
+                "offering_name": component.offering.name,
+                "offering_uuid": component.offering.uuid.hex,
+            }
+
+    return list(components_data.values())
 
 
 def format_limits_list(components_map, limits):
