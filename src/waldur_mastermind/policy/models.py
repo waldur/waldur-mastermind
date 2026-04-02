@@ -188,9 +188,31 @@ class ProjectEstimatedCostPolicy(EstimatedCostPolicyMixin, ProjectPolicy):
         project = self.scope
         invoice_items = invoices_models.InvoiceItem.objects.filter(project=project)
         compensation = invoices_compensation.MonthlyCompensation(project.customer)
-        return self._is_triggered(
-            invoice_items, compensation.get_project_compensation(project)
-        )
+        project_compensation = compensation.get_project_compensation(project)
+
+        if not self._is_triggered(invoice_items, project_compensation):
+            return False
+
+        # Cost exceeds limit even after compensation. Check whether
+        # available credit can cover the overage. Credit values are
+        # persisted in DB — unlike MonthlyCompensation (which simulates
+        # credit allocation in-memory and is order-dependent), the DB
+        # values are authoritative.
+        # If a ProjectCredit exists, it defines the budget for this project.
+        # Otherwise fall back to CustomerCredit.
+        project_credit = invoices_models.ProjectCredit.objects.filter(
+            project=project
+        ).first()
+        if project_credit:
+            return project_credit.value <= self.limit_cost
+
+        customer_credit = invoices_models.CustomerCredit.objects.filter(
+            customer=project.customer
+        ).first()
+        if customer_credit and customer_credit.value > self.limit_cost:
+            return False
+
+        return True
 
     class Meta:
         verbose_name_plural = "Project estimated cost policies"
@@ -235,7 +257,19 @@ class CustomerEstimatedCostPolicy(EstimatedCostPolicyMixin, CustomerPolicy):
         )
         compensation = invoices_compensation.MonthlyCompensation(customer)
 
-        return self._is_triggered(invoice_items, compensation.total_compensation)
+        if not self._is_triggered(invoice_items, compensation.total_compensation):
+            return False
+
+        try:
+            customer_credit = invoices_models.CustomerCredit.objects.get(
+                customer=customer
+            )
+            if customer_credit.value > self.limit_cost:
+                return False
+        except invoices_models.CustomerCredit.DoesNotExist:
+            pass
+
+        return True
 
     class Meta:
         verbose_name_plural = "Customer estimated cost policies"
