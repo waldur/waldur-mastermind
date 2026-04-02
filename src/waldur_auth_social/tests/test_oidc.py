@@ -392,6 +392,9 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         self.assertEqual(existing_user.civil_number, civil_number)
 
     @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
+    @override_config(
+        OIDC_BLOCK_CREATION_OF_UNINVITED_USERS_RESPONSE_MESSAGE="It is blocked"
+    )
     def test_new_user_creation_is_blocked_if_uninvited_and_toggle_is_on(self):
         # Arrange: A new user with no invitation
         user_info = {
@@ -409,9 +412,7 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-        self.assertIn(
-            "Account creation is blocked for uninvited users.", str(response.content)
-        )
+        self.assertIn("It is blocked", str(response.content))
         self.assertEqual(User.objects.count(), 0)
 
     @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
