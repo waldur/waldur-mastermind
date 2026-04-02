@@ -2,6 +2,8 @@ import logging
 import operator
 from functools import reduce
 
+from django.db import transaction
+
 from waldur_core.core import tasks, utils
 from waldur_core.core.enums import CoreStates
 
@@ -57,15 +59,19 @@ class BaseExecutor:
         link = cls.get_success_signature(instance, serialized_instance, **kwargs)
         link_error = cls.get_failure_signature(instance, serialized_instance, **kwargs)
         if is_async:
-            async_result = signature.apply_async(
-                link=link,
-                link_error=link_error,
-                countdown=countdown,
-                queue=is_heavy_task and "heavy-durable" or None,
-            )
-            if hasattr(instance, "task_id"):
-                instance.task_id = async_result.id
-                instance.save(update_fields=["task_id"])
+
+            def trigger_task():
+                async_result = signature.apply_async(
+                    link=link,
+                    link_error=link_error,
+                    countdown=countdown,
+                    queue=is_heavy_task and "heavy-durable" or None,
+                )
+                if hasattr(instance, "task_id"):
+                    instance.task_id = async_result.id
+                    instance.save(update_fields=["task_id"])
+
+            transaction.on_commit(trigger_task)
         else:
             result = None
             try:
