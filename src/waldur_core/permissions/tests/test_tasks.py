@@ -5,6 +5,8 @@ from waldur_core.logging import models as logging_models
 from waldur_core.permissions import tasks
 from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
+from waldur_mastermind.marketplace.enums import CourseAccountState
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
 class SyncUserDeactivationStatusTest(TestCase):
@@ -265,3 +267,37 @@ class SyncUserDeactivationStatusTest(TestCase):
             and "Reactivated: 0" in log
         ]
         self.assertTrue(len(summary_logs) > 0)
+
+    @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+    def test_does_not_deactivate_users_with_active_course_accounts(self):
+        """Test that users with active course accounts in non-removed projects are not deactivated."""
+        user_with_course = structure_factories.UserFactory(is_active=True)
+        self.assertFalse(user_with_course.userrole_set.filter(is_active=True).exists())
+
+        marketplace_factories.CourseAccountFactory(
+            user=user_with_course,
+            state=CourseAccountState.OK,
+        )
+
+        tasks.sync_user_deactivation_status()
+
+        user_with_course.refresh_from_db()
+        self.assertTrue(user_with_course.is_active)
+
+    @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+    def test_deactivates_users_with_closed_course_accounts(self):
+        """Test that users with only closed course accounts are still deactivated."""
+        user_with_closed_course = structure_factories.UserFactory(is_active=True)
+        self.assertFalse(
+            user_with_closed_course.userrole_set.filter(is_active=True).exists()
+        )
+
+        marketplace_factories.CourseAccountFactory(
+            user=user_with_closed_course,
+            state=CourseAccountState.CLOSED,
+        )
+
+        tasks.sync_user_deactivation_status()
+
+        user_with_closed_course.refresh_from_db()
+        self.assertFalse(user_with_closed_course.is_active)
