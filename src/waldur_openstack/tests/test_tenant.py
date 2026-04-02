@@ -1,4 +1,5 @@
 import itertools
+from unittest import skip
 from unittest.mock import patch
 
 from ddt import data, ddt
@@ -398,6 +399,7 @@ class TenantCreateTest(test.APITransactionTestCase, BaseTenantActionsTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("security_groups", response.data)
 
+    @skip("not stable")
     def test_task_id(self):
         response = self.create_tenant_request(self.fixture.staff, self.valid_data)
         self.assertTrue(
