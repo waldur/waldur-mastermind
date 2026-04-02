@@ -1347,6 +1347,10 @@ class ResourceFilter(
         method="filter_is_attached",
         label="Filter by attached state",
     )
+    resource_attributes = django_filters.CharFilter(
+        method="filter_resource_attributes",
+        label="Resource attributes (JSON)",
+    )
 
     o = django_filters.OrderingFilter(
         fields=(
@@ -1364,6 +1368,26 @@ class ResourceFilter(
 
     def filter_has_termination_date(self, queryset: ResourceQuerySet, name, value):
         return queryset.exclude(end_date__isnull=value)
+
+    def filter_resource_attributes(self, queryset, name, value):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            raise rf_exceptions.ValidationError(
+                _("Filter attribute is not valid json.")
+            )
+
+        if not isinstance(value, dict):
+            raise rf_exceptions.ValidationError(
+                _("Filter attribute should be an dict.")
+            )
+
+        for k, v in value.items():
+            if isinstance(v, list):
+                queryset = queryset.filter(**{f"attributes__{k}__in": v})
+            else:
+                queryset = queryset.filter(attributes__contains={k: v})
+        return queryset
 
     def filter_query(self, queryset: ResourceQuerySet, name, value):
         if is_uuid_like(value):

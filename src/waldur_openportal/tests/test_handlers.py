@@ -49,21 +49,16 @@ class IfPluginEnabledDecoratorTest(TestCase):
             mock_tasks.sync.delay.assert_not_called()
 
     @override_settings(WALDUR_OPENPORTAL={"ENABLED": True})
-    @mock.patch("django.db.transaction.get_connection")
-    @mock.patch("django.db.transaction.on_commit")
-    def test_decorated_handlers_execute_when_enabled(
-        self, mock_on_commit, mock_get_connection
-    ):
+    @mock.patch("waldur_openportal.handlers.transaction")
+    def test_decorated_handlers_execute_when_enabled(self, mock_transaction):
         """Test that actual handlers like schedule_sync execute when enabled"""
 
-        mock_connection = mock.Mock()
-        mock_connection.in_atomic_block = False
-        mock_get_connection.return_value = mock_connection
+        mock_transaction.get_connection.return_value.in_atomic_block = False
 
         with mock.patch("waldur_openportal.handlers.tasks"):
             handlers.schedule_sync()
 
-            mock_on_commit.assert_called_once()
+            mock_transaction.on_commit.assert_called_once()
 
     @override_settings(WALDUR_OPENPORTAL={"ENABLED": False})
     def test_role_granted_handler_not_executed_when_disabled(self):
