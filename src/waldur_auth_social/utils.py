@@ -32,6 +32,45 @@ from waldur_core.users.models import Invitation
 
 logger = logging.getLogger(__name__)
 
+LIST_USER_FIELDS = set({"affiliations", "nationalities", "eduperson_assurance"})
+
+
+def normalize_mapped_claim_value(user_field: str, value):
+    """
+    Normalize IdP claim value before writing it to User model field.
+    """
+    if isinstance(value, list | tuple):
+        if user_field in LIST_USER_FIELDS:
+            return list(value)
+
+        if not value:
+            return None
+
+        if len(value) == 1:
+            value = value[0]
+        else:
+            logger.warning(
+                "Skipping multi-value claim for user field %s. Value: %s",
+                user_field,
+                value,
+            )
+            return None
+
+    if user_field not in LIST_USER_FIELDS and isinstance(value, str):
+        field = User._meta.get_field(user_field)
+        max_length = getattr(field, "max_length", None)
+        if max_length and len(value) > max_length:
+            logger.warning(
+                "Skipping claim for user field %s. "
+                "Value length %s exceeds max_length %s.",
+                user_field,
+                len(value),
+                max_length,
+            )
+            return None
+
+    return value
+
 
 def get_lookup_value(
     identity_provider: IdentityProvider, backend_user: dict[str, str]
@@ -95,9 +134,9 @@ def get_user_payload(
         if user_field in WRITABLE_USER_FIELDS and user_field in enabled_sync_fields:
             for claim in claims.split():
                 claim = claim.strip()
-                value = backend_user.get(claim)
-                if user_field == "email" and isinstance(value, list):
-                    value = value[0]
+                value = normalize_mapped_claim_value(
+                    user_field, backend_user.get(claim)
+                )
                 if user_field == "civil_number" and value:
                     value = parse_schac_personal_unique_id(value)
                 if value:
