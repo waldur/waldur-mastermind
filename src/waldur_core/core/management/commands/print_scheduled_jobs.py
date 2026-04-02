@@ -58,23 +58,20 @@ def format_schedule(schedule):
 
 def get_task_description(task_name):
     """Get task description from Celery task registry."""
-    try:
-        # Get task from Celery registry using the same app instance as celeryconf.py
-        task = app.tasks.get(task_name)
-        if task and hasattr(task, "__doc__") and task.__doc__:
-            # Clean up the docstring and make it markdown table-friendly
-            doc = task.__doc__.strip()
-            # Replace newlines with <br> tags for markdown table cells
-            doc = doc.replace("\n", "<br>")
-            # Replace multiple spaces with single spaces
-            doc = " ".join(doc.split())
-            return doc if doc else "No description available"
-        elif task:
-            return "No description available"
-        else:
-            return "Task not found in registry"
-    except Exception:
-        return "Unable to retrieve description"
+    # Get task from Celery registry using the same app instance as celeryconf.py
+    task = app.tasks.get(task_name)
+    if task and hasattr(task, "__doc__") and task.__doc__:
+        # Clean up the docstring and make it markdown table-friendly
+        doc = task.__doc__.strip()
+        # Replace newlines with <br> tags for markdown table cells
+        doc = doc.replace("\n", "<br>")
+        # Replace multiple spaces with single spaces
+        doc = " ".join(doc.split())
+        return doc if doc else "No description available"
+    elif task:
+        return "No description available"
+    else:
+        raise Exception(f"Task {task_name} not found in registry")
 
 
 class Command(BaseCommand):
@@ -88,6 +85,10 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
+        # Force Celery to import all autodiscovered task modules
+        # This executes the @shared_task decorators and populates app.tasks
+        app.loader.import_default_modules()
+
         output_file = options.get("output_file")
 
         # Generate markdown content
