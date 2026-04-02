@@ -283,7 +283,7 @@ def create_or_update_oauth_user(
             ).exists():
                 raise OAuthException(
                     identity_provider.provider,
-                    "Account creation is blocked for uninvited users.",
+                    config.OIDC_BLOCK_CREATION_OF_UNINVITED_USERS_RESPONSE_MESSAGE,
                 )
         created = True
 
