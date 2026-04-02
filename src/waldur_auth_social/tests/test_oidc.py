@@ -1494,6 +1494,75 @@ class EnabledUserProfileAttributesSyncTest(test.APITransactionTestCase):
         # organization should be updated
         self.assertEqual(existing_user.organization, "New University")
 
+    @override_config(
+        ENABLED_USER_PROFILE_ATTRIBUTES=[
+            "country_of_residence",
+            "nationality",
+            "organization_country",
+        ]
+    )
+    def test_single_item_list_claims_are_unwrapped_for_scalar_fields(self):
+        user_info = {
+            "sub": "test_list_scalar",
+            "given_name": "List",
+            "family_name": "Scalar",
+            "email": "list_scalar@example.com",
+            "schacCountryOfResidence": ["EE"],
+            "schacCountryOfCitizenship": ["EE"],
+            "org_country": ["EE"],
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user = User.objects.get(username=user_info["sub"])
+        self.assertEqual(user.country_of_residence, "EE")
+        self.assertEqual(user.nationality, "EE")
+        self.assertEqual(user.organization_country, "EE")
+
+    @override_config(ENABLED_USER_PROFILE_ATTRIBUTES=["country_of_residence"])
+    def test_multi_item_list_claims_are_skipped_for_scalar_fields(self):
+        existing_user = structure_factories.UserFactory(
+            username="test_multi_scalar",
+            country_of_residence="LV",
+        )
+        user_info = {
+            "sub": existing_user.username,
+            "given_name": existing_user.first_name,
+            "family_name": existing_user.last_name,
+            "email": existing_user.email,
+            "schacCountryOfResidence": ["EE", "FI"],
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        existing_user.refresh_from_db()
+        self.assertEqual(existing_user.country_of_residence, "LV")
+
+    @override_config(ENABLED_USER_PROFILE_ATTRIBUTES=["nationality"])
+    def test_overlong_scalar_claims_are_skipped(self):
+        user_info = {
+            "sub": "test_overlong_scalar",
+            "given_name": "Overlong",
+            "family_name": "User",
+            "email": "overlong@example.com",
+            # Alpha-3 value should not be written to alpha-2 field.
+            "schacCountryOfCitizenship": ["EST"],
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user = User.objects.get(username=user_info["sub"])
+        self.assertEqual(user.nationality, "")
+
 
 class OIDCEmailMatchmakingTest(test.APITransactionTestCase):
     """Tests for OIDC email-based failover user matching."""
