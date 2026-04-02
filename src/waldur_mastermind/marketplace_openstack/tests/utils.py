@@ -7,7 +7,7 @@ from rest_framework import test
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
-class BaseOpenStackTest(test.APITestCase):
+class BaseOpenStackTest(test.APITransactionTestCase):
     def setUp(self):
         super().setUp()
         self.tenant_category = marketplace_factories.CategoryFactory(

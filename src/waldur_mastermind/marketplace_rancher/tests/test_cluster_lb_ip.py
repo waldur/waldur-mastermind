@@ -13,7 +13,7 @@ from waldur_rancher import models as rancher_models
 from waldur_rancher.tests import fixtures
 
 
-class ManagedRancherClusterIPTest(test.APITestCase):
+class ManagedRancherClusterIPTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.RancherFixture()
         self.neutron_client_patcher = mock.patch(

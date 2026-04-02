@@ -32,7 +32,7 @@ class UnlinkTest(test.APITestCase):
         self.assertEqual(status.HTTP_204_NO_CONTENT, response.status_code)
 
 
-class ResourcePullTest(test.APITestCase):
+class ResourcePullTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = site_agent_fixtures.MarketplaceSiteAgentFixture()
         resource = self.fixture.resource
