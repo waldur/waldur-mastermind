@@ -1,3 +1,4 @@
+import json
 import unittest
 
 from freezegun import freeze_time
@@ -220,6 +221,38 @@ class ResourceFilterTest(test.APITestCase):
         uuids = [r["uuid"] for r in response.data]
         self.assertIn(unattached_resource.uuid.hex, uuids)
         self.assertNotIn(attached_resource.uuid.hex, uuids)
+
+    def test_resource_attributes_exact_match(self):
+        self.client.force_authenticate(self.fixture.staff)
+        resource = factories.ResourceFactory(
+            attributes={"storage_data_type": "store", "tier": "hot"},
+        )
+        response = self.client.get(
+            self.url,
+            {"resource_attributes": json.dumps({"storage_data_type": "store"})},
+        )
+        uuids = [r["uuid"] for r in response.data]
+        self.assertIn(resource.uuid.hex, uuids)
+
+    def test_resource_attributes_no_match(self):
+        self.client.force_authenticate(self.fixture.staff)
+        factories.ResourceFactory(
+            attributes={"storage_data_type": "store"},
+        )
+        response = self.client.get(
+            self.url,
+            {"resource_attributes": json.dumps({"storage_data_type": "archive"})},
+        )
+        uuids = [r["uuid"] for r in response.data]
+        self.assertEqual(len(uuids), 0)
+
+    def test_resource_attributes_invalid_json(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url,
+            {"resource_attributes": "not-valid-json"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 class FilterByScopeUUIDTest(test.APITestCase):
