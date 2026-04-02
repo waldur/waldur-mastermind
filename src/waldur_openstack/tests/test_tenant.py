@@ -68,7 +68,7 @@ class TenantGetTest(BaseTenantActionsTest):
 
 
 @ddt
-class TenantCreateTest(BaseTenantActionsTest):
+class TenantCreateTest(test.APITransactionTestCase, BaseTenantActionsTest):
     def setUp(self):
         super().setUp()
         self.valid_data = {
