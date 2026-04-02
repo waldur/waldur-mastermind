@@ -4,6 +4,7 @@ from unittest import mock
 from constance import settings as constance_settings
 from constance.models import Constance
 from constance.utils import get_values
+from django.core.cache import cache
 from django.test import TestCase
 
 from waldur_core.core import views
@@ -12,6 +13,7 @@ from waldur_core.core import views
 class TestPublicSettings(TestCase):
     def setUp(self):
         super().setUp()
+        cache.delete("API_CONFIGURATION")
 
         class MockExtension:
             def __init__(self, name):
