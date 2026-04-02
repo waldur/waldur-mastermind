@@ -53,7 +53,8 @@ def sync_user_deactivation_status():
     reactivated_count = 0
 
     # Process all non-staff/non-support users with iterator for memory efficiency
-    for user in User.objects.filter(is_staff=False, is_support=False).iterator(
+    # Use all_objects to include inactive users (needed for reactivation checks)
+    for user in User.all_objects.filter(is_staff=False, is_support=False).iterator(
         chunk_size=100
     ):
         if should_deactivate_user(user):
