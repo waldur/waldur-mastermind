@@ -217,7 +217,7 @@ class SubmitUsageTest(test.APITestCase):
             ).exists()
         )
         self.resource.refresh_from_db()
-        self.assertEqual(self.resource.current_usages, {"cpu": "5.00", "ram": "5.00"})
+        self.assertEqual(self.resource.current_usages, {"cpu": 5.0, "ram": 5.0})
 
     @data("admin", "manager", "user")
     def test_other_user_can_not_submit_usage_via_api(self, role):

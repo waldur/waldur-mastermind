@@ -93,16 +93,6 @@ def update_component_quota(sender, instance: Allocation, created=False, **kwargs
         resource.limits = new_limits
         resource.save(update_fields=["limits"])
 
-    if resource.current_usages != new_usages:
-        logger.debug(
-            "Syncing usages for SLURM. Allocation ID: %s. Old usages: %s. New usages: %s",
-            allocation.id,
-            resource.current_usages,
-            new_usages,
-        )
-        resource.current_usages = new_usages
-        resource.save(update_fields=["current_usages"])
-
 
 def create_offering_user_for_slurm_user(sender, allocation, user, username, **kwargs):
     try:

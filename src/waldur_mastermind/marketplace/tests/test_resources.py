@@ -2176,16 +2176,17 @@ class ResourceUsageLimitsTest(test.APITestCase):
         self.assertEqual(response.data["limit_usage"], {"cpu": 10})
 
     def test_if_limit_period_is_null(self):
+        """When limit_period is null, limit_usage aggregates current month's
+        ComponentUsage records (source of truth), not current_usages snapshot."""
         self.offering_component.limit_period = None
         self.offering_component.save()
-
-        self.resource.current_usages = {"cpu": 5}
-        self.resource.save()
 
         self.client.force_authenticate(self.user)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["limit_usage"], {"cpu": 5})
+        # Current month has usage=10, previous year has usage=5
+        # With limit_period=None → current month only → 10
+        self.assertEqual(response.data["limit_usage"], {"cpu": 10})
 
 
 @ddt

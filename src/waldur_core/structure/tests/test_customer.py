@@ -1381,14 +1381,17 @@ class CustomerResourceQuotasTest(test.APITestCase):
         cpu_component = next(
             component for component in components if component["type"] == "cpu"
         )
-        self.assertEqual(cpu_component["usage"], 3)
+        # current_usages is derived from the latest ComponentUsage per component:
+        # resource1 cpu=5 (current month), resource2 cpu=2 → sum=7
+        self.assertEqual(cpu_component["usage"], 7)
         self.assertEqual(cpu_component["limit"], 12)
         self.assertEqual(cpu_component["measured_unit"], "vCPU")
         # Check component stats for RAM
         ram_component = next(
             component for component in components if component["type"] == "ram"
         )
-        self.assertEqual(ram_component["usage"], 6)
+        # resource1 ram=10 (current month), resource2 ram=4 → sum=14
+        self.assertEqual(ram_component["usage"], 14)
         self.assertEqual(ram_component["limit"], 24)
         self.assertEqual(ram_component["measured_unit"], "GB")
 
@@ -1433,6 +1436,7 @@ class CustomerResourceQuotasTest(test.APITestCase):
         disk_component = next(
             component for component in components if component["type"] == "disk"
         )
+        # disk is limit-based, so "usage" (for usage-based components) is 0
         self.assertEqual(disk_component["usage"], 0)
         self.assertEqual(disk_component["limit_usage"], 25)
         self.assertEqual(disk_component["measured_unit"], "GB")

@@ -24,6 +24,7 @@ from waldur_core.structure.tests import models as test_models
 from waldur_core.structure.utils import move_project
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.models import Invitation
+from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
@@ -939,22 +940,41 @@ class ProjectResourceQuotasTest(test.APITestCase):
         self.empty_project = factories.ProjectFactory()
         self.offering = marketplace_factories.OfferingFactory()
         self.component1 = marketplace_factories.OfferingComponentFactory(
-            offering=self.offering, type="cpu", name="CPU", measured_unit="vCPU"
+            offering=self.offering,
+            type="cpu",
+            name="CPU",
+            measured_unit="vCPU",
+            billing_type=BillingTypes.USAGE,
         )
         self.component2 = marketplace_factories.OfferingComponentFactory(
-            offering=self.offering, type="ram", name="RAM", measured_unit="GB"
+            offering=self.offering,
+            type="ram",
+            name="RAM",
+            measured_unit="GB",
+            billing_type=BillingTypes.USAGE,
         )
         self.resource1 = marketplace_factories.ResourceFactory(
             project=self.project,
             offering=self.offering,
-            current_usages={"cpu": 2, "ram": 4},
             limits={"cpu": 8, "ram": 16},
         )
         self.resource2 = marketplace_factories.ResourceFactory(
             project=self.project,
             offering=self.offering,
-            current_usages={"cpu": 1, "ram": 2},
             limits={"cpu": 4, "ram": 8},
+        )
+        # Create ComponentUsage records (source of truth for stats)
+        marketplace_factories.ComponentUsageFactory(
+            resource=self.resource1, component=self.component1, usage=2
+        )
+        marketplace_factories.ComponentUsageFactory(
+            resource=self.resource1, component=self.component2, usage=4
+        )
+        marketplace_factories.ComponentUsageFactory(
+            resource=self.resource2, component=self.component1, usage=1
+        )
+        marketplace_factories.ComponentUsageFactory(
+            resource=self.resource2, component=self.component2, usage=2
         )
         self.url = factories.ProjectFactory.get_url(self.project, "stats")
 

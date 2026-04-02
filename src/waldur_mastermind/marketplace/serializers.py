@@ -5091,43 +5091,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         if not resource.offering.is_limit_based or not resource.plan:
             return {}
 
-        limit_usage: dict[str, float] = {}
-
-        limit_components = resource.offering.components.filter(
-            billing_type=BillingTypes.LIMIT
-        )
-
-        for component in limit_components:
-            if component.limit_period in (
-                None,
-                LimitPeriods.MONTH,
-            ):
-                limit_usage[component.type] = resource.current_usages.get(
-                    component.type
-                )
-                continue
-            usages = models.ComponentUsage.objects.filter(
-                resource=resource, component=component
-            ).exclude(plan_period=None)
-
-            if component.limit_period == LimitPeriods.QUARTERLY:
-                quarter_start = core_utils.get_current_quarter_start()
-                quarter_end = core_utils.get_current_quarter_end()
-                usages = usages.filter(
-                    billing_period__gte=quarter_start, billing_period__lte=quarter_end
-                )
-            elif component.limit_period == LimitPeriods.ANNUAL:
-                usages = usages.filter(
-                    billing_period__year__gte=datetime.date.today().year
-                )
-            elif component.limit_period == LimitPeriods.TOTAL:
-                pass  # We sum all usages
-
-            limit_usage[component.type] = (
-                usages.aggregate(total=Sum("usage"))["total"] or 0
-            )
-
-        return limit_usage
+        return utils.get_current_period_usage(resource)
 
     def get_available_actions(self, resource: models.Resource) -> list[str]:
         return plugins.manager.get_available_resource_actions(resource)
@@ -6478,11 +6442,6 @@ class ComponentUsageCreateSerializer(serializers.Serializer):
                 logger.info(
                     f"Usage has been updated for {resource}, component: {component.type}, value: {amount}"
                 )
-        resource.current_usages = {
-            usage["type"]: str(usage["amount"])
-            for usage in self.validated_data["usages"]
-        }
-        resource.save(update_fields=["current_usages"])
 
 
 class OfferingFileSerializer(
