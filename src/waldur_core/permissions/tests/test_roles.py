@@ -310,3 +310,46 @@ class UserDeactivationTest(test.APITestCase):
             self.user.refresh_from_db()
             # Should remain inactive because setting is disabled
             self.assertFalse(self.user.is_active)
+
+
+class DeactivatedUserRoleAssignmentTest(test.APITestCase):
+    def setUp(self):
+        from waldur_core.permissions.fixtures import ProjectRole
+
+        self.role = ProjectRole.MEMBER
+        self.deactivated_user = structure_factories.UserFactory(is_active=False)
+
+    def test_staff_can_add_deactivated_user_to_project(self):
+        """Staff should be able to grant a role to a deactivated user via API."""
+        staff = structure_factories.UserFactory(is_staff=True)
+        project = structure_factories.ProjectFactory()
+
+        self.client.force_authenticate(staff)
+        url = structure_factories.ProjectFactory.get_url(project, action="add_user")
+        response = self.client.post(
+            url,
+            {
+                "user": self.deactivated_user.uuid.hex,
+                "role": self.role.name,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_non_staff_cannot_add_deactivated_user_to_project(self):
+        """Non-staff users should not be able to grant a role to a deactivated user."""
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT_PERMISSION)
+        fixture = structure_fixtures.CustomerFixture()
+        owner = fixture.owner
+        project = structure_factories.ProjectFactory(customer=fixture.customer)
+
+        self.client.force_authenticate(owner)
+        url = structure_factories.ProjectFactory.get_url(project, action="add_user")
+        response = self.client.post(
+            url,
+            {
+                "user": self.deactivated_user.uuid.hex,
+                "role": self.role.name,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("deactivated", str(response.data))
