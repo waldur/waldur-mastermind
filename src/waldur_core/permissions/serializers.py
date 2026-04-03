@@ -225,7 +225,7 @@ class UserRoleMutateSerializer(serializers.Serializer):
 
     def validate_user(self, value):
         try:
-            return User.objects.get(uuid=value)
+            return User.all_objects.get(uuid=value)
         except User.DoesNotExist:
             raise ValidationError("User is not found.")
 
@@ -276,9 +276,15 @@ class UserRoleCreateSerializer(UserRoleMutateSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         scope = self.context["scope"]
+        request = self.context["request"]
         target_user = attrs["user"]
         role: models.Role = attrs["role"]
         expiration_time = attrs.get("expiration_time")
+
+        if not target_user.is_active and not request.user.is_staff:
+            raise ValidationError(
+                "Only staff users can assign roles to deactivated users."
+            )
 
         if has_user(scope, target_user, role, expiration_time=expiration_time):
             raise ValidationError("User has already the same role in this scope.")
