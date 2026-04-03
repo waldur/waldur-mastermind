@@ -2186,6 +2186,14 @@ Deactivate user if all roles are revoked (except staff/support)
 
 If true, block creation of an account on OIDC login if user email is not provided or provided and is not in the list of one of the active invitations.
 
+#### OIDC_BLOCK_CREATION_OF_UNINVITED_USERS_RESPONSE_MESSAGE
+
+**Type:** text_field
+
+**Default value:** Account creation is blocked for uninvited users.
+
+The message to show when OIDC account creation is blocked for uninvited users.
+
 #### OIDC_MATCHMAKING_BY_EMAIL
 
 **Type:** bool

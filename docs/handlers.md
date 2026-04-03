@@ -701,6 +701,7 @@ td:nth-child(4) {
 | `switch_resource_plan_period_when_plan_is_updated` | `Django Signal (post_save)` | `marketplace.Resource` | Switch the resource plan period when a resource's plan is updated. |
 | `sync_component_user_usage_when_allocation_user_usage_is_submitted` | `Django Signal (post_save)` | `waldur_openportal.AllocationUserUsage` | No description |
 | `sync_component_user_usage_when_allocation_user_usage_is_submitted` | `Django Signal (post_save)` | `waldur_slurm.AllocationUserUsage` | No description |
+| `sync_current_usages_from_component_usage` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Update resource.current_usages for the saved component. |
 | `sync_limits` | `Django Signal (post_save)` | `marketplace.Resource` | Synchronize resource limits. |
 | `sync_offering_resource_options` | `Django Signal (post_save)` | `marketplace.Offering` | No description |
 | `sync_permission_with_remote` | `Custom Signal (role_granted)` | `—` | No description |
@@ -871,7 +872,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 787
+Total unique handlers found: 788
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
@@ -879,7 +880,7 @@ Total unique handlers found: 787
 - **waldur_freeipa**: 12 handlers
 - **waldur_keycloak**: 9 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 311 handlers
+- **waldur_mastermind**: 312 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
