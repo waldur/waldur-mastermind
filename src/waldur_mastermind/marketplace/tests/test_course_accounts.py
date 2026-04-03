@@ -211,6 +211,52 @@ class CourseAccountPermissionTest(test.APITestCase):
             f"Expected status code 404, got: {response.status_code}. Response data: {response.data}",
         )
 
+    def test_delete_course_account_sets_deactivation_reason(self):
+        """Test that deleting a course account sets deactivation_reason on the user."""
+        self.client.force_authenticate(self.fixture.staff)
+        account = factories.CourseAccountFactory(
+            project=self.course_project,
+            user=self.test_user,
+        )
+        url = factories.CourseAccountFactory.get_url(account)
+        response = self.client.delete(url)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+            response.data,
+        )
+        self.test_user.refresh_from_db()
+        self.assertFalse(self.test_user.is_active)
+        self.assertEqual(
+            self.test_user.deactivation_reason,
+            f"Course account {account.uuid} closed",
+        )
+
+    def test_delete_course_account_not_found_at_backend_sets_deactivation_reason(self):
+        """Test that deactivation_reason is set when backend account is not found."""
+        self.client.force_authenticate(self.fixture.staff)
+        account = factories.CourseAccountFactory(
+            project=self.course_project,
+            user=self.test_user,
+        )
+        # Override the GET mock to return 404 (account not found at backend)
+        respx.get(COURSE_ACCOUNT_URL + f"/{self.test_user.username}").mock(
+            return_value=httpx.Response(404)
+        )
+        url = factories.CourseAccountFactory.get_url(account)
+        response = self.client.delete(url)
+        self.assertEqual(
+            response.status_code,
+            status.HTTP_204_NO_CONTENT,
+            response.data,
+        )
+        self.test_user.refresh_from_db()
+        self.assertFalse(self.test_user.is_active)
+        self.assertEqual(
+            self.test_user.deactivation_reason,
+            f"Course account {account.uuid} not found at backend",
+        )
+
     def test_delete_erred_course_account_without_user(self):
         """Deleting an ERRED account with no user (task never created one) must not crash."""
         self.client.force_authenticate(self.fixture.staff)

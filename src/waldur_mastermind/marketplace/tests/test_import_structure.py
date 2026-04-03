@@ -1540,6 +1540,60 @@ class ImportStructureCommandTest(TestCase):
         self.assertIn("Skipping user activation status sync", output)
         self.assertNotIn("Syncing user activation status", output)
 
+    def test_import_preserves_deactivation_reason(self):
+        """Test that deactivation_reason is imported for both new and updated users."""
+        users_data = [
+            {
+                "uuid": "33333333-3333-3333-3333-333333333333",
+                "username": "deactivated_user",
+                "email": "deactivated@example.com",
+                "is_active": False,
+                "deactivation_reason": "All roles were revoked",
+                "first_name": "Deactivated",
+                "last_name": "User",
+                "date_joined": "2023-01-01T00:00:00Z",
+            }
+        ]
+
+        test_data = {"users": users_data}
+        self._create_test_json(test_data)
+
+        self._call_import_command(input=self.test_file_path, skip_user_sync=True)
+
+        user = User.all_objects.get(uuid="33333333-3333-3333-3333-333333333333")
+        self.assertFalse(user.is_active)
+        self.assertEqual(user.deactivation_reason, "All roles were revoked")
+
+    def test_import_update_preserves_deactivation_reason(self):
+        """Test that deactivation_reason is updated on existing users."""
+        from waldur_core.structure.tests import factories as structure_factories
+
+        existing = structure_factories.UserFactory(
+            is_active=True,
+            deactivation_reason="",
+        )
+        users_data = [
+            {
+                "uuid": str(existing.uuid),
+                "username": existing.username,
+                "email": existing.email,
+                "is_active": False,
+                "deactivation_reason": "Manually deactivated by admin",
+                "date_joined": "2023-01-01T00:00:00Z",
+            }
+        ]
+
+        test_data = {"users": users_data}
+        self._create_test_json(test_data)
+
+        self._call_import_command(
+            input=self.test_file_path, update=True, skip_user_sync=True
+        )
+
+        existing.refresh_from_db()
+        self.assertFalse(existing.is_active)
+        self.assertEqual(existing.deactivation_reason, "Manually deactivated by admin")
+
     def test_cleanup_structure_skip_side_effects_flag(self):
         """Test that cleanup_structure accepts --skip-rabbitmq-messages flag."""
 

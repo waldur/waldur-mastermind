@@ -612,6 +612,75 @@ class UserUpdateTest(test.APITestCase):
         self.user.refresh_from_db()
         self.assertEqual(self.user.is_active, False)
 
+    def test_staff_deactivation_sets_default_deactivation_reason(self):
+        self.user.agreement_date = timezone.now()
+        self.user.is_active = True
+        self.user.save()
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.patch(self.url, {"is_active": False})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_active)
+        self.assertEqual(
+            self.user.deactivation_reason,
+            f"Manually deactivated by {self.staff.username}",
+        )
+
+    def test_staff_deactivation_with_custom_reason(self):
+        self.user.agreement_date = timezone.now()
+        self.user.is_active = True
+        self.user.save()
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.patch(
+            self.url,
+            {"is_active": False, "deactivation_reason": "Violated terms of service"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertFalse(self.user.is_active)
+        self.assertEqual(self.user.deactivation_reason, "Violated terms of service")
+
+    def test_staff_reactivation_clears_deactivation_reason(self):
+        self.user.is_active = False
+        self.user.deactivation_reason = "Manually deactivated by admin"
+        self.user.save()
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.patch(self.url, {"is_active": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.is_active)
+        self.assertEqual(self.user.deactivation_reason, "")
+
+    def test_deactivation_reason_visible_to_staff(self):
+        self.user.is_active = False
+        self.user.deactivation_reason = "All roles were revoked"
+        self.user.save()
+
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["deactivation_reason"], "All roles were revoked")
+
+    def test_deactivation_reason_visible_to_support(self):
+        support = self.fixture.global_support
+        self.user.is_active = False
+        self.user.deactivation_reason = "All roles were revoked"
+        self.user.save()
+
+        self.client.force_authenticate(support)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["deactivation_reason"], "All roles were revoked")
+
+    def test_deactivation_reason_hidden_from_regular_users(self):
+        other_user = factories.UserFactory(agreement_date=timezone.now())
+        self.client.force_authenticate(other_user)
+        response = self.client.get(self.url)
+        self.assertNotIn("deactivation_reason", response.data)
+
     @override_waldur_core_settings(LOCAL_IDP_PROTECTED_FIELDS=["full_name"])
     def test_user_can_update_only_allowed_fields(self):
         payload = {

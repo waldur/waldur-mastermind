@@ -4,6 +4,10 @@ from django.test import TestCase
 from waldur_core.logging import models as logging_models
 from waldur_core.permissions import tasks
 from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.handlers import (
+    deactivate_user_with_logging,
+    reactivate_user_with_logging,
+)
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.enums import CourseAccountState
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -301,3 +305,97 @@ class SyncUserDeactivationStatusTest(TestCase):
 
         user_with_closed_course.refresh_from_db()
         self.assertFalse(user_with_closed_course.is_active)
+
+
+class DeactivationReasonTest(TestCase):
+    """Tests that deactivation_reason is set and cleared across all code paths."""
+
+    @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+    def test_deactivate_user_with_logging_sets_reason(self):
+        user = structure_factories.UserFactory(is_active=True)
+        deactivate_user_with_logging(user, "All roles were revoked")
+        user.refresh_from_db()
+        self.assertFalse(user.is_active)
+        self.assertEqual(user.deactivation_reason, "All roles were revoked")
+
+    @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+    def test_reactivate_user_with_logging_clears_reason(self):
+        user = structure_factories.UserFactory(
+            is_active=False, deactivation_reason="All roles were revoked"
+        )
+        reactivate_user_with_logging(user, "Gained a new role")
+        user.refresh_from_db()
+        self.assertTrue(user.is_active)
+        self.assertEqual(user.deactivation_reason, "")
+
+    @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+    def test_periodic_sync_sets_descriptive_reason_no_course_accounts(self):
+        user = structure_factories.UserFactory(is_active=True)
+        tasks.sync_user_deactivation_status()
+        user.refresh_from_db()
+        self.assertFalse(user.is_active)
+        self.assertEqual(
+            user.deactivation_reason, "No active roles and no course accounts"
+        )
+
+    @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+    def test_periodic_sync_sets_descriptive_reason_with_closed_course_accounts(self):
+        user = structure_factories.UserFactory(is_active=True)
+        marketplace_factories.CourseAccountFactory(
+            user=user, state=CourseAccountState.CLOSED
+        )
+        tasks.sync_user_deactivation_status()
+        user.refresh_from_db()
+        self.assertFalse(user.is_active)
+        self.assertIn(
+            "1 course account(s) but none in OK state", user.deactivation_reason
+        )
+
+    @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+    def test_periodic_sync_clears_reason_on_reactivated_users(self):
+        user = structure_factories.UserFactory(
+            is_active=False,
+            deactivation_reason="No active roles and no course accounts",
+        )
+        customer = structure_factories.CustomerFactory()
+        customer.add_user(user, CustomerRole.OWNER)
+        # Manually set inactive after role assignment to avoid handler interference
+        user.is_active = False
+        user.deactivation_reason = "No active roles and no course accounts"
+        user.save()
+
+        tasks.sync_user_deactivation_status()
+
+        user.refresh_from_db()
+        self.assertTrue(user.is_active)
+        self.assertEqual(user.deactivation_reason, "")
+
+    @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+    def test_signal_handler_sets_reason_on_last_role_revoked(self):
+        user = structure_factories.UserFactory(is_active=True)
+        customer = structure_factories.CustomerFactory()
+        customer.add_user(user, CustomerRole.OWNER)
+
+        # Revoke the role — triggers deactivate_user_if_no_roles signal handler
+        role = user.userrole_set.get(is_active=True)
+        role.revoke()
+
+        user.refresh_from_db()
+        self.assertFalse(user.is_active)
+        self.assertEqual(
+            user.deactivation_reason, "No active roles and no course accounts"
+        )
+
+    @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+    def test_signal_handler_clears_reason_on_role_granted(self):
+        user = structure_factories.UserFactory(
+            is_active=False, deactivation_reason="All roles were revoked"
+        )
+        customer = structure_factories.CustomerFactory()
+
+        # Granting a role triggers reactivate_user_if_gaining_roles signal handler
+        customer.add_user(user, CustomerRole.OWNER)
+
+        user.refresh_from_db()
+        self.assertTrue(user.is_active)
+        self.assertEqual(user.deactivation_reason, "")

@@ -10,8 +10,8 @@ from waldur_core.core.models import User
 from . import models
 from .handlers import (
     deactivate_user_with_logging,
+    get_deactivation_reason,
     reactivate_user_with_logging,
-    should_deactivate_user,
     should_reactivate_user,
 )
 
@@ -57,8 +57,9 @@ def sync_user_deactivation_status():
     for user in User.all_objects.filter(is_staff=False, is_support=False).iterator(
         chunk_size=100
     ):
-        if should_deactivate_user(user):
-            deactivate_user_with_logging(user, "Periodic sync - no active roles")
+        reason = get_deactivation_reason(user)
+        if reason:
+            deactivate_user_with_logging(user, reason)
             deactivated_count += 1
         elif should_reactivate_user(user):
             reactivate_user_with_logging(user, "Periodic sync - has active roles")

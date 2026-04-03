@@ -1446,6 +1446,7 @@ class UserSerializer(
             "attribute_sources",
             "managed_isds",
             "active_isds",
+            "deactivation_reason",
         )
         read_only_fields = (
             "uuid",
@@ -1489,6 +1490,7 @@ class UserSerializer(
                 "is_support",
                 "description",
                 "has_active_session",
+                "deactivation_reason",
             )
             # Identity Bridge fields visible to staff and to the user themselves
             self_visible_fields = (
@@ -1587,7 +1589,7 @@ class UserSerializer(
                         self.instance.is_active
                         and "is_active" in attrs.keys()
                         and not attrs["is_active"]
-                        and len(attrs) == 1
+                        and len(set(attrs.keys()) - {"deactivation_reason"}) == 1
                     )
                     or self.instance.is_staff
                     or self._is_staff_editing_other_user()
@@ -1606,6 +1608,18 @@ class UserSerializer(
             idp_fields = self.get_identity_provider_fields(self.instance)
             allowed_fields = set(attrs.keys()) - set(idp_fields)
             attrs = {k: v for k, v in attrs.items() if k in allowed_fields}
+
+        # Auto-populate deactivation_reason on manual deactivation,
+        # and clear it on reactivation
+        if self.instance and "is_active" in attrs:
+            request = self.context.get("request")
+            request_user = request.user if request else None
+            if not attrs["is_active"] and self.instance.is_active:
+                if not attrs.get("deactivation_reason"):
+                    actor = request_user.username if request_user else "unknown"
+                    attrs["deactivation_reason"] = f"Manually deactivated by {actor}"
+            elif attrs["is_active"] and not self.instance.is_active:
+                attrs["deactivation_reason"] = ""
 
         if "full_name" in attrs and "first_name" in attrs:
             raise serializers.ValidationError(

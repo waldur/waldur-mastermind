@@ -3033,7 +3033,10 @@ def close_course_account(
             course_account.save(update_fields=["state"])
             if user:
                 user.is_active = False
-                user.save(update_fields=["is_active"])
+                user.deactivation_reason = (
+                    f"Course account {course_account.uuid} not found at backend"
+                )
+                user.save(update_fields=["is_active", "deactivation_reason"])
             return
 
         url = f"{course_account_url}/{username}/close"
@@ -3048,7 +3051,10 @@ def close_course_account(
             course_account.save(update_fields=["state"])
             if user:
                 user.is_active = False
-                user.save(update_fields=["is_active"])
+                user.deactivation_reason = (
+                    f"Course account {course_account.uuid} closed"
+                )
+                user.save(update_fields=["is_active", "deactivation_reason"])
     except (httpx.HTTPError, ValueError) as exc:
         error_details = extract_error_details_from_httpx_error(exc)
         logger.error(
