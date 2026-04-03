@@ -373,6 +373,22 @@ class TestUpdateCommentFromJira(APITestCase):
         self.comment.refresh_from_db()
         self.assertEqual(self.comment.is_public, False)
 
+    def test_update_comment_is_public_via_jsd_public(self):
+        # REST API v2/v3 uses "jsdPublic" instead of "public"
+        del self.service_desk_comment["public"]
+        self.service_desk_comment["jsdPublic"] = False
+        self.backend.update_comment_from_jira(self.comment)
+        self.comment.refresh_from_db()
+        self.assertEqual(self.comment.is_public, False)
+
+    def test_update_comment_defaults_to_public_when_no_flag(self):
+        # When neither "public" nor "jsdPublic" is present, default to public
+        self.service_desk_comment.pop("public", None)
+        self.service_desk_comment.pop("jsdPublic", None)
+        self.backend.update_comment_from_jira(self.comment)
+        self.comment.refresh_from_db()
+        self.assertEqual(self.comment.is_public, True)
+
     def test_webhook_cleans_up_user_info_and_does_not_update_comment_if_it_is_not_changed(
         self,
     ):
