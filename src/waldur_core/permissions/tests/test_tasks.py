@@ -289,6 +289,41 @@ class SyncUserDeactivationStatusTest(TestCase):
         self.assertTrue(user_with_course.is_active)
 
     @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+    def test_reactivates_inactive_users_with_ok_course_accounts(self):
+        """Test that inactive users with OK course accounts in active projects are reactivated."""
+        user_with_course = structure_factories.UserFactory(is_active=False)
+        self.assertFalse(user_with_course.userrole_set.filter(is_active=True).exists())
+
+        marketplace_factories.CourseAccountFactory(
+            user=user_with_course,
+            state=CourseAccountState.OK,
+        )
+
+        tasks.sync_user_deactivation_status()
+
+        user_with_course.refresh_from_db()
+        self.assertTrue(user_with_course.is_active)
+        self.assertEqual(user_with_course.deactivation_reason, "")
+
+    @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+    def test_does_not_reactivate_users_with_only_closed_course_accounts(self):
+        """Test that inactive users with only closed course accounts stay inactive."""
+        user_with_closed_course = structure_factories.UserFactory(is_active=False)
+        self.assertFalse(
+            user_with_closed_course.userrole_set.filter(is_active=True).exists()
+        )
+
+        marketplace_factories.CourseAccountFactory(
+            user=user_with_closed_course,
+            state=CourseAccountState.CLOSED,
+        )
+
+        tasks.sync_user_deactivation_status()
+
+        user_with_closed_course.refresh_from_db()
+        self.assertFalse(user_with_closed_course.is_active)
+
+    @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
     def test_deactivates_users_with_closed_course_accounts(self):
         """Test that users with only closed course accounts are still deactivated."""
         user_with_closed_course = structure_factories.UserFactory(is_active=True)

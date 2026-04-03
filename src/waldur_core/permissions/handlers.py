@@ -105,19 +105,30 @@ def should_reactivate_user(user: User) -> bool:
 
     Returns True if:
     - DEACTIVATE_USER_IF_NO_ROLES setting is enabled
-    - User has active roles
     - User is currently inactive
     - User is not staff or support
+    - User has active roles OR has OK course accounts in active projects
     """
     if not config.DEACTIVATE_USER_IF_NO_ROLES:
         return False
 
-    return (
-        not user.is_active
-        and not user.is_staff
-        and not user.is_support
-        and UserRole.objects.filter(user=user, is_active=True).exists()
-    )
+    if user.is_active or user.is_staff or user.is_support:
+        return False
+
+    if UserRole.objects.filter(user=user, is_active=True).exists():
+        return True
+
+    from waldur_mastermind.marketplace.enums import CourseAccountState
+    from waldur_mastermind.marketplace.models import CourseAccount
+
+    if CourseAccount.objects.filter(
+        user=user,
+        state=CourseAccountState.OK,
+        project__is_removed=False,
+    ).exists():
+        return True
+
+    return False
 
 
 def deactivate_user_with_logging(user: User, reason: str = "No active roles") -> None:
