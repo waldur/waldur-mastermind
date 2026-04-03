@@ -386,6 +386,46 @@ class MixedBillingTypesTest(test.APITestCase):
         self.assertEqual(ram_stat["usage"], 0)  # LIMIT type → not in usage
         self.assertEqual(ram_stat["limit_usage"], 20.0)
 
+    def test_same_type_different_billing_type_across_offerings(self):
+        """Components with same type but different billing_type across
+        offerings must appear as separate entries in stats."""
+        # Create a second offering with a "cpu" component but billing_type=LIMIT
+        offering2 = factories.OfferingFactory(customer=self.fixture.customer)
+        plan2 = factories.PlanFactory(offering=offering2)
+        limit_cpu_comp = factories.OfferingComponentFactory(
+            offering=offering2,
+            type="cpu",
+            billing_type=BillingTypes.LIMIT,
+            limit_period=LimitPeriods.TOTAL,
+        )
+        factories.PlanComponentFactory(plan=plan2, component=limit_cpu_comp)
+        resource2 = models.Resource.objects.create(
+            offering=offering2,
+            plan=plan2,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+            limits={"cpu": 5000},
+        )
+
+        _create_usage(self.resource, self.usage_comp, 10)
+        _create_usage(resource2, limit_cpu_comp, 3000)
+
+        resources = models.Resource.objects.filter(
+            pk__in=[self.resource.pk, resource2.pk]
+        )
+        stats = get_components_usage_data(resources)
+
+        cpu_stats = [s for s in stats if s["type"] == "cpu"]
+        self.assertEqual(len(cpu_stats), 2, "Expected two separate cpu entries")
+
+        usage_cpu = next(s for s in cpu_stats if s["billing_type"] == "usage")
+        limit_cpu = next(s for s in cpu_stats if s["billing_type"] == "limit")
+
+        self.assertEqual(usage_cpu["usage"], 10.0)
+        self.assertEqual(usage_cpu["limit_usage"], 0)
+        self.assertEqual(limit_cpu["limit_usage"], 3000.0)
+        self.assertEqual(limit_cpu["usage"], 0)
+
 
 # ---------------------------------------------------------------------------
 # 7. Null plan_period (site agent records)
