@@ -1078,6 +1078,8 @@ def get_components_usage_data(resources, for_current_month=False):
         offering__in=offerings
     ).distinct()
 
+    # Key by (component_type, billing_type) to avoid mixing usage and limit
+    # components that share the same type name across different offerings.
     component_usage = defaultdict(float)
     component_limit = defaultdict(float)
     component_limit_usage = defaultdict(float)
@@ -1085,10 +1087,6 @@ def get_components_usage_data(resources, for_current_month=False):
     current_date = datetime.date.today()
 
     for resource in resources:
-        for component_type, limit in resource.limits.items():
-            if limit is not None:
-                component_limit[component_type] += float(limit)
-
         usage_components = resource.offering.components.filter(
             billing_type=BillingTypes.USAGE
         )
@@ -1096,7 +1094,20 @@ def get_components_usage_data(resources, for_current_month=False):
             billing_type=BillingTypes.LIMIT
         )
 
+        for component_type, limit in resource.limits.items():
+            if limit is None:
+                continue
+            # Assign limit to the correct billing_type bucket
+            if limit_components.filter(type=component_type).exists():
+                key = (component_type, BillingTypes.LIMIT)
+            elif usage_components.filter(type=component_type).exists():
+                key = (component_type, BillingTypes.USAGE)
+            else:
+                key = (component_type, BillingTypes.LIMIT)
+            component_limit[key] += float(limit)
+
         for component in usage_components:
+            key = (component.type, BillingTypes.USAGE)
             if for_current_month:
                 usages = models.ComponentUsage.objects.filter(
                     resource=resource,
@@ -1105,7 +1116,7 @@ def get_components_usage_data(resources, for_current_month=False):
                     billing_period__month=current_date.month,
                 )
                 total_usage = usages.aggregate(total=Sum("usage"))["total"] or 0
-                component_usage[component.type] += float(total_usage)
+                component_usage[key] += float(total_usage)
             else:
                 latest = (
                     models.ComponentUsage.objects.filter(
@@ -1115,29 +1126,29 @@ def get_components_usage_data(resources, for_current_month=False):
                     .first()
                 )
                 if latest:
-                    component_usage[component.type] += float(latest.usage)
+                    component_usage[key] += float(latest.usage)
 
         limit_override = LimitPeriods.MONTH if for_current_month else None
         limit_period_usage = get_current_period_usage(
             resource, limit_period=limit_override
         )
         for component in limit_components:
-            component_limit_usage[component.type] += limit_period_usage.get(
-                component.type, 0
-            )
+            key = (component.type, BillingTypes.LIMIT)
+            component_limit_usage[key] += limit_period_usage.get(component.type, 0)
 
     components_data = {}
     for component in components:
-        if component.type not in components_data:
-            components_data[component.type] = {
+        key = (component.type, component.billing_type)
+        if key not in components_data:
+            components_data[key] = {
                 "type": component.type,
                 "name": component.name,
                 "description": component.description,
                 "measured_unit": component.measured_unit,
                 "billing_type": component.billing_type,
-                "usage": component_usage.get(component.type, 0),
-                "limit_usage": component_limit_usage.get(component.type, 0),
-                "limit": component_limit.get(component.type, None),
+                "usage": component_usage.get(key, 0),
+                "limit_usage": component_limit_usage.get(key, 0),
+                "limit": component_limit.get(key, None),
                 "offering_name": component.offering.name,
                 "offering_uuid": component.offering.uuid.hex,
             }
