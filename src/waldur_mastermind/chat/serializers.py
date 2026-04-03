@@ -307,6 +307,8 @@ class MessageSerializer(serializers.ModelSerializer):
             "sequence_index",
             "replaces",
             "created",
+            "input_tokens",
+            "output_tokens",
             "is_flagged",
             "severity",
             "injection_categories",
@@ -320,6 +322,8 @@ class MessageSerializer(serializers.ModelSerializer):
             "role",
             "replaces",
             "tool_calls",
+            "input_tokens",
+            "output_tokens",
             "is_flagged",
             "severity",
             "injection_categories",
@@ -365,6 +369,21 @@ class ThreadSessionSerializer(
     chat_session = serializers.SlugRelatedField(slug_field="uuid", read_only=True)
 
     message_count = serializers.IntegerField(read_only=True)
+    input_tokens = serializers.IntegerField(
+        read_only=True, required=False, allow_null=True
+    )
+    output_tokens = serializers.IntegerField(
+        read_only=True, required=False, allow_null=True
+    )
+    total_tokens = serializers.IntegerField(
+        read_only=True, required=False, allow_null=True
+    )
+    title_gen_input_tokens = serializers.IntegerField(
+        read_only=True, required=False, allow_null=True
+    )
+    title_gen_output_tokens = serializers.IntegerField(
+        read_only=True, required=False, allow_null=True
+    )
     user_username = serializers.CharField(
         source="chat_session.user.username", read_only=True
     )
@@ -383,6 +402,11 @@ class ThreadSessionSerializer(
             "flags",
             "is_archived",
             "message_count",
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "title_gen_input_tokens",
+            "title_gen_output_tokens",
             "is_flagged",
             "max_severity",
             "user_username",
@@ -397,9 +421,20 @@ class ThreadSessionSerializer(
             "chat_session",
             "flags",
             "message_count",
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "title_gen_input_tokens",
+            "title_gen_output_tokens",
             "user_username",
             "user_full_name",
         )
+
+    def get_fields(self):
+        fields = super().get_fields()
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
+            return fields
+        return fields
 
     def get_is_flagged(self, obj) -> bool:
         return obj.flags.get("is_flagged", False)

@@ -322,6 +322,18 @@ class ThreadSession(UuidMixin, TimeStampedModel):
             "Set when user requests stream cancellation; cleared after stream completes."
         ),
     )
+    title_gen_input_tokens = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text=_("Input tokens consumed by the title generation LLM call."),
+    )
+    title_gen_output_tokens = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text=_("Output tokens consumed by the title generation LLM call."),
+    )
 
     class Meta:
         verbose_name = _("Thread session")
@@ -371,6 +383,10 @@ class Message(UuidMixin, TimeStampedModel):
 
     # Tool calls executed by the assistant to produce this message
     tool_calls = models.JSONField(default=list, blank=True)
+
+    # Token usage tracking (populated on assistant messages only)
+    input_tokens = models.PositiveIntegerField(null=True, blank=True, default=None)
+    output_tokens = models.PositiveIntegerField(null=True, blank=True, default=None)
 
     # Prompt injection detection fields
     is_flagged = models.BooleanField(default=False, db_index=True)
