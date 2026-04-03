@@ -176,3 +176,42 @@ class MessageViewSetTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], str(msg1.uuid))
+
+    def test_message_token_fields_visible_to_regular_users(self):
+        """Regular users should see input_tokens/output_tokens on messages."""
+        Message.objects.create(
+            thread=self.thread,
+            role=Message.Role.ASSISTANT,
+            content="Reply",
+            sequence_index=1,
+            input_tokens=100,
+            output_tokens=40,
+        )
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data[0]
+        self.assertEqual(data["input_tokens"], 100)
+        self.assertEqual(data["output_tokens"], 40)
+
+    def test_message_token_fields_visible_to_staff(self):
+        """Staff users should see input_tokens/output_tokens on messages."""
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+
+        Message.objects.create(
+            thread=self.thread,
+            role=Message.Role.ASSISTANT,
+            content="Reply",
+            sequence_index=1,
+            input_tokens=100,
+            output_tokens=40,
+        )
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data[0]
+        self.assertEqual(data["input_tokens"], 100)
+        self.assertEqual(data["output_tokens"], 40)

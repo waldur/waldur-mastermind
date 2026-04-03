@@ -186,6 +186,251 @@ class ThreadSessionViewSetTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data[0]["message_count"], 2)
 
+    def test_token_totals_in_list_response_for_staff(self):
+        """Staff sees aggregated token totals from messages."""
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+
+        thread = ThreadSession.objects.create(chat_session=self.session)
+        Message.objects.create(
+            thread=thread,
+            role=Message.Role.ASSISTANT,
+            content="Hi",
+            sequence_index=1,
+            input_tokens=100,
+            output_tokens=50,
+        )
+        Message.objects.create(
+            thread=thread,
+            role=Message.Role.ASSISTANT,
+            content="More",
+            sequence_index=3,
+            input_tokens=200,
+            output_tokens=80,
+        )
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data[0]
+        self.assertEqual(data["input_tokens"], 300)
+        self.assertEqual(data["output_tokens"], 130)
+        self.assertEqual(data["total_tokens"], 430)
+
+    def test_token_totals_include_title_gen_tokens(self):
+        """Title-generation tokens are added to the thread totals."""
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+
+        thread = ThreadSession.objects.create(
+            chat_session=self.session,
+            title_gen_input_tokens=20,
+            title_gen_output_tokens=5,
+        )
+        Message.objects.create(
+            thread=thread,
+            role=Message.Role.ASSISTANT,
+            content="Reply",
+            sequence_index=1,
+            input_tokens=100,
+            output_tokens=50,
+        )
+
+        response = self.client.get(self.list_url)
+
+        data = response.data[0]
+        self.assertEqual(data["input_tokens"], 120)
+        self.assertEqual(data["output_tokens"], 55)
+        self.assertEqual(data["total_tokens"], 175)
+        self.assertEqual(data["title_gen_input_tokens"], 20)
+        self.assertEqual(data["title_gen_output_tokens"], 5)
+
+    def test_token_totals_null_when_no_tokens_recorded(self):
+        """When no messages have token data, totals are null."""
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+
+        thread = ThreadSession.objects.create(chat_session=self.session)
+        Message.objects.create(
+            thread=thread,
+            role=Message.Role.USER,
+            content="Hello",
+            sequence_index=1,
+        )
+
+        response = self.client.get(self.list_url)
+
+        data = response.data[0]
+        self.assertIsNone(data["input_tokens"])
+        self.assertIsNone(data["output_tokens"])
+        self.assertIsNone(data["total_tokens"])
+
+    def test_replaced_messages_included_in_token_totals(self):
+        """Both original and replacement messages contribute to token totals."""
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+
+        thread = ThreadSession.objects.create(chat_session=self.session)
+        original = Message.objects.create(
+            thread=thread,
+            role=Message.Role.ASSISTANT,
+            content="Old",
+            sequence_index=1,
+            input_tokens=500,
+            output_tokens=200,
+        )
+        Message.objects.create(
+            thread=thread,
+            role=Message.Role.ASSISTANT,
+            content="New",
+            sequence_index=1,
+            replaces=original,
+            input_tokens=100,
+            output_tokens=40,
+        )
+
+        response = self.client.get(self.list_url)
+
+        data = response.data[0]
+        self.assertEqual(data["input_tokens"], 600)
+        self.assertEqual(data["output_tokens"], 240)
+        self.assertEqual(data["total_tokens"], 840)
+
+    def test_token_fields_visible_to_regular_users(self):
+        """Regular users should see token fields in the response."""
+        thread = ThreadSession.objects.create(
+            chat_session=self.session,
+            title_gen_input_tokens=10,
+            title_gen_output_tokens=3,
+        )
+        Message.objects.create(
+            thread=thread,
+            role=Message.Role.ASSISTANT,
+            content="Hi",
+            sequence_index=1,
+            input_tokens=100,
+            output_tokens=50,
+        )
+
+        response = self.client.get(self.list_url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.data[0]
+        self.assertEqual(data["input_tokens"], 110)  # 100 msg + 10 title_gen
+        self.assertEqual(data["output_tokens"], 53)  # 50 msg + 3 title_gen
+        self.assertEqual(data["total_tokens"], 163)
+        self.assertEqual(data["title_gen_input_tokens"], 10)
+        self.assertEqual(data["title_gen_output_tokens"], 3)
+
+    def test_token_fields_visible_to_staff(self):
+        """Staff users should see all token fields."""
+        staff = structure_factories.UserFactory(is_staff=True)
+        self.client.force_authenticate(user=staff)
+
+        thread = ThreadSession.objects.create(chat_session=self.session)
+        Message.objects.create(
+            thread=thread,
+            role=Message.Role.ASSISTANT,
+            content="Hi",
+            sequence_index=1,
+            input_tokens=50,
+            output_tokens=25,
+        )
+
+        response = self.client.get(self.list_url)
+
+        data = response.data[0]
+        self.assertIn("input_tokens", data)
+        self.assertIn("output_tokens", data)
+        self.assertIn("total_tokens", data)
+        self.assertIn("title_gen_input_tokens", data)
+        self.assertIn("title_gen_output_tokens", data)
+
+    def test_filter_by_total_tokens_range(self):
+        """Users can filter threads by total_tokens_min / total_tokens_max."""
+        t_small = ThreadSession.objects.create(chat_session=self.session)
+        Message.objects.create(
+            thread=t_small,
+            role=Message.Role.ASSISTANT,
+            content="Small",
+            sequence_index=1,
+            input_tokens=10,
+            output_tokens=5,
+        )
+        t_large = ThreadSession.objects.create(chat_session=self.session)
+        Message.objects.create(
+            thread=t_large,
+            role=Message.Role.ASSISTANT,
+            content="Large",
+            sequence_index=1,
+            input_tokens=500,
+            output_tokens=300,
+        )
+
+        # Filter: total_tokens >= 100
+        response = self.client.get(self.list_url, {"total_tokens_min": 100})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertIn(str(t_large.uuid), uuids)
+        self.assertNotIn(str(t_small.uuid), uuids)
+
+        # Filter: total_tokens <= 50
+        response = self.client.get(self.list_url, {"total_tokens_max": 50})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertIn(str(t_small.uuid), uuids)
+        self.assertNotIn(str(t_large.uuid), uuids)
+
+    def test_order_by_total_tokens(self):
+        """Users can order threads by total_tokens ascending and descending."""
+        t1 = ThreadSession.objects.create(chat_session=self.session)
+        Message.objects.create(
+            thread=t1,
+            role=Message.Role.ASSISTANT,
+            content="A",
+            sequence_index=1,
+            input_tokens=10,
+            output_tokens=5,
+        )
+        t2 = ThreadSession.objects.create(chat_session=self.session)
+        Message.objects.create(
+            thread=t2,
+            role=Message.Role.ASSISTANT,
+            content="B",
+            sequence_index=1,
+            input_tokens=500,
+            output_tokens=300,
+        )
+
+        # Ascending
+        response = self.client.get(self.list_url, {"o": "total_tokens"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]["uuid"], str(t1.uuid))
+        self.assertEqual(response.data[1]["uuid"], str(t2.uuid))
+
+        # Descending
+        response = self.client.get(self.list_url, {"o": "-total_tokens"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data[0]["uuid"], str(t2.uuid))
+        self.assertEqual(response.data[1]["uuid"], str(t1.uuid))
+
+    def test_regular_user_token_filters_applied(self):
+        """Regular users can use token range filters."""
+        thread = ThreadSession.objects.create(chat_session=self.session)
+        Message.objects.create(
+            thread=thread,
+            role=Message.Role.ASSISTANT,
+            content="Hi",
+            sequence_index=1,
+            input_tokens=1000,
+            output_tokens=500,
+        )
+
+        # Restrictive filter excludes the thread
+        response = self.client.get(self.list_url, {"total_tokens_min": 999999})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
 
 @patch(SYNC_THREAD_PATCH, _SynchronousThread)
 class ThreadTitleGenerationTest(test.APITestCase):
@@ -357,3 +602,41 @@ class ThreadTitleGenerationTest(test.APITestCase):
         # Main (100+50) + title (20+5) = 175 total
         quota = TokenQuota.objects.get(user=self.user)
         self.assertEqual(quota.daily_usage, 175)
+
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_title_gen_tokens_persisted_on_thread(self, mock_openai_cls):
+        """Title-generation token counts are stored on the ThreadSession model."""
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.side_effect = [
+            _fake_stream([_make_content_chunk("Response"), _make_usage_chunk(100, 50)]),
+            _fake_stream(
+                [_make_content_chunk("VM Management"), _make_usage_chunk(20, 5)]
+            ),
+        ]
+
+        streamer = self._make_streamer(is_new_thread=True)
+        list(streamer)
+
+        self.thread.refresh_from_db()
+        self.assertEqual(self.thread.title_gen_input_tokens, 20)
+        self.assertEqual(self.thread.title_gen_output_tokens, 5)
+
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_message_token_fields_persisted(self, mock_openai_cls):
+        """Assistant message stores input_tokens and output_tokens after streaming."""
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.return_value = _fake_stream(
+            [_make_content_chunk("Hello!"), _make_usage_chunk(80, 30)]
+        )
+
+        streamer = self._make_streamer(is_new_thread=False)
+        list(streamer)
+
+        assistant_msg = Message.objects.filter(
+            thread=self.thread, role=Message.Role.ASSISTANT
+        ).first()
+        self.assertIsNotNone(assistant_msg)
+        self.assertEqual(assistant_msg.input_tokens, 80)
+        self.assertEqual(assistant_msg.output_tokens, 30)

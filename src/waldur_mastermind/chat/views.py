@@ -3,7 +3,8 @@ import logging
 import django_filters
 from constance import config
 from django.db import transaction
-from django.db.models import Count, Max, Q
+from django.db.models import Case, Count, Max, Q, Sum, Value, When
+from django.db.models.functions import Coalesce
 from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -594,7 +595,33 @@ class ThreadSessionFilter(django_filters.FilterSet):
         choices=[(s.value, s.value.title()) for s in SeverityLevel],
         method="filter_max_severity",
     )
-    o = django_filters.OrderingFilter(fields=("created", "modified"))
+    input_tokens_min = django_filters.NumberFilter(
+        field_name="input_tokens", lookup_expr="gte"
+    )
+    input_tokens_max = django_filters.NumberFilter(
+        field_name="input_tokens", lookup_expr="lte"
+    )
+    output_tokens_min = django_filters.NumberFilter(
+        field_name="output_tokens", lookup_expr="gte"
+    )
+    output_tokens_max = django_filters.NumberFilter(
+        field_name="output_tokens", lookup_expr="lte"
+    )
+    total_tokens_min = django_filters.NumberFilter(
+        field_name="total_tokens", lookup_expr="gte"
+    )
+    total_tokens_max = django_filters.NumberFilter(
+        field_name="total_tokens", lookup_expr="lte"
+    )
+    o = django_filters.OrderingFilter(
+        fields=(
+            "created",
+            "modified",
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+        )
+    )
 
     class Meta:
         model = models.ThreadSession
@@ -689,11 +716,11 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
 
     queryset = models.ThreadSession.objects.all().order_by("-created")
     serializer_class = serializers.ThreadSessionSerializer
-    filterset_class = ThreadSessionFilter
     lookup_field = "uuid"
     http_method_names = ["get", "post", "options"]
     permission_classes = [IsAuthenticated, core_permissions.ActionsPermission]
     disabled_actions = ["create", "destroy", "update", "partial_update"]
+    filterset_class = ThreadSessionFilter
 
     def get_queryset(self):
         """Filter threads to current user's threads; staff/support see all."""
@@ -705,7 +732,42 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
             )
         return (
             qs.select_related("chat_session__user")
-            .annotate(message_count=Count("messages"))
+            .annotate(
+                message_count=Count("messages"),
+                _msg_input=Sum("messages__input_tokens"),
+                _msg_output=Sum("messages__output_tokens"),
+            )
+            .annotate(
+                input_tokens=Case(
+                    When(
+                        _msg_input__isnull=True,
+                        title_gen_input_tokens__isnull=True,
+                        then=None,
+                    ),
+                    default=Coalesce("_msg_input", Value(0))
+                    + Coalesce("title_gen_input_tokens", Value(0)),
+                ),
+                output_tokens=Case(
+                    When(
+                        _msg_output__isnull=True,
+                        title_gen_output_tokens__isnull=True,
+                        then=None,
+                    ),
+                    default=Coalesce("_msg_output", Value(0))
+                    + Coalesce("title_gen_output_tokens", Value(0)),
+                ),
+            )
+            .annotate(
+                total_tokens=Case(
+                    When(
+                        input_tokens__isnull=True,
+                        output_tokens__isnull=True,
+                        then=None,
+                    ),
+                    default=Coalesce("input_tokens", Value(0))
+                    + Coalesce("output_tokens", Value(0)),
+                ),
+            )
             .order_by("-created")
         )
 

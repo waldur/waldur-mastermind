@@ -121,8 +121,8 @@ class LLMStreamer:
         self.accumulated_content = ""
         self.tool_calls: dict[int, dict] = {}
         self.user = user
-        self.input_tokens = 0
-        self.output_tokens = 0
+        self.input_tokens = None
+        self.output_tokens = None
         self.error = None
         self.thread = thread
         self.original_input = original_input
@@ -386,6 +386,8 @@ class LLMStreamer:
         finally:
             # Always persist — worker is the single owner of DB operations.
             self._persist_messages()
+            # Title-gen tokens are stored on ThreadSession.title_gen_tokens
+            # and added to self.input_tokens/output_tokens for quota recording.
             self._generate_thread_name()
             self._record_usage()
             # Enqueue metadata for the client before signaling completion.
@@ -406,8 +408,12 @@ class LLMStreamer:
                 # Capture usage from any chunk — some providers attach it
                 # to a chunk that still has a (empty-delta) choices entry.
                 if chunk.usage:
-                    self.input_tokens += chunk.usage.prompt_tokens or 0
-                    self.output_tokens += chunk.usage.completion_tokens or 0
+                    self.input_tokens = (self.input_tokens or 0) + (
+                        chunk.usage.prompt_tokens or 0
+                    )
+                    self.output_tokens = (self.output_tokens or 0) + (
+                        chunk.usage.completion_tokens or 0
+                    )
 
                 if not chunk.choices:
                     continue
@@ -557,7 +563,17 @@ class LLMStreamer:
             return None
         self.assistant_msg.content = self.accumulated_content
         self.assistant_msg.tool_calls = self._serialized_tool_calls()
-        self.assistant_msg.save(update_fields=["content", "tool_calls", "modified"])
+        self.assistant_msg.input_tokens = self.input_tokens
+        self.assistant_msg.output_tokens = self.output_tokens
+        self.assistant_msg.save(
+            update_fields=[
+                "content",
+                "tool_calls",
+                "input_tokens",
+                "output_tokens",
+                "modified",
+            ]
+        )
         return self.assistant_msg
 
     def _persist_reload_or_edit(self, locked_thread):
@@ -618,6 +634,8 @@ class LLMStreamer:
                 content=self.accumulated_content,
                 sequence_index=user_msg.sequence_index + 1,
                 tool_calls=self._serialized_tool_calls(),
+                input_tokens=self.input_tokens,
+                output_tokens=self.output_tokens,
             )
         return user_msg, assistant_msg
 
@@ -640,12 +658,8 @@ class LLMStreamer:
     def _generate_thread_name(self):
         """
         Generate a short title for a new thread via a second LLM call.
-        Updates the thread name in DB. Failures are logged but never break
-        the main response.
-
-        Note: mutates ``input_tokens``/``output_tokens`` via ``+=``. This is
-        safe because only the worker thread calls this method (or the main
-        thread for the canned-response path where no worker exists).
+        Updates the thread name and title_gen_tokens in DB.
+        Failures are logged but never break the main response.
         """
         if not self.is_new_thread or not self.thread or not self.original_input:
             return
@@ -654,12 +668,14 @@ class LLMStreamer:
             prompt = TITLE_GENERATION_PROMPT + self.original_input[:500]
             title_messages = [{"role": "user", "content": prompt}]
             title_parts = []
+            title_input = 0
+            title_output = 0
 
             with self._stream_completion(title_messages, include_tools=False) as stream:
                 for chunk in stream:
                     if chunk.usage:
-                        self.input_tokens += chunk.usage.prompt_tokens or 0
-                        self.output_tokens += chunk.usage.completion_tokens or 0
+                        title_input += chunk.usage.prompt_tokens or 0
+                        title_output += chunk.usage.completion_tokens or 0
 
                     if not chunk.choices:
                         continue
@@ -668,10 +684,21 @@ class LLMStreamer:
                         title_parts.append(content)
 
             title = "".join(title_parts).strip().strip("\"'")
+
+            update_kwargs = {}
             if title:
+                update_kwargs["name"] = title[:150]
+            if title_input or title_output:
+                update_kwargs["title_gen_input_tokens"] = title_input
+                update_kwargs["title_gen_output_tokens"] = title_output
+            if update_kwargs:
                 models.ThreadSession.objects.filter(pk=self.thread.pk).update(
-                    name=title[:150]
+                    **update_kwargs
                 )
+
+            # Add to self for quota recording
+            self.input_tokens = (self.input_tokens or 0) + title_input
+            self.output_tokens = (self.output_tokens or 0) + title_output
 
         except Exception:
             logger.exception("Failed to generate thread title for %s", self.thread.uuid)
@@ -686,21 +713,21 @@ class LLMStreamer:
 
         # Skip recording if no tokens were exchanged and no error occurred.
         # On error, we still record a zero-usage entry for audit visibility.
-        if self.input_tokens == 0 and self.output_tokens == 0 and not self.error:
+        if not self.input_tokens and not self.output_tokens and not self.error:
             return
 
         try:
             with transaction.atomic():
                 quota = TokenQuota.for_user(self.user, True)
 
-                total_tokens = self.input_tokens + self.output_tokens
+                total_tokens = (self.input_tokens or 0) + (self.output_tokens or 0)
                 quota.add_usage(total_tokens)
 
                 logger.info(
                     "Recorded AI usage for %s: input=%d, output=%d, daily usage=%d",
                     self.user.username,
-                    self.input_tokens,
-                    self.output_tokens,
+                    self.input_tokens or 0,
+                    self.output_tokens or 0,
                     quota.daily_usage,
                 )
 
