@@ -40,8 +40,14 @@ class CreateExecutorMixin(AsyncExecutor):
     @ensure_atomic_transaction
     def perform_create(self, serializer):
         instance = serializer.save()
-        self.create_executor.execute(instance, is_async=self.async_executor)
-        instance.refresh_from_db()
+        # on_commit ensures the executor runs only after the transaction commits,
+        # preventing a race condition where an async worker tries to read an object
+        # that isn't visible in the DB yet. refresh_from_db() was removed because
+        # the executor now runs outside the transaction, so it would no longer
+        # reflect any state changes made by the executor.
+        transaction.on_commit(
+            lambda: self.create_executor.execute(instance, is_async=self.async_executor)
+        )
 
 
 class UpdateExecutorMixin(AsyncExecutor):
@@ -70,13 +76,14 @@ class UpdateExecutorMixin(AsyncExecutor):
         }
         kwargs = self.get_update_executor_kwargs(serializer)
 
-        self.update_executor.execute(
-            instance,
-            is_async=self.async_executor,
-            updated_fields=updated_fields,
-            **kwargs,
+        transaction.on_commit(
+            lambda: self.update_executor.execute(
+                instance,
+                is_async=self.async_executor,
+                updated_fields=updated_fields,
+                **kwargs,
+            )
         )
-        serializer.instance.refresh_from_db()
 
 
 class DeleteExecutorMixin(AsyncExecutor):
