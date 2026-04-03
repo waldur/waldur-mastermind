@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import OpenApiExample, extend_schema
 from rest_framework import decorators, response, status
@@ -60,13 +61,18 @@ class DropletViewSet(structure_views.ResourceViewSet):
 
         # XXX: We do not operate with backend_id`s in views.
         #      View should pass objects to executor.
-        self.create_executor.execute(
-            droplet,
-            is_async=self.async_executor,
-            backend_region_id=region.backend_id,
-            backend_image_id=image.backend_id,
-            backend_size_id=size.backend_id,
-            ssh_key_uuid=ssh_key.uuid.hex if ssh_key else None,
+        # on_commit ensures the executor runs only after the transaction commits.
+        # This prevents a race condition when ATOMIC_REQUESTS=True is enabled,
+        # where an async worker could try to read the object before it is visible in the DB.
+        transaction.on_commit(
+            lambda: self.create_executor.execute(
+                droplet,
+                is_async=self.async_executor,
+                backend_region_id=region.backend_id,
+                backend_image_id=image.backend_id,
+                backend_size_id=size.backend_id,
+                ssh_key_uuid=ssh_key.uuid.hex if ssh_key else None,
+            )
         )
 
     @decorators.action(detail=True, methods=["post"])

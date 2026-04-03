@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from rest_framework import decorators, response, status, viewsets
 
@@ -46,12 +47,17 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         instance: models.Instance = serializer.save()
         volume = instance.volume_set.first()
 
-        self.create_executor.execute(
-            instance,
-            image=serializer.validated_data.get("image"),
-            size=serializer.validated_data.get("size"),
-            ssh_key=serializer.validated_data.get("ssh_public_key"),
-            volume=volume,
+        # on_commit ensures the executor runs only after the transaction commits.
+        # This prevents a race condition when ATOMIC_REQUESTS=True is enabled,
+        # where an async worker could try to read the object before it is visible in the DB.
+        transaction.on_commit(
+            lambda: self.create_executor.execute(
+                instance,
+                image=serializer.validated_data.get("image"),
+                size=serializer.validated_data.get("size"),
+                ssh_key=serializer.validated_data.get("ssh_public_key"),
+                volume=volume,
+            )
         )
 
     @decorators.action(detail=True, methods=["post"])

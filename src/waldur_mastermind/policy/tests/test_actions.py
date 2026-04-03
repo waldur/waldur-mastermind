@@ -125,7 +125,8 @@ class ActionsTest(test.APITestCase):
         self.assertEqual(resource.state, ResourceStates.ERRED)
         self.assertIn("Policy is violated", resource.error_message)
 
-    def test_allow_first_resource_creation_when_under_limit(self):
+    @mock.patch("waldur_mastermind.marketplace.tasks.process_order")
+    def test_allow_first_resource_creation_when_under_limit(self, mock_process_order):
         """Test that first resource is allowed when cost is under policy limit."""
         # Setup: Create policy with limit_cost=150
         self.project_policy.limit_cost = 150
