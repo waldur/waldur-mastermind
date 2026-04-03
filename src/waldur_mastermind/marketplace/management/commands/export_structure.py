@@ -418,6 +418,7 @@ class Command(BaseCommand):
                     "is_staff": user.is_staff,
                     "is_support": user.is_support,
                     "is_active": user.is_active,
+                    "deactivation_reason": user.deactivation_reason,
                     "native_name": user.native_name,
                     "phone_number": user.phone_number,
                     "organization": user.organization,

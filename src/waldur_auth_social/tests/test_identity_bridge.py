@@ -312,6 +312,22 @@ class MultiISDDeactivationTest(TestCase):
         self.assertFalse(user.is_active)
         self.assertEqual(user.active_isds, [])
 
+    @override_config(FEDERATED_IDENTITY_DEACTIVATION_POLICY="all_isds_removed")
+    def test_remove_from_all_isds_sets_deactivation_reason(self):
+        user = structure_factories.UserFactory(
+            active_isds=["isd:puhuri"],
+            attribute_sources={
+                "email": {"source": "isd:puhuri", "timestamp": "2026-01-01T00:00:00Z"},
+            },
+        )
+        remove_user_from_isd(user, "isd:puhuri")
+        user.refresh_from_db()
+
+        self.assertEqual(
+            user.deactivation_reason,
+            "Identity source 'isd:puhuri' removed (policy: all_isds_removed)",
+        )
+
     @override_config(FEDERATED_IDENTITY_DEACTIVATION_POLICY="any_isd_removed")
     def test_any_isd_removed_policy_deactivates_immediately(self):
         user = structure_factories.UserFactory(
@@ -322,6 +338,37 @@ class MultiISDDeactivationTest(TestCase):
 
         self.assertTrue(deactivated)
         self.assertFalse(user.is_active)
+
+    @override_config(FEDERATED_IDENTITY_DEACTIVATION_POLICY="any_isd_removed")
+    def test_any_isd_removed_sets_deactivation_reason(self):
+        user = structure_factories.UserFactory(
+            active_isds=["isd:fenix", "isd:puhuri"],
+        )
+        remove_user_from_isd(user, "isd:fenix")
+        user.refresh_from_db()
+
+        self.assertEqual(
+            user.deactivation_reason,
+            "Identity source 'isd:fenix' removed (policy: any_isd_removed)",
+        )
+
+    @override_config(FEDERATED_IDENTITY_DEACTIVATION_POLICY="all_isds_removed")
+    def test_remove_from_one_isd_does_not_set_deactivation_reason(self):
+        user = structure_factories.UserFactory(
+            active_isds=["isd:fenix", "isd:puhuri"],
+            attribute_sources={
+                "first_name": {
+                    "source": "isd:fenix",
+                    "timestamp": "2026-01-01T00:00:00Z",
+                },
+                "email": {"source": "isd:puhuri", "timestamp": "2026-01-01T00:00:00Z"},
+            },
+        )
+        remove_user_from_isd(user, "isd:fenix")
+        user.refresh_from_db()
+
+        self.assertTrue(user.is_active)
+        self.assertEqual(user.deactivation_reason, "")
 
 
 class IdentityBridgeSourceValidationTest(TestCase):

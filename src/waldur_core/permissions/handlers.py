@@ -13,11 +13,13 @@ from waldur_core.structure.permissions import _get_customer
 logger = logging.getLogger(__name__)
 
 
-def should_deactivate_user(user: User) -> bool:
+def get_deactivation_reason(user: User) -> str | None:
     """
     Check if a user should be deactivated based on the current policy.
 
-    Returns True if:
+    Returns a reason string if the user should be deactivated, or None otherwise.
+
+    A user should be deactivated if:
     - DEACTIVATE_USER_IF_NO_ROLES setting is enabled
     - User has no active roles
     - User has no active course accounts in non-removed projects
@@ -25,25 +27,76 @@ def should_deactivate_user(user: User) -> bool:
     - User is not staff or support
     """
     if not config.DEACTIVATE_USER_IF_NO_ROLES:
-        return False
+        return None
 
     if not user.is_active or user.is_staff or user.is_support:
-        return False
+        logger.debug(
+            "User %s (uuid=%s) skipped for deactivation: is_active=%s, is_staff=%s, is_support=%s",
+            user.username,
+            user.uuid,
+            user.is_active,
+            user.is_staff,
+            user.is_support,
+        )
+        return None
 
     if UserRole.objects.filter(user=user, is_active=True).exists():
-        return False
+        logger.debug(
+            "User %s (uuid=%s) skipped for deactivation: has active roles",
+            user.username,
+            user.uuid,
+        )
+        return None
 
     from waldur_mastermind.marketplace.enums import CourseAccountState
     from waldur_mastermind.marketplace.models import CourseAccount
 
-    if CourseAccount.objects.filter(
+    ok_course_accounts = CourseAccount.objects.filter(
         user=user,
         state=CourseAccountState.OK,
         project__is_removed=False,
-    ).exists():
-        return False
+    )
+    if ok_course_accounts.exists():
+        logger.debug(
+            "User %s (uuid=%s) skipped for deactivation: has %d OK course account(s) in active projects",
+            user.username,
+            user.uuid,
+            ok_course_accounts.count(),
+        )
+        return None
 
-    return True
+    all_course_accounts = CourseAccount.objects.filter(user=user)
+    if all_course_accounts.exists():
+        ca_details = list(
+            all_course_accounts.values_list(
+                "uuid", "state", "project__uuid", "project__is_removed"
+            )
+        )
+        reason = (
+            f"No active roles, {all_course_accounts.count()} course account(s) "
+            f"but none in OK state with active project. Details: {ca_details}"
+        )
+        logger.info(
+            "User %s (uuid=%s) will be deactivated: %s",
+            user.username,
+            user.uuid,
+            reason,
+        )
+        return reason
+
+    reason = "No active roles and no course accounts"
+    logger.info(
+        "User %s (uuid=%s) will be deactivated: %s",
+        user.username,
+        user.uuid,
+        reason,
+    )
+    return reason
+
+
+def should_deactivate_user(user: User) -> bool:
+    """Check if a user should be deactivated based on the current policy."""
+    return get_deactivation_reason(user) is not None
 
 
 def should_reactivate_user(user: User) -> bool:
@@ -72,7 +125,8 @@ def deactivate_user_with_logging(user: User, reason: str = "No active roles") ->
     Deactivate a user and log the action.
     """
     user.is_active = False
-    user.save(update_fields=["is_active"])
+    user.deactivation_reason = reason
+    user.save(update_fields=["is_active", "deactivation_reason"])
 
     logger.info(
         f"User {user} (uuid={user.uuid}) has been deactivated automatically. Reason: {reason}"
@@ -91,7 +145,8 @@ def reactivate_user_with_logging(user: User, reason: str = "Gained new role") ->
     Reactivate a user and log the action.
     """
     user.is_active = True
-    user.save(update_fields=["is_active"])
+    user.deactivation_reason = ""
+    user.save(update_fields=["is_active", "deactivation_reason"])
 
     logger.info(
         f"User {user} (uuid={user.uuid}) has been reactivated automatically. Reason: {reason}"
@@ -240,8 +295,9 @@ def deactivate_user_if_no_roles(sender, instance, current_user=None, **kwargs):
         return
 
     user = instance.user
-    if should_deactivate_user(user):
-        deactivate_user_with_logging(user, "All roles were revoked")
+    reason = get_deactivation_reason(user)
+    if reason:
+        deactivate_user_with_logging(user, reason)
 
 
 def reactivate_user_if_gaining_roles(sender, instance, current_user=None, **kwargs):

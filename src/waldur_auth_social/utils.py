@@ -740,6 +740,9 @@ def remove_user_from_isd(user: User, source: str) -> bool:
 
     if should_deactivate:
         user.is_active = False
+        user.deactivation_reason = (
+            f"Identity source '{source}' removed (policy: {policy})"
+        )
 
     user._change_source = source
     user.last_sync = timezone.now()
@@ -748,6 +751,7 @@ def remove_user_from_isd(user: User, source: str) -> bool:
             "active_isds",
             "attribute_sources",
             "is_active",
+            "deactivation_reason",
             "last_sync",
         ]
     )

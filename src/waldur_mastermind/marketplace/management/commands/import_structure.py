@@ -1134,6 +1134,9 @@ class Command(BaseCommand):
                         existing_user.is_staff = user_data.get("is_staff", False)
                         existing_user.is_support = user_data.get("is_support", False)
                         existing_user.is_active = user_data.get("is_active", True)
+                        existing_user.deactivation_reason = user_data.get(
+                            "deactivation_reason", ""
+                        )
 
                         # Additional fields
                         if "token_lifetime" in user_data:
@@ -1260,6 +1263,7 @@ class Command(BaseCommand):
                         is_staff=user_data.get("is_staff", False),
                         is_support=user_data.get("is_support", False),
                         is_active=user_data.get("is_active", True),
+                        deactivation_reason=user_data.get("deactivation_reason", ""),
                         # Additional fields
                         details=user_data.get("details", {}),
                         notifications_enabled=user_data.get(

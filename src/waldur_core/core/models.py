@@ -348,6 +348,14 @@ class User(
             "Designates whether the user is allowed to manage remote user identities."
         ),
     )
+    deactivation_reason = models.CharField(
+        max_length=512,
+        blank=True,
+        default="",
+        help_text=_(
+            "Reason why the user was deactivated. Visible to staff and support."
+        ),
+    )
     notifications_enabled = models.BooleanField(
         default=True,
         help_text=_(
