@@ -1086,8 +1086,13 @@ class ServiceDeskBackend(SupportBackend):
             backend_comment["author"].get("accountId")
             or backend_comment["author"].get("key")
         )
-        # Use Service Desk API format directly
-        comment.is_public = backend_comment.get("public", True)
+        # Service Desk API uses "public", REST API v2/v3 uses "jsdPublic"
+        if "public" in backend_comment:
+            comment.is_public = backend_comment["public"]
+        elif "jsdPublic" in backend_comment:
+            comment.is_public = backend_comment["jsdPublic"]
+        else:
+            comment.is_public = True
 
     def _backend_attachment_to_attachment(self, backend_attachment, attachment):
         attachment.created = dateutil.parser.parse(
