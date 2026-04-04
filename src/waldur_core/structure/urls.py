@@ -1,7 +1,13 @@
+from waldur_core.core import views as core_views
 from waldur_core.structure import views
 
 
 def register_in(router):
+    router.register(
+        r"personal-access-tokens",
+        core_views.PersonalAccessTokenViewSet,
+        basename="personal-access-token",
+    )
     router.register(r"customers", views.CustomerViewSet)
     router.register(r"project-types", views.ProjectTypeViewSet, basename="project_type")
     router.register(r"projects", views.ProjectViewSet)

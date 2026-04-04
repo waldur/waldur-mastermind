@@ -20,6 +20,18 @@ class WaldurSessionScheme(SessionScheme):
     name = "waldurCookieAuth"
 
 
+class PATAuthenticationScheme(OpenApiAuthenticationExtension):
+    target_class = "waldur_core.core.authentication.PATAuthentication"
+    name = "waldurPATAuth"
+
+    def get_security_definition(self, auto_schema):
+        return build_bearer_security_scheme_object(
+            header_name="Authorization",
+            token_prefix="Bearer",
+            bearer_format="w_<unix_timestamp>_<random>",
+        )
+
+
 class OIDCAuthenticationScheme(OpenApiAuthenticationExtension):
     target_class = "waldur_core.core.authentication.OIDCAuthentication"
     name = "waldurOIDCAuth"

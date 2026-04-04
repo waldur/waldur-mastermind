@@ -330,6 +330,11 @@ class EventType(str, Enum):
     CHAT_PII_DETECTED = "chat_pii_detected"
     ONBOARDING_VERIFICATION_DELETED = "onboarding_verification_deleted"
     ONBOARDING_VERIFICATION_DELETED_BY_TASK = "onboarding_verification_deleted_by_task"
+    PAT_CREATED = "pat_created"
+    PAT_REVOKED = "pat_revoked"
+    PAT_ROTATED = "pat_rotated"
+    PAT_EXPIRED = "pat_expired"
+    PAT_USED_FROM_NEW_IP = "pat_used_from_new_ip"
 
 
 class EventGroup(str, Enum):
@@ -366,6 +371,11 @@ EVENT_GROUP_MAPPING = {
         EventType.AUTH_LOGIN_FAILED_WITH_USERNAME,
         EventType.TOKEN_CREATED,
         EventType.TOKEN_LIFETIME_UPDATED,
+        EventType.PAT_CREATED,
+        EventType.PAT_REVOKED,
+        EventType.PAT_ROTATED,
+        EventType.PAT_EXPIRED,
+        EventType.PAT_USED_FROM_NEW_IP,
     ],
     EventGroup.CALL: [
         EventType.CALL_DOCUMENT_ADDED,

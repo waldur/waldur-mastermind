@@ -1407,3 +1407,118 @@ class TableGrowthTriggerResponseSerializer(serializers.Serializer):
     """Response serializer for triggering table size sampling."""
 
     detail = serializers.CharField(help_text="Status message about the triggered task")
+
+
+# --- Personal Access Token serializers ---
+
+
+class PersonalAccessTokenCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=150)
+    scopes = serializers.ListField(child=serializers.CharField())
+    expires_at = serializers.DateTimeField()
+
+    def validate_scopes(self, value):
+        from waldur_core.permissions.enums import PermissionEnum
+
+        valid_values = {e.value for e in PermissionEnum}
+        invalid = [s for s in value if s not in valid_values]
+        if invalid:
+            raise serializers.ValidationError(f"Invalid scope(s): {invalid}")
+        if not value:
+            raise serializers.ValidationError("At least one scope is required.")
+
+        user = self.context["request"].user
+        if PermissionEnum.STAFF_ACCESS.value in value and not user.is_staff:
+            raise serializers.ValidationError(
+                "Only staff users can request the STAFF.ACCESS scope."
+            )
+        if PermissionEnum.SUPPORT_ACCESS.value in value and not (
+            user.is_staff or user.is_support
+        ):
+            raise serializers.ValidationError(
+                "Only staff or support users can request the SUPPORT.ACCESS scope."
+            )
+
+        return value
+
+    def validate_expires_at(self, value):
+        from constance import config
+        from django.utils import timezone
+
+        if value <= timezone.now():
+            raise serializers.ValidationError("Expiration must be in the future.")
+        max_days = config.PAT_MAX_LIFETIME_DAYS
+        max_expiry = timezone.now() + timezone.timedelta(days=max_days)
+        if value > max_expiry:
+            raise serializers.ValidationError(
+                f"Expiration cannot exceed {max_days} days from now."
+            )
+        return value
+
+    def validate(self, attrs):
+        from constance import config
+
+        from waldur_core.core.models import PersonalAccessToken
+
+        user = self.context["request"].user
+
+        # Check token count limit
+        active_count = PersonalAccessToken.objects.filter(
+            user=user, is_active=True
+        ).count()
+        if active_count >= config.PAT_MAX_TOKENS_PER_USER:
+            raise serializers.ValidationError(
+                f"Maximum number of active tokens ({config.PAT_MAX_TOKENS_PER_USER}) reached."
+            )
+
+        return attrs
+
+    def create(self, validated_data):
+        from waldur_core.core.models import PersonalAccessToken
+
+        user = self.context["request"].user
+        expires_at = validated_data["expires_at"]
+        full_token, prefix, token_hash = PersonalAccessToken.generate_token(expires_at)
+
+        pat = PersonalAccessToken.objects.create(
+            user=user,
+            name=validated_data["name"],
+            token_prefix=prefix,
+            token_hash=token_hash,
+            scopes=validated_data["scopes"],
+            expires_at=expires_at,
+        )
+        # Attach plaintext for one-time response
+        pat._plaintext_token = full_token
+        return pat
+
+
+class PersonalAccessTokenCreatedSerializer(serializers.Serializer):
+    """Returned once at creation — includes the plaintext token."""
+
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+    token = serializers.CharField(help_text="Plaintext token — shown only once.")
+    scopes = serializers.ListField(child=serializers.CharField())
+    expires_at = serializers.DateTimeField()
+    created = serializers.DateTimeField()
+
+
+class PersonalAccessTokenSerializer(serializers.Serializer):
+    """List / retrieve — never exposes the token or hash."""
+
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+    token_prefix = serializers.CharField()
+    scopes = serializers.ListField(child=serializers.CharField())
+    expires_at = serializers.DateTimeField()
+    is_active = serializers.BooleanField()
+    last_used_at = serializers.DateTimeField()
+    last_used_ip = serializers.IPAddressField()
+    use_count = serializers.IntegerField()
+    created = serializers.DateTimeField()
+
+
+class AvailableScopeSerializer(serializers.Serializer):
+    permission = serializers.CharField()
+    description = serializers.CharField()

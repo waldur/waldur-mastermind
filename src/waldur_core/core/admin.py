@@ -394,6 +394,29 @@ admin.site.register(models.SshPublicKey, SshPublicKeyAdmin)
 admin.site.register(models.ChangeEmailRequest, ChangeEmailRequestAdmin)
 
 
+class PersonalAccessTokenAdmin(admin.ModelAdmin):
+    list_display = (
+        "name",
+        "user",
+        "token_prefix",
+        "is_active",
+        "expires_at",
+        "last_used_at",
+    )
+    list_filter = ("is_active",)
+    search_fields = ("name", "user__username", "token_prefix")
+    readonly_fields = (
+        "token_hash",
+        "token_prefix",
+        "use_count",
+        "last_used_at",
+        "last_used_ip",
+    )
+
+
+admin.site.register(models.PersonalAccessToken, PersonalAccessTokenAdmin)
+
+
 # TODO: Extract common classes to admin_utils module and remove hack.
 # This hack is needed because admin is imported several times.
 # Please note that admin module should NOT be imported by other apps.

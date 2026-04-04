@@ -7,6 +7,8 @@ from rest_framework import decorators, filters, permissions, status, viewsets
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 
+from waldur_core.core.permissions import PATScopeAwareIsAdminUser
+
 from . import filters as user_action_filters
 from . import models, serializers, tasks
 
@@ -384,7 +386,7 @@ class UserActionProviderViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = models.UserActionProvider.objects.all()
     serializer_class = serializers.UserActionProviderSerializer
-    permission_classes = [permissions.IsAuthenticated, permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, PATScopeAwareIsAdminUser]
     filter_backends = [DjangoFilterBackend]
 
     def get_queryset(self):

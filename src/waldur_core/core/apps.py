@@ -77,6 +77,12 @@ class CoreConfig(AppConfig):
             dispatch_uid="waldur_core.core.handlers.log_token_create",
         )
 
+        signals.pre_save.connect(
+            handlers.revoke_user_pats_on_deactivation,
+            sender=User,
+            dispatch_uid="waldur_core.core.handlers.revoke_user_pats_on_deactivation",
+        )
+
         constance_signals.config_updated.connect(handlers.constance_updated)
 
         for index, model in enumerate(StateMixin.get_all_models()):

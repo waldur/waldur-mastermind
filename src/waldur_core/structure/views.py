@@ -45,6 +45,7 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates, ReviewStates
+from waldur_core.core.permissions import PATScopeAwareIsAdminUser
 from waldur_core.core.serializers import EmptySerializer, ReviewCommentSerializer
 from waldur_core.core.user_attributes import get_profile_completeness_details
 from waldur_core.core.utils import get_ip_address, is_uuid_like
@@ -2497,7 +2498,7 @@ class UserAgreementsViewSet(ActionsViewSet):
 class NotificationViewSet(ActionsViewSet):
     queryset = core_models.Notification.objects.all().order_by("id")
     serializer_class = serializers.NotificationSerializer
-    permission_classes = (rf_permissions.IsAdminUser,)
+    permission_classes = (PATScopeAwareIsAdminUser,)
     filterset_class = filters.NotificationFilter
     lookup_field = "uuid"
 

@@ -108,6 +108,7 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "waldur_core.core.authentication.ImpersonationAuthentication",
         "waldur_core.core.authentication.SessionAuthentication",
+        "waldur_core.core.authentication.PATAuthentication",
         "waldur_core.core.authentication.OIDCAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),

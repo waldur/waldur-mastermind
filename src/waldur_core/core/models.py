@@ -1,5 +1,7 @@
+import hashlib
 import logging
 import re
+import secrets
 from functools import lru_cache
 from typing import cast
 from uuid import UUID
@@ -1231,3 +1233,49 @@ class DailyTableSizeHistory(models.Model):
 
     def __str__(self):
         return f"{self.table_name} ({self.date})"
+
+
+class PersonalAccessToken(UuidMixin, NameMixin, TimeStampedModel):
+    """Named, scoped, time-limited token for programmatic API access.
+
+    The full token is shown only once at creation. Only the SHA-256 hash
+    is stored; lookup is by hash (indexed, unique).
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="personal_access_tokens",
+    )
+    token_prefix = models.CharField(max_length=10)
+    token_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    scopes = models.JSONField(default=list)
+    expires_at = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    last_used_ip = models.GenericIPAddressField(null=True, blank=True)
+    use_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-created"]
+
+    def __str__(self):
+        return f"{self.name} ({self.token_prefix}...)"
+
+    @staticmethod
+    def generate_token(expires_at):
+        """Return (full_token, prefix, sha256_hex).
+
+        Token format: ``w_<unix_timestamp>_<random>`` so that expiry
+        is visible by inspecting the token string.
+        """
+        ts = int(expires_at.timestamp())
+        raw = secrets.token_urlsafe(32)  # 256 bits
+        full_token = f"w_{ts}_{raw}"
+        prefix = full_token[:8]
+        token_hash = hashlib.sha256(full_token.encode()).hexdigest()
+        return full_token, prefix, token_hash
+
+    @property
+    def is_expired(self):
+        return django_timezone.now() >= self.expires_at

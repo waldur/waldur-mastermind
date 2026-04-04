@@ -1312,6 +1312,19 @@ CONSTANCE_CONFIG = {
         "Select which reporting screens should be visible to users. Uncheck to disable specific reports.",
         "multiple_choice_field",
     ),
+    # Personal Access Tokens
+    "PAT_ENABLED": (
+        False,
+        "Enable Personal Access Token authentication.",
+    ),
+    "PAT_MAX_LIFETIME_DAYS": (
+        365,
+        "Maximum PAT lifetime in days.",
+    ),
+    "PAT_MAX_TOKENS_PER_USER": (
+        20,
+        "Maximum number of active PATs per user.",
+    ),
 }
 
 CONSTANCE_CONFIG_FIELDSETS = {
@@ -1639,6 +1652,11 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ENABLE_ISSUES_FOR_USER_SSH_KEY_CHANGES",
     ),
     "Reporting": ("ENABLED_REPORTING_SCREENS",),
+    "Personal Access Tokens": (
+        "PAT_ENABLED",
+        "PAT_MAX_LIFETIME_DAYS",
+        "PAT_MAX_TOKENS_PER_USER",
+    ),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (

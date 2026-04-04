@@ -11,7 +11,6 @@ from django.shortcuts import redirect
 from django.utils import timezone
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, status, viewsets
-from rest_framework import permissions as rf_permissions
 from rest_framework.decorators import action
 from rest_framework.exceptions import AuthenticationFailed, NotFound, ValidationError
 from rest_framework.response import Response
@@ -36,6 +35,7 @@ from waldur_auth_social.utils import (
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.authentication import refresh_token, set_authentication_method
 from waldur_core.core.models import User
+from waldur_core.core.permissions import PATScopeAwareIsAdminUser
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.user_attributes import get_federated_identity_sync_allowed_fields
 from waldur_core.logging import event_logger
@@ -350,7 +350,7 @@ class IdentityProvidersViewSet(viewsets.ModelViewSet):
     @action(
         detail=False,
         methods=["post"],
-        permission_classes=[rf_permissions.IsAdminUser],
+        permission_classes=[PATScopeAwareIsAdminUser],
     )
     def discover_metadata(self, request):
         serializer = DiscoverMetadataRequestSerializer(data=request.data)
@@ -461,7 +461,7 @@ class IdentityProvidersViewSet(viewsets.ModelViewSet):
         detail=False,
         methods=["post"],
         url_path="generate-mapping",
-        permission_classes=[rf_permissions.IsAdminUser],
+        permission_classes=[PATScopeAwareIsAdminUser],
     )
     def generate_mapping(self, request):
         serializer = DiscoverMetadataRequestSerializer(data=request.data)
