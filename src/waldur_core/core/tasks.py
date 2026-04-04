@@ -630,6 +630,28 @@ class ExtensionTaskMixin(CeleryTask, metaclass=TaskType):
         return super().apply_async(args=args, kwargs=kwargs, **options)
 
 
+@shared_task(name="waldur_core.core.cleanup_expired_personal_access_tokens")
+def cleanup_expired_personal_access_tokens():
+    """Deactivate expired PATs."""
+    from waldur_core.core.models import PersonalAccessToken
+    from waldur_core.logging import event_logger
+    from waldur_core.logging.enums import EventType
+
+    expired = PersonalAccessToken.objects.filter(
+        expires_at__lte=timezone.now(), is_active=True
+    )
+    for pat in expired.select_related("user"):
+        event_logger.emit(
+            "Personal access token {pat_name} for user {affected_user_username} has expired.",
+            event_type=EventType.PAT_EXPIRED,
+            event_context={"affected_user": pat.user, "pat_name": pat.name},
+            scopes=[pat.user],
+        )
+    count = expired.update(is_active=False)
+    if count:
+        logger.info("Deactivated %d expired personal access tokens.", count)
+
+
 @shared_task(name="waldur_core.reset_updating_resources")
 def reset_updating_resources():
     """Reset resources stuck in UPDATING state when their Celery tasks are completed."""

@@ -11,7 +11,7 @@ from waldur_core.permissions.fixtures import (
     ProjectRole,
     ServiceProviderRole,
 )
-from waldur_core.permissions.utils import has_permission
+from waldur_core.permissions.utils import check_pat_support_scope, has_permission
 from waldur_core.structure import models
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,9 @@ class IsStaffOrSupportUser(permissions.BasePermission):
     """
 
     def has_permission(self, request, view):
-        return request.user.is_staff or request.user.is_support
+        return (
+            request.user.is_staff or request.user.is_support
+        ) and check_pat_support_scope(request)
 
 
 # TODO: this is a temporary permission filter.

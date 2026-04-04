@@ -116,10 +116,10 @@ class AdminAuthenticationBackend:
         return can_access_admin_site(user_obj)
 
 
-def set_user_context(user: models.User):
+def set_user_context(user: models.User, skip_token_check=False):
     waldur_core.logging.middleware.set_current_user(user)
     waldur_core.core.middleware.set_current_user(user)
-    if not Token.objects.filter(user=user).exists():
+    if not skip_token_check and not Token.objects.filter(user=user).exists():
         raise exceptions.PermissionDenied(
             "Unable to impersonate user that does not have an active session."
         )
@@ -217,6 +217,101 @@ class SessionAuthentication(DRFSessionAuthentication):
             refresh_token(user)  # Ensure token exists before setting context
             set_user_context(user)
         return result
+
+
+class PATAuthentication(BaseAuthentication):
+    """Authenticate requests using Personal Access Tokens.
+
+    Accepts ``Authorization: Bearer w_...`` headers.  Only tokens
+    with the ``w_`` prefix are handled; others fall through to the
+    next authentication backend (e.g. OIDC).
+    """
+
+    def authenticate(self, request):
+        raw_token = parse_token_from_request(request, b"bearer")
+        if not raw_token:
+            return None
+
+        # Only handle tokens with the w_ prefix
+        if not raw_token.startswith("w_"):
+            return None
+
+        # Quick expiry pre-check from embedded timestamp (w_<ts>_<random>)
+        parts = raw_token.split("_", 2)
+        if len(parts) == 3:
+            try:
+                if int(parts[1]) < int(timezone.now().timestamp()):
+                    raise AuthenticationFailed("Invalid token.")
+            except (ValueError, OverflowError):
+                pass
+
+        # Global kill-switch
+        if not config.PAT_ENABLED:
+            return None
+
+        import hashlib as _hashlib
+
+        from waldur_core.core.models import PersonalAccessToken
+
+        token_hash = _hashlib.sha256(raw_token.encode()).hexdigest()
+
+        try:
+            pat = PersonalAccessToken.objects.select_related("user").get(
+                token_hash=token_hash
+            )
+        except PersonalAccessToken.DoesNotExist:
+            raise AuthenticationFailed("Invalid token.")
+
+        if not pat.is_active:
+            raise AuthenticationFailed("Invalid token.")
+
+        if not pat.user.is_active:
+            raise AuthenticationFailed("Invalid token.")
+
+        if pat.is_expired:
+            raise AuthenticationFailed("Invalid token.")
+
+        # Update usage stats with batched writes (debounce via cache)
+        client_ip = self._get_client_ip(request)
+        self._update_usage(pat, client_ip)
+
+        set_user_context(pat.user, skip_token_check=True)
+        return (pat.user, pat)
+
+    @staticmethod
+    def _get_client_ip(request):
+        xff = request.META.get("HTTP_X_FORWARDED_FOR")
+        if xff:
+            return xff.split(",")[0].strip()
+        return request.META.get("REMOTE_ADDR")
+
+    @staticmethod
+    def _update_usage(pat, client_ip):
+        cache_key = f"pat_usage:{pat.pk}"
+        if not cache.get(cache_key):
+            # Check for new IP before updating
+            if pat.last_used_ip and client_ip and pat.last_used_ip != client_ip:
+                from waldur_core.logging import event_logger as _event_logger
+                from waldur_core.logging.enums import EventType
+
+                _event_logger.emit(
+                    f"Personal access token {pat.name} for user "
+                    f"{{affected_user_username}} used from new IP {client_ip} "
+                    f"(previous: {pat.last_used_ip}).",
+                    event_type=EventType.PAT_USED_FROM_NEW_IP,
+                    event_context={"affected_user": pat.user},
+                    scopes=[pat.user],
+                )
+
+            from django.db.models import F
+
+            PersonalAccessToken = pat.__class__
+            PersonalAccessToken.objects.filter(pk=pat.pk).update(
+                last_used_at=timezone.now(),
+                last_used_ip=client_ip,
+                use_count=F("use_count") + 1,
+            )
+            cache.set(cache_key, True, timeout=600)  # 10 min debounce
 
 
 class OIDCAuthentication(BaseAuthentication):

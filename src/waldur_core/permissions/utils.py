@@ -15,6 +15,55 @@ if TYPE_CHECKING:
     from django.http import HttpRequest
 
 
+def _is_pat_auth(auth) -> bool:
+    """Check if auth object is a PersonalAccessToken instance.
+
+    Uses class name check to avoid circular imports.
+    """
+    return auth is not None and type(auth).__name__ == "PersonalAccessToken"
+
+
+def _pat_scope_check(request, permission: enums.PermissionEnum) -> bool | None:
+    """Check if PAT scopes allow the given permission.
+
+    Returns None if not a PAT request, True if allowed, False if denied.
+    """
+    if isinstance(request, User):
+        return None
+    auth = getattr(request, "auth", None)
+    if _is_pat_auth(auth):
+        if permission.value not in auth.scopes:
+            return False
+    return None
+
+
+def check_pat_staff_scope(request) -> bool:
+    """Return True if the request is allowed staff-level access.
+
+    Non-PAT requests always pass.  PAT requests require the
+    STAFF_ACCESS scope.
+    """
+    auth = getattr(request, "auth", None)
+    if not _is_pat_auth(auth):
+        return True
+    return enums.PermissionEnum.STAFF_ACCESS.value in auth.scopes
+
+
+def check_pat_support_scope(request) -> bool:
+    """Return True if the request is allowed support-level access.
+
+    Non-PAT requests always pass.  PAT requests require either
+    STAFF_ACCESS or SUPPORT_ACCESS scope.
+    """
+    auth = getattr(request, "auth", None)
+    if not _is_pat_auth(auth):
+        return True
+    return (
+        enums.PermissionEnum.STAFF_ACCESS.value in auth.scopes
+        or enums.PermissionEnum.SUPPORT_ACCESS.value in auth.scopes
+    )
+
+
 def has_permission(
     request: "HttpRequest | User",
     permission: enums.PermissionEnum,
@@ -24,6 +73,11 @@ def has_permission(
         user = request
     else:
         user = request.user
+
+        # PAT scope ceiling — checked before is_staff bypass
+        pat_result = _pat_scope_check(request, permission)
+        if pat_result is False:
+            return False
 
     # Inactive users should not have any permissions
     if not user.is_active:
@@ -55,6 +109,13 @@ def has_any_permission(
         user = request
     else:
         user = request.user
+
+        # PAT scope ceiling — filter to only scopes the PAT has
+        auth = getattr(request, "auth", None)
+        if _is_pat_auth(auth):
+            permissions = [p for p in permissions if p.value in auth.scopes]
+            if not permissions:
+                return False
 
     if not user.is_active:
         return False

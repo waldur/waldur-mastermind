@@ -260,6 +260,31 @@ def log_token_create(sender, instance: Token, created=False, **kwargs):
         )
 
 
+def revoke_user_pats_on_deactivation(sender, instance: User, **kwargs):
+    """Revoke all active PATs when a user is deactivated."""
+    if instance.pk is None:
+        return
+    old_values = getattr(instance, "_old_values", None)
+    if old_values is None:
+        return
+    # Only act when is_active changes from True to False
+    if old_values.get("is_active") and not instance.is_active:
+        count = instance.personal_access_tokens.filter(is_active=True).update(
+            is_active=False
+        )
+        if count:
+            from waldur_core.logging import event_logger as _event_logger
+            from waldur_core.logging.enums import EventType
+
+            _event_logger.emit(
+                f"All personal access tokens ({count}) for user {{affected_user_username}} "
+                "have been revoked due to user deactivation.",
+                event_type=EventType.PAT_REVOKED,
+                event_context={"affected_user": instance},
+                scopes=[instance],
+            )
+
+
 def constance_updated(sender, key, old_value, new_value, **kwargs):
     """Clear the API configuration cache when a Constance setting is updated."""
     cache.delete("API_CONFIGURATION")

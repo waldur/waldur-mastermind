@@ -59,7 +59,9 @@ from waldur_core.core.metadata_schemas import (
 )
 from waldur_core.core.mixins import ensure_atomic_transaction
 from waldur_core.core.models import DailyTableSizeHistory
+from waldur_core.core.permissions import PATScopeAwareIsAdminUser
 from waldur_core.core.serializers import (
+    AvailableScopeSerializer,
     CeleryStatsResponseSerializer,
     ConstanceSettingsSerializer,
     CoreAuthTokenSerializer,
@@ -67,6 +69,9 @@ from waldur_core.core.serializers import (
     EmptySerializer,
     LogoutSerializer,
     ObtainAuthTokenSerializer,
+    PersonalAccessTokenCreatedSerializer,
+    PersonalAccessTokenCreateSerializer,
+    PersonalAccessTokenSerializer,
     QuerySerializer,
     TableGrowthStatsResponseSerializer,
     TableGrowthTriggerResponseSerializer,
@@ -652,7 +657,7 @@ def _parse_bracket_notation(data):
     ],
 )
 @api_view(["POST", "GET"])
-@permission_classes((rf_permissions.IsAdminUser,))
+@permission_classes((PATScopeAwareIsAdminUser,))
 def override_db_settings(request):
     if request.method == "GET":
         return Response(_safe_get_constance_values())
@@ -689,7 +694,7 @@ def override_db_settings(request):
     ],
 )
 @api_view(["POST"])
-@permission_classes((rf_permissions.IsAdminUser,))
+@permission_classes((PATScopeAwareIsAdminUser,))
 def feature_values(request):
     if not isinstance(request.data, dict):
         return Response(
@@ -2042,3 +2047,148 @@ class SettingsMetadataView(APIView):
             settings_data.append(section)
 
         return Response({"settings": settings_data})
+
+
+class PersonalAccessTokenViewSet(ActionsViewSet):
+    """Manage personal access tokens for programmatic API access."""
+
+    serializer_class = PersonalAccessTokenSerializer
+    create_serializer_class = PersonalAccessTokenCreateSerializer
+    lookup_field = "uuid"
+    disabled_actions = ["update", "partial_update"]
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return models.PersonalAccessToken.objects.none()
+        return models.PersonalAccessToken.objects.filter(user=self.request.user)
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        # Block PAT-via-PAT for management endpoints
+        if self.action in ("create", "destroy", "rotate"):
+            auth = getattr(request, "auth", None)
+            if auth and hasattr(auth, "token_hash"):
+                raise exceptions.PermissionDenied(
+                    "PAT management requires session or token authentication."
+                )
+
+    @extend_schema(
+        summary="Create a personal access token",
+        request=PersonalAccessTokenCreateSerializer,
+        responses={201: PersonalAccessTokenCreatedSerializer},
+    )
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        pat = serializer.save()
+
+        event_logger.emit(
+            f"Personal access token {pat.name} has been created for user {{affected_user_username}}.",
+            event_type=EventType.PAT_CREATED,
+            event_context={"affected_user": request.user},
+            scopes=[request.user],
+        )
+
+        response_data = PersonalAccessTokenCreatedSerializer(
+            {
+                "uuid": pat.uuid,
+                "name": pat.name,
+                "token": pat._plaintext_token,
+                "scopes": pat.scopes,
+                "expires_at": pat.expires_at,
+                "created": pat.created,
+            }
+        ).data
+
+        response = Response(response_data, status=status.HTTP_201_CREATED)
+        response["Cache-Control"] = "no-store"
+        return response
+
+    @extend_schema(
+        summary="Revoke a personal access token",
+        responses={204: None},
+    )
+    def destroy(self, request, *args, **kwargs):
+        pat = self.get_object()
+        pat.is_active = False
+        pat.save(update_fields=["is_active"])
+
+        event_logger.emit(
+            f"Personal access token {pat.name} has been revoked for user {{affected_user_username}}.",
+            event_type=EventType.PAT_REVOKED,
+            event_context={"affected_user": request.user},
+            scopes=[request.user],
+        )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        summary="Rotate a personal access token",
+        request=None,
+        responses={201: PersonalAccessTokenCreatedSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def rotate(self, request, uuid=None):
+        """Atomically revoke the old token and create a new one with the same scopes."""
+        from django.db import transaction as db_transaction
+
+        old_pat = self.get_object()
+
+        with db_transaction.atomic():
+            # Lock the row
+            locked = models.PersonalAccessToken.objects.select_for_update().get(
+                pk=old_pat.pk
+            )
+            if not locked.is_active:
+                raise ValidationError("Cannot rotate an inactive token.")
+
+            # Generate new token
+            full_token, prefix, token_hash = models.PersonalAccessToken.generate_token(
+                locked.expires_at
+            )
+            new_pat = models.PersonalAccessToken.objects.create(
+                user=request.user,
+                name=locked.name,
+                token_prefix=prefix,
+                token_hash=token_hash,
+                scopes=locked.scopes,
+                expires_at=locked.expires_at,
+            )
+
+            # Revoke old
+            locked.is_active = False
+            locked.save(update_fields=["is_active"])
+
+        event_logger.emit(
+            f"Personal access token {new_pat.name} has been rotated for user {{affected_user_username}}.",
+            event_type=EventType.PAT_ROTATED,
+            event_context={"affected_user": request.user},
+            scopes=[request.user],
+        )
+
+        response_data = PersonalAccessTokenCreatedSerializer(
+            {
+                "uuid": new_pat.uuid,
+                "name": new_pat.name,
+                "token": full_token,
+                "scopes": new_pat.scopes,
+                "expires_at": new_pat.expires_at,
+                "created": new_pat.created,
+            }
+        ).data
+
+        response = Response(response_data, status=status.HTTP_201_CREATED)
+        response["Cache-Control"] = "no-store"
+        return response
+
+    @extend_schema(
+        summary="List available scopes for PAT creation",
+        responses={200: AvailableScopeSerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"])
+    def available_scopes(self, request):
+        """Return permissions the current user can delegate to a PAT."""
+        result = []
+        for perm in PermissionEnum:
+            result.append({"permission": perm.value, "description": perm.value})
+        return Response(AvailableScopeSerializer(result, many=True).data)

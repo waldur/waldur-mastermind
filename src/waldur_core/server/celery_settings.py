@@ -226,6 +226,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=2, minute=0),
         "args": (),
     },
+    # Cleanup expired personal access tokens every 6 hours
+    "cleanup-expired-pats": {
+        "task": "waldur_core.core.cleanup_expired_personal_access_tokens",
+        "schedule": timedelta(hours=6),
+        "args": (),
+    },
 }
 
 for ext in WaldurExtension.get_extensions():
