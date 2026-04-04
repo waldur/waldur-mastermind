@@ -2933,3 +2933,27 @@ If true, a support ticket is created when a user adds or removes an SSH public k
 **Default value:** ['resource-usage', 'user-usage', 'quotas', 'usage-monitoring', 'usage-trends', 'organization-summary', 'project-detail', 'resources-geography', 'project-classification', 'usage-by-customer', 'usage-by-org-type', 'usage-by-creator', 'call-performance', 'review-progress', 'resource-demand', 'capacity', 'provider-overview', 'provider-revenue', 'provider-orders', 'provider-resources', 'provider-customers', 'provider-offerings', 'openstack-instances', 'user-analytics', 'user-demographics', 'user-organizations', 'user-affiliations', 'user-roles', 'growth', 'revenue', 'pricelist', 'orders', 'offering-costs', 'maintenance-overview', 'provisioning-stats']
 
 Select which reporting screens should be visible to users. Uncheck to disable specific reports.
+
+### Personal Access Tokens
+
+#### PAT_ENABLED
+
+**Type:** bool
+
+Enable Personal Access Token authentication.
+
+#### PAT_MAX_LIFETIME_DAYS
+
+**Type:** int
+
+**Default value:** 365
+
+Maximum PAT lifetime in days.
+
+#### PAT_MAX_TOKENS_PER_USER
+
+**Type:** int
+
+**Default value:** 20
+
+Maximum number of active PATs per user.

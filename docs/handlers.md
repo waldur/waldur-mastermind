@@ -430,6 +430,7 @@ td:nth-child(4) {
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_firecrest.Job` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `marketplace.Order` | Recalculate count quota when an instance is created or deleted. |
 | `revoke_roles_on_project_deletion` | `Django Signal (pre_delete)` | `structure.Project` | When project is deleted, capture user role snapshots before revoking them. |
+| `revoke_user_pats_on_deactivation` | `Django Signal (pre_save)` | `core.User` | Revoke all active PATs when a user is deactivated. |
 | `schedule_cleanup_for_deleted_object` | `Django Signal (post_delete)` | `marketplace.Order` | Signal handler to schedule cleanup of user actions for a deleted object. |
 | `schedule_cleanup_for_deleted_object` | `Django Signal (post_delete)` | `marketplace.Offering` | Signal handler to schedule cleanup of user actions for a deleted object. |
 | `schedule_cleanup_for_deleted_object` | `Django Signal (post_delete)` | `marketplace.Resource` | Signal handler to schedule cleanup of user actions for a deleted object. |
@@ -872,11 +873,11 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 788
+Total unique handlers found: 789
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 409 handlers
+- **waldur_core**: 410 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_keycloak**: 9 handlers
 - **waldur_lexis**: 1 handlers
