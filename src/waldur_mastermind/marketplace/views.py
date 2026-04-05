@@ -133,11 +133,13 @@ from waldur_mastermind.marketplace.catalog_loaders import (
 )
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
     SITE_AGENT_OFFERING,
     SUPPORT_OFFERING,
     BillingTypes,
     CourseAccountState,
     ImpactLevel,
+    LimitPeriods,
     MaintenanceState,
     MaintenanceType,
     OfferingStates,
@@ -3303,6 +3305,95 @@ class ProviderOfferingViewSet(
         )
     ]
     remove_offering_component_validators = update_validators
+
+    @extend_schema(
+        request=serializers.SwitchBillingModeSerializer,
+        responses={200: None},
+        summary="Switch billing mode for builtin components",
+        description="Switches all builtin components between monthly (LIMIT) "
+        "and prepaid (ONE_TIME + is_prepaid) billing modes.",
+    )
+    @action(detail=True, methods=["post"])
+    def switch_billing_mode(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+
+        if offering.type != OPENSTACK_TENANT_OFFERING:
+            return Response(
+                {
+                    "detail": _(
+                        "Billing mode switching is only supported for OpenStack tenant offerings."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Prevent switching billing mode when active resources exist
+        # to avoid billing inconsistencies
+        active_resources = models.Resource.objects.filter(
+            offering=offering,
+        ).exclude(state__in=[ResourceStates.CREATING, ResourceStates.TERMINATED])
+        if active_resources.exists():
+            return Response(
+                {
+                    "detail": _(
+                        "Cannot switch billing mode while there are active resources. "
+                        "All resources must be terminated first."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        serializer = serializers.SwitchBillingModeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        mode = serializer.validated_data["billing_mode"]
+        builtin_types = plugins.manager.get_component_types(offering.type)
+
+        # Include both builtin components (cores, ram, storage) and
+        # dynamic volume type components (gigabytes_*) for OpenStack
+        from waldur_openstack.utils import is_valid_volume_type_name
+
+        infrastructure_types = set(builtin_types)
+        for comp in offering.components.all():
+            if is_valid_volume_type_name(comp.type):
+                infrastructure_types.add(comp.type)
+
+        infrastructure_components = offering.components.filter(
+            type__in=infrastructure_types
+        )
+        if not infrastructure_components.exists():
+            return Response(
+                {"detail": _("No infrastructure components found.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if mode == "prepaid":
+            infrastructure_components.update(
+                billing_type=BillingTypes.ONE_TIME,
+                is_prepaid=True,
+            )
+            # Prepaid requires end_date — make termination date mandatory
+            offering.plugin_options["is_resource_termination_date_required"] = True
+            offering.save(update_fields=["plugin_options"])
+        else:
+            infrastructure_components.update(
+                billing_type=BillingTypes.LIMIT,
+                is_prepaid=False,
+                limit_period=LimitPeriods.MONTH,
+            )
+            # Monthly doesn't require end_date
+            offering.plugin_options.pop("is_resource_termination_date_required", None)
+            offering.save(update_fields=["plugin_options"])
+
+        return Response(status=status.HTTP_200_OK)
+
+    switch_billing_mode_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_COMPONENTS,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+    switch_billing_mode_validators = update_validators
 
     @extend_schema(
         request=serializers.OfferingComponentSerializer,

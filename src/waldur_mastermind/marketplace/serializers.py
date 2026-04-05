@@ -2302,16 +2302,19 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
             attrs["max_value"] = 1
             attrs["limit_period"] = LimitPeriods.MONTH
             attrs["limit_amount"] = None
-        if self.instance and self.instance.offering.type == OPENSTACK_TENANT_OFFERING:
+        if (
+            self.instance
+            and self.instance.offering.type == OPENSTACK_TENANT_OFFERING
+            and self.instance.is_builtin
+        ):
             protected_fields = set(attrs.keys()) & {
                 "type",
                 "name",
                 "measured_unit",
-                "billing_type",
             }
             if protected_fields:
                 raise serializers.ValidationError(
-                    "OpenStack offering components are not editable."
+                    "Built-in OpenStack offering component type, name and unit are not editable."
                 )
         self._validate_prepaid(attrs)
 
@@ -2876,6 +2879,7 @@ class ProviderOfferingDetailsSerializer(
     roles = NestedRoleSerializer(many=True, read_only=True)
     has_compliance_requirements = serializers.SerializerMethodField()
     billing_type_classification = serializers.SerializerMethodField()
+    effective_available_limits = serializers.SerializerMethodField()
     compliance_checklist = serializers.HyperlinkedRelatedField(
         queryset=checklist_models.Checklist.objects.filter(
             checklist_type=checklist_enums.ChecklistTypes.OFFERING_COMPLIANCE
@@ -2958,6 +2962,7 @@ class ProviderOfferingDetailsSerializer(
             "backend_metadata",
             "has_compliance_requirements",
             "billing_type_classification",
+            "effective_available_limits",
             "compliance_checklist",
         )
         related_paths = {
@@ -3162,6 +3167,21 @@ class ProviderOfferingDetailsSerializer(
             return "usage_only"
         else:
             return "mixed"
+
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_effective_available_limits(self, offering: models.Offering) -> list[str]:
+        """
+        Returns the union of plugin-registered available limits and
+        custom LIMIT-type components added by the service provider.
+        """
+        plugin_limits = plugins.manager.get_available_limits(offering.type)
+        builtin_types = {c.type for c in plugins.manager.get_components(offering.type)}
+        custom_limit_types = list(
+            offering.components.filter(billing_type=BillingTypes.LIMIT)
+            .exclude(type__in=builtin_types)
+            .values_list("type", flat=True)
+        )
+        return list(set(plugin_limits + custom_limit_types))
 
 
 set_override(
@@ -9133,6 +9153,16 @@ class DetailStateSerializer(serializers.Serializer):
 
 class RemoveOfferingComponentSerializer(serializers.Serializer):
     uuid = serializers.UUIDField(help_text="UUID of the component to remove")
+
+
+class SwitchBillingModeSerializer(serializers.Serializer):
+    billing_mode = serializers.ChoiceField(
+        choices=[
+            ("monthly", "Monthly (Limit-based)"),
+            ("prepaid", "Prepaid (One-time)"),
+        ],
+        help_text="Switch all builtin components to monthly (LIMIT) or prepaid (ONE_TIME + is_prepaid) billing.",
+    )
 
 
 class RemoveSoftwareCatalogSerializer(serializers.Serializer):
