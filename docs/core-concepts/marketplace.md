@@ -197,7 +197,18 @@ The marketplace supports five distinct billing patterns, each handled by differe
 | **USAGE**        | Pay-as-you-consume services               | $0.10/GB of storage used          | `ComponentUsage` reports are submitted.              |
 | **LIMIT**        | Pre-allocated resource quotas             | $5/CPU core allocated per month   | Resource activation, limit changes, and monthly invoice generation. |
 | **ONE_TIME**     | Setup fees, licenses                      | $100 one-time installation fee    | Resource activation (`CREATE` order).                |
+| **ONE_TIME** (prepaid) | Upfront billing for time-limited resources | 4 cores × $1/mo × 3 months = $12 | Resource activation (`CREATE` order). Quantity = limit × months. |
 | **ON_PLAN_SWITCH** | Fees for changing service plans           | $25 fee to upgrade to a premium plan | Plan modification (`UPDATE` order).                  |
+
+#### Per-Component Billing Configuration
+
+The billing type is configurable **per offering component**, not globally per offering type. This allows the same OpenStack Tenant offering type to have different billing configurations:
+
+- **Monthly billing**: Components use `LIMIT` billing type (default for OpenStack). Customers are billed monthly.
+- **Prepaid billing**: Components use `ONE_TIME` with `is_prepaid=True`. Customers pay upfront for `limit × months`. An `end_date` is required. Mid-period limit changes create supplementary charges for `(new_limit - old_limit) × remaining_months`.
+- **One-time total**: Components use `LIMIT` with `limit_period=TOTAL`. A single charge for the full amount, regardless of duration. Useful for consultancy hours, support packages.
+
+Service providers configure the billing model by editing the component's accounting type in the offering's Accounting tab.
 
 ### Component Architecture
 
@@ -236,7 +247,7 @@ Limit-based components are billed based on the quantity of a resource a user has
 
 - **`TOTAL`**: This period represents a one-time charge for a lifetime allocation.
   - **Initial Charge**: A single invoice item is created when the resource is first provisioned (`CREATE` order).
-  - **Limit Updates**: If the limit for a `TOTAL` component is changed later, the system calculates the difference between the new limit and the sum of all previously billed quantities for that component. It then creates a new invoice item (positive or negative) to bill for only the increment or credit the decrement. This prevents double-billing and correctly handles upgrades/downgrades.
+  - **Limit Updates**: If the limit for a `TOTAL` component is changed later, the system calculates the difference between the new limit and the sum of all previously billed quantities for that component. It then creates a new invoice item (positive or negative) to bill for only the increment or reduce the invoice total for the decrement. This prevents double-billing and correctly handles upgrades/downgrades.
 
 - **`QUARTERLY`**: This period has specialized logic for billing every three months, ensuring charges align with standard financial quarters.
 

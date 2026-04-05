@@ -271,6 +271,18 @@ The processor supports four primary update operation types:
   - Supports combined renewal + limit changes
   - Tracks renewal costs and dates
 
+##### Billing for prepaid components on limit changes
+
+When limits change on a resource with prepaid (`ONE_TIME` + `is_prepaid=True`) components, the billing system creates supplementary invoice items:
+
+- **Increase**: `(new_limit - old_limit) × remaining_months × price` — positive charge
+- **Decrease**: same formula with negative unit price — negative invoice adjustment (reduces invoice total)
+- **Unchanged**: no supplementary item
+
+This is handled by `MarketplaceBillingService._handle_prepaid_limits_change()` and applies to mid-period changes via `update_limits`, not only to renewals. The original per-month limit is stored in the invoice item's `details["prepaid_limit"]` for accurate delta calculation.
+
+For `LIMIT` billing type components, limit changes are handled by `LimitPeriodProcessor.process_update()` as before.
+
 #### 3. Resource Options Updates
 
 - **Detection**: `"new_options"` present in `order.attributes`

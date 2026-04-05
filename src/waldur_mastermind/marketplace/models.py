@@ -757,7 +757,10 @@ class Offering(
         ).exists()
 
     def get_limit_components(self) -> dict[str, "OfferingComponent"]:
-        components = self.components.filter(billing_type=BillingTypes.LIMIT)
+        components = self.components.filter(
+            models.Q(billing_type=BillingTypes.LIMIT)
+            | models.Q(billing_type=BillingTypes.ONE_TIME, is_prepaid=True)
+        )
         return {component.type: component for component in components}
 
     @cached_property
