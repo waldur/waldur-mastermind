@@ -70,6 +70,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`ProtectedModelMixin`](#protectedmodelmixin) | `waldur_core.structure.admin` | Mixin to handle protected model deletion errors gracefully in Django admin |
 | [`CoordinatesMixin`](#coordinatesmixin) | `waldur_core.structure.mixins` | Mixin to add a latitude and longitude fields |
 | [`IPCoordinatesMixin`](#ipcoordinatesmixin) | `waldur_core.structure.mixins` | Mixin to add a latitude and longitude fields |
+| [`CustomerAddressDetailsMixin`](#customeraddressdetailsmixin) | `waldur_core.structure.models` | Mixin contains customer address detail fields |
 | [`CustomerDetailsMixin`](#customerdetailsmixin) | `waldur_core.structure.models` | Mixin containing customer detail fields |
 | [`ProjectOECDFOS2007CodeMixin`](#projectoecdfos2007codemixin) | `waldur_core.structure.models` | Mixin providing OECD FOS 2007 classification codes for research projects |
 | [`ServiceAccountMixin`](#serviceaccountmixin) | `waldur_core.structure.models` | Mixin for models that support service accounts |
@@ -994,6 +995,16 @@ Mixin to add a latitude and longitude fields
 
 **Base classes:** `CoordinatesMixin`
 
+### CustomerAddressDetailsMixin
+
+**Module:** `waldur_core.structure.models`
+
+**Description:**
+
+Mixin contains customer address detail fields.
+
+**Base classes:** `Model`
+
 ### CustomerDetailsMixin
 
 **Module:** `waldur_core.structure.models`
@@ -1006,7 +1017,7 @@ Provides comprehensive customer information fields including
 native name, contact details, agreement number, email, phone,
 address, banking information, and external system integration.
 
-**Base classes:** `NameMixin`, `VATMixin`, `CoordinatesMixin`
+**Base classes:** `NameMixin`, `VATMixin`, `CoordinatesMixin`, `CustomerAddressDetailsMixin`
 
 ### ProjectOECDFOS2007CodeMixin
 
