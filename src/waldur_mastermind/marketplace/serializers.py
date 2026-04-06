@@ -275,6 +275,10 @@ class OpenStackPluginOptionsSerializer(serializers.Serializer):
         min_value=1,
         help_text="Default limit for snapshot size in GB",
     )
+    lbaas_enabled = serializers.BooleanField(
+        required=False,
+        help_text="If True, Octavia LBaaS (load balancers) is intended to be available for tenants from this offering.",
+    )
 
 
 class HeappePluginOptionsSerializer(serializers.Serializer):

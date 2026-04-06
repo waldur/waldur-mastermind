@@ -1982,17 +1982,6 @@ class LoadBalancerDetachFloatingIPExecutor(core_executors.ActionExecutor):
         )
 
 
-class LoadBalancerUpdateVIPSecurityGroupsExecutor(core_executors.ActionExecutor):
-    @classmethod
-    def get_task_signature(cls, load_balancer, serialized_load_balancer, **kwargs):
-        return core_tasks.BackendMethodTask().si(
-            serialized_load_balancer,
-            "update_load_balancer_vip_security_groups",
-            state_transition="begin_updating",
-            security_group_uuids=kwargs.get("security_group_uuids"),
-        )
-
-
 class PoolCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, pool, serialized_pool, **kwargs):

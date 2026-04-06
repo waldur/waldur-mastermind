@@ -118,7 +118,8 @@ SPECTACULAR_SETTINGS = {
         "NotifySystemEnum": NOTIFY_SYSTEM_CHOICES,
         # Protocol fields - avoid collision between Pool/Listener (TCP/UDP) and SecurityGroupRule (tcp/udp/icmp)
         # Pool and Listener share the same TCP/UDP choices - use single enum name to avoid duplication
-        "LoadBalancerProtocolEnum": "waldur_openstack.serializers.POOL_PROTOCOL_CHOICES",
+        # Lazy import path (no waldur_openstack.models at settings load — AppRegistryNotReady)
+        "LoadBalancerProtocolEnum": "waldur_openstack.models.PROTOCOL_CHOICES",
         "SecurityGroupRuleProtocolEnum": (
             ("tcp", "tcp"),
             ("udp", "udp"),
