@@ -962,6 +962,26 @@ class OfferingCreateTest(test.APITestCase):
             "2026-02-28",
         )
 
+    def test_update_offering_plugin_options_required_team_role_allows_blank(self):
+        """Clearing required_team_role_for_provisioning must accept empty string."""
+        offering = factories.OfferingFactory(
+            customer=self.customer,
+            plugin_options={"required_team_role_for_provisioning": "PROJECT.MANAGER"},
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        url = factories.OfferingFactory.get_url(offering, "update_integration")
+        response = self.client.post(
+            url,
+            {"plugin_options": {"required_team_role_for_provisioning": ""}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        offering.refresh_from_db()
+        self.assertEqual(
+            offering.plugin_options["required_team_role_for_provisioning"], ""
+        )
+
     def test_create_offering_with_minimal_information_in_draft_state(self):
         user = self.fixture.staff
         self.client.force_authenticate(user)

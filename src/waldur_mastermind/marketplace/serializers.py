@@ -184,6 +184,7 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
     )
     required_team_role_for_provisioning = serializers.CharField(
         required=False,
+        allow_blank=True,
         help_text="Required user role in a project for provisioning of resources",
     )
     enable_purchase_order_upload = serializers.BooleanField(
