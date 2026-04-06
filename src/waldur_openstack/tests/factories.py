@@ -437,7 +437,18 @@ class LoadBalancerFactory(
     tenant = factory.SubFactory(TenantFactory)
     project = factory.SubFactory(structure_factories.ProjectFactory)
     name = factory.Sequence(lambda n: "loadbalancer%s" % n)
-    vip_subnet_id = factory.Sequence(lambda n: "subnet_%s" % n)
+    vip_subnet = factory.SubFactory(
+        SubNetFactory,
+        tenant=factory.SelfAttribute("..tenant"),
+        service_settings=factory.SelfAttribute("..service_settings"),
+        project=factory.SelfAttribute("..project"),
+        network=factory.SubFactory(
+            NetworkFactory,
+            tenant=factory.SelfAttribute("..tenant"),
+            service_settings=factory.SelfAttribute("..service_settings"),
+            project=factory.SelfAttribute("..project"),
+        ),
+    )
     provider = "ovn"
     backend_id = factory.Sequence(lambda n: "lb_backend_%s" % n)
     state = CoreStates.OK
@@ -499,7 +510,18 @@ class PoolMemberFactory(
     name = factory.Sequence(lambda n: "member%s" % n)
     address = factory.Sequence(lambda n: "192.168.1.%d" % (n % 255))
     protocol_port = 80
-    subnet_id = factory.Sequence(lambda n: "subnet_%s" % n)
+    subnet = factory.LazyAttribute(
+        lambda o: SubNetFactory(
+            network=NetworkFactory(
+                tenant=o.pool.load_balancer.tenant,
+                project=o.pool.project,
+                service_settings=o.pool.service_settings,
+            ),
+            tenant=o.pool.load_balancer.tenant,
+            project=o.pool.project,
+            service_settings=o.pool.service_settings,
+        )
+    )
     weight = 1
     backend_id = factory.Sequence(lambda n: "member_backend_%s" % n)
     state = CoreStates.OK

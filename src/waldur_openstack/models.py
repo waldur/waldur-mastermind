@@ -37,7 +37,7 @@ LB_ALGORITHM_CHOICES = [
     ("ROUND_ROBIN", "Round Robin"),
     ("LEAST_CONNECTIONS", "Least Connections"),
     ("SOURCE_IP", "Source IP"),
-    ("SOURCE_IP_PORT", "Source IP Port"),
+    ("SOURCE_IP_PORT", "Source IP port"),
 ]
 HEALTHMONITOR_TYPE_CHOICES = [("TCP", "TCP"), ("UDP", "UDP")]
 
@@ -699,14 +699,17 @@ class LoadBalancer(structure_models.BaseResource):
         protocol="IPv4",
         help_text=_("Virtual IP address of the load balancer"),
     )
-    vip_subnet_id = models.CharField(
-        max_length=64,
-        blank=True,
-        help_text=_("Subnet ID for the VIP (required for creation)"),
+    vip_subnet = models.ForeignKey(
+        on_delete=models.SET_NULL,
+        to="SubNet",
+        null=True,
+        blank=False,
+        help_text=_("Subnet for the load balancer VIP"),
     )
     provider = models.CharField(
         max_length=64,
         default="ovn",
+        editable=False,
         help_text=_("Octavia provider (e.g. ovn for OVN LBaaS)"),
     )
     provisioning_status = models.CharField(
@@ -721,12 +724,14 @@ class LoadBalancer(structure_models.BaseResource):
         editable=False,
         help_text=_("Octavia operating status: ONLINE, OFFLINE, etc."),
     )
-    vip_port_id = models.CharField(
-        max_length=36,
+    vip_port = models.ForeignKey(
+        on_delete=models.SET_NULL,
+        to="Port",
+        related_name="+",
+        null=True,
         blank=True,
-        help_text=_(
-            "Neutron port ID for the VIP (for Floating IP and security groups)"
-        ),
+        editable=False,
+        help_text=_("Neutron VIP port in Waldur (for floating IP and security groups)"),
     )
     attached_floating_ip = models.ForeignKey(
         on_delete=models.SET_NULL,
@@ -748,7 +753,7 @@ class LoadBalancer(structure_models.BaseResource):
 
 
 class Pool(structure_models.BaseResource):
-    """Octavia LBaaS backend pool. OVN requires lb_algorithm=SOURCE_IP_PORT."""
+    """Octavia LBaaS backend pool."""
 
     class Meta(structure_models.BaseResource.Meta):
         unique_together = [["load_balancer", "backend_id"]]
@@ -774,7 +779,7 @@ class Pool(structure_models.BaseResource):
         max_length=32,
         default="SOURCE_IP_PORT",
         choices=LB_ALGORITHM_CHOICES,
-        help_text=_("Load balancing algorithm. OVN requires SOURCE_IP_PORT."),
+        help_text=_("Load balancing algorithm."),
     )
     provisioning_status = models.CharField(
         max_length=32,
@@ -884,10 +889,13 @@ class PoolMember(structure_models.BaseResource):
         ],
         help_text=_("Port on the backend server"),
     )
-    subnet_id = models.CharField(
-        max_length=36,
+    subnet = models.ForeignKey(
+        on_delete=models.PROTECT,
+        to="SubNet",
+        related_name="+",
+        null=True,
         blank=True,
-        help_text=_("Subnet ID for the member (required for creation)"),
+        help_text=_("Neutron subnet for the member (same tenant as the load balancer)"),
     )
     weight = models.PositiveSmallIntegerField(
         default=1,
@@ -935,15 +943,14 @@ class HealthMonitor(structure_models.BaseResource):
         help_text=_("Health check type: TCP, UDP (OVN supports TCP and UDP only)"),
         db_column="type",
     )
+    max_retries_down = models.PositiveIntegerField(default=3)
     delay = models.PositiveIntegerField(
-        help_text=_("Interval between health checks in seconds"),
+        help_text=_("Interval between health checks in seconds"), default=5
     )
     timeout = models.PositiveIntegerField(
-        help_text=_("Time in seconds to timeout a health check"),
+        help_text=_("Time in seconds to timeout a health check"), default=5
     )
-    max_retries = models.PositiveIntegerField(
-        help_text=_("Number of retries before marking member as down"),
-    )
+    max_retries = models.PositiveIntegerField(default=3)
     provisioning_status = models.CharField(
         max_length=32,
         blank=True,

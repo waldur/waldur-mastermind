@@ -3,6 +3,7 @@ from unittest import mock
 from rest_framework import status, test
 
 from waldur_core.core.enums import CoreStates
+from waldur_openstack import models
 
 from . import factories, fixtures
 
@@ -11,8 +12,6 @@ class BaseLoadBalancerTest(test.APITestCase):
     def setUp(self) -> None:
         self.fixture = fixtures.OpenStackFixture()
         self.client.force_authenticate(user=self.fixture.owner)
-        self.fixture.settings.options["lbaas_enabled"] = True
-        self.fixture.settings.save()
 
 
 class LoadBalancerListTest(BaseLoadBalancerTest):
@@ -26,7 +25,10 @@ class LoadBalancerListTest(BaseLoadBalancerTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["name"], lb.name)
-        self.assertEqual(response.data[0]["vip_subnet_id"], lb.vip_subnet_id)
+        self.assertEqual(
+            response.data[0]["vip_subnet"],
+            factories.SubNetFactory.get_url(lb.vip_subnet),
+        )
 
 
 class LoadBalancerCreateTest(BaseLoadBalancerTest):
@@ -35,7 +37,7 @@ class LoadBalancerCreateTest(BaseLoadBalancerTest):
         valid_data = {
             "name": "Test LB",
             "tenant": factories.TenantFactory.get_url(self.fixture.tenant),
-            "vip_subnet_id": self.fixture.subnet.backend_id,
+            "vip_subnet": factories.SubNetFactory.get_url(self.fixture.subnet),
         }
         response = self.client.post(
             factories.LoadBalancerFactory.get_list_url(), valid_data
@@ -43,21 +45,7 @@ class LoadBalancerCreateTest(BaseLoadBalancerTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         mock_execute.assert_called_once()
 
-    def test_create_fails_when_lbaas_disabled(self):
-        self.fixture.settings.options["lbaas_enabled"] = False
-        self.fixture.settings.save()
-        valid_data = {
-            "name": "Test LB",
-            "tenant": factories.TenantFactory.get_url(self.fixture.tenant),
-            "vip_subnet_id": self.fixture.subnet.backend_id,
-        }
-        response = self.client.post(
-            factories.LoadBalancerFactory.get_list_url(), valid_data
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("LBaaS is not enabled", str(response.data))
-
-    def test_create_requires_vip_subnet_id(self):
+    def test_create_requires_vip_subnet(self):
         valid_data = {
             "name": "Test LB",
             "tenant": factories.TenantFactory.get_url(self.fixture.tenant),
@@ -81,6 +69,30 @@ class LoadBalancerDeleteTest(BaseLoadBalancerTest):
         mock_execute.assert_called_once()
 
 
+class LoadBalancerUnlinkTest(BaseLoadBalancerTest):
+    def setUp(self):
+        super().setUp()
+        self.lb = factories.LoadBalancerFactory(
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+        )
+        self.url = factories.LoadBalancerFactory.get_url(self.lb, action="unlink")
+
+    @mock.patch("waldur_openstack.executors.LoadBalancerDeleteExecutor.execute")
+    def test_staff_unlink_deletes_from_db_without_executor(self, mock_delete_execute):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertFalse(models.LoadBalancer.objects.filter(pk=self.lb.pk).exists())
+        mock_delete_execute.assert_not_called()
+
+    def test_non_staff_cannot_unlink(self):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertTrue(models.LoadBalancer.objects.filter(pk=self.lb.pk).exists())
+
+
 class LoadBalancerUpdateTest(BaseLoadBalancerTest):
     @mock.patch("waldur_openstack.executors.LoadBalancerUpdateExecutor.execute")
     def test_update_load_balancer_name(self, mock_execute):
@@ -102,11 +114,17 @@ class LoadBalancerAttachFloatingIPTest(BaseLoadBalancerTest):
         "waldur_openstack.executors.LoadBalancerAttachFloatingIPExecutor.execute"
     )
     def test_attach_floating_ip(self, mock_execute):
+        vip_port = factories.PortFactory(
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            backend_id="vip_port_123",
+        )
         lb = factories.LoadBalancerFactory(
             tenant=self.fixture.tenant,
             project=self.fixture.project,
             service_settings=self.fixture.settings,
-            vip_port_id="vip_port_123",
+            vip_port=vip_port,
             state=CoreStates.OK,
         )
         fip = factories.FloatingIPFactory(
@@ -126,7 +144,7 @@ class LoadBalancerAttachFloatingIPTest(BaseLoadBalancerTest):
             tenant=self.fixture.tenant,
             project=self.fixture.project,
             service_settings=self.fixture.settings,
-            vip_port_id="",
+            vip_port=None,
             state=CoreStates.OK,
         )
         fip = factories.FloatingIPFactory(
@@ -179,53 +197,6 @@ class LoadBalancerDetachFloatingIPTest(BaseLoadBalancerTest):
         self.assertIn("no floating IP", str(response.data))
 
 
-class LoadBalancerUpdateVIPSecurityGroupsTest(BaseLoadBalancerTest):
-    @mock.patch(
-        "waldur_openstack.executors.LoadBalancerUpdateVIPSecurityGroupsExecutor.execute"
-    )
-    def test_update_vip_security_groups(self, mock_execute):
-        lb = factories.LoadBalancerFactory(
-            tenant=self.fixture.tenant,
-            project=self.fixture.project,
-            service_settings=self.fixture.settings,
-            vip_port_id="vip_port_123",
-            state=CoreStates.OK,
-        )
-        sg = factories.SecurityGroupFactory(
-            tenant=self.fixture.tenant,
-            project=self.fixture.project,
-            service_settings=self.fixture.settings,
-            backend_id="sg_backend_123",
-        )
-        response = self.client.post(
-            factories.LoadBalancerFactory.get_url(lb, "update_vip_security_groups"),
-            {"security_groups": [factories.SecurityGroupFactory.get_url(sg)]},
-        )
-        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
-        mock_execute.assert_called_once()
-
-    def test_update_fails_when_no_vip_port(self):
-        lb = factories.LoadBalancerFactory(
-            tenant=self.fixture.tenant,
-            project=self.fixture.project,
-            service_settings=self.fixture.settings,
-            vip_port_id="",
-            state=CoreStates.OK,
-        )
-        sg = factories.SecurityGroupFactory(
-            tenant=self.fixture.tenant,
-            project=self.fixture.project,
-            service_settings=self.fixture.settings,
-            backend_id="sg_backend_123",
-        )
-        response = self.client.post(
-            factories.LoadBalancerFactory.get_url(lb, "update_vip_security_groups"),
-            {"security_groups": [factories.SecurityGroupFactory.get_url(sg)]},
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("VIP port", str(response.data))
-
-
 class BasePoolTest(BaseLoadBalancerTest):
     def setUp(self) -> None:
         super().setUp()
@@ -263,18 +234,6 @@ class PoolCreateTest(BasePoolTest):
         response = self.client.post(factories.PoolFactory.get_list_url(), valid_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         mock_execute.assert_called_once()
-
-    def test_create_fails_when_lbaas_disabled(self):
-        self.fixture.settings.options["lbaas_enabled"] = False
-        self.fixture.settings.save()
-        valid_data = {
-            "name": "Test Pool",
-            "load_balancer": factories.LoadBalancerFactory.get_url(self.load_balancer),
-            "protocol": "TCP",
-        }
-        response = self.client.post(factories.PoolFactory.get_list_url(), valid_data)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("LBaaS is not enabled", str(response.data))
 
     def test_create_fails_when_load_balancer_not_provisioned(self):
         self.load_balancer.backend_id = None
@@ -358,28 +317,13 @@ class PoolMemberCreateTest(BasePoolMemberTest):
             "pool": factories.PoolFactory.get_url(self.pool),
             "address": "192.168.1.10",
             "protocol_port": 80,
-            "subnet_id": self.fixture.subnet.backend_id,
+            "subnet": factories.SubNetFactory.get_url(self.fixture.subnet),
         }
         response = self.client.post(
             factories.PoolMemberFactory.get_list_url(), valid_data
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         mock_execute.assert_called_once()
-
-    def test_create_fails_when_lbaas_disabled(self):
-        self.fixture.settings.options["lbaas_enabled"] = False
-        self.fixture.settings.save()
-        valid_data = {
-            "pool": factories.PoolFactory.get_url(self.pool),
-            "address": "192.168.1.10",
-            "protocol_port": 80,
-            "subnet_id": self.fixture.subnet.backend_id,
-        }
-        response = self.client.post(
-            factories.PoolMemberFactory.get_list_url(), valid_data
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("LBaaS is not enabled", str(response.data))
 
     def test_create_fails_when_pool_not_provisioned(self):
         self.pool.backend_id = None
@@ -388,7 +332,7 @@ class PoolMemberCreateTest(BasePoolMemberTest):
             "pool": factories.PoolFactory.get_url(self.pool),
             "address": "192.168.1.10",
             "protocol_port": 80,
-            "subnet_id": self.fixture.subnet.backend_id,
+            "subnet": factories.SubNetFactory.get_url(self.fixture.subnet),
         }
         response = self.client.post(
             factories.PoolMemberFactory.get_list_url(), valid_data
@@ -396,11 +340,36 @@ class PoolMemberCreateTest(BasePoolMemberTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("must be provisioned", str(response.data))
 
-    def test_create_requires_subnet_id(self):
+    def test_create_requires_subnet(self):
         valid_data = {
             "pool": factories.PoolFactory.get_url(self.pool),
             "address": "192.168.1.10",
             "protocol_port": 80,
+        }
+        response = self.client.post(
+            factories.PoolMemberFactory.get_list_url(), valid_data
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_create_rejects_subnet_from_other_tenant(self):
+        other_tenant = factories.TenantFactory(service_settings=self.fixture.settings)
+        foreign_network = factories.NetworkFactory(
+            tenant=other_tenant,
+            project=other_tenant.project,
+            service_settings=self.fixture.settings,
+        )
+        foreign_subnet = factories.SubNetFactory(
+            network=foreign_network,
+            tenant=other_tenant,
+            project=other_tenant.project,
+            service_settings=self.fixture.settings,
+            backend_id="foreign_subnet_backend_id",
+        )
+        valid_data = {
+            "pool": factories.PoolFactory.get_url(self.pool),
+            "address": "192.168.1.10",
+            "protocol_port": 80,
+            "subnet": factories.SubNetFactory.get_url(foreign_subnet),
         }
         response = self.client.post(
             factories.PoolMemberFactory.get_list_url(), valid_data
@@ -485,22 +454,6 @@ class HealthMonitorCreateTest(BaseHealthMonitorTest):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         mock_execute.assert_called_once()
-
-    def test_create_fails_when_lbaas_disabled(self):
-        self.fixture.settings.options["lbaas_enabled"] = False
-        self.fixture.settings.save()
-        valid_data = {
-            "pool": factories.PoolFactory.get_url(self.pool),
-            "type": "TCP",
-            "delay": 10,
-            "timeout": 5,
-            "max_retries": 3,
-        }
-        response = self.client.post(
-            factories.HealthMonitorFactory.get_list_url(), valid_data
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("LBaaS is not enabled", str(response.data))
 
     def test_create_fails_when_pool_not_provisioned(self):
         self.pool.backend_id = None
@@ -609,21 +562,6 @@ class ListenerCreateTest(BaseListenerTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         mock_execute.assert_called_once()
 
-    def test_create_fails_when_lbaas_disabled(self):
-        self.fixture.settings.options["lbaas_enabled"] = False
-        self.fixture.settings.save()
-        valid_data = {
-            "name": "Test Listener",
-            "load_balancer": factories.LoadBalancerFactory.get_url(self.load_balancer),
-            "protocol": "TCP",
-            "protocol_port": 80,
-        }
-        response = self.client.post(
-            factories.ListenerFactory.get_list_url(), valid_data
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("LBaaS is not enabled", str(response.data))
-
     def test_create_fails_when_load_balancer_not_provisioned(self):
         self.load_balancer.backend_id = None
         self.load_balancer.save()
@@ -638,6 +576,52 @@ class ListenerCreateTest(BaseListenerTest):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("must be provisioned", str(response.data))
+
+    def test_create_listener_with_default_pool(self):
+        pool = factories.PoolFactory(
+            load_balancer=self.load_balancer,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+        )
+        valid_data = {
+            "name": "Listener With Pool",
+            "load_balancer": factories.LoadBalancerFactory.get_url(self.load_balancer),
+            "protocol": "TCP",
+            "protocol_port": 8080,
+            "default_pool": factories.PoolFactory.get_url(pool),
+        }
+        response = self.client.post(
+            factories.ListenerFactory.get_list_url(), valid_data
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        listener = models.Listener.objects.get(name="Listener With Pool")
+        self.assertEqual(listener.default_pool_id, pool.id)
+
+    def test_create_listener_rejects_default_pool_from_other_load_balancer(self):
+        other_lb = factories.LoadBalancerFactory(
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            backend_id="lb_backend_other",
+            state=CoreStates.OK,
+        )
+        foreign_pool = factories.PoolFactory(
+            load_balancer=other_lb,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+        )
+        valid_data = {
+            "name": "Bad Pool Ref",
+            "load_balancer": factories.LoadBalancerFactory.get_url(self.load_balancer),
+            "protocol": "TCP",
+            "protocol_port": 80,
+            "default_pool": factories.PoolFactory.get_url(foreign_pool),
+        }
+        response = self.client.post(
+            factories.ListenerFactory.get_list_url(), valid_data
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("same load balancer", str(response.data))
 
 
 class ListenerDeleteTest(BaseListenerTest):

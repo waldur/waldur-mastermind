@@ -1189,21 +1189,49 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
 )
 class LoadBalancerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     lookup_field = "uuid"
-    queryset = models.LoadBalancer.objects.all().order_by("tenant__name")
+    queryset = (
+        models.LoadBalancer.objects.all()
+        .order_by("tenant__name")
+        .select_related("vip_subnet", "vip_port", "attached_floating_ip")
+    )
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.LoadBalancerFilter
     serializer_class = serializers.OpenStackLoadBalancerSerializer
     create_serializer_class = serializers.CreateLoadBalancerSerializer
+    update_serializer_class = serializers.UpdateLoadBalancerSerializer
+    partial_update_serializer_class = serializers.UpdateLoadBalancerSerializer
 
     delete_executor = executors.LoadBalancerDeleteExecutor
     create_executor = executors.LoadBalancerCreateExecutor
     update_executor = executors.LoadBalancerUpdateExecutor
 
+    unlink_serializer_class = EmptySerializer
+
+    @extend_schema(
+        summary="Unlink load balancer",
+        description=(
+            "Delete the load balancer from the Waldur database without scheduling "
+            "operations on the OpenStack backend and without checking resource state. "
+            "Staff-only; intended for cleaning up records stuck in transitional states."
+        ),
+        request=None,
+        responses={204: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def unlink(self, request, uuid=None):
+        load_balancer = self.get_object()
+        load_balancer.delete()
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
+
+    unlink_permissions = [structure_permissions.is_staff]
+
     @extend_schema(
         summary="Attach floating IP to VIP",
         description="Attach a floating IP to the load balancer VIP port.",
         request=serializers.LoadBalancerAttachFloatingIPSerializer,
-        responses=None,
+        responses={
+            status.HTTP_202_ACCEPTED: serializers.LoadBalancerAsyncOperationResponseSerializer
+        },
     )
     @decorators.action(detail=True, methods=["post"])
     def attach_floating_ip(self, request, uuid=None):
@@ -1219,7 +1247,7 @@ class LoadBalancerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
                     "state": load_balancer.get_state_display(),
                 }
             )
-        if not load_balancer.vip_port_id:
+        if not load_balancer.vip_port or not load_balancer.vip_port.backend_id:
             raise exceptions.ValidationError(
                 _(
                     "Load balancer VIP port is not available yet. "
@@ -1250,7 +1278,9 @@ class LoadBalancerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         summary="Detach floating IP from VIP",
         description="Detach floating IP from the load balancer VIP port.",
         request=None,
-        responses=None,
+        responses={
+            status.HTTP_202_ACCEPTED: serializers.LoadBalancerAsyncOperationResponseSerializer
+        },
     )
     @decorators.action(detail=True, methods=["post"])
     def detach_floating_ip(self, request, uuid=None):
@@ -1266,50 +1296,6 @@ class LoadBalancerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         )
 
     detach_floating_ip_validators = [
-        core_validators.StateValidator(CoreStates.OK),
-    ]
-
-    @extend_schema(
-        summary="Update VIP security groups",
-        description="Update security groups on the load balancer VIP port.",
-        request=serializers.LoadBalancerUpdateVIPSecurityGroupsSerializer,
-        responses=None,
-    )
-    @decorators.action(detail=True, methods=["post"])
-    def update_vip_security_groups(self, request, uuid=None):
-        load_balancer: models.LoadBalancer = self.get_object()
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        security_groups = serializer.validated_data["security_groups"]
-        if load_balancer.state != CoreStates.OK:
-            raise core_exceptions.IncorrectStateException(
-                _("Load balancer [%(lb)s] must be in OK state, current: [%(state)s]")
-                % {
-                    "lb": load_balancer,
-                    "state": load_balancer.get_state_display(),
-                }
-            )
-        if not load_balancer.vip_port_id:
-            raise exceptions.ValidationError(
-                _(
-                    "Load balancer VIP port is not available yet. "
-                    "Wait for the load balancer to become ACTIVE."
-                )
-            )
-        security_group_uuids = [str(sg.uuid) for sg in security_groups]
-        executors.LoadBalancerUpdateVIPSecurityGroupsExecutor().execute(
-            load_balancer,
-            security_group_uuids=security_group_uuids,
-        )
-        return response.Response(
-            {"status": _("Security groups update was scheduled")},
-            status=status.HTTP_202_ACCEPTED,
-        )
-
-    update_vip_security_groups_serializer_class = (
-        serializers.LoadBalancerUpdateVIPSecurityGroupsSerializer
-    )
-    update_vip_security_groups_validators = [
         core_validators.StateValidator(CoreStates.OK),
     ]
 
@@ -1347,6 +1333,8 @@ class PoolViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     filterset_class = filters.PoolFilter
     serializer_class = serializers.OpenStackPoolSerializer
     create_serializer_class = serializers.CreatePoolSerializer
+    update_serializer_class = serializers.UpdatePoolSerializer
+    partial_update_serializer_class = serializers.UpdatePoolSerializer
 
     delete_executor = executors.PoolDeleteExecutor
     create_executor = executors.PoolCreateExecutor

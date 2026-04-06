@@ -1,292 +1,454 @@
 """
 Octavia Load Balancer API client.
-
-Uses keystoneauth session to make REST calls to the Octavia (load-balancer) API.
-No additional dependencies - Octavia is not included in python-neutronclient.
 """
 
 import logging
 
-from keystoneauth1 import exceptions as ka_exceptions
+import openstack as openstack_sdk
+from openstack import exceptions as openstack_exceptions
 
-from waldur_openstack.exceptions import OpenStackBackendError
+from waldur_openstack import models
+from waldur_openstack.session import get_credentials
 
 logger = logging.getLogger(__name__)
 
 
-def get_octavia_client(session):
-    """
-    Return a minimal Octavia API client using the keystone session.
-
-    Octavia uses service type 'load-balancer' in the Keystone catalog.
-    """
-    return OctaviaClient(session)
-
-
-class OctaviaClientException(Exception):
-    """Wrapper for Octavia API errors."""
-
-    def __init__(self, status_code, message, details=None):
-        self.status_code = status_code
-        self.message = message
-        self.details = details or {}
-        super().__init__(f"[{status_code}] {message}: {details}")
+def get_octavia_client(tenant):
+    return OctaviaClient(tenant)
 
 
 class OctaviaClient:
-    """
-    Minimal client for Octavia Load Balancer API v2.
+    def __init__(self, tenant):
+        self.tenant = tenant
+        self._connect = None
 
-    API reference: https://docs.openstack.org/api-ref/load-balancer/v2/
-    """
-
-    def __init__(self, session):
-        self._session = session
-
-    def _get_base_url(self):
-        try:
-            endpoint = self._session.get_endpoint(
-                service_type="load-balancer",
-                interface="public",
-            )
-            return endpoint.rstrip("/")
-        except ka_exceptions.catalog.EndpointNotFound:
-            raise OpenStackBackendError(
-                "Load balancer service (Octavia) is not available in this OpenStack deployment."
-            )
-
-    def _request(self, method, path, **kwargs):
-        url = f"{self._get_base_url()}{path}"
-        try:
-            response = self._session.request(method, url, **kwargs)
-        except ka_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
-
-        if response.status_code >= 400:
-            try:
-                body = response.json()
-                message = body.get("faultstring") or body.get("error", {}).get(
-                    "message", str(body)
+    @property
+    def connection(self):
+        if not self._connect:
+            # Use admin credentials from service_settings scoped to the tenant project.
+            # Do NOT pass tenant= to get_credentials() — that switches to per-tenant
+            # user credentials which may lack the policy rights for Octavia operations.
+            # We use get_credentials() + openstack_sdk.connect(**credentials) rather than
+            # get_keystone_session() because openstack_sdk.connect(session=ks_session)
+            # does not accept a keystoneauth1 Session directly and raises OptionError.
+            credentials = get_credentials(self.tenant.service_settings)
+            credentials.pop("project_name", None)
+            credentials.pop("project_domain_name", None)
+            credentials["project_id"] = self.tenant.backend_id
+            auth_type = credentials.pop("auth_type", "password")
+            if auth_type == "v3applicationcredential":
+                connect = openstack_sdk.connect(
+                    auth_url=credentials["auth_url"],
+                    auth_type="v3applicationcredential",
+                    application_credential_id=credentials["username"],
+                    application_credential_secret=credentials["password"],
                 )
-            except Exception:
-                message = response.text or response.reason
+            else:
+                connect = openstack_sdk.connect(**credentials)
+            self._connect = connect.load_balancer
 
-            raise OctaviaClientException(
-                status_code=response.status_code,
-                message=message,
-                details={"url": url},
+        return self._connect
+
+    def create_load_balancer(self, load_balancer: models.LoadBalancer):
+        backend_load_balancer = self.connection.create_load_balancer(
+            name=load_balancer.name,
+            vip_subnet_id=load_balancer.vip_subnet.backend_id,
+            provider=load_balancer.provider or "ovn",
+        )
+        backend_load_balancer = self.connection.wait_for_load_balancer(
+            backend_load_balancer.id
+        )
+        self._backend_load_balancer_to_load_balancer(
+            backend_load_balancer, load_balancer
+        )
+
+    def delete_load_balancer(self, load_balancer: models.LoadBalancer):
+        self.connection.delete_load_balancer(load_balancer.backend_id)
+
+    def update_load_balancer(self, load_balancer: models.LoadBalancer, **kwargs):
+        self.connection.update_load_balancer(load_balancer.backend_id, **kwargs)
+        self.connection.wait_for_load_balancer(load_balancer.backend_id)
+        self.pull_load_balancer(load_balancer)
+
+    def pull_load_balancer(self, load_balancer: models.LoadBalancer, **kwargs):
+        try:
+            backend_load_balancer = self.connection.get_load_balancer(
+                load_balancer.backend_id
             )
+        except openstack_exceptions.NotFoundException:
+            load_balancer.error_message = "Load balancer not found in backend"
+            load_balancer.save(update_fields=["error_message"])
+            return
 
-        if response.status_code in (204, 202) and not response.content:
-            return None
-
-        return response.json() if response.content else None
-
-    def create_load_balancer(self, name, vip_subnet_id, provider="ovn", **kwargs):
-        """Create a load balancer. Returns the loadbalancer object."""
-        payload = {
-            "loadbalancer": {
-                "name": name,
-                "vip_subnet_id": vip_subnet_id,
-                "provider": provider,
-                **kwargs,
-            }
-        }
-        result = self._request("POST", "/v2/lbaas/loadbalancers", json=payload)
-        return result["loadbalancer"]
-
-    def show_load_balancer(self, lb_id):
-        """Get a single load balancer by ID."""
-        result = self._request("GET", f"/v2/lbaas/loadbalancers/{lb_id}")
-        return result["loadbalancer"]
-
-    def list_load_balancers(self, project_id=None):
-        """List load balancers for the project (from auth token)."""
-        params = {}
-        if project_id:
-            params["project_id"] = project_id
-        result = self._request("GET", "/v2/lbaas/loadbalancers", params=params or None)
-        return result.get("loadbalancers", [])
-
-    def update_load_balancer(self, lb_id, **kwargs):
-        """Update a load balancer (e.g. name)."""
-        payload = {"loadbalancer": kwargs}
-        result = self._request("PUT", f"/v2/lbaas/loadbalancers/{lb_id}", json=payload)
-        return result["loadbalancer"] if result else None
-
-    def delete_load_balancer(self, lb_id):
-        """Delete a load balancer (cascade deletes listeners, pools, members)."""
-        self._request("DELETE", f"/v2/lbaas/loadbalancers/{lb_id}")
-
-    # Pools
-
-    def list_pools(self, loadbalancer_id=None, project_id=None):
-        """List pools. Filter by loadbalancer_id or project_id."""
-        params = {}
-        if loadbalancer_id:
-            params["loadbalancer_id"] = loadbalancer_id
-        if project_id:
-            params["project_id"] = project_id
-        result = self._request("GET", "/v2/lbaas/pools", params=params or None)
-        return result.get("pools", [])
-
-    def create_pool(self, loadbalancer_id, name, protocol, lb_algorithm, **kwargs):
-        """Create a pool. OVN requires lb_algorithm=SOURCE_IP_PORT."""
-        payload = {
-            "pool": {
-                "loadbalancer_id": loadbalancer_id,
-                "name": name,
-                "protocol": protocol,
-                "lb_algorithm": lb_algorithm,
-                **kwargs,
-            }
-        }
-        result = self._request("POST", "/v2/lbaas/pools", json=payload)
-        return result["pool"]
-
-    def show_pool(self, pool_id):
-        """Get a single pool by ID."""
-        result = self._request("GET", f"/v2/lbaas/pools/{pool_id}")
-        return result["pool"]
-
-    def update_pool(self, pool_id, **kwargs):
-        """Update a pool (e.g. name)."""
-        payload = {"pool": kwargs}
-        result = self._request("PUT", f"/v2/lbaas/pools/{pool_id}", json=payload)
-        return result["pool"] if result else None
-
-    def delete_pool(self, pool_id):
-        """Delete a pool (cascade deletes members, health monitor)."""
-        self._request("DELETE", f"/v2/lbaas/pools/{pool_id}")
-
-    # Pool Members
-
-    def list_members(self, pool_id):
-        """List members of a pool."""
-        result = self._request("GET", f"/v2/lbaas/pools/{pool_id}/members")
-        return result.get("members", [])
-
-    def create_member(self, pool_id, address, protocol_port, subnet_id, **kwargs):
-        """Create a pool member."""
-        payload = {
-            "member": {
-                "address": address,
-                "protocol_port": protocol_port,
-                "subnet_id": subnet_id,
-                **kwargs,
-            }
-        }
-        result = self._request(
-            "POST", f"/v2/lbaas/pools/{pool_id}/members", json=payload
+        self._backend_load_balancer_to_load_balancer(
+            backend_load_balancer, load_balancer
         )
-        return result["member"]
 
-    def show_member(self, pool_id, member_id):
-        """Get a single pool member by ID."""
-        result = self._request("GET", f"/v2/lbaas/pools/{pool_id}/members/{member_id}")
-        return result["member"]
+    def get_tenant_load_balancers(self):
+        return list(self.connection.load_balancers(project_id=self.tenant.backend_id))
 
-    def update_member(self, pool_id, member_id, **kwargs):
-        """Update a pool member (e.g. weight)."""
-        payload = {"member": kwargs}
-        result = self._request(
-            "PUT",
-            f"/v2/lbaas/pools/{pool_id}/members/{member_id}",
-            json=payload,
-        )
-        return result["member"] if result else None
-
-    def delete_member(self, pool_id, member_id):
-        """Delete a pool member."""
-        self._request("DELETE", f"/v2/lbaas/pools/{pool_id}/members/{member_id}")
-
-    # Health Monitors
-
-    def list_healthmonitors(self, pool_id=None, project_id=None):
-        """List health monitors. Filter by pool_id or project_id."""
-        params = {}
-        if pool_id:
-            params["pool_id"] = pool_id
-        if project_id:
-            params["project_id"] = project_id
-        result = self._request("GET", "/v2/lbaas/healthmonitors", params=params or None)
-        return result.get("healthmonitors", [])
-
-    def create_healthmonitor(
-        self, pool_id, hm_type, delay, timeout, max_retries, **kwargs
+    def _backend_load_balancer_to_load_balancer(
+        self, backend_load_balancer, load_balancer
     ):
-        """Create a health monitor. OVN supports TCP and UDP only."""
-        payload = {
-            "healthmonitor": {
-                "pool_id": pool_id,
-                "type": hm_type,
-                "delay": delay,
-                "timeout": timeout,
-                "max_retries": max_retries,
-                **kwargs,
-            }
-        }
-        result = self._request("POST", "/v2/lbaas/healthmonitors", json=payload)
-        return result["healthmonitor"]
-
-    def show_healthmonitor(self, healthmonitor_id):
-        """Get a single health monitor by ID."""
-        result = self._request("GET", f"/v2/lbaas/healthmonitors/{healthmonitor_id}")
-        return result["healthmonitor"]
-
-    def update_healthmonitor(self, healthmonitor_id, **kwargs):
-        """Update a health monitor (e.g. delay, timeout, max_retries)."""
-        payload = {"healthmonitor": kwargs}
-        result = self._request(
-            "PUT",
-            f"/v2/lbaas/healthmonitors/{healthmonitor_id}",
-            json=payload,
+        load_balancer.backend_id = backend_load_balancer.id
+        load_balancer.vip_address = backend_load_balancer.vip_address
+        neutron_vip_port_backend_id = (
+            getattr(backend_load_balancer, "vip_port_id", None) or None
         )
-        return result["healthmonitor"] if result else None
+        if neutron_vip_port_backend_id:
+            port = models.Port.objects.filter(
+                tenant=load_balancer.tenant,
+                backend_id=neutron_vip_port_backend_id,
+            ).first()
+            if port is None:
+                from waldur_openstack.backend import OpenStackBackend
 
-    def delete_healthmonitor(self, healthmonitor_id):
-        """Delete a health monitor."""
-        self._request("DELETE", f"/v2/lbaas/healthmonitors/{healthmonitor_id}")
-
-    # Listeners
-
-    def list_listeners(self, loadbalancer_id=None, project_id=None):
-        """List listeners. Filter by loadbalancer_id or project_id."""
-        params = {}
-        if loadbalancer_id:
-            params["loadbalancer_id"] = loadbalancer_id
-        if project_id:
-            params["project_id"] = project_id
-        result = self._request("GET", "/v2/lbaas/listeners", params=params or None)
-        return result.get("listeners", [])
-
-    def create_listener(self, loadbalancer_id, protocol, protocol_port, name, **kwargs):
-        """Create a listener. OVN supports TCP and UDP."""
-        payload = {
-            "listener": {
-                "loadbalancer_id": loadbalancer_id,
-                "protocol": protocol,
-                "protocol_port": protocol_port,
-                "name": name,
-                **kwargs,
-            }
-        }
-        result = self._request("POST", "/v2/lbaas/listeners", json=payload)
-        return result["listener"]
-
-    def show_listener(self, listener_id):
-        """Get a single listener by ID."""
-        result = self._request("GET", f"/v2/lbaas/listeners/{listener_id}")
-        return result["listener"]
-
-    def update_listener(self, listener_id, **kwargs):
-        """Update a listener (e.g. name, default_pool_id)."""
-        payload = {"listener": kwargs}
-        result = self._request(
-            "PUT", f"/v2/lbaas/listeners/{listener_id}", json=payload
+                port = OpenStackBackend(
+                    load_balancer.tenant.service_settings
+                ).import_port_from_neutron_by_id(
+                    load_balancer.tenant, neutron_vip_port_backend_id
+                )
+            load_balancer.vip_port = port
+            load_balancer.attached_floating_ip = (
+                models.FloatingIP.objects.filter(
+                    tenant=load_balancer.tenant,
+                    port=port,
+                )
+                .order_by("pk")
+                .first()
+            )
+        else:
+            load_balancer.vip_port = None
+            load_balancer.attached_floating_ip = None
+        load_balancer.provisioning_status = backend_load_balancer.provisioning_status
+        load_balancer.operating_status = backend_load_balancer.operating_status
+        load_balancer.provider = backend_load_balancer.provider
+        load_balancer.error_message = ""
+        load_balancer.error_traceback = ""
+        load_balancer.save(
+            update_fields=[
+                "backend_id",
+                "vip_address",
+                "vip_port",
+                "attached_floating_ip",
+                "provisioning_status",
+                "operating_status",
+                "provider",
+                "error_message",
+                "error_traceback",
+            ]
         )
-        return result["listener"] if result else None
 
-    def delete_listener(self, listener_id):
-        """Delete a listener."""
-        self._request("DELETE", f"/v2/lbaas/listeners/{listener_id}")
+    # --- Pool ---
+
+    def create_pool(self, pool: models.Pool):
+        load_balancer_backend_id = pool.load_balancer.backend_id
+        backend_pool = self.connection.create_pool(
+            loadbalancer_id=load_balancer_backend_id,
+            name=pool.name,
+            protocol=pool.protocol,
+            lb_algorithm=pool.lb_algorithm or "SOURCE_IP_PORT",
+        )
+        pool.backend_id = backend_pool.id
+        pool.save()
+        self.connection.wait_for_load_balancer(load_balancer_backend_id)
+        self.pull_pool(pool)
+
+    def delete_pool(self, pool: models.Pool):
+        load_balancer_backend_id = pool.load_balancer.backend_id
+        self.connection.delete_pool(pool.backend_id)
+        self.connection.wait_for_load_balancer(load_balancer_backend_id)
+
+    def update_pool(self, pool: models.Pool):
+        load_balancer_backend_id = pool.load_balancer.backend_id
+        self.connection.update_pool(pool.backend_id, name=pool.name)
+        self.connection.wait_for_load_balancer(load_balancer_backend_id)
+        self.pull_pool(pool)
+
+    def pull_pool(self, pool: models.Pool):
+        if not pool.backend_id:
+            return
+        try:
+            backend_pool = self.connection.get_pool(pool.backend_id)
+        except openstack_exceptions.NotFoundException:
+            pool.error_message = "Pool not found in backend"
+            pool.save(update_fields=["error_message"])
+            return
+        self._backend_pool_to_pool(backend_pool, pool)
+
+    def list_pools_for_load_balancer(self, load_balancer_backend_id: str):
+        return list(self.connection.pools(loadbalancer_id=load_balancer_backend_id))
+
+    def _backend_pool_to_pool(self, backend_pool, pool: models.Pool):
+        pool.backend_id = backend_pool.id
+        pool.provisioning_status = backend_pool.provisioning_status or ""
+        pool.operating_status = backend_pool.operating_status or ""
+        pool.protocol = backend_pool.protocol or pool.protocol
+        pool.lb_algorithm = backend_pool.lb_algorithm or pool.lb_algorithm
+        pool.error_message = ""
+        pool.error_traceback = ""
+        pool.save(
+            update_fields=[
+                "backend_id",
+                "provisioning_status",
+                "operating_status",
+                "protocol",
+                "lb_algorithm",
+                "error_message",
+                "error_traceback",
+            ]
+        )
+
+    # --- Listener ---
+
+    def create_listener(self, listener: models.Listener):
+        load_balancer_backend_id = listener.load_balancer.backend_id
+        kwargs = {
+            "loadbalancer_id": load_balancer_backend_id,
+            "protocol": listener.protocol,
+            "protocol_port": listener.protocol_port,
+            "name": listener.name,
+        }
+        if listener.default_pool_id and listener.default_pool.backend_id:
+            kwargs["default_pool_id"] = listener.default_pool.backend_id
+        backend_listener = self.connection.create_listener(**kwargs)
+        listener.backend_id = backend_listener.id
+        listener.save()
+        self.connection.wait_for_load_balancer(load_balancer_backend_id)
+        self.pull_listener(listener)
+
+    def delete_listener(self, listener: models.Listener):
+        load_balancer_backend_id = listener.load_balancer.backend_id
+        self.connection.delete_listener(listener.backend_id)
+        self.connection.wait_for_load_balancer(load_balancer_backend_id)
+
+    def update_listener(self, listener: models.Listener):
+        load_balancer_backend_id = listener.load_balancer.backend_id
+        update_kwargs = {"name": listener.name}
+        if listener.default_pool_id and listener.default_pool.backend_id:
+            update_kwargs["default_pool_id"] = listener.default_pool.backend_id
+        self.connection.update_listener(listener.backend_id, **update_kwargs)
+        self.connection.wait_for_load_balancer(load_balancer_backend_id)
+        self.pull_listener(listener)
+
+    def pull_listener(self, listener: models.Listener):
+        if not listener.backend_id:
+            return
+        try:
+            backend_listener = self.connection.get_listener(listener.backend_id)
+        except openstack_exceptions.NotFoundException:
+            listener.error_message = "Listener not found in backend"
+            listener.save(update_fields=["error_message"])
+            return
+        self._backend_listener_to_listener(backend_listener, listener)
+
+    def list_listeners_for_load_balancer(self, load_balancer_backend_id: str):
+        return list(
+            self.connection.listeners(load_balancer_id=load_balancer_backend_id)
+        )
+
+    def _backend_listener_to_listener(
+        self, backend_listener, listener: models.Listener
+    ):
+        listener.backend_id = backend_listener.id
+        listener.provisioning_status = backend_listener.provisioning_status or ""
+        listener.operating_status = backend_listener.operating_status or ""
+        listener.protocol = backend_listener.protocol or listener.protocol
+        listener.protocol_port = (
+            backend_listener.protocol_port or listener.protocol_port
+        )
+        default_pool_id = backend_listener.default_pool_id
+        if default_pool_id:
+            default_pool = models.Pool.objects.filter(
+                load_balancer=listener.load_balancer,
+                backend_id=default_pool_id,
+            ).first()
+            listener.default_pool = default_pool
+        else:
+            listener.default_pool = None
+        listener.error_message = ""
+        listener.error_traceback = ""
+        listener.save(
+            update_fields=[
+                "backend_id",
+                "provisioning_status",
+                "operating_status",
+                "protocol",
+                "protocol_port",
+                "default_pool",
+                "error_message",
+                "error_traceback",
+            ]
+        )
+
+    # --- Pool member ---
+
+    def create_pool_member(self, member: models.PoolMember):
+        load_balancer_backend_id = member.pool.load_balancer.backend_id
+        backend_member = self.connection.create_member(
+            member.pool.backend_id,
+            address=str(member.address),
+            protocol_port=member.protocol_port,
+            subnet_id=member.subnet.backend_id,
+            name=member.name or "",
+            weight=member.weight,
+        )
+        member.backend_id = backend_member.id
+        member.save()
+        self.connection.wait_for_load_balancer(load_balancer_backend_id)
+        self.pull_pool_member(member)
+
+    def delete_pool_member(self, member: models.PoolMember):
+        load_balancer_backend_id = member.pool.load_balancer.backend_id
+        self.connection.delete_member(member.backend_id, member.pool.backend_id)
+        self.connection.wait_for_load_balancer(load_balancer_backend_id)
+
+    def update_pool_member(self, member: models.PoolMember):
+        load_balancer_backend_id = member.pool.load_balancer.backend_id
+        self.connection.update_member(
+            member.backend_id,
+            member.pool.backend_id,
+            name=member.name,
+            weight=member.weight,
+        )
+        self.connection.wait_for_load_balancer(load_balancer_backend_id)
+        self.pull_pool_member(member)
+
+    def pull_pool_member(self, member: models.PoolMember):
+        if not member.backend_id:
+            return
+        try:
+            backend_member = self.connection.get_member(
+                member.backend_id, member.pool.backend_id
+            )
+        except openstack_exceptions.NotFoundException:
+            member.error_message = "Member not found in backend"
+            member.save(update_fields=["error_message"])
+            return
+        self._backend_pool_member_to_pool_member(backend_member, member)
+
+    def list_members_for_pool(self, pool_backend_id: str):
+        return list(self.connection.members(pool_backend_id))
+
+    def _backend_pool_member_to_pool_member(
+        self, backend_member, member: models.PoolMember
+    ):
+        member.backend_id = backend_member.id
+        member.name = backend_member.name
+        member.provisioning_status = backend_member.provisioning_status or ""
+        member.operating_status = backend_member.operating_status or ""
+        member.address = backend_member.address or member.address
+        member.protocol_port = backend_member.protocol_port or member.protocol_port
+        if backend_member.weight is not None:
+            member.weight = backend_member.weight
+        member.error_message = ""
+        member.error_traceback = ""
+        member.save(
+            update_fields=[
+                "name",
+                "backend_id",
+                "provisioning_status",
+                "operating_status",
+                "address",
+                "protocol_port",
+                "weight",
+                "error_message",
+                "error_traceback",
+            ]
+        )
+
+    # --- Health monitor ---
+
+    def create_health_monitor(self, health_monitor: models.HealthMonitor):
+        load_balancer_backend_id = health_monitor.pool.load_balancer.backend_id
+        backend_health_monitor = self.connection.create_health_monitor(
+            pool_id=health_monitor.pool.backend_id,
+            type=health_monitor.monitor_type,
+            delay=health_monitor.delay,
+            timeout=health_monitor.timeout,
+            max_retries=health_monitor.max_retries,
+            max_retries_down=health_monitor.max_retries_down,
+            name=health_monitor.name or "",
+        )
+        health_monitor.backend_id = backend_health_monitor.id
+        health_monitor.save()
+        self.connection.wait_for_load_balancer(load_balancer_backend_id)
+        self.pull_health_monitor(health_monitor)
+
+    def delete_health_monitor(self, health_monitor: models.HealthMonitor):
+        load_balancer_backend_id = health_monitor.pool.load_balancer.backend_id
+        self.connection.delete_health_monitor(health_monitor.backend_id)
+        self.connection.wait_for_load_balancer(load_balancer_backend_id)
+
+    def update_health_monitor(self, health_monitor: models.HealthMonitor):
+        load_balancer_backend_id = health_monitor.pool.load_balancer.backend_id
+        self.connection.update_health_monitor(
+            health_monitor.backend_id,
+            name=health_monitor.name,
+            delay=health_monitor.delay,
+            timeout=health_monitor.timeout,
+            max_retries=health_monitor.max_retries,
+            max_retries_down=health_monitor.max_retries_down,
+        )
+        self.connection.wait_for_load_balancer(load_balancer_backend_id)
+        self.pull_health_monitor(health_monitor)
+
+    def pull_health_monitor(self, health_monitor: models.HealthMonitor):
+        if not health_monitor.backend_id:
+            return
+        try:
+            backend_health_monitor = self.connection.get_health_monitor(
+                health_monitor.backend_id
+            )
+        except openstack_exceptions.NotFoundException:
+            health_monitor.error_message = "Health monitor not found in backend"
+            health_monitor.save(update_fields=["error_message"])
+            return
+        self._backend_health_monitor_to_health_monitor(
+            backend_health_monitor, health_monitor
+        )
+
+    def list_health_monitors_for_pool(self, pool_backend_id: str):
+        return list(self.connection.health_monitors(pool_id=pool_backend_id))
+
+    def _backend_health_monitor_to_health_monitor(
+        self, backend_health_monitor, health_monitor: models.HealthMonitor
+    ):
+        health_monitor.backend_id = backend_health_monitor.id
+        health_monitor.provisioning_status = (
+            backend_health_monitor.provisioning_status or ""
+        )
+        health_monitor.operating_status = backend_health_monitor.operating_status or ""
+        backend_monitor_type = backend_health_monitor.type
+        if backend_monitor_type:
+            health_monitor.monitor_type = backend_monitor_type
+        health_monitor.delay = backend_health_monitor.delay or health_monitor.delay
+        health_monitor.timeout = (
+            backend_health_monitor.timeout or health_monitor.timeout
+        )
+        health_monitor.max_retries = (
+            backend_health_monitor.max_retries
+            if backend_health_monitor.max_retries is not None
+            else health_monitor.max_retries
+        )
+        health_monitor.max_retries_down = (
+            backend_health_monitor.max_retries_down
+            if backend_health_monitor.max_retries_down is not None
+            else health_monitor.max_retries_down
+        )
+        health_monitor.error_message = ""
+        health_monitor.error_traceback = ""
+        health_monitor.save(
+            update_fields=[
+                "backend_id",
+                "provisioning_status",
+                "operating_status",
+                "monitor_type",
+                "delay",
+                "timeout",
+                "max_retries",
+                "max_retries_down",
+                "error_message",
+                "error_traceback",
+            ]
+        )

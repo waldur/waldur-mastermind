@@ -84,7 +84,7 @@ ServiceSettings credentials
 | Cinder | `cinderclient` | v3 |
 | Glance | `glanceclient` | v2 |
 | Neutron | `neutronclient` | v2.0 |
-| Octavia (Load Balancer) | REST via keystoneauth session | v2 |
+| Octavia (Load Balancer) | `openstacksdk` | v2 |
 
 Only the Keystone endpoint needs to be configured explicitly; all other service endpoints are discovered automatically from the Keystone service catalog.
 
@@ -170,12 +170,12 @@ Only the Keystone endpoint needs to be configured explicitly; all other service 
 | Set Gateway | Configure external gateway | `POST /api/openstack-routers/{uuid}/set_gateway/` |
 | **Load Balancers** (Octavia LBaaS) | | |
 | List Load Balancers | Get load balancers | `GET /api/openstack-loadbalancers/` |
-| Create Load Balancer | Create Octavia OVN LB | `POST /api/openstack-loadbalancers/` |
+| Create Load Balancer | Create Octavia load balancer | `POST /api/openstack-loadbalancers/` |
 | Update Load Balancer | Update load balancer name | `PATCH /api/openstack-loadbalancers/{uuid}/` |
 | Delete Load Balancer | Remove load balancer | `DELETE /api/openstack-loadbalancers/{uuid}/` |
 | Attach Floating IP | Attach floating IP to VIP port | `POST /api/openstack-loadbalancers/{uuid}/attach_floating_ip/` |
 | Detach Floating IP | Detach floating IP from VIP port | `POST /api/openstack-loadbalancers/{uuid}/detach_floating_ip/` |
-| Update VIP Security Groups | Set security groups on VIP port | `POST /api/openstack-loadbalancers/{uuid}/update_vip_security_groups/` |
+| Unlink Load Balancer | Remove DB record without touching backend (staff-only) | `POST /api/openstack-loadbalancers/{uuid}/unlink/` |
 | **Pools** (LB backend pools) | | |
 | List Pools | Get load balancer pools | `GET /api/openstack-pools/` |
 | Create Pool | Create backend pool | `POST /api/openstack-pools/` |
@@ -221,6 +221,117 @@ Only the Keystone endpoint needs to be configured explicitly; all other service 
 | **External Networks** | | |
 | List External Networks | Get provider-level external networks with subnets | `GET /api/openstack-external-networks/` |
 | Get External Network | Retrieve external network details | `GET /api/openstack-external-networks/{uuid}/` |
+
+### Load Balancer Synchronization (Octavia LBaaS)
+
+> **Note**: Waldur currently supports only the **OVN** Octavia provider. This imposes the following constraints:
+>
+> - Pool and Listener **protocols**: `TCP` and `UDP` only.
+> - Pool **load balancing algorithm**: `SOURCE_IP_PORT` only (OVN does not support `ROUND_ROBIN` or `LEAST_CONNECTIONS`).
+> - Health Monitor **type**: `TCP` and `UDP` only.
+>
+> Support for other providers (Amphora, etc.) is not tested and may not work correctly.
+
+Waldur synchronizes load balancers with OpenStack Octavia using the `openstacksdk` library. The Octavia client (`OctaviaClient`) is instantiated per tenant and manages the full lifecycle of all LBaaS resources.
+
+#### Enabling LBaaS
+
+Set `lbaas_enabled: true` in `plugin_options` on the **OpenStack.Tenant** marketplace offering. This flag controls whether the LBaaS quota component is exposed to users.
+
+#### Tenant-Level Sync (`pull_tenant_load_balancers`)
+
+The periodic sync task discovers all Octavia load balancers for a tenant and reconciles them with Waldur:
+
+- **Existing load balancers** (matched by `backend_id`): updated in-place by `_backend_load_balancer_to_load_balancer`.
+- **New load balancers** (not yet in Waldur): a local `LoadBalancer` record is created. The VIP subnet must already exist as a Waldur `SubNet` object for the tenant; load balancers whose VIP subnet is unknown are skipped with a warning.
+- **Stale load balancers** (removed from Octavia): the corresponding Waldur records are deleted.
+
+#### VIP Port and Floating IP Auto-Detection
+
+When a load balancer is synced from Octavia, Waldur automatically resolves the Neutron VIP port:
+
+1. The `vip_port_id` returned by Octavia is looked up in Waldur's local `Port` objects for the tenant.
+2. If the port is not yet in Waldur, it is fetched from Neutron and created via `import_port_from_neutron_by_id`.
+
+The `vip_port` and `attached_floating_ip` fields are always read-only and derived — they are never set by the user directly.
+
+#### Publishing a Load Balancer (Floating IP)
+
+To make a load balancer publicly accessible, attach a previously allocated floating IP to it:
+
+```
+POST /api/openstack-loadbalancers/{uuid}/attach_floating_ip/
+```
+
+The floating IP must be allocated beforehand (`POST /api/openstack-floating-ips/`). Waldur associates it with the `vip_port` of the load balancer via the Neutron API. To detach:
+
+```
+POST /api/openstack-loadbalancers/{uuid}/detach_floating_ip/
+```
+
+After attach or detach the `attached_floating_ip` field on the load balancer is updated automatically on the next sync.
+
+#### Managing Security Groups on the VIP Port
+
+Security groups on the VIP port are managed through the standard port endpoint. Retrieve the `vip_port` URL from the load balancer response, then update the port:
+
+```
+PATCH /api/openstack-ports/{uuid}/
+```
+
+This replaces the previously available `update_vip_security_groups` action, which has been removed.
+
+#### Creating a Load Balancer
+
+The `vip_subnet` field accepts a **URL reference** to an existing Waldur `SubNet` object (not a raw Neutron UUID string). The subnet must belong to the selected tenant and must already be provisioned in the backend. The Octavia provider defaults to `ovn`; currently only the OVN provider is supported.
+
+#### Creating a Pool
+
+Required fields: `load_balancer`, `name`, `protocol` (`TCP` or `UDP`). The load balancing algorithm is fixed to `SOURCE_IP_PORT` and cannot be changed (OVN limitation).
+
+#### Creating a Listener
+
+Required fields: `load_balancer`, `protocol` (`TCP` or `UDP`), `protocol_port` (1–65535). The optional `default_pool` field links the listener to a pool.
+
+#### Creating a Health Monitor
+
+One health monitor per pool. Required fields: `pool`, `type` (`TCP` or `UDP`). Optional fields with defaults: `delay` (5 s), `timeout` (5 s), `max_retries` (3), `max_retries_down` (3).
+
+#### Pool Members
+
+The `subnet` field accepts a URL reference to a Waldur `SubNet` object. The subnet must belong to the same tenant as the load balancer.
+
+#### Background Synchronization
+
+All LBaaS resources are synced as part of the **`TenantSubresourcesPullTask`** which runs every **2 hours**. The following backend methods are called in sequence for each tenant:
+
+| Method | Syncs |
+|--------|-------|
+| `pull_tenant_load_balancers` | Load balancers, VIP ports, attached floating IPs |
+| `pull_tenant_pools` | Backend pools |
+| `pull_tenant_pool_members` | Pool members |
+| `pull_tenant_healthmonitors` | Health monitors |
+| `pull_tenant_listeners` | Listeners and their default pool links |
+
+Individual resources can also be synced on demand via `POST /api/openstack-{resource}/{uuid}/pull/`.
+
+#### LBaaS API Endpoints Summary
+
+| Resource | List | Create | Update | Delete |
+|----------|------|--------|--------|--------|
+| Load Balancers | `GET /api/openstack-loadbalancers/` | `POST /api/openstack-loadbalancers/` | `PATCH /api/openstack-loadbalancers/{uuid}/` | `DELETE /api/openstack-loadbalancers/{uuid}/` |
+| Pools | `GET /api/openstack-pools/` | `POST /api/openstack-pools/` | `PATCH /api/openstack-pools/{uuid}/` | `DELETE /api/openstack-pools/{uuid}/` |
+| Pool Members | `GET /api/openstack-pool-members/` | `POST /api/openstack-pool-members/` | `PATCH /api/openstack-pool-members/{uuid}/` | `DELETE /api/openstack-pool-members/{uuid}/` |
+| Listeners | `GET /api/openstack-listeners/` | `POST /api/openstack-listeners/` | `PATCH /api/openstack-listeners/{uuid}/` | `DELETE /api/openstack-listeners/{uuid}/` |
+| Health Monitors | `GET /api/openstack-health-monitors/` | `POST /api/openstack-health-monitors/` | `PATCH /api/openstack-health-monitors/{uuid}/` | `DELETE /api/openstack-health-monitors/{uuid}/` |
+
+Additional actions available on load balancers:
+
+| Action | Endpoint |
+|--------|----------|
+| Attach floating IP | `POST /api/openstack-loadbalancers/{uuid}/attach_floating_ip/` |
+| Detach floating IP | `POST /api/openstack-loadbalancers/{uuid}/detach_floating_ip/` |
+| Pull (sync from backend) | `POST /api/openstack-loadbalancers/{uuid}/pull/` |
 
 ### External Networks
 
@@ -542,7 +653,7 @@ To set up an OpenStack provider, create a Marketplace offering of type `OpenStac
 | `access_url` | options | Horizon dashboard URL for user links | Generated from backend_url |
 | `verify_ssl` | options | Verify SSL certificates | `true` |
 | `availability_zone` | options | Default availability zone | `nova` |
-| `lbaas_enabled` | options | Enable Octavia LBaaS (load balancers) for this provider | `false` |
+| `lbaas_enabled` | plugin_options | Enable Octavia LBaaS for the marketplace **OpenStack.Tenant** offering | `false` |
 | `storage_mode` | plugin_options | Storage quota mode (`fixed` or `dynamic`) | `fixed` |
 
 #### Using Application Credentials

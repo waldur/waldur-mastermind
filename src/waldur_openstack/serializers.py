@@ -2219,8 +2219,18 @@ class OpenStackLoadBalancerSerializer(structure_serializers.BaseResourceSerializ
     tenant_name = serializers.CharField(source="tenant.name", read_only=True)
     tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
     vip_address = serializers.IPAddressField(read_only=True)
-    vip_subnet_id = serializers.CharField(read_only=True)
-    vip_port_id = serializers.CharField(read_only=True)
+    vip_subnet = serializers.HyperlinkedRelatedField(
+        view_name="openstack-subnet-detail",
+        lookup_field="uuid",
+        read_only=True,
+        allow_null=True,
+    )
+    vip_port = serializers.HyperlinkedRelatedField(
+        view_name="openstack-port-detail",
+        lookup_field="uuid",
+        read_only=True,
+        allow_null=True,
+    )
     provider = serializers.CharField(read_only=True)
     provisioning_status = serializers.CharField(read_only=True)
     operating_status = serializers.CharField(read_only=True)
@@ -2232,8 +2242,8 @@ class OpenStackLoadBalancerSerializer(structure_serializers.BaseResourceSerializ
             "tenant_name",
             "tenant_uuid",
             "vip_address",
-            "vip_subnet_id",
-            "vip_port_id",
+            "vip_subnet",
+            "vip_port",
             "attached_floating_ip",
             "provider",
             "provisioning_status",
@@ -2257,43 +2267,16 @@ class LoadBalancerAttachFloatingIPSerializer(serializers.Serializer):
     )
 
 
-class LoadBalancerUpdateVIPSecurityGroupsSerializer(serializers.Serializer):
-    security_groups = serializers.ListField(
-        child=serializers.HyperlinkedRelatedField(
-            view_name="openstack-sgp-detail",
-            lookup_field="uuid",
-            queryset=models.SecurityGroup.objects.all(),
-        )
+class LoadBalancerAsyncOperationResponseSerializer(serializers.Serializer):
+    """Response body when a load balancer backend operation is accepted (HTTP 202)."""
+
+    status = serializers.CharField(
+        help_text="Message that execution of the operation was scheduled.",
     )
 
-    def validate_security_groups(self, security_groups):
-        load_balancer = self.context.get("view").get_object()
-        for sg in security_groups:
-            if sg.tenant != load_balancer.tenant:
-                raise serializers.ValidationError(
-                    f"Security group {sg.name} must belong to the same tenant "
-                    "as the load balancer."
-                )
-            if not sg.backend_id:
-                raise serializers.ValidationError(
-                    f"Security group {sg.name} must be provisioned in the backend."
-                )
-        return security_groups
 
-
-class CreateLoadBalancerSerializer(serializers.HyperlinkedModelSerializer):
+class LoadBalancerWritableSerializer(serializers.HyperlinkedModelSerializer):
     name = serializers.CharField()
-    vip_subnet_id = serializers.CharField(required=True)
-    project = serializers.HyperlinkedRelatedField(
-        view_name="project-detail",
-        lookup_field="uuid",
-        read_only=True,
-    )
-    service_settings = serializers.HyperlinkedRelatedField(
-        view_name="servicesettings-detail",
-        lookup_field="uuid",
-        read_only=True,
-    )
     uuid = serializers.UUIDField(read_only=True)
     url = serializers.HyperlinkedIdentityField(
         view_name="openstack-loadbalancer-detail", lookup_field="uuid"
@@ -2304,11 +2287,27 @@ class CreateLoadBalancerSerializer(serializers.HyperlinkedModelSerializer):
         fields = (
             "url",
             "uuid",
-            "tenant",
             "name",
-            "vip_subnet_id",
-            "project",
-            "service_settings",
+        )
+
+
+class UpdateLoadBalancerSerializer(LoadBalancerWritableSerializer):
+    pass
+
+
+class CreateLoadBalancerSerializer(LoadBalancerWritableSerializer):
+    name = serializers.CharField()
+    vip_subnet = serializers.HyperlinkedRelatedField(
+        view_name="openstack-subnet-detail",
+        lookup_field="uuid",
+        queryset=models.SubNet.objects.all(),
+        required=True,
+    )
+
+    class Meta(LoadBalancerWritableSerializer.Meta):
+        fields = LoadBalancerWritableSerializer.Meta.fields + (
+            "tenant",
+            "vip_subnet",
         )
         extra_kwargs = dict(
             tenant={"lookup_field": "uuid", "view_name": "openstack-tenant-detail"},
@@ -2331,20 +2330,26 @@ class CreateLoadBalancerSerializer(serializers.HyperlinkedModelSerializer):
                 "Load balancer can be created only for tenant in OK state."
             )
 
-        if not tenant.service_settings.options.get("lbaas_enabled", False):
-            raise serializers.ValidationError(
-                "LBaaS is not enabled for this OpenStack service. "
-                "Contact your administrator to enable it."
-            )
-
         return tenant
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
         tenant = attrs.get("tenant")
+        subnet = attrs["vip_subnet"]
+        if subnet.tenant_id != tenant.id:
+            raise serializers.ValidationError(
+                {"vip_subnet": _("Subnet must belong to the selected tenant.")}
+            )
+        if not subnet.backend_id:
+            raise serializers.ValidationError(
+                {
+                    "vip_subnet": _(
+                        "Subnet must be provisioned in the backend before creating a load balancer."
+                    )
+                }
+            )
         attrs["project"] = tenant.project
         attrs["service_settings"] = tenant.service_settings
-        attrs["provider"] = "ovn"
         return attrs
 
 
@@ -2380,31 +2385,30 @@ class OpenStackPoolSerializer(structure_serializers.BaseResourceSerializer):
         )
 
 
-POOL_PROTOCOL_CHOICES = [("TCP", "TCP"), ("UDP", "UDP")]
-LB_ALGORITHM_CHOICES = [
-    ("ROUND_ROBIN", "Round Robin"),
-    ("LEAST_CONNECTIONS", "Least Connections"),
-    ("SOURCE_IP", "Source IP"),
-    ("SOURCE_IP_PORT", "Source IP Port"),
-]
+def _validate_load_balancer(load_balancer, user):
+    if not (
+        user.is_staff
+        or load_balancer.project.customer.has_user(user, CustomerRole.OWNER)
+        or load_balancer.project.has_user(user, ProjectRole.ADMIN)
+        or load_balancer.project.has_user(user, ProjectRole.MANAGER)
+    ):
+        raise serializers.ValidationError(
+            "You do not have permission to create pool for this load balancer."
+        )
+
+    if load_balancer.state != CoreStates.OK:
+        raise serializers.ValidationError(
+            "Pool can be created only for load balancer in OK state."
+        )
+
+    if not load_balancer.backend_id:
+        raise serializers.ValidationError(
+            "Load balancer must be provisioned in the backend before creating a pool."
+        )
 
 
-class CreatePoolSerializer(serializers.HyperlinkedModelSerializer):
+class PoolWritableSerializer(serializers.HyperlinkedModelSerializer):
     name = serializers.CharField()
-    protocol = serializers.ChoiceField(choices=POOL_PROTOCOL_CHOICES)
-    lb_algorithm = serializers.ChoiceField(
-        choices=LB_ALGORITHM_CHOICES, default="SOURCE_IP_PORT", required=False
-    )
-    project = serializers.HyperlinkedRelatedField(
-        view_name="project-detail",
-        lookup_field="uuid",
-        read_only=True,
-    )
-    service_settings = serializers.HyperlinkedRelatedField(
-        view_name="servicesettings-detail",
-        lookup_field="uuid",
-        read_only=True,
-    )
     uuid = serializers.UUIDField(read_only=True)
     url = serializers.HyperlinkedIdentityField(
         view_name="openstack-pool-detail", lookup_field="uuid"
@@ -2415,12 +2419,21 @@ class CreatePoolSerializer(serializers.HyperlinkedModelSerializer):
         fields = (
             "url",
             "uuid",
-            "load_balancer",
             "name",
+        )
+
+
+class UpdatePoolSerializer(PoolWritableSerializer):
+    pass
+
+
+class CreatePoolSerializer(PoolWritableSerializer):
+    protocol = serializers.ChoiceField(choices=models.PROTOCOL_CHOICES)
+
+    class Meta(PoolWritableSerializer.Meta):
+        fields = PoolWritableSerializer.Meta.fields + (
+            "load_balancer",
             "protocol",
-            "lb_algorithm",
-            "project",
-            "service_settings",
         )
         extra_kwargs = dict(
             load_balancer={
@@ -2431,34 +2444,7 @@ class CreatePoolSerializer(serializers.HyperlinkedModelSerializer):
 
     def validate_load_balancer(self, load_balancer):
         user = self.context["request"].user
-        if not (
-            user.is_staff
-            or load_balancer.project.customer.has_user(user, CustomerRole.OWNER)
-            or load_balancer.project.has_user(user, ProjectRole.ADMIN)
-            or load_balancer.project.has_user(user, ProjectRole.MANAGER)
-        ):
-            raise serializers.ValidationError(
-                "You do not have permission to create pool for this load balancer."
-            )
-
-        if load_balancer.state != CoreStates.OK:
-            raise serializers.ValidationError(
-                "Pool can be created only for load balancer in OK state."
-            )
-
-        if not load_balancer.backend_id:
-            raise serializers.ValidationError(
-                "Load balancer must be provisioned in the backend before creating a pool."
-            )
-
-        if not load_balancer.tenant.service_settings.options.get(
-            "lbaas_enabled", False
-        ):
-            raise serializers.ValidationError(
-                "LBaaS is not enabled for this OpenStack service. "
-                "Contact your administrator to enable it."
-            )
-
+        _validate_load_balancer(load_balancer, user)
         return load_balancer
 
     def validate(self, attrs):
@@ -2506,112 +2492,7 @@ class OpenStackListenerSerializer(structure_serializers.BaseResourceSerializer):
         )
 
 
-LISTENER_PROTOCOL_CHOICES = [("TCP", "TCP"), ("UDP", "UDP")]
-
-
-class CreateListenerSerializer(serializers.HyperlinkedModelSerializer):
-    name = serializers.CharField()
-    protocol = serializers.ChoiceField(choices=LISTENER_PROTOCOL_CHOICES)
-    protocol_port = serializers.IntegerField(
-        min_value=1, max_value=65535, help_text="Port on which the listener listens"
-    )
-    default_pool = serializers.HyperlinkedRelatedField(
-        view_name="openstack-pool-detail",
-        lookup_field="uuid",
-        queryset=models.Pool.objects.all(),
-        required=False,
-        allow_null=True,
-    )
-    project = serializers.HyperlinkedRelatedField(
-        view_name="project-detail",
-        lookup_field="uuid",
-        read_only=True,
-    )
-    service_settings = serializers.HyperlinkedRelatedField(
-        view_name="servicesettings-detail",
-        lookup_field="uuid",
-        read_only=True,
-    )
-    uuid = serializers.UUIDField(read_only=True)
-    url = serializers.HyperlinkedIdentityField(
-        view_name="openstack-listener-detail", lookup_field="uuid"
-    )
-
-    class Meta:
-        model = models.Listener
-        fields = (
-            "url",
-            "uuid",
-            "load_balancer",
-            "name",
-            "protocol",
-            "protocol_port",
-            "default_pool",
-            "project",
-            "service_settings",
-        )
-        extra_kwargs = dict(
-            load_balancer={
-                "lookup_field": "uuid",
-                "view_name": "openstack-loadbalancer-detail",
-            },
-        )
-
-    def validate_load_balancer(self, load_balancer):
-        user = self.context["request"].user
-        if not (
-            user.is_staff
-            or load_balancer.project.customer.has_user(user, CustomerRole.OWNER)
-            or load_balancer.project.has_user(user, ProjectRole.ADMIN)
-            or load_balancer.project.has_user(user, ProjectRole.MANAGER)
-        ):
-            raise serializers.ValidationError(
-                "You do not have permission to create listener for this load balancer."
-            )
-
-        if load_balancer.state != CoreStates.OK:
-            raise serializers.ValidationError(
-                "Listener can be created only for load balancer in OK state."
-            )
-
-        if not load_balancer.backend_id:
-            raise serializers.ValidationError(
-                "Load balancer must be provisioned in the backend before creating a listener."
-            )
-
-        if not load_balancer.tenant.service_settings.options.get(
-            "lbaas_enabled", False
-        ):
-            raise serializers.ValidationError(
-                "LBaaS is not enabled for this OpenStack service. "
-                "Contact your administrator to enable it."
-            )
-
-        return load_balancer
-
-    def validate(self, attrs):
-        attrs = super().validate(attrs)
-        load_balancer = attrs["load_balancer"]
-        attrs["project"] = load_balancer.project
-        attrs["service_settings"] = load_balancer.service_settings
-        default_pool = attrs.get("default_pool")
-        if default_pool:
-            if default_pool.load_balancer_id != load_balancer.id:
-                raise serializers.ValidationError(
-                    {
-                        "default_pool": "Default pool must belong to the same load balancer."
-                    }
-                )
-            if not default_pool.backend_id:
-                raise serializers.ValidationError(
-                    {"default_pool": "Default pool must be provisioned in the backend."}
-                )
-        return attrs
-
-
-class UpdateListenerSerializer(serializers.HyperlinkedModelSerializer):
-    """Serializer for listener update - allows name and default_pool only."""
-
+class ListenerWritableSerializer(serializers.HyperlinkedModelSerializer):
     name = serializers.CharField(required=False)
     default_pool = serializers.HyperlinkedRelatedField(
         view_name="openstack-pool-detail",
@@ -2631,19 +2512,79 @@ class UpdateListenerSerializer(serializers.HyperlinkedModelSerializer):
             },
         )
 
-    def validate_default_pool(self, default_pool):
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if "default_pool" not in attrs:
+            return attrs
+        default_pool = attrs["default_pool"]
+
         if default_pool is None:
-            return default_pool
-        listener = self.instance
-        if default_pool.load_balancer_id != listener.load_balancer_id:
+            return attrs
+
+        if self.instance is not None:
+            load_balancer = self.instance.load_balancer
+        else:
+            load_balancer = attrs.get("load_balancer")
+
+        if default_pool.load_balancer_id != load_balancer.id:
             raise serializers.ValidationError(
-                "Default pool must belong to the same load balancer."
+                {
+                    "default_pool": _(
+                        "Default pool must belong to the same load balancer."
+                    )
+                }
             )
+
         if not default_pool.backend_id:
             raise serializers.ValidationError(
-                "Default pool must be provisioned in the backend."
+                {"default_pool": _("Default pool must be provisioned in the backend.")}
             )
-        return default_pool
+
+        return attrs
+
+
+class UpdateListenerSerializer(ListenerWritableSerializer):
+    pass
+
+
+class CreateListenerSerializer(ListenerWritableSerializer):
+    protocol = serializers.ChoiceField(choices=models.PROTOCOL_CHOICES)
+    protocol_port = serializers.IntegerField(
+        min_value=1, max_value=65535, help_text="Port on which the listener listens"
+    )
+    uuid = serializers.UUIDField(read_only=True)
+    url = serializers.HyperlinkedIdentityField(
+        view_name="openstack-listener-detail", lookup_field="uuid"
+    )
+
+    class Meta(ListenerWritableSerializer.Meta):
+        fields = ListenerWritableSerializer.Meta.fields + (
+            "url",
+            "uuid",
+            "load_balancer",
+            "protocol",
+            "protocol_port",
+        )
+
+        extra_kwargs = {
+            **ListenerWritableSerializer.Meta.extra_kwargs,
+            "load_balancer": {
+                "lookup_field": "uuid",
+                "view_name": "openstack-loadbalancer-detail",
+            },
+        }
+
+    def validate_load_balancer(self, load_balancer):
+        user = self.context["request"].user
+        _validate_load_balancer(load_balancer, user)
+        return load_balancer
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        load_balancer = attrs["load_balancer"]
+        attrs["project"] = load_balancer.project
+        attrs["service_settings"] = load_balancer.service_settings
+        return attrs
 
 
 class OpenStackPoolMemberSerializer(structure_serializers.BaseResourceSerializer):
@@ -2654,6 +2595,12 @@ class OpenStackPoolMemberSerializer(structure_serializers.BaseResourceSerializer
     )
     address = serializers.IPAddressField(read_only=True)
     protocol_port = serializers.IntegerField(read_only=True)
+    subnet = serializers.HyperlinkedRelatedField(
+        view_name="openstack-subnet-detail",
+        lookup_field="uuid",
+        read_only=True,
+        allow_null=True,
+    )
     weight = serializers.IntegerField(read_only=True)
     provisioning_status = serializers.CharField(read_only=True)
     operating_status = serializers.CharField(read_only=True)
@@ -2667,7 +2614,7 @@ class OpenStackPoolMemberSerializer(structure_serializers.BaseResourceSerializer
             "load_balancer_uuid",
             "address",
             "protocol_port",
-            "subnet_id",
+            "subnet",
             "weight",
             "provisioning_status",
             "operating_status",
@@ -2684,27 +2631,10 @@ class OpenStackPoolMemberSerializer(structure_serializers.BaseResourceSerializer
         )
 
 
-class CreatePoolMemberSerializer(serializers.HyperlinkedModelSerializer):
+class PoolMemberWritingSerializer(serializers.HyperlinkedModelSerializer):
     name = serializers.CharField(required=False, allow_blank=True)
-    address = serializers.IPAddressField()
-    protocol_port = serializers.IntegerField(
-        min_value=1,
-        max_value=65535,
-        help_text="Port on the backend server",
-    )
-    subnet_id = serializers.CharField(required=True)
     weight = serializers.IntegerField(
         min_value=1, max_value=256, default=1, required=False
-    )
-    project = serializers.HyperlinkedRelatedField(
-        view_name="project-detail",
-        lookup_field="uuid",
-        read_only=True,
-    )
-    service_settings = serializers.HyperlinkedRelatedField(
-        view_name="servicesettings-detail",
-        lookup_field="uuid",
-        read_only=True,
     )
     uuid = serializers.UUIDField(read_only=True)
     url = serializers.HyperlinkedIdentityField(
@@ -2716,14 +2646,35 @@ class CreatePoolMemberSerializer(serializers.HyperlinkedModelSerializer):
         fields = (
             "url",
             "uuid",
-            "pool",
             "name",
+            "weight",
+        )
+
+
+class UpdatePoolMemberSerializer(PoolMemberWritingSerializer):
+    pass
+
+
+class CreatePoolMemberSerializer(PoolMemberWritingSerializer):
+    address = serializers.IPAddressField()
+    protocol_port = serializers.IntegerField(
+        min_value=1,
+        max_value=65535,
+        help_text="Port on the backend server",
+    )
+    subnet = serializers.HyperlinkedRelatedField(
+        view_name="openstack-subnet-detail",
+        lookup_field="uuid",
+        queryset=models.SubNet.objects.all(),
+        required=True,
+    )
+
+    class Meta(PoolMemberWritingSerializer.Meta):
+        fields = PoolMemberWritingSerializer.Meta.fields + (
+            "pool",
             "address",
             "protocol_port",
-            "subnet_id",
-            "weight",
-            "project",
-            "service_settings",
+            "subnet",
         )
         extra_kwargs = dict(
             pool={
@@ -2754,36 +2705,30 @@ class CreatePoolMemberSerializer(serializers.HyperlinkedModelSerializer):
                 "Pool must be provisioned in the backend before creating a member."
             )
 
-        if not pool.load_balancer.tenant.service_settings.options.get(
-            "lbaas_enabled", False
-        ):
-            raise serializers.ValidationError(
-                "LBaaS is not enabled for this OpenStack service. "
-                "Contact your administrator to enable it."
-            )
-
         return pool
+
+    def validate_subnet(self, subnet):
+        if not subnet.backend_id:
+            raise serializers.ValidationError(
+                _("Subnet must be provisioned in the backend before creating a member.")
+            )
+        return subnet
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
         pool = attrs["pool"]
+        subnet = attrs["subnet"]
+        if subnet.tenant_id != pool.load_balancer.tenant_id:
+            raise serializers.ValidationError(
+                {
+                    "subnet": _(
+                        "Subnet must belong to the same tenant as the load balancer."
+                    )
+                }
+            )
         attrs["project"] = pool.project
         attrs["service_settings"] = pool.service_settings
         return attrs
-
-
-class UpdatePoolMemberSerializer(serializers.HyperlinkedModelSerializer):
-    """Serializer for pool member update - allows name and weight only."""
-
-    name = serializers.CharField(required=False, allow_blank=True)
-    weight = serializers.IntegerField(min_value=1, max_value=256, required=False)
-
-    class Meta:
-        model = models.PoolMember
-        fields = ("name", "weight")
-
-
-HEALTHMONITOR_TYPE_CHOICES = [("TCP", "TCP"), ("UDP", "UDP")]
 
 
 class OpenStackHealthMonitorSerializer(structure_serializers.BaseResourceSerializer):
@@ -2825,37 +2770,29 @@ class OpenStackHealthMonitorSerializer(structure_serializers.BaseResourceSeriali
         )
 
 
-class CreateHealthMonitorSerializer(serializers.HyperlinkedModelSerializer):
-    name = serializers.CharField(required=False, allow_blank=True)
-    type = serializers.ChoiceField(
-        choices=HEALTHMONITOR_TYPE_CHOICES, source="monitor_type"
+class HealthMonitorWritableSerializer(serializers.HyperlinkedModelSerializer):
+    uuid = serializers.UUIDField(read_only=True)
+    url = serializers.HyperlinkedIdentityField(
+        view_name="openstack-healthmonitor-detail", lookup_field="uuid"
     )
+    name = serializers.CharField(required=False, allow_blank=True)
     delay = serializers.IntegerField(
         min_value=1,
         help_text="Interval between health checks in seconds",
+        default=5,
     )
     timeout = serializers.IntegerField(
-        min_value=1,
-        help_text="Time in seconds to timeout a health check",
+        min_value=1, help_text="Time in seconds to timeout a health check", default=5
     )
     max_retries = serializers.IntegerField(
         min_value=1,
         max_value=10,
-        help_text="Number of retries before marking member as down",
+        default=3,
     )
-    project = serializers.HyperlinkedRelatedField(
-        view_name="project-detail",
-        lookup_field="uuid",
-        read_only=True,
-    )
-    service_settings = serializers.HyperlinkedRelatedField(
-        view_name="servicesettings-detail",
-        lookup_field="uuid",
-        read_only=True,
-    )
-    uuid = serializers.UUIDField(read_only=True)
-    url = serializers.HyperlinkedIdentityField(
-        view_name="openstack-healthmonitor-detail", lookup_field="uuid"
+    max_retries_down = serializers.IntegerField(
+        min_value=1,
+        max_value=10,
+        default=3,
     )
 
     class Meta:
@@ -2863,14 +2800,27 @@ class CreateHealthMonitorSerializer(serializers.HyperlinkedModelSerializer):
         fields = (
             "url",
             "uuid",
-            "pool",
             "name",
-            "type",
             "delay",
             "timeout",
             "max_retries",
-            "project",
-            "service_settings",
+            "max_retries_down",
+        )
+
+
+class UpdateHealthMonitorSerializer(HealthMonitorWritableSerializer):
+    pass
+
+
+class CreateHealthMonitorSerializer(HealthMonitorWritableSerializer):
+    type = serializers.ChoiceField(
+        choices=models.HEALTHMONITOR_TYPE_CHOICES, source="monitor_type"
+    )
+
+    class Meta(HealthMonitorWritableSerializer.Meta):
+        fields = HealthMonitorWritableSerializer.Meta.fields + (
+            "pool",
+            "type",
         )
         extra_kwargs = dict(
             pool={
@@ -2901,14 +2851,6 @@ class CreateHealthMonitorSerializer(serializers.HyperlinkedModelSerializer):
                 "Pool must be provisioned in the backend before creating a health monitor."
             )
 
-        if not pool.load_balancer.tenant.service_settings.options.get(
-            "lbaas_enabled", False
-        ):
-            raise serializers.ValidationError(
-                "LBaaS is not enabled for this OpenStack service. "
-                "Contact your administrator to enable it."
-            )
-
         if models.HealthMonitor.objects.filter(pool=pool).exists():
             raise serializers.ValidationError("Pool already has a health monitor.")
 
@@ -2920,19 +2862,6 @@ class CreateHealthMonitorSerializer(serializers.HyperlinkedModelSerializer):
         attrs["project"] = pool.project
         attrs["service_settings"] = pool.service_settings
         return attrs
-
-
-class UpdateHealthMonitorSerializer(serializers.HyperlinkedModelSerializer):
-    """Serializer for health monitor update - allows name, delay, timeout, max_retries."""
-
-    name = serializers.CharField(required=False, allow_blank=True)
-    delay = serializers.IntegerField(min_value=1, required=False)
-    timeout = serializers.IntegerField(min_value=1, required=False)
-    max_retries = serializers.IntegerField(min_value=1, max_value=10, required=False)
-
-    class Meta:
-        model = models.HealthMonitor
-        fields = ("name", "delay", "timeout", "max_retries")
 
 
 class CreateRouterSerializer(serializers.HyperlinkedModelSerializer):
