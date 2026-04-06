@@ -1721,3 +1721,180 @@ class CustomerDescriptionTest(BaseCustomerMutationTest):
 
         with self.assertRaises(ValidationError):
             customer.full_clean()
+
+
+class CustomerAddressFieldsTest(BaseCustomerMutationTest):
+    """Test cases for the Customer address fields functionality."""
+
+    def test_address_fields_are_visible_in_get_response(self):
+        """Test that all address fields are visible in GET response."""
+        customer = factories.CustomerFactory(
+            city="Tallinn",
+            state="Harjumaa",
+            parish="Kesklinn",
+            street="Vabaduse väljak",
+            house_nr="10",
+            apartment_nr="5A",
+            household="Building A",
+        )
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        response = self.client.get(self._get_customer_url(customer))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("city", response.data)
+        self.assertIn("state", response.data)
+        self.assertIn("parish", response.data)
+        self.assertIn("street", response.data)
+        self.assertIn("house_nr", response.data)
+        self.assertIn("apartment_nr", response.data)
+        self.assertIn("household", response.data)
+        self.assertEqual(response.data["city"], "Tallinn")
+        self.assertEqual(response.data["state"], "Harjumaa")
+        self.assertEqual(response.data["parish"], "Kesklinn")
+        self.assertEqual(response.data["street"], "Vabaduse väljak")
+        self.assertEqual(response.data["house_nr"], "10")
+        self.assertEqual(response.data["apartment_nr"], "5A")
+        self.assertEqual(response.data["household"], "Building A")
+
+    def test_address_fields_are_updatable(self):
+        """Test that staff can update address fields."""
+        customer = factories.CustomerFactory()
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        payload = {
+            "city": "Tartu",
+            "state": "Tartumaa",
+            "parish": "Vanemuine",
+            "street": "Rüütli",
+            "house_nr": "23",
+            "apartment_nr": "1B",
+            "household": "Building C",
+        }
+
+        response = self.client.patch(self._get_customer_url(customer), payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["city"], "Tartu")
+        self.assertEqual(response.data["state"], "Tartumaa")
+        self.assertEqual(response.data["parish"], "Vanemuine")
+        self.assertEqual(response.data["street"], "Rüütli")
+        self.assertEqual(response.data["house_nr"], "23")
+        self.assertEqual(response.data["apartment_nr"], "1B")
+        self.assertEqual(response.data["household"], "Building C")
+
+        # Verify in database
+        customer.refresh_from_db()
+        self.assertEqual(customer.city, "Tartu")
+        self.assertEqual(customer.state, "Tartumaa")
+
+    def test_address_fields_can_be_blank(self):
+        """Test that address fields can be blank."""
+        customer = factories.CustomerFactory(
+            city="",
+            state="",
+            parish="",
+            street="",
+            house_nr="",
+            apartment_nr="",
+            household="",
+        )
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        response = self.client.get(self._get_customer_url(customer))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["city"], "")
+        self.assertEqual(response.data["state"], "")
+        self.assertEqual(response.data["parish"], "")
+        self.assertEqual(response.data["street"], "")
+        self.assertEqual(response.data["house_nr"], "")
+        self.assertEqual(response.data["apartment_nr"], "")
+        self.assertEqual(response.data["household"], "")
+
+    def test_update_individual_address_field(self):
+        """Test updating a single address field at a time."""
+        customer = factories.CustomerFactory(city="", state="")
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        # Update only city
+        response = self.client.patch(
+            self._get_customer_url(customer), {"city": "Tallinn"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["city"], "Tallinn")
+        self.assertEqual(response.data["state"], "")
+
+        # Update only state
+        response = self.client.patch(
+            self._get_customer_url(customer), {"state": "Harjumaa"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["city"], "Tallinn")
+        self.assertEqual(response.data["state"], "Harjumaa")
+
+    def test_create_customer_with_address_fields(self):
+        """Test creating a customer with address fields."""
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        payload = self._get_valid_payload()
+        payload.update(
+            {
+                "city": "Pärnu",
+                "state": "Pärnumaa",
+                "street": "Karja",
+                "house_nr": "14",
+            }
+        )
+
+        response = self.client.post(factories.CustomerFactory.get_list_url(), payload)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["city"], "Pärnu")
+        self.assertEqual(response.data["state"], "Pärnumaa")
+        self.assertEqual(response.data["street"], "Karja")
+        self.assertEqual(response.data["house_nr"], "14")
+
+        # Verify in database
+        customer = Customer.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(customer.city, "Pärnu")
+        self.assertEqual(customer.state, "Pärnumaa")
+
+    def test_address_fields_max_length(self):
+        """Test that address fields respect their maximum length."""
+        customer = factories.CustomerFactory()
+        self.client.force_authenticate(user=self.fixture.staff)
+
+        # city, state, parish, house_nr, apartment_nr are max_length=100
+        # street is max_length=200, household is max_length=100
+        test_cases = [
+            {"city": "A" * 100},  # Valid
+            {"state": "B" * 100},  # Valid
+            {"parish": "C" * 100},  # Valid
+            {"street": "D" * 200},  # Valid
+            {"house_nr": "E" * 100},  # Valid
+            {"apartment_nr": "F" * 100},  # Valid
+            {"household": "G" * 100},  # Valid
+        ]
+
+        for payload in test_cases:
+            response = self.client.patch(self._get_customer_url(customer), payload)
+            self.assertEqual(
+                response.status_code,
+                status.HTTP_200_OK,
+                f"Failed to update with payload: {payload}",
+            )
+
+    def test_owner_can_update_address_fields_with_permission(self):
+        """Test that owner can update address fields with UPDATE_CUSTOMER permission."""
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_CUSTOMER)
+        self.client.force_authenticate(user=self.fixture.owner)
+
+        response = self.client.patch(
+            self._get_customer_url(self.fixture.customer),
+            {"city": "Tallinn", "state": "Harjumaa"},
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["city"], "Tallinn")
+        self.assertEqual(response.data["state"], "Harjumaa")

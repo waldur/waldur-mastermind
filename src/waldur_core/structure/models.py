@@ -308,6 +308,13 @@ CUSTOMER_DETAILS_FIELDS = (
     "bank_account",
     "country",
     "notification_emails",
+    "city",
+    "state",
+    "parish",
+    "street",
+    "house_nr",
+    "apartment_nr",
+    "household",
 )
 
 
@@ -353,7 +360,28 @@ class AccessSubnet(core_models.UuidMixin, core_models.DescribableMixin, Loggable
         return "description", "inet", "customer"
 
 
-class CustomerDetailsMixin(core_models.NameMixin, VATMixin, CoordinatesMixin):
+class CustomerAddressDetailsMixin(models.Model):
+    """
+    Mixin contains customer address detail fields.
+    """
+
+    class Meta:
+        abstract = True
+
+    address = models.CharField(blank=True, max_length=300)
+    contact_details = models.TextField(blank=True, validators=[MaxLengthValidator(500)])
+    city = models.CharField(blank=True, max_length=100)
+    state = models.CharField(blank=True, max_length=100)
+    parish = models.CharField(blank=True, max_length=100)
+    street = models.CharField(blank=True, max_length=200)
+    house_nr = models.CharField(blank=True, max_length=100)
+    apartment_nr = models.CharField(blank=True, max_length=100)
+    household = models.CharField(blank=True, max_length=100)
+
+
+class CustomerDetailsMixin(
+    core_models.NameMixin, VATMixin, CoordinatesMixin, CustomerAddressDetailsMixin
+):
     """
     Mixin containing customer detail fields.
 
@@ -367,7 +395,6 @@ class CustomerDetailsMixin(core_models.NameMixin, VATMixin, CoordinatesMixin):
 
     native_name = models.CharField(max_length=160, default="", blank=True)
     abbreviation = models.CharField(max_length=12, blank=True)
-    contact_details = models.TextField(blank=True, validators=[MaxLengthValidator(500)])
 
     agreement_number = models.CharField(max_length=160, default="", blank=True)
     sponsor_number = models.PositiveIntegerField(
@@ -401,7 +428,6 @@ class CustomerDetailsMixin(core_models.NameMixin, VATMixin, CoordinatesMixin):
     homepage = models.URLField(max_length=255, blank=True)
     domain = models.CharField(max_length=255, blank=True)
 
-    address = models.CharField(blank=True, max_length=300)
     postal = models.CharField(blank=True, max_length=20)
     bank_name = models.CharField(blank=True, max_length=150)
     bank_account = models.CharField(blank=True, max_length=50)
