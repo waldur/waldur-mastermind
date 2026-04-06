@@ -9175,8 +9175,9 @@ class SwitchBillingModeSerializer(serializers.Serializer):
         choices=[
             ("monthly", "Monthly (Limit-based)"),
             ("prepaid", "Prepaid (One-time)"),
+            ("usage", "Usage-based"),
         ],
-        help_text="Switch all builtin components to monthly (LIMIT) or prepaid (ONE_TIME + is_prepaid) billing.",
+        help_text="Switch all builtin components to monthly (LIMIT), prepaid (ONE_TIME + is_prepaid), or usage-based billing.",
     )
 
 
