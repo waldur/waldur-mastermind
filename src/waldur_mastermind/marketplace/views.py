@@ -3357,18 +3357,19 @@ class ProviderOfferingViewSet(
         request=serializers.SwitchBillingModeSerializer,
         responses={200: None},
         summary="Switch billing mode for builtin components",
-        description="Switches all builtin components between monthly (LIMIT) "
-        "and prepaid (ONE_TIME + is_prepaid) billing modes.",
+        description="Switches all builtin components between monthly (LIMIT), "
+        "prepaid (ONE_TIME + is_prepaid), and usage-based billing modes. "
+        "Works for any offering type that has registered builtin components.",
     )
     @action(detail=True, methods=["post"])
     def switch_billing_mode(self, request, uuid=None):
         offering: models.Offering = self.get_object()
 
-        if offering.type != OPENSTACK_TENANT_OFFERING:
+        if not offering.components.exists():
             return Response(
                 {
                     "detail": _(
-                        "Billing mode switching is only supported for OpenStack tenant offerings."
+                        "Billing mode switching requires at least one component."
                     )
                 },
                 status=status.HTTP_400_BAD_REQUEST,
@@ -3394,43 +3395,66 @@ class ProviderOfferingViewSet(
         serializer.is_valid(raise_exception=True)
 
         mode = serializer.validated_data["billing_mode"]
-        builtin_types = plugins.manager.get_component_types(offering.type)
 
-        # Include both builtin components (cores, ram, storage) and
-        # dynamic volume type components (gigabytes_*) for OpenStack
-        from waldur_openstack.utils import is_valid_volume_type_name
-
-        infrastructure_types = set(builtin_types)
-        for comp in offering.components.all():
-            if is_valid_volume_type_name(comp.type):
-                infrastructure_types.add(comp.type)
-
-        infrastructure_components = offering.components.filter(
-            type__in=infrastructure_types
-        )
-        if not infrastructure_components.exists():
+        # Usage-based billing requires an external usage reporter (e.g. site agent).
+        # OpenStack is managed directly by Waldur and does not report usage.
+        if mode == "usage" and offering.type == OPENSTACK_TENANT_OFFERING:
             return Response(
-                {"detail": _("No infrastructure components found.")},
+                {
+                    "detail": _(
+                        "Usage-based billing is not supported for OpenStack offerings."
+                    )
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Determine which components to switch:
+        # - For offerings with builtin types (OpenStack, Rancher), switch only builtin + volume types
+        # - For generic offerings (site agent), switch all components
+        builtin_types = plugins.manager.get_component_types(offering.type)
+        if builtin_types:
+            target_types = set(builtin_types)
+            if offering.type == OPENSTACK_TENANT_OFFERING:
+                from waldur_openstack.utils import is_valid_volume_type_name
+
+                for comp in offering.components.all():
+                    if is_valid_volume_type_name(comp.type):
+                        target_types.add(comp.type)
+            target_components = offering.components.filter(type__in=target_types)
+        else:
+            target_components = offering.components.all()
+
         if mode == "prepaid":
-            infrastructure_components.update(
+            target_components.update(
                 billing_type=BillingTypes.ONE_TIME,
                 is_prepaid=True,
             )
-            # Prepaid requires end_date — make termination date mandatory
             offering.plugin_options["is_resource_termination_date_required"] = True
             offering.save(update_fields=["plugin_options"])
+        elif mode == "usage":
+            target_components.update(
+                billing_type=BillingTypes.USAGE,
+                is_prepaid=False,
+            )
+            # For OpenStack, clear the termination date requirement
+            # that was set by prepaid mode. For generic offerings,
+            # the provider may have set it independently — don't touch it.
+            if offering.type == OPENSTACK_TENANT_OFFERING:
+                offering.plugin_options.pop(
+                    "is_resource_termination_date_required", None
+                )
+                offering.save(update_fields=["plugin_options"])
         else:
-            infrastructure_components.update(
+            target_components.update(
                 billing_type=BillingTypes.LIMIT,
                 is_prepaid=False,
                 limit_period=LimitPeriods.MONTH,
             )
-            # Monthly doesn't require end_date
-            offering.plugin_options.pop("is_resource_termination_date_required", None)
-            offering.save(update_fields=["plugin_options"])
+            if offering.type == OPENSTACK_TENANT_OFFERING:
+                offering.plugin_options.pop(
+                    "is_resource_termination_date_required", None
+                )
+                offering.save(update_fields=["plugin_options"])
 
         return Response(status=status.HTTP_200_OK)
 

@@ -12,6 +12,7 @@ import datetime
 from decimal import Decimal
 from unittest import mock
 
+from ddt import data, ddt, unpack
 from django.test import TestCase
 from freezegun import freeze_time
 from rest_framework import status, test
@@ -23,6 +24,9 @@ from waldur_mastermind.marketplace import models, plugins
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
     OPENSTACK_TENANT_OFFERING,
+    RANCHER_OFFERING,
+    SITE_AGENT_OFFERING,
+    SLURM_OFFERING,
     BillingTypes,
     LimitPeriods,
     OfferingStates,
@@ -553,7 +557,7 @@ class SwitchBillingModeTest(test.APITestCase):
         builtin_types = [
             c.type for c in plugins.manager.get_components(self.offering.type)
         ]
-        self.builtin_components = []
+        self.target_components = []
         for bt in builtin_types:
             comp = factories.OfferingComponentFactory(
                 offering=self.offering,
@@ -561,7 +565,7 @@ class SwitchBillingModeTest(test.APITestCase):
                 billing_type=BillingTypes.LIMIT,
                 limit_period=LimitPeriods.MONTH,
             )
-            self.builtin_components.append(comp)
+            self.target_components.append(comp)
 
         # Create a custom component
         self.custom_component = factories.OfferingComponentFactory(
@@ -581,7 +585,7 @@ class SwitchBillingModeTest(test.APITestCase):
         response = self.client.post(url, {"billing_mode": "prepaid"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
-        for comp in self.builtin_components:
+        for comp in self.target_components:
             comp.refresh_from_db()
             self.assertEqual(comp.billing_type, BillingTypes.ONE_TIME)
             self.assertTrue(comp.is_prepaid)
@@ -617,7 +621,7 @@ class SwitchBillingModeTest(test.APITestCase):
         response = self.client.post(url, {"billing_mode": "monthly"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
-        for comp in self.builtin_components:
+        for comp in self.target_components:
             comp.refresh_from_db()
             self.assertEqual(comp.billing_type, BillingTypes.LIMIT)
             self.assertEqual(comp.limit_period, LimitPeriods.MONTH)
@@ -781,3 +785,218 @@ class PrepaidTenantCreationTest(TestCase):
         component, value = result[0]
         self.assertEqual(component.type, "cores")
         self.assertEqual(value, 4)
+
+
+# ── 10. Generic billing mode switch across offering types ────────────────
+
+OFFERING_CONFIGS = [
+    (OPENSTACK_TENANT_OFFERING, BillingTypes.LIMIT, LimitPeriods.MONTH),
+    (RANCHER_OFFERING, BillingTypes.USAGE, ""),
+    (SLURM_OFFERING, BillingTypes.USAGE, LimitPeriods.TOTAL),
+    (SITE_AGENT_OFFERING, BillingTypes.USAGE, LimitPeriods.TOTAL),
+]
+
+MODE_EXPECTATIONS = {
+    "monthly": (BillingTypes.LIMIT, False),
+    "prepaid": (BillingTypes.ONE_TIME, True),
+    "usage": (BillingTypes.USAGE, False),
+}
+
+
+@ddt
+class GenericSwitchBillingModeTest(test.APITransactionTestCase):
+    def _create_offering_with_components(
+        self, offering_type, billing_type, limit_period
+    ):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(
+            type=offering_type,
+            state=OfferingStates.DRAFT,
+            customer=self.fixture.customer,
+        )
+        builtin_types = plugins.manager.get_component_types(offering_type)
+        self.target_components = []
+        if builtin_types:
+            # Offerings with registered builtin components (OpenStack, Rancher, old SLURM)
+            for bt in builtin_types:
+                comp = factories.OfferingComponentFactory(
+                    offering=self.offering,
+                    type=bt,
+                    billing_type=billing_type,
+                    limit_period=limit_period,
+                )
+                self.target_components.append(comp)
+        else:
+            # Generic offerings (site agent) — create components manually
+            for ctype in ["cpu", "gpu", "ram"]:
+                comp = factories.OfferingComponentFactory(
+                    offering=self.offering,
+                    type=ctype,
+                    name=ctype.upper(),
+                    billing_type=billing_type,
+                    limit_period=limit_period,
+                )
+                self.target_components.append(comp)
+
+        self.custom_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="consultancy_hours",
+            name="Consultancy Hours",
+            billing_type=BillingTypes.FIXED,
+        )
+
+    def _get_url(self):
+        return factories.OfferingFactory.get_url(
+            self.offering, action="switch_billing_mode"
+        )
+
+    @data(
+        *[
+            (cfg[0], cfg[1], cfg[2], mode)
+            for cfg in OFFERING_CONFIGS
+            for mode in ["monthly", "prepaid", "usage"]
+            # Usage-based billing is not supported for OpenStack
+            if not (cfg[0] == OPENSTACK_TENANT_OFFERING and mode == "usage")
+        ]
+    )
+    @unpack
+    def test_switch_to_mode(self, offering_type, default_bt, default_lp, target_mode):
+        self._create_offering_with_components(offering_type, default_bt, default_lp)
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(
+            self._get_url(), {"billing_mode": target_mode}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        expected_bt, expected_prepaid = MODE_EXPECTATIONS[target_mode]
+        for comp in self.target_components:
+            comp.refresh_from_db()
+            self.assertEqual(
+                comp.billing_type,
+                expected_bt,
+                f"{offering_type} component {comp.type}: expected billing_type={expected_bt}, got {comp.billing_type}",
+            )
+            self.assertEqual(comp.is_prepaid, expected_prepaid)
+
+        self.offering.refresh_from_db()
+        if target_mode == "prepaid":
+            self.assertTrue(
+                self.offering.plugin_options.get(
+                    "is_resource_termination_date_required"
+                )
+            )
+        elif offering_type == OPENSTACK_TENANT_OFFERING:
+            # OpenStack clears the flag when switching away from prepaid
+            self.assertNotIn(
+                "is_resource_termination_date_required",
+                self.offering.plugin_options,
+            )
+
+    @data(
+        *[
+            cfg
+            for cfg in OFFERING_CONFIGS
+            if plugins.manager.get_component_types(cfg[0])
+        ]
+    )
+    @unpack
+    def test_custom_components_unaffected_for_builtin_offerings(
+        self, offering_type, default_bt, default_lp
+    ):
+        """For offerings with builtin types, custom components are not switched."""
+        self._create_offering_with_components(offering_type, default_bt, default_lp)
+        self.client.force_authenticate(self.fixture.staff)
+
+        for mode in ["monthly", "prepaid", "usage"]:
+            self.client.post(self._get_url(), {"billing_mode": mode}, format="json")
+            self.custom_component.refresh_from_db()
+            self.assertEqual(
+                self.custom_component.billing_type,
+                BillingTypes.FIXED,
+                f"{offering_type} after switching to {mode}: custom component should remain FIXED",
+            )
+
+    def test_all_components_switched_for_generic_offerings(self):
+        """For generic offerings (site agent), all components are switched."""
+        self._create_offering_with_components(
+            SITE_AGENT_OFFERING, BillingTypes.USAGE, LimitPeriods.TOTAL
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        self.client.post(self._get_url(), {"billing_mode": "prepaid"}, format="json")
+        self.custom_component.refresh_from_db()
+        self.assertEqual(self.custom_component.billing_type, BillingTypes.ONE_TIME)
+
+    @data(*OFFERING_CONFIGS)
+    @unpack
+    def test_blocked_by_active_resources(self, offering_type, default_bt, default_lp):
+        self._create_offering_with_components(offering_type, default_bt, default_lp)
+        project = self.fixture.customer.projects.create(name="test")
+        factories.ResourceFactory(
+            offering=self.offering,
+            project=project,
+            state=models.Resource.States.OK,
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self._get_url(), {"billing_mode": "prepaid"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("active resources", response.data["detail"])
+
+    @data(*OFFERING_CONFIGS)
+    @unpack
+    def test_round_trip(self, offering_type, default_bt, default_lp):
+        """Test switching through available modes and back."""
+        self._create_offering_with_components(offering_type, default_bt, default_lp)
+        self.client.force_authenticate(self.fixture.staff)
+
+        # OpenStack doesn't support usage-based billing
+        modes = ["prepaid", "monthly"]
+        if offering_type != OPENSTACK_TENANT_OFFERING:
+            modes = ["prepaid", "usage", "monthly"]
+
+        for mode in modes:
+            response = self.client.post(
+                self._get_url(), {"billing_mode": mode}, format="json"
+            )
+            self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+            expected_bt, expected_prepaid = MODE_EXPECTATIONS[mode]
+            for comp in self.target_components:
+                comp.refresh_from_db()
+                self.assertEqual(comp.billing_type, expected_bt)
+                self.assertEqual(comp.is_prepaid, expected_prepaid)
+
+    def test_offering_without_builtin_components_rejected(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+        self.offering = factories.OfferingFactory(
+            type=BASIC_OFFERING,
+            state=OfferingStates.DRAFT,
+            customer=self.fixture.customer,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(
+            factories.OfferingFactory.get_url(
+                self.offering, action="switch_billing_mode"
+            ),
+            {"billing_mode": "prepaid"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("at least one component", response.data["detail"])
+
+    def test_usage_mode_rejected_for_openstack(self):
+        self._create_offering_with_components(
+            OPENSTACK_TENANT_OFFERING, BillingTypes.LIMIT, LimitPeriods.MONTH
+        )
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(
+            self._get_url(), {"billing_mode": "usage"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("not supported", response.data["detail"])
