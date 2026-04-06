@@ -2786,6 +2786,53 @@ class ProviderOfferingViewSet(
     stats_permissions = [structure_permissions.is_owner]
 
     @extend_schema(
+        summary="Get offering resource and user state counters",
+        description="Returns resource and offering-user counts grouped by state for the given offering.",
+        responses=serializers.OfferingStateCountersSerializer,
+    )
+    @action(detail=True)
+    def state_counters(self, request, uuid=None):
+        offering: models.Offering = self.get_object()
+
+        resource_counts = (
+            models.Resource.objects.filter(offering=offering)
+            .values("state")
+            .annotate(count=Count("id"))
+            .order_by("state")
+        )
+
+        user_counts = (
+            models.OfferingUser.objects.filter(offering=offering)
+            .values("state")
+            .annotate(count=Count("id"))
+            .order_by("state")
+        )
+
+        resource_state_map = dict(ResourceStates.CHOICES)
+        user_state_map = dict(OfferingUserStates.CHOICES)
+
+        data = {
+            "resources": [
+                {
+                    "state": resource_state_map.get(item["state"], str(item["state"])),
+                    "count": item["count"],
+                }
+                for item in resource_counts
+            ],
+            "users": [
+                {
+                    "state": user_state_map.get(item["state"], str(item["state"])),
+                    "count": item["count"],
+                }
+                for item in user_counts
+            ],
+        }
+        serializer = serializers.OfferingStateCountersSerializer(instance=data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    state_counters_permissions = [structure_permissions.is_owner]
+
+    @extend_schema(
         summary="Update organization groups for offering",
         description="Sets the list of organization groups that can access this offering.",
         request=serializers.OrganizationGroupsSerializer,

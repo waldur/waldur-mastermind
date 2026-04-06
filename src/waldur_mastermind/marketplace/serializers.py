@@ -7778,6 +7778,16 @@ class CountStatsSerializer(serializers.Serializer):
         return self._get_value(record, "count")
 
 
+class OfferingStateCounterSerializer(serializers.Serializer):
+    state = serializers.CharField()
+    count = serializers.IntegerField()
+
+
+class OfferingStateCountersSerializer(serializers.Serializer):
+    resources = OfferingStateCounterSerializer(many=True)
+    users = OfferingStateCounterSerializer(many=True)
+
+
 class OfferingStatsCounterSerializer(serializers.Serializer):
     category_uuid = serializers.UUIDField(help_text="UUID of the category")
     category_title = serializers.CharField(help_text="Title of the category")
