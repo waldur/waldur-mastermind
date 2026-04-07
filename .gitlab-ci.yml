@@ -21,6 +21,8 @@ include:
   #   file: "/templates/test/lint-md-files.yml"
   - project: "waldur/waldur-pipelines"
     file: "/templates/deploy/dev-env-update.yml"
+  - project: "waldur/waldur-pipelines"
+    file: "/templates/test/vulnerability-scan.yml"
   # Temporarily disabled - SBOMs taking too much space in docs
   # - project: "waldur/waldur-pipelines"
   #   file: "/templates/sbom/generate-python-codebase-sbom.yml"
@@ -73,6 +75,11 @@ Run linters:
   script:
     - pip install pre-commit
     - pre-commit run --all
+
+Scan Python dependencies:
+  extends: .Vulnerability scan template
+  variables:
+    LOCKFILE_PATH: "uv.lock"
 
 Check TransactionTestCase usage:
   image: registry.hpc.ut.ee/mirror/library/python:3.12-bullseye
