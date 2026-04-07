@@ -1803,6 +1803,18 @@ class GracePeriodTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIn("grace_period_days", response.data)
 
+    def test_customer_grace_period_visible_in_project_api(self):
+        """Test that customer-level grace period is exposed in project API."""
+        self.fixture.customer.grace_period_days = 14
+        self.fixture.customer.save()
+
+        project_url = factories.ProjectFactory.get_url(self.fixture.project)
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(project_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("customer_grace_period_days", response.data)
+        self.assertEqual(response.data["customer_grace_period_days"], 14)
+
     def test_non_staff_cannot_update_grace_period(self):
         """Test that non-staff users cannot update grace_period_days."""
         # Test Customer update
