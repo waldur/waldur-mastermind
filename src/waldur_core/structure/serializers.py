@@ -261,6 +261,12 @@ class ProjectSerializer(
         read_only=True,
         help_text="True if the project is past its end date but still within the grace period.",
     )
+    customer_grace_period_days = serializers.IntegerField(
+        read_only=True,
+        allow_null=True,
+        source="customer.grace_period_days",
+        help_text="Grace period days set at the customer (organization) level. Used as default when project-level is not set.",
+    )
 
     class Meta:
         model = models.Project
@@ -297,6 +303,7 @@ class ProjectSerializer(
             "termination_metadata",
             "staff_notes",
             "grace_period_days",
+            "customer_grace_period_days",
             "effective_end_date",
             "is_in_grace_period",
             "user_email_patterns",
