@@ -7150,6 +7150,8 @@ class BaseResourceViewSet(
 
     def _set_end_date(self, request, is_staff_action):
         resource: models.Resource = self.get_object()
+        if not is_staff_action:
+            check_end_date_change_for_prepaid(resource, request)
         serializer = serializers.ResourceEndDateByProviderSerializer(
             data=request.data, instance=resource, context={"request": request}
         )
@@ -7192,6 +7194,7 @@ class BaseResourceViewSet(
 
     def _set_end_date_v2(self, request, template):
         resource: models.Resource = self.get_object()
+        check_end_date_change_for_prepaid(resource, request)
         serializer = serializers.ResourceEndDateSerializer(
             data=request.data, instance=resource, context={"request": request}
         )
@@ -7457,6 +7460,20 @@ class BaseResourceViewSet(
 def check_prepaid_resource(resource):
     if not resource.offering.components.filter(is_prepaid=True).exists():
         raise ValidationError(_("This action is only available for prepaid resources."))
+
+
+def check_end_date_change_for_prepaid(resource, request):
+    """For prepaid resources, only staff can manually change the end date."""
+    if (
+        resource.offering.components.filter(is_prepaid=True).exists()
+        and not request.user.is_staff
+    ):
+        raise ValidationError(
+            _(
+                "Only staff can manually change the termination date of a prepaid resource. "
+                "Use the renewal action to extend the subscription period."
+            )
+        )
 
 
 @extend_schema_view(
