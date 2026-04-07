@@ -1826,20 +1826,18 @@ class Resource(
         final_limits = new_limits or self.limits
 
         # Find all prepaid components in the plan and sum their renewal costs
+        component_factors = self.offering.component_factors
         for plan_component in self.plan.components.filter(component__is_prepaid=True):
             component = plan_component.component
             if not component:
                 continue
 
-            # The price in a ONE_TIME prepaid component is typically per period (e.g., per month).
-            # We multiply this base price by the limit and the number of extension months.
-            # Example: Plan price is $10/GB/month.
-            # Renewal: 100GB for 12 months = 10 * 100 * 12 = $12,000
-
-            # This assumes a simple linear pricing model.
-            # For complex pricing, this logic would need to be more sophisticated.
-            limit_amount = final_limits.get(component.type, 0)
-            component_cost = plan_component.price * limit_amount * extension_months
+            # The price is per display unit (e.g., per GB), but limits are stored
+            # in internal units (e.g., MB). Divide by the factor to convert.
+            limit_amount = Decimal(str(final_limits.get(component.type, 0)))
+            factor = Decimal(str(component_factors.get(component.type, 1)))
+            display_amount = limit_amount / factor
+            component_cost = plan_component.price * display_amount * extension_months
             total_cost += component_cost
 
         return total_cost
@@ -1864,6 +1862,8 @@ class Resource(
         remaining_days = (new_end_date - timezone.now().date()).days
 
         if self.plan:
+            component_factors = self.offering.component_factors
+
             # 1. Subscription items (prepaid components)
             for plan_component in self.plan.components.filter(
                 component__is_prepaid=True
@@ -1871,16 +1871,20 @@ class Resource(
                 component = plan_component.component
                 if not component:
                     continue
-                limit_amount = final_limits.get(component.type, 0)
-                total = plan_component.price * limit_amount * extension_months
+                limit_amount = Decimal(str(final_limits.get(component.type, 0)))
+                factor = Decimal(str(component_factors.get(component.type, 1)))
+                display_amount = limit_amount / factor
+                current_limit = Decimal(str(self.limits.get(component.type, 0)))
+                current_display = current_limit / factor
+                total = plan_component.price * display_amount * extension_months
                 components.append(
                     {
                         "component_type": component.type,
                         "component_name": component.name,
                         "billing_type": "prepaid",
                         "billing_period": None,
-                        "current_limit": self.limits.get(component.type, 0),
-                        "new_limit": limit_amount,
+                        "current_limit": current_display,
+                        "new_limit": display_amount,
                         "unit_price": plan_component.price,
                         "measured_unit": component.measured_unit or "",
                         "period_description": f"{extension_months} months",
