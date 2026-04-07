@@ -336,7 +336,9 @@ class AbstractUpdateResourceProcessor(BaseOrderProcessor):
                             "new_limits": resource.limits,
                             "old_end_date": self.order.attributes.get("old_end_date"),
                             "new_end_date": new_end_date_str,
-                            "cost": self.order.attributes.get("renewal_cost"),
+                            "cost": float(self.order.cost)
+                            if self.order.cost is not None
+                            else None,
                         }
                     )
                     resource.attributes["renewal_history"] = history
