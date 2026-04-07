@@ -106,6 +106,9 @@ class OfferingFilter(
         model = models.Offering
         fields = []
 
+    slug = django_filters.CharFilter(
+        field_name="slug", lookup_expr="exact", label="Slug"
+    )
     customer = core_filters.URLFilter(
         view_name="customer-detail",
         field_name="customer__uuid",
@@ -1120,6 +1123,9 @@ class ScreenshotFilter(OfferingFilterMixin, django_filters.FilterSet):
 class OrderFilter(
     core_filters.CreatedModifiedFilter, OfferingFilterMixin, django_filters.FilterSet
 ):
+    slug = django_filters.CharFilter(
+        field_name="slug", lookup_expr="exact", label="Slug"
+    )
     query = django_filters.CharFilter(
         method="filter_query",
         label="Search by order UUID, slug, project name or resource name",
@@ -1241,6 +1247,9 @@ class ResourceFilter(
     structure_filters.NameFilterSet,
     core_filters.CreatedModifiedFilter,
 ):
+    slug = django_filters.CharFilter(
+        field_name="slug", lookup_expr="exact", label="Slug"
+    )
     query = django_filters.CharFilter(
         method="filter_query",
         label="Search by resource UUID, name, slug, backend ID, effective ID, IPs or hypervisor",

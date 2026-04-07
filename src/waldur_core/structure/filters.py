@@ -208,6 +208,9 @@ class CustomerFilter(NameFilterSet):
         lookup_expr="icontains",
         label="Organization group name",
     )
+    slug = django_filters.CharFilter(
+        field_name="slug", lookup_expr="exact", label="Slug"
+    )
     owned_by_current_user = django_filters.BooleanFilter(
         widget=BooleanWidget,
         method="filter_owned_by_current_user",

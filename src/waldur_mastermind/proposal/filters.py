@@ -58,6 +58,9 @@ class CallManagingOrganisationFilter(django_filters.FilterSet):
 
 
 class CallFilter(django_filters.FilterSet):
+    slug = django_filters.CharFilter(
+        field_name="slug", lookup_expr="exact", label="Slug"
+    )
     customer = core_filters.URLFilter(
         view_name="customer-detail", field_name="manager__customer__uuid"
     )
@@ -101,6 +104,9 @@ class CallFilter(django_filters.FilterSet):
 
 
 class ProposalFilter(django_filters.FilterSet):
+    slug = django_filters.CharFilter(
+        field_name="slug", lookup_expr="exact", label="Slug"
+    )
     round = core_filters.RelatedUUIDFilter(
         view_name="call-round-detail", field_name="round__uuid"
     )
