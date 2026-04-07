@@ -10340,6 +10340,7 @@ class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
     extension_count = serializers.SerializerMethodField()
     versions = NestedSoftwareVersionSerializer(many=True, read_only=True)
     parent_softwares = NestedParentSoftwareSerializer(many=True, read_only=True)
+    extensions = NestedParentSoftwareSerializer(many=True, read_only=True)
 
     class Meta:
         model = models.SoftwarePackage
@@ -10357,6 +10358,7 @@ class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
             "maintainers",
             "is_extension",
             "parent_softwares",
+            "extensions",
             "catalog_name",
             "catalog_version",
             "catalog_type",
