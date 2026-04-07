@@ -908,3 +908,32 @@ def extract_query_enums(result, generator, **kwargs):
                         del param["x-enum-descriptions"]
 
     return result
+
+
+def sanitize_schema(result, generator, **kwargs):
+    """
+    Fix common OpenAPI 3.0 validation issues:
+
+    1. Remove empty 'required' arrays from schema components (minItems: 1 required).
+    2. Remove 'schema: null' from response content types (must be an object).
+    """
+    for schemas in result.get("components", {}).values():
+        for schema in schemas.values():
+            if isinstance(schema, dict) and schema.get("required") == []:
+                del schema["required"]
+
+    for path_methods in result.get("paths", {}).values():
+        for operation in path_methods.values():
+            if not isinstance(operation, dict):
+                continue
+            for response in operation.get("responses", {}).values():
+                if not isinstance(response, dict):
+                    continue
+                for media_type in response.get("content", {}).values():
+                    if (
+                        isinstance(media_type, dict)
+                        and media_type.get("schema") is None
+                    ):
+                        del media_type["schema"]
+
+    return result
