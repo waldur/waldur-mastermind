@@ -153,7 +153,6 @@ class UpdateResourceProcessorTest(test.APITestCase):
             "old_limits": resource.limits,
             "new_end_date": new_end_date.isoformat(),
             "old_end_date": initial_end_date.isoformat(),
-            "renewal_cost": 24000.0,
         }
 
         order = factories.OrderFactory(
@@ -164,6 +163,7 @@ class UpdateResourceProcessorTest(test.APITestCase):
             type=OrderTypes.UPDATE,
             limits={"storage": 200},
             attributes=order_attributes,
+            cost=24000.0,
         )
 
         # Act

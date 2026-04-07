@@ -7805,7 +7805,6 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
             else None,
             "new_end_date": new_end_date.isoformat(),
             "extension_months": extension_months,
-            "renewal_cost": float(renewal_cost),  # Store for auditing
         }
 
         # The renewal cost is passed as 'switch_price' to the order,
