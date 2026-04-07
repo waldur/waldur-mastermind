@@ -585,3 +585,62 @@ class ProviderSetEndDateTest(test.APITestCase):
                 % self.resource.name
             ).exists()
         )
+
+
+class PrepaidResourceEndDateRestrictionTest(test.APITestCase):
+    """For prepaid resources, only staff can manually change the end date."""
+
+    def setUp(self):
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.state = ResourceStates.OK
+        self.resource.save()
+
+        # Make the offering have a prepaid component
+        factories.OfferingComponentFactory(
+            offering=self.resource.offering,
+            type="cores",
+            is_prepaid=True,
+            billing_type=BillingTypes.ONE_TIME,
+        )
+
+        # Consumer endpoint
+        self.consumer_url = factories.ResourceFactory.get_url(
+            self.resource, "set_end_date"
+        )
+        # Provider endpoint
+        self.provider_url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, "set_end_date"
+        )
+
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_END_DATE)
+
+    @freeze_time("2020-01-01")
+    def test_staff_can_set_end_date_on_prepaid_resource_via_consumer_endpoint(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(self.consumer_url, {"end_date": "2020-06-01"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    @freeze_time("2020-01-01")
+    def test_owner_cannot_set_end_date_on_prepaid_resource_via_consumer_endpoint(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.consumer_url, {"end_date": "2020-06-01"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Only staff", str(response.data))
+
+    @freeze_time("2020-01-01")
+    def test_admin_cannot_set_end_date_on_prepaid_resource_via_consumer_endpoint(self):
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.post(self.consumer_url, {"end_date": "2020-06-01"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Only staff", str(response.data))
+
+    @freeze_time("2020-01-01")
+    def test_owner_can_set_end_date_on_non_prepaid_resource(self):
+        # Remove prepaid component
+        self.resource.offering.components.filter(is_prepaid=True).delete()
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.post(self.consumer_url, {"end_date": "2020-06-01"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
