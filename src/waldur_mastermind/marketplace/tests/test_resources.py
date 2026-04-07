@@ -794,6 +794,98 @@ class ResourceRenewTest(test.APITestCase):
         self.assertEqual(order.request_comment, "")
 
 
+class ResourceRenewCostWithFactorTest(test.APITestCase):
+    """Test that renewal cost calculation correctly accounts for component factor."""
+
+    def setUp(self):
+        self.fixture = fixtures.ServiceFixture()
+        self.project = self.fixture.project
+
+        # Create offering with OpenStack.Tenant type so component_factors returns real values
+        self.offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            type="OpenStack.Tenant",
+        )
+        self.storage_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="storage",
+            is_prepaid=True,
+            billing_type=BillingTypes.ONE_TIME,
+        )
+        self.ram_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="ram",
+            is_prepaid=True,
+            billing_type=BillingTypes.ONE_TIME,
+        )
+        self.cores_component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="cores",
+            is_prepaid=True,
+            billing_type=BillingTypes.ONE_TIME,
+        )
+        self.plan = factories.PlanFactory(offering=self.offering)
+        factories.PlanComponentFactory(
+            plan=self.plan,
+            component=self.storage_component,
+            price=Decimal("3.0"),  # €3 per GB per month
+        )
+        factories.PlanComponentFactory(
+            plan=self.plan,
+            component=self.ram_component,
+            price=Decimal("2.0"),  # €2 per GB per month
+        )
+        factories.PlanComponentFactory(
+            plan=self.plan,
+            component=self.cores_component,
+            price=Decimal("1.0"),  # €1 per core per month
+        )
+
+        # Limits stored in internal units: RAM=3072 MB (3 GB), Storage=125952 MB (123 GB)
+        self.resource = factories.ResourceFactory(
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+            state=ResourceStates.OK,
+            limits={"cores": 23, "ram": 3072, "storage": 125952},
+            end_date=timezone.now().date() + relativedelta(months=1),
+        )
+
+    def test_get_renewal_cost_divides_by_factor(self):
+        """Renewal cost should use display units (GB), not internal units (MB)."""
+        cost = self.resource.get_renewal_cost(extension_months=1)
+        # cores: 1 * 23 * 1 = 23
+        # ram: 2 * (3072/1024) * 1 = 2 * 3 = 6
+        # storage: 3 * (125952/1024) * 1 = 3 * 123 = 369
+        # total = 398
+        self.assertEqual(cost, Decimal("398.0"))
+
+    def test_get_renewal_cost_with_new_limits(self):
+        """Renewal cost with upgraded limits should also use display units."""
+        cost = self.resource.get_renewal_cost(
+            extension_months=6,
+            new_limits={"cores": 46, "ram": 6144, "storage": 251904},
+        )
+        # cores: 1 * 46 * 6 = 276
+        # ram: 2 * (6144/1024) * 6 = 2 * 6 * 6 = 72
+        # storage: 3 * (251904/1024) * 6 = 3 * 246 * 6 = 4428
+        # total = 4776
+        self.assertEqual(cost, Decimal("4776.0"))
+
+    def test_get_renewal_estimate_uses_display_units(self):
+        """Estimate should show display units in component details."""
+        estimate = self.resource.get_renewal_estimate(extension_months=1)
+        components = {c["component_type"]: c for c in estimate["components"]}
+
+        # Storage: current_limit and new_limit should be in GB, not MB
+        self.assertEqual(components["storage"]["new_limit"], Decimal("123"))
+        self.assertEqual(components["storage"]["current_limit"], Decimal("123"))
+        self.assertEqual(components["ram"]["new_limit"], Decimal("3"))
+        self.assertEqual(components["ram"]["current_limit"], Decimal("3"))
+        # Cores have factor=1, so no conversion
+        self.assertEqual(components["cores"]["new_limit"], Decimal("23"))
+
+
 @ddt
 class ResourceTerminateTest(test.APITestCase):
     def setUp(self):
