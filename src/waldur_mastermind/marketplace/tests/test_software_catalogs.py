@@ -1777,6 +1777,25 @@ class SoftwarePackageMultipleParentsTest(test.APITestCase):
         response = self.client.get(url)
         self.assertEqual(response.data["extension_count"], 1)
 
+    def test_api_response_contains_extensions_list(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.SoftwarePackageFactory.get_url(self.parent_gtk3)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        extensions = response.data["extensions"]
+        self.assertEqual(len(extensions), 1)
+        self.assertEqual(extensions[0]["name"], "adwaita-icon-theme")
+        self.assertEqual(extensions[0]["uuid"], self.extension.uuid.hex)
+
+    def test_extension_has_empty_extensions_list(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.SoftwarePackageFactory.get_url(self.extension)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["extensions"], [])
+
 
 class SoftwarePackageGPUFilterTest(test.APITestCase):
     """Test GPU-related filters for software packages, versions, and targets."""
