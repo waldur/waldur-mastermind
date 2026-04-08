@@ -1290,7 +1290,9 @@
       "plan_uuid": "13000000000000000000000000000001",
       "component_uuid": "c3000000000000000000000000000002",
       "price": "10.00",
-      "amount": 0
+      "amount": 0,
+      "discount_threshold": 16,
+      "discount_rate": 10
     },
     {
       "plan_uuid": "13000000000000000000000000000001",
@@ -1302,7 +1304,9 @@
       "plan_uuid": "13000000000000000000000000000001",
       "component_uuid": "c3000000000000000000000000000004",
       "price": "0.50",
-      "amount": 0
+      "amount": 0,
+      "discount_threshold": 500,
+      "discount_rate": 15
     },
     {
       "plan_uuid": "13000000000000000000000000000001",
@@ -1320,7 +1324,9 @@
       "plan_uuid": "13000000000000000000000000000002",
       "component_uuid": "c3000000000000000000000000000002",
       "price": "8.00",
-      "amount": 0
+      "amount": 0,
+      "discount_threshold": 8,
+      "discount_rate": 15
     },
     {
       "plan_uuid": "13000000000000000000000000000002",
@@ -1332,7 +1338,9 @@
       "plan_uuid": "13000000000000000000000000000002",
       "component_uuid": "c3000000000000000000000000000004",
       "price": "0.40",
-      "amount": 0
+      "amount": 0,
+      "discount_threshold": 200,
+      "discount_rate": 20
     },
     {
       "plan_uuid": "13000000000000000000000000000002",
@@ -2822,8 +2830,15 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "LLM Training Cluster"},
-      "limits": {"gpu": 8, "cpu": 128, "ram": 512, "nvme_storage": 10000},
+      "attributes": {
+        "name": "LLM Training Cluster"
+      },
+      "limits": {
+        "gpu": 8,
+        "cpu": 128,
+        "ram": 512,
+        "nvme_storage": 10000
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -2835,8 +2850,12 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "Vision Model Storage"},
-      "limits": {"storage": 50},
+      "attributes": {
+        "name": "Vision Model Storage"
+      },
+      "limits": {
+        "storage": 50
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -2848,8 +2867,15 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "NLP Inference GPU Nodes"},
-      "limits": {"gpu": 4, "cpu": 64, "ram": 256, "nvme_storage": 2000},
+      "attributes": {
+        "name": "NLP Inference GPU Nodes"
+      },
+      "limits": {
+        "gpu": 4,
+        "cpu": 64,
+        "ram": 256,
+        "nvme_storage": 2000
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -2861,8 +2887,15 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "Diffusion Model Training"},
-      "limits": {"gpu": 8, "cpu": 128, "ram": 1024, "nvme_storage": 20000},
+      "attributes": {
+        "name": "Diffusion Model Training"
+      },
+      "limits": {
+        "gpu": 8,
+        "cpu": 128,
+        "ram": 1024,
+        "nvme_storage": 20000
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -2874,8 +2907,15 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "Speech Recognition Cluster"},
-      "limits": {"gpu": 4, "cpu": 64, "ram": 256, "nvme_storage": 5000},
+      "attributes": {
+        "name": "Speech Recognition Cluster"
+      },
+      "limits": {
+        "gpu": 4,
+        "cpu": 64,
+        "ram": 256,
+        "nvme_storage": 5000
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -2887,8 +2927,12 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "Training Dataset Archive"},
-      "limits": {"storage": 200},
+      "attributes": {
+        "name": "Training Dataset Archive"
+      },
+      "limits": {
+        "storage": 200
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -2900,8 +2944,12 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "Model Checkpoint Storage"},
-      "limits": {"storage": 100},
+      "attributes": {
+        "name": "Model Checkpoint Storage"
+      },
+      "limits": {
+        "storage": 100
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -2913,8 +2961,15 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "Reinforcement Learning Cluster"},
-      "limits": {"gpu": 8, "cpu": 128, "ram": 512, "nvme_storage": 8000},
+      "attributes": {
+        "name": "Reinforcement Learning Cluster"
+      },
+      "limits": {
+        "gpu": 8,
+        "cpu": 128,
+        "ram": 512,
+        "nvme_storage": 8000
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -2926,8 +2981,14 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "MLOps K8s Cluster"},
-      "limits": {"vcpu": 64, "ram": 256, "storage": 2000},
+      "attributes": {
+        "name": "MLOps K8s Cluster"
+      },
+      "limits": {
+        "vcpu": 64,
+        "ram": 256,
+        "storage": 2000
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -2939,8 +3000,14 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "Model Serving K8s"},
-      "limits": {"vcpu": 48, "ram": 192, "storage": 1500},
+      "attributes": {
+        "name": "Model Serving K8s"
+      },
+      "limits": {
+        "vcpu": 48,
+        "ram": 192,
+        "storage": 1500
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -2952,8 +3019,12 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "Benchmark Dataset Storage"},
-      "limits": {"storage": 30},
+      "attributes": {
+        "name": "Benchmark Dataset Storage"
+      },
+      "limits": {
+        "storage": 30
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -2965,8 +3036,14 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "Multi-Site AI Training"},
-      "limits": {"vcpu": 256, "ram": 1024, "storage": 10000},
+      "attributes": {
+        "name": "Multi-Site AI Training"
+      },
+      "limits": {
+        "vcpu": 256,
+        "ram": 1024,
+        "storage": 10000
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -2978,8 +3055,16 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "LLM Pre-training Allocation", "slurm_account": "llm_training", "partition": "a100"},
-      "limits": {"cpu": 50000, "ram": 100000, "gpu": 1000},
+      "attributes": {
+        "name": "LLM Pre-training Allocation",
+        "slurm_account": "llm_training",
+        "partition": "a100"
+      },
+      "limits": {
+        "cpu": 50000,
+        "ram": 100000,
+        "gpu": 1000
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -2991,8 +3076,16 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "Fine-tuning Jobs Allocation", "slurm_account": "finetune", "partition": "h100"},
-      "limits": {"cpu": 20000, "ram": 40000, "gpu": 500},
+      "attributes": {
+        "name": "Fine-tuning Jobs Allocation",
+        "slurm_account": "finetune",
+        "partition": "h100"
+      },
+      "limits": {
+        "cpu": 20000,
+        "ram": 40000,
+        "gpu": 500
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -3004,8 +3097,16 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "Vision Model Training", "slurm_account": "vision", "partition": "a100"},
-      "limits": {"cpu": 30000, "ram": 60000, "gpu": 800},
+      "attributes": {
+        "name": "Vision Model Training",
+        "slurm_account": "vision",
+        "partition": "a100"
+      },
+      "limits": {
+        "cpu": 30000,
+        "ram": 60000,
+        "gpu": 800
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -3017,8 +3118,16 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "Speech Recognition Training", "slurm_account": "speech", "partition": "a100"},
-      "limits": {"cpu": 10000, "ram": 20000, "gpu": 250},
+      "attributes": {
+        "name": "Speech Recognition Training",
+        "slurm_account": "speech",
+        "partition": "a100"
+      },
+      "limits": {
+        "cpu": 10000,
+        "ram": 20000,
+        "gpu": 250
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -3030,8 +3139,16 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "RL Agent Training", "slurm_account": "rl_training", "partition": "h100"},
-      "limits": {"cpu": 15000, "ram": 30000, "gpu": 400},
+      "attributes": {
+        "name": "RL Agent Training",
+        "slurm_account": "rl_training",
+        "partition": "h100"
+      },
+      "limits": {
+        "cpu": 15000,
+        "ram": 30000,
+        "gpu": 400
+      },
       "completed_at": "2025-06-01T10:00:00"
     },
     {
@@ -3043,8 +3160,16 @@
       "created_by_uuid": "00000000000000000000000000000003",
       "type": 1,
       "state": 3,
-      "attributes": {"name": "NLP Research Allocation", "slurm_account": "nlp_research", "partition": "a100"},
-      "limits": {"cpu": 8000, "ram": 16000, "gpu": 200},
+      "attributes": {
+        "name": "NLP Research Allocation",
+        "slurm_account": "nlp_research",
+        "partition": "a100"
+      },
+      "limits": {
+        "cpu": 8000,
+        "ram": 16000,
+        "gpu": 200
+      },
       "completed_at": "2025-06-01T10:00:00"
     }
   ],
@@ -3067,9 +3192,18 @@
       "raw_usage_reset": true,
       "qos_strategy": "progressive",
       "component_limits": [
-        {"type": "cpu", "limit": 150000},
-        {"type": "ram", "limit": 300000},
-        {"type": "gpu", "limit": 3000}
+        {
+          "type": "cpu",
+          "limit": 150000
+        },
+        {
+          "type": "ram",
+          "limit": 300000
+        },
+        {
+          "type": "gpu",
+          "limit": 3000
+        }
       ]
     }
   ],

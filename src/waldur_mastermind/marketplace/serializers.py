@@ -1538,6 +1538,8 @@ class NestedPlanComponentSerializer(serializers.ModelSerializer):
     type = serializers.ReadOnlyField(source="component.type")
     name = serializers.ReadOnlyField(source="component.name")
     measured_unit = serializers.ReadOnlyField(source="component.measured_unit")
+    discounted_price = serializers.SerializerMethodField()
+    discount_description = serializers.SerializerMethodField()
 
     class Meta:
         model = models.PlanComponent
@@ -1550,7 +1552,24 @@ class NestedPlanComponentSerializer(serializers.ModelSerializer):
             "future_price",
             "discount_threshold",
             "discount_rate",
+            "discounted_price",
+            "discount_description",
         )
+
+    @extend_schema_field(
+        serializers.DecimalField(max_digits=22, decimal_places=10, allow_null=True)
+    )
+    def get_discounted_price(self, component):
+        if not component.discount_threshold or not component.discount_rate:
+            return None
+        return round(float(component.price) * (1 - component.discount_rate / 100), 10)
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_discount_description(self, component):
+        if not component.discount_threshold or not component.discount_rate:
+            return None
+        unit = component.component.measured_unit or ""
+        return f"{component.discount_rate}% off when >= {component.discount_threshold} {unit}".strip()
 
 
 class BasePlanSerializer(
