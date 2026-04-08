@@ -581,10 +581,17 @@ class GroupInvitationViewSet(ActionsViewSet):
         request=None,
         responses=serializers.SubmitRequestResponseSerializer,
     )
+    @extend_schema(
+        request=serializers.SubmitRequestSerializer,
+        responses={200: serializers.SubmitRequestResponseSerializer},
+    )
     @action(detail=True, methods=["post"], filter_backends=[])
     def submit_request(self, request, uuid=None):
         invitation: models.GroupInvitation = self.get_object()
         user = request.user
+
+        request_serializer = serializers.SubmitRequestSerializer(data=request.data)
+        request_serializer.is_valid(raise_exception=True)
 
         if not invitation.is_active:
             raise ValidationError(_("Only pending invitation can be requested."))
@@ -603,15 +610,16 @@ class GroupInvitationViewSet(ActionsViewSet):
             ).exists():
                 raise ValidationError(_("User already has role within this scope."))
 
-        if models.PermissionRequest.objects.filter(
-            invitation__content_type=invitation.content_type,
-            invitation__object_id=invitation.object_id,
-            created_by=user,
-            state__in=[ReviewStates.PENDING, ReviewStates.APPROVED],
-        ).exists():
-            raise ValidationError(
-                _("Permission request already exists for this scope.")
-            )
+        if not invitation.allow_multiple_requests:
+            if models.PermissionRequest.objects.filter(
+                invitation__content_type=invitation.content_type,
+                invitation__object_id=invitation.object_id,
+                created_by=user,
+                state__in=[ReviewStates.PENDING, ReviewStates.APPROVED],
+            ).exists():
+                raise ValidationError(
+                    _("Permission request already exists for this scope.")
+                )
 
         allowed = invitation in models.GroupInvitation.get_objects_by_user_patterns(
             user, required=False
@@ -626,9 +634,20 @@ class GroupInvitationViewSet(ActionsViewSet):
         # Validate user against scope's email/affiliation restrictions
         validate_user_restrictions(invitation.scope, user)
 
+        # Only use custom project details if the invitation allows it
+        project_name = ""
+        project_description = ""
+        if invitation.allow_custom_project_details:
+            project_name = request_serializer.validated_data.get("project_name", "")
+            project_description = request_serializer.validated_data.get(
+                "project_description", ""
+            )
+
         permission_request = models.PermissionRequest.objects.create(
             invitation=invitation,
             created_by=request.user,
+            project_name=project_name,
+            project_description=project_description,
         )
 
         permission_request.submit()
