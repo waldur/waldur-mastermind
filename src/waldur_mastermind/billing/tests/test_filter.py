@@ -183,10 +183,10 @@ class FinancialReportProviderFilterTest(test.APITestCase):
 
     def test_filter_by_provider_uuid(self):
         result = self.get_billing_price_estimate(self.provider.uuid.hex)
-        self.assertEqual(result["current"], 350)  # 100*2 + 50*3
-        self.assertEqual(result["total"], 350)
+        self.assertEqual(result["current"], "350.00")  # 100*2 + 50*3
+        self.assertEqual(result["total"], "350.00")
 
     def test_filter_by_another_provider_uuid(self):
         result = self.get_billing_price_estimate(self.another_provider.uuid.hex)
-        self.assertEqual(result["current"], 120)  # 30*4
-        self.assertEqual(result["total"], 120)
+        self.assertEqual(result["current"], "120.00")  # 30*4
+        self.assertEqual(result["total"], "120.00")

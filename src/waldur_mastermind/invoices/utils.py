@@ -269,7 +269,7 @@ def get_billing_price_estimate_for_resources(resources):
         result["tax"] += item.tax
         result["tax_current"] += item.tax_current
         result["total"] += item.total
-    return result
+    return {k: f"{v:f}" for k, v in result.items()}
 
 
 def get_billing_price_estimate_for_provider(
@@ -402,7 +402,9 @@ def get_billing_price_estimate_for_provider(
         )
 
         result = {
-            key: Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_UP)
+            key: "{:f}".format(
+                Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_UP)
+            )
             for key, value in aggregated_data.items()
         }
 
