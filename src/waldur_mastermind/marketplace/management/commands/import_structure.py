@@ -3837,6 +3837,8 @@ class Command(BaseCommand):
                     "amount": pc_data.get("amount", 0),
                     "price": pc_data.get("price", 0),
                     "future_price": pc_data.get("future_price"),
+                    "discount_threshold": pc_data.get("discount_threshold"),
+                    "discount_rate": pc_data.get("discount_rate"),
                 }
 
                 if not self.dry_run:
