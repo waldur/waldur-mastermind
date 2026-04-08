@@ -11,7 +11,6 @@ from waldur_core.core.models import NAME_LENGTH
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole, OfferingRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models, plugins
 from waldur_mastermind.marketplace.enums import (
@@ -20,14 +19,14 @@ from waldur_mastermind.marketplace.enums import (
     LimitPeriods,
     OfferingStates,
 )
-from waldur_mastermind.marketplace.tests import factories
+from waldur_mastermind.marketplace.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests.factories import OFFERING_OPTIONS
 from waldur_mastermind.marketplace.tests.utils import TestCreateProcessor
 
 
 class BaseOrderCreateTest(test.APITransactionTestCase):
     def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
+        self.fixture = structure_fixtures.ProjectFixture()
         self.project = self.fixture.project
 
     def create_order(self, user, offering=None, add_payload=None, skip_auto_plan=False):
@@ -531,8 +530,8 @@ class OrderNotificationCreateTest(BaseOrderCreateTest):
         return super().setUp()
 
     def submit_public(self, role):
-        provider_fixture = fixtures.ProjectFixture()
-        consumer_fixture = fixtures.ProjectFixture()
+        provider_fixture = structure_fixtures.ProjectFixture()
+        consumer_fixture = structure_fixtures.ProjectFixture()
         public_offering = factories.OfferingFactory(
             state=OfferingStates.ACTIVE,
             shared=True,
@@ -624,7 +623,7 @@ class OrderNotificationCreateTest(BaseOrderCreateTest):
     def test_public_offering_is_approved_in_the_same_organization(
         self, auto_approve_in_service_provider_projects, mocked_task
     ):
-        consumer_fixture = provider_fixture = fixtures.ProjectFixture()
+        consumer_fixture = provider_fixture = structure_fixtures.ProjectFixture()
         public_offering = factories.OfferingFactory(
             state=OfferingStates.ACTIVE,
             shared=True,
@@ -682,7 +681,7 @@ class OrderNotificationCreateTest(BaseOrderCreateTest):
         self, auto_approve, disable_autoapprove, expected_state, mocked_task
     ):
         """Test that disable_autoapprove flag correctly overrides auto-approval logic."""
-        consumer_fixture = provider_fixture = fixtures.ProjectFixture()
+        consumer_fixture = provider_fixture = structure_fixtures.ProjectFixture()
         public_offering = factories.OfferingFactory(
             state=OfferingStates.ACTIVE,
             shared=True,
@@ -1089,7 +1088,7 @@ class OrderStartDateCreateTest(BaseOrderCreateTest):
 @ddt
 class OrderDeleteTest(test.APITestCase):
     def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
+        self.fixture = structure_fixtures.ProjectFixture()
         self.project = self.fixture.project
         self.manager = self.fixture.manager
         self.order = factories.OrderFactory(
@@ -1134,7 +1133,7 @@ class OrderDeleteTest(test.APITestCase):
 
 class OrderUnlinkTest(test.APITestCase):
     def setUp(self):
-        self.fixture = fixtures.ProjectFixture()
+        self.fixture = structure_fixtures.ProjectFixture()
         self.order = factories.OrderFactory(
             project=self.fixture.project,
             created_by=self.fixture.manager,
@@ -1434,3 +1433,47 @@ class OrderSetBackendIdTest(test.APITestCase):
         response = self.make_request(self.fixture.owner)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+@ddt
+class OrderResourceActionTest(test.APITestCase):
+    """Tests for the resource action that fetches connected resource via order."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.fixture = fixtures.MarketplaceFixture()
+        self.order = self.fixture.order
+        self.resource = self.fixture.resource
+
+    @data("staff", "offering_owner", "manager", "admin")
+    def test_authorized_user_can_fetch_connected_resource(self, user):
+        """Test that authorized users can fetch connected resource via resource action."""
+        user_obj = getattr(self.fixture, user)
+        self.client.force_authenticate(user_obj)
+        url = factories.OrderFactory.get_url(self.order, "resource")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["uuid"], str(self.resource.uuid))
+
+    def test_unrelated_user_cannot_fetch_connected_resource(self):
+        """Test that unrelated user cannot fetch connected resource."""
+        other_fixture = structure_fixtures.ProjectFixture()
+        self.client.force_authenticate(other_fixture.user)
+        url = factories.OrderFactory.get_url(self.order, "resource")
+        response = self.client.get(url)
+
+        # User should not have access to this order
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_resource_serializer_returns_all_fields(self):
+        """Test that resource action returns properly serialized resource with all fields."""
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.OrderFactory.get_url(self.order, "resource")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Verify key fields are present
+        self.assertIn("uuid", response.data)
+        self.assertIn("name", response.data)
+        self.assertIn("state", response.data)
