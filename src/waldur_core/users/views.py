@@ -578,10 +578,6 @@ class GroupInvitationViewSet(ActionsViewSet):
     @extend_schema(
         summary="Submit a permission request",
         description="Creates a permission request based on a group invitation for the currently authenticated user. If the invitation has auto_approve enabled and the user matches the required patterns, the request is automatically approved.",
-        request=None,
-        responses=serializers.SubmitRequestResponseSerializer,
-    )
-    @extend_schema(
         request=serializers.SubmitRequestSerializer,
         responses={200: serializers.SubmitRequestResponseSerializer},
     )
