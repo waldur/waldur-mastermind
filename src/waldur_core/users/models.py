@@ -76,6 +76,15 @@ class GroupInvitation(
         max_length=500,
         help_text="Custom description text displayed to users viewing this invitation.",
     )
+    allow_multiple_requests = models.BooleanField(
+        default=False,
+        help_text="Allow users to submit multiple permission requests for this invitation.",
+    )
+    allow_custom_project_details = models.BooleanField(
+        default=False,
+        help_text="Allow users to provide custom project name and description when accepting the invitation. "
+        "If disabled, the project name is auto-generated from the template.",
+    )
 
     class Permissions:
         customer_path = "customer"
@@ -240,6 +249,18 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
         to=settings.AUTH_USER_MODEL,
         related_name="+",
     )
+    project_name = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Custom project name provided by user during invitation acceptance.",
+    )
+    project_description = models.CharField(
+        max_length=2000,
+        blank=True,
+        default="",
+        help_text="Custom project description provided by user during invitation acceptance.",
+    )
 
     @transaction.atomic
     def approve(self, user: core_models.User, comment: str = None):
@@ -287,12 +308,13 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
     def _create_project_for_user(self, approving_user):
         from waldur_core.structure.models import Project
 
-        project_name = self._resolve_project_name()
+        project_name = self.project_name or self._resolve_project_name()
 
         # Use get_or_create with available_objects to exclude soft-deleted projects
         project, created = Project.available_objects.get_or_create(
             name=project_name,
             customer=self.invitation.customer,
+            defaults={"description": self.project_description},
         )
 
         return project

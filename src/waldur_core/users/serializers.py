@@ -214,6 +214,8 @@ class GroupInvitationSerializer(BaseInvitationSerializer):
             "user_identity_sources",
             "scope_image",
             "custom_text",
+            "allow_multiple_requests",
+            "allow_custom_project_details",
         )
         read_only_fields = BaseInvitationSerializer.Meta.read_only_fields + (
             "is_active",
@@ -337,6 +339,8 @@ class GroupInvitationUpdateSerializer(serializers.ModelSerializer):
             "user_email_patterns",
             "user_identity_sources",
             "custom_text",
+            "allow_multiple_requests",
+            "allow_custom_project_details",
         )
 
     def validate_user_email_patterns(self, value):
@@ -714,6 +718,21 @@ class InvitationCheckSerializer(serializers.Serializer):
     )
     civil_number_required = serializers.BooleanField(
         required=False, help_text="Whether civil number verification is required"
+    )
+
+
+class SubmitRequestSerializer(serializers.Serializer):
+    project_name = serializers.CharField(
+        max_length=500,
+        required=False,
+        allow_blank=True,
+        help_text="Custom project name to use instead of auto-generated one",
+    )
+    project_description = serializers.CharField(
+        max_length=2000,
+        required=False,
+        allow_blank=True,
+        help_text="Custom project description",
     )
 
 
