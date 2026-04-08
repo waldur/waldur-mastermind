@@ -1523,3 +1523,35 @@ class ProfileCompletenessTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["enforcement_enabled"])
+
+
+class GenderFieldTest(test.APITestCase):
+    def setUp(self):
+        self.user = factories.UserFactory(agreement_date=timezone.now())
+        self.client.force_authenticate(self.user)
+        self.url = factories.UserFactory.get_url(self.user)
+
+    def test_patch_gender(self):
+        response = self.client.patch(self.url, {"gender": "female"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.gender, "female")
+        self.assertEqual(response.data["gender"], "female")
+
+    def test_patch_gender_with_invalid_value(self):
+        response = self.client.patch(self.url, {"gender": "invalid"})
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.gender, None)
+        self.assertIn("is not a valid choice", str(response.data["gender"]))
+
+    def test_get_gender(self):
+        self.user.gender = "male"
+        self.user.save()
+
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["gender"], "male")

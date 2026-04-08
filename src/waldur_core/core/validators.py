@@ -14,7 +14,7 @@ from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
 from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
 
 from waldur_core.core import exceptions
-from waldur_core.core.enums import CoreStates
+from waldur_core.core.enums import GENDER_CHOICES, CoreStates
 
 logger = logging.getLogger(__name__)
 
@@ -431,6 +431,20 @@ def validate_personal_title(value):
             params={
                 "value": value,
                 "allowed": ", ".join(sorted(VALID_PERSONAL_TITLES)),
+            },
+        )
+
+
+def validate_gender(value):
+    if not value:
+        return
+    valid_values = {key for key, _ in GENDER_CHOICES}
+    if value not in valid_values:
+        raise ValidationError(
+            _("Invalid gender '%(value)s'. Allowed values are: %(allowed)s."),
+            params={
+                "value": value,
+                "allowed": ", ".join(sorted(valid_values)),
             },
         )
 

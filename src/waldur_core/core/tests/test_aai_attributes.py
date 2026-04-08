@@ -7,6 +7,7 @@ from django.test import TestCase
 
 from waldur_core.core import models
 from waldur_core.core.validators import (
+    validate_gender,
     validate_iso_3166_alpha2,
     validate_nationalities,
     validate_personal_title,
@@ -199,12 +200,24 @@ class UserExtendedProfileFieldsTest(TestCase):
         )
 
     def test_gender_field(self):
-        """Test gender field with ISO 5218 codes."""
+        """Test gender field with string values."""
         for code, label in models.GENDER_CHOICES:
             self.user.gender = code
             self.user.save()
             self.user.refresh_from_db()
             self.assertEqual(self.user.gender, code)
+
+    def test_gender_validator_accepts_valid_values(self):
+        for value in ("male", "female", "unknown"):
+            validate_gender(value)
+
+    def test_gender_validator_rejects_invalid_value(self):
+        with self.assertRaises(ValidationError):
+            validate_gender("test")
+
+    def test_gender_validator_accepts_blank(self):
+        validate_gender("")  # blank is allowed (field is optional)
+        validate_gender(None)
 
     def test_personal_title_field(self):
         """Test personal title field with valid values."""

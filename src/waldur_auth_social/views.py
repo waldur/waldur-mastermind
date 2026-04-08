@@ -197,7 +197,6 @@ class OAuthViewComplete(BaseOAuthView):
             event_context={
                 "provider": provider,
                 "user": user,
-                "request": request,
             },
             scopes=[user],
         )

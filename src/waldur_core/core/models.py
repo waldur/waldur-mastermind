@@ -31,6 +31,7 @@ from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.utils import normalize_unicode, send_mail
 from waldur_core.core.validators import (
     is_potentially_dangerous_regex,
+    validate_gender,
     validate_iso_3166_alpha2,
     validate_name,
     validate_nationalities,
@@ -54,7 +55,6 @@ NAME_LENGTH = 150
 
 USERNAME_REGEX = r"^[a-zA-Z0-9_.][a-zA-Z0-9_.-]*[a-zA-Z0-9_.$-]?$"
 
-# ISO 5218 gender codes - re-export with translations from enums.py
 GENDER_CHOICES = [(code, _(label)) for code, label in _GENDER_CHOICES_RAW]
 
 
@@ -430,12 +430,14 @@ class User(
 
     # AAI (Authentication and Authorization Infrastructure) attributes
     # Personal identity (from passport/IdP)
-    gender = models.PositiveSmallIntegerField(
+    gender = models.CharField(
         _("gender"),
+        max_length=10,
         null=True,
         blank=True,
         choices=GENDER_CHOICES,
-        help_text=_("ISO 5218 gender code"),
+        validators=[validate_gender],
+        help_text=_("User's gender (male, female, or unknown)"),
     )
     personal_title = models.CharField(
         _("personal title"),
