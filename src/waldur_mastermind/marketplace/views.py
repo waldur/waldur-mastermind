@@ -314,6 +314,28 @@ class ConnectedOfferingDetailsMixin:
             return Response(status.HTTP_204_NO_CONTENT)
 
 
+class ConnectedResourceDetailsMixin:
+    """Mixin to provide resource details action for connected resources."""
+
+    @extend_schema(
+        summary="Get resource details",
+        description="Returns details of the resource connected to the requested object.",
+        responses=serializers.ResourceSerializer,
+        filters=False,
+    )
+    @action(detail=True, methods=["get"])
+    def resource(self, request, *args, **kwargs):
+        requested_object = self.get_object()
+        if hasattr(requested_object, "resource"):
+            resource = requested_object.resource
+            serializer = serializers.ResourceSerializer(
+                instance=resource, context=self.get_serializer_context()
+            )
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
+            return Response(status.HTTP_204_NO_CONTENT)
+
+
 @extend_schema_view(
     list=extend_schema(
         summary="List service providers",
@@ -5882,7 +5904,9 @@ def _emit_resource_failure_event(order, resource):
         description="Deletes an order that is still in a pending state (e.g., `pending-consumer` or `pending-provider`). Executing or completed orders cannot be deleted.",
     ),
 )
-class OrderViewSet(ConnectedOfferingDetailsMixin, BaseMarketplaceView):
+class OrderViewSet(
+    ConnectedResourceDetailsMixin, ConnectedOfferingDetailsMixin, BaseMarketplaceView
+):
     queryset = models.Order.objects.select_related(
         "resource",
         "project",
