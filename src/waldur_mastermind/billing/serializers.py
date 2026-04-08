@@ -95,6 +95,16 @@ _EMPTY_ESTIMATE = {
     "tax_current": 0.0,
 }
 
+_PRICE_ESTIMATE_QUANTIZER = decimal.Decimal(10) ** -PRICE_DECIMAL_PLACES
+
+
+def _to_price_estimate_strings(result: dict) -> dict:
+    """Convert price estimate dict values to strings matching NestedPriceEstimateSerializer output."""
+    return {
+        k: f"{decimal.Decimal(str(v)).quantize(_PRICE_ESTIMATE_QUANTIZER):f}"
+        for k, v in result.items()
+    }
+
 
 def _parse_period_from_request(request):
     """Parse year/month from request query params."""
@@ -137,19 +147,23 @@ def _bulk_compute_project_estimates(project_ids, year, month):
     cache = {}
     for row in aggregates:
         pid = row["project_id"]
-        cache[pid] = {
-            "total": quantize_price(decimal.Decimal(str(row["total_val"] or 0))),
-            "current": quantize_price(decimal.Decimal(str(row["current_val"] or 0))),
-            "tax": quantize_price(decimal.Decimal(str(row["tax_val"] or 0))),
-            "tax_current": quantize_price(
-                decimal.Decimal(str(row["tax_current_val"] or 0))
-            ),
-        }
+        cache[pid] = _to_price_estimate_strings(
+            {
+                "total": quantize_price(decimal.Decimal(str(row["total_val"] or 0))),
+                "current": quantize_price(
+                    decimal.Decimal(str(row["current_val"] or 0))
+                ),
+                "tax": quantize_price(decimal.Decimal(str(row["tax_val"] or 0))),
+                "tax_current": quantize_price(
+                    decimal.Decimal(str(row["tax_current_val"] or 0))
+                ),
+            }
+        )
 
     # Fill in projects with no invoice items
     for pid in project_ids:
         if pid not in cache:
-            cache[pid] = dict(_EMPTY_ESTIMATE)
+            cache[pid] = _to_price_estimate_strings(dict(_EMPTY_ESTIMATE))
 
     return cache
 
@@ -184,12 +198,12 @@ def get_price_estimate(serializer, scope):
                 result["current"] += float(data["current"])
                 result["tax"] += float(data["tax"])
                 result["tax_current"] += float(data["tax_current"])
-            return result
+            return _to_price_estimate_strings(result)
         if cached is not None:
             return NestedPriceEstimateSerializer(
                 instance=cached, context=serializer.context
             ).data
-        return dict(_EMPTY_ESTIMATE)
+        return _to_price_estimate_strings(dict(_EMPTY_ESTIMATE))
 
     # For list serialization of Projects, compute all estimates in bulk on first access
     if (
@@ -225,7 +239,7 @@ def get_price_estimate(serializer, scope):
             ).values_list("id", flat=True)
         )
         if not visible_project_ids:
-            return dict(_EMPTY_ESTIMATE)
+            return _to_price_estimate_strings(dict(_EMPTY_ESTIMATE))
 
         project_estimates = models.PriceEstimate.objects.filter(
             content_type=project_ct, object_id__in=visible_project_ids
@@ -239,13 +253,13 @@ def get_price_estimate(serializer, scope):
             result["current"] += float(data["current"])
             result["tax"] += float(data["tax"])
             result["tax_current"] += float(data["tax_current"])
-        return result
+        return _to_price_estimate_strings(result)
 
     # Fallback to original query behavior for single-object views
     try:
         estimate = models.PriceEstimate.objects.get(scope=scope)
     except models.PriceEstimate.DoesNotExist:
-        return dict(_EMPTY_ESTIMATE)
+        return _to_price_estimate_strings(dict(_EMPTY_ESTIMATE))
     else:
         serializer_instance = NestedPriceEstimateSerializer(
             instance=estimate, context=serializer.context
