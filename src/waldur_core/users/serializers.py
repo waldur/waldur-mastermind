@@ -692,6 +692,8 @@ class PermissionRequestSerializer(serializers.HyperlinkedModelSerializer):
             "role_name",
             "role_description",
             "project_name_template",
+            "project_name",
+            "project_description",
         )
 
         extra_kwargs = {
