@@ -21,6 +21,7 @@ from waldur_auth_social.const import (
 )
 from waldur_auth_social.exceptions import OAuthException
 from waldur_auth_social.models import IdentityProvider
+from waldur_core.core.enums import GENDER_CHOICES
 from waldur_core.core.models import SshPublicKey, User
 from waldur_core.core.user_attributes import (
     get_enabled_idp_sync_fields,
@@ -139,6 +140,17 @@ def get_user_payload(
                 )
                 if user_field == "civil_number" and value:
                     value = parse_schac_personal_unique_id(value)
+                if user_field == "gender" and isinstance(value, str):
+                    value = value.lower()
+                    valid_gender_values = {key for key, _ in GENDER_CHOICES}
+                    if value not in valid_gender_values:
+                        logger.warning(
+                            "Skipping claim for user field gender. "
+                            "Value '%s' is not one of %s.",
+                            value,
+                            sorted(valid_gender_values),
+                        )
+                        value = None
                 if value:
                     payload[user_field] = value
                     break

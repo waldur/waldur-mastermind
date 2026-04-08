@@ -1,11 +1,9 @@
 from django.db import models
 
-# ISO 5218 gender codes - defined here to avoid circular imports with models.py
 GENDER_CHOICES = [
-    (0, "Not known"),
-    (1, "Male"),
-    (2, "Female"),
-    (9, "Not applicable"),
+    ("male", "Male"),
+    ("female", "Female"),
+    ("unknown", "Unknown"),
 ]
 
 

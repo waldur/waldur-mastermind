@@ -1564,6 +1564,44 @@ class EnabledUserProfileAttributesSyncTest(test.APITransactionTestCase):
         user = User.objects.get(username=user_info["sub"])
         self.assertEqual(user.nationality, "")
 
+    @override_config(ENABLED_USER_PROFILE_ATTRIBUTES=["gender"])
+    def test_uppercase_gender_claim_is_stored_as_lowercase(self):
+        """IdPs may return gender as 'MALE'/'FEMALE' — must be lowercased before save."""
+        user_info = {
+            "sub": "test_gender_case",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "gender_case@example.com",
+            "gender": "MALE",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user = User.objects.get(username=user_info["sub"])
+        self.assertEqual(user.gender, "male")
+
+    @override_config(ENABLED_USER_PROFILE_ATTRIBUTES=["gender"])
+    def test_invalid_gender_claim_is_skipped(self):
+        """Unrecognised gender values must not be written to the user."""
+        user_info = {
+            "sub": "test_gender_invalid",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "gender_invalid@example.com",
+            "gender": "enigmatic",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user = User.objects.get(username=user_info["sub"])
+        self.assertIsNone(user.gender)
+
 
 class OIDCEmailMatchmakingTest(test.APITransactionTestCase):
     """Tests for OIDC email-based failover user matching."""
