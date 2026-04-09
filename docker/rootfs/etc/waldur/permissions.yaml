@@ -32,6 +32,7 @@
     - OFFERING.MANAGE_USER_ROLE
     - RESOURCE.MANAGE_USERS
     - ORDER.LIST
+    - ORDER.CREATE
     - ORDER.APPROVE
     - ORDER.APPROVE_PRIVATE
     - ORDER.REJECT
@@ -178,6 +179,7 @@
     - ORDER.DESTROY
     - ORDER.CANCEL
     - ORDER.LIST
+    - ORDER.CREATE
     - RESOURCE.LIST
     - RESOURCE.UPDATE
     - RESOURCE.TERMINATE
@@ -198,6 +200,7 @@
     - ORDER.DESTROY
     - ORDER.CANCEL
     - ORDER.LIST
+    - ORDER.CREATE
     - RESOURCE.LIST
     - RESOURCE.UPDATE
     - RESOURCE.TERMINATE
@@ -287,6 +290,12 @@
   permissions:
     - RESOURCE.LIST
     - PROJECT.LIST
+    - ORDER.CREATE
+
+- role: CUSTOMER.READER
+  description: Organization reader
+  scope: customer
+  permissions: []
 
 - role: CUSTOMER.CALL_ORGANIZER
   scope: call_organizer

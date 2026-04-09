@@ -5,6 +5,8 @@ from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import status, test
 
 from waldur_core.core.enums import CoreStates
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
@@ -82,6 +84,11 @@ class TenantCreateTest(BaseOpenStackTest):
         )
         self.plan = marketplace_factories.PlanFactory(offering=self.offering)
         create_offering_components(self.offering)
+
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MEMBER.add_permission(PermissionEnum.CREATE_ORDER)
 
     @data("staff", "owner", "manager", "admin")
     def test_order_is_created(self, user):
@@ -376,6 +383,10 @@ class InstanceCreateTest(test.APITestCase):
         self.fixture = openstack_fixtures.OpenStackFixture()
         self.tenant = self.fixture.tenant
         self.service_settings = self.fixture.tenant.service_settings
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MEMBER.add_permission(PermissionEnum.CREATE_ORDER)
 
     def test_instance_order_via_api_does_not_require_plan(self):
         """

@@ -24,6 +24,15 @@ class CustomerRole:
             ),
         )
 
+    @classproperty
+    def READER(self):
+        return Role.objects.get_system_role(
+            RoleEnum.CUSTOMER_READER,
+            content_type=ContentType.objects.get_by_natural_key(
+                "structure", "customer"
+            ),
+        )
+
 
 class ServiceProviderRole:
     @classproperty

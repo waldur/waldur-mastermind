@@ -67,6 +67,10 @@ def deactivate_tos_config(tos_config):
 class TermsOfServiceConsentTest(APITestCase):
     def setUp(self):
         ProjectRole.MANAGER.add_permission(PermissionEnum.LIST_RESOURCES)
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MEMBER.add_permission(PermissionEnum.CREATE_ORDER)
 
         self.user = UserFactory()
         self.customer = CustomerFactory()

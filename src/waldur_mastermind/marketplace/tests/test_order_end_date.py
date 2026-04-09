@@ -6,6 +6,8 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import status
 
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_mastermind.marketplace import models, serializers, signals
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
@@ -170,6 +172,10 @@ class OrderCreatePrepaidTest(BaseOrderCreateTest):
             max_prepaid_duration=24,  # months
         )
         self.user = self.fixture.owner
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MEMBER.add_permission(PermissionEnum.CREATE_ORDER)
 
     @freeze_time("2024-01-01")
     def test_create_prepaid_order_succeeds_with_valid_end_date(self):

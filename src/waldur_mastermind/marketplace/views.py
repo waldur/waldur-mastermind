@@ -5977,6 +5977,22 @@ class OrderViewSet(
         ),
     ]
 
+    @staticmethod
+    def check_create_permissions(request, view, obj=None):
+        user = request.user
+        if user.is_staff or user.is_support:
+            return
+        serializer = view.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        project = serializer.validated_data.get("project")
+        if project and marketplace_permissions.has_project_permission(
+            request, PermissionEnum.CREATE_ORDER, project
+        ):
+            return
+        raise rf_exceptions.PermissionDenied()
+
+    create_permissions = [check_create_permissions]
+
     approve_by_consumer_permissions = [
         permission_factory(
             PermissionEnum.APPROVE_ORDER,
