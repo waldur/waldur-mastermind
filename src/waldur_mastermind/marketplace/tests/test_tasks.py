@@ -451,6 +451,7 @@ class MarkResourcesAsErredAfterTimeoutTest(test.APITestCase):
 
         self.assertEqual(self.order.state, OrderStates.ERRED)
         self.assertEqual(self.order.error_message, "Execution has timed out.")
+        self.assertIsNotNone(self.order.error_updated_at)
         self.assertEqual(self.resource.state, ResourceStates.ERRED)
         self.assertEqual(self.resource.backend_metadata["state"], "ERRED")
         self.assertEqual(self.fixture.instance.state, CoreStates.ERRED)

@@ -2011,6 +2011,8 @@ class Order(
         default=OrderStates.PENDING_CONSUMER, choices=OrderStates.CHOICES
     )
     output = models.TextField(blank=True)
+    output_updated_at = models.DateTimeField(editable=False, null=True, blank=True)
+    error_updated_at = models.DateTimeField(editable=False, null=True, blank=True)
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     created_by = models.ForeignKey(
@@ -2184,6 +2186,41 @@ class Order(
     def set_state_erred(self):
         pass
 
+    def save(self, *args, **kwargs):
+        # Track the latest updates for output and error details explicitly.
+        update_fields = kwargs.get("update_fields")
+        normalized_update_fields = (
+            set(update_fields) if update_fields is not None else None
+        )
+
+        output_changed = self.pk and self.tracker.has_changed("output")
+        error_message_changed = self.pk and self.tracker.has_changed("error_message")
+        error_traceback_changed = self.pk and self.tracker.has_changed(
+            "error_traceback"
+        )
+        if output_changed or error_message_changed or error_traceback_changed:
+            now = timezone.now()
+            if output_changed:
+                self.output_updated_at = now
+            if error_message_changed or error_traceback_changed:
+                self.error_updated_at = now
+
+            if normalized_update_fields is not None:
+                if output_changed:
+                    normalized_update_fields.add("output")
+                    normalized_update_fields.add("output_updated_at")
+                if error_message_changed:
+                    normalized_update_fields.add("error_message")
+                if error_traceback_changed:
+                    normalized_update_fields.add("error_traceback")
+                if error_message_changed or error_traceback_changed:
+                    normalized_update_fields.add("error_updated_at")
+
+        if normalized_update_fields is not None:
+            kwargs["update_fields"] = list(normalized_update_fields)
+
+        super().save(*args, **kwargs)
+
     def get_log_fields(self):
         return (
             "uuid",
@@ -2203,6 +2240,8 @@ class Order(
             "consumer_reviewed_at",
             "provider_reviewed_by",
             "provider_reviewed_at",
+            "output_updated_at",
+            "error_updated_at",
         )
 
     def __str__(self):

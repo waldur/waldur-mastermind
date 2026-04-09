@@ -226,6 +226,7 @@ class OrderSetStateErredTest(BaseOrderSetStateTest):
         self.assertEqual(self.order.state, OrderStates.ERRED)
         self.assertEqual(self.order.error_message, error_message)
         self.assertEqual(self.order.error_traceback, error_traceback.strip())
+        self.assertIsNotNone(self.order.error_updated_at)
 
     def test_set_state_erred_from_pending_provider(self):
         self.order.state = OrderStates.PENDING_PROVIDER

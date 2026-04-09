@@ -303,6 +303,7 @@ class RemoteUpdateResourceProcessorTest(test.APITestCase):
             "Remote limits already match requested limits. No update needed.",
             self.order.output,
         )
+        self.assertIsNotNone(self.order.output_updated_at)
         self.assertEqual(self.get_mock.call_count, 1)
         self.assertEqual(self.post_mock.call_count, 0)
 
@@ -353,6 +354,7 @@ class RemoteUpdateResourceProcessorTest(test.APITestCase):
             "Remote limits already match requested limits. No update needed.",
             self.order.output,
         )
+        self.assertIsNotNone(self.order.output_updated_at)
         self.assertEqual(self.get_mock.call_count, 1)
         self.assertEqual(self.post_mock.call_count, 1)
 
