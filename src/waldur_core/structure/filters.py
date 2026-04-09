@@ -664,11 +664,15 @@ class UserFilter(BaseUserFilter):
 
     def filter_organization_roles(self, queryset, name, value):
         roles = self.request.GET.getlist("organization_roles")
-        return queryset.filter(userrole__role__name__in=roles).distinct()
+        return queryset.filter(
+            userrole__role__name__in=roles, userrole__is_active=True
+        ).distinct()
 
     def filter_project_roles(self, queryset, name, value):
         roles = self.request.GET.getlist("project_roles")
-        return queryset.filter(userrole__role__name__in=roles).distinct()
+        return queryset.filter(
+            userrole__role__name__in=roles, userrole__is_active=True
+        ).distinct()
 
     def filter_query(self, queryset, name, value):
         q = (
