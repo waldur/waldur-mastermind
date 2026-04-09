@@ -2883,7 +2883,7 @@ class ProviderOfferingDetailsSerializer(
     scope_uuid = serializers.UUIDField(
         read_only=True, source="scope.uuid", allow_null=True
     )
-    scope_name = serializers.UUIDField(
+    scope_name = serializers.CharField(
         read_only=True, source="scope.name", allow_null=True
     )
     scope_state = serializers.SerializerMethodField()
