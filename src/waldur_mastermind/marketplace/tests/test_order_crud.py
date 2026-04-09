@@ -1216,6 +1216,18 @@ class OrderFilterTest(test.APITestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], self.order.uuid.hex)
 
+    def test_output_updated_at_is_visible_in_list_response(self):
+        self.order.output = "Provisioning output"
+        self.order.save(update_fields=["output"])
+
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertIn("output_updated_at", response.data[0])
+        self.assertIsNotNone(response.data[0]["output_updated_at"])
+
 
 class OrderListNoDuplicatesTest(test.APITestCase):
     """Test that orders are not duplicated when a user has access

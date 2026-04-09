@@ -53,6 +53,7 @@ class OrderOutputTest(TestCase):
 
         self.order.refresh_from_db()
         self.assertIsNotNone(self.order.output)
+        self.assertIsNotNone(self.order.output_updated_at)
 
         # Verify the plain text output
         output_text = self.order.output
@@ -71,6 +72,7 @@ class OrderOutputTest(TestCase):
 
         self.order.refresh_from_db()
         self.assertIsNotNone(self.order.output)
+        self.assertIsNotNone(self.order.output_updated_at)
 
         # Verify the plain text output
         output_text = self.order.output

@@ -139,6 +139,18 @@ class SetProviderInfoTest(BaseProviderConsumerInfoTest):
         response = self.client.get(url)
         self.assertEqual(response.data["provider_message"], "Check this")
 
+    def test_output_updated_at_is_visible_in_detail_response(self):
+        self.order.output = "Provider processing output"
+        self.order.save(update_fields=["output"])
+
+        self.client.force_authenticate(self.fixture.offering_owner)
+        url = factories.OrderFactory.get_url(self.order)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("output_updated_at", response.data)
+        self.assertIsNotNone(response.data["output_updated_at"])
+
     def test_consumer_cannot_use_provider_endpoint(self):
         response = self._post(
             self.fixture.owner,

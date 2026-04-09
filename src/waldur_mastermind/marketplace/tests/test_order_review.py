@@ -398,6 +398,7 @@ class OrderRejectByConsumerTest(test.APITestCase):
         self.assertEqual(self.order.state, OrderStates.REJECTED)
         self.assertEqual(self.order.error_message, "Test error message")
         self.assertEqual(self.order.error_traceback, "Test stack trace")
+        self.assertIsNotNone(self.order.error_updated_at)
 
     def test_empty_request_still_works(self):
         response = self.reject_order(self.fixture.staff)
