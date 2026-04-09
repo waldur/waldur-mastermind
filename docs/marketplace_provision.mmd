@@ -81,6 +81,8 @@ classDiagram
         +Resource resource [FK]
         +FSMIntegerField state
         +string output
+        +datetime output_updated_at
+        +datetime error_updated_at
         +User created_by [FK]
         +User consumer_reviewed_by [FK]
         +datetime consumer_reviewed_at
