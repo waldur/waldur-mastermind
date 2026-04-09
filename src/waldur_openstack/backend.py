@@ -6402,6 +6402,12 @@ class OpenStackBackend(ServiceBackend):
     def pull_tenant_load_balancers(self, tenant: models.Tenant):
         """Sync load balancers from Octavia for the tenant."""
         octavia_client = get_octavia_client(tenant)
+        if not octavia_client.is_available():
+            logger.info(
+                "Octavia service is not available for tenant %s, skipping load balancer sync.",
+                tenant,
+            )
+            return
         try:
             backend_load_balancers = octavia_client.get_tenant_load_balancers()
         except OpenStackBackendError as e:
@@ -6488,7 +6494,11 @@ class OpenStackBackend(ServiceBackend):
             .exclude(backend_id__isnull=True)
             .exclude(backend_id="")
         )
+        if not load_balancers.exists():
+            return
         octavia_client = get_octavia_client(tenant)
+        if not octavia_client.is_available():
+            return
         for lb in load_balancers:
             try:
                 backend_pools = octavia_client.list_pools_for_load_balancer(
@@ -6572,7 +6582,11 @@ class OpenStackBackend(ServiceBackend):
             .exclude(backend_id__isnull=True)
             .exclude(backend_id="")
         )
+        if not pools.exists():
+            return
         octavia_client = get_octavia_client(tenant)
+        if not octavia_client.is_available():
+            return
         for pool in pools:
             try:
                 backend_members = octavia_client.list_members_for_pool(pool.backend_id)
@@ -6680,7 +6694,11 @@ class OpenStackBackend(ServiceBackend):
             .exclude(backend_id__isnull=True)
             .exclude(backend_id="")
         )
+        if not pools.exists():
+            return
         octavia_client = get_octavia_client(tenant)
+        if not octavia_client.is_available():
+            return
         for pool in pools:
             try:
                 backend_hms = octavia_client.list_health_monitors_for_pool(
@@ -6765,7 +6783,11 @@ class OpenStackBackend(ServiceBackend):
             .exclude(backend_id__isnull=True)
             .exclude(backend_id="")
         )
+        if not load_balancers.exists():
+            return
         octavia_client = get_octavia_client(tenant)
+        if not octavia_client.is_available():
+            return
         for lb in load_balancers:
             try:
                 backend_listeners = octavia_client.list_listeners_for_load_balancer(
