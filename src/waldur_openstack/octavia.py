@@ -227,6 +227,8 @@ class OctaviaClient:
         update_kwargs = {"name": listener.name}
         if listener.default_pool_id and listener.default_pool.backend_id:
             update_kwargs["default_pool_id"] = listener.default_pool.backend_id
+        else:
+            update_kwargs["default_pool_id"] = None
         self.connection.update_listener(listener.backend_id, **update_kwargs)
         self.connection.wait_for_load_balancer(load_balancer_backend_id)
         self.pull_listener(listener)
