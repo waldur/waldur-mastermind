@@ -38,7 +38,7 @@ class CustomerEstimatedCostFilterTest(test.APITestCase):
         response = self.client.get(url, params)
 
         return [
-            int(customer["billing_price_estimate"]["total"])
+            int(float(customer["billing_price_estimate"]["total"]))
             for customer in response.data
         ]
 
@@ -84,7 +84,7 @@ class CustomerTotalCostFilterTest(test.APITransactionTestCase):
         response = self.client.get(url, params)
 
         return [
-            int(customer["billing_price_estimate"]["current"])
+            int(float(customer["billing_price_estimate"]["current"]))
             for customer in response.data
         ]
 

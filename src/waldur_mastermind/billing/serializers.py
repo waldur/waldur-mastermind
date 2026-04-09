@@ -49,38 +49,45 @@ class NestedPriceEstimateSerializer(serializers.HyperlinkedModelSerializer):
         return utils.get_current_year(), utils.get_current_month()
 
     @extend_schema_field(PriceEstimateDecimalField)
-    def get_total(self, obj) -> decimal.Decimal:
+    def get_total(self, obj) -> str:
         year, month = self._parse_period()
-
-        if year and month:
-            return obj.get_total(year=year, month=month)
-
-        return obj.total
-
-    @extend_schema_field(PriceEstimateDecimalField)
-    def get_current(self, obj) -> decimal.Decimal:
-        year, month = self._parse_period()
-        if not year and not month:
-            year, month = self._get_current_period()
-        return obj.get_total(
-            year=year, month=month, current=(year, month) == self._get_current_period()
+        value = obj.get_total(year=year, month=month) if (year and month) else obj.total
+        return (
+            f"{decimal.Decimal(str(value or 0)).quantize(_PRICE_ESTIMATE_QUANTIZER):f}"
         )
 
     @extend_schema_field(PriceEstimateDecimalField)
-    def get_tax(self, obj) -> decimal.Decimal:
-        year, month = self._parse_period()
-        if not year or not month:
-            year, month = self._get_current_period()
-
-        return obj.get_tax(year=year, month=month)
-
-    @extend_schema_field(PriceEstimateDecimalField)
-    def get_tax_current(self, obj) -> decimal.Decimal:
+    def get_current(self, obj) -> str:
         year, month = self._parse_period()
         if not year and not month:
             year, month = self._get_current_period()
-        return obj.get_tax(
+        value = obj.get_total(
             year=year, month=month, current=(year, month) == self._get_current_period()
+        )
+        return (
+            f"{decimal.Decimal(str(value or 0)).quantize(_PRICE_ESTIMATE_QUANTIZER):f}"
+        )
+
+    @extend_schema_field(PriceEstimateDecimalField)
+    def get_tax(self, obj) -> str:
+        year, month = self._parse_period()
+        if not year or not month:
+            year, month = self._get_current_period()
+        value = obj.get_tax(year=year, month=month)
+        return (
+            f"{decimal.Decimal(str(value or 0)).quantize(_PRICE_ESTIMATE_QUANTIZER):f}"
+        )
+
+    @extend_schema_field(PriceEstimateDecimalField)
+    def get_tax_current(self, obj) -> str:
+        year, month = self._parse_period()
+        if not year and not month:
+            year, month = self._get_current_period()
+        value = obj.get_tax(
+            year=year, month=month, current=(year, month) == self._get_current_period()
+        )
+        return (
+            f"{decimal.Decimal(str(value or 0)).quantize(_PRICE_ESTIMATE_QUANTIZER):f}"
         )
 
     class Meta:
@@ -200,9 +207,11 @@ def get_price_estimate(serializer, scope):
                 result["tax_current"] += float(data["tax_current"])
             return _to_price_estimate_strings(result)
         if cached is not None:
-            return NestedPriceEstimateSerializer(
-                instance=cached, context=serializer.context
-            ).data
+            return _to_price_estimate_strings(
+                NestedPriceEstimateSerializer(
+                    instance=cached, context=serializer.context
+                ).data
+            )
         return _to_price_estimate_strings(dict(_EMPTY_ESTIMATE))
 
     # For list serialization of Projects, compute all estimates in bulk on first access
@@ -264,7 +273,7 @@ def get_price_estimate(serializer, scope):
         serializer_instance = NestedPriceEstimateSerializer(
             instance=estimate, context=serializer.context
         )
-        return serializer_instance.data
+        return _to_price_estimate_strings(serializer_instance.data)
 
 
 def add_price_estimate(sender, fields, **kwargs):
