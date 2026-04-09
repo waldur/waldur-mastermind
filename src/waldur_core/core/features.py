@@ -184,6 +184,9 @@ class MarketplaceSection(FeatureSection):
     hide_marketplace_from_end_users = Feature(
         "Hide marketplace functionality from end users but allow staff access."
     )
+    hide_add_resource_button_from_end_users = Feature(
+        "Hide add resource button from end users but allow staff/support access."
+    )
     hide_organization_information_from_project_members = Feature(
         "Hide organization information from project-level users. Organization owners, managers, and staff retain full access."
     )
