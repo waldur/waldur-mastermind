@@ -562,6 +562,19 @@ class ExistingTenantPullExecutor(core_executors.ActionExecutor):
             core_tasks.BackendMethodTask().si(
                 serialized_tenant, "pull_tenant_instances"
             ),
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant, "pull_tenant_load_balancers"
+            ),
+            core_tasks.BackendMethodTask().si(serialized_tenant, "pull_tenant_pools"),
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant, "pull_tenant_listeners"
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant, "pull_tenant_pool_members"
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant, "pull_tenant_healthmonitors"
+            ),
         )
 
     @classmethod
@@ -2099,6 +2112,109 @@ class HealthMonitorUpdateExecutor(core_executors.UpdateExecutor):
             serialized_hm,
             "update_health_monitor",
             state_transition="begin_updating",
+        )
+
+
+class LoadBalancerPullExecutor(core_executors.ActionExecutor):
+    action = "pull"
+
+    @classmethod
+    def get_task_signature(cls, load_balancer, serialized_load_balancer, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_load_balancer,
+            "pull_load_balancer",
+            state_transition="begin_updating",
+        )
+
+
+class ListenerPullExecutor(core_executors.ActionExecutor):
+    action = "pull"
+
+    @classmethod
+    def get_task_signature(cls, listener, serialized_listener, **kwargs):
+        serialized_lb = kwargs["serialized_load_balancer"]
+        serialized_tenant = kwargs["serialized_tenant"]
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_tenant,
+                "pull_tenant_pools",
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_listener,
+                "pull_listener",
+                state_transition="begin_updating",
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_lb,
+                "pull_load_balancer",
+            ),
+        )
+
+
+class PoolPullExecutor(core_executors.ActionExecutor):
+    action = "pull"
+
+    @classmethod
+    def get_task_signature(cls, pool, serialized_pool, **kwargs):
+        serialized_lb = kwargs["serialized_load_balancer"]
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_pool,
+                "pull_pool",
+                state_transition="begin_updating",
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_lb,
+                "pull_load_balancer",
+            ),
+        )
+
+
+class PoolMemberPullExecutor(core_executors.ActionExecutor):
+    action = "pull"
+
+    @classmethod
+    def get_task_signature(cls, member, serialized_member, **kwargs):
+        serialized_pool = kwargs["serialized_pool"]
+        serialized_lb = kwargs["serialized_load_balancer"]
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_member,
+                "pull_pool_member",
+                state_transition="begin_updating",
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_pool,
+                "pull_pool",
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_lb,
+                "pull_load_balancer",
+            ),
+        )
+
+
+class HealthMonitorPullExecutor(core_executors.ActionExecutor):
+    action = "pull"
+
+    @classmethod
+    def get_task_signature(cls, hm, serialized_hm, **kwargs):
+        serialized_pool = kwargs["serialized_pool"]
+        serialized_lb = kwargs["serialized_load_balancer"]
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_hm,
+                "pull_health_monitor",
+                state_transition="begin_updating",
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_pool,
+                "pull_pool",
+            ),
+            core_tasks.BackendMethodTask().si(
+                serialized_lb,
+                "pull_load_balancer",
+            ),
         )
 
 

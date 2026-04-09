@@ -651,3 +651,206 @@ class ListenerUpdateTest(BaseListenerTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         mock_execute.assert_called_once()
+
+
+class LoadBalancerPullTest(BaseLoadBalancerTest):
+    def setUp(self):
+        super().setUp()
+        self.lb = factories.LoadBalancerFactory(
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            state=CoreStates.OK,
+        )
+        self.url = factories.LoadBalancerFactory.get_url(self.lb, action="pull")
+
+    @mock.patch("waldur_openstack.executors.LoadBalancerPullExecutor.execute")
+    def test_pull_load_balancer_in_ok_state(self, mock_execute):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_execute.assert_called_once()
+
+    @mock.patch("waldur_openstack.executors.LoadBalancerPullExecutor.execute")
+    def test_pull_load_balancer_in_erred_state(self, mock_execute):
+        self.lb.state = CoreStates.ERRED
+        self.lb.save()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_execute.assert_called_once()
+
+    def test_pull_load_balancer_in_updating_state_is_rejected(self):
+        self.lb.state = CoreStates.UPDATING
+        self.lb.save()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_pull_load_balancer_in_creating_state_is_rejected(self):
+        self.lb.state = CoreStates.CREATING
+        self.lb.save()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+
+class PoolPullTest(BasePoolTest):
+    def setUp(self):
+        super().setUp()
+        self.pool = factories.PoolFactory(
+            load_balancer=self.load_balancer,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            state=CoreStates.OK,
+        )
+        self.url = factories.PoolFactory.get_url(self.pool, action="pull")
+
+    @mock.patch("waldur_openstack.executors.PoolPullExecutor.execute")
+    def test_pull_pool_in_ok_state(self, mock_execute):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_execute.assert_called_once()
+
+    @mock.patch("waldur_openstack.executors.PoolPullExecutor.execute")
+    def test_pull_pool_in_erred_state(self, mock_execute):
+        self.pool.state = CoreStates.ERRED
+        self.pool.save()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_execute.assert_called_once()
+
+    def test_pull_pool_in_updating_state_is_rejected(self):
+        self.pool.state = CoreStates.UPDATING
+        self.pool.save()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    @mock.patch("waldur_openstack.executors.PoolPullExecutor.execute")
+    def test_pull_pool_passes_load_balancer_to_executor(self, mock_execute):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        _, kwargs = mock_execute.call_args
+        self.assertIn("serialized_load_balancer", kwargs)
+
+
+class ListenerPullTest(BaseListenerTest):
+    def setUp(self):
+        super().setUp()
+        self.listener = factories.ListenerFactory(
+            load_balancer=self.load_balancer,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            state=CoreStates.OK,
+        )
+        self.url = factories.ListenerFactory.get_url(self.listener, action="pull")
+
+    @mock.patch("waldur_openstack.executors.ListenerPullExecutor.execute")
+    def test_pull_listener_in_ok_state(self, mock_execute):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_execute.assert_called_once()
+
+    @mock.patch("waldur_openstack.executors.ListenerPullExecutor.execute")
+    def test_pull_listener_in_erred_state(self, mock_execute):
+        self.listener.state = CoreStates.ERRED
+        self.listener.save()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_execute.assert_called_once()
+
+    def test_pull_listener_in_updating_state_is_rejected(self):
+        self.listener.state = CoreStates.UPDATING
+        self.listener.save()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    @mock.patch("waldur_openstack.executors.ListenerPullExecutor.execute")
+    def test_pull_listener_passes_load_balancer_and_tenant_to_executor(
+        self, mock_execute
+    ):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        _, kwargs = mock_execute.call_args
+        self.assertIn("serialized_load_balancer", kwargs)
+        self.assertIn("serialized_tenant", kwargs)
+
+
+class PoolMemberPullTest(BasePoolMemberTest):
+    def setUp(self):
+        super().setUp()
+        self.member = factories.PoolMemberFactory(
+            pool=self.pool,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            state=CoreStates.OK,
+        )
+        self.url = factories.PoolMemberFactory.get_url(self.member, action="pull")
+
+    @mock.patch("waldur_openstack.executors.PoolMemberPullExecutor.execute")
+    def test_pull_pool_member_in_ok_state(self, mock_execute):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_execute.assert_called_once()
+
+    @mock.patch("waldur_openstack.executors.PoolMemberPullExecutor.execute")
+    def test_pull_pool_member_in_erred_state(self, mock_execute):
+        self.member.state = CoreStates.ERRED
+        self.member.save()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_execute.assert_called_once()
+
+    def test_pull_pool_member_in_updating_state_is_rejected(self):
+        self.member.state = CoreStates.UPDATING
+        self.member.save()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    @mock.patch("waldur_openstack.executors.PoolMemberPullExecutor.execute")
+    def test_pull_pool_member_passes_pool_and_load_balancer_to_executor(
+        self, mock_execute
+    ):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        _, kwargs = mock_execute.call_args
+        self.assertIn("serialized_pool", kwargs)
+        self.assertIn("serialized_load_balancer", kwargs)
+
+
+class HealthMonitorPullTest(BaseHealthMonitorTest):
+    def setUp(self):
+        super().setUp()
+        self.hm = factories.HealthMonitorFactory(
+            pool=self.pool,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            state=CoreStates.OK,
+        )
+        self.url = factories.HealthMonitorFactory.get_url(self.hm, action="pull")
+
+    @mock.patch("waldur_openstack.executors.HealthMonitorPullExecutor.execute")
+    def test_pull_health_monitor_in_ok_state(self, mock_execute):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_execute.assert_called_once()
+
+    @mock.patch("waldur_openstack.executors.HealthMonitorPullExecutor.execute")
+    def test_pull_health_monitor_in_erred_state(self, mock_execute):
+        self.hm.state = CoreStates.ERRED
+        self.hm.save()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_execute.assert_called_once()
+
+    def test_pull_health_monitor_in_updating_state_is_rejected(self):
+        self.hm.state = CoreStates.UPDATING
+        self.hm.save()
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    @mock.patch("waldur_openstack.executors.HealthMonitorPullExecutor.execute")
+    def test_pull_health_monitor_passes_pool_and_load_balancer_to_executor(
+        self, mock_execute
+    ):
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        _, kwargs = mock_execute.call_args
+        self.assertIn("serialized_pool", kwargs)
+        self.assertIn("serialized_load_balancer", kwargs)

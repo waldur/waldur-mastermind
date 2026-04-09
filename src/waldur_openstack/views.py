@@ -1299,6 +1299,23 @@ class LoadBalancerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         core_validators.StateValidator(CoreStates.OK),
     ]
 
+    @extend_schema(
+        summary="Pull load balancer",
+        description="Synchronize load balancer state from the OpenStack backend.",
+        request=None,
+        responses={202: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def pull(self, request, uuid=None):
+        load_balancer = self.get_object()
+        executors.LoadBalancerPullExecutor.execute(load_balancer)
+        return response.Response(status=status.HTTP_202_ACCEPTED)
+
+    pull_validators = [
+        core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED),
+    ]
+    pull_serializer_class = EmptySerializer
+
 
 @extend_schema_view(
     list=extend_schema(
@@ -1339,6 +1356,26 @@ class PoolViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     delete_executor = executors.PoolDeleteExecutor
     create_executor = executors.PoolCreateExecutor
     update_executor = executors.PoolUpdateExecutor
+
+    @extend_schema(
+        summary="Pull pool",
+        description="Synchronize pool state from the OpenStack backend. Also pulls the associated load balancer.",
+        request=None,
+        responses={202: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def pull(self, request, uuid=None):
+        pool = self.get_object()
+        executors.PoolPullExecutor.execute(
+            pool,
+            serialized_load_balancer=core_utils.serialize_instance(pool.load_balancer),
+        )
+        return response.Response(status=status.HTTP_202_ACCEPTED)
+
+    pull_validators = [
+        core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED),
+    ]
+    pull_serializer_class = EmptySerializer
 
 
 @extend_schema_view(
@@ -1383,6 +1420,31 @@ class ListenerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     create_executor = executors.ListenerCreateExecutor
     update_executor = executors.ListenerUpdateExecutor
 
+    @extend_schema(
+        summary="Pull listener",
+        description="Synchronize listener state from the OpenStack backend. Also pulls pools of the load balancer and the load balancer itself.",
+        request=None,
+        responses={202: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def pull(self, request, uuid=None):
+        listener = self.get_object()
+        executors.ListenerPullExecutor.execute(
+            listener,
+            serialized_load_balancer=core_utils.serialize_instance(
+                listener.load_balancer
+            ),
+            serialized_tenant=core_utils.serialize_instance(
+                listener.load_balancer.tenant
+            ),
+        )
+        return response.Response(status=status.HTTP_202_ACCEPTED)
+
+    pull_validators = [
+        core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED),
+    ]
+    pull_serializer_class = EmptySerializer
+
 
 @extend_schema_view(
     list=extend_schema(
@@ -1426,6 +1488,29 @@ class PoolMemberViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     create_executor = executors.PoolMemberCreateExecutor
     update_executor = executors.PoolMemberUpdateExecutor
 
+    @extend_schema(
+        summary="Pull pool member",
+        description="Synchronize pool member state from the OpenStack backend. Also pulls the associated pool and load balancer.",
+        request=None,
+        responses={202: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def pull(self, request, uuid=None):
+        member = self.get_object()
+        executors.PoolMemberPullExecutor.execute(
+            member,
+            serialized_pool=core_utils.serialize_instance(member.pool),
+            serialized_load_balancer=core_utils.serialize_instance(
+                member.pool.load_balancer
+            ),
+        )
+        return response.Response(status=status.HTTP_202_ACCEPTED)
+
+    pull_validators = [
+        core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED),
+    ]
+    pull_serializer_class = EmptySerializer
+
 
 @extend_schema_view(
     list=extend_schema(
@@ -1468,6 +1553,29 @@ class HealthMonitorViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet)
     delete_executor = executors.HealthMonitorDeleteExecutor
     create_executor = executors.HealthMonitorCreateExecutor
     update_executor = executors.HealthMonitorUpdateExecutor
+
+    @extend_schema(
+        summary="Pull health monitor",
+        description="Synchronize health monitor state from the OpenStack backend. Also pulls the associated pool and load balancer.",
+        request=None,
+        responses={202: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def pull(self, request, uuid=None):
+        hm = self.get_object()
+        executors.HealthMonitorPullExecutor.execute(
+            hm,
+            serialized_pool=core_utils.serialize_instance(hm.pool),
+            serialized_load_balancer=core_utils.serialize_instance(
+                hm.pool.load_balancer
+            ),
+        )
+        return response.Response(status=status.HTTP_202_ACCEPTED)
+
+    pull_validators = [
+        core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED),
+    ]
+    pull_serializer_class = EmptySerializer
 
 
 @extend_schema_view(
