@@ -20,11 +20,11 @@ def get_octavia_client(tenant):
 class OctaviaClient:
     def __init__(self, tenant):
         self.tenant = tenant
-        self._connect = None
+        self._connection = None
+        self._lb_proxy = None
 
-    @property
-    def connection(self):
-        if not self._connect:
+    def _get_connection(self):
+        if not self._connection:
             # Use admin credentials from service_settings scoped to the tenant project.
             # Do NOT pass tenant= to get_credentials() — that switches to per-tenant
             # user credentials which may lack the policy rights for Octavia operations.
@@ -37,17 +37,34 @@ class OctaviaClient:
             credentials["project_id"] = self.tenant.backend_id
             auth_type = credentials.pop("auth_type", "password")
             if auth_type == "v3applicationcredential":
-                connect = openstack_sdk.connect(
+                self._connection = openstack_sdk.connect(
                     auth_url=credentials["auth_url"],
                     auth_type="v3applicationcredential",
                     application_credential_id=credentials["username"],
                     application_credential_secret=credentials["password"],
                 )
             else:
-                connect = openstack_sdk.connect(**credentials)
-            self._connect = connect.load_balancer
+                self._connection = openstack_sdk.connect(**credentials)
+        return self._connection
 
-        return self._connect
+    @property
+    def connection(self):
+        if not self._lb_proxy:
+            self._lb_proxy = self._get_connection().load_balancer
+        return self._lb_proxy
+
+    def is_available(self):
+        """Check whether the Octavia (load-balancer) service is in the catalog."""
+        try:
+            conn = self._get_connection()
+            return conn.has_service("load-balancer")
+        except Exception as e:
+            logger.warning(
+                "Failed to check Octavia availability for tenant %s: %s",
+                self.tenant,
+                e,
+            )
+            return False
 
     def create_load_balancer(self, load_balancer: models.LoadBalancer):
         backend_load_balancer = self.connection.create_load_balancer(
