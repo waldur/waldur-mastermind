@@ -1622,15 +1622,15 @@ class BasePlanSerializer(
     def get_is_active(self, plan: models.Plan) -> bool:
         return plan.is_active
 
-    def get_prices(self, plan: models.Plan) -> dict[str, float]:
+    def get_prices(self, plan: models.Plan) -> dict[str, str]:
         return {item.component.type: item.price for item in plan.components.all()}
 
-    def get_future_prices(self, plan: models.Plan) -> dict[str, float]:
+    def get_future_prices(self, plan: models.Plan) -> dict[str, str]:
         return {
             item.component.type: item.future_price for item in plan.components.all()
         }
 
-    def get_quotas(self, plan: models.Plan) -> dict[str, float]:
+    def get_quotas(self, plan: models.Plan) -> dict[str, str]:
         return {item.component.type: item.amount for item in plan.components.all()}
 
     def get_resources_count(self, plan: models.Plan) -> int:
