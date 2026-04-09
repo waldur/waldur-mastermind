@@ -37,7 +37,7 @@ class PriceCurrentTest(test.APITestCase):
         data = response.json()
         # 127 = 100 + 9 * 3
         # Decimals are serialized as strings as there is no native decimal in JSON and float's precision is worse
-        self.assertEqual(data["billing_price_estimate"]["current"], "127.00")
+        self.assertEqual(data["billing_price_estimate"]["current"], "127.0000000000")
         diff = Decimal(data["billing_price_estimate"]["total"]) - Decimal(
             data["billing_price_estimate"]["current"]
         )

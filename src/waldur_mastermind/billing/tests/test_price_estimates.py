@@ -74,7 +74,7 @@ class PriceEstimateAPITest(test.APITestCase):
         response = self.client.get(get_financial_report_url(self.fixture.customer))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         estimate = response.data["billing_price_estimate"]
-        self.assertEqual(estimate["total"], 100)
+        self.assertEqual(estimate["total"], "100.0000000000")
 
         response = self.client.get(
             get_financial_report_url(self.fixture.customer),
@@ -82,7 +82,7 @@ class PriceEstimateAPITest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         estimate = response.data["billing_price_estimate"]
-        self.assertEqual(estimate["total"], 0)
+        self.assertEqual(estimate["total"], "0.0000000000")
 
     @data("staff", "owner", "manager", "admin")
     def test_authorized_can_get_price_estimate_for_customer(self, user):
@@ -95,7 +95,7 @@ class PriceEstimateAPITest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         estimate = response.data["billing_price_estimate"]
-        self.assertEqual(estimate["total"], 100)
+        self.assertEqual(estimate["total"], "100.0000000000")
 
     @data("staff", "owner", "manager", "admin")
     def test_authorized_can_get_price_estimate_for_project(self, user):
@@ -110,7 +110,7 @@ class PriceEstimateAPITest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         estimate = response.data["billing_price_estimate"]
-        self.assertEqual(estimate["total"], 100)
+        self.assertEqual(estimate["total"], "100.0000000000")
 
 
 @ddt
