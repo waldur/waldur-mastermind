@@ -6,6 +6,8 @@ from django.test import TestCase
 from rest_framework import status, test
 from rest_framework.exceptions import ValidationError
 
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests.fixtures import ProjectFixture
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
@@ -273,6 +275,11 @@ class OrderCreateValidationTest(test.APITransactionTestCase):
             },
         )
         self.plan = PlanFactory(offering=self.offering)
+
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MEMBER.add_permission(PermissionEnum.CREATE_ORDER)
 
     def test_order_creation_succeeds_with_fix(self):
         """

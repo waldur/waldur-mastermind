@@ -28,6 +28,11 @@ class BaseOrderCreateTest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = structure_fixtures.ProjectFixture()
         self.project = self.fixture.project
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+        CustomerRole.READER.add_permission(PermissionEnum.LIST_PROJECTS)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MEMBER.add_permission(PermissionEnum.CREATE_ORDER)
 
     def create_order(self, user, offering=None, add_payload=None, skip_auto_plan=False):
         if offering is None:
@@ -509,6 +514,40 @@ class OrderCreateTest(BaseOrderCreateTest):
 
         # Should succeed (attribute validation for required fields is separate)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
+@ddt
+class OrderCreatePermissionTest(BaseOrderCreateTest):
+    """Tests that CREATE_ORDER permission gates order creation correctly."""
+
+    def test_customer_reader_cannot_create_order(self):
+        user = structure_factories.UserFactory()
+        self.fixture.customer.add_user(user, CustomerRole.READER)
+        response = self.create_order(user)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_customer_reader_with_create_order_permission_can_create_order(self):
+        CustomerRole.READER.add_permission(PermissionEnum.CREATE_ORDER)
+        user = structure_factories.UserFactory()
+        self.fixture.customer.add_user(user, CustomerRole.READER)
+        response = self.create_order(user)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    @data("owner", "admin", "manager", "member")
+    def test_authorized_user_can_create_order(self, user_role):
+        user = getattr(self.fixture, user_role)
+        response = self.create_order(user)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_staff_can_create_order_bypassing_permission_check(self):
+        response = self.create_order(self.fixture.staff)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_unrelated_user_without_project_access_cannot_create_order(self):
+        user = structure_factories.UserFactory()
+        response = self.create_order(user)
+        # Rejected at serializer project validation (400), before permission check
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 @ddt

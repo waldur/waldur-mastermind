@@ -1,6 +1,8 @@
 from freezegun import freeze_time
 from rest_framework import status, test
 
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_mastermind.booking import models as booking_models
@@ -90,6 +92,11 @@ class OrderCreateTest(test.APITestCase):
             },
             state=OfferingStates.ACTIVE,
         )
+
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MEMBER.add_permission(PermissionEnum.CREATE_ORDER)
 
     def test_create_order_if_schedule_is_valid(self):
         add_payload = {

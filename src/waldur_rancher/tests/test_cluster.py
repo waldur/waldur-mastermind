@@ -133,6 +133,10 @@ class ClusterCreateTest(BaseClusterCreateTest):
             "system_volume_size": 1024,
             "flavor": openstack_factories.FlavorFactory.get_url(self.flavor),
         }
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.ADMIN.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.CREATE_ORDER)
+        ProjectRole.MEMBER.add_permission(PermissionEnum.CREATE_ORDER)
 
     def tearDown(self):
         mock.patch.stopall()
