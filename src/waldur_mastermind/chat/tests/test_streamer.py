@@ -757,7 +757,7 @@ class LLMStreamerErrorMessagesTest(_LLMStreamerTestBase, unittest.TestCase):
         @contextmanager
         def _error_stream(_):
             raise error
-            yield  # noqa: unreachable — makes it a generator
+            yield  # makes this a generator
 
         streamer.client = MagicMock()
         streamer.client.chat.completions.create.return_value = _error_stream(None)

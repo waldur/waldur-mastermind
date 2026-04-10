@@ -9,7 +9,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
 from django.db import transaction
-from django.db.models import Count, Prefetch, Q, QuerySet
+from django.db.models import Count, Prefetch, Q, QuerySet, Sum
 from django.db.models.functions import TruncMonth
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -1033,6 +1033,29 @@ class ProjectViewSet(
 
     move_project_serializer_class = serializers.MoveProjectSerializer
     move_project_permissions = [permissions.can_move_project]
+
+    @extend_schema(
+        summary="Update affiliated organizations for a project",
+        description="Assigns a project to one or more affiliated organizations. Replaces the current set.",
+        request=serializers.AffiliatedOrganizationsUpdateSerializer,
+        responses={200: None},
+    )
+    @action(detail=True, methods=["post"])
+    def update_affiliated_organizations(self, request, uuid=None):
+        project = self.get_object()
+        serializer = serializers.AffiliatedOrganizationsUpdateSerializer(
+            instance=project, data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_200_OK)
+
+    update_affiliated_organizations_serializer_class = (
+        serializers.AffiliatedOrganizationsUpdateSerializer
+    )
+    update_affiliated_organizations_permissions = [
+        permission_factory(PermissionEnum.UPDATE_PROJECT, ["*", "customer"])
+    ]
 
     @extend_schema(
         summary="Get project resource usage statistics",
@@ -2429,6 +2452,132 @@ class OrganizationGroupViewSet(core_views.ActionsViewSet):
     filterset_class = filters.OrganizationGroupFilter
     permission_classes = (core_permissions.IsAdminOrReadOnly,)
     ordering_fields = ("name", "customers_count")
+
+
+class AffiliatedOrganizationStatsSerializer(rf_serializers.Serializer):
+    active_projects_count = rf_serializers.IntegerField()
+    resources_count = rf_serializers.IntegerField()
+    estimated_monthly_cost = rf_serializers.DecimalField(
+        max_digits=22, decimal_places=10
+    )
+
+
+class AffiliatedOrganizationReportRowSerializer(rf_serializers.Serializer):
+    org_uuid = rf_serializers.UUIDField(allow_null=True)
+    org_name = rf_serializers.CharField()
+    org_abbreviation = rf_serializers.CharField()
+    projects_count = rf_serializers.IntegerField()
+    resources_count = rf_serializers.IntegerField()
+    estimated_cost = rf_serializers.DecimalField(max_digits=22, decimal_places=10)
+
+
+class AffiliatedOrganizationViewSet(core_views.ActionsViewSet):
+    queryset = (
+        models.AffiliatedOrganization.objects.all()
+        .order_by("name")
+        .annotate(
+            projects_count=Count(
+                "projects",
+                filter=Q(projects__is_removed=False),
+            )
+        )
+    )
+    serializer_class = serializers.AffiliatedOrganizationSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend, rf_filters.OrderingFilter)
+    filterset_class = filters.AffiliatedOrganizationFilter
+    permission_classes = (core_permissions.IsAdminOrReadOnly,)
+    ordering_fields = ("name", "projects_count", "created")
+
+    @extend_schema(
+        summary="Get affiliated organization statistics",
+        responses={200: AffiliatedOrganizationStatsSerializer},
+        description="Returns permission-filtered statistics for this affiliated organization.",
+    )
+    @action(detail=True, methods=["get"])
+    def stats(self, request, uuid=None):
+        org = self.get_object()
+        user = request.user
+        projects = org.projects.filter(is_removed=False)
+        if not (user.is_staff or user.is_support):
+            projects = filter_queryset_for_user(projects, user)
+
+        active_projects_count = projects.count()
+        resources_count = (
+            marketplace_models.Resource.objects.filter(
+                project__in=projects,
+            )
+            .exclude(state=ResourceStates.TERMINATED)
+            .count()
+        )
+        estimated_monthly_cost = (
+            marketplace_models.Resource.objects.filter(
+                project__in=projects,
+            )
+            .exclude(state=ResourceStates.TERMINATED)
+            .aggregate(total=Sum("cost"))["total"]
+            or 0
+        )
+
+        data = {
+            "active_projects_count": active_projects_count,
+            "resources_count": resources_count,
+            "estimated_monthly_cost": estimated_monthly_cost,
+        }
+        response_serializer = AffiliatedOrganizationStatsSerializer(data)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Get affiliated organizations report",
+        responses={200: AffiliatedOrganizationReportRowSerializer(many=True)},
+        description="Staff-only report showing aggregated data for all affiliated organizations plus an unaffiliated row.",
+    )
+    @action(detail=False, methods=["get"])
+    def report(self, request):
+        if not request.user.is_staff:
+            raise PermissionDenied()
+        rows = []
+        for org in models.AffiliatedOrganization.objects.all().order_by("name"):
+            projects = org.projects.filter(is_removed=False)
+            resources = marketplace_models.Resource.objects.filter(
+                project__in=projects,
+            ).exclude(state=ResourceStates.TERMINATED)
+            rows.append(
+                {
+                    "org_uuid": org.uuid,
+                    "org_name": org.name,
+                    "org_abbreviation": org.abbreviation,
+                    "projects_count": projects.count(),
+                    "resources_count": resources.count(),
+                    "estimated_cost": resources.aggregate(total=Sum("cost"))["total"]
+                    or 0,
+                }
+            )
+
+        # Unaffiliated row
+        unaffiliated_projects = models.Project.available_objects.filter(
+            affiliated_organizations__isnull=True
+        )
+        unaffiliated_resources = marketplace_models.Resource.objects.filter(
+            project__in=unaffiliated_projects,
+        ).exclude(state=ResourceStates.TERMINATED)
+        rows.append(
+            {
+                "org_uuid": None,
+                "org_name": "Unaffiliated",
+                "org_abbreviation": "",
+                "projects_count": unaffiliated_projects.count(),
+                "resources_count": unaffiliated_resources.count(),
+                "estimated_cost": unaffiliated_resources.aggregate(total=Sum("cost"))[
+                    "total"
+                ]
+                or 0,
+            }
+        )
+        response_serializer = AffiliatedOrganizationReportRowSerializer(rows, many=True)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    report_permissions = [permissions.is_staff]
 
 
 @extend_schema_view(

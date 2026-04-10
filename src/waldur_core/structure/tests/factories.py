@@ -267,6 +267,32 @@ class OrganizationGroupFactory(
         return "http://testserver" + reverse("organization-group-list")
 
 
+class AffiliatedOrganizationFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.AffiliatedOrganization],
+):
+    class Meta:
+        model = models.AffiliatedOrganization
+
+    name = factory.Sequence(lambda n: "AffiliatedOrganization_%s" % n)
+    code = factory.Sequence(lambda n: "AO%s" % n)
+    abbreviation = factory.Sequence(lambda n: "AO%s" % n)
+
+    @classmethod
+    def get_url(cls, affiliated_organization=None, action=None):
+        if affiliated_organization is None:
+            affiliated_organization = AffiliatedOrganizationFactory()
+        url = "http://testserver" + reverse(
+            "affiliated-organization-detail",
+            kwargs={"uuid": affiliated_organization.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("affiliated-organization-list")
+
+
 class NotificationTemplateFactory(
     factory.django.DjangoModelFactory,
     metaclass=BaseMetaFactory[core_models.NotificationTemplate],
