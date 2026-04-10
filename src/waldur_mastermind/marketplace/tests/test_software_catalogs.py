@@ -1796,6 +1796,32 @@ class SoftwarePackageMultipleParentsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["extensions"], [])
 
+    def test_extensions_list_includes_versions(self):
+        """Test that extensions in API response include version strings."""
+        factories.SoftwareVersionFactory(package=self.extension, version="1.0.0")
+        factories.SoftwareVersionFactory(package=self.extension, version="2.0.0")
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.SoftwarePackageFactory.get_url(self.parent_gtk3)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        extensions = response.data["extensions"]
+        self.assertEqual(len(extensions), 1)
+        self.assertIn("versions", extensions[0])
+        self.assertEqual(sorted(extensions[0]["versions"]), ["1.0.0", "2.0.0"])
+
+    def test_parent_softwares_list_includes_versions(self):
+        """Test that parent_softwares in API response include version strings."""
+        factories.SoftwareVersionFactory(package=self.parent_gtk3, version="3.24.0")
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.SoftwarePackageFactory.get_url(self.extension)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        parent_softwares = response.data["parent_softwares"]
+        gtk3 = next(p for p in parent_softwares if p["name"] == "GTK3")
+        self.assertEqual(gtk3["versions"], ["3.24.0"])
+
 
 class SoftwarePackageGPUFilterTest(test.APITestCase):
     """Test GPU-related filters for software packages, versions, and targets."""
