@@ -40,6 +40,7 @@ LB_ALGORITHM_CHOICES = [
     ("SOURCE_IP_PORT", "Source IP port"),
 ]
 HEALTHMONITOR_TYPE_CHOICES = [("TCP", "TCP"), ("UDP", "UDP")]
+OVN_SUPPORTED_LB_ALGORITHMS = ["SOURCE_IP_PORT"]
 
 
 def build_tenants_query(user):

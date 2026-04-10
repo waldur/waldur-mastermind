@@ -2429,11 +2429,17 @@ class UpdatePoolSerializer(PoolWritableSerializer):
 
 class CreatePoolSerializer(PoolWritableSerializer):
     protocol = serializers.ChoiceField(choices=models.PROTOCOL_CHOICES)
+    lb_algorithm = serializers.ChoiceField(
+        choices=models.LB_ALGORITHM_CHOICES,
+        default="SOURCE_IP_PORT",
+        required=False,
+    )
 
     class Meta(PoolWritableSerializer.Meta):
         fields = PoolWritableSerializer.Meta.fields + (
             "load_balancer",
             "protocol",
+            "lb_algorithm",
         )
         extra_kwargs = dict(
             load_balancer={
@@ -2450,6 +2456,19 @@ class CreatePoolSerializer(PoolWritableSerializer):
     def validate(self, attrs):
         attrs = super().validate(attrs)
         load_balancer = attrs["load_balancer"]
+        lb_algorithm = attrs.get("lb_algorithm", "SOURCE_IP_PORT")
+        if (
+            load_balancer.provider == "ovn"
+            and lb_algorithm not in models.OVN_SUPPORTED_LB_ALGORITHMS
+        ):
+            raise serializers.ValidationError(
+                {
+                    "lb_algorithm": _(
+                        "OVN provider only supports the following algorithms: %s."
+                    )
+                    % ", ".join(models.OVN_SUPPORTED_LB_ALGORITHMS)
+                }
+            )
         attrs["project"] = load_balancer.project
         attrs["service_settings"] = load_balancer.service_settings
         return attrs
