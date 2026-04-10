@@ -1630,7 +1630,7 @@ class BasePlanSerializer(
             item.component.type: item.future_price for item in plan.components.all()
         }
 
-    def get_quotas(self, plan: models.Plan) -> dict[str, str]:
+    def get_quotas(self, plan: models.Plan) -> dict[str, int]:
         return {item.component.type: item.amount for item in plan.components.all()}
 
     def get_resources_count(self, plan: models.Plan) -> int:
@@ -5156,7 +5156,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             help_text="Dictionary mapping component types to their latest reported usage amounts.",
         )
     )
-    def get_current_usages(self, resource: models.Resource) -> dict[str, int]:
+    def get_current_usages(self, resource: models.Resource) -> dict[str, float]:
         return resource.current_usages
 
     @extend_schema_field(BackendMetadataSerializer)
