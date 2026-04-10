@@ -2234,6 +2234,29 @@ class OpenStackLoadBalancerSerializer(structure_serializers.BaseResourceSerializ
     provider = serializers.CharField(read_only=True)
     provisioning_status = serializers.CharField(read_only=True)
     operating_status = serializers.CharField(read_only=True)
+    vip_security_groups = serializers.SerializerMethodField()
+
+    @extend_schema_field(
+        serializers.ListField(
+            child=serializers.DictField(),
+            help_text="Security groups assigned to the VIP port.",
+        )
+    )
+    def get_vip_security_groups(self, obj):
+        if not obj.vip_port:
+            return []
+        return [
+            {
+                "uuid": str(sg.uuid),
+                "name": sg.name,
+                "url": reverse(
+                    "openstack-sgp-detail",
+                    kwargs={"uuid": sg.uuid},
+                    request=self.context.get("request"),
+                ),
+            }
+            for sg in obj.vip_port.security_groups.all()
+        ]
 
     class Meta:
         model = models.LoadBalancer
@@ -2248,6 +2271,7 @@ class OpenStackLoadBalancerSerializer(structure_serializers.BaseResourceSerializ
             "provider",
             "provisioning_status",
             "operating_status",
+            "vip_security_groups",
         )
         extra_kwargs = dict(
             url={"lookup_field": "uuid", "view_name": "openstack-loadbalancer-detail"},
@@ -2272,6 +2296,16 @@ class LoadBalancerAsyncOperationResponseSerializer(serializers.Serializer):
 
     status = serializers.CharField(
         help_text="Message that execution of the operation was scheduled.",
+    )
+
+
+class LoadBalancerSetSecurityGroupsSerializer(serializers.Serializer):
+    security_groups = serializers.ListField(
+        child=serializers.HyperlinkedRelatedField(
+            view_name="openstack-sgp-detail",
+            lookup_field="uuid",
+            queryset=models.SecurityGroup.objects.all(),
+        ),
     )
 
 
