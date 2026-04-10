@@ -415,6 +415,26 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
         label="Filter projects where the given user has a role.",
     )
 
+    affiliated_organization_uuid = core_filters.ModelMultipleChoiceFilter(
+        field_name="affiliated_organizations__uuid",
+        label="Affiliated organization UUID",
+        to_field_name="uuid",
+        queryset=models.AffiliatedOrganization.objects.all(),
+        view_name="affiliated-organization-detail",
+    )
+
+    affiliated_organization_name = django_filters.CharFilter(
+        field_name="affiliated_organizations__name",
+        lookup_expr="icontains",
+        label="Affiliated organization name",
+    )
+
+    has_affiliated_organization = django_filters.BooleanFilter(
+        widget=BooleanWidget,
+        method="filter_has_affiliated_organization",
+        label="Filter projects that have at least one affiliated organization.",
+    )
+
     o = django_filters.OrderingFilter(
         fields=(
             ("name", "name"),
@@ -498,6 +518,11 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
         if value:
             return queryset.exclude(end_date__lt=timezone.now())
         return queryset
+
+    def filter_has_affiliated_organization(self, queryset, name, value):
+        if value:
+            return queryset.filter(affiliated_organizations__isnull=False).distinct()
+        return queryset.filter(affiliated_organizations__isnull=True)
 
 
 def filter_visible_users(queryset, user, extra=None):
@@ -1042,6 +1067,32 @@ class OrganizationGroupFilter(NameFilterSet):
         fields = [
             "name",
         ]
+
+
+class AffiliatedOrganizationFilter(NameFilterSet):
+    query = django_filters.CharFilter(method="filter_query", label="Search")
+    code = django_filters.CharFilter(lookup_expr="iexact", label="Code")
+    abbreviation = django_filters.CharFilter(
+        lookup_expr="icontains", label="Abbreviation"
+    )
+    country = django_filters.CharFilter(lookup_expr="exact", label="Country")
+
+    class Meta:
+        model = models.AffiliatedOrganization
+        fields = [
+            "query",
+            "name",
+            "code",
+            "abbreviation",
+            "country",
+        ]
+
+    def filter_query(self, queryset, name, value):
+        return queryset.filter(
+            Q(name__icontains=value)
+            | Q(code__icontains=value)
+            | Q(abbreviation__icontains=value)
+        )
 
 
 class UserAgreementsFilter(django_filters.FilterSet):

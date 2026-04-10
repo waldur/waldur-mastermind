@@ -35,6 +35,11 @@ def register_in(router):
         basename="organization-group",
     )
     router.register(
+        r"affiliated-organizations",
+        views.AffiliatedOrganizationViewSet,
+        basename="affiliated-organization",
+    )
+    router.register(
         r"user-agreements",
         views.UserAgreementsViewSet,
         basename="user-agreements",

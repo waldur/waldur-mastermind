@@ -212,6 +212,58 @@ class ProjectTypeSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
+class AffiliatedOrganizationSerializer(serializers.HyperlinkedModelSerializer):
+    projects_count = serializers.SerializerMethodField(
+        help_text="Number of active projects affiliated with this organization"
+    )
+
+    class Meta:
+        model = models.AffiliatedOrganization
+        fields = (
+            "uuid",
+            "url",
+            "name",
+            "code",
+            "abbreviation",
+            "description",
+            "email",
+            "homepage",
+            "country",
+            "address",
+            "created",
+            "modified",
+            "projects_count",
+        )
+        extra_kwargs = {
+            "url": {
+                "view_name": "affiliated-organization-detail",
+                "lookup_field": "uuid",
+            },
+        }
+
+    def get_projects_count(self, org: models.AffiliatedOrganization) -> int:
+        try:
+            return org.projects_count
+        except AttributeError:
+            return 0
+
+
+class AffiliatedOrganizationsUpdateSerializer(serializers.Serializer):
+    affiliated_organizations = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.AffiliatedOrganization.objects.all(),
+        many=True,
+        required=False,
+    )
+
+    def save(self, **kwargs):
+        project = self.instance
+        orgs = self.validated_data.get("affiliated_organizations", [])
+        project.affiliated_organizations.clear()
+        if orgs:
+            project.affiliated_organizations.add(*orgs)
+
+
 class ProjectSerializer(
     core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
@@ -267,6 +319,10 @@ class ProjectSerializer(
         source="customer.grace_period_days",
         help_text="Grace period days set at the customer (organization) level. Used as default when project-level is not set.",
     )
+    affiliated_organizations = AffiliatedOrganizationSerializer(
+        many=True,
+        read_only=True,
+    )
 
     class Meta:
         model = models.Project
@@ -309,6 +365,7 @@ class ProjectSerializer(
             "user_email_patterns",
             "user_affiliations",
             "user_identity_sources",
+            "affiliated_organizations",
         )
         read_only_fields = (
             "end_date_requested_by",
@@ -455,7 +512,7 @@ class ProjectSerializer(
     def eager_load(queryset, request=None):
         return queryset.select_related(
             "customer", "type", "projectcredit", "end_date_requested_by"
-        )
+        ).prefetch_related("affiliated_organizations")
 
     def get_filtered_field_names(self):
         return ("customer",)

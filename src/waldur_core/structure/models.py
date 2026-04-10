@@ -285,6 +285,43 @@ class OrganizationGroup(core_models.UuidMixin, core_models.NameMixin, models.Mod
         return " -> ".join(full_path[::-1])
 
 
+class AffiliatedOrganization(
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    core_models.DescribableMixin,
+    TimeStampedModel,
+):
+    """
+    External organization that projects can be affiliated with.
+
+    Provides a flat registry of organizations (separate from Customer)
+    for cross-project reporting and filtering by organizational affiliation.
+    Staff-managed; any authenticated user can read.
+    """
+
+    code = models.CharField(
+        max_length=20,
+        unique=True,
+        help_text=_("Unique short identifier, e.g. CERN, EMBL."),
+    )
+    abbreviation = models.CharField(max_length=12, blank=True)
+    email = models.EmailField(max_length=75, blank=True)
+    homepage = models.URLField(max_length=255, blank=True)
+    country = models.CharField(max_length=2, blank=True)
+    address = models.CharField(max_length=300, blank=True)
+
+    class Meta:
+        verbose_name = _("affiliated organization")
+        ordering = ("name",)
+
+    @classmethod
+    def get_url_name(cls):
+        return "affiliated-organization"
+
+    def __str__(self):
+        return self.name
+
+
 CUSTOMER_DETAILS_FIELDS = (
     "name",
     "slug",
@@ -859,6 +896,11 @@ class Project(
         help_text=_(
             "Number of extra days after project end date before resources are terminated. Overrides customer-level setting."
         ),
+    )
+    affiliated_organizations = models.ManyToManyField(
+        to=AffiliatedOrganization,
+        related_name="projects",
+        blank=True,
     )
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
