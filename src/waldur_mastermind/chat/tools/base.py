@@ -2,11 +2,13 @@ from abc import ABC, abstractmethod
 
 from pydantic import BaseModel, Field
 
+from waldur_mastermind.chat.tools.enums import ToolName
+
 
 class ToolDefinition(BaseModel):
     """MCP-compatible tool definition with prompt instructions."""
 
-    name: str
+    name: ToolName
     description: str
     inputSchema: dict
     meta: dict | None = Field(default=None)
@@ -61,5 +63,5 @@ class BaseTool(ABC):
         """
 
     @property
-    def name(self) -> str:
+    def name(self) -> ToolName:
         return self.definition.name

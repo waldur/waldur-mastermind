@@ -23,6 +23,7 @@ from waldur_mastermind.chat.providers import (
 )
 from waldur_mastermind.chat.tools.executor import ToolExecutor
 from waldur_mastermind.chat.tools.registry import tool_registry
+from waldur_mastermind.chat.tools.tool_sets import get_tool_set_for_user
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +111,7 @@ class LLMStreamer:
         assistant_msg=None,
         canned_response=None,
         pii_warning=None,
+        intent=None,
     ):
         self.messages = messages
         self.client = openai.OpenAI(
@@ -133,6 +135,7 @@ class LLMStreamer:
         self._persisted_message_meta = None
         self.canned_response = canned_response
         self.pii_warning = pii_warning
+        self.intent = intent
 
         # Thread-based streaming infrastructure
         self._queue: queue.Queue = queue.Queue(maxsize=_QUEUE_MAXSIZE)
@@ -155,7 +158,7 @@ class LLMStreamer:
         completion_kwargs = (
             _completion_kwargs if isinstance(_completion_kwargs, dict) else {}
         )
-        tools = tool_registry.get_openai_tools()
+        tools = tool_registry.get_openai_tools(get_tool_set_for_user(self.user))
 
         kwargs = {
             "model": model,
@@ -403,7 +406,10 @@ class LLMStreamer:
 
     def _run_llm_workflow(self):
         """Execute the full LLM streaming workflow (runs in worker thread)."""
-        with self._stream_completion(self.messages) as stream:
+        include_tools = self.intent.include_tools if self.intent else True
+        with self._stream_completion(
+            self.messages, include_tools=include_tools
+        ) as stream:
             for chunk in stream:
                 # Capture usage from any chunk — some providers attach it
                 # to a chunk that still has a (empty-delta) choices entry.

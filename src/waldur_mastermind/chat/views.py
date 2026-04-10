@@ -29,7 +29,7 @@ from waldur_core.logging.enums import EventType
 from waldur_core.structure import permissions
 from waldur_mastermind.chat import models, serializers
 from waldur_mastermind.chat.context_assembler import (
-    build_context,
+    build_context_with_intent,
     build_rejection_input,
 )
 from waldur_mastermind.chat.input_guards import (
@@ -40,6 +40,7 @@ from waldur_mastermind.chat.input_guards import (
     SeverityLevel,
     get_detection_service,
 )
+from waldur_mastermind.chat.intent_classifier import Intent
 from waldur_mastermind.chat.llm_streamer import LLMStreamer, validate_tool_call
 from waldur_mastermind.chat.models import TokenQuota
 from waldur_mastermind.chat.prompts.rejection import CANNED_REJECTION_MESSAGE_TEMPLATE
@@ -210,12 +211,13 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
         return thread, True
 
     def _build_llm_prompt(self, user, thread, raw_message, detection_result):
-        """Prepare the LLM prompt, canned response, and PII warning.
+        """Prepare the LLM prompt, canned response, PII warning, and intent.
 
-        Returns (llm_prompt, canned_response, pii_warning).
+        Returns (llm_prompt, canned_response, pii_warning, intent).
         """
         canned_response = None
         pii_warning = None
+        intent = Intent.AMBIGUOUS
 
         if detection_result.action == DetectionAction.BLOCK:
             rejection_prompt = build_rejection_input(thread)
@@ -234,15 +236,17 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             user_input = (
                 detection_result.pii.redacted_text if is_redacted else raw_message
             )
-            llm_prompt = build_context(
+            result = build_context_with_intent(
                 user=user,
                 user_input=user_input,
                 thread=thread,
             )
+            llm_prompt = result.messages
+            intent = result.intent
             if is_redacted or detection_result.action == DetectionAction.WARN:
                 pii_warning = detection_result.pii.user_message
 
-        return llm_prompt, canned_response, pii_warning
+        return llm_prompt, canned_response, pii_warning, intent
 
     def _create_edit_message(
         self, locked_thread, user, edit_message_uuid, stored_content
@@ -398,7 +402,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             user, serializer.validated_data.get("thread_uuid")
         )
 
-        llm_prompt, canned_response, pii_warning = self._build_llm_prompt(
+        llm_prompt, canned_response, pii_warning, intent = self._build_llm_prompt(
             user, thread, raw_message, detection_result
         )
 
@@ -420,6 +424,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             assistant_msg=assistant_placeholder,
             canned_response=canned_response,
             pii_warning=pii_warning,
+            intent=intent,
         )
 
         return StreamingHttpResponse(

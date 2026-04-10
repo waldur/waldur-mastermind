@@ -8,7 +8,12 @@ from rest_framework import status, test
 from rest_framework.exceptions import PermissionDenied
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.chat.context_assembler import build_context
+from waldur_mastermind.chat.context_assembler import (
+    ContextResult,
+    build_context,
+    build_context_with_intent,
+)
+from waldur_mastermind.chat.intent_classifier import Intent
 from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession
 from waldur_mastermind.chat.prompts.ui_capabilities import UI_CAPABILITIES
 from waldur_mastermind.chat.tests.utils import (
@@ -199,6 +204,71 @@ class BuildContextTest(TestCase):
         all_contents = " ".join(m["content"] for m in context)
         self.assertIn("Hello", all_contents)
         self.assertNotIn("Old msg", all_contents)
+
+
+class BuildContextWithIntentTest(TestCase):
+    def setUp(self):
+        self.user = structure_factories.UserFactory()
+        session = ChatSession.objects.create(user=self.user)
+        self.thread = ThreadSession.objects.create(chat_session=session)
+
+    def test_returns_context_result(self):
+        result = build_context_with_intent(self.user, "hello")
+        self.assertIsInstance(result, ContextResult)
+        self.assertIsInstance(result.messages, list)
+        self.assertIsInstance(result.intent, Intent)
+
+    def test_greeting_classified(self):
+        result = build_context_with_intent(self.user, "hello")
+        self.assertEqual(result.intent, Intent.GREETING)
+
+    def test_tool_action_classified(self):
+        result = build_context_with_intent(self.user, "show my resources")
+        self.assertEqual(result.intent, Intent.TOOL_ACTION)
+
+    def test_knowledge_classified(self):
+        result = build_context_with_intent(self.user, "what is a VM?")
+        self.assertEqual(result.intent, Intent.KNOWLEDGE)
+
+    def test_messages_match_build_context(self):
+        result = build_context_with_intent(
+            self.user, "show my resources", thread=self.thread
+        )
+        expected = build_context(self.user, "show my resources", thread=self.thread)
+        self.assertEqual(len(result.messages), len(expected))
+        self.assertEqual(result.messages[0]["role"], expected[0]["role"])
+
+    def test_knowledge_intent_omits_tool_instructions(self):
+        """When intent is KNOWLEDGE, tool usage guidelines should not appear."""
+        result = build_context_with_intent(self.user, "what is a VM?")
+        system_msg = next(m for m in result.messages if m["role"] == "system")
+        self.assertNotIn("TOOL USAGE GUIDELINES", system_msg["content"])
+
+    def test_tool_action_intent_includes_tool_instructions(self):
+        """When intent is TOOL_ACTION, tool usage guidelines should appear."""
+        result = build_context_with_intent(self.user, "show my resources")
+        system_msg = next(m for m in result.messages if m["role"] == "system")
+        self.assertIn("TOOL USAGE GUIDELINES", system_msg["content"])
+
+    def test_mid_workflow_returns_ambiguous(self):
+        """History with tool_calls should override to AMBIGUOUS."""
+        Message.objects.create(
+            thread=self.thread,
+            role="assistant",
+            content="",
+            sequence_index=1,
+            tool_calls=[
+                {
+                    "id": "call_abc",
+                    "name": "show_user_resources",
+                    "arguments": {},
+                }
+            ],
+        )
+        result = build_context_with_intent(
+            self.user, "what is this?", thread=self.thread
+        )
+        self.assertEqual(result.intent, Intent.AMBIGUOUS)
 
 
 class ChatStreamIntegrationTest(test.APITestCase):
