@@ -100,10 +100,6 @@ Enable display of software catalog in UI.
 
 Enable display of user terms of service in UI.
 
-## marketplace.hide_add_resource_button_from_end_users
-
-Hide add resource button from end users but allow staff/support access.
-
 ## marketplace.hide_marketplace_from_end_users
 
 Hide marketplace functionality from end users but allow staff access.

@@ -718,6 +718,22 @@ options:
 
 ```
 
+## init_component_usage_reporting
+
+Backfills the ComponentUsageMonthly reporting table with historical data. Safe to run multiple times (idempotent).
+
+```bash
+
+usage: waldur init_component_usage_reporting [--months MONTHS] [--all-time]
+
+options:
+  --months MONTHS  Number of months to look back (default: 12). Use 0 for
+                   current month only.
+  --all-time       Calculate from the oldest invoice in the database to the
+                   current month.
+
+```
+
 ## load_categories
 
 Loads a categories for the Marketplace
