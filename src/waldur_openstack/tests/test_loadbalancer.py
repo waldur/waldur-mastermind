@@ -235,6 +235,29 @@ class PoolCreateTest(BasePoolTest):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         mock_execute.assert_called_once()
 
+    @mock.patch("waldur_openstack.executors.PoolCreateExecutor.execute")
+    def test_create_pool_with_source_ip_port_algorithm_succeeds(self, mock_execute):
+        valid_data = {
+            "name": "Test Pool",
+            "load_balancer": factories.LoadBalancerFactory.get_url(self.load_balancer),
+            "protocol": "TCP",
+            "lb_algorithm": "SOURCE_IP_PORT",
+        }
+        response = self.client.post(factories.PoolFactory.get_list_url(), valid_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        mock_execute.assert_called_once()
+
+    def test_create_pool_with_unsupported_algorithm_for_ovn_provider_fails(self):
+        valid_data = {
+            "name": "Test Pool",
+            "load_balancer": factories.LoadBalancerFactory.get_url(self.load_balancer),
+            "protocol": "TCP",
+            "lb_algorithm": "ROUND_ROBIN",
+        }
+        response = self.client.post(factories.PoolFactory.get_list_url(), valid_data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("lb_algorithm", response.data)
+
     def test_create_fails_when_load_balancer_not_provisioned(self):
         self.load_balancer.backend_id = None
         self.load_balancer.save()
