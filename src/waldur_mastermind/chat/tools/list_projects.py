@@ -8,6 +8,7 @@ from waldur_core.permissions.models import UserRole
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import Customer, Project
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
+from waldur_mastermind.chat.tools.enums import ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
@@ -27,7 +28,7 @@ class ListProjectsTool(BaseTool):
     @property
     def definition(self) -> ToolDefinition:
         return ToolDefinition(
-            name="list_projects",
+            name=ToolName.LIST_PROJECTS,
             description="List projects the user has access to and can create VMs in. Returns a list of project names with organizations. Use when the user wants to create a VM but hasn't specified a project.",
             inputSchema={
                 "type": "object",

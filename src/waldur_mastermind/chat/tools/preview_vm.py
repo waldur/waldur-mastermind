@@ -4,6 +4,7 @@ from django.core.exceptions import PermissionDenied
 from rest_framework.exceptions import ValidationError
 
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
+from waldur_mastermind.chat.tools.enums import ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.chat.tools.vm_helpers import (
     MultipleOfferingsAvailable,
@@ -27,7 +28,7 @@ class PreviewVMTool(BaseTool):
     @property
     def definition(self) -> ToolDefinition:
         return ToolDefinition(
-            name="preview_vm",
+            name=ToolName.PREVIEW_VM,
             description=(
                 "Preview VM configuration or show configuration form. "
                 "Call with ONLY project_uuid and name (no flavor/image) to show a form with available options. "

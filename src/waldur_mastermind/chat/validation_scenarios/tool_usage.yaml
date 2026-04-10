@@ -37,3 +37,36 @@
       config:
         expected_tool: "show_user_resources"
         rationale: "User is explicitly requesting their resource data"
+
+- name: eol_question_no_tool
+  description: EOL/lifecycle questions should be answered from knowledge
+  inputs:
+    - "Which OS versions have reached EOL?"
+    - "Find all VMs running distros that have reached end of life"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: null
+        rationale: "EOL/lifecycle questions are knowledge-based and should not trigger tools"
+
+- name: ssh_security_no_tool
+  description: SSH key security questions should be answered from knowledge
+  inputs:
+    - "What are best practices for SSH keys?"
+    - "Which SSH key types are considered weak?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: null
+        rationale: "SSH security questions are knowledge-based advisory and should not trigger tools"
+
+- name: network_debug_no_tool
+  description: Network debugging questions should be answered from knowledge
+  inputs:
+    - "How do I debug VM public internet access?"
+    - "How to troubleshoot VM connectivity issues?"
+  evaluations:
+    - type: tool_usage
+      config:
+        expected_tool: null
+        rationale: "Network debugging questions are knowledge-based and should not trigger tools"

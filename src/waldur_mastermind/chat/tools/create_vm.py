@@ -5,6 +5,7 @@ from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
+from waldur_mastermind.chat.tools.enums import ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.chat.tools.vm_helpers import (
     MultipleOfferingsAvailable,
@@ -32,7 +33,7 @@ class CreateVMTool(BaseTool):
     @property
     def definition(self) -> ToolDefinition:
         return ToolDefinition(
-            name="create_vm",
+            name=ToolName.CREATE_VM,
             description=(
                 "Create the OpenStack VM after user confirms the preview. "
                 "Use ONLY after showing preview_vm and receiving user confirmation (e.g., 'yes', 'proceed', 'create'). "

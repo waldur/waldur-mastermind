@@ -2,6 +2,7 @@ import logging
 
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
+from waldur_mastermind.chat.tools.enums import ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import Resource
@@ -17,7 +18,7 @@ class ShowUserResourcesTool(BaseTool):
     @property
     def definition(self) -> ToolDefinition:
         return ToolDefinition(
-            name="show_user_resources",
+            name=ToolName.SHOW_USER_RESOURCES,
             description="List the user's active cloud resources in a table.",
             inputSchema={
                 "type": "object",
