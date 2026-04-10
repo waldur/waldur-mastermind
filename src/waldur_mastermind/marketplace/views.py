@@ -55,6 +55,7 @@ from rest_framework import permissions as rf_permissions
 from rest_framework import viewsets as rf_viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.filters import OrderingFilter
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.request import Request
@@ -8592,6 +8593,56 @@ class CategoryComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     )
     filterset_class = filters.CategoryComponentUsageFilter
     serializer_class = serializers.CategoryComponentUsageSerializer
+
+
+@extend_schema(
+    summary="List monthly component usage summaries globally",
+    description=(
+        "Returns paginated monthly component usage across all offerings and service providers. "
+        "Results are automatically filtered by the user's permissions. "
+        "Defaults to the current month if no time filters ('billing_period', 'start', 'end') are provided."
+    ),
+)
+class ComponentUsageMonthlyViewSet(mixins.ListModelMixin, rf_viewsets.GenericViewSet):
+    queryset = models.ComponentUsageMonthly.objects.all()
+    serializer_class = serializers.ComponentUsageMonthlySerializer
+    filter_backends = (DjangoFilterBackend, OrderingFilter)
+    filterset_class = filters.ComponentUsageMonthlyFilter
+    ordering_fields = (
+        "usage_percent",
+        "billing_period",
+        "total_consumed",
+        "total_allocated",
+    )
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+
+        if getattr(self, "swagger_fake_view", False):
+            return qs
+
+        # Filter offerings by user permissions
+        offerings = models.Offering.objects.all().filter_for_user(self.request.user)
+        qs = qs.filter(component__offering__in=offerings)
+
+        # Optimize DB queries by pre-fetching related relations used by the Serializer
+        qs = qs.select_related(
+            "component",
+            "component__offering",
+            "component__offering__customer",
+            "component__offering__category",
+        )
+
+        # Safeguard: If no date filters are provided, default to the current month
+        # This prevents querying years of data for all offerings if a user hits the endpoint blindly
+        params = self.request.query_params
+        if not any(k in params for k in ("billing_period", "start", "end")):
+            now = timezone.now()
+            qs = qs.filter(billing_period=datetime.date(now.year, now.month, 1))
+
+        return qs.order_by(
+            "-billing_period", "component__offering__name", "component__name"
+        )
 
 
 @extend_schema_view(

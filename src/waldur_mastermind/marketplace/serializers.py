@@ -6191,6 +6191,69 @@ class ComponentUserUsageBulkCreateSerializer(serializers.Serializer):
         return value
 
 
+class ComponentUsageMonthlySerializer(
+    core_serializers.RestrictedSerializerMixin, serializers.ModelSerializer
+):
+    offering_uuid = serializers.UUIDField(
+        source="component.offering.uuid", read_only=True
+    )
+    offering_name = serializers.CharField(
+        source="component.offering.name", read_only=True
+    )
+    offering_type = serializers.CharField(
+        source="component.offering.type", read_only=True
+    )
+    service_provider_uuid = serializers.UUIDField(
+        source="component.offering.customer.uuid", read_only=True
+    )
+    service_provider_name = serializers.CharField(
+        source="component.offering.customer.name", read_only=True
+    )
+    category_uuid = serializers.UUIDField(
+        source="component.offering.category.uuid", read_only=True
+    )
+    category_title = serializers.CharField(
+        source="component.offering.category.title", read_only=True
+    )
+    component_type = serializers.CharField(source="component.type", read_only=True)
+    component_name = serializers.CharField(source="component.name", read_only=True)
+    measured_unit = serializers.CharField(
+        source="component.measured_unit", read_only=True
+    )
+    billing_type = serializers.CharField(
+        source="component.billing_type", read_only=True
+    )
+    limit_period = serializers.CharField(
+        source="component.limit_period", read_only=True
+    )
+    limit_amount = serializers.IntegerField(
+        source="component.limit_amount", read_only=True
+    )
+    billing_period = serializers.DateField()
+
+    class Meta:
+        model = models.ComponentUsageMonthly
+        fields = (
+            "offering_uuid",
+            "offering_name",
+            "offering_type",
+            "service_provider_uuid",
+            "service_provider_name",
+            "category_uuid",
+            "category_title",
+            "component_type",
+            "component_name",
+            "measured_unit",
+            "billing_type",
+            "limit_amount",
+            "limit_period",
+            "billing_period",
+            "total_consumed",
+            "total_allocated",
+            "usage_percent",
+        )
+
+
 class ResourcePlanPeriodSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.ResourcePlanPeriod

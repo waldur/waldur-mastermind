@@ -1719,6 +1719,37 @@ class PlanFilter(OfferingFilterMixin, django_filters.FilterSet):
     )
 
 
+class ComponentUsageMonthlyFilter(django_filters.FilterSet):
+    billing_period = django_filters.DateFilter(
+        field_name="billing_period", input_formats=["%Y-%m"]
+    )
+    start = django_filters.DateFilter(
+        field_name="billing_period", lookup_expr="gte", input_formats=["%Y-%m"]
+    )
+    end = django_filters.DateFilter(
+        field_name="billing_period", lookup_expr="lte", input_formats=["%Y-%m"]
+    )
+    component_type = django_filters.CharFilter(field_name="component__type")
+    billing_type = django_filters.CharFilter(field_name="component__billing_type")
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        field_name="component__offering__uuid",
+    )
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        field_name="component__offering__customer__uuid",
+    )
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail",
+        field_name="component__offering__project__uuid",
+    )
+    offering_type = django_filters.CharFilter(field_name="component__offering__type")
+
+    class Meta:
+        model = models.ComponentUsageMonthly
+        fields = []
+
+
 class CategoryComponentUsageScopeFilterBackend(core_filters.GenericKeyFilterBackend):
     def get_related_models(self):
         return [structure_models.Project, structure_models.Customer]

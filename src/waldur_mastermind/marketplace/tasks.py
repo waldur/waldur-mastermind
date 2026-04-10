@@ -1,10 +1,11 @@
 import collections
 import datetime
+import decimal
 import hashlib
 import logging
 import uuid as uuid_mod
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import cast
 
 import requests
@@ -34,10 +35,13 @@ from waldur_core.structure.models import Project
 from waldur_mastermind.analytics import models as analytics_models
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices import utils as invoice_utils
+from waldur_mastermind.invoices.models import InvoiceItem
 from waldur_mastermind.marketplace import exceptions, models, plugins, utils
 from waldur_mastermind.marketplace.catalog_loaders.eessi import EESSICatalogLoader
 from waldur_mastermind.marketplace.catalog_loaders.spack import SpackCatalogLoader
 from waldur_mastermind.marketplace.enums import (
+    BillingTypes,
+    LimitPeriods,
     OfferingStates,
     OfferingUserStates,
     OrderStates,
@@ -453,6 +457,191 @@ def calculate_usage_for_current_month():
                         "fixed_usage": fixed_usage.get(component_id),
                     },
                 )
+
+
+@shared_task(name="waldur_mastermind.marketplace.sync_component_usage_summaries")
+def sync_component_usage_summaries():
+    """
+    Runs nightly to keep the current month's ComponentUsageMonthly records up to date.
+    """
+    from django.core.management import call_command
+
+    # Re-use the command, but only calculate the current month (months=0)
+    call_command("init_component_usage_reporting", months=0)
+
+
+def calculate_consumed_for_month(
+    component: models.OfferingComponent, year: int, month: int
+) -> Decimal:
+    """
+    Calculates the total consumption for a component in a specific billing period.
+    Source of truth: ComponentUsage records for the specific month.
+    """
+    consumption_agg = models.ComponentUsage.objects.filter(
+        component=component,
+        billing_period__year=year,
+        billing_period__month=month,
+    ).aggregate(total=Sum("usage"))
+
+    total_consumed = consumption_agg["total"]
+
+    if total_consumed is not None and total_consumed > 0:
+        return Decimal(total_consumed)
+
+    now = timezone.now()
+    is_current_month = year == now.year and month == now.month
+
+    if is_current_month:
+        resources = models.Resource.objects.filter(
+            offering=component.offering,
+            modified__year=year,
+            modified__month=month,
+        ).only("current_usages")
+
+        fallback_total = Decimal("0")
+        for resource in resources:
+            # Safely check if current_usages is a dictionary and has the key
+            if not resource.current_usages or not isinstance(
+                resource.current_usages, dict
+            ):
+                continue
+
+            if component.type in resource.current_usages:
+                usage_val = resource.current_usages.get(component.type, 0)
+                try:
+                    fallback_total += Decimal(str(usage_val))
+                except (ValueError, TypeError, decimal.InvalidOperation):
+                    continue
+
+        return fallback_total
+
+    return Decimal("0")
+
+
+def calculate_allocated_for_month(
+    component: models.OfferingComponent, year: int, month: int
+) -> Decimal:
+    """
+    Calculates the total allocated limit for a component in a specific billing period.
+
+    Logic mapping:
+    - Current Month: Reads live `Resource.limits` (JSONB). Falls back to `OfferingComponent.limit_amount`.
+    - Historical TOTAL: Cumulative sum of all incremental `InvoiceItem.quantity` up to the target month.
+    - Historical QUARTERLY/ANNUAL: Finds the latest `InvoiceItem` for each resource within the cycle window.
+    - Historical MONTH: Sums `InvoiceItem.quantity` strictly for the target month.
+    """
+    now = timezone.now()
+    is_current_month = year == now.year and month == now.month
+    target_date = datetime.date(year, month, 1)
+
+    # Global cap defined on the offering component level (common for USAGE billing types)
+    global_limit = Decimal(str(component.limit_amount or 0))
+
+    # --- 1. CURRENT MONTH LOGIC ---
+    if is_current_month:
+        valid_states = [
+            ResourceStates.OK,
+            ResourceStates.UPDATING,
+            ResourceStates.TERMINATING,
+            ResourceStates.ERRED,
+        ]
+
+        # We query resources that have an explicit limit set for this component
+        resources = models.Resource.objects.filter(
+            offering=component.offering,
+            state__in=valid_states,
+            limits__has_key=component.type,
+        ).only("limits")
+
+        total_allocated = Decimal("0")
+        has_custom_limits = False
+
+        for resource in resources:
+            limit_val = resource.limits.get(component.type, 0)
+            try:
+                total_allocated += Decimal(str(limit_val))
+                has_custom_limits = True
+            except (ValueError, TypeError, InvalidOperation):
+                continue
+
+        # If no individual resources have custom limits set, and the component provides
+        # a global limit_amount (e.g., hard cap for USAGE components), we return that.
+        if total_allocated == Decimal("0") and not has_custom_limits:
+            return global_limit
+
+        return total_allocated
+
+    # --- 2. HISTORICAL MONTH LOGIC ---
+    # For past months, the immutable InvoiceItem ledger is the source of truth.
+
+    # If the component is not a LIMIT type, it doesn't generate limit-based InvoiceItems.
+    # Therefore, its historical limit is simply the static global limit.
+    if component.billing_type != BillingTypes.LIMIT:
+        return global_limit
+
+    # Rule A: TOTAL Limits (Incremental billing)
+    # The system writes positive/negative diffs. We must calculate the cumulative sum.
+    if component.limit_period == LimitPeriods.TOTAL:
+        items_agg = (
+            InvoiceItem.objects.filter(plan_component__component=component)
+            .filter(
+                # All years before the target year, OR earlier/same month in the target year
+                Q(invoice__year__lt=year)
+                | Q(invoice__year=year, invoice__month__lte=month)
+            )
+            .aggregate(total=Sum("quantity"))
+        )
+
+        return Decimal(str(items_agg["total"] or 0))
+
+    # Rule B: QUARTERLY or ANNUAL Limits
+    # Invoice items are only generated in the first month of the cycle.
+    # To find the limit for an off-cycle month, we look back through the cycle window.
+    elif component.limit_period in (LimitPeriods.QUARTERLY, LimitPeriods.ANNUAL):
+        months_back = 3 if component.limit_period == LimitPeriods.QUARTERLY else 12
+        cycle_start = target_date - relativedelta(months=months_back - 1)
+
+        # Fetch items from the start of the cycle year onwards to ensure we catch the invoice
+        items = InvoiceItem.objects.filter(
+            plan_component__component=component,
+            invoice__year__gte=cycle_start.year,
+        ).select_related("invoice")
+
+        # We need to map {resource_id: latest_quantity}
+        # because a resource limit might have been updated during the cycle.
+        latest_allocations = {}
+
+        for item in items:
+            item_date = datetime.date(item.invoice.year, item.invoice.month, 1)
+
+            # Only consider items that fall in the lookback window exactly preceding the target month
+            if cycle_start <= item_date <= target_date:
+                resource_id = item.resource_id
+
+                if resource_id not in latest_allocations:
+                    latest_allocations[resource_id] = {
+                        "date": item_date,
+                        "qty": item.quantity,
+                    }
+                elif item_date > latest_allocations[resource_id]["date"]:
+                    latest_allocations[resource_id] = {
+                        "date": item_date,
+                        "qty": item.quantity,
+                    }
+
+        total_allocated = sum(data["qty"] for data in latest_allocations.values())
+        return Decimal(str(total_allocated or 0))
+
+    # Rule C: MONTH Limits (or unhandled fallback)
+    # Items are billed strictly every single month. We just sum the exact target month.
+    else:
+        items_agg = InvoiceItem.objects.filter(
+            plan_component__component=component,
+            invoice__year=year,
+            invoice__month=month,
+        ).aggregate(total=Sum("quantity"))
+
+        return Decimal(str(items_agg["total"] or 0))
 
 
 @shared_task
