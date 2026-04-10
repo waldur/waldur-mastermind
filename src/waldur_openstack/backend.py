@@ -6399,6 +6399,34 @@ class OpenStackBackend(ServiceBackend):
             load_balancer.name,
         )
 
+    @log_backend_action()
+    def set_load_balancer_vip_security_groups(
+        self, load_balancer: models.LoadBalancer, serialized_security_groups=None
+    ):
+        """Set security groups on the load balancer VIP port."""
+        security_groups = [
+            core_utils.deserialize_instance(sg) for sg in serialized_security_groups
+        ]
+        if not load_balancer.vip_port or not load_balancer.vip_port.backend_id:
+            raise OpenStackBackendError("Load balancer VIP port is not available yet.")
+        session = get_tenant_session(load_balancer.tenant)
+        neutron = get_neutron_client(session)
+        sg_backend_ids = [sg.backend_id for sg in security_groups if sg.backend_id]
+        try:
+            neutron.update_port(
+                load_balancer.vip_port.backend_id,
+                {"port": {"security_groups": sg_backend_ids}},
+            )
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(str(e))
+        # Sync the local Port M2M with the new security groups
+        load_balancer.vip_port.security_groups.set(security_groups)
+        logger.info(
+            "Security groups %s set on load balancer %s VIP port.",
+            [sg.name for sg in security_groups],
+            load_balancer.name,
+        )
+
     def pull_tenant_load_balancers(self, tenant: models.Tenant):
         """Sync load balancers from Octavia for the tenant."""
         octavia_client = get_octavia_client(tenant)

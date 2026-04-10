@@ -1995,6 +1995,19 @@ class LoadBalancerDetachFloatingIPExecutor(core_executors.ActionExecutor):
         )
 
 
+class LoadBalancerSetSecurityGroupsExecutor(core_executors.ActionExecutor):
+    action = "Set security groups on VIP"
+
+    @classmethod
+    def get_task_signature(cls, load_balancer, serialized_load_balancer, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_load_balancer,
+            "set_load_balancer_vip_security_groups",
+            state_transition="begin_updating",
+            serialized_security_groups=kwargs.get("security_groups"),
+        )
+
+
 class PoolCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, pool, serialized_pool, **kwargs):

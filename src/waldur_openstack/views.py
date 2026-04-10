@@ -1193,6 +1193,7 @@ class LoadBalancerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         models.LoadBalancer.objects.all()
         .order_by("tenant__name")
         .select_related("vip_subnet", "vip_port", "attached_floating_ip")
+        .prefetch_related("vip_port__security_groups")
     )
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
     filterset_class = filters.LoadBalancerFilter
@@ -1296,6 +1297,54 @@ class LoadBalancerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         )
 
     detach_floating_ip_validators = [
+        core_validators.StateValidator(CoreStates.OK),
+    ]
+
+    @extend_schema(
+        summary="Set security groups on VIP port",
+        description="Set security groups on the load balancer VIP port to control access.",
+        request=serializers.LoadBalancerSetSecurityGroupsSerializer,
+        responses={
+            status.HTTP_202_ACCEPTED: serializers.LoadBalancerAsyncOperationResponseSerializer
+        },
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def set_security_groups(self, request, uuid=None):
+        load_balancer = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        security_groups = serializer.validated_data["security_groups"]
+        if not load_balancer.vip_port or not load_balancer.vip_port.backend_id:
+            raise exceptions.ValidationError(
+                _(
+                    "Load balancer VIP port is not available yet. "
+                    "Wait for the load balancer to become ACTIVE."
+                )
+            )
+        for sg in security_groups:
+            if sg.tenant != load_balancer.tenant:
+                raise exceptions.ValidationError(
+                    _(
+                        "Security group '%(sg)s' must belong to the same tenant "
+                        "as the load balancer."
+                    )
+                    % {"sg": sg.name}
+                )
+        executors.LoadBalancerSetSecurityGroupsExecutor().execute(
+            load_balancer,
+            security_groups=[
+                core_utils.serialize_instance(sg) for sg in security_groups
+            ],
+        )
+        return response.Response(
+            {"status": _("Setting security groups was scheduled")},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    set_security_groups_serializer_class = (
+        serializers.LoadBalancerSetSecurityGroupsSerializer
+    )
+    set_security_groups_validators = [
         core_validators.StateValidator(CoreStates.OK),
     ]
 

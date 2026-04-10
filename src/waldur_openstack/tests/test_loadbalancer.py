@@ -197,6 +197,106 @@ class LoadBalancerDetachFloatingIPTest(BaseLoadBalancerTest):
         self.assertIn("no floating IP", str(response.data))
 
 
+class LoadBalancerSetSecurityGroupsTest(BaseLoadBalancerTest):
+    def setUp(self):
+        super().setUp()
+        self.vip_port = factories.PortFactory(
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            backend_id="vip_port_123",
+        )
+        self.lb = factories.LoadBalancerFactory(
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+            vip_port=self.vip_port,
+            state=CoreStates.OK,
+        )
+        self.sg = factories.SecurityGroupFactory(
+            tenant=self.fixture.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+        )
+        self.url = factories.LoadBalancerFactory.get_url(self.lb, "set_security_groups")
+
+    @mock.patch(
+        "waldur_openstack.executors.LoadBalancerSetSecurityGroupsExecutor.execute"
+    )
+    def test_set_security_groups(self, mock_execute):
+        response = self.client.post(
+            self.url,
+            {"security_groups": [factories.SecurityGroupFactory.get_url(self.sg)]},
+        )
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_execute.assert_called_once()
+
+    def test_set_security_groups_fails_when_no_vip_port(self):
+        self.lb.vip_port = None
+        self.lb.save()
+        response = self.client.post(
+            self.url,
+            {"security_groups": [factories.SecurityGroupFactory.get_url(self.sg)]},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("VIP port", str(response.data))
+
+    def test_set_security_groups_fails_when_different_tenant(self):
+        other_tenant = factories.TenantFactory(
+            service_settings=self.fixture.settings,
+            project=self.fixture.project,
+        )
+        other_sg = factories.SecurityGroupFactory(
+            tenant=other_tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+        )
+        response = self.client.post(
+            self.url,
+            {"security_groups": [factories.SecurityGroupFactory.get_url(other_sg)]},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("same tenant", str(response.data))
+
+    @mock.patch(
+        "waldur_openstack.executors.LoadBalancerSetSecurityGroupsExecutor.execute"
+    )
+    def test_set_empty_security_groups_clears_them(self, mock_execute):
+        response = self.client.post(
+            self.url,
+            {"security_groups": []},
+        )
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mock_execute.assert_called_once()
+
+    def test_set_security_groups_fails_when_lb_not_ok(self):
+        self.lb.state = CoreStates.CREATING
+        self.lb.save()
+        response = self.client.post(
+            self.url,
+            {"security_groups": [factories.SecurityGroupFactory.get_url(self.sg)]},
+        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_load_balancer_response_includes_vip_security_groups(self):
+        # Directly set SGs on the port M2M to simulate what the backend does
+        self.vip_port.security_groups.add(self.sg)
+        response = self.client.get(factories.LoadBalancerFactory.get_url(self.lb))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["vip_security_groups"]), 1)
+        self.assertEqual(
+            response.data["vip_security_groups"][0]["uuid"],
+            str(self.sg.uuid),
+        )
+
+    def test_load_balancer_response_vip_security_groups_empty_when_no_port(self):
+        self.lb.vip_port = None
+        self.lb.save()
+        response = self.client.get(factories.LoadBalancerFactory.get_url(self.lb))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["vip_security_groups"], [])
+
+
 class BasePoolTest(BaseLoadBalancerTest):
     def setUp(self) -> None:
         super().setUp()
