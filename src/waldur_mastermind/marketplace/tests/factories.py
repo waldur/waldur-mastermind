@@ -587,6 +587,21 @@ class ComponentUsageFactory(
         return url if action is None else url + action + "/"
 
 
+class ComponentUsageMonthlyFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ComponentUsageMonthly],
+):
+    class Meta:
+        model = models.ComponentUsageMonthly
+
+    component = factory.SubFactory(OfferingComponentFactory)
+    billing_period = factory.LazyFunction(
+        lambda: core_utils.month_start(timezone.now()).date()
+    )
+    total_consumed = Decimal("0")
+    total_allocated = Decimal("0")
+
+
 class ResourcePlanPeriodFactory(
     factory.django.DjangoModelFactory,
     metaclass=BaseMetaFactory[models.ResourcePlanPeriod],

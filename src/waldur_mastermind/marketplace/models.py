@@ -2404,6 +2404,32 @@ class ComponentUserUsageLimit(
         project_path = "resource__project"
 
 
+class ComponentUsageMonthly(models.Model):
+    """
+    Denormalized reporting table summarizing component usage and limits per month.
+    """
+
+    component = models.ForeignKey(
+        "OfferingComponent", on_delete=models.CASCADE, related_name="monthly_summaries"
+    )
+    billing_period = models.DateField(
+        help_text="Always the first day of the month (e.g., 2023-10-01)"
+    )
+
+    # Pre-calculated aggregations
+    total_consumed = models.DecimalField(max_digits=20, decimal_places=2, default=0)
+    total_allocated = models.DecimalField(max_digits=20, decimal_places=2, default=0)
+    usage_percent = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
+
+    class Meta:
+        unique_together = ("component", "billing_period")
+        indexes = [
+            models.Index(fields=["billing_period", "component"]),
+        ]
+
+
 class OfferingFile(
     core_models.UuidMixin,
     core_models.NameMixin,

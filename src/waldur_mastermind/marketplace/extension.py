@@ -34,6 +34,11 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "waldur-marketplace-sync-component-usage-summaries": {
+                "task": "waldur_mastermind.marketplace.sync_component_usage_summaries",
+                "schedule": timedelta(days=1),
+                "args": (),
+            },
             "terminate_resources_if_project_end_date_has_been_reached": {
                 "task": "waldur_mastermind.marketplace.terminate_resources_if_project_end_date_has_been_reached",
                 # Set specific time 1:40 to avoid conflicts with regular pulls
