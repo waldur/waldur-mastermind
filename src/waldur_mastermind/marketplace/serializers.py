@@ -10339,15 +10339,21 @@ class NestedSoftwareVersionSerializer(serializers.ModelSerializer):
 
 
 class NestedParentSoftwareSerializer(serializers.HyperlinkedModelSerializer):
+    versions = serializers.SerializerMethodField()
+
     class Meta:
         model = models.SoftwarePackage
-        fields = ("uuid", "name", "url")
+        fields = ("uuid", "name", "url", "versions")
         extra_kwargs = {
             "url": {
                 "lookup_field": "uuid",
                 "view_name": "marketplace-software-package-detail",
             },
         }
+
+    @extend_schema_field(serializers.ListField(child=serializers.CharField()))
+    def get_versions(self, obj):
+        return list(obj.versions.values_list("version", flat=True))
 
 
 class SoftwarePackageSerializer(serializers.HyperlinkedModelSerializer):
