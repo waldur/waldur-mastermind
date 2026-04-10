@@ -175,6 +175,7 @@ Only the Keystone endpoint needs to be configured explicitly; all other service 
 | Delete Load Balancer | Remove load balancer | `DELETE /api/openstack-loadbalancers/{uuid}/` |
 | Attach Floating IP | Attach floating IP to VIP port | `POST /api/openstack-loadbalancers/{uuid}/attach_floating_ip/` |
 | Detach Floating IP | Detach floating IP from VIP port | `POST /api/openstack-loadbalancers/{uuid}/detach_floating_ip/` |
+| Set Security Groups | Set security groups on VIP port | `POST /api/openstack-loadbalancers/{uuid}/set_security_groups/` |
 | Unlink Load Balancer | Remove DB record without touching backend (staff-only) | `POST /api/openstack-loadbalancers/{uuid}/unlink/` |
 | **Pools** (LB backend pools) | | |
 | List Pools | Get load balancer pools | `GET /api/openstack-pools/` |
@@ -273,13 +274,18 @@ After attach or detach the `attached_floating_ip` field on the load balancer is 
 
 #### Managing Security Groups on the VIP Port
 
-Security groups on the VIP port are managed through the standard port endpoint. Retrieve the `vip_port` URL from the load balancer response, then update the port:
+Security groups on the VIP port control which traffic can reach the load balancer. This is especially important when a floating IP is attached — without appropriate security groups, inbound traffic will be blocked.
 
 ```
-PATCH /api/openstack-ports/{uuid}/
+POST /api/openstack-loadbalancers/{uuid}/set_security_groups/
+{
+    "security_groups": [
+        "/api/openstack-sgp/{sg-uuid}/"
+    ]
+}
 ```
 
-This replaces the previously available `update_vip_security_groups` action, which has been removed.
+All security groups must belong to the same tenant as the load balancer. Pass an empty list to clear all security groups. The load balancer response includes a `vip_security_groups` field showing the currently assigned security groups.
 
 #### Creating a Load Balancer
 
@@ -287,7 +293,7 @@ The `vip_subnet` field accepts a **URL reference** to an existing Waldur `SubNet
 
 #### Creating a Pool
 
-Required fields: `load_balancer`, `name`, `protocol` (`TCP` or `UDP`). The load balancing algorithm is fixed to `SOURCE_IP_PORT` and cannot be changed (OVN limitation).
+Required fields: `load_balancer`, `name`, `protocol` (`TCP` or `UDP`). The optional `lb_algorithm` field defaults to `SOURCE_IP_PORT`. When the load balancer uses the OVN provider, only `SOURCE_IP_PORT` is accepted; other algorithms (`ROUND_ROBIN`, `LEAST_CONNECTIONS`, `SOURCE_IP`) are rejected with a validation error.
 
 #### Creating a Listener
 
@@ -331,6 +337,7 @@ Additional actions available on load balancers:
 |--------|----------|
 | Attach floating IP | `POST /api/openstack-loadbalancers/{uuid}/attach_floating_ip/` |
 | Detach floating IP | `POST /api/openstack-loadbalancers/{uuid}/detach_floating_ip/` |
+| Set security groups on VIP | `POST /api/openstack-loadbalancers/{uuid}/set_security_groups/` |
 | Pull (sync from backend) | `POST /api/openstack-loadbalancers/{uuid}/pull/` |
 
 ### External Networks
