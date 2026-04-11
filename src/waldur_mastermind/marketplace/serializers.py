@@ -1678,7 +1678,7 @@ class BasePlanSerializer(
                 elif offering_component.billing_type == BillingTypes.ONE_TIME:
                     price += plan_component.price
 
-        return float(price)
+        return price
 
 
 class BasePublicPlanSerializer(BasePlanSerializer):
