@@ -97,6 +97,7 @@ classDiagram
         +JSONField termination_metadata
         +string staff_notes
         +int grace_period_days
+        +AffiliatedOrganization affiliated_organizations
     }
     Customer "*" -- "*" OrganizationGroup : organization_groups
     OrganizationGroup "*" -- "1" OrganizationGroup : parent
