@@ -14,7 +14,6 @@ from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     OrderStates,
     OrderTypes,
-    ResourceStates,
 )
 from waldur_mastermind.marketplace.models import Order, Resource
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
@@ -69,13 +68,7 @@ class ExecuteToolEndpointValidationTest(ToolExecutorBaseTest):
 
 
 class ExecuteToolEndpointResourcesTest(ToolExecutorBaseTest):
-    def test_returns_user_resources(self):
-        resource = marketplace_factories.ResourceFactory(
-            project=self.fixture.project,
-            state=ResourceStates.OK,
-            name="test-resource",
-        )
-
+    def test_returns_resource_list_signal(self):
         response = self.client.post(
             self.execute_url,
             data={"tool": "show_user_resources", "arguments": {}},
@@ -83,117 +76,86 @@ class ExecuteToolEndpointResourcesTest(ToolExecutorBaseTest):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["type"], "success")
-        self.assertEqual(response.data["data"]["total"], 1)
-        self.assertEqual(
-            response.data["data"]["resources"][0]["uuid"], str(resource.uuid)
-        )
+        self.assertEqual(response.data["ui_component"], "resource_list")
 
 
 class ToolExecutorShowUserResourcesTest(ToolExecutorBaseTest):
-    def test_returns_empty_when_user_has_no_resources(self):
+    """The tool itself does not query the DB — it only validates arguments and
+    emits a resource_list UI signal with filter hints. The frontend component
+    fetches the actual resources via the marketplace API.
+    """
+
+    def test_returns_resource_list_signal_with_no_filters(self):
         result = self.tool_executor.execute_tool("show_user_resources", {})
 
         self.assertEqual(result["type"], "success")
-        self.assertEqual(result["data"]["resources"], [])
-        self.assertEqual(result["data"]["total"], 0)
-        self.assertEqual(result["summary"], "Found 0 resources")
-        self.assertEqual(result["ui_component"], "table")
-        self.assertEqual(
-            result["ui_data"]["h"],
-            ["Name", "Category", "Offering", "Organization", "Project", "State"],
-        )
-        self.assertEqual(result["ui_data"]["r"], [])
-        self.assertEqual(result["ui_data"]["n"], 0)
+        self.assertEqual(result["ui_component"], "resource_list")
+        self.assertEqual(result["ui_data"], {})
+        self.assertNotIn("data", result)
 
-    def test_returns_resources_accessible_by_user(self):
-        resource = marketplace_factories.ResourceFactory(
-            project=self.fixture.project,
-            state=ResourceStates.OK,
-            name="test-resource",
+    def test_forwards_project_uuid_filter(self):
+        project_uuid = str(self.fixture.project.uuid)
+        result = self.tool_executor.execute_tool(
+            "show_user_resources",
+            {"project_uuid": project_uuid},
         )
-
-        result = self.tool_executor.execute_tool("show_user_resources", {})
 
         self.assertEqual(result["type"], "success")
-        self.assertEqual(result["data"]["total"], 1)
-        self.assertEqual(len(result["data"]["resources"]), 1)
+        self.assertEqual(result["ui_data"]["project_uuid"], project_uuid)
 
-        resource_data = result["data"]["resources"][0]
-        self.assertEqual(resource_data["uuid"], str(resource.uuid))
-        self.assertEqual(resource_data["name"], "test-resource")
-        self.assertEqual(resource_data["category"], resource.offering.category.title)
-        self.assertEqual(resource_data["offering"], resource.offering.name)
-        self.assertEqual(
-            resource_data["organization"], self.fixture.project.customer.name
-        )
-        self.assertEqual(resource_data["project"], self.fixture.project.name)
-        self.assertEqual(resource_data["project_uuid"], str(self.fixture.project.uuid))
-        self.assertEqual(resource_data["state"], resource.get_state_display())
-
-    def test_excludes_terminated_resources(self):
-        marketplace_factories.ResourceFactory(
-            project=self.fixture.project,
-            state=ResourceStates.TERMINATED,
-            name="terminated-resource",
-        )
-        marketplace_factories.ResourceFactory(
-            project=self.fixture.project,
-            state=ResourceStates.OK,
-            name="active-resource",
+    def test_forwards_customer_uuid_filter(self):
+        customer_uuid = str(self.fixture.customer.uuid)
+        result = self.tool_executor.execute_tool(
+            "show_user_resources",
+            {"customer_uuid": customer_uuid},
         )
 
-        result = self.tool_executor.execute_tool("show_user_resources", {})
+        self.assertEqual(result["type"], "success")
+        self.assertEqual(result["ui_data"]["customer_uuid"], customer_uuid)
 
-        self.assertEqual(result["data"]["total"], 1)
-        self.assertEqual(result["data"]["resources"][0]["name"], "active-resource")
-
-    def test_does_not_return_resources_user_cannot_access(self):
-        other_fixture = structure_fixtures.ProjectFixture()
-        marketplace_factories.ResourceFactory(
-            project=other_fixture.project,
-            state=ResourceStates.OK,
+    def test_forwards_category_uuid_filter(self):
+        category = marketplace_factories.CategoryFactory()
+        result = self.tool_executor.execute_tool(
+            "show_user_resources",
+            {"category_uuid": str(category.uuid)},
         )
 
-        result = self.tool_executor.execute_tool("show_user_resources", {})
+        self.assertEqual(result["type"], "success")
+        self.assertEqual(result["ui_data"]["category_uuid"], str(category.uuid))
 
-        self.assertEqual(result["data"]["total"], 0)
-        self.assertEqual(result["data"]["resources"], [])
-
-    def test_returns_table_ui_component_with_structured_data(self):
-        offering = marketplace_factories.OfferingFactory(type="Marketplace.Basic")
-        marketplace_factories.ResourceFactory(
-            project=self.fixture.project,
-            state=ResourceStates.OK,
-            offering=offering,
-            name="test-vm",
+    def test_forwards_state_filter(self):
+        result = self.tool_executor.execute_tool(
+            "show_user_resources",
+            {"state": ["Erred", "OK"]},
         )
 
-        result = self.tool_executor.execute_tool("show_user_resources", {})
+        self.assertEqual(result["type"], "success")
+        self.assertEqual(result["ui_data"]["state"], ["Erred", "OK"])
 
-        self.assertEqual(result["ui_component"], "table")
-        self.assertIn("h", result["ui_data"])
-        self.assertIn("r", result["ui_data"])
-        self.assertIn("n", result["ui_data"])
-        self.assertEqual(
-            result["ui_data"]["h"],
-            ["Name", "Category", "Offering", "Organization", "Project", "State"],
-        )
-        self.assertEqual(len(result["ui_data"]["r"]), 1)
-        self.assertEqual(result["ui_data"]["r"][0][0], "test-vm")
-        self.assertEqual(result["ui_data"]["n"], 1)
-
-    def test_summary_pluralizes_correctly(self):
-        offering = marketplace_factories.OfferingFactory(type="Marketplace.Basic")
-        marketplace_factories.ResourceFactory(
-            project=self.fixture.project, state=ResourceStates.OK, offering=offering
-        )
-        marketplace_factories.ResourceFactory(
-            project=self.fixture.project, state=ResourceStates.OK, offering=offering
+    def test_invalid_uuid_returns_validation_error(self):
+        result = self.tool_executor.execute_tool(
+            "show_user_resources",
+            {"project_uuid": "not-a-valid-uuid"},
         )
 
-        result = self.tool_executor.execute_tool("show_user_resources", {})
+        self.assertEqual(result["type"], "validation_error")
+        self.assertIn("Invalid UUID", result["summary"])
 
-        self.assertIn("2 resources", result["summary"])
+    def test_invalid_state_values_are_dropped_from_ui_data(self):
+        result = self.tool_executor.execute_tool(
+            "show_user_resources", {"state": ["Bogus"]}
+        )
+
+        self.assertEqual(result["type"], "success")
+        self.assertNotIn("state", result["ui_data"])
+
+    def test_partial_invalid_state_keeps_valid_values(self):
+        result = self.tool_executor.execute_tool(
+            "show_user_resources", {"state": ["OK", "Bogus"]}
+        )
+
+        self.assertEqual(result["type"], "success")
+        self.assertEqual(result["ui_data"]["state"], ["OK"])
 
 
 class ToolExecutorListProjectsTest(ToolExecutorBaseTest):

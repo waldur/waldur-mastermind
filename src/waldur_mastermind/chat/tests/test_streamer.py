@@ -31,19 +31,16 @@ NDJSON streaming response format for chat messages.
 Uses single-character keys for bandwidth optimization. Each line is a JSON object
 containing one or more of these fields:
 
-- k: Component key (markdown, code, table, mermaid, load)
+- k: Component key (markdown, code, mermaid, load, vm_order, resource_list)
 - c: Content payload (text)
 - t: Type/tag (language for code blocks, component for loading)
-- h: Table headers (array of strings)
-- r: Table rows (array of arrays)
-- n: Row count (number)
 - m: Metadata (object with additional info like token counts)
 - e: Error message (string)
 
 Examples:
     {"k":"markdown","c":"Hello!"}
     {"k":"code","c":"print('hi')","t":"python"}
-    {"k":"table","h":["Name","State"],"r":[["VM1","OK"]],"n":1}
+    {"k":"resource_list","project_uuid":"abc..."}
     {"m":{"tokens":150}}
     {"e":"Request failed"}
 """
@@ -265,13 +262,9 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
 
         tool_result = {
             "type": "success",
-            "summary": "Found 0 resources",
-            "ui_component": "table",
-            "ui_data": {
-                "h": ["Name", "Type", "State", "Project", "Customer"],
-                "r": [],
-                "n": 0,
-            },
+            "summary": "Showing resources",
+            "ui_component": "resource_list",
+            "ui_data": {},
         }
 
         mock_user = Mock()
@@ -291,10 +284,10 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
             f"Did not find tool loading indicator. Output: {output}",
         )
 
-        # Tool result rendered as table
+        # Tool result rendered as resource_list
         self.assertTrue(
-            any(e.get("k") == "table" and e.get("n") == 0 for e in output),
-            f"Did not find tool result rendered as table. Output: {output}",
+            any(e.get("k") == "resource_list" for e in output),
+            f"Did not find tool result rendered as resource_list. Output: {output}",
         )
 
         # Loading indicator appears before tool result
@@ -303,8 +296,10 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
             for i, e in enumerate(output)
             if e.get("k") == "load" and e.get("t") == "tool"
         )
-        table_idx = next(i for i, e in enumerate(output) if e.get("k") == "table")
-        self.assertLess(load_idx, table_idx)
+        resource_list_idx = next(
+            i for i, e in enumerate(output) if e.get("k") == "resource_list"
+        )
+        self.assertLess(load_idx, resource_list_idx)
 
         mock_exec.assert_called_once_with("show_user_resources", {})
 
@@ -317,13 +312,9 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
 
         tool_result = {
             "type": "success",
-            "summary": "Found 1 resource",
-            "ui_component": "table",
-            "ui_data": {
-                "h": ["Name", "State"],
-                "r": [["VM1", "OK"]],
-                "n": 1,
-            },
+            "summary": "Showing resources",
+            "ui_component": "resource_list",
+            "ui_data": {"project_uuid": "abc123"},
         }
 
         mock_user = Mock()
@@ -341,8 +332,8 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
         serialized = streamer._serialized_tool_calls()
         self.assertEqual(len(serialized), 1)
         self.assertIn("result", serialized[0])
-        self.assertEqual(serialized[0]["result"]["k"], "table")
-        self.assertEqual(serialized[0]["result"]["n"], 1)
+        self.assertEqual(serialized[0]["result"]["k"], "resource_list")
+        self.assertEqual(serialized[0]["result"]["project_uuid"], "abc123")
 
     def test_streamer_hides_tool_errors(self):
         """Test that tool errors are not displayed to users and not persisted."""
