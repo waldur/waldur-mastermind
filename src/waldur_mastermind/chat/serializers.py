@@ -71,12 +71,9 @@ class ChatResponseSerializer(serializers.Serializer):
     containing one or more of these fields.
 
     Generic fields (all component types):
-    - k: Component key (markdown, code, table, mermaid, load, vm_order)
+    - k: Component key (markdown, code, mermaid, load, vm_order, resource_list)
     - c: Content payload (text/markdown)
     - t: Type/tag (language for code blocks, component for loading)
-    - h: Table headers (array of strings)
-    - r: Table rows (array of arrays)
-    - n: Row count (number)
     - e: Error message (string)
     - w: Warning message (PII detected, content redacted, etc.)
     - m: System metadata (thread_uuid, message UUIDs)
@@ -96,31 +93,39 @@ class ChatResponseSerializer(serializers.Serializer):
     - images: Available image options [{name, min_disk, min_ram}] (form only)
     - projects: Available project options [{name, organization, uuid}] (project_form only)
 
+    resource_list component fields (k='resource_list'):
+    - project_uuid: Project UUID filter hint (optional)
+    - customer_uuid: Customer/organization UUID filter hint (optional)
+    - category_uuid: Category UUID filter hint (optional)
+    - state: List of state display names to pre-filter (optional, e.g. ['OK', 'Erred'])
+
+    The frontend resource_list component fetches and renders resources
+    directly from the marketplace API using these filter hints as the
+    initial table filter — the backend tool does not query the database.
+
     Examples:
         {"k":"markdown","c":"Hello!"}
         {"k":"code","c":"print('hi')","t":"python"}
-        {"k":"table","h":["Name","State"],"r":[["VM1","OK"]],"n":1}
         {"k":"vm_order","status":"project_form","name":"","projects":[...]}
         {"k":"vm_order","status":"form","name":"my-vm","project":"Acme","flavors":[...],"images":[...]}
         {"k":"vm_order","status":"preview","name":"my-vm","flavor":"m1.small (2 vCPU, 4GB RAM)","image":"Ubuntu 22.04"}
         {"k":"vm_order","status":"success","name":"my-vm","order_id":"uuid","message":"VM order created."}
         {"k":"vm_order","status":"error","name":"","error":"No offering available."}
+        {"k":"resource_list"}
+        {"k":"resource_list","project_uuid":"abc...","state":["Erred"]}
         {"m":{"thread_uuid":"uuid"}}
         {"e":"Request failed"}
     """
 
     k = serializers.CharField(
         required=False,
-        help_text="Component key (e.g. 'markdown', 'code', 'table', 'vm_order').",
+        help_text="Component key (e.g. 'markdown', 'code', 'vm_order', 'resource_list').",
     )
     c = serializers.CharField(required=False, help_text="Content payload.")
     t = serializers.CharField(
         required=False, help_text="Tag or language for dynamic blocks."
     )
     e = serializers.CharField(required=False, help_text="Error message.")
-    h = serializers.ListField(required=False, help_text="Table headers.")
-    r = serializers.ListField(required=False, help_text="Table rows.")
-    n = serializers.IntegerField(required=False, help_text="Total row count.")
     m = serializers.DictField(
         required=False, help_text="System metadata (thread_uuid, message UUIDs)."
     )
@@ -145,7 +150,10 @@ class ChatResponseSerializer(serializers.Serializer):
     organization = serializers.CharField(
         required=False, help_text="Organization/customer name."
     )
-    project_uuid = serializers.CharField(required=False, help_text="Project UUID.")
+    project_uuid = serializers.CharField(
+        required=False,
+        help_text="Project UUID. Present when k='vm_order' or k='resource_list'.",
+    )
     order_id = serializers.CharField(
         required=False, help_text="Order UUID (present on success)."
     )
@@ -170,6 +178,19 @@ class ChatResponseSerializer(serializers.Serializer):
     offerings = serializers.ListField(
         required=False,
         help_text="Available offering options [{uuid, name}]. Present when status='offering_form'.",
+    )
+    # resource_list fields
+    customer_uuid = serializers.CharField(
+        required=False,
+        help_text="Customer/organization UUID filter hint. Present when k='resource_list'.",
+    )
+    category_uuid = serializers.CharField(
+        required=False,
+        help_text="Category UUID filter hint. Present when k='resource_list'.",
+    )
+    state = serializers.ListField(
+        required=False,
+        help_text="State display name filters (e.g. ['OK', 'Erred']). Present when k='resource_list'.",
     )
 
 

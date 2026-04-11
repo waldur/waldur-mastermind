@@ -54,23 +54,6 @@ ui_registry.register(
 
 
 ui_registry.register(
-    key="table",
-    name="Data Table",
-    description="Interactive data table with columns and rows",
-    schema={
-        "type": "object",
-        "required": ["h", "r"],
-        "properties": {
-            "h": {"type": "array"},  # headers: ["Name", "Category ", "State", ...]
-            "r": {"type": "array"},  # rows: [["VM1", "Storage", "OK"], ...]
-            "n": "number",  # total count (optional)
-        },
-    },
-    has_loading_state=True,
-)
-
-
-ui_registry.register(
     key="vm_order",
     name="VM Order Result",
     description="Structured display of VM creation order result or configuration form",
@@ -108,4 +91,22 @@ ui_registry.register(
             },  # Available offerings list (offering_form mode only)
         },
     },
+)
+
+
+ui_registry.register(
+    key="resource_list",
+    name="Resource List",
+    description="Signals the frontend to render a paginated resource table via the marketplace API",
+    schema={
+        "type": "object",
+        "required": [],
+        "properties": {
+            "project_uuid": {"type": "string"},
+            "customer_uuid": {"type": "string"},
+            "category_uuid": {"type": "string"},
+            "state": {"type": "array"},
+        },
+    },
+    has_loading_state=True,
 )
