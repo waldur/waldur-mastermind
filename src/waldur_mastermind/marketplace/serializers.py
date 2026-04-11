@@ -1662,7 +1662,7 @@ class BasePlanSerializer(
 
         return plan_type
 
-    def get_minimal_price(self, plan: models.Plan) -> float:
+    def get_minimal_price(self, plan: models.Plan) -> str:
         price = 0
 
         components: QuerySet[models.PlanComponent] = plan.components.all()
