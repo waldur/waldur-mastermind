@@ -320,6 +320,10 @@ CONSTANCE_CONFIG = {
         True,
         "Allow anonymous users to see shared offerings in active, paused and archived states",
     ),
+    "SHOW_OFFERING_COVER_IMAGE": (
+        False,
+        "Show offering cover image as a banner above the name on the offering page.",
+    ),
     "ANONYMOUS_USER_CAN_VIEW_PLANS": (True, "Allow anonymous users to see plans"),
     "RESTRICTED_OFFERING_VISIBILITY_MODE": (
         "show_all",
@@ -1352,6 +1356,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ANONYMOUS_USER_CAN_VIEW_OFFERINGS",
         "ANONYMOUS_USER_CAN_VIEW_PLANS",
         "RESTRICTED_OFFERING_VISIBILITY_MODE",
+        "SHOW_OFFERING_COVER_IMAGE",
         "ENFORCE_USER_CONSENT_FOR_OFFERINGS",
         "ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS",
         "ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT",
@@ -1669,6 +1674,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "SITE_PHONE",
     "CURRENCY_NAME",
     "ANONYMOUS_USER_CAN_VIEW_OFFERINGS",
+    "SHOW_OFFERING_COVER_IMAGE",
     "RESTRICTED_OFFERING_VISIBILITY_MODE",
     "DOCS_URL",
     "SHORT_PAGE_TITLE",
