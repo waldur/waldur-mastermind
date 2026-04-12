@@ -39,6 +39,13 @@ class CreateVMTool(BaseTool):
                 "Use ONLY after showing preview_vm and receiving user confirmation (e.g., 'yes', 'proceed', 'create'). "
                 "NEVER use this without showing preview first."
             ),
+            route_utterances=[
+                "yes create it",
+                "proceed with the VM",
+                "confirm and create",
+                "go ahead and deploy",
+                "looks good, create the VM",
+            ],
             usage_instructions=(
                 "ONLY use this tool after the user has confirmed a VM preview.\n"
                 "NEVER use without first showing a preview result and receiving explicit user confirmation."

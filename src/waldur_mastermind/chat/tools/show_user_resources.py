@@ -68,6 +68,13 @@ class ShowUserResourcesTool(BaseTool):
                 },
                 "required": [],
             },
+            route_utterances=[
+                "show my resources",
+                "list my VMs",
+                "what virtual machines do I have",
+                "display my cloud instances",
+                "show my deployed services",
+            ],
             usage_instructions=(
                 "ONLY use this tool when the user EXPLICITLY asks to "
                 "see/list/display/show their actual deployed resources (VMs, instances, services):\n"

@@ -35,6 +35,13 @@ class ListProjectsTool(BaseTool):
                 "properties": {},
                 "required": [],
             },
+            route_utterances=[
+                "create a VM",
+                "make a virtual machine",
+                "provision a new server",
+                "deploy an instance",
+                "spin up a VM",
+            ],
             usage_instructions=(
                 "ONLY use this tool when the user asks to create a VM but has NOT specified a project:\n"
                 "  ✓ CORRECT: 'create a VM' (no project given)\n"
