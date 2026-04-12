@@ -81,6 +81,7 @@ from waldur_mastermind.proposal.models import (
     ExpertiseCategory,
     MatchingConfiguration,
     Proposal,
+    ProposalProjectRoleMapping,
     RequestedOffering,
     RequestedResource,
     Review,
@@ -91,6 +92,7 @@ from waldur_mastermind.proposal.models import (
     ReviewerProposalAffinity,
     ReviewerPublication,
     ReviewerStats,
+    ReviewerSuggestion,
     Round,
 )
 from waldur_openstack.models import Flavor, Image, Instance, Tenant, Volume
@@ -366,6 +368,18 @@ class Command(BaseCommand):
                 "errors": 0,
             },
             "reviewer_bids": {"created": 0, "updated": 0, "skipped": 0, "errors": 0},
+            "reviewer_suggestions": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
+            "role_mappings": {
+                "created": 0,
+                "updated": 0,
+                "skipped": 0,
+                "errors": 0,
+            },
             "assignment_batches": {
                 "created": 0,
                 "updated": 0,
@@ -887,6 +901,12 @@ class Command(BaseCommand):
             "reviewer_bids",
             lambda: self.import_reviewer_bids(data.get("reviewer_bids", [])),
         )
+        self._safe_import(
+            "reviewer_suggestions",
+            lambda: self.import_reviewer_suggestions(
+                data.get("reviewer_suggestions", [])
+            ),
+        )
 
         # Import assignment batches and items (Stage 2 of two-stage reviewer workflow)
         # Depends on: call_reviewer_pools, proposals
@@ -902,6 +922,13 @@ class Command(BaseCommand):
         # Import user_roles AFTER proposal entities (user_roles may scope to Calls)
         self._safe_import(
             "user_roles", lambda: self.import_user_roles(data.get("user_roles", []))
+        )
+
+        # Import role mappings AFTER user_roles (user_roles import triggers
+        # creation of PROPOSAL.MEMBER and other roles via post-save signals)
+        self._safe_import(
+            "role_mappings",
+            lambda: self.import_role_mappings(data.get("role_mappings", [])),
         )
 
         # Import account types
@@ -8630,6 +8657,156 @@ class Command(BaseCommand):
                     )
                 )
                 self.stats["reviewer_bids"]["errors"] += 1
+
+    def import_reviewer_suggestions(self, suggestions_data):
+        """Import reviewer suggestions (algorithm-generated matches)."""
+        self.stdout.write("Importing reviewer suggestions...")
+        for item in suggestions_data:
+            try:
+                uuid = item.get("uuid")
+                call_uuid = item.get("call_uuid")
+                reviewer_uuid = item.get("reviewer_uuid")
+
+                if not uuid or not call_uuid or not reviewer_uuid:
+                    self.stats["reviewer_suggestions"]["errors"] += 1
+                    continue
+
+                call = Call.objects.filter(uuid=call_uuid).first()
+                if not call:
+                    self.stats["reviewer_suggestions"]["errors"] += 1
+                    continue
+
+                reviewer = ReviewerProfile.objects.filter(uuid=reviewer_uuid).first()
+                if not reviewer:
+                    self.stats["reviewer_suggestions"]["errors"] += 1
+                    continue
+
+                reviewed_by = None
+                reviewed_by_uuid = item.get("reviewed_by_uuid")
+                if reviewed_by_uuid:
+                    from django.contrib.auth import get_user_model
+
+                    User = get_user_model()
+                    reviewed_by = User.objects.filter(uuid=reviewed_by_uuid).first()
+
+                defaults = {
+                    "call": call,
+                    "reviewer": reviewer,
+                    "affinity_score": item.get("affinity_score", 0),
+                    "keyword_score": item.get("keyword_score"),
+                    "text_score": item.get("text_score"),
+                    "status": item.get("status", "pending"),
+                    "reviewed_by": reviewed_by,
+                    "rejection_reason": item.get("rejection_reason", ""),
+                    "matched_keywords": item.get("matched_keywords", []),
+                    "top_matching_proposals": item.get("top_matching_proposals", []),
+                }
+                if item.get("reviewed_at"):
+                    defaults["reviewed_at"] = item["reviewed_at"]
+
+                if not self.dry_run:
+                    existing = ReviewerSuggestion.objects.filter(uuid=uuid).first()
+                    if existing:
+                        if self.update_existing:
+                            with transaction.atomic():
+                                ReviewerSuggestion.objects.filter(uuid=uuid).update(
+                                    **defaults
+                                )
+                            self.stats["reviewer_suggestions"]["updated"] += 1
+                        else:
+                            self.stats["reviewer_suggestions"]["skipped"] += 1
+                    else:
+                        with transaction.atomic():
+                            ReviewerSuggestion.objects.create(uuid=uuid, **defaults)
+                        self.stats["reviewer_suggestions"]["created"] += 1
+                else:
+                    self.stats["reviewer_suggestions"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import reviewer suggestion {item.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["reviewer_suggestions"]["errors"] += 1
+
+    def import_role_mappings(self, mappings_data):
+        """Import proposal-to-project role mappings."""
+        self.stdout.write("Importing role mappings...")
+        for item in mappings_data:
+            try:
+                uuid = item.get("uuid")
+                call_uuid = item.get("call_uuid")
+                proposal_role_name = item.get("proposal_role")
+                project_role_name = item.get("project_role")
+
+                if (
+                    not uuid
+                    or not call_uuid
+                    or not proposal_role_name
+                    or not project_role_name
+                ):
+                    self.stats["role_mappings"]["errors"] += 1
+                    continue
+
+                call = Call.objects.filter(uuid=call_uuid).first()
+                if not call:
+                    self.stats["role_mappings"]["errors"] += 1
+                    continue
+
+                proposal_role = Role.objects.filter(
+                    name=proposal_role_name, is_active=True
+                ).first()
+                project_role = Role.objects.filter(
+                    name=project_role_name, is_active=True
+                ).first()
+
+                if not proposal_role or not project_role:
+                    self.stdout.write(
+                        self.style.WARNING(
+                            f"Skipping role mapping {uuid}: role not found "
+                            f"(proposal={proposal_role_name}={proposal_role}, "
+                            f"project={project_role_name}={project_role})"
+                        )
+                    )
+                    self.stats["role_mappings"]["errors"] += 1
+                    continue
+
+                defaults = {
+                    "call": call,
+                    "proposal_role": proposal_role,
+                    "project_role": project_role,
+                }
+
+                if not self.dry_run:
+                    existing = ProposalProjectRoleMapping.objects.filter(
+                        uuid=uuid
+                    ).first()
+                    if existing:
+                        if self.update_existing:
+                            with transaction.atomic():
+                                ProposalProjectRoleMapping.objects.filter(
+                                    uuid=uuid
+                                ).update(**defaults)
+                            self.stats["role_mappings"]["updated"] += 1
+                        else:
+                            self.stats["role_mappings"]["skipped"] += 1
+                    else:
+                        with transaction.atomic():
+                            ProposalProjectRoleMapping.objects.create(
+                                uuid=uuid, **defaults
+                            )
+                        self.stats["role_mappings"]["created"] += 1
+                else:
+                    self.stats["role_mappings"]["created"] += 1
+
+            except Exception as e:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"Failed to import role mapping {item.get('uuid')}: {e}"
+                    )
+                )
+                self.stats["role_mappings"]["errors"] += 1
 
     def import_assignment_batches(self, batches_data):
         """Import assignment batch data (Stage 2 of two-stage reviewer workflow)."""

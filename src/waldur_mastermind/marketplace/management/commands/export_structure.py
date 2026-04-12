@@ -65,9 +65,11 @@ from waldur_mastermind.proposal.models import (
     CallManagingOrganisation,
     CallResourceTemplate,
     Proposal,
+    ProposalProjectRoleMapping,
     RequestedOffering,
     RequestedResource,
     Review,
+    ReviewerSuggestion,
     Round,
 )
 from waldur_openstack.models import Flavor, Image, Instance, Tenant, Volume
@@ -271,6 +273,12 @@ class Command(BaseCommand):
             ),
             "assignment_items": self.log_export_step(
                 "assignment_items", self.export_assignment_items
+            ),
+            "reviewer_suggestions": self.log_export_step(
+                "reviewer_suggestions", self.export_reviewer_suggestions
+            ),
+            "role_mappings": self.log_export_step(
+                "role_mappings", self.export_role_mappings
             ),
             # Maintenance announcement exports
             "maintenance_announcements": self.log_export_step(
@@ -1922,6 +1930,51 @@ class Command(BaseCommand):
                 }
             )
         return items
+
+    def export_reviewer_suggestions(self):
+        """Export reviewer suggestion data (algorithm-generated matches)."""
+        suggestions = []
+        for s in ReviewerSuggestion.objects.select_related(
+            "call", "reviewer", "reviewer__user", "reviewed_by"
+        ).order_by("call__name", "-affinity_score"):
+            suggestions.append(
+                {
+                    "uuid": s.uuid.hex,
+                    "call_uuid": s.call.uuid.hex,
+                    "call_name": s.call.name,
+                    "reviewer_uuid": s.reviewer.uuid.hex,
+                    "reviewer_name": s.reviewer.user.full_name,
+                    "affinity_score": s.affinity_score,
+                    "keyword_score": s.keyword_score,
+                    "text_score": s.text_score,
+                    "status": s.status,
+                    "reviewed_by_uuid": s.reviewed_by.uuid.hex
+                    if s.reviewed_by
+                    else None,
+                    "reviewed_at": s.reviewed_at.isoformat() if s.reviewed_at else None,
+                    "rejection_reason": s.rejection_reason,
+                    "matched_keywords": s.matched_keywords,
+                    "top_matching_proposals": s.top_matching_proposals,
+                }
+            )
+        return suggestions
+
+    def export_role_mappings(self):
+        """Export proposal-to-project role mapping data."""
+        mappings = []
+        for m in ProposalProjectRoleMapping.objects.select_related(
+            "call", "proposal_role", "project_role"
+        ).order_by("call__name", "proposal_role__name"):
+            mappings.append(
+                {
+                    "uuid": m.uuid.hex,
+                    "call_uuid": m.call.uuid.hex,
+                    "call_name": m.call.name,
+                    "proposal_role": m.proposal_role.name,
+                    "project_role": m.project_role.name if m.project_role else None,
+                }
+            )
+        return mappings
 
     def export_maintenance_announcements(self):
         """Export maintenance announcement data."""

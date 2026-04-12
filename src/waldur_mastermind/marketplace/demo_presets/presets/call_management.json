@@ -33,7 +33,8 @@
       "password": "demo",
       "phone_number": "+37256001001",
       "organization": "Research Council",
-      "job_title": "System Administrator"
+      "job_title": "System Administrator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000002",
@@ -46,7 +47,8 @@
       "password": "demo",
       "phone_number": "+37256001002",
       "organization": "Research Council",
-      "job_title": "Support Specialist"
+      "job_title": "Support Specialist",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000003",
@@ -58,7 +60,8 @@
       "password": "demo",
       "phone_number": "+37256001003",
       "organization": "Physics Department",
-      "job_title": "Department Head"
+      "job_title": "Department Head",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000004",
@@ -70,7 +73,8 @@
       "password": "demo",
       "phone_number": "+37256001004",
       "organization": "Physics Department",
-      "job_title": "Research Coordinator"
+      "job_title": "Research Coordinator",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "00000000000000000000000000000005",
@@ -82,7 +86,8 @@
       "password": "demo",
       "phone_number": "+37256001005",
       "organization": "Physics Department",
-      "job_title": "Researcher"
+      "job_title": "Researcher",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a4000000000000000000000000000001",
@@ -93,7 +98,9 @@
       "is_active": true,
       "phone_number": "+37256004001",
       "organization": "National Research Council",
-      "job_title": "Director of Research Programs"
+      "job_title": "Director of Research Programs",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a4000000000000000000000000000002",
@@ -104,7 +111,9 @@
       "is_active": true,
       "phone_number": "+37256004002",
       "organization": "National Research Council",
-      "job_title": "Grants Program Manager"
+      "job_title": "Grants Program Manager",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a4000000000000000000000000000003",
@@ -115,7 +124,9 @@
       "is_active": true,
       "phone_number": "+37256004003",
       "organization": "ETH Zurich",
-      "job_title": "Professor of Theoretical Physics"
+      "job_title": "Professor of Theoretical Physics",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a4000000000000000000000000000004",
@@ -126,7 +137,9 @@
       "is_active": true,
       "phone_number": "+37256004004",
       "organization": "University of Paris",
-      "job_title": "Professor of Physical Chemistry"
+      "job_title": "Professor of Physical Chemistry",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a4000000000000000000000000000005",
@@ -137,7 +150,9 @@
       "is_active": true,
       "phone_number": "+37256004005",
       "organization": "Cambridge University",
-      "job_title": "Professor of Computer Science"
+      "job_title": "Professor of Computer Science",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a4000000000000000000000000000006",
@@ -148,7 +163,9 @@
       "is_active": true,
       "phone_number": "+37256004006",
       "organization": "Copenhagen Institute",
-      "job_title": "Principal Investigator"
+      "job_title": "Principal Investigator",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a4000000000000000000000000000007",
@@ -159,7 +176,9 @@
       "is_active": true,
       "phone_number": "+37256004007",
       "organization": "Caltech",
-      "job_title": "Principal Investigator"
+      "job_title": "Principal Investigator",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a4000000000000000000000000000008",
@@ -170,7 +189,9 @@
       "is_active": true,
       "phone_number": "+37256004008",
       "organization": "Environmental Sciences Institute",
-      "job_title": "Principal Investigator"
+      "job_title": "Principal Investigator",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a4000000000000000000000000000009",
@@ -181,7 +202,9 @@
       "is_active": true,
       "phone_number": "+37256004009",
       "organization": "Princeton University",
-      "job_title": "Professor of Mathematics"
+      "job_title": "Professor of Mathematics",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a400000000000000000000000000000a",
@@ -192,7 +215,9 @@
       "is_active": true,
       "phone_number": "+37256004010",
       "organization": "Harvard University",
-      "job_title": "Professor of Genetics"
+      "job_title": "Professor of Genetics",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     },
     {
       "uuid": "a400000000000000000000000000000b",
@@ -203,7 +228,9 @@
       "is_active": true,
       "phone_number": "+37256004011",
       "organization": "Carnegie Institution",
-      "job_title": "Professor of Astronomy"
+      "job_title": "Professor of Astronomy",
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z"
     }
   ],
   "customers": [
@@ -324,7 +351,10 @@
       "required": true,
       "order": 4,
       "user_guidance": "Select all categories of personal data that will be collected, processed, or stored during your research.",
-      "review_answer_value": ["cb300000000000000000000000000003", "cb300000000000000000000000000004"],
+      "review_answer_value": [
+        "cb300000000000000000000000000003",
+        "cb300000000000000000000000000004"
+      ],
       "operator": "in"
     },
     {
@@ -624,7 +654,9 @@
       "uuid": "cb400000000000000000000000000003",
       "question_uuid": "cb200000000000000000000000000005",
       "depends_on_question_uuid": "cb200000000000000000000000000004",
-      "required_answer_value": ["cb300000000000000000000000000001"],
+      "required_answer_value": [
+        "cb300000000000000000000000000001"
+      ],
       "operator": "not_equals"
     },
     {
@@ -736,7 +768,9 @@
       "user_uuid": "a4000000000000000000000000000006",
       "question_uuid": "cb200000000000000000000000000004",
       "completion_uuid": "cc100000000000000000000000000001",
-      "answer_data": ["cb300000000000000000000000000001"],
+      "answer_data": [
+        "cb300000000000000000000000000001"
+      ],
       "_comment": "Quantum Error Correction: No personal data"
     },
     {
@@ -792,7 +826,10 @@
       "user_uuid": "a4000000000000000000000000000006",
       "question_uuid": "cb200000000000000000000000000109",
       "completion_uuid": "cc100000000000000000000000000002",
-      "answer_data": ["cb300000000000000000000000000201", "cb300000000000000000000000000203"],
+      "answer_data": [
+        "cb300000000000000000000000000201",
+        "cb300000000000000000000000000203"
+      ],
       "_comment": "Quantum Error Correction: Physics and Computer Science research areas"
     },
     {
@@ -824,7 +861,9 @@
       "user_uuid": "a4000000000000000000000000000007",
       "question_uuid": "cb200000000000000000000000000004",
       "completion_uuid": "cc100000000000000000000000000003",
-      "answer_data": ["cb300000000000000000000000000001"],
+      "answer_data": [
+        "cb300000000000000000000000000001"
+      ],
       "_comment": "Battery Materials: No personal data"
     },
     {
@@ -888,7 +927,10 @@
       "user_uuid": "a4000000000000000000000000000007",
       "question_uuid": "cb200000000000000000000000000109",
       "completion_uuid": "cc100000000000000000000000000004",
-      "answer_data": ["cb300000000000000000000000000202", "cb300000000000000000000000000204"],
+      "answer_data": [
+        "cb300000000000000000000000000202",
+        "cb300000000000000000000000000204"
+      ],
       "_comment": "Battery Materials: Chemistry and Materials Science research areas"
     },
     {
@@ -920,7 +962,9 @@
       "user_uuid": "a4000000000000000000000000000006",
       "question_uuid": "cb200000000000000000000000000004",
       "completion_uuid": "cc100000000000000000000000000005",
-      "answer_data": ["cb300000000000000000000000000001"],
+      "answer_data": [
+        "cb300000000000000000000000000001"
+      ],
       "_comment": "Molecular Dynamics: No personal data"
     },
     {
@@ -976,7 +1020,10 @@
       "user_uuid": "a4000000000000000000000000000006",
       "question_uuid": "cb200000000000000000000000000109",
       "completion_uuid": "cc100000000000000000000000000006",
-      "answer_data": ["cb300000000000000000000000000205", "cb300000000000000000000000000202"],
+      "answer_data": [
+        "cb300000000000000000000000000205",
+        "cb300000000000000000000000000202"
+      ],
       "_comment": "Molecular Dynamics: Biology and Chemistry"
     },
     {
@@ -1008,7 +1055,9 @@
       "user_uuid": "00000000000000000000000000000004",
       "question_uuid": "cb200000000000000000000000000004",
       "completion_uuid": "cc100000000000000000000000000007",
-      "answer_data": ["cb300000000000000000000000000002"],
+      "answer_data": [
+        "cb300000000000000000000000000002"
+      ],
       "_comment": "LLM Fine-tuning: Pseudonymized data"
     },
     {
@@ -1072,7 +1121,9 @@
       "user_uuid": "00000000000000000000000000000004",
       "question_uuid": "cb200000000000000000000000000109",
       "completion_uuid": "cc100000000000000000000000000008",
-      "answer_data": ["cb300000000000000000000000000203"],
+      "answer_data": [
+        "cb300000000000000000000000000203"
+      ],
       "_comment": "LLM Fine-tuning: Computer Science"
     },
     {
@@ -2624,7 +2675,10 @@
       "user_uuid": "a4000000000000000000000000000003",
       "orcid_id": "0000-0001-2345-0001",
       "biography": "Distinguished physicist specializing in theoretical physics, relativity, and quantum mechanics. Author of groundbreaking theories on space-time and photoelectric effect.",
-      "alternative_names": ["A. Einstein", "Albert E."],
+      "alternative_names": [
+        "A. Einstein",
+        "Albert E."
+      ],
       "description": "Expert reviewer in theoretical physics",
       "is_published": true,
       "published_at": "2025-01-01T00:00:00Z",
@@ -2635,7 +2689,10 @@
       "user_uuid": "a4000000000000000000000000000004",
       "orcid_id": "0000-0001-2345-0002",
       "biography": "Pioneer in radioactivity research with expertise in physical chemistry and materials science. Extensive experience in spectroscopy and radiation physics.",
-      "alternative_names": ["M. Curie", "Marie Sklodowska-Curie"],
+      "alternative_names": [
+        "M. Curie",
+        "Marie Sklodowska-Curie"
+      ],
       "description": "Expert reviewer in chemistry and physics",
       "is_published": true,
       "published_at": "2025-01-01T00:00:00Z",
@@ -2646,7 +2703,10 @@
       "user_uuid": "a4000000000000000000000000000005",
       "orcid_id": "0000-0001-2345-0003",
       "biography": "Computer scientist and mathematician specializing in computation theory, cryptography, and artificial intelligence. Developer of foundational concepts in computing.",
-      "alternative_names": ["A. Turing", "Alan M. Turing"],
+      "alternative_names": [
+        "A. Turing",
+        "Alan M. Turing"
+      ],
       "description": "Expert reviewer in computer science",
       "is_published": true,
       "published_at": "2025-01-15T00:00:00Z",
@@ -2657,7 +2717,10 @@
       "user_uuid": "a4000000000000000000000000000009",
       "orcid_id": "0000-0001-2345-0004",
       "biography": "Mathematician and physicist with expertise in quantum mechanics, game theory, and computer architecture. Pioneer in numerical analysis and scientific computing.",
-      "alternative_names": ["J. von Neumann", "John v. Neumann"],
+      "alternative_names": [
+        "J. von Neumann",
+        "John v. Neumann"
+      ],
       "description": "Expert reviewer in mathematics and computing",
       "is_published": true,
       "published_at": "2025-01-10T00:00:00Z",
@@ -2669,7 +2732,10 @@
       "user_uuid": "a400000000000000000000000000000a",
       "orcid_id": "0000-0001-2345-0005",
       "biography": "Geneticist specializing in cytogenetics and transposable elements. Expert in molecular biology, genomics, and computational biology applications.",
-      "alternative_names": ["B. McClintock", "Barbara M."],
+      "alternative_names": [
+        "B. McClintock",
+        "Barbara M."
+      ],
       "description": "Expert reviewer in genetics and biology",
       "is_published": true,
       "published_at": "2025-01-12T00:00:00Z",
@@ -2681,7 +2747,10 @@
       "user_uuid": "a400000000000000000000000000000b",
       "orcid_id": "0000-0001-2345-0006",
       "biography": "Astronomer specializing in galaxy dynamics, dark matter research, and astrophysical simulations. Expert in large-scale computational modeling.",
-      "alternative_names": ["V. Rubin", "Vera C. Rubin"],
+      "alternative_names": [
+        "V. Rubin",
+        "Vera C. Rubin"
+      ],
       "description": "Expert reviewer in astronomy and astrophysics",
       "is_published": true,
       "published_at": "2025-01-08T00:00:00Z",
@@ -2927,7 +2996,12 @@
       "venue": "Physical Review",
       "venue_type": "journal",
       "abstract": "Analysis of stimulated emission and absorption of radiation.",
-      "coauthors": [{"name": "Niels Bohr", "orcid": "0000-0001-0000-0006"}]
+      "coauthors": [
+        {
+          "name": "Niels Bohr",
+          "orcid": "0000-0001-0000-0006"
+        }
+      ]
     },
     {
       "uuid": "ab100000000000000000000000000003",
@@ -2938,7 +3012,12 @@
       "venue": "Nature",
       "venue_type": "journal",
       "abstract": "Comprehensive review of radioactive decay mechanisms.",
-      "coauthors": [{"name": "Pierre Curie", "orcid": null}]
+      "coauthors": [
+        {
+          "name": "Pierre Curie",
+          "orcid": null
+        }
+      ]
     },
     {
       "uuid": "ab100000000000000000000000000004",
@@ -2949,7 +3028,12 @@
       "venue": "Materials Today",
       "venue_type": "journal",
       "abstract": "Review of novel electrode materials for batteries.",
-      "coauthors": [{"name": "Linus Pauling", "orcid": "0000-0001-0000-0007"}]
+      "coauthors": [
+        {
+          "name": "Linus Pauling",
+          "orcid": "0000-0001-0000-0007"
+        }
+      ]
     },
     {
       "uuid": "ab100000000000000000000000000005",
@@ -2971,7 +3055,12 @@
       "venue": "IEEE Transactions on Pattern Analysis",
       "venue_type": "journal",
       "abstract": "Advanced neural network architectures for image recognition.",
-      "coauthors": [{"name": "John von Neumann", "orcid": null}]
+      "coauthors": [
+        {
+          "name": "John von Neumann",
+          "orcid": null
+        }
+      ]
     },
     {
       "uuid": "ab100000000000000000000000000007",
@@ -2994,7 +3083,12 @@
       "venue": "ACM Computing Surveys",
       "venue_type": "journal",
       "abstract": "Survey of HPC techniques for large-scale quantum system simulations. Covers numerical methods, parallel algorithms, and benchmarking methodologies for quantum computing research.",
-      "coauthors": [{"name": "Alan Turing", "orcid": null}]
+      "coauthors": [
+        {
+          "name": "Alan Turing",
+          "orcid": null
+        }
+      ]
     },
     {
       "uuid": "ab100000000000000000000000000009",
@@ -3005,7 +3099,12 @@
       "venue": "Nature Materials",
       "venue_type": "journal",
       "abstract": "We present a machine learning framework for high-throughput screening of battery electrode materials. Combining DFT calculations with neural network predictions enables rapid identification of promising lithium-ion and solid-state battery candidates.",
-      "coauthors": [{"name": "Linus Pauling", "orcid": null}],
+      "coauthors": [
+        {
+          "name": "Linus Pauling",
+          "orcid": null
+        }
+      ],
       "_comment": "McClintock publication matching Battery Materials proposal"
     },
     {
@@ -3040,7 +3139,12 @@
       "venue": "Journal of Geophysical Research",
       "venue_type": "journal",
       "abstract": "Methods for analyzing petabyte-scale climate simulation data. Covers numerical analysis techniques and HPC approaches for global climate model output processing.",
-      "coauthors": [{"name": "Rachel Carson", "orcid": null}]
+      "coauthors": [
+        {
+          "name": "Rachel Carson",
+          "orcid": null
+        }
+      ]
     }
   ],
   "call_coi_configurations": [
@@ -3052,9 +3156,17 @@
       "institutional_lookback_years": 3,
       "include_same_department": true,
       "include_same_institution": true,
-      "recusal_required_types": ["REL_FAMILY", "FIN_DIRECT"],
-      "management_allowed_types": ["COLLAB_ACTIVE", "COAUTH_RECENT"],
-      "disclosure_only_types": ["INST_SAME"],
+      "recusal_required_types": [
+        "REL_FAMILY",
+        "FIN_DIRECT"
+      ],
+      "management_allowed_types": [
+        "COLLAB_ACTIVE",
+        "COAUTH_RECENT"
+      ],
+      "disclosure_only_types": [
+        "INST_SAME"
+      ],
       "auto_detect_coauthorship": true,
       "auto_detect_institutional": true,
       "auto_detect_named_personnel": true,
@@ -3068,9 +3180,17 @@
       "institutional_lookback_years": 2,
       "include_same_department": true,
       "include_same_institution": false,
-      "recusal_required_types": ["REL_FAMILY"],
-      "management_allowed_types": ["COAUTH_RECENT", "COLLAB_ACTIVE"],
-      "disclosure_only_types": ["INST_SAME", "INST_DEPT"],
+      "recusal_required_types": [
+        "REL_FAMILY"
+      ],
+      "management_allowed_types": [
+        "COAUTH_RECENT",
+        "COLLAB_ACTIVE"
+      ],
+      "disclosure_only_types": [
+        "INST_SAME",
+        "INST_DEPT"
+      ],
       "auto_detect_coauthorship": true,
       "auto_detect_institutional": true,
       "auto_detect_named_personnel": false,
@@ -3439,7 +3559,11 @@
       "has_financial_interests": false,
       "has_personal_relationships": true,
       "personal_relationships": [
-        {"name": "Rachel Carson", "relationship": "Former PhD student", "organization": "Environmental Sciences Institute"}
+        {
+          "name": "Rachel Carson",
+          "relationship": "Former PhD student",
+          "organization": "Environmental Sciences Institute"
+        }
       ],
       "has_other_conflicts": false,
       "other_conflicts_description": "",
@@ -3812,7 +3936,9 @@
       "decline_reason": "",
       "review_uuid": null,
       "reassign_count": 0,
-      "coi_record_uuids": ["0d100000000000000000000000000001"],
+      "coi_record_uuids": [
+        "0d100000000000000000000000000001"
+      ],
       "_comment": "COI blocked - Turing cannot review due to unresolved conflict"
     },
     {
@@ -3841,7 +3967,10 @@
       "severity": "apparent",
       "detection_method": "automated",
       "evidence_description": "Reviewer and PI co-authored paper on quantum theory in 2021",
-      "evidence_data": {"shared_papers": 1, "most_recent_year": 2021},
+      "evidence_data": {
+        "shared_papers": 1,
+        "most_recent_year": 2021
+      },
       "status": "waived",
       "review_notes": "Conflict noted but manageable",
       "management_plan": "Reviewer excluded from scoring this specific proposal"
@@ -3856,7 +3985,10 @@
       "severity": "potential",
       "detection_method": "automated",
       "evidence_description": "Reviewer and PI co-authored materials paper in 2022",
-      "evidence_data": {"shared_papers": 1, "most_recent_year": 2022},
+      "evidence_data": {
+        "shared_papers": 1,
+        "most_recent_year": 2022
+      },
       "status": "waived",
       "review_notes": "Standard coauthorship conflict - minimal overlap",
       "management_plan": "Old coauthorship noted but no active collaboration; reviewer may proceed"
@@ -3871,7 +4003,10 @@
       "severity": "real",
       "detection_method": "self_disclosed",
       "evidence_description": "I was the PhD supervisor of the proposal PI from 2018-2022",
-      "evidence_data": {"relationship_type": "doctoral_supervisor", "period": "2018-2022"},
+      "evidence_data": {
+        "relationship_type": "doctoral_supervisor",
+        "period": "2018-2022"
+      },
       "status": "pending",
       "review_notes": ""
     },
@@ -3885,7 +4020,9 @@
       "severity": "real",
       "detection_method": "self_disclosed",
       "evidence_description": "I work at the same institution as a co-investigator on this proposal",
-      "evidence_data": {"institution": "ETH Zurich"},
+      "evidence_data": {
+        "institution": "ETH Zurich"
+      },
       "status": "recused",
       "review_notes": "Reviewer recused due to institutional conflict",
       "management_plan": ""
@@ -3900,11 +4037,40 @@
       "severity": "potential",
       "detection_method": "automated",
       "evidence_description": "Reviewer and PI are both members of the International Chemistry Society",
-      "evidence_data": {"organization": "International Chemistry Society", "overlap_years": 5},
+      "evidence_data": {
+        "organization": "International Chemistry Society",
+        "overlap_years": 5
+      },
       "status": "dismissed",
       "review_notes": "Professional society membership alone does not constitute a conflict",
       "management_plan": "",
       "_comment": "Dismissed - common professional society membership is not a real conflict"
+    }
+  ],
+  "role_mappings": [
+    {
+      "uuid": "d1000000000000000000000000000001",
+      "call_uuid": "ca200000000000000000000000000001",
+      "proposal_role": "PROPOSAL.MANAGER",
+      "project_role": "PROJECT.MANAGER"
+    },
+    {
+      "uuid": "d1000000000000000000000000000002",
+      "call_uuid": "ca200000000000000000000000000001",
+      "proposal_role": "PROPOSAL.MEMBER",
+      "project_role": "PROJECT.MEMBER"
+    },
+    {
+      "uuid": "d1000000000000000000000000000003",
+      "call_uuid": "ca200000000000000000000000000002",
+      "proposal_role": "PROPOSAL.MANAGER",
+      "project_role": "PROJECT.MANAGER"
+    },
+    {
+      "uuid": "d1000000000000000000000000000004",
+      "call_uuid": "ca200000000000000000000000000002",
+      "proposal_role": "PROPOSAL.MEMBER",
+      "project_role": "PROJECT.MEMBER"
     }
   ]
 }
