@@ -34,6 +34,13 @@ class PreviewVMTool(BaseTool):
                 "Call with ONLY project_uuid and name (no flavor/image) to show a form with available options. "
                 "Call with all parameters to show a preview card. NEVER create a VM without showing preview first."
             ),
+            route_utterances=[
+                "create a VM",
+                "I want a virtual machine",
+                "set up a new server with 4 CPUs",
+                "configure a VM for my project",
+                "deploy an instance",
+            ],
             usage_instructions=(
                 "ONLY use this tool during the VM creation workflow after a project has been selected.\n"
                 "Do NOT use for general questions about VMs or resources."

@@ -226,9 +226,10 @@ class BuildContextWithIntentTest(TestCase):
         result = build_context_with_intent(self.user, "show my resources")
         self.assertEqual(result.intent, Intent.TOOL_ACTION)
 
-    def test_knowledge_classified(self):
+    def test_knowledge_classified_as_ambiguous(self):
+        """Knowledge queries are now AMBIGUOUS (tools included, LLM decides)."""
         result = build_context_with_intent(self.user, "what is a VM?")
-        self.assertEqual(result.intent, Intent.KNOWLEDGE)
+        self.assertEqual(result.intent, Intent.AMBIGUOUS)
 
     def test_messages_match_build_context(self):
         result = build_context_with_intent(
@@ -238,11 +239,11 @@ class BuildContextWithIntentTest(TestCase):
         self.assertEqual(len(result.messages), len(expected))
         self.assertEqual(result.messages[0]["role"], expected[0]["role"])
 
-    def test_knowledge_intent_omits_tool_instructions(self):
-        """When intent is KNOWLEDGE, tool usage guidelines should not appear."""
+    def test_knowledge_intent_includes_tool_instructions(self):
+        """Knowledge queries now include tools (AMBIGUOUS) so the LLM decides."""
         result = build_context_with_intent(self.user, "what is a VM?")
         system_msg = next(m for m in result.messages if m["role"] == "system")
-        self.assertNotIn("TOOL USAGE GUIDELINES", system_msg["content"])
+        self.assertIn("TOOL USAGE GUIDELINES", system_msg["content"])
 
     def test_tool_action_intent_includes_tool_instructions(self):
         """When intent is TOOL_ACTION, tool usage guidelines should appear."""

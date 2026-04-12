@@ -36,6 +36,35 @@ _TOOL_ACTION_PATTERNS = [
         r"\bmy\s+(resources?|vms?|virtual\s+machines?|instances?|projects?|servers?)\b",
         re.IGNORECASE,
     ),
+    re.compile(
+        r"\b(find|match|discover|search)\s+(me\s+)?(calls?|proposals?|opportunities)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bmy\s+(proposals?|reviews?|submissions?|workload)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(review|summarize|analyze|guide|help\s+me\s+review)\s+"
+        r"(proposal|submission)\s+",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(call|round)\s+(status|insights?|progress|statistics|stats|briefing|going|doing)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\bhow\s+is\s+.{0,30}(call|round|program)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(prepare|apply|submit).{0,30}(for|to).{0,40}(call|proposal|program)\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(need|require|necessary).{0,60}(call|proposal|submission|application)\b",
+        re.IGNORECASE,
+    ),
 ]
 
 _KNOWLEDGE_PATTERNS = [
@@ -136,17 +165,16 @@ def classify_intent(
     ):
         return Intent.GREETING
 
-    # 4. Conflict: both signals → let LLM decide with tools
-    if has_tool_signal and has_knowledge_signal:
-        return Intent.AMBIGUOUS
-
-    # 5. Clear tool action
+    # 4. Clear tool action
     if has_tool_signal:
         return Intent.TOOL_ACTION
 
-    # 6. Clear knowledge
+    # 5. Knowledge queries: classify as AMBIGUOUS to let LLM decide whether
+    # tools are useful. The LLM handles "What do I need for call X?" better
+    # than regex at distinguishing actionable queries from pure knowledge.
+    # Only greetings (above) suppress tools entirely.
     if has_knowledge_signal:
-        return Intent.KNOWLEDGE
+        return Intent.AMBIGUOUS
 
     # 7. Default
     return Intent.AMBIGUOUS

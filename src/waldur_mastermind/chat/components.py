@@ -110,3 +110,22 @@ ui_registry.register(
     },
     has_loading_state=True,
 )
+
+
+ui_registry.register(
+    key="homeport_nav",
+    name="HomePort Navigation",
+    description="Navigation links and action buttons for navigating to HomePort pages",
+    schema={
+        "type": "object",
+        "required": ["links"],
+        "properties": {
+            "links": {
+                "type": "array",
+            },  # [{label, url, variant (primary/secondary/info), icon?}]
+            "context": {
+                "type": "string",
+            },  # Brief context text shown above links
+        },
+    },
+)

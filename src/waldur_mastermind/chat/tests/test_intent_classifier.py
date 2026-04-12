@@ -106,54 +106,54 @@ class ToolActionIntentTest(TestCase):
 
 class KnowledgeIntentTest(TestCase):
     def test_what_is_a_vm(self):
-        self.assertEqual(classify_intent("what is a VM?"), Intent.KNOWLEDGE)
+        self.assertEqual(classify_intent("what is a VM?"), Intent.AMBIGUOUS)
 
     def test_how_does_waldur_work(self):
-        self.assertEqual(classify_intent("how does Waldur work?"), Intent.KNOWLEDGE)
+        self.assertEqual(classify_intent("how does Waldur work?"), Intent.AMBIGUOUS)
 
     def test_explain_resources(self):
-        self.assertEqual(classify_intent("explain resources"), Intent.KNOWLEDGE)
+        self.assertEqual(classify_intent("explain resources"), Intent.AMBIGUOUS)
 
     def test_what_can_you_do(self):
-        self.assertEqual(classify_intent("what can you do?"), Intent.KNOWLEDGE)
+        self.assertEqual(classify_intent("what can you do?"), Intent.AMBIGUOUS)
 
     def test_how_do_i_debug(self):
         self.assertEqual(
-            classify_intent("how do I debug network issues?"), Intent.KNOWLEDGE
+            classify_intent("how do I debug network issues?"), Intent.AMBIGUOUS
         )
 
     def test_best_practices(self):
         self.assertEqual(
-            classify_intent("what are SSH key best practices?"), Intent.KNOWLEDGE
+            classify_intent("what are SSH key best practices?"), Intent.AMBIGUOUS
         )
 
     def test_eol_question(self):
         self.assertEqual(
-            classify_intent("which distros have reached EOL?"), Intent.KNOWLEDGE
+            classify_intent("which distros have reached EOL?"), Intent.AMBIGUOUS
         )
 
     def test_troubleshoot(self):
         self.assertEqual(
-            classify_intent("how to troubleshoot VM access?"), Intent.KNOWLEDGE
+            classify_intent("how to troubleshoot VM access?"), Intent.AMBIGUOUS
         )
 
     def test_tell_me_about(self):
         self.assertEqual(
-            classify_intent("tell me about security groups"), Intent.KNOWLEDGE
+            classify_intent("tell me about security groups"), Intent.AMBIGUOUS
         )
 
-    def test_what_are_my_resources_is_ambiguous(self):
-        """'what are my resources' has both knowledge and tool signals."""
-        self.assertEqual(classify_intent("what are my resources"), Intent.AMBIGUOUS)
+    def test_what_are_my_resources_is_tool_action(self):
+        """'what are my resources' matches tool action pattern for 'my resources'."""
+        self.assertEqual(classify_intent("what are my resources"), Intent.TOOL_ACTION)
 
-    def test_how_do_i_create_a_vm_is_ambiguous(self):
-        """'how do I create a VM' has both knowledge and tool signals."""
+    def test_how_do_i_create_a_vm_is_tool_action(self):
+        """'how do I create a VM' matches tool action pattern for VM creation."""
         result = classify_intent("how do I create a VM?")
-        self.assertEqual(result, Intent.AMBIGUOUS)
+        self.assertEqual(result, Intent.TOOL_ACTION)
 
     def test_help_me_understand_is_knowledge(self):
         result = classify_intent("help me understand security groups")
-        self.assertEqual(result, Intent.KNOWLEDGE)
+        self.assertEqual(result, Intent.AMBIGUOUS)
 
     def test_help_me_create_vm_is_tool_action(self):
         """'help me create a VM' should trigger tool action, not knowledge."""
@@ -175,9 +175,9 @@ class AmbiguousIntentTest(TestCase):
         self.assertEqual(classify_intent("just checking in"), Intent.AMBIGUOUS)
 
     def test_mixed_knowledge_and_action(self):
-        """Messages with both signals default to AMBIGUOUS."""
+        """Messages with both signals — tool signal takes precedence."""
         result = classify_intent("show me my VMs running EOL distros")
-        self.assertEqual(result, Intent.AMBIGUOUS)
+        self.assertEqual(result, Intent.TOOL_ACTION)
 
 
 class ConversationContextOverrideTest(TestCase):
@@ -231,7 +231,7 @@ class ConversationContextOverrideTest(TestCase):
 
     def test_knowledge_without_recent_tool_calls_is_knowledge(self):
         result = classify_intent("what is a VM?", self._history_without_tool_calls())
-        self.assertEqual(result, Intent.KNOWLEDGE)
+        self.assertEqual(result, Intent.AMBIGUOUS)
 
     def test_tool_calls_detected_despite_expanded_messages(self):
         """Mid-workflow detection counts assistant messages, not expanded items.

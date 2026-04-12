@@ -158,7 +158,18 @@ class LLMStreamer:
         completion_kwargs = (
             _completion_kwargs if isinstance(_completion_kwargs, dict) else {}
         )
-        tools = tool_registry.get_openai_tools(get_tool_set_for_user(self.user))
+        user_tools = get_tool_set_for_user(self.user)
+
+        # Semantic routing: pre-filter tools based on query similarity.
+        # Falls back to all user tools when semantic-router is not installed.
+        from waldur_mastermind.chat.semantic_routing import get_relevant_tools
+
+        user_message = next(
+            (m["content"] for m in reversed(messages) if m.get("role") == "user"),
+            "",
+        )
+        relevant_tools = get_relevant_tools(user_message, user_tools)
+        tools = tool_registry.get_openai_tools(relevant_tools)
 
         kwargs = {
             "model": model,
@@ -405,14 +416,62 @@ class LLMStreamer:
                 connections.close_all()
 
     def _run_llm_workflow(self):
-        """Execute the full LLM streaming workflow (runs in worker thread)."""
+        """Execute the full LLM streaming workflow (runs in worker thread).
+
+        Implements the standard tool-use loop: if the LLM emits tool_calls,
+        we execute them, append the results as ``tool`` role messages, and
+        make a follow-up LLM call so the model can generate a natural-language
+        response that references the tool data.
+        """
         include_tools = self.intent.include_tools if self.intent else True
-        with self._stream_completion(
-            self.messages, include_tools=include_tools
-        ) as stream:
+        self._stream_and_collect(self.messages, include_tools=include_tools)
+
+        # Tool-use follow-up: if the LLM called tools, execute them and
+        # give the LLM a second pass to generate a user-facing response.
+        if self.tool_calls and self.user and not self._stopped:
+            self._execute_tool_calls_worker(self.tool_calls)
+
+            # Build follow-up messages: original context + assistant tool_call
+            # + tool results with full structured data for the LLM to reference.
+            followup_messages = list(self.messages)
+            followup_messages.append(
+                {
+                    "role": "assistant",
+                    "content": self.accumulated_content or None,
+                    "tool_calls": [
+                        {
+                            "id": entry["id"],
+                            "type": "function",
+                            "function": {
+                                "name": entry["name"],
+                                "arguments": entry["arguments"],
+                            },
+                        }
+                        for entry in self.tool_calls.values()
+                    ],
+                }
+            )
+            for entry in self.tool_calls.values():
+                # Send the full data dict (not just summary) so the LLM can
+                # generate a rich, detailed response from the tool output.
+                result_data = entry.get("_result_data", {})
+                summary = entry.get("_summary", "Done")
+                tool_content = json.dumps(result_data) if result_data else summary
+                followup_messages.append(
+                    {
+                        "role": "tool",
+                        "tool_call_id": entry["id"],
+                        "content": tool_content,
+                    }
+                )
+
+            # Second LLM call — no tools this time, just generate text.
+            self._stream_and_collect(followup_messages, include_tools=False)
+
+    def _stream_and_collect(self, messages, include_tools=True):
+        """Stream one LLM completion, accumulating content and tool calls."""
+        with self._stream_completion(messages, include_tools=include_tools) as stream:
             for chunk in stream:
-                # Capture usage from any chunk — some providers attach it
-                # to a chunk that still has a (empty-delta) choices entry.
                 if chunk.usage:
                     self.input_tokens = (self.input_tokens or 0) + (
                         chunk.usage.prompt_tokens or 0
@@ -424,8 +483,6 @@ class LLMStreamer:
                 if not chunk.choices:
                     continue
 
-                # Client cancelled — persist partial content immediately,
-                # then keep draining the stream for the usage-only chunk.
                 if self._check_cancelled():
                     if not self._persisted:
                         self._persist_on_cancel()
@@ -443,10 +500,6 @@ class LLMStreamer:
                         self._accumulate_tool_call_delta(tc)
 
         self._flush_parser()
-
-        # Skip tool execution if client canceled or disconnected
-        if self.tool_calls and self.user and not self._stopped:
-            self._execute_tool_calls_worker(self.tool_calls)
 
     def _execute_tool_calls_worker(self, tool_calls: dict[int, dict]):
         """Execute all streamed tool calls and enqueue UI component results."""
@@ -475,6 +528,8 @@ class LLMStreamer:
             # Store result for DB persistence (None for hidden errors)
             entry["_result_block"] = tool_block
             entry["_summary"] = result.get("summary", "")
+            # Store full data for LLM follow-up call
+            entry["_result_data"] = result.get("data", {})
 
             if tool_block:
                 self._enqueue(self._format_ndjson(tool_block))

@@ -5,18 +5,34 @@ STAFF_TOOLS: list[ToolName] = [
     ToolName.PREVIEW_VM,
     ToolName.SHOW_USER_RESOURCES,
     ToolName.LIST_PROJECTS,
+    ToolName.FIND_MATCHING_CALLS,
+    ToolName.GUIDE_PROPOSAL,
+    ToolName.REVIEW_WORKLOAD,
+    ToolName.CALL_INSIGHTS,
+    ToolName.PROPOSAL_OVERVIEW,
+    ToolName.REVIEW_ASSISTANT,
 ]
 SUPPORT_TOOLS: list[ToolName] = [
     ToolName.CREATE_VM,
     ToolName.PREVIEW_VM,
     ToolName.SHOW_USER_RESOURCES,
     ToolName.LIST_PROJECTS,
+    ToolName.FIND_MATCHING_CALLS,
+    ToolName.GUIDE_PROPOSAL,
+    ToolName.REVIEW_WORKLOAD,
+    ToolName.PROPOSAL_OVERVIEW,
+    ToolName.REVIEW_ASSISTANT,
 ]
 END_USER_TOOLS: list[ToolName] = [
     ToolName.CREATE_VM,
     ToolName.PREVIEW_VM,
     ToolName.SHOW_USER_RESOURCES,
     ToolName.LIST_PROJECTS,
+    ToolName.FIND_MATCHING_CALLS,
+    ToolName.GUIDE_PROPOSAL,
+    ToolName.REVIEW_WORKLOAD,
+    ToolName.PROPOSAL_OVERVIEW,
+    ToolName.REVIEW_ASSISTANT,
 ]
 
 

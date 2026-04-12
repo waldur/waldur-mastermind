@@ -19,6 +19,11 @@ class ToolDefinition(BaseModel):
     usage_instructions: str = ""
     workflow_instructions: str = ""
 
+    # Example utterances for semantic routing. When semantic-router is installed,
+    # these are used to build embedding-based routes that pre-filter which tools
+    # are sent to the LLM, reducing token usage and improving accuracy.
+    route_utterances: list[str] = Field(default_factory=list)
+
 
 class BaseTool(ABC):
     """Abstract base class for all chat tools.
