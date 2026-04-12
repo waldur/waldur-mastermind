@@ -192,6 +192,20 @@ class ChatResponseSerializer(serializers.Serializer):
         required=False,
         help_text="State display name filters (e.g. ['OK', 'Erred']). Present when k='resource_list'.",
     )
+    # table fields
+    h = serializers.ListField(
+        required=False,
+        help_text="Table headers - list of column names. Present when k='table'.",
+    )
+    r = serializers.ListField(
+        required=False,
+        help_text="Table rows - list of row data (each row is a list of strings). Present when k='table'.",
+    )
+    n = serializers.IntegerField(
+        required=False,
+        allow_null=True,
+        help_text="Total count of rows in the table (used for pagination display). Present when k='table'.",
+    )
 
 
 class TokenQuotaUsageResponseSerializer(serializers.ModelSerializer):
