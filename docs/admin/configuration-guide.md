@@ -1248,6 +1248,12 @@ Allow anonymous users to see plans
 
 Controls offering visibility for regular users. 'show_all': Show all shared offerings (current behavior). 'show_restricted_disabled': Show all but mark inaccessible as disabled. 'hide_inaccessible': Hide offerings user cannot access. 'require_membership': Hide all unless user belongs to an organization/project.
 
+#### SHOW_OFFERING_COVER_IMAGE
+
+**Type:** bool
+
+Show offering cover image as a banner above the name on the offering page.
+
 #### ENFORCE_USER_CONSENT_FOR_OFFERINGS
 
 **Type:** bool
