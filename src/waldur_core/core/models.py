@@ -451,6 +451,11 @@ class User(
         max_length=255,
         blank=True,
     )
+    address = models.CharField(
+        _("address"),
+        max_length=255,
+        blank=True,
+    )
 
     # Geographic (ISO 3166-1 alpha-2)
     country_of_residence = models.CharField(
@@ -525,6 +530,7 @@ class User(
         "gender",
         "personal_title",
         "place_of_birth",
+        "address",
         "country_of_residence",
         "nationality",
         "nationalities",

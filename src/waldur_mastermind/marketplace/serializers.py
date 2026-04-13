@@ -6663,6 +6663,7 @@ class OfferingUserSerializer(
     user_gender = serializers.ReadOnlyField(source="user.gender")
     user_personal_title = serializers.ReadOnlyField(source="user.personal_title")
     user_place_of_birth = serializers.ReadOnlyField(source="user.place_of_birth")
+    user_address = serializers.ReadOnlyField(source="user.address")
     user_country_of_residence = serializers.ReadOnlyField(
         source="user.country_of_residence"
     )
@@ -6719,6 +6720,7 @@ class OfferingUserSerializer(
         "gender": "user_gender",
         "personal_title": "user_personal_title",
         "place_of_birth": "user_place_of_birth",
+        "address": "user_address",
         "country_of_residence": "user_country_of_residence",
         "nationality": "user_nationality",
         "nationalities": "user_nationalities",
@@ -6758,6 +6760,7 @@ class OfferingUserSerializer(
             "user_gender",
             "user_personal_title",
             "user_place_of_birth",
+            "user_address",
             "user_country_of_residence",
             "user_nationality",
             "user_nationalities",
@@ -8230,6 +8233,7 @@ class MarketplaceServiceProviderUserSerializer(
         "gender": "gender",
         "personal_title": "personal_title",
         "place_of_birth": "place_of_birth",
+        "address": "address",
         "country_of_residence": "country_of_residence",
         "nationality": "nationality",
         "nationalities": "nationalities",
@@ -8263,6 +8267,7 @@ class MarketplaceServiceProviderUserSerializer(
             "gender",
             "personal_title",
             "place_of_birth",
+            "address",
             "country_of_residence",
             "nationality",
             "nationalities",
@@ -10051,6 +10056,7 @@ class OfferingUserAttributeConfigSerializer(serializers.ModelSerializer):
             "expose_gender",
             "expose_personal_title",
             "expose_place_of_birth",
+            "expose_address",
             "expose_country_of_residence",
             "expose_nationality",
             "expose_nationalities",
