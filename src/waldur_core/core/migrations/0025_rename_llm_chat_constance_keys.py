@@ -19,17 +19,15 @@ RENAMES = [
 
 def rename_forward(apps, schema_editor):
     for old_key, new_key in RENAMES:
+        # Delete any pre-existing new key to avoid unique constraint violation
+        # (constance may auto-create keys before the migration runs)
+        schema_editor.execute(
+            "DELETE FROM constance_constance WHERE key = %s",
+            [new_key],
+        )
         schema_editor.execute(
             "UPDATE constance_constance SET key = %s WHERE key = %s",
             [new_key, old_key],
-        )
-
-
-def rename_reverse(apps, schema_editor):
-    for old_key, new_key in RENAMES:
-        schema_editor.execute(
-            "UPDATE constance_constance SET key = %s WHERE key = %s",
-            [old_key, new_key],
         )
 
 
@@ -39,5 +37,5 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(rename_forward, rename_reverse),
+        migrations.RunPython(rename_forward, migrations.RunPython.noop),
     ]
