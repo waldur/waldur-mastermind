@@ -10863,35 +10863,23 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
 
     @extend_schema(
         description="Count active resources grouped by offering.",
-        parameters=[
-            OpenApiParameter(
-                name="limit",
-                type=int,
-                location=OpenApiParameter.QUERY,
-                description="Limit number of results (e.g. top N offerings). No limit by default.",
-            ),
-        ],
         responses=serializers.OfferingStatsSerializer(many=True),
     )
     @action(detail=False, methods=["get"])
     def count_active_resources_grouped_by_offering(self, request, *args, **kwargs):
-        result = (
+        queryset = (
             self.get_active_resources()
             .values("offering__uuid", "offering__name", "offering__country")
             .annotate(count=Count("id"))
             .order_by("-count")
         )
-        limit = request.query_params.get("limit")
-        if limit:
-            try:
-                result = result[: int(limit)]
-            except ValueError:
-                pass
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = serializers.OfferingStatsSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
 
-        return Response(
-            serializers.OfferingStatsSerializer(result, many=True).data,
-            status=status.HTTP_200_OK,
-        )
+        serializer = serializers.OfferingStatsSerializer(queryset, many=True)
+        return Response(serializer.data)
 
     @extend_schema(
         responses=serializers.OfferingCountryStatsSerializer(many=True),

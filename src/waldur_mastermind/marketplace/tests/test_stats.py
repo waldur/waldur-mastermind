@@ -2511,15 +2511,16 @@ class TopProviderStatsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
     @data("staff", "global_support")
-    def test_count_active_resources_grouped_by_offering_with_limit(self, user):
+    def test_count_active_resources_grouped_by_offering_with_pagination(self, user):
         user = getattr(self.fixture, user)
         self.client.force_authenticate(user)
         response = self.client.get(
             "/api/marketplace-stats/count_active_resources_grouped_by_offering/",
-            {"limit": 2},
+            {"page_size": 2},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(len(response.data) <= 2)
+        self.assertIn("X-Result-Count", response.headers)
 
     @data("owner", "user", "customer_support", "admin", "manager")
     def test_user_cannot_access_top_providers(self, user):
