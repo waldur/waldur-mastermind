@@ -4573,7 +4573,9 @@ class OrderCreateSerializer(
         # Prepaid Offering Validation
         prepaid_components = offering.components.filter(is_prepaid=True)
         if prepaid_components.exists():
-            self._validate_prepaid_attributes(attributes, prepaid_components)
+            self._validate_prepaid_attributes(
+                attributes, prepaid_components, attrs.get("start_date")
+            )
 
         self._validate_order_start_date(attrs)
 
@@ -4763,7 +4765,10 @@ class OrderCreateSerializer(
             )
 
     def _validate_prepaid_attributes(
-        self, attributes, prepaid_components: QuerySet[models.OfferingComponent]
+        self,
+        attributes,
+        prepaid_components: QuerySet[models.OfferingComponent],
+        order_start_date=None,
     ):
         """
         Validates attributes specific to prepaid offerings (end_date, duration).
@@ -4793,7 +4798,7 @@ class OrderCreateSerializer(
             )
 
         # Rule 2: Validate duration against component constraints.
-        start_date = timezone.now().date()
+        start_date = order_start_date or timezone.now().date()
         # Calculate duration in full months. A partial month at the end counts as a full month.
         delta = relativedelta(end_date, start_date)
         duration_in_months = delta.years * 12 + delta.months

@@ -1,5 +1,6 @@
 import datetime
 
+from constance.test.unittest import override_config as override_constance_config
 from dateutil.relativedelta import relativedelta
 from django.test import TestCase
 from django.utils import timezone
@@ -364,6 +365,59 @@ class RenewalSerializerConstraintsTest(TestCase):
         # Any value within field bounds should be valid
         data = self._validate(36)
         self.assertEqual(data["extension_months"], 36)
+
+
+class PrepaidDurationWithFutureStartDateTest(BaseOrderCreateTest):
+    """Verify prepaid duration is calculated from order start_date, not today."""
+
+    def setUp(self):
+        super().setUp()
+        self.offering = factories.OfferingFactory(
+            state=models.Offering.States.ACTIVE,
+        )
+        factories.OfferingComponentFactory(
+            offering=self.offering,
+            is_prepaid=True,
+            billing_type=models.BillingTypes.ONE_TIME,
+            min_prepaid_duration=12,
+            max_prepaid_duration=24,
+            prepaid_duration_step=12,
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_ORDER)
+
+    @freeze_time("2024-01-01")
+    @override_constance_config(ENABLE_ORDER_START_DATE=True)
+    def test_duration_calculated_from_start_date_not_today(self):
+        # start_date=2024-03-01, end_date=2025-03-01 → 12 months (valid)
+        # If calculated from today (2024-01-01), it would be 14 months (invalid with step=12)
+        response = self.create_order(
+            self.fixture.owner,
+            self.offering,
+            add_payload={
+                "start_date": "2024-03-01",
+                "attributes": {"end_date": "2025-03-01"},
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    @freeze_time("2024-01-01")
+    @override_constance_config(ENABLE_ORDER_START_DATE=True)
+    def test_duration_from_start_date_fails_if_too_short(self):
+        # start_date=2024-03-01, end_date=2024-09-01 → 6 months (below min 12)
+        response = self.create_order(
+            self.fixture.owner,
+            self.offering,
+            add_payload={
+                "start_date": "2024-03-01",
+                "attributes": {"end_date": "2024-09-01"},
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("attributes.end_date", response.data)
+        self.assertIn(
+            "less than the minimum required duration",
+            response.data["attributes.end_date"][0],
+        )
 
 
 class CreateOrderUsesPrepaidConstraintsTest(BaseOrderCreateTest):

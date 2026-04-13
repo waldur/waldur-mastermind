@@ -219,7 +219,7 @@ reportIncompatibleVariableOverride = "none"
 dev = [
     "ddt>=1.7.2",
     "factory-boy>=3.3.0",
-    "pytest>=8.3.5",
+    "pytest>=9.0.3",
     "pytest-cov==6.1.1",
     "pytest-django>=4.11.0,<5.0.0",
     "responses==0.25.3",
