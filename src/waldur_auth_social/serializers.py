@@ -302,6 +302,7 @@ class IdentityBridgeRequestSerializer(serializers.Serializer):
     place_of_birth = serializers.CharField(
         max_length=255, required=False, allow_blank=True
     )
+    address = serializers.CharField(max_length=255, required=False, allow_blank=True)
     country_of_residence = serializers.CharField(
         max_length=2, required=False, allow_blank=True
     )

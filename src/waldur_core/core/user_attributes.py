@@ -40,6 +40,7 @@ ALL_PROFILE_ATTRIBUTES = frozenset(
         "personal_title",
         "birth_date",
         "place_of_birth",
+        "address",
         "country_of_residence",
         "nationality",
         "nationalities",

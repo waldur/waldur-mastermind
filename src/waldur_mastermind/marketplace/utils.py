@@ -3508,6 +3508,7 @@ USER_FIELD_TO_ATTRIBUTE = {
     "birth_date": "birth_date",
     "personal_title": "personal_title",
     "place_of_birth": "place_of_birth",
+    "address": "address",
     "country_of_residence": "country_of_residence",
     "nationality": "nationality",
     "nationalities": "nationalities",

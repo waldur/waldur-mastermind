@@ -959,6 +959,7 @@ class OfferingUserAttributeConfig(TimeStampedModel, core_models.UuidMixin):
     expose_gender = models.BooleanField(default=False)
     expose_personal_title = models.BooleanField(default=False)
     expose_place_of_birth = models.BooleanField(default=False)
+    expose_address = models.BooleanField(default=False)
     expose_country_of_residence = models.BooleanField(default=False)
     expose_nationality = models.BooleanField(default=False)
     expose_nationalities = models.BooleanField(default=False)
