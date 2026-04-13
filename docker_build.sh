@@ -8,7 +8,10 @@ python3 -m pip install uv
 # Install Python dependencies for Waldur MasterMind using lock file
 # Use UV_PROJECT_ENVIRONMENT to target system Python (no venv)
 export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
-uv sync
+# torch and its dependencies are excluded because they don't provide musl/Alpine wheels.
+# The semantic-router[local] extra pulls them in, but they are only needed
+# for on-device ML inference which is not used in the Docker deployment.
+uv sync --no-install-package torch --no-install-package sentence-transformers --no-install-package llama-cpp-python
 
 # Install gunicorn separately after uv sync to ensure it's available
 python3 -m pip install gunicorn==22.0.0
