@@ -3915,7 +3915,7 @@ dependencies = [
     { name = "pyvmomi" },
     { name = "pyyaml" },
     { name = "requests", extra = ["socks"] },
-    { name = "semantic-router", extra = ["local"] },
+    { name = "semantic-router" },
     { name = "sentry-sdk" },
     { name = "setuptools" },
     { name = "slurm-emulator" },
@@ -3949,6 +3949,9 @@ dev = [
     { name = "pytest-split-tests" },
     { name = "responses" },
     { name = "respx" },
+]
+local-ml = [
+    { name = "semantic-router", extra = ["local"] },
 ]
 
 [package.metadata]
@@ -4019,7 +4022,7 @@ requires-dist = [
     { name = "pyvmomi", specifier = "==8.0.3.0.1" },
     { name = "pyyaml", specifier = "==6.0.2" },
     { name = "requests", extras = ["socks"], specifier = ">=2.32.4,<3.0.0" },
-    { name = "semantic-router", extras = ["local"], specifier = ">=0.1.0,<1.0.0" },
+    { name = "semantic-router", specifier = ">=0.1.0,<1.0.0" },
     { name = "sentry-sdk", specifier = ">=2.8.0,<3.0.0" },
     { name = "setuptools", specifier = ">=80.9.0,<81.0.0" },
     { name = "slurm-emulator", specifier = ">=0.1.1" },
@@ -4054,6 +4057,7 @@ dev = [
     { name = "responses", specifier = "==0.25.3" },
     { name = "respx", specifier = ">=0.22.0,<1.0.0" },
 ]
+local-ml = [{ name = "semantic-router", extras = ["local"], specifier = ">=0.1.0,<1.0.0" }]
 
 [[package]]
 name = "warlock"
