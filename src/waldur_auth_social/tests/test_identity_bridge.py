@@ -148,6 +148,26 @@ class IdentityBridgeUpdateTest(TestCase):
         target.refresh_from_db()
         self.assertEqual(target.first_name, "NewName")
 
+    @override_config(
+        FEDERATED_IDENTITY_SYNC_ENABLED=True,
+        FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES=["gender"],
+        ENABLED_USER_PROFILE_ATTRIBUTES=["gender"],
+    )
+    def test_accepts_gender_as_string_choice(self):
+        target = structure_factories.UserFactory(
+            username="existinguser@myaccessid.org",
+            gender=None,
+        )
+        payload = {
+            "username": "existinguser@myaccessid.org",
+            "source": "isd:puhuri",
+            "gender": "male",
+        }
+        response = self.client.post(BRIDGE_URL, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        target.refresh_from_db()
+        self.assertEqual(target.gender, "male")
+
     @override_config(FEDERATED_IDENTITY_SYNC_ENABLED=True)
     def test_update_deactivated_user_returns_error(self):
         structure_factories.UserFactory(
