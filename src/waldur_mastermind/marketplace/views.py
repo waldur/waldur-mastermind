@@ -9864,10 +9864,13 @@ class OfferingUserGroupViewSet(core_views.ActionsViewSet):
         offering_group.save(update_fields=["backend_metadata"])
 
 
-class StatsViewSet(rf_viewsets.GenericViewSet):
+class StatsViewSet(EagerLoadMixin, rf_viewsets.GenericViewSet):
     filter_backends = []
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsSupport]
     serializer_class = EmptySerializer
+
+    def get_queryset(self):
+        return models.Resource.objects.none()
 
     @extend_schema(
         responses=serializers.MarketplaceCustomerStatsSerializer(many=True),
@@ -11228,44 +11231,22 @@ class StatsViewSet(rf_viewsets.GenericViewSet):
             usages__billing_period__month=target_month,
         )
 
-        # Add last_usage_date annotation
-        queryset = queryset.annotate(
-            last_usage_date=Max("usages__date")
-        ).select_related(
-            "offering",
-            "offering__customer",
-            "project",
-            "project__customer",
+        # Add last_usage_date annotation and eager load
+        queryset = queryset.annotate(last_usage_date=Max("usages__date")).order_by(
+            "-created"
         )
 
-        # Transform to response format
-        result = []
-        now = timezone.now()
-        for resource in queryset:
-            days_since = None
-            if resource.last_usage_date:
-                days_since = (now - resource.last_usage_date).days
+        queryset = serializers.ResourceMissingUsageSerializer.eager_load(queryset)
 
-            result.append(
-                {
-                    "uuid": resource.uuid,
-                    "name": resource.name or "Unnamed Resource",
-                    "state": resource.get_state_display(),
-                    "created": resource.created,
-                    "offering_name": resource.offering.name,
-                    "offering_uuid": resource.offering.uuid,
-                    "provider_name": resource.offering.customer.name,
-                    "provider_uuid": resource.offering.customer.uuid,
-                    "customer_name": resource.project.customer.name,
-                    "customer_uuid": resource.project.customer.uuid,
-                    "project_name": resource.project.name,
-                    "project_uuid": resource.project.uuid,
-                    "last_usage_date": resource.last_usage_date,
-                    "days_since_last_report": days_since,
-                }
-            )
+        page = self.paginate_queryset(queryset)
 
-        serializer = serializers.ResourceMissingUsageSerializer(result, many=True)
+        serializer = serializers.ResourceMissingUsageSerializer(
+            page if page is not None else queryset,
+            many=True,
+            context={"request": self.request},
+        )
+        if page is not None:
+            return self.get_paginated_response(serializer.data)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
