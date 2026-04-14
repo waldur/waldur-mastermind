@@ -28,6 +28,11 @@ def register_in(router):
         basename="openstack-external-network",
     )
     router.register(
+        r"openstack-hypervisors",
+        views.HypervisorViewSet,
+        basename="openstack-hypervisor",
+    )
+    router.register(
         r"openstack-tenants", views.TenantViewSet, basename="openstack-tenant"
     )
     router.register(

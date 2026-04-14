@@ -354,6 +354,42 @@ class ExternalNetworkSerializer(
         }
 
 
+class HypervisorSummarySerializer(serializers.Serializer):
+    total_vcpus = serializers.IntegerField()
+    used_vcpus = serializers.IntegerField()
+    total_memory_mb = serializers.IntegerField()
+    used_memory_mb = serializers.IntegerField()
+    total_local_gb = serializers.IntegerField()
+    used_local_gb = serializers.IntegerField()
+    total_running_vms = serializers.IntegerField()
+
+
+class HypervisorSerializer(structure_serializers.BasePropertySerializer):
+    class Meta(structure_serializers.BasePropertySerializer.Meta):
+        model = models.Hypervisor
+        fields = (
+            "url",
+            "uuid",
+            "name",
+            "settings",
+            "backend_id",
+            "hypervisor_type",
+            "vcpus",
+            "vcpus_used",
+            "memory_mb",
+            "memory_mb_used",
+            "local_gb",
+            "local_gb_used",
+            "running_vms",
+            "state",
+            "status",
+        )
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid"},
+            "settings": {"lookup_field": "uuid"},
+        }
+
+
 class OpenStackTenantQuotaSerializer(serializers.Serializer):
     instances = serializers.IntegerField(min_value=1, required=False)
     volumes = serializers.IntegerField(min_value=1, required=False)

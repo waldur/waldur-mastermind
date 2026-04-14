@@ -3,6 +3,7 @@ import logging
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import (
     Count,
+    Sum,
 )
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
@@ -257,6 +258,43 @@ class ExternalNetworkViewSet(structure_views.BaseServicePropertyViewSet):
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.ExternalNetworkFilter
+
+
+class HypervisorViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.Hypervisor.objects.all().order_by("settings", "name")
+    serializer_class = serializers.HypervisorSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
+    filterset_class = filters.HypervisorFilter
+
+    @extend_schema(
+        summary="Get hypervisor summary statistics",
+        description=(
+            "Return aggregated vCPU, RAM and disk totals across all hypervisors "
+            "matching the current filter (e.g. settings_uuid)."
+        ),
+        responses={200: serializers.HypervisorSummarySerializer},
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def summary(self, request):
+        if not request.query_params.get("settings_uuid"):
+            raise exceptions.ValidationError(
+                {"settings_uuid": "This parameter is required."}
+            )
+        qs = self.filter_queryset(self.get_queryset())
+        result = qs.aggregate(
+            total_vcpus=Sum("vcpus"),
+            used_vcpus=Sum("vcpus_used"),
+            total_memory_mb=Sum("memory_mb"),
+            used_memory_mb=Sum("memory_mb_used"),
+            total_local_gb=Sum("local_gb"),
+            used_local_gb=Sum("local_gb_used"),
+            total_running_vms=Sum("running_vms"),
+        )
+        # Replace None with 0 when queryset is empty
+        result = {k: v or 0 for k, v in result.items()}
+        serializer = serializers.HypervisorSummarySerializer(result)
+        return response.Response(serializer.data)
 
 
 @extend_schema_view(

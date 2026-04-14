@@ -147,6 +147,16 @@ class ExternalNetworkFilter(structure_filters.ServicePropertySettingsFilter):
         model = models.ExternalNetwork
 
 
+class HypervisorFilter(structure_filters.ServicePropertySettingsFilter):
+    class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
+        model = models.Hypervisor
+        fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + (
+            "hypervisor_type",
+            "state",
+            "status",
+        )
+
+
 class RouterFilter(TenantFilterSet, structure_filters.NameFilterSet):
     state = core_filters.MappedMultipleChoiceFilter(CoreStates.choices, label="State")
 
