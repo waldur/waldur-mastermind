@@ -93,6 +93,11 @@ class ManagedRancherClusterIPTest(test.APITransactionTestCase):
             self.instance, "update_floating_ips"
         )
 
+    def tearDown(self):
+        super().tearDown()
+        self.neutron_client_patcher.stop()
+        self.keystone_session_patcher.stop()
+
     @override_settings(task_always_eager=True)
     def test_public_ip_is_created_for_cluster(self):
         self.client.force_login(self.fixture.staff)  # type: ignore

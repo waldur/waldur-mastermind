@@ -322,6 +322,41 @@ class ExternalNetworkFactory(
         return "http://testserver" + reverse("openstack-external-network-list")
 
 
+class HypervisorFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.Hypervisor],
+):
+    class Meta:
+        model = models.Hypervisor
+
+    name = factory.Sequence(lambda n: "oscompute%s" % n)
+    backend_id = factory.Sequence(lambda n: str(n))
+    settings = factory.SubFactory(SettingsFactory)
+    hypervisor_type = "KVM"
+    vcpus = 40
+    vcpus_used = 2
+    memory_mb = 131072
+    memory_mb_used = 3072
+    local_gb = 3000
+    local_gb_used = 11
+    running_vms = 3
+    state = "up"
+    status = "enabled"
+
+    @classmethod
+    def get_url(cls, hypervisor=None):
+        if hypervisor is None:
+            hypervisor = HypervisorFactory()
+        return "http://testserver" + reverse(
+            "openstack-hypervisor-detail",
+            kwargs={"uuid": hypervisor.uuid.hex},
+        )
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("openstack-hypervisor-list")
+
+
 class ExternalSubnetFactory(
     factory.django.DjangoModelFactory,
     metaclass=BaseMetaFactory[models.ExternalSubnet],

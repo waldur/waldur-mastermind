@@ -325,6 +325,62 @@ class ExternalNetwork(core_models.DescribableMixin, structure_models.ServiceProp
         return self.settings.get_backend()
 
 
+class Hypervisor(structure_models.ServiceProperty):
+    """OpenStack hypervisor node pulled from Nova admin API.
+
+    Visible to staff, support, and service provider owners/managers only.
+    """
+
+    class Permissions:
+        customer_path = "settings__customer"
+
+    hypervisor_type = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text=_("Hypervisor type, e.g. KVM, QEMU, VMware"),
+    )
+    vcpus = models.PositiveIntegerField(default=0, help_text=_("Total vCPUs"))
+    vcpus_used = models.PositiveIntegerField(default=0, help_text=_("Used vCPUs"))
+    memory_mb = models.PositiveIntegerField(default=0, help_text=_("Total RAM in MiB"))
+    memory_mb_used = models.PositiveIntegerField(
+        default=0, help_text=_("Used RAM in MiB")
+    )
+    local_gb = models.PositiveIntegerField(default=0, help_text=_("Total disk in GiB"))
+    local_gb_used = models.PositiveIntegerField(
+        default=0, help_text=_("Used disk in GiB")
+    )
+    running_vms = models.PositiveIntegerField(
+        default=0, help_text=_("Number of running VMs")
+    )
+    state = models.CharField(
+        max_length=50, blank=True, help_text=_("Hypervisor state, e.g. up or down")
+    )
+    status = models.CharField(
+        max_length=50,
+        blank=True,
+        help_text=_("Hypervisor status, e.g. enabled or disabled"),
+    )
+
+    @classmethod
+    def get_url_name(cls):
+        return "openstack-hypervisor"
+
+    @classmethod
+    def get_backend_fields(cls):
+        return super().get_backend_fields() + (
+            "hypervisor_type",
+            "vcpus",
+            "vcpus_used",
+            "memory_mb",
+            "memory_mb_used",
+            "local_gb",
+            "local_gb_used",
+            "running_vms",
+            "state",
+            "status",
+        )
+
+
 class ExternalSubnet(
     core_models.DescribableMixin,
     core_models.UuidMixin,

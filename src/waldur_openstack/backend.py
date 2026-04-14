@@ -290,6 +290,7 @@ class OpenStackBackend(ServiceBackend):
         self.pull_global_flavors()
         self.pull_global_images()
         self.pull_external_networks()
+        self.pull_hypervisors()
 
     def pull_resources(self):
         self.pull_tenants()
@@ -574,6 +575,52 @@ class OpenStackBackend(ServiceBackend):
                     "disk": self.gb2mb(remote_flavor.disk),
                 },
             )
+
+    def pull_hypervisors(self):
+        nova = get_nova_client(self.admin_session)
+        try:
+            remote_hypervisors = nova.hypervisors.list()
+        except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+        remote_ids = [str(h.id) for h in remote_hypervisors]
+        stale_qs = models.Hypervisor.objects.filter(settings=self.settings).exclude(
+            backend_id__in=remote_ids
+        )
+        for stale in stale_qs:
+            logger.info(
+                "Deleting stale hypervisor %s (backend_id=%s) for settings %s.",
+                stale.name,
+                stale.backend_id,
+                self.settings,
+            )
+        stale_qs.delete()
+
+        for remote in remote_hypervisors:
+            _, created = models.Hypervisor.objects.update_or_create(
+                settings=self.settings,
+                backend_id=str(remote.id),
+                defaults={
+                    "name": remote.hypervisor_hostname,
+                    "hypervisor_type": getattr(remote, "hypervisor_type", ""),
+                    "vcpus": getattr(remote, "vcpus", 0),
+                    "vcpus_used": getattr(remote, "vcpus_used", 0),
+                    "memory_mb": getattr(remote, "memory_mb", 0),
+                    "memory_mb_used": getattr(remote, "memory_mb_used", 0),
+                    "local_gb": getattr(remote, "local_gb", 0),
+                    "local_gb_used": getattr(remote, "local_gb_used", 0),
+                    "running_vms": getattr(remote, "running_vms", 0),
+                    "state": getattr(remote, "state", ""),
+                    "status": getattr(remote, "status", ""),
+                },
+            )
+            if created:
+                logger.info(
+                    "Created new hypervisor %s (backend_id=%s) for settings %s.",
+                    remote.hypervisor_hostname,
+                    remote.id,
+                    self.settings,
+                )
 
     def pull_global_images(self):
         glance = get_glance_client(self.admin_session)
