@@ -11,6 +11,7 @@ from waldur_auth_social.const import (
     WRITABLE_USER_FIELDS,
     ProviderChoices,
 )
+from waldur_core.core.enums import GENDER_CHOICES
 from waldur_core.core.user_attributes import get_federated_identity_sync_allowed_fields
 
 from . import models
@@ -294,7 +295,11 @@ class IdentityBridgeRequestSerializer(serializers.Serializer):
     identity_source = serializers.CharField(
         max_length=50, required=False, allow_blank=True
     )
-    gender = serializers.IntegerField(required=False, allow_null=True)
+    gender = serializers.ChoiceField(
+        choices=[key for key, _label in GENDER_CHOICES],
+        required=False,
+        allow_null=True,
+    )
     personal_title = serializers.CharField(
         max_length=50, required=False, allow_blank=True
     )
