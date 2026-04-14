@@ -11197,27 +11197,61 @@ class SiteAgentConfigGenerationSerializer(serializers.Serializer):
         return value
 
 
-class ResourceMissingUsageSerializer(serializers.Serializer):
+class ResourceMissingUsageSerializer(serializers.ModelSerializer):
     """Serializer for resources with missing usage reports."""
 
-    uuid = serializers.UUIDField(help_text="UUID of the resource")
-    name = serializers.CharField(help_text="Name of the resource")
-    state = serializers.CharField(help_text="Current state of the resource")
-    created = serializers.DateTimeField(help_text="Creation date of the resource")
-    offering_name = serializers.CharField(help_text="Name of the offering")
-    offering_uuid = serializers.UUIDField(help_text="UUID of the offering")
-    provider_name = serializers.CharField(help_text="Name of the service provider")
-    provider_uuid = serializers.UUIDField(help_text="UUID of the service provider")
-    customer_name = serializers.CharField(help_text="Name of the customer organization")
-    customer_uuid = serializers.UUIDField(help_text="UUID of the customer organization")
-    project_name = serializers.CharField(help_text="Name of the project")
-    project_uuid = serializers.UUIDField(help_text="UUID of the project")
+    state = serializers.ReadOnlyField(source="get_state_display")
+    offering_name = serializers.ReadOnlyField(source="offering.name")
+    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
+    provider_name = serializers.ReadOnlyField(source="offering.customer.name")
+    provider_uuid = serializers.ReadOnlyField(source="offering.customer.uuid")
+    customer_name = serializers.ReadOnlyField(source="project.customer.name")
+    customer_uuid = serializers.ReadOnlyField(source="project.customer.uuid")
+    project_name = serializers.ReadOnlyField(source="project.name")
+    project_uuid = serializers.ReadOnlyField(source="project.uuid")
     last_usage_date = serializers.DateTimeField(
         allow_null=True, help_text="Date of the last usage report"
     )
-    days_since_last_report = serializers.IntegerField(
-        allow_null=True, help_text="Number of days since last usage report"
+    days_since_last_report = serializers.SerializerMethodField(
+        help_text="Number of days since last usage report"
     )
+
+    class Meta:
+        model = models.Resource
+        fields = (
+            "uuid",
+            "name",
+            "state",
+            "created",
+            "offering_name",
+            "offering_uuid",
+            "provider_name",
+            "provider_uuid",
+            "customer_name",
+            "customer_uuid",
+            "project_name",
+            "project_uuid",
+            "last_usage_date",
+            "days_since_last_report",
+        )
+
+    @staticmethod
+    def eager_load(queryset, request=None):
+        return queryset.select_related(
+            "offering",
+            "offering__customer",
+            "project",
+            "project__customer",
+        )
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_days_since_last_report(self, resource):
+        if resource.last_usage_date:
+            return (timezone.now() - resource.last_usage_date).days
+        return None
+
+    def get_name(self, resource):
+        return resource.name or "Unnamed Resource"
 
 
 class DailyOrderStatsSerializer(serializers.Serializer):
