@@ -10715,7 +10715,7 @@ class StatsViewSet(EagerLoadMixin, rf_viewsets.GenericViewSet):
     @action(detail=False, methods=["get"])
     def total_cost_of_active_resources_per_offering(self, request, *args, **kwargs):
         start, end = utils.get_start_and_end_dates_from_request(self.request)
-        invoice_items = (
+        queryset = (
             invoice_models.InvoiceItem.objects.filter(
                 invoice__created__gte=start,
                 invoice__created__lte=end,
@@ -10728,9 +10728,15 @@ class StatsViewSet(EagerLoadMixin, rf_viewsets.GenericViewSet):
                     output_field=FloatField(),
                 )
             )
+            .order_by("-cost")
         )
 
-        serializer = serializers.OfferingCostSerializer(invoice_items, many=True)
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = serializers.OfferingCostSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = serializers.OfferingCostSerializer(queryset, many=True)
 
         return Response(
             serializer.data,
