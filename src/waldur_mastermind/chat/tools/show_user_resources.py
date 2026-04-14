@@ -92,7 +92,13 @@ class ShowUserResourcesTool(BaseTool):
                 "if omitted, terminated resources are excluded automatically\n"
                 "\n"
                 "If the user asks to show/list something OTHER than resources (offerings, "
-                "projects, invoices, etc.), do NOT call any tool. Instead, answer with text."
+                "projects, invoices, etc.), do NOT call any tool. Instead, answer with text.\n"
+                "\n"
+                "AFTER this tool runs, an interactive resource table widget is rendered in the UI. "
+                "Your follow-up message should:\n"
+                "  - NOT repeat, list, or summarize the resource data — the user already sees it\n"
+                "  - Offer to help with a specific resource (e.g. view details, resize, restart, terminate)\n"
+                "  - Be brief (1-2 sentences)"
             ),
         )
 
@@ -124,7 +130,7 @@ class ShowUserResourcesTool(BaseTool):
 
         return {
             "type": "success",
-            "summary": "Showing resources",
+            "summary": "Done. The results are displayed in the UI above.",
             "ui_component": "resource_list",
             "ui_data": ui_data,
         }
