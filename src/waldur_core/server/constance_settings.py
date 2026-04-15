@@ -160,6 +160,8 @@ OFFERING_TYPE_CHOICES = [
 
 USER_ATTRIBUTE_CHOICES = [
     ("username", "Username"),
+    ("first_name", "First name"),
+    ("last_name", "Last name"),
     ("full_name", "Full name"),
     ("email", "Email"),
     ("phone_number", "Phone number"),
