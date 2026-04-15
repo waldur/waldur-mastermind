@@ -4,6 +4,8 @@ Resource UUID: {{resource.uuid}}
 Resource name: {{resource.name}}
 Plan details:
     {% plan_details order.plan %}
-Full name: {{order.created_by.full_name|default:"none"}}
+{% if order.start_date %}Start date: {{order.start_date}}
+{% endif %}{% if resource.end_date %}End date: {{resource.end_date}}
+{% endif %}Full name: {{order.created_by.full_name|default:"none"}}
 Civil code: {{order.created_by.civil_number|default:"none"}}
 Email: {{order.created_by.email}}
