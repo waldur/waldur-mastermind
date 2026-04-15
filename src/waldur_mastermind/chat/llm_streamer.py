@@ -161,7 +161,7 @@ class LLMStreamer:
         user_tools = get_tool_set_for_user(self.user)
 
         # Semantic routing: pre-filter tools based on query similarity.
-        # Falls back to all user tools when semantic-router is not installed.
+        # Falls back to all user tools when fastembed is not available.
         from waldur_mastermind.chat.semantic_routing import get_relevant_tools
 
         user_message = next(

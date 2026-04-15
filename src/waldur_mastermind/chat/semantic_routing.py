@@ -6,64 +6,71 @@ reducing token usage and improving accuracy.
 
 import logging
 
-from semantic_router import Route
-from semantic_router.encoders import HuggingFaceEncoder
-from semantic_router.routers import SemanticRouter
+import numpy as np
+from fastembed import TextEmbedding
 
 from waldur_mastermind.chat.tools.enums import ToolName
 
 logger = logging.getLogger(__name__)
 
-# Singleton — router is initialized lazily on first use.
-_router: SemanticRouter | None = None
-_route_to_tool: dict[str, ToolName] = {}
+# Singleton — encoder and route index are initialized lazily on first use.
+_encoder: TextEmbedding | None = None
+_route_embeddings: np.ndarray | None = None
+_route_names: list[ToolName] = []
 
 
-def _build_router() -> SemanticRouter:
-    """Build a SemanticRouter from all registered tool definitions."""
+def _get_encoder() -> TextEmbedding:
+    global _encoder
+    if _encoder is None:
+        _encoder = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    return _encoder
+
+
+def _build_route_index() -> None:
+    """Build route embeddings from all registered tool definitions."""
     from waldur_mastermind.chat.tools.registry import tool_registry
 
-    global _route_to_tool
+    global _route_embeddings, _route_names
 
-    routes = []
-    _route_to_tool = {}
-
+    utterances_per_route: list[tuple[ToolName, list[str]]] = []
     for name, tool in tool_registry._tools.items():
-        utterances = tool.definition.route_utterances
-        if not utterances:
-            continue
-        route = Route(name=name.value, utterances=utterances)
-        routes.append(route)
-        _route_to_tool[name.value] = name
+        utts = tool.definition.route_utterances
+        if utts:
+            utterances_per_route.append((name, utts))
 
-    if not routes:
+    if not utterances_per_route:
         logger.warning("No tools have route_utterances; semantic routing disabled.")
-        return None
+        return
 
-    encoder = HuggingFaceEncoder()
-    router = SemanticRouter(
-        encoder=encoder,
-        routes=routes,
-        auto_sync="local",
-    )
+    encoder = _get_encoder()
+
+    # Compute a single embedding per route by averaging its utterance embeddings.
+    route_vecs = []
+    names = []
+    for tool_name, utts in utterances_per_route:
+        embeddings = np.array(list(encoder.embed(utts)))  # (n_utterances, dim)
+        centroid = embeddings.mean(axis=0)
+        centroid /= np.linalg.norm(centroid)
+        route_vecs.append(centroid)
+        names.append(tool_name)
+
+    _route_embeddings = np.stack(route_vecs)  # (n_routes, dim)
+    _route_names = names
+
     logger.info(
-        "Semantic router initialized with %d routes (%d tools have utterances).",
-        len(routes),
-        len(routes),
+        "Semantic router initialized with %d routes.",
+        len(names),
     )
-    return router
 
 
-def get_router() -> SemanticRouter | None:
-    """Return the singleton SemanticRouter, building it on first call."""
-    global _router
-    if _router is None:
+def _ensure_index() -> bool:
+    """Ensure the route index is built. Returns True if ready."""
+    if _route_embeddings is None:
         try:
-            _router = _build_router()
+            _build_route_index()
         except Exception:
             logger.exception("Failed to initialize semantic router; falling back.")
-            _router = None
-    return _router
+    return _route_embeddings is not None
 
 
 def get_relevant_tools(
@@ -82,30 +89,32 @@ def get_relevant_tools(
         Filtered list of ToolName. Falls back to *user_tools* when semantic
         routing is unavailable or no route matches.
     """
-    router = get_router()
-    if router is None:
+    if not _ensure_index():
         return user_tools
 
     try:
-        result = router(query)
+        encoder = _get_encoder()
+        query_vec = np.array(list(encoder.embed([query])))[0]
+        query_vec /= np.linalg.norm(query_vec)
+
+        # Cosine similarities (embeddings are already normalized).
+        similarities = _route_embeddings @ query_vec  # (n_routes,)
+        best_idx = int(np.argmax(similarities))
+        best_score = similarities[best_idx]
     except Exception:
         logger.exception("Semantic routing failed for query; falling back.")
         return user_tools
 
-    if result.name is None:
-        # No confident match — send all tools, let LLM decide.
+    # Require a minimum confidence to filter.
+    if best_score < 0.4:
         return user_tools
 
-    # Collect the matched tool plus related tools in the same domain.
-    matched_name = result.name
-    matched_tool = _route_to_tool.get(matched_name)
+    matched_tool = _route_names[best_idx]
 
-    if matched_tool is None or matched_tool not in user_tools:
+    if matched_tool not in user_tools:
         return user_tools
 
     # Build relevant set: the matched tool + semantically nearby tools.
-    # We use route_many if available, otherwise just the single best match
-    # plus tools that share a domain prefix (e.g., all proposal tools together).
     relevant = {matched_tool}
 
     # Group related tools: if matched tool is proposal-related, include all proposal tools
