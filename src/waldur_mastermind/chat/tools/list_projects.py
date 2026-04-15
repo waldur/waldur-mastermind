@@ -94,7 +94,7 @@ class ListProjectsTool(BaseTool):
                 content_type=tenant_ct,
             )
             .filter(
-                django_models.Q(customer__isnull=True)
+                django_models.Q(shared=True)
                 | django_models.Q(customer_id=django_models.OuterRef("customer_id"))
                 | django_models.Q(project_id=django_models.OuterRef("id"))
             )

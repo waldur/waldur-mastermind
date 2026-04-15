@@ -172,6 +172,7 @@ class ToolExecutorListProjectsTest(ToolExecutorBaseTest):
             type=OPENSTACK_INSTANCE_OFFERING,
             state=OfferingStates.ACTIVE,
             customer=self.fixture.customer,
+            shared=False,
         )
 
     def _make_vm_ready_offering(self, customer, project=None):
@@ -187,6 +188,7 @@ class ToolExecutorListProjectsTest(ToolExecutorBaseTest):
             state=OfferingStates.ACTIVE,
             customer=customer,
             project=project,
+            shared=False,
         )
 
     def test_returns_project_form_ui(self):
@@ -246,6 +248,7 @@ class ToolExecutorListProjectsTest(ToolExecutorBaseTest):
             state=OfferingStates.ACTIVE,
             customer=self.fixture.customer,
             project=second_project,
+            shared=False,
         )
         owner_executor = ToolExecutor(self.fixture.owner)
 
@@ -336,12 +339,16 @@ class CreateVMBaseTest(test.APITestCase):
         self.subnet = self.fixture.subnet
         self.security_group = self.fixture.security_group
 
-        # OpenStack Instance offering scoped to the tenant
+        # OpenStack Instance offering scoped to the tenant.
+        # Use shared=False to represent the real-world case: per-tenant
+        # Instance offerings are auto-created by
+        # create_offerings_for_volume_and_instance with shared=False.
         self.offering = marketplace_factories.OfferingFactory(
             scope=self.tenant,
             type=OPENSTACK_INSTANCE_OFFERING,
             state=OfferingStates.ACTIVE,
             customer=self.fixture.customer,
+            shared=False,
         )
         self.plan = marketplace_factories.PlanFactory(offering=self.offering)
 
@@ -503,14 +510,11 @@ class CreateVMValidationErrorTest(CreateVMBaseTest):
         self.assertEqual(result["ui_data"]["status"], "error")
         self.assertIn("Security group", result["ui_data"]["error"])
 
-    def test_no_plan_available(self):
+    def test_no_plan_still_succeeds(self):
         self.plan.delete()
         result = self.tool_executor.execute_tool("create_vm", self.arguments)
 
-        self.assertEqual(result["type"], "validation_error")
-        self.assertEqual(result["ui_component"], "vm_order")
-        self.assertEqual(result["ui_data"]["status"], "error")
-        self.assertIn("none have an active plan", result["ui_data"]["error"])
+        self.assertEqual(result["type"], "success")
 
     def test_flavor_ram_below_image_minimum(self):
         # Image requires 1024 MiB RAM; set flavor RAM below that threshold
@@ -558,6 +562,7 @@ class CreateVMOfferingScopeTest(CreateVMBaseTest):
             state=OfferingStates.ACTIVE,
             customer=None,
             project=self.fixture.project,
+            shared=False,
         )
         marketplace_factories.PlanFactory(offering=project_offering)
 
@@ -565,24 +570,49 @@ class CreateVMOfferingScopeTest(CreateVMBaseTest):
 
         self.assertEqual(result["type"], "success")
 
-    def test_offering_without_active_plan_is_skipped(self):
-        # Archive the plan on the existing offering so it has no active plan
-        self.plan.archived = True
-        self.plan.save()
+    def test_offering_without_plan_still_works(self):
+        self.plan.delete()
+        result = self.tool_executor.execute_tool("create_vm", self.arguments)
 
-        # Create a second offering with an active plan
-        good_offering = marketplace_factories.OfferingFactory(
+        self.assertEqual(result["type"], "success")
+
+    def test_shared_offering_without_plan_is_skipped(self):
+        # Replace the private offering with a shared one that has no plan.
+        # Shared offerings require a plan (_validate_plan_for_create), so the
+        # chat must skip them and surface a helpful diagnostic.
+        self.offering.delete()
+        other_customer_fixture = structure_fixtures.ProjectFixture()
+        marketplace_factories.OfferingFactory(
             scope=self.tenant,
             type=OPENSTACK_INSTANCE_OFFERING,
             state=OfferingStates.ACTIVE,
-            customer=self.fixture.customer,
+            customer=other_customer_fixture.customer,
+            shared=True,
         )
-        marketplace_factories.PlanFactory(offering=good_offering)
+
+        result = self.tool_executor.execute_tool("create_vm", self.arguments)
+
+        self.assertEqual(result["type"], "validation_error")
+        self.assertIn("no active plan", result["ui_data"]["error"])
+
+    def test_shared_offering_with_plan_is_found(self):
+        # A shared offering owned by a different customer (typical SP setup)
+        # must still be usable for VM creation when it has an active plan.
+        self.offering.delete()
+        other_customer_fixture = structure_fixtures.ProjectFixture()
+        shared_offering = marketplace_factories.OfferingFactory(
+            scope=self.tenant,
+            type=OPENSTACK_INSTANCE_OFFERING,
+            state=OfferingStates.ACTIVE,
+            customer=other_customer_fixture.customer,
+            shared=True,
+        )
+        marketplace_factories.PlanFactory(offering=shared_offering)
 
         result = self.tool_executor.execute_tool("create_vm", self.arguments)
 
         self.assertEqual(result["type"], "success")
-        order = Order.objects.filter(offering=good_offering).first()
+        order = Order.objects.filter(offering=shared_offering).first()
         self.assertIsNotNone(order)
 
 
@@ -596,6 +626,7 @@ class CreateVMMultipleOfferingsTest(CreateVMBaseTest):
             type=OPENSTACK_INSTANCE_OFFERING,
             state=OfferingStates.ACTIVE,
             customer=self.fixture.customer,
+            shared=False,
         )
         marketplace_factories.PlanFactory(offering=offering)
         return offering

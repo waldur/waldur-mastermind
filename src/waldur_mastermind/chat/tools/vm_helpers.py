@@ -99,7 +99,11 @@ def get_offerings(project: Project):
     """Return all valid OpenStack Instance offerings for a project, ordered by specificity.
 
     Specificity: project-scoped (0) > customer-scoped (1) > global shared (2).
-    Only offerings with at least one non-archived plan are included.
+
+    Shared offerings must have at least one non-archived plan (mirrors
+    _validate_plan_for_create in marketplace serializers); private offerings
+    are accepted without plans, since auto-created per-tenant Instance
+    offerings are shared=False, billable=False, and have no plan.
     """
     customer = project.customer
     has_active_plan = Plan.objects.filter(
@@ -114,11 +118,11 @@ def get_offerings(project: Project):
             content_type__isnull=False,
         )
         .filter(
-            django_models.Q(customer__isnull=True)
+            django_models.Q(shared=True)
             | django_models.Q(customer=customer)
             | django_models.Q(project=project)
         )
-        .filter(django_models.Exists(has_active_plan))
+        .filter(django_models.Q(shared=False) | django_models.Exists(has_active_plan))
         .annotate(
             _specificity=django_models.Case(
                 django_models.When(project=project, then=0),
@@ -155,25 +159,23 @@ def get_offering(user, project: Project, offering_uuid: str = None) -> Offering:
     else:
         all_offerings = list(offerings)
         if not all_offerings:
-            # Check whether offerings exist but have no active plans
-            no_plan_exists = (
+            # Distinguish "no offering at all" from "shared offering exists
+            # but has no plan" (an SP configuration bug) so admins can diagnose.
+            shared_without_plan_exists = (
                 Offering.objects.filter(
                     type=OPENSTACK_INSTANCE_OFFERING,
                     state__in=(OfferingStates.ACTIVE, OfferingStates.PAUSED),
                     object_id__isnull=False,
                     content_type__isnull=False,
+                    shared=True,
                 )
-                .filter(
-                    django_models.Q(customer__isnull=True)
-                    | django_models.Q(customer=customer)
-                    | django_models.Q(project=project)
-                )
+                .exclude(plans__archived=False)
                 .exists()
             )
-            if no_plan_exists:
+            if shared_without_plan_exists:
                 raise ValueError(
-                    "OpenStack Instance offerings exist for this project, "
-                    "but none have an active plan. Contact your administrator."
+                    "A shared OpenStack Instance offering exists, "
+                    "but it has no active plan. Contact your administrator."
                 )
             raise ValueError(
                 "No OpenStack Instance offering is available for this project. "
@@ -413,14 +415,9 @@ def build_order_attributes(
     return attributes
 
 
-def get_plan(offering: Offering) -> Plan:
-    """Get the first non-archived plan for the offering."""
-    plan = Plan.objects.filter(offering=offering, archived=False).first()
-    if not plan:
-        raise ValueError(
-            "No active plan available for this offering. Contact your administrator."
-        )
-    return plan
+def get_plan(offering: Offering):
+    """Get the first non-archived plan for the offering, or None if none exists."""
+    return Plan.objects.filter(offering=offering, archived=False).first()
 
 
 def submit_order(
