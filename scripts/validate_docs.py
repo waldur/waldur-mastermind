@@ -13,8 +13,6 @@ Usage:
 """
 
 import argparse
-import ast
-import os
 import re
 import subprocess
 import sys
@@ -22,7 +20,6 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -33,7 +30,7 @@ class ValidationIssue:
     line: int
     issue_type: str
     message: str
-    suggestion: Optional[str] = None
+    suggestion: str | None = None
 
     def __str__(self):
         base = f"{self.file}:{self.line}: [{self.issue_type}] {self.message}"
@@ -315,9 +312,7 @@ class DocValidator:
 
         return False
 
-    def _suggest_similar_file(
-        self, target_path: Path, search_dir: Path
-    ) -> Optional[str]:
+    def _suggest_similar_file(self, target_path: Path, search_dir: Path) -> str | None:
         """Suggest similar files that might be the intended target."""
         target_name = target_path.name.lower()
 
@@ -334,7 +329,7 @@ class DocValidator:
 
         return None
 
-    def _suggest_similar_src_path(self, path_ref: str) -> Optional[str]:
+    def _suggest_similar_src_path(self, path_ref: str) -> str | None:
         """Suggest similar source paths."""
         target_name = Path(path_ref).name
 

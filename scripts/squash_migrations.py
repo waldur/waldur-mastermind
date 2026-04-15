@@ -317,8 +317,8 @@ def fix_squash_file(filepath):
     if content != original:
         filepath.write_text(content)
         print(f"Fixed: {filepath}")
-        print(f"  - Replaced RunPython operations with noop")
-        print(f"  - Removed migration-specific imports")
+        print("  - Replaced RunPython operations with noop")
+        print("  - Removed migration-specific imports")
         return True
     else:
         print(f"No changes needed: {filepath}")
@@ -383,7 +383,7 @@ def run_squash(app_label, start, end):
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"Error running squashmigrations:")
+        print("Error running squashmigrations:")
         print(result.stderr)
         return None
 
@@ -423,17 +423,11 @@ def print_analysis(results):
     print("\n" + "=" * 70)
     print("MIGRATION SQUASH ANALYSIS")
     print("=" * 70)
-    print(f"\nApps with significant migration counts:\n")
+    print("\nApps with significant migration counts:\n")
     print(f"{'App':<30} {'Total':>6} {'Squashable':>10} {'Reduction':>10}")
     print("-" * 60)
 
     for r in results:
-        ranges_str = (
-            ", ".join(f"{s}-{e}" for s, e in r["safe_ranges"])
-            if r["safe_ranges"]
-            else "none found"
-        )
-
         print(
             f"{r['app']:<30} {r['total']:>6} {r['squashable']:>10} {r['reduction']:>10}"
         )

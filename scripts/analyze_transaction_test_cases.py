@@ -33,7 +33,6 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 
-
 # ---------------------------------------------------------------------------
 # Classification constants
 # ---------------------------------------------------------------------------
@@ -458,7 +457,6 @@ def analyze_file(file_path, src_root):
 
         # Check if any base class is APITransactionTestCase
         is_direct_inherit = False
-        is_custom_base = False
 
         for base in node.bases:
             if _is_api_transaction_test_case(base, from_imports):

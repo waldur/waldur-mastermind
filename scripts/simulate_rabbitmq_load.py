@@ -29,9 +29,9 @@ import django
 django.setup()
 
 from django.contrib.auth import get_user_model
-from django.db import transaction
 
-from waldur_core.logging import backend, models as logging_models
+from waldur_core.logging import backend
+from waldur_core.logging import models as logging_models
 from waldur_core.logging.utils import publish_stomp_messages
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -98,7 +98,7 @@ def create_event_subscription(user, description):
     if not rmq_backend.assign_rabbitmq_vhost_permissions(
         subscription.uuid.hex, vhost_name, permissions
     ):
-        print(f"  WARNING: Failed to assign permissions")
+        print("  WARNING: Failed to assign permissions")
 
     print(f"  Created subscription: {subscription.uuid.hex} for {user.username}")
     return subscription
@@ -235,7 +235,7 @@ def create_test_scenario():
                 total_messages += published
 
     print("\n" + "=" * 70)
-    print(f"TEST SCENARIO CREATED SUCCESSFULLY")
+    print("TEST SCENARIO CREATED SUCCESSFULLY")
     print(f"  Total subscriptions: {len(subscriptions)}")
     print(f"  Total offerings: {len(offerings)}")
     print(f"  Total messages published: {total_messages:,}")

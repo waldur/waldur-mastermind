@@ -17,21 +17,18 @@ import argparse
 import gc
 import json
 import random
-import sys
 import time
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import django
 
 django.setup()
 
 from django.db import connection, reset_queries
-from django.conf import settings
 from django.utils import timezone
 
 from waldur_core.core.models import User
 from waldur_core.logging.models import UserDataAccessLog
-
 
 # Sample data for realistic log generation
 ACCESSOR_TYPES = [
@@ -280,7 +277,7 @@ def run_emulation(num_users=100, logs_per_user=100, batch_size=1000, cleanup=Fal
     print("=" * 70)
     print("ACCESS LOG DATA GROWTH EMULATOR")
     print("=" * 70)
-    print(f"Configuration:")
+    print("Configuration:")
     print(f"  Users: {num_users}")
     print(f"  Logs per user: {logs_per_user}")
     print(f"  Total logs to create: {num_users * logs_per_user:,}")
@@ -407,12 +404,12 @@ def print_report(results):
 
     print("\n📋 TABLE STATISTICS")
     print("-" * 40)
-    print(f"Before:")
+    print("Before:")
     print(f"  Rows:       {results['before']['row_count']:,}")
     print(f"  Table size: {results['before']['table_size']}")
     print(f"  Index size: {results['before']['index_size']}")
     print(f"  Total size: {results['before']['total_size']}")
-    print(f"After:")
+    print("After:")
     print(f"  Rows:       {results['after']['row_count']:,}")
     print(f"  Table size: {results['after']['table_size']}")
     print(f"  Index size: {results['after']['index_size']}")

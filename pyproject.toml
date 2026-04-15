@@ -199,6 +199,7 @@ target-version = "py312"
 "**/migrations/**/*.py" = ["T201"]
 "**/management/commands/**/*.py" = ["T201"]
 "src/waldur_core/permissions/print_permission_enums.py" = ["T201"]
+"scripts/**/*.py" = ["E402"]
 
 [tool.ruff.lint.isort]
 section-order = [
