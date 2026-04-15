@@ -569,6 +569,7 @@ td:nth-child(4) {
 | `create_checklist_completion` | `Django Signal (post_save)` | `proposal.Proposal` | Create checklist completion tracking when proposal is created. |
 | `create_checklist_completions_for_existing_users` | `Django Signal (post_save)` | `marketplace.Offering` | Manage checklist completions for existing OfferingUsers when compliance changes. |
 | `create_feedback_if_issue_has_been_resolved` | `Django Signal (post_save)` | `support.Issue` | Create feedback request when support issue transitions to resolved state. |
+| `create_issue_for_pending_support_order` | `Django Signal (post_save)` | `marketplace.Order` | Create a support ticket in the background when a support offering order |
 | `create_issue_if_membership_changed` | `Django Signal (post_save)` | `permissions.UserRole` | Create support issue when user role membership changes in organization. |
 | `create_issue_if_ssh_key_added` | `Django Signal (post_save)` | `core.SshPublicKey` | No description |
 | `create_issue_if_ssh_key_removed` | `Django Signal (post_delete)` | `core.SshPublicKey` | No description |
@@ -873,7 +874,7 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 789
+Total unique handlers found: 790
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
@@ -881,7 +882,7 @@ Total unique handlers found: 789
 - **waldur_freeipa**: 12 handlers
 - **waldur_keycloak**: 9 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 312 handlers
+- **waldur_mastermind**: 313 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
