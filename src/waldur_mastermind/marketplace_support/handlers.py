@@ -16,6 +16,7 @@ from waldur_mastermind.marketplace import callbacks
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     SUPPORT_OFFERING,
+    OrderStates,
     OrderTypes,
     ResourceStates,
 )
@@ -561,6 +562,32 @@ def _create_issue_for_ssh_key_change(ssh_key, summary):
     active_backend.create_issue(issue)
     issue.refresh_from_db()
     return issue
+
+
+def create_issue_for_pending_support_order(sender, instance, created=False, **kwargs):
+    """
+    Create a support ticket in the background when a support offering order
+    enters PENDING_START_DATE or PENDING_PROJECT state, so providers
+    see the ticket right away even though provisioning is deferred.
+    """
+    order = instance
+    if created:
+        return
+
+    if order.offering.type != SUPPORT_OFFERING:
+        return
+
+    pending_states = (
+        OrderStates.PENDING_START_DATE,
+        OrderStates.PENDING_PROJECT,
+    )
+    if order.state not in pending_states:
+        return
+
+    serialized_order = core_utils.serialize_instance(order)
+    transaction.on_commit(
+        lambda: tasks.create_issue_for_pending_order.delay(serialized_order)
+    )
 
 
 def create_issue_if_ssh_key_added(
