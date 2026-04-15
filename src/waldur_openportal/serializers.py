@@ -2,6 +2,7 @@ import logging
 
 from django.core.validators import MinValueValidator
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers as rf_serializers
 
@@ -255,7 +256,73 @@ class HistoricalRemoteAllocationSerializer(rf_serializers.HyperlinkedModelSerial
         }
 
 
+class UsageSerializer(rf_serializers.Serializer):
+    seconds = rf_serializers.IntegerField()
+
+
+class DailyProjectUsageReportSerializer(rf_serializers.Serializer):
+    reports = rf_serializers.DictField(child=UsageSerializer())
+    components = rf_serializers.DictField(
+        child=rf_serializers.DictField(child=UsageSerializer()),
+        required=False,
+    )
+    user_job_counts = rf_serializers.DictField(
+        child=rf_serializers.IntegerField(), required=False
+    )
+    user_wait_seconds = rf_serializers.DictField(
+        child=rf_serializers.IntegerField(), required=False
+    )
+    num_jobs = rf_serializers.IntegerField(required=False)
+    total_wait_seconds = rf_serializers.IntegerField(required=False)
+    is_complete = rf_serializers.BooleanField()
+
+
+class ProjectUsageReportSerializer(rf_serializers.Serializer):
+    project = rf_serializers.CharField()
+    reports = rf_serializers.DictField(child=DailyProjectUsageReportSerializer())
+    users = rf_serializers.DictField(child=rf_serializers.CharField())
+
+
+class OpenPortalQuotaSerializer(rf_serializers.Serializer):
+    limit = rf_serializers.CharField()
+    usage = rf_serializers.CharField(required=False)
+
+
+class DailyStorageReportSerializer(rf_serializers.Serializer):
+    project = rf_serializers.CharField()
+    generated_at = rf_serializers.CharField()
+    project_quotas = rf_serializers.DictField(child=OpenPortalQuotaSerializer())
+    user_quotas = rf_serializers.DictField(
+        child=rf_serializers.DictField(child=OpenPortalQuotaSerializer())
+    )
+
+
+class ProjectStorageReportSerializer(rf_serializers.Serializer):
+    project = rf_serializers.CharField()
+    generated_at = rf_serializers.CharField()
+    project_quotas = rf_serializers.DictField(child=OpenPortalQuotaSerializer())
+    user_quotas = rf_serializers.DictField(
+        child=rf_serializers.DictField(child=OpenPortalQuotaSerializer())
+    )
+    users = rf_serializers.DictField(child=rf_serializers.CharField())
+    daily_reports = rf_serializers.DictField(
+        child=DailyStorageReportSerializer(), required=False
+    )
+
+
+@extend_schema_field(ProjectUsageReportSerializer)
+class ProjectUsageReportField(rf_serializers.JSONField):
+    pass
+
+
+@extend_schema_field(ProjectStorageReportSerializer)
+class ProjectStorageReportField(rf_serializers.JSONField):
+    pass
+
+
 class CachedProjectUsageReportSerializer(rf_serializers.ModelSerializer):
+    report = ProjectUsageReportField()
+
     class Meta:
         model = models.CachedProjectUsageReport
         fields = (
@@ -270,6 +337,8 @@ class CachedProjectUsageReportSerializer(rf_serializers.ModelSerializer):
 
 
 class CachedProjectStorageReportSerializer(rf_serializers.ModelSerializer):
+    report = ProjectStorageReportField()
+
     class Meta:
         model = models.CachedProjectStorageReport
         fields = (
