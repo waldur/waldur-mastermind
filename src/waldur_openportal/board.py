@@ -1,7 +1,9 @@
 import decimal
 import json
 import logging
-from datetime import date
+from datetime import date, timedelta
+
+from django.utils import timezone
 
 from waldur_core.core.enums import ReviewStates
 from waldur_core.structure import models as structure_models
@@ -11,6 +13,9 @@ from . import models, utils
 from . import op as openportal
 
 logger = logging.getLogger(__name__)
+
+
+PROJECT_GRACE_PERIOD_DAYS = 30
 
 
 class OpenPortalBoard:
@@ -453,6 +458,14 @@ class OpenPortalBoard:
             # This project already exists - nothing to do?
             return
 
+        today = date.today()
+        end_date = managed_project.get_details().end_date
+
+        if end_date is not None and end_date <= today:
+            raise openportal.ManagedProjectRejectedError(
+                f"End date {end_date} is today or in the past - cannot create a new project!"
+            )
+
         identifier = managed_project.get_remote_identifier()
         project_template: models.ProjectTemplate = managed_project.project_template
         details: openportal.ProjectDetails = managed_project.get_details()
@@ -551,6 +564,16 @@ class OpenPortalBoard:
         if self.destination() is None:
             raise openportal.ManagedProjectRejectedError(
                 "Board is not connected to a destination"
+            )
+
+        today = date.today()
+
+        if (
+            details.end_date is not None
+            and details.end_date + timedelta(days=PROJECT_GRACE_PERIOD_DAYS) < today
+        ):
+            raise openportal.ManagedProjectRejectedError(
+                f"End date {details.end_date} is in the past"
             )
 
         # Get (or create) the ManagedProject for the given project identifier
@@ -679,6 +702,16 @@ class OpenPortalBoard:
         """
         logger.info(f"Updating project {identifier} with details {new_details}")
 
+        today = date.today()
+
+        if (
+            new_details.end_date is not None
+            and new_details.end_date + timedelta(days=PROJECT_GRACE_PERIOD_DAYS) < today
+        ):
+            raise openportal.ManagedProjectRejectedError(
+                f"End date {new_details.end_date} is in the past"
+            )
+
         if not isinstance(identifier, openportal.ProjectIdentifier):
             raise openportal.ManagedProjectRejectedError(
                 f"Invalid project identifier: {identifier}"
@@ -779,15 +812,32 @@ class OpenPortalBoard:
             )
             self._create_local_project(managed_project)
 
-        if managed_project.project.is_expired or managed_project.project.is_removed:
-            # we can't make any changes to this project - return an error
+        # Always reject updates to removed projects
+        if managed_project.project.is_removed:
             managed_project.reject(
                 utils.get_openportal_robot(),
-                f"{identifier} is expired or removed, cannot update project.",
+                f"{identifier} is removed, cannot update project.",
             )
-            logger.warning(
-                f"{identifier} is expired or removed, cannot update project."
+            logger.warning(f"{identifier} is removed, cannot update project.")
+            raise openportal.ManagedProjectRejectedError()
+
+        # Check if trying to reactivate with a future end_date
+        is_reactivating = (
+            new_details.end_date is not None
+            and new_details.end_date >= timezone.now().date()
+        )
+
+        # Reject updates for expired projects unless still in grace period or reactivating
+        if (
+            managed_project.project.is_expired
+            and not managed_project.project.is_in_grace_period
+            and not is_reactivating
+        ):
+            managed_project.reject(
+                utils.get_openportal_robot(),
+                f"{identifier} is expired, cannot update project.",
             )
+            logger.warning(f"{identifier} is expired, cannot update project.")
             raise openportal.ManagedProjectRejectedError()
 
         if managed_project.local_identifier is None:
@@ -1119,6 +1169,38 @@ class OpenPortalBoard:
 
         return managed_project.get_mapping()
 
+    def _get_cached_report_for_month(self, project, month: int, year: int):
+        """
+        Return a CachedProjectUsageReport-derived ProjectUsageReport for the given
+        project, month, and year, or None if no cached data exists.
+
+        Uses _identifiers_for_project_uuid to find all project identifiers,
+        including cases where the Allocation has been deleted (slug-based fallback).
+        Falls back to InvoiceItem if no cached reports are found.
+        """
+        from .filters import _identifiers_for_project_uuid
+
+        project_identifiers = _identifiers_for_project_uuid(project.uuid)
+
+        if not project_identifiers:
+            return None
+
+        cached_records = models.CachedProjectUsageReport.objects.filter(
+            project_identifier__in=project_identifiers,
+            year=year,
+            month=month,
+        )
+
+        if not cached_records.exists():
+            return None
+
+        reports = [cr.get_report() for cr in cached_records]
+
+        if len(reports) == 1:
+            return reports[0]
+
+        return openportal.ProjectUsageReport.combine(reports)
+
     def get_usage_report(
         self,
         identifier: openportal.ProjectIdentifier,
@@ -1304,6 +1386,163 @@ class OpenPortalBoard:
                 )
 
         return openportal.UsageReport.combine(reports)
+
+    def _get_cached_storage_report_for_month(
+        self,
+        project_identifiers: list,
+        year: int,
+        month: int,
+    ) -> "openportal.ProjectStorageReport | None":
+        """
+        Return a combined ProjectStorageReport for the given month from the
+        CachedProjectStorageReport table, or None if no records exist.
+        """
+        cached_records = models.CachedProjectStorageReport.objects.filter(
+            project_identifier__in=project_identifiers,
+            year=year,
+            month=month,
+        )
+
+        if not cached_records.exists():
+            return None
+
+        records = [cr.get_report() for cr in cached_records]
+        return (
+            records[0]
+            if len(records) == 1
+            else openportal.ProjectStorageReport.combine(records)
+        )
+
+    def get_storage_report(
+        self,
+        identifier: openportal.ProjectIdentifier,
+        date_range: openportal.DateRange,
+    ) -> "openportal.ProjectStorageReport":
+        """
+        Return a storage report for a project in OpenPortal for the given date range.
+        Uses the CachedProjectStorageReport table to serve pre-accumulated snapshots.
+        """
+        if not isinstance(identifier, openportal.ProjectIdentifier):
+            raise openportal.OpenPortalError(
+                f"Invalid project identifier: {identifier}"
+            )
+
+        if not isinstance(date_range, openportal.DateRange):
+            raise openportal.OpenPortalError(f"Invalid date range: {date_range}")
+
+        try:
+            managed_project = models.ManagedProject.objects.get(
+                identifier=str(identifier),
+                destination=str(self.destination()),
+            )
+        except models.ManagedProject.DoesNotExist:
+            raise openportal.OpenPortalError(
+                f"ManagedProject for identifier '{identifier}' does not exist"
+            )
+
+        # Collect all project_identifier strings for this managed project
+        project_identifiers = []
+        if managed_project.has_local_identifier():
+            local_id = str(managed_project.get_local_identifier())
+            if local_id:
+                project_identifiers.append(local_id)
+
+        if not project_identifiers:
+            raise openportal.OpenPortalError(
+                f"No project identifiers found for project {identifier}"
+            )
+
+        report = openportal.ProjectStorageReport(
+            managed_project.get_remote_identifier()
+        )
+
+        logger.info(f"Date range: {date_range}")
+        logger.info(f"report = {report}")
+
+        # Get the storage month by month
+        for month_range in date_range.months:
+            month = month_range.start_date.month
+            year = month_range.start_date.year
+
+            cached_records = models.CachedProjectStorageReport.objects.filter(
+                project_identifier__in=project_identifiers,
+                year=year,
+                month=month,
+            )
+
+            if not cached_records.exists():
+                logger.info(
+                    f"No cached storage report for project {identifier}"
+                    f" for {month}/{year} - skipping"
+                )
+                continue
+
+            logger.info(
+                f"Using cached storage report for project {identifier}"
+                f" for {month}/{year}"
+            )
+
+            records = [cr.get_report() for cr in cached_records]
+            monthly = (
+                records[0]
+                if len(records) == 1
+                else openportal.ProjectStorageReport.combine(records)
+            )
+
+            # Remap unix usernames to email addresses
+            user_identifiers = monthly.users
+            uid_strings = [str(uid) for uid in user_identifiers]
+            user_info_map = utils.resolve_useridentifiers(uid_strings)
+            user_email_map = {}
+            for uid in user_identifiers:
+                user_info = user_info_map.get(str(uid))
+                if user_info and user_info.get("email"):
+                    user_email_map[uid] = user_info["email"]
+            if user_email_map:
+                monthly.remap_users(user_email_map)
+
+            # remap_project updates the project identifier and rebuilds
+            # all UserIdentifier keys so that report += monthly succeeds.
+            monthly.remap_project(managed_project.get_remote_identifier())
+            report += monthly
+
+        # Filter to the exact requested date range (trims partial months
+        # at either end of the requested range).
+        return report.filter(date_range)
+
+    def get_storage_reports(
+        self, portal: openportal.PortalIdentifier, date_range: openportal.DateRange
+    ) -> openportal.StorageReport:
+        """
+        Return a storage report that covers all of the projects managed by the
+        specified portal.
+        """
+        if not isinstance(portal, openportal.PortalIdentifier):
+            raise openportal.OpenPortalError(f"Invalid portal identifier: {portal}")
+
+        reports = []
+
+        for project in models.ManagedProject.objects.filter(
+            destination=str(self.destination())
+        ):
+            if not project.has_remote_identifier():
+                continue
+
+            remote_identifier = project.get_remote_identifier()
+
+            if remote_identifier.portal_identifier != portal:
+                # This project is not in the requested portal
+                continue
+
+            if project.has_local_identifier():
+                reports.append(
+                    self.get_storage_report(
+                        identifier=remote_identifier,
+                        date_range=date_range,
+                    ).to_storage_report()
+                )
+
+        return openportal.StorageReport.combine(reports)
 
     def send_result(self, job: openportal.Job) -> None:
         """

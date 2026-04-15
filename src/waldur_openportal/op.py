@@ -18,6 +18,7 @@ from openportal import (
     ProjectMapping,  # type: ignore
     ProjectTemplate,  # type: ignore
     ProjectUsageReport,  # type: ignore
+    Quota,  # type: ignore
     Status,  # type: ignore
     Usage,  # type: ignore
     UsageReport,  # type: ignore
@@ -34,6 +35,85 @@ from openportal import (
     send_result,  # type: ignore
     sync_offerings,  # type: ignore
 )
+
+# These classes may not be available in all versions of the openportal library
+try:
+    from openportal import (
+        ProjectStorageReport,  # type: ignore
+        StorageReport,  # type: ignore
+    )
+except ImportError:
+
+    class ProjectStorageReport:  # type: ignore
+        """Stub for ProjectStorageReport - not available in this version of openportal"""
+
+        def __init__(self, *args, **kwargs):
+            raise NotImplementedError(
+                "ProjectStorageReport is not available in this version of openportal"
+            )
+
+        @staticmethod
+        def from_json(*args, **kwargs):
+            raise NotImplementedError(
+                "ProjectStorageReport is not available in this version of openportal"
+            )
+
+        @staticmethod
+        def combine(*args, **kwargs):
+            raise NotImplementedError(
+                "ProjectStorageReport is not available in this version of openportal"
+            )
+
+        def to_json(self):
+            raise NotImplementedError(
+                "ProjectStorageReport is not available in this version of openportal"
+            )
+
+        def filter(self, *args, **kwargs):
+            raise NotImplementedError(
+                "ProjectStorageReport is not available in this version of openportal"
+            )
+
+        def remap_project(self, *args, **kwargs):
+            raise NotImplementedError(
+                "ProjectStorageReport is not available in this version of openportal"
+            )
+
+        def remap_users(self, *args, **kwargs):
+            raise NotImplementedError(
+                "ProjectStorageReport is not available in this version of openportal"
+            )
+
+        def to_storage_report(self, *args, **kwargs):
+            raise NotImplementedError(
+                "ProjectStorageReport is not available in this version of openportal"
+            )
+
+        def __iadd__(self, other):
+            raise NotImplementedError(
+                "ProjectStorageReport is not available in this version of openportal"
+            )
+
+    class StorageReport:  # type: ignore
+        """Stub for StorageReport - not available in this version of openportal"""
+
+        def __init__(self, *args, **kwargs):
+            raise NotImplementedError(
+                "StorageReport is not available in this version of openportal"
+            )
+
+        @staticmethod
+        def combine(*args, **kwargs):
+            raise NotImplementedError(
+                "StorageReport is not available in this version of openportal"
+            )
+
+
+_have_openportal = True
+
+
+def have_openportal():
+    return _have_openportal
 
 
 class OpenPortalError(Exception):

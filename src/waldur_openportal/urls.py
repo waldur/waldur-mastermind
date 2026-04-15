@@ -21,6 +21,16 @@ def register_in(router):
         basename="openportal-allocation-user-usage",
     )
     router.register(
+        r"openportal-project-usage-reports",
+        views.CachedProjectUsageReportViewSet,
+        basename="openportal-project-usage-report",
+    )
+    router.register(
+        r"openportal-project-storage-reports",
+        views.CachedProjectStorageReportViewSet,
+        basename="openportal-project-storage-report",
+    )
+    router.register(
         r"openportal-associations",
         views.AssociationViewSet,
         basename="openportal-association",
@@ -54,6 +64,11 @@ def register_in(router):
         r"openportal-unmanaged-projects",
         views.UnmanagedProjectViewSet,
         basename="openportal-unmanaged-project",
+    )
+    router.register(
+        r"openportal-accounting-summary",
+        views.ProjectAccountingSummaryViewSet,
+        basename="openportal-accounting-summary",
     )
 
 

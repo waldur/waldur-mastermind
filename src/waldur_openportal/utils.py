@@ -40,17 +40,21 @@ def get_openportal_robot():
     from waldur_core.core import models
 
     robot_user, created = models.User.objects.get_or_create(
-        username="openportal_robot", is_staff=True, is_active=True
+        username="openportal_robot",
+        defaults={
+            "is_staff": True,
+            "is_active": True,
+            "description": (
+                "Special user used for performing actions on behalf of OpenPortal."
+            ),
+            "first_name": "OpenPortal",
+            "last_name": "Robot",
+            "email": config.SITE_EMAIL,
+        },
     )
     if created:
         robot_user.set_unusable_password()
-        robot_user.description = (
-            "Special user used for performing actions on behalf of OpenPortal."
-        )
-        robot_user.first_name = "OpenPortal"
-        robot_user.last_name = "Robot"
-        robot_user.email = config.SITE_EMAIL
-        robot_user.save()
+        robot_user.save(update_fields=["password"])
     return robot_user
 
 
@@ -299,9 +303,18 @@ def get_remote_association(user, allocation):
             )
 
 
-def get_project_spend_info(project) -> (decimal.Decimal, decimal.Decimal):
+def get_project_spend_info(
+    project,
+    include_current_month: bool = True,
+    silent: bool = False,
+) -> tuple[decimal.Decimal, decimal.Decimal]:
     """
     Return a tuple of the total credits and total spend for the passed project
+
+    Args:
+        project: The project to get spend info for
+        include_current_month: If False, exclude current month's invoice items from spend calculation
+        silent: If True, suppress logging
     """
     if not isinstance(project, structure_models.Project):
         raise TypeError("project must be an instance of Project")
@@ -319,7 +332,18 @@ def get_project_spend_info(project) -> (decimal.Decimal, decimal.Decimal):
     # Get all the spend for the project
     try:
         invoice_items = invoice_models.InvoiceItem.objects.filter(project=project)
-    except Exception:
+
+        # Exclude current month if requested
+        if not include_current_month:
+            now = timezone.now()
+            current_year = now.year
+            current_month = now.month
+
+            invoice_items = invoice_items.exclude(
+                invoice__year=current_year, invoice__month=current_month
+            )
+    except Exception as e:
+        logger.error(f"Failed to get invoice items for project {project}: {e}")
         invoice_items = []
 
     for invoice_item in invoice_items:
@@ -334,27 +358,33 @@ def get_project_spend_info(project) -> (decimal.Decimal, decimal.Decimal):
 
         # no need to do anything if usage == 0
 
-    logger.info(
-        f"Project {project} has total credits: {total_credits}, total spend: {total_spend}"
-    )
+    if not silent:
+        logger.info(
+            f"Project {project} has total credits: {total_credits}, total spend: {total_spend} "
+            f"(include_current_month={include_current_month})"
+        )
 
     return (total_credits, total_spend)
 
 
-def get_project_credits(project) -> decimal.Decimal:
+def get_project_credits(project, silent: bool = False) -> decimal.Decimal:
     """
-    Get the credits for the project.
+    Get the total lifetime credits awarded to the project.
     If the project has no credits, return 0.0
     """
     if not isinstance(project, structure_models.Project):
         raise TypeError("project must be an instance of Project")
 
-    (total_credits, _) = get_project_spend_info(project)
+    (total_credits, total_spend) = get_project_spend_info(
+        project, include_current_month=False, silent=silent
+    )
 
-    return total_credits
+    return total_credits + total_spend
 
 
-def set_project_credits(project, credits: decimal.Decimal | float):
+def set_project_credits(
+    project, credits: decimal.Decimal | float, silent: bool = False
+):
     """
     Set the credits for the project to the passed value
     """
@@ -447,6 +477,35 @@ def set_project_credits(project, credits: decimal.Decimal | float):
             f"Failed to set project credits for project {project} to {credits + change_in_credits}: {e}"
         )
         raise
+
+
+def fix_total_allocation(project):
+    """
+    Run this function to fix the balance of managed projects so that
+    their balance at the beginning of the month is correct. This fixes
+    any issues or discrepancies that may have arisen.
+    """
+    try:
+        managed_project = models.ManagedProject.objects.get(project=project)
+    except models.ManagedProject.DoesNotExist:
+        logger.error(f"Project {project} is not a managed project")
+        return
+
+    project_template = managed_project.get_project_template()
+
+    if project_template is None:
+        logger.error(f"Managed project {project} has no project template")
+        return
+
+    details = managed_project.get_details()
+
+    if details is None:
+        logger.error(f"Managed project {project} has no details")
+        return
+
+    allocation = project_template.convert_to_credits(details.allocation)
+
+    set_project_credits(project, allocation, silent=True)
 
 
 def get_project_members(project) -> dict[str, str]:
@@ -560,3 +619,90 @@ def invite_user_to_project(project, email, role, send_email: bool = True):
 
     if send_email:
         user_tasks.process_invitation.delay(invitation.uuid.hex, "OpenPortal")
+
+
+def _user_info_dict(user):
+    return {
+        "uuid": str(user.uuid),
+        "full_name": user.full_name,
+        "username": user.username,
+        "email": user.email,
+    }
+
+
+def _resolve_useridentifier_from_slugs(identifier: str):
+    """
+    Fallback resolver when the Association record has been deleted.
+
+    A UserIdentifier has the form "{user_slug}.{project_slug}.{portal}".
+    We verify the portal suffix matches, then look up the project and user
+    by their slugs and confirm the user is still a member of that project.
+    Returns a user info dict or None.
+    """
+    from waldur_core.permissions.models import UserRole
+    from waldur_core.structure import models as structure_models
+
+    from . import op as openportal
+
+    try:
+        portal = str(openportal.get_portal())
+    except Exception:
+        return None
+
+    portal_suffix = f".{portal}"
+    if not identifier.endswith(portal_suffix):
+        return None
+
+    remainder = identifier[: -len(portal_suffix)]
+
+    # remainder is "{user_slug}.{project_slug}" — split from the right once
+    parts = remainder.rsplit(".", 1)
+    if len(parts) != 2:
+        return None
+
+    user_slug, project_slug = parts
+
+    try:
+        project = structure_models.Project.objects.get(slug=project_slug)
+    except structure_models.Project.DoesNotExist:
+        return None
+
+    try:
+        user = structure_models.User.objects.get(slug=user_slug)
+    except structure_models.User.DoesNotExist:
+        return None
+
+    if not UserRole.objects.filter(user=user, scope=project, is_active=True).exists():
+        return None
+
+    return _user_info_dict(user)
+
+
+def resolve_useridentifiers(identifiers: list) -> dict:
+    """
+    Map OpenPortal UserIdentifier strings to Waldur user info dicts.
+
+    Primary chain: Association.useridentifier == identifier -> Association.user
+    Fallback (when Association is deleted): parse the identifier as
+    "{user_slug}.{project_slug}.{portal}" and verify the user is still a
+    member of the project.
+
+    Returns dict of {identifier_string: {"uuid", "email", "full_name", "username"}}
+    Missing or unmapped identifiers map to None.
+    """
+    result = {}
+    for identifier in identifiers:
+        association = (
+            models.Association.objects.filter(useridentifier=identifier)
+            .select_related("user")
+            .first()
+        )
+
+        if association is not None and association.user is not None:
+            result[identifier] = _user_info_dict(association.user)
+            continue
+
+        # Association missing or user deleted — try slug-based fallback
+        result[identifier] = _resolve_useridentifier_from_slugs(identifier)
+
+    return result

@@ -857,6 +857,75 @@ class HistoricalRemoteAllocation(UsageMixin):
         return self.__str__()
 
 
+class CachedProjectUsageReport(models.Model):
+    """
+    Caches the full ProjectUsageReport JSON from OpenPortal for a given
+    project, month, and resource (destination). This allows rich report
+    data to be served to the frontend without re-fetching from OpenPortal.
+
+    The report field stores the JSON-serialised OpenPortal ProjectUsageReport
+    object. Use openportal.ProjectUsageReport.from_json(json.dumps(self.report))
+    to deserialise.
+    """
+
+    year = models.PositiveSmallIntegerField()
+    month = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(12)]
+    )
+    project_identifier = models.CharField(max_length=MAX_PROJECTIDENTIFIER_LENGTH)
+    resource = models.CharField(max_length=MAX_DESTINATION_LENGTH)
+    is_complete = models.BooleanField(default=False)
+    report = models.JSONField()
+
+    class Meta:
+        unique_together = [("year", "month", "project_identifier", "resource")]
+        indexes = [models.Index(fields=["project_identifier"])]
+
+    def get_report(self) -> "openportal.ProjectUsageReport":
+        return openportal.ProjectUsageReport.from_json(json.dumps(self.report))
+
+    def __str__(self):
+        status = "complete" if self.is_complete else "incomplete"
+        return f"{self.project_identifier} [{self.year}-{self.month:02d}] ({self.resource}): {status}"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+
+class CachedProjectStorageReport(models.Model):
+    """
+    Caches an accumulated ProjectStorageReport JSON from OpenPortal for a given
+    project, month, and resource (destination). Each time a new storage snapshot
+    is fetched it is merged into the cached report via +=, so the stored object
+    accumulates daily snapshots over the course of the month.
+
+    The report field stores the JSON-serialised OpenPortal ProjectStorageReport
+    object. Use openportal.ProjectStorageReport.from_json(json.dumps(self.report))
+    to deserialise.
+    """
+
+    year = models.PositiveSmallIntegerField()
+    month = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(12)]
+    )
+    project_identifier = models.CharField(max_length=MAX_PROJECTIDENTIFIER_LENGTH)
+    resource = models.CharField(max_length=MAX_DESTINATION_LENGTH)
+    report = models.JSONField()
+
+    class Meta:
+        unique_together = [("year", "month", "project_identifier", "resource")]
+        indexes = [models.Index(fields=["project_identifier"])]
+
+    def get_report(self) -> "openportal.ProjectStorageReport":
+        return openportal.ProjectStorageReport.from_json(json.dumps(self.report))
+
+    def __str__(self):
+        return f"{self.project_identifier} [{self.year}-{self.month:02d}] ({self.resource})"
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+
 class UserInfo(models.Model):
     """
     This model is responsible for storing additional user information

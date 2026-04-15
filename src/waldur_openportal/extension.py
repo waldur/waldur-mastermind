@@ -23,11 +23,18 @@ class OpenPortalExtension(WaldurExtension):
         from datetime import timedelta
 
         return {
-            # This task re-tries to add or remove users in case
+            # This task re-tries to add or remove local users in case
             # user management failed when called directly
-            "waldur-openportal-sync-users": {
-                "task": "waldur_openportal.sync",
-                "schedule": timedelta(minutes=119),
+            "waldur-openportal-sync-local-users": {
+                "task": "waldur_openportal.sync_local_users",
+                "schedule": timedelta(minutes=19),
+                "args": (),
+            },
+            # This task re-tries to add or remove remote users in case
+            # user management failed when called directly
+            "waldur-openportal-sync-remote-users": {
+                "task": "waldur_openportal.sync_remote_users",
+                "schedule": timedelta(minutes=23),
                 "args": (),
             },
             # This task synchronises all usage from the OpenPortal resources
@@ -72,6 +79,35 @@ class OpenPortalExtension(WaldurExtension):
             "waldur-openportal-sync-offering-agents": {
                 "task": "waldur_openportal.sync_offering_agents",
                 "schedule": timedelta(minutes=19),
+                "args": (),
+            },
+            # This task fetches storage snapshots for all active allocations and
+            # accumulates them into monthly CachedProjectStorageReport records.
+            # 8 hours is frequent enough for at least one snapshot per day without
+            # overloading the filesystems.
+            "waldur-openportal-sync-storage": {
+                "task": "waldur_openportal.sync_storage",
+                "schedule": timedelta(hours=8),
+                "args": (),
+            },
+            # This task fetches accumulated storage reports from remote portals
+            # for all active RemoteAllocations and stores them locally.
+            "waldur-openportal-sync-remote-storage": {
+                "task": "waldur_openportal.sync_remote_storage",
+                "schedule": timedelta(hours=8),
+                "args": (),
+            },
+            # This task cleans up stale OpenPortal jobs from the database
+            "waldur_openportal.clean_stale_jobs": {
+                "task": "waldur_openportal.clean_stale_jobs",
+                "schedule": timedelta(minutes=60 * 24),
+                "args": (),
+            },
+            # This task fixes the project credit allocation, to prevent
+            # drift from what is set by the ManagedProject
+            "waldur_openportal.fix_total_allocation": {
+                "task": "waldur_openportal.fix_total_allocation",
+                "schedule": timedelta(minutes=60 * 24),
                 "args": (),
             },
         }

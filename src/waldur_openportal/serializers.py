@@ -255,6 +255,33 @@ class HistoricalRemoteAllocationSerializer(rf_serializers.HyperlinkedModelSerial
         }
 
 
+class CachedProjectUsageReportSerializer(rf_serializers.ModelSerializer):
+    class Meta:
+        model = models.CachedProjectUsageReport
+        fields = (
+            "id",
+            "year",
+            "month",
+            "project_identifier",
+            "resource",
+            "is_complete",
+            "report",
+        )
+
+
+class CachedProjectStorageReportSerializer(rf_serializers.ModelSerializer):
+    class Meta:
+        model = models.CachedProjectStorageReport
+        fields = (
+            "id",
+            "year",
+            "month",
+            "project_identifier",
+            "resource",
+            "report",
+        )
+
+
 class UserInfoSerializer(rf_serializers.HyperlinkedModelSerializer):
     class Meta:
         model = models.UserInfo
@@ -353,7 +380,7 @@ class ProjectTemplateSerializer(
         lookup_field="uuid",
     )
 
-    provider_data = structure_serializers.CustomerSerializer(
+    provider_data = structure_serializers.BasicCustomerSerializer(
         source="provider", read_only=True
     )
 
@@ -363,7 +390,7 @@ class ProjectTemplateSerializer(
         lookup_field="uuid",
     )
 
-    customer_data = structure_serializers.CustomerSerializer(
+    customer_data = structure_serializers.BasicCustomerSerializer(
         source="customer", read_only=True
     )
 
@@ -374,7 +401,7 @@ class ProjectTemplateSerializer(
         lookup_field="uuid",
     )
 
-    offerings_data = marketplace_serializers.ProviderOfferingDetailsSerializer(
+    offerings_data = marketplace_serializers.ResourceOfferingSerializer(
         source="offerings", many=True, read_only=True
     )
 
@@ -424,6 +451,65 @@ class ProjectTemplateSerializer(
         return ("provider", "customer", "offerings")
 
 
+class ProjectAccountingSummarySerializer(rf_serializers.Serializer):
+    """
+    Read-only serializer for project accounting summaries.
+    Data is derived from invoice items and project credits via get_project_spend_info.
+    """
+
+    project_uuid = rf_serializers.UUIDField(source="uuid", read_only=True)
+    project_name = rf_serializers.CharField(source="name", read_only=True)
+    customer_uuid = rf_serializers.UUIDField(source="customer.uuid", read_only=True)
+    customer_name = rf_serializers.CharField(source="customer.name", read_only=True)
+    start_date = rf_serializers.DateField(read_only=True, allow_null=True)
+    end_date = rf_serializers.DateField(read_only=True, allow_null=True)
+    total_credits = rf_serializers.DecimalField(
+        max_digits=20, decimal_places=2, read_only=True
+    )
+    total_spend = rf_serializers.DecimalField(
+        max_digits=20, decimal_places=2, read_only=True
+    )
+    current_month_spend = rf_serializers.DecimalField(
+        max_digits=20, decimal_places=2, read_only=True
+    )
+
+    def to_representation(self, project):
+        import decimal
+
+        from . import utils as openportal_utils
+
+        data = {
+            "project_uuid": str(project.uuid),
+            "project_name": project.name,
+            "customer_uuid": str(project.customer.uuid),
+            "customer_name": project.customer.name,
+            "start_date": (project.start_date or project.created.date()).isoformat(),
+            "end_date": project.end_date.isoformat() if project.end_date else None,
+        }
+
+        try:
+            (credits_no_current, spend_no_current) = (
+                openportal_utils.get_project_spend_info(
+                    project, include_current_month=False, silent=True
+                )
+            )
+            (credits_with_current, spend_with_current) = (
+                openportal_utils.get_project_spend_info(
+                    project, include_current_month=True, silent=True
+                )
+            )
+            data["total_credits"] = credits_with_current
+            data["total_spend"] = spend_no_current
+            data["current_month_spend"] = spend_with_current - spend_no_current
+        except Exception as e:
+            logger.error(f"Error computing spend info for project {project}: {e}")
+            data["total_credits"] = decimal.Decimal(0)
+            data["total_spend"] = decimal.Decimal(0)
+            data["current_month_spend"] = decimal.Decimal(0)
+
+        return data
+
+
 class ProjectAttachSerializer(rf_serializers.Serializer):
     project_uuid = rf_serializers.UUIDField(
         help_text="UUID of the project to attach to this managed project"
@@ -459,7 +545,7 @@ class ManagedProjectSerializer(
         lookup_field="uuid",
     )
 
-    project_data = structure_serializers.ProjectSerializer(
+    project_data = structure_serializers.BasicProjectSerializer(
         source="project", read_only=True
     )
 
