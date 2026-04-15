@@ -8,8 +8,8 @@ python3 -m pip install uv
 # Install Python dependencies for Waldur MasterMind using lock file
 # Use UV_PROJECT_ENVIRONMENT to target system Python (no venv)
 export UV_PROJECT_ENVIRONMENT=$(python -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
-# The local-ml dependency group (torch, sentence-transformers, etc.) is excluded
-# because those packages don't provide musl/Alpine wheels.
+# The local-ml dependency group (fastembed with ONNX Runtime) is excluded
+# because onnxruntime doesn't provide musl/Alpine wheels.
 uv sync --no-group local-ml
 
 # Install gunicorn separately after uv sync to ensure it's available

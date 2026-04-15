@@ -49,7 +49,7 @@ dependencies = [
   "pyvmomi==8.0.3.0.1",
   "PyYAML==6.0.2",
   "requests[socks]>=2.32.4,<3.0.0",
-  "semantic-router>=0.1.0,<1.0.0",
+  "fastembed>=0.6.0,<1.0.0",
   "sentry-sdk>=2.8.0,<3.0.0",
   "python-freeipa==0.2.5",
   "django-modeltranslation>=0.19.0,<0.20.0",
@@ -238,8 +238,7 @@ dev = [
     "pydot>=1.4.2,<2.0.0",
     "django-extensions>=3.2.3,<4.0.0",
 ]
-# Local ML inference deps (torch, sentence-transformers, etc.) — only for
-# environments with glibc (not Alpine/musl Docker images).
+# Local ML inference deps — only for environments with glibc (not Alpine/musl Docker images).
 local-ml = [
-    "semantic-router[local]>=0.1.0,<1.0.0",
+    "fastembed>=0.6.0,<1.0.0",
 ]
