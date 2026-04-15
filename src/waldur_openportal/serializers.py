@@ -261,16 +261,23 @@ class UsageSerializer(rf_serializers.Serializer):
 
 
 class DailyProjectUsageReportSerializer(rf_serializers.Serializer):
-    reports = rf_serializers.DictField(child=UsageSerializer())
+    reports = rf_serializers.DictField(
+        child=UsageSerializer(), help_text="local_username → Usage"
+    )
     components = rf_serializers.DictField(
         child=rf_serializers.DictField(child=UsageSerializer()),
         required=False,
+        help_text='component_name → local_username → Usage. e.g. { "cpu": { "chris.aiproject": { "seconds": 41055 } } }',
     )
     user_job_counts = rf_serializers.DictField(
-        child=rf_serializers.IntegerField(), required=False
+        child=rf_serializers.IntegerField(),
+        required=False,
+        help_text="local_username → job count",
     )
     user_wait_seconds = rf_serializers.DictField(
-        child=rf_serializers.IntegerField(), required=False
+        child=rf_serializers.IntegerField(),
+        required=False,
+        help_text="local_username → wait seconds",
     )
     num_jobs = rf_serializers.IntegerField(required=False)
     total_wait_seconds = rf_serializers.IntegerField(required=False)
@@ -278,35 +285,58 @@ class DailyProjectUsageReportSerializer(rf_serializers.Serializer):
 
 
 class ProjectUsageReportSerializer(rf_serializers.Serializer):
-    project = rf_serializers.CharField()
-    reports = rf_serializers.DictField(child=DailyProjectUsageReportSerializer())
-    users = rf_serializers.DictField(child=rf_serializers.CharField())
+    project = rf_serializers.CharField(
+        help_text='ProjectIdentifier string e.g. "aiproject.brics"'
+    )
+    reports = rf_serializers.DictField(
+        child=DailyProjectUsageReportSerializer(),
+        help_text='"YYYY-MM-DD" → DailyProjectUsageReportJson',
+    )
+    users = rf_serializers.DictField(
+        child=rf_serializers.CharField(),
+        help_text='UserIdentifier → local_username. e.g. { "chris.aiproject.brics": "chris.aiproject" }',
+    )
 
 
 class OpenPortalQuotaSerializer(rf_serializers.Serializer):
-    limit = rf_serializers.CharField()
-    usage = rf_serializers.CharField(required=False)
+    limit = rf_serializers.CharField(
+        help_text='Size limit. "unlimited" or a size string e.g. "1024.00 GB"'
+    )
+    usage = rf_serializers.CharField(
+        required=False,
+        help_text='Size usage e.g. "24.00 KB". Absent when the server has no usage data.',
+    )
 
 
 class DailyStorageReportSerializer(rf_serializers.Serializer):
     project = rf_serializers.CharField()
-    generated_at = rf_serializers.CharField()
-    project_quotas = rf_serializers.DictField(child=OpenPortalQuotaSerializer())
+    generated_at = rf_serializers.CharField(help_text="RFC3339 timestamp")
+    project_quotas = rf_serializers.DictField(
+        child=OpenPortalQuotaSerializer(), help_text="Volume → Quota"
+    )
     user_quotas = rf_serializers.DictField(
-        child=rf_serializers.DictField(child=OpenPortalQuotaSerializer())
+        child=rf_serializers.DictField(child=OpenPortalQuotaSerializer()),
+        help_text="UserIdentifier → (Volume → Quota)",
     )
 
 
 class ProjectStorageReportSerializer(rf_serializers.Serializer):
     project = rf_serializers.CharField()
-    generated_at = rf_serializers.CharField()
-    project_quotas = rf_serializers.DictField(child=OpenPortalQuotaSerializer())
-    user_quotas = rf_serializers.DictField(
-        child=rf_serializers.DictField(child=OpenPortalQuotaSerializer())
+    generated_at = rf_serializers.CharField(help_text="RFC3339 timestamp")
+    project_quotas = rf_serializers.DictField(
+        child=OpenPortalQuotaSerializer(), help_text="Volume → Quota"
     )
-    users = rf_serializers.DictField(child=rf_serializers.CharField())
+    user_quotas = rf_serializers.DictField(
+        child=rf_serializers.DictField(child=OpenPortalQuotaSerializer()),
+        help_text="UserIdentifier → (Volume → Quota)",
+    )
+    users = rf_serializers.DictField(
+        child=rf_serializers.CharField(), help_text="UserIdentifier → local_username"
+    )
     daily_reports = rf_serializers.DictField(
-        child=DailyStorageReportSerializer(), required=False
+        child=DailyStorageReportSerializer(),
+        required=False,
+        help_text='"YYYY-MM-DD" → DailyStorageReportJson. Absent from JSON when there are no daily snapshots.',
     )
 
 
