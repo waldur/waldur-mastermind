@@ -1,8 +1,10 @@
 import decimal
+import json
 import logging
 import re
 
 from django.conf import settings as django_settings
+from django.db import transaction
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
@@ -779,6 +781,71 @@ class OpenPortalBackend(ServiceBackend):
                 not is_current_month
             ) and report.is_complete
             historical_report.save()
+
+            # Cache the full report JSON for rich frontend consumption
+            resource = str(self.client.destination())
+            models.CachedProjectUsageReport.objects.update_or_create(
+                year=first_day.year,
+                month=first_day.month,
+                project_identifier=str(project),
+                resource=resource,
+                defaults={
+                    "is_complete": historical_report.is_complete,
+                    "report": json.loads(report.to_json()),
+                },
+            )
+
+    def sync_storage(self, allocation: models.Allocation):
+        """
+        Fetch the current storage snapshot for this allocation's project and
+        merge it into the month-accumulated CachedProjectStorageReport.
+        """
+        if not allocation.has_project_identifier():
+            logger.debug(
+                f"Skipping storage sync for {allocation} - no project identifier"
+            )
+            return
+
+        project = allocation.get_project_identifier()
+        resource = str(self.client.destination())
+
+        logger.debug(f"Syncing storage for {project} on {resource}")
+
+        try:
+            new_report = self.client.get_storage_report(project)
+        except Exception as e:
+            logger.error(f"Failed to get storage report for {project}: {e}")
+            return
+
+        # Use the report's own generated_at timestamp to determine the month,
+        # avoiding a bug where a report fetched near midnight on the last day of
+        # the month is processed just after midnight on the first of the next month.
+        report_date = new_report.generated_at.date()
+        new_report_json = json.loads(new_report.to_json())
+
+        with transaction.atomic():
+            cached, created = (
+                models.CachedProjectStorageReport.objects.select_for_update().get_or_create(
+                    year=report_date.year,
+                    month=report_date.month,
+                    project_identifier=str(project),
+                    resource=resource,
+                    defaults={"report": new_report_json},
+                )
+            )
+            if created:
+                logger.debug(
+                    f"Created storage report for {project} [{report_date.year}-{report_date.month}]"
+                )
+            else:
+                # Merge the new snapshot into the accumulated monthly report
+                accumulated = cached.get_report()
+                accumulated += new_report
+                cached.report = json.loads(accumulated.to_json())
+                cached.save(update_fields=["report"])
+                logger.debug(
+                    f"Updated storage report for {project} [{report_date.year}-{report_date.month}]"
+                )
 
     def pull_allocation(self, allocation: models.Allocation):
         if not isinstance(allocation, models.Allocation):

@@ -1,14 +1,18 @@
 import datetime
 import decimal
+import json
 import logging
 import re
 
 from django.conf import settings as django_settings
+from django.core.exceptions import ObjectDoesNotExist
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.structure.backend import ServiceBackend
 from waldur_core.structure.exceptions import ServiceBackendError
+from waldur_mastermind.invoices import models as invoice_models
+from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_openportal import signals
 from waldur_openportal.remoteclient import RemoteOpenPortalClient
 
@@ -627,6 +631,248 @@ class RemoteOpenPortalBackend(ServiceBackend):
 
             # TODO - check if we need to update anything missed during a change of month?
 
+    def _adjust_project_credits_for_reconciliation(
+        self, resource, month_date: datetime.date, usage_change: float
+    ):
+        """
+        Adjust project credits to account for billing reconciliation changes.
+
+        When we correct historical usage, the invoice items change but credits have
+        already been deducted. This method adjusts the project credit balance to
+        compensate for the billing change.
+
+        Args:
+            resource: The marketplace Resource
+            month_date: The month being reconciled
+            usage_change: The change in usage (positive = more usage, negative = less usage)
+        """
+        # Skip if no change
+        if abs(usage_change) < 0.015:
+            return
+
+        project = resource.project
+        customer = project.customer
+
+        # Get the invoice for this month
+        try:
+            invoice = invoice_models.Invoice.objects.get(
+                customer=customer, year=month_date.year, month=month_date.month
+            )
+        except invoice_models.Invoice.DoesNotExist:
+            logger.warning(
+                f"No invoice found for {customer} {month_date.year}-{month_date.month:02d} - "
+                f"cannot adjust credits"
+            )
+            return
+
+        # Update the invoice cache to reflect new totals
+        invoice.update_cache()
+
+        # Get project credit if it exists
+        project_credit = invoice_models.ProjectCredit.objects.filter(
+            project=project
+        ).first()
+
+        if not project_credit:
+            logger.debug(
+                f"No project credit for {project.name} - no credit adjustment needed"
+            )
+            return
+
+        # Calculate the billing change
+        # usage_change is in hours, we need to convert to cost
+        # Get the plan component to find the unit price
+        try:
+            plan = resource.plan
+            offering_component = marketplace_models.OfferingComponent.objects.get(
+                offering=resource.offering, type="node"
+            )
+            plan_component = plan.components.get(component=offering_component)
+            unit_price = float(plan_component.price)
+        except Exception as e:
+            logger.error(
+                f"Could not determine unit price for {resource}: {e} - "
+                f"cannot adjust credits"
+            )
+            return
+
+        # Calculate the cost change
+        # Positive usage_change = more usage = more cost = need to reduce credit more
+        # Negative usage_change = less usage = less cost = need to increase credit (refund)
+        cost_change = usage_change * unit_price
+
+        logger.info(
+            f"Reconciliation credit adjustment for {project.name}: "
+            f"usage_change={usage_change:.2f} hours, "
+            f"unit_price={unit_price:.4f}, "
+            f"cost_change={cost_change:.2f}"
+        )
+
+        # Adjust the project credit
+        # If cost increased (positive cost_change), reduce credit (subtract from value)
+        # If cost decreased (negative cost_change), increase credit (add to value)
+        old_credit_value = project_credit.value
+        project_credit.value = project_credit.value - decimal.Decimal(cost_change)
+        project_credit.save(update_fields=["value"])
+
+        logger.info(
+            f"Adjusted project credit for {project.name} from {old_credit_value:.2f} "
+            f"to {project_credit.value:.2f} (change: {-cost_change:.2f})"
+        )
+
+    def _reconcile_historical_usage(
+        self,
+        allocation: models.RemoteAllocation,
+        historical_report,
+        month_date: datetime.date,
+    ):
+        """
+        Reconcile historical usage with marketplace ComponentUsage for completed months.
+
+        This method checks if the billing (ComponentUsage) matches the actual usage
+        (HistoricalRemoteAllocation) for a completed month. If there's a discrepancy,
+        it updates the ComponentUsage which triggers billing adjustments via signals,
+        and adjusts project credits accordingly.
+
+        Args:
+            allocation: The RemoteAllocation being synced
+            historical_report: The HistoricalRemoteAllocation for the month
+            month_date: The date representing the month (should be first day of month)
+        """
+        # Only reconcile completed months
+        if not historical_report.is_complete:
+            logger.debug(
+                f"Skipping reconciliation for {allocation} {month_date.year}-{month_date.month:02d} - month not complete"
+            )
+            return
+
+        # Get the marketplace resource
+        try:
+            resource = marketplace_models.Resource.objects.get(scope=allocation)
+        except ObjectDoesNotExist:
+            logger.warning(
+                f"No marketplace Resource found for allocation {allocation} - skipping reconciliation"
+            )
+            return
+
+        # Get the offering component
+        try:
+            offering_component = marketplace_models.OfferingComponent.objects.get(
+                offering=resource.offering, type="node"
+            )
+        except ObjectDoesNotExist:
+            logger.warning(
+                f"No offering component 'node' found for resource {resource} - skipping reconciliation"
+            )
+            return
+
+        # Get the plan period
+        plan_period = marketplace_models.ResourcePlanPeriod.objects.filter(
+            resource=resource, end=None
+        ).first()
+
+        if not plan_period:
+            logger.warning(
+                f"No active ResourcePlanPeriod found for resource {resource} - skipping reconciliation"
+            )
+            return
+
+        # Get the billing period
+        billing_period = core_utils.month_start(month_date)
+        actual_usage = float(historical_report.node_usage)
+
+        # Don't do anything if there's no usage
+        if actual_usage <= 0:
+            logger.debug(
+                f"No usage for {allocation} {month_date.year}-{month_date.month:02d} - skipping reconciliation"
+            )
+            return
+
+        # Check if ComponentUsage already exists and compare
+        existing_usage = marketplace_models.ComponentUsage.objects.filter(
+            resource=resource,
+            component=offering_component,
+            billing_period=billing_period,
+            plan_period=plan_period,
+        ).first()
+
+        if existing_usage:
+            billed_usage = float(existing_usage.usage)
+            usage_delta = actual_usage - billed_usage
+
+            # Only reconcile if there's a significant difference (> 0.01 hours)
+            if abs(usage_delta) < 0.015:
+                logger.debug(
+                    f"Usage for {allocation} {month_date.year}-{month_date.month:02d} matches billing "
+                    f"(actual: {actual_usage}, billed: {billed_usage})"
+                )
+                return
+
+            logger.warning(
+                f"Usage discrepancy detected for {allocation} {month_date.year}-{month_date.month:02d}: "
+                f"actual usage={actual_usage} hours, billed usage={billed_usage} hours, delta={usage_delta} hours"
+            )
+        else:
+            logger.warning(
+                f"ComponentUsage missing for {allocation} {month_date.year}-{month_date.month:02d} "
+                f"with {actual_usage} hours - will create it"
+            )
+
+        # Get or create the ComponentUsage
+        component_usage, created = (
+            marketplace_models.ComponentUsage.objects.get_or_create(
+                resource=resource,
+                component=offering_component,
+                billing_period=billing_period,
+                plan_period=plan_period,
+                defaults={
+                    "usage": actual_usage,
+                    "date": datetime.datetime(
+                        month_date.year,
+                        month_date.month,
+                        15,
+                        12,
+                        0,
+                        0,
+                        tzinfo=datetime.UTC,
+                    ),
+                },
+            )
+        )
+
+        if created:
+            logger.info(
+                f"Created ComponentUsage for {allocation} {month_date.year}-{month_date.month:02d} "
+                f"with {actual_usage} hours"
+            )
+            # New usage created - need to adjust credits by the full amount
+            usage_change = actual_usage
+        else:
+            # Update the usage - this will trigger BillingUsageProcessor.update_invoice_when_usage_is_reported
+            old_usage = float(component_usage.usage)
+            component_usage.usage = actual_usage
+            component_usage.date = datetime.datetime(
+                month_date.year,
+                month_date.month,
+                15,
+                12,
+                0,
+                0,
+                tzinfo=datetime.UTC,
+            )
+            component_usage.save()
+            logger.info(
+                f"Updated ComponentUsage for {allocation} {month_date.year}-{month_date.month:02d} "
+                f"from {old_usage} to {actual_usage} hours"
+            )
+            # Calculate the change in usage
+            usage_change = actual_usage - old_usage
+
+        # Adjust project credits to reflect the billing change
+        self._adjust_project_credits_for_reconciliation(
+            resource, month_date, usage_change
+        )
+
     def sync_usage(self, allocation: models.RemoteAllocation):
         if not isinstance(allocation, models.RemoteAllocation):
             raise ServiceBackendError("Invalid allocation type %s" % type(allocation))
@@ -700,6 +946,100 @@ class RemoteOpenPortalBackend(ServiceBackend):
                 not is_current_month
             ) and report.is_complete
             historical_report.save()
+
+            # Cache the full report JSON so the remote portal can serve
+            # rich usage data (per-user, per-date) without re-fetching
+            resource = str(self.client.destination())
+            models.CachedProjectUsageReport.objects.update_or_create(
+                year=first_day.year,
+                month=first_day.month,
+                project_identifier=str(project),
+                resource=resource,
+                defaults={
+                    "is_complete": historical_report.is_complete,
+                    "report": json.loads(report.to_json()),
+                },
+            )
+
+            # Reconcile historical usage with billing for completed months
+            try:
+                self._reconcile_historical_usage(
+                    allocation, historical_report, first_day
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to reconcile historical usage for {allocation} in {month}: {e}"
+                )
+
+    def sync_storage(self, allocation: models.RemoteAllocation):
+        """
+        Fetch the accumulated storage report from the remote portal for this
+        allocation and store it in CachedProjectStorageReport.  Last month and
+        the current month are always fetched so that data is current across
+        month boundaries.
+        """
+        if not isinstance(allocation, models.RemoteAllocation):
+            raise ServiceBackendError("Invalid allocation type %s" % type(allocation))
+
+        if not allocation.is_added_to_openportal():
+            allocation = self.add_allocated_project(allocation)
+
+            if not allocation.is_added_to_openportal():
+                logger.error(
+                    f"Allocation {allocation} is not in OpenPortal"
+                    " - cannot sync storage"
+                )
+                return
+
+        if not allocation.has_project_identifier():
+            logger.error(
+                f"Allocation {allocation} has no project identifier"
+                " - cannot sync storage"
+            )
+            return
+
+        project = allocation.get_project_identifier()
+        logger.debug(
+            f"Syncing OpenPortal storage for allocation {allocation}"
+            f" and project {project}"
+        )
+
+        months = [
+            openportal.DateRange.last_month(),
+            openportal.DateRange.this_month(),
+        ]
+
+        resource = str(self.client.destination())
+
+        for month in months:
+            first_day = month.days[0]
+
+            try:
+                report = self.client.get_storage_report(project, month)
+            except openportal.OpenPortalError as e:
+                logger.warning(
+                    f"Failed to get storage report for {allocation} in {month}: {e}"
+                )
+                continue
+            except Exception as e:
+                logger.error(
+                    f"Failed to get storage report for {allocation} in {month}: {e}"
+                )
+                continue
+
+            report_json = json.loads(report.to_json())
+
+            models.CachedProjectStorageReport.objects.update_or_create(
+                year=first_day.year,
+                month=first_day.month,
+                project_identifier=str(project),
+                resource=resource,
+                defaults={"report": report_json},
+            )
+            logger.debug(
+                f"Stored storage report for {project}"
+                f" [{first_day.year}-{first_day.month:02d}]"
+            )
 
     def pull_allocation(self, allocation):
         logger.info(f"Pulling remote allocation: {allocation}")

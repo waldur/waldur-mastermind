@@ -1,6 +1,7 @@
 import datetime
 import functools
 import logging
+import random
 import time
 
 from celery import shared_task
@@ -19,11 +20,25 @@ from .board import OpenPortalBoard
 logger = logging.getLogger(__name__)
 
 
-def run_once_task(takeover_timeout):
+def run_once_task(takeover_timeout, include_args=False):
+    """
+    Decorator to ensure only one instance of a task runs at a time.
+
+    Args:
+        takeover_timeout: Timeout in seconds before a stale lock can be taken over
+        include_args: If True, include positional arguments in the lock ID to create
+                     per-argument locks (e.g., per-customer locks)
+    """
+
     def task_exc(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            # Build lock_id based on function name and optionally arguments
             lock_id = "openportal-run-once-" + func.__name__
+            if include_args and args:
+                # Include positional arguments in lock ID for per-argument locking
+                args_str = "-".join(str(arg) for arg in args)
+                lock_id = f"{lock_id}-{args_str}"
 
             def acquire_lock():
                 now = datetime.datetime.now(datetime.UTC)
@@ -56,7 +71,7 @@ def run_once_task(takeover_timeout):
 
                         # create a new lock
                         lock, created = models.OnceTask.objects.get_or_create(
-                            task_name="sync_openportal",
+                            task_name=lock_id,
                             defaults={"last_run": now},
                         )
 
@@ -324,7 +339,19 @@ def sync_remote_allocation_usage(serialized_allocation):
 
     backend = allocation.get_backend()
 
-    allocation = backend.check_added_allocation(allocation)
+    try:
+        allocation = backend.check_added_allocation(allocation)
+    except Exception as e:
+        if str(e).find("ManagedProjectPendingError") != -1:
+            logger.debug(
+                f"Allocation {allocation} is still pending in remote portal - skipping usage sync"
+            )
+        else:
+            logger.error(f"Failed to check allocation {allocation}: {e}")
+
+        # just return for now - we can't sync usage as the project is not connected
+        return
+
     backend.sync_usage(allocation)
 
 
@@ -415,10 +442,13 @@ def sync_remote_usage():
 
 
 @shared_task(name="waldur_openportal.sync_customer_allocations")
+@run_once_task(takeover_timeout=60 * 60, include_args=True)
 def sync_customer_allocations(customer_id):
     """
     This task synchronises the usage for all allocations belonging to a single customer.
     Allocations are processed serially within each customer to avoid race conditions.
+    Uses run_once_task with include_args=True to ensure only one instance per customer
+    can run at a time, preventing backup of long-running tasks.
     """
     try:
         customer = structure_models.Customer.objects.get(id=customer_id)
@@ -471,6 +501,176 @@ def sync_usage():
             sync_customer_allocations.delay(customer_id)
         except Exception as e:
             logger.error(f"Failed to schedule sync for customer {customer_id}: {e}")
+
+
+@shared_task(name="waldur_openportal.sync_allocation_storage")
+def sync_allocation_storage(serialized_allocation):
+    """
+    Fetch the current storage snapshot for the passed allocation and merge it
+    into the month-accumulated CachedProjectStorageReport.
+    """
+    logger.info(f"task.sync_allocation_storage: {serialized_allocation}")
+
+    if isinstance(serialized_allocation, models.Allocation):
+        allocation = serialized_allocation
+    else:
+        allocation = core_utils.deserialize_instance(serialized_allocation)
+
+        if not isinstance(allocation, models.Allocation):
+            logger.info(
+                f"Skipping allocation {allocation} - not an Allocation instance"
+            )
+            return
+
+    backend_obj = allocation.get_backend()
+    backend_obj.sync_storage(allocation)
+
+
+@shared_task(name="waldur_openportal.sync_storage")
+@run_once_task(takeover_timeout=60 * 60)
+def sync_storage():
+    """
+    Fetch and accumulate storage snapshots for all active allocations.
+    Runs every 8 hours so each project gets at least one storage report per day
+    without hammering the filesystems.
+    """
+    logger.info("OpenPortal task.sync_storage")
+
+    allocations = list(models.Allocation.objects.filter(is_active=True))
+
+    # Randomise order so repeated errors on individual allocations don't
+    # consistently block others from being processed.
+    random.shuffle(allocations)
+
+    for allocation in allocations:
+        try:
+            sync_allocation_storage(allocation)
+        except Exception as e:
+            logger.error(f"Failed to sync storage for {allocation}: {e}")
+
+
+@shared_task(name="waldur_openportal.sync_remote_allocation_storage")
+def sync_remote_allocation_storage(serialized_allocation):
+    """
+    Fetch the accumulated storage report from the remote portal for the
+    passed RemoteAllocation and store it in CachedProjectStorageReport.
+    """
+    logger.info(f"task.sync_remote_allocation_storage: {serialized_allocation}")
+
+    if isinstance(serialized_allocation, models.RemoteAllocation):
+        allocation = serialized_allocation
+    else:
+        allocation = core_utils.deserialize_instance(serialized_allocation)
+
+        if not isinstance(allocation, models.RemoteAllocation):
+            logger.info(
+                f"Skipping allocation {allocation} - not a RemoteAllocation instance"
+            )
+            return
+
+    backend_obj = allocation.get_backend()
+
+    try:
+        allocation = backend_obj.check_added_allocation(allocation)
+    except Exception as e:
+        if str(e).find("ManagedProjectPendingError") != -1:
+            logger.debug(
+                f"Allocation {allocation} is still pending - skipping storage sync"
+            )
+        else:
+            logger.error(f"Failed to check allocation {allocation}: {e}")
+        return
+
+    backend_obj.sync_storage(allocation)
+
+
+@shared_task(name="waldur_openportal.sync_remote_storage")
+@run_once_task(takeover_timeout=60 * 60)
+def sync_remote_storage():
+    """
+    Fetch and store accumulated storage reports from remote portals for all
+    active RemoteAllocations.
+    """
+    logger.info("OpenPortal task.sync_remote_storage")
+    now = datetime.datetime.now()
+    fail_count = 0
+
+    allocations = list(models.RemoteAllocation.objects.filter(is_active=True))
+    random.shuffle(allocations)
+
+    for allocation in allocations:
+        try:
+            sync_remote_allocation_storage(allocation)
+        except Exception as e:
+            logger.error(f"Failed to sync storage for {allocation}: {e}")
+            fail_count += 1
+
+            if fail_count > 5 and (datetime.datetime.now() - now).seconds > 60:
+                logger.error("Too many failures - aborting")
+                return
+            elif (datetime.datetime.now() - now).seconds > 3600:
+                logger.error("sync_remote_storage took too long - aborting")
+                return
+
+        if (datetime.datetime.now() - now).seconds > 3600:
+            logger.error("sync_remote_storage took too long - aborting")
+            return
+
+
+@shared_task(name="waldur_openportal.sync_local_users")
+@run_once_task(takeover_timeout=60 * 60)
+def sync_local_users():
+    """
+    This task runs through all of the allocations and makes sure that all
+    users associated with those allocations are properly synced (e.g.
+    added or removed)
+    """
+    logger.info("OpenPortal task.sync_local_users")
+    now = datetime.datetime.now()
+
+    allocations = list(models.Allocation.objects.filter(is_active=True))
+
+    # randomise the order of the allocations to avoid always processing in the same order and potentially
+    # leaving some allocations with unsynced users for a long time
+    random.shuffle(allocations)
+
+    for allocation in allocations:
+        try:
+            sync_allocation_users(allocation)
+        except Exception as e:
+            logger.error(f"Failed to sync users for {allocation}: {e}")
+
+        if (datetime.datetime.now() - now).seconds > 3600:
+            logger.error("sync_users took too long - aborting")
+            break
+
+
+@shared_task(name="waldur_openportal.sync_remote_users")
+@run_once_task(takeover_timeout=60 * 60)
+def sync_remote_users():
+    """
+    This task runs through all of the remote allocations and makes sure that all
+    users associated with those allocations are properly synced (e.g.
+    added or removed)
+    """
+    logger.info("OpenPortal task.sync_remote_users")
+    now = datetime.datetime.now()
+
+    allocations = list(models.RemoteAllocation.objects.filter(is_active=True))
+
+    # randomise the order of the allocations to avoid always processing in the same order and potentially
+    # leaving some allocations with unsynced users for a long time
+    random.shuffle(allocations)
+
+    for allocation in allocations:
+        try:
+            sync_remote_allocation_users(allocation)
+        except Exception as e:
+            logger.error(f"Failed to sync remote users for {allocation}: {e}")
+
+        if (datetime.datetime.now() - now).seconds > 3600:
+            logger.error("sync_remote_users took too long - aborting")
+            break
 
 
 @shared_task(name="waldur_openportal.sync_allocation_limits")
@@ -1419,6 +1619,20 @@ def run_job(serialized_job):
             identifier = openportal.PortalIdentifier(args[0])
             dates = openportal.DateRange.parse(args[1])
             result = board.get_usage_reports(identifier, dates)
+        elif command == "get_storage_report":
+            identifier = openportal.ProjectIdentifier(args[0])
+            if len(args) > 1:
+                dates = openportal.DateRange.parse(args[1])
+            else:
+                dates = openportal.DateRange.this_month()
+            result = board.get_storage_report(identifier, dates)
+        elif command == "get_storage_reports":
+            identifier = openportal.PortalIdentifier(args[0])
+            if len(args) > 1:
+                dates = openportal.DateRange.parse(args[1])
+            else:
+                dates = openportal.DateRange.this_month()
+            result = board.get_storage_reports(identifier, dates)
         else:
             raise ValueError(f"Unknown command {command} for job {job.id}")
 
@@ -1553,3 +1767,45 @@ def sync_board():
         except Exception as e:
             logger.error(f"Failed to process job {job.id}: {e}")
             continue
+
+
+@shared_task(name="waldur_openportal.clean_stale_jobs")
+def clean_stale_jobs():
+    """
+    This task deletes all OpenPortal jobs that were created more than
+    2 days ago - this is to prevent the database from filling up with
+    old jobs that are no longer relevant.
+    """
+    logger.info("OpenPortal task.clean_stale_jobs")
+
+    cutoff = datetime.date.today() - datetime.timedelta(days=2)
+
+    stale_jobs = models.Job.objects.filter(created__lt=cutoff)
+
+    stale_jobs.delete()
+
+
+@shared_task(name="waldur_openportal.fix_total_allocation")
+def fix_total_allocation():
+    """
+    This task goes through all OpenPortal remote allocations and makes sure
+    that the project balance is correct, given the total awarded from
+    the remote allocation, and the total consumption for the project
+    over its lifetime. We have seen that these can drift apart
+    over time, as Waldur does some strange accounting at the start
+    of each month. This should be run daily
+    """
+    logger.info("OpenPortal task.fix_total_allocation")
+
+    managed_projects = models.ManagedProject.objects.filter(project__isnull=False)
+
+    for managed_project in managed_projects:
+        project = managed_project.project
+
+        if project.is_removed:
+            continue
+
+        if project.is_expired:
+            continue
+
+        utils.fix_total_allocation(project)

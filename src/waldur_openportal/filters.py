@@ -1,7 +1,9 @@
 import django_filters
+from django.db.models import Q
 
 from waldur_core.core import filters as core_filters
 from waldur_core.structure import filters as structure_filters
+from waldur_core.structure import models as structure_models
 
 from . import models
 
@@ -75,6 +77,74 @@ class ProjectTemplateFilter(django_filters.FilterSet):
     uuid = django_filters.UUIDFilter(field_name="uuid")
 
 
+def _identifiers_for_project_uuid(value):
+    """Return the set of OpenPortal project_identifier strings for a project UUID.
+
+    Always combines two sources:
+    1. Allocation.backend_id — covers active projects with existing allocations.
+    2. {projectinfo.shortname}.{portal} — covers cases where the allocation
+       has been deleted (e.g. soft-deleted projects, or allocations removed).
+    """
+    from . import op as openportal
+
+    openportal.ensure_config_loaded()
+    allocation_identifiers = set(
+        models.Allocation.objects.filter(project__uuid=value)
+        .exclude(backend_id="")
+        .values_list("backend_id", flat=True)
+    )
+    portal = str(openportal.get_portal())
+    shortnames = (
+        models.ProjectInfo.objects.filter(
+            project__uuid=value,
+            shortname__isnull=False,
+        )
+        .exclude(shortname="")
+        .values_list("shortname", flat=True)
+    )
+    shortname_identifiers = {f"{sn}.{portal}" for sn in shortnames}
+    return allocation_identifiers | shortname_identifiers
+
+
+class CachedProjectUsageReportFilter(django_filters.FilterSet):
+    year = django_filters.NumberFilter(field_name="year")
+    month = django_filters.NumberFilter(field_name="month")
+    project_identifier = django_filters.CharFilter(field_name="project_identifier")
+    resource = django_filters.CharFilter(field_name="resource")
+    is_complete = django_filters.BooleanFilter(field_name="is_complete")
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", method="filter_by_project_uuid"
+    )
+
+    def filter_by_project_uuid(self, queryset, name, value):
+        return queryset.filter(
+            project_identifier__in=_identifiers_for_project_uuid(value)
+        )
+
+    class Meta:
+        model = models.CachedProjectUsageReport
+        fields = []
+
+
+class CachedProjectStorageReportFilter(django_filters.FilterSet):
+    year = django_filters.NumberFilter(field_name="year")
+    month = django_filters.NumberFilter(field_name="month")
+    project_identifier = django_filters.CharFilter(field_name="project_identifier")
+    resource = django_filters.CharFilter(field_name="resource")
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", method="filter_by_project_uuid"
+    )
+
+    def filter_by_project_uuid(self, queryset, name, value):
+        return queryset.filter(
+            project_identifier__in=_identifiers_for_project_uuid(value)
+        )
+
+    class Meta:
+        model = models.CachedProjectStorageReport
+        fields = []
+
+
 class ManagedProjectFilter(django_filters.FilterSet):
     identifier = django_filters.CharFilter(
         field_name="identifier", lookup_expr="icontains"
@@ -99,7 +169,43 @@ class ManagedProjectFilter(django_filters.FilterSet):
         field_name="project_template__uuid",
     )
     state = core_filters.ReviewStateFilter()
+    query = django_filters.CharFilter(method="filter_search")
+
+    def filter_search(self, queryset, name, value):
+        return queryset.filter(
+            Q(identifier__icontains=value)
+            | Q(project__name__icontains=value)
+            | Q(project_template__name__icontains=value)
+            | Q(details__name__icontains=value)
+        )
 
     class Meta:
         model = models.ManagedProject
+        fields = []
+
+
+class ProjectAccountingSummaryFilter(django_filters.FilterSet):
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail", field_name="uuid"
+    )
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail", field_name="customer__uuid"
+    )
+    is_active = django_filters.BooleanFilter(method="filter_is_active")
+
+    def filter_is_active(self, queryset, name, value):
+        from django.utils import timezone
+
+        today = timezone.now().date()
+        if value:
+            # Active: no end_date set, or end_date is in the future
+            return queryset.filter(end_date__isnull=True) | queryset.filter(
+                end_date__gt=today
+            )
+        else:
+            # Inactive: end_date is set and has passed
+            return queryset.filter(end_date__lte=today)
+
+    class Meta:
+        model = structure_models.Project
         fields = []
