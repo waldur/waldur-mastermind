@@ -28,7 +28,6 @@ import subprocess
 import sys
 import time
 
-
 CONTAINER_NAME_DEFAULT = "waldur-migration-test-pg"
 DB_NAME_DEFAULT = "waldur_migration_test"
 PG_USER_DEFAULT = "postgres"

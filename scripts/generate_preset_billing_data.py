@@ -21,7 +21,7 @@ Examples:
 import argparse
 import json
 import random
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 
 
@@ -203,10 +203,6 @@ class PresetBillingGenerator:
     def generate_invoice_items(self, invoices: list) -> list:
         """Generate invoice items for each invoice."""
         items = []
-
-        invoice_lookup = {
-            (inv["customer_uuid"], inv["year"], inv["month"]): inv for inv in invoices
-        }
 
         for inv in invoices:
             cust_uuid = inv["customer_uuid"]
@@ -505,7 +501,7 @@ def main():
         return 1
 
     print(f"Loading preset from: {preset_path}")
-    with open(preset_path, "r") as f:
+    with open(preset_path) as f:
         preset_data = json.load(f)
 
     generator = PresetBillingGenerator(preset_data, months=args.months)
