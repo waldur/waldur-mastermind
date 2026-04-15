@@ -10,6 +10,7 @@ class MarketplaceSupportConfig(AppConfig):
         from waldur_core.core import signals as core_signals
         from waldur_core.core.models import SshPublicKey
         from waldur_core.permissions.models import UserRole
+        from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace import serializers as marketplace_serializers
         from waldur_mastermind.marketplace.enums import SUPPORT_OFFERING
         from waldur_mastermind.marketplace.plugins import manager
@@ -44,6 +45,12 @@ class MarketplaceSupportConfig(AppConfig):
         core_signals.pre_serializer_fields.connect(
             sender=marketplace_serializers.OrderDetailsSerializer,
             receiver=add_issue,
+        )
+
+        signals.post_save.connect(
+            handlers.create_issue_for_pending_support_order,
+            sender=marketplace_models.Order,
+            dispatch_uid="waldur_mastermind.marketplace_support.create_issue_for_pending_support_order",
         )
 
         signals.post_save.connect(
