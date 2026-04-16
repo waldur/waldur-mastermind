@@ -723,8 +723,38 @@ class Router(structure_models.BaseResource):
         blank=True,
         help_text=_("Network ports attached to this router"),
     )
+    external_network_id = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text=_("Backend ID of the external network used as gateway"),
+    )
+    external_network_ref = models.ForeignKey(
+        "ExternalNetwork",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="routers",
+        help_text=_(
+            "Reference to ExternalNetwork if gateway is a global external network"
+        ),
+    )
+    enable_snat = models.BooleanField(
+        null=True,
+        default=None,
+        help_text=_(
+            "Whether SNAT is enabled on the external gateway. None means OpenStack default (True)."
+        ),
+    )
+    external_fixed_ips = JSONField(
+        default=list,
+        help_text=_("List of fixed IP addresses on the external gateway port"),
+    )
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
+
+    @property
+    def has_external_gateway(self):
+        return bool(self.external_network_id)
 
     def get_backend(self):
         return self.tenant.get_backend()

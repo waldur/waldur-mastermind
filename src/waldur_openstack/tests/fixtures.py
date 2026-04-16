@@ -46,6 +46,17 @@ class OpenStackFixture(ProjectFixture):
         )
         ProjectRole.MANAGER.add_permission(PermissionEnum.CAN_MANAGE_OPENSTACK_INSTANCE)
 
+        # Add router gateway permissions
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.CAN_MANAGE_OPENSTACK_ROUTER_GATEWAY
+        )
+        ProjectRole.ADMIN.add_permission(
+            PermissionEnum.CAN_MANAGE_OPENSTACK_ROUTER_GATEWAY
+        )
+        ProjectRole.MANAGER.add_permission(
+            PermissionEnum.CAN_MANAGE_OPENSTACK_ROUTER_GATEWAY
+        )
+
     @cached_property
     def settings(self):
         return factories.SettingsFactory(

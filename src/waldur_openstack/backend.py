@@ -1186,11 +1186,30 @@ class OpenStackBackend(ServiceBackend):
             except neutron_exceptions.NeutronClientException as e:
                 raise OpenStackBackendError(e)
 
+            # Sync external gateway fields
+            gateway_info = backend_router.get("external_gateway_info")
+            if gateway_info:
+                ext_net_id = gateway_info.get("network_id", "")
+                ext_net_ref = models.ExternalNetwork.objects.filter(
+                    settings=tenant.service_settings, backend_id=ext_net_id
+                ).first()
+                ext_enable_snat = gateway_info.get("enable_snat")
+                ext_fixed_ips = gateway_info.get("external_fixed_ips", [])
+            else:
+                ext_net_id = ""
+                ext_net_ref = None
+                ext_enable_snat = None
+                ext_fixed_ips = []
+
             defaults = {
                 "name": backend_router["name"],
                 "description": backend_router["description"],
                 "routes": backend_router["routes"],
                 "fixed_ips": fixed_ips,
+                "external_network_id": ext_net_id,
+                "external_network_ref": ext_net_ref,
+                "enable_snat": ext_enable_snat,
+                "external_fixed_ips": ext_fixed_ips,
                 "service_settings": tenant.service_settings,
                 "project": tenant.project,
                 "state": CoreStates.OK,
@@ -2667,6 +2686,46 @@ class OpenStackBackend(ServiceBackend):
             )
         except neutron_exceptions.NeutronClientException as e:
             raise OpenStackBackendError(e.message)
+
+    @log_backend_action()
+    def set_external_gateway(self, router: models.Router):
+        neutron = get_neutron_client(self.admin_session)
+        body = {"network_id": router.external_network_id}
+        if router.enable_snat is not None:
+            body["enable_snat"] = router.enable_snat
+        if router.external_fixed_ips:
+            body["external_fixed_ips"] = router.external_fixed_ips
+        try:
+            neutron.update_router(
+                router.backend_id,
+                {"router": {"external_gateway_info": body}},
+            )
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+        self.pull_tenant_routers(router.tenant, router.backend_id)
+
+    @log_backend_action()
+    def remove_external_gateway(self, router: models.Router):
+        neutron = get_neutron_client(self.admin_session)
+        try:
+            neutron.update_router(
+                router.backend_id,
+                {"router": {"external_gateway_info": None}},
+            )
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+        router.external_network_id = ""
+        router.external_network_ref = None
+        router.enable_snat = None
+        router.external_fixed_ips = []
+        router.save(
+            update_fields=[
+                "external_network_id",
+                "external_network_ref",
+                "enable_snat",
+                "external_fixed_ips",
+            ]
+        )
 
     @log_backend_action()
     def detect_external_network(

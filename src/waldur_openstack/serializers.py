@@ -1471,6 +1471,143 @@ class OpenStackRouterSetRoutesSerializer(serializers.Serializer):
         return attrs
 
 
+class SetExternalGatewaySerializer(serializers.Serializer):
+    external_network_id = serializers.CharField(
+        help_text=_("Backend ID (OpenStack UUID) of the external network."),
+    )
+    enable_snat = serializers.BooleanField(
+        required=False,
+        default=None,
+        allow_null=True,
+        help_text=_(
+            "Whether to enable SNAT on the gateway. "
+            "None means use OpenStack default (True). "
+            "Requires advanced permissions."
+        ),
+    )
+    external_fixed_ips = serializers.ListField(
+        child=serializers.DictField(),
+        required=False,
+        default=list,
+        help_text=_(
+            "List of fixed IP specifications for the gateway port. "
+            "Each entry should have 'ip_address' and optionally 'subnet_id'. "
+            "Requires advanced permissions."
+        ),
+    )
+
+    def _resolve_network_source(self, external_network_id, router):
+        """Resolve the external network and determine its source type."""
+        # Check global ExternalNetwork catalog
+        ext_net = models.ExternalNetwork.objects.filter(
+            settings=router.tenant.service_settings,
+            backend_id=external_network_id,
+        ).first()
+        if ext_net:
+            return "global", ext_net
+
+        # Check RBAC-exposed-as-external networks
+        rbac_network = models.Network.objects.filter(
+            backend_id=external_network_id,
+            rbac_policies__target_tenant=router.tenant,
+            rbac_policies__policy_type=models.NetworkRBACPolicy.NetworkShareType.EXTERNAL,
+        ).first()
+        if rbac_network:
+            return "rbac", rbac_network
+
+        return None, None
+
+    def _can_set_advanced_gateway_options(
+        self, user, router, network_source, network_obj
+    ):
+        """Check if user can set enable_snat=False or external_fixed_ips."""
+        if user.is_staff:
+            return True
+
+        if network_source == "global":
+            # Global external networks: provider (service settings owner) only
+            service_settings = router.tenant.service_settings
+            return service_settings.customer.has_user(user, CustomerRole.OWNER)
+
+        if network_source == "rbac":
+            # RBAC-exposed networks: user must have admin/manager on source project
+            source_project = network_obj.tenant.project
+            return source_project.has_user(
+                user, ProjectRole.ADMIN
+            ) or source_project.has_user(user, ProjectRole.MANAGER)
+
+        return False
+
+    def validate(self, attrs):
+        view = self.context.get("view")
+        if not view:
+            return attrs
+
+        router = view.get_object()
+        request = self.context["request"]
+        user = request.user
+        external_network_id = attrs["external_network_id"]
+
+        network_source, network_obj = self._resolve_network_source(
+            external_network_id, router
+        )
+        if network_source is None:
+            raise serializers.ValidationError(
+                {
+                    "external_network_id": _(
+                        "Network with backend ID '%s' is not available as an external "
+                        "network for this router's tenant."
+                    )
+                    % external_network_id,
+                }
+            )
+
+        # Check advanced options (SNAT control, fixed IPs)
+        enable_snat = attrs.get("enable_snat")
+        external_fixed_ips = attrs.get("external_fixed_ips", [])
+        needs_advanced = enable_snat is not None or bool(external_fixed_ips)
+
+        if needs_advanced:
+            if not self._can_set_advanced_gateway_options(
+                user, router, network_source, network_obj
+            ):
+                raise serializers.ValidationError(
+                    _(
+                        "You do not have permission to set advanced gateway options "
+                        "(SNAT control or fixed IPs) for this network."
+                    )
+                )
+
+        # Validate external_fixed_ips entries
+        for entry in external_fixed_ips:
+            if "ip_address" not in entry:
+                raise serializers.ValidationError(
+                    {
+                        "external_fixed_ips": _(
+                            "Each entry must contain an 'ip_address' field."
+                        )
+                    }
+                )
+
+        # Store resolved data for the view
+        attrs["network_source"] = network_source
+        attrs["network_obj"] = network_obj
+        if network_source == "global":
+            attrs["external_network_ref"] = network_obj
+        else:
+            attrs["external_network_ref"] = None
+
+        return attrs
+
+
+class AvailableExternalNetworkSerializer(serializers.Serializer):
+    backend_id = serializers.CharField()
+    name = serializers.CharField()
+    description = serializers.CharField()
+    source = serializers.ChoiceField(choices=["global", "rbac"])
+    subnets = serializers.ListField(child=serializers.DictField())
+
+
 class OpenStackAllowedAddressPairSerializer(serializers.Serializer):
     ip_address = serializers.CharField(
         default="192.168.42.0/24",
@@ -2234,6 +2371,14 @@ class OpenStackRouterSerializer(structure_serializers.BaseResourceSerializer):
     tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
     fixed_ips = OpenStackFixedIpField(read_only=True)
     ports = OpenStackNestedPortSerializer(many=True, read_only=True)
+    has_external_gateway = serializers.BooleanField(read_only=True)
+    external_network_uuid = serializers.UUIDField(
+        source="external_network_ref.uuid", read_only=True, allow_null=True
+    )
+    external_network_name = serializers.CharField(
+        source="external_network_ref.name", read_only=True, allow_null=True
+    )
+    external_fixed_ips = serializers.JSONField(read_only=True)
 
     class Meta:
         model = models.Router
@@ -2244,6 +2389,12 @@ class OpenStackRouterSerializer(structure_serializers.BaseResourceSerializer):
             "routes",
             "fixed_ips",
             "ports",
+            "external_network_id",
+            "external_network_uuid",
+            "external_network_name",
+            "has_external_gateway",
+            "enable_snat",
+            "external_fixed_ips",
         )
         extra_kwargs = dict(
             url={"lookup_field": "uuid", "view_name": "openstack-router-detail"},

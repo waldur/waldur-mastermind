@@ -209,6 +209,9 @@ class PermissionEnum(str, Enum):
     CAN_MANAGE_OPENSTACK_INSTANCE_POWER = "OPENSTACK_INSTANCE.MANAGE_POWER"
     CAN_MANAGE_OPENSTACK_INSTANCE = "OPENSTACK_INSTANCE.MANAGE"
 
+    # OpenStack Router permissions
+    CAN_MANAGE_OPENSTACK_ROUTER_GATEWAY = "OPENSTACK_ROUTER.MANAGE_GATEWAY"
+
     # Staff/support access scopes for PATs
     STAFF_ACCESS = "STAFF.ACCESS"
     SUPPORT_ACCESS = "SUPPORT.ACCESS"
@@ -332,6 +335,8 @@ def categorize_permission(category, action):
         "LEXIS_LINK": "Other",
         "ACCESS_SUBNET": "Other",
         "OFFERINGUSER": "Offering",
+        "OPENSTACK_INSTANCE": "Openstack",
+        "OPENSTACK_ROUTER": "Openstack",
     }
 
     return category_mapping.get(category, category.capitalize())
