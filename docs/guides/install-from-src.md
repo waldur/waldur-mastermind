@@ -54,8 +54,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ```bash
 curl https://pyenv.run | bash
-pyenv install 3.11.9
-pyenv global 3.11.9
+pyenv install 3.13.13
+pyenv global 3.13.13
 ```
 
 #### Get the code
