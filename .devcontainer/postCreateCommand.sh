@@ -7,4 +7,4 @@ pip install uv
 uv sync --dev
 uv pip install -e .
 git config --global --add safe.directory /workspaces/waldur-mastermind
-uv run pre-commit install
+uv tool install prek
