@@ -657,6 +657,22 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         # Convert per-component allocation to TRES minutes
         tres_minutes = self._calculate_tres_minutes(total_allocation, final_config)
 
+        # Calculate QoS thresholds (uses billing metric)
+        qos_threshold, grace_limit = self._calculate_qos_thresholds(
+            total_allocation, final_config
+        )
+
+        # When grace is configured, the SLURM hard limit (GrpTRESMins) must be
+        # set at the grace level, not the base level. Otherwise SLURM blocks jobs
+        # at 100% and the QoS slowdown/blocked transitions in the 100%-130% range
+        # are unreachable — the site agent can never apply them.
+        grace_ratio = final_config.get("grace_ratio", 0)
+        if grace_ratio > 0:
+            grace_multiplier = 1 + grace_ratio
+            tres_minutes = {
+                k: int(v * grace_multiplier) for k, v in tres_minutes.items()
+            }
+
         # Determine limit key from limit_type config
         limit_type = final_config.get("limit_type", "GrpTRESMins")
         if "GrpTRESMins" in limit_type:
@@ -667,11 +683,6 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
             limit_key = "grp_tres"
 
         limits = {limit_key: tres_minutes}
-
-        # Calculate QoS thresholds (uses billing metric)
-        qos_threshold, grace_limit = self._calculate_qos_thresholds(
-            total_allocation, final_config
-        )
 
         settings = {
             "fairshare": fairshare,

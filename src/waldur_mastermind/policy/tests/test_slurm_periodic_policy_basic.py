@@ -90,6 +90,63 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
 
         print("✅ Basic settings calculation working")
 
+    def test_grace_ratio_increases_slurm_limit(self):
+        """Test that SLURM GrpTRESMins includes grace ratio so jobs can run in the grace range."""
+        policy = SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.offering,
+            apply_to_all=True,
+            grace_ratio=0.3,
+            carryover_enabled=False,
+            tres_billing_enabled=False,
+        )
+
+        with patch.object(policy, "_get_current_period", return_value="2024-Q2"):
+            settings = policy.calculate_slurm_settings(self.resource)
+
+            # Base allocation: cpu=64000h, mem=512000h → base minutes: cpu=3840000, mem=30720000
+            # With grace_ratio=0.3, SLURM limit should be 1.3x base
+            base_cpu_minutes = int(64000 * 60)
+            base_mem_minutes = int(512000 * 60)
+            self.assertEqual(
+                settings["grp_tres_mins"]["cpu"], int(base_cpu_minutes * 1.3)
+            )
+            self.assertEqual(
+                settings["grp_tres_mins"]["mem"], int(base_mem_minutes * 1.3)
+            )
+
+            # QoS threshold should still be at base level (100%)
+            self.assertEqual(
+                settings["qos_threshold"]["node"], base_cpu_minutes + base_mem_minutes
+            )
+            # Grace limit should be at 130%
+            self.assertEqual(
+                settings["grace_limit"]["node"],
+                int((base_cpu_minutes + base_mem_minutes) * 1.3),
+            )
+
+            # Invariant: SLURM hard limit must be >= grace limit for each
+            # component, otherwise SLURM blocks jobs before QoS transitions fire
+            slurm_total = sum(settings["grp_tres_mins"].values())
+            grace_total = settings["grace_limit"]["node"]
+            self.assertGreaterEqual(slurm_total, grace_total)
+
+    def test_zero_grace_ratio_does_not_change_slurm_limit(self):
+        """Test that with grace_ratio=0, SLURM limit equals base allocation."""
+        policy = SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.offering,
+            apply_to_all=True,
+            grace_ratio=0,
+            carryover_enabled=False,
+            tres_billing_enabled=False,
+        )
+
+        with patch.object(policy, "_get_current_period", return_value="2024-Q2"):
+            settings = policy.calculate_slurm_settings(self.resource)
+
+            # With grace_ratio=0, SLURM limit should equal base minutes exactly
+            self.assertEqual(settings["grp_tres_mins"]["cpu"], int(64000 * 60))
+            self.assertEqual(settings["grp_tres_mins"]["mem"], int(512000 * 60))
+
     def test_decay_calculation_method(self):
         """Test decay calculation method directly."""
         SlurmPeriodicUsagePolicy.objects.create(
