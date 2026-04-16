@@ -1104,15 +1104,55 @@ class CourseAccountDateFieldsTest(test.APITestCase):
         self.assertEqual(response.data["project_start_date"], self.start_date)
         self.assertEqual(response.data["project_end_date"], self.end_date)
 
-    def test_null_project_dates(self):
-        """Test that null project dates are handled correctly"""
-        # Create a project without dates
+    def test_null_project_start_date(self):
+        """Test that null project start_date is serialized as null"""
+        project_no_start = structure_factories.ProjectFactory(
+            customer=self.fixture.project.customer,
+            kind=ProjectKind.COURSE,
+            start_date=None,
+            end_date=datetime.date.today() + datetime.timedelta(days=30),
+        )
+
+        account = factories.CourseAccountFactory(
+            project=project_no_start, email="nostart@example.com"
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.CourseAccountFactory.get_url(account)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["project_start_date"])
+        self.assertIsNotNone(response.data["project_end_date"])
+
+    def test_null_project_end_date(self):
+        """Test that null project end_date is serialized as null"""
+        project_no_end = structure_factories.ProjectFactory(
+            customer=self.fixture.project.customer,
+            kind=ProjectKind.COURSE,
+            start_date=datetime.date.today(),
+            end_date=None,
+        )
+
+        account = factories.CourseAccountFactory(
+            project=project_no_end, email="noend@example.com"
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.CourseAccountFactory.get_url(account)
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNotNone(response.data["project_start_date"])
+        self.assertIsNone(response.data["project_end_date"])
+
+    def test_both_project_dates_null(self):
+        """Test that both null project dates are serialized as null"""
         project_no_dates = structure_factories.ProjectFactory(
             customer=self.fixture.project.customer,
             kind=ProjectKind.COURSE,
             start_date=None,
-            end_date=datetime.date.today()
-            + datetime.timedelta(days=30),  # end_date is required
+            end_date=None,
         )
 
         account = factories.CourseAccountFactory(
@@ -1125,7 +1165,33 @@ class CourseAccountDateFieldsTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertIsNone(response.data["project_start_date"])
-        self.assertIsNotNone(response.data["project_end_date"])
+        self.assertIsNone(response.data["project_end_date"])
+
+    def test_list_with_null_project_dates(self):
+        """Test that list endpoint handles accounts with null project dates"""
+        project_no_dates = structure_factories.ProjectFactory(
+            customer=self.fixture.project.customer,
+            kind=ProjectKind.COURSE,
+            start_date=None,
+            end_date=None,
+        )
+
+        factories.CourseAccountFactory(
+            project=project_no_dates, email="nulldates@example.com"
+        )
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.CourseAccountFactory.get_list_url()
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should return both accounts (one with dates, one without) without errors
+        self.assertEqual(len(response.data), 2)
+        null_account = next(
+            a for a in response.data if a["email"] == "nulldates@example.com"
+        )
+        self.assertIsNone(null_account["project_start_date"])
+        self.assertIsNone(null_account["project_end_date"])
 
 
 @override_waldur_core_settings(

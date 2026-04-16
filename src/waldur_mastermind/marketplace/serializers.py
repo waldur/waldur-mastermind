@@ -10107,9 +10107,11 @@ class CourseAccountSerializer(serializers.HyperlinkedModelSerializer):
     project_name = serializers.CharField(read_only=True, source="project.name")
     project_slug = serializers.CharField(read_only=True, source="project.slug")
     project_start_date = serializers.DateField(
-        read_only=True, source="project.start_date"
+        read_only=True, allow_null=True, source="project.start_date"
     )
-    project_end_date = serializers.DateField(read_only=True, source="project.end_date")
+    project_end_date = serializers.DateField(
+        read_only=True, allow_null=True, source="project.end_date"
+    )
 
     user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
     username = serializers.CharField(read_only=True, source="user.username")
