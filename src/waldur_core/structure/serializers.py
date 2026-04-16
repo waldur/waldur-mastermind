@@ -2251,7 +2251,7 @@ class BaseResourceSerializer(
         return [f.name for f in self.Meta.model._meta.get_fields()]
 
     # an optional generic URL for accessing a resource
-    def get_access_url(self, obj) -> str | None:
+    def get_access_url(self, obj) -> list[str] | str | None:
         return obj.get_access_url()
 
     def get_fields(self):
