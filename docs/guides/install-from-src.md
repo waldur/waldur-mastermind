@@ -19,7 +19,7 @@ VS Code will build the dev container and set up the environment automatically. T
 - Installing VS Code extensions
 - Installing uv and project dependencies
 - Installing PostgreSQL
-- Configuring pre-commit hooks
+- Configuring git hooks
 
 Once the container is built and running, you'll have a fully configured development environment ready to use.
 
@@ -69,8 +69,7 @@ cd waldur-mastermind
 
 ```bash
 uv sync --dev
-uv pip install -e .
-uv run pre-commit install
+uv tool install prek
 ```
 
 **NB**: If you use a machine with Apple M1 CPU, run this before:

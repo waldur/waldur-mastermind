@@ -57,7 +57,7 @@ The script creates a fresh database, runs all migrations, reports count and timi
 ### 5. Format and Commit
 
 ```bash
-uv run pre-commit run --files <squash_files>
+uvx prek run --files <squash_files>
 # Re-stage if ruff reformatted, then commit
 ```
 

@@ -13,9 +13,9 @@
 
 ## Code Quality Commands
 
-- **Lint code**: `uv run pre-commit run --all-files`
-- **Format code**: `uv run pre-commit run --all-files`
-- **Check code style**: `uv run pre-commit run --all-files`
+- **Lint code**: `uvx prek run --all-files`
+- **Format code**: `uvx prek run --all-files`
+- **Check code style**: `uvx prek run --all-files`
 
 ## Markdown Linting
 

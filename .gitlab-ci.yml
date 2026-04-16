@@ -73,8 +73,8 @@ Run linters:
   interruptible: true
   <<: *unit_test_rules
   script:
-    - pip install pre-commit
-    - pre-commit run --all
+    - pip install prek
+    - prek run --all-files
 
 Scan Python dependencies:
   extends: .Vulnerability scan template

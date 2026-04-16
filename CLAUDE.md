@@ -241,7 +241,7 @@ Detailed guides are in `docs/guides/`:
 DJANGO_SETTINGS_MODULE=waldur_core.server.test_settings_local uv run pytest
 
 # Lint/format
-uv run pre-commit run --all-files
+uvx prek run --all-files
 
 # Lint markdown
 mdl --style markdownlint-style.rb docs/
