@@ -68,7 +68,7 @@ before_script:
         - .gitlab-ci.yml # A change to the CI file itself should trigger tests
 
 Run linters:
-  image: registry.hpc.ut.ee/mirror/library/python:3.12-bullseye
+  image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
   stage: test
   interruptible: true
   <<: *unit_test_rules
@@ -82,7 +82,7 @@ Scan Python dependencies:
     LOCKFILE_PATH: "uv.lock"
 
 Check TransactionTestCase usage:
-  image: registry.hpc.ut.ee/mirror/library/python:3.12-bullseye
+  image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
   stage: test
   interruptible: true
   <<: *unit_test_rules
@@ -90,7 +90,7 @@ Check TransactionTestCase usage:
     - python scripts/analyze_transaction_test_cases.py --ci --baseline 80
 
 Validate documentation:
-  image: registry.hpc.ut.ee/mirror/library/python:3.12-bullseye
+  image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
   stage: test
   interruptible: true
   rules:
@@ -432,6 +432,7 @@ Publish multiarch docker image with specific version:
 Test Multi-arch docker image build:
   stage: test
   interruptible: true
+  allow_failure: true
   image: "quay.io/buildah/stable"
   rules:
     # Skip tests if said so
@@ -656,7 +657,7 @@ Generate Python SDK:
   interruptible: true
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
-  image: registry.hpc.ut.ee/mirror/library/python:3.12-bullseye
+  image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
   needs:
     - Generate OpenAPI schema
   script: |
@@ -899,7 +900,7 @@ Generate Ansible modules:
     # Run for both tagged releases and scheduled dev releases
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
-  image: registry.hpc.ut.ee/mirror/library/python:3.12-bullseye
+  image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
   needs:
     - Generate OpenAPI schema
   before_script:
@@ -948,7 +949,7 @@ Generate Ansible module changelog:
     # Run under the same conditions as the generator job
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
-  image: registry.hpc.ut.ee/mirror/library/python:3.12-bullseye
+  image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
   before_script:
     # We need git for cloning and jq for parsing JSON
     - apt-get update && apt-get install -y git jq

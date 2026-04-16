@@ -1336,8 +1336,8 @@ class ProposalSerializer(
     supporting_documentation = ProposalDocumentationSerializer(
         many=True, read_only=True, source="proposaldocumentation_set"
     )
-    oecd_fos_2007_label = serializers.ReadOnlyField(
-        source="get_oecd_fos_2007_code_display"
+    oecd_fos_2007_label = serializers.CharField(
+        read_only=True, source="get_oecd_fos_2007_code_display"
     )
     created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
     created_by_uuid = serializers.UUIDField(source="created_by.uuid", read_only=True)

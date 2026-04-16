@@ -33,7 +33,7 @@ class RemoteOfferingCreateResponseSerializer(serializers.Serializer):
 
 
 class RemoteProjectUpdateRequestSerializer(serializers.ModelSerializer):
-    state = serializers.ReadOnlyField(source="get_state_display")
+    state = serializers.CharField(read_only=True, source="get_state_display")
     customer_name = serializers.CharField(
         read_only=True, source="project.customer.name"
     )
@@ -119,6 +119,7 @@ class RemoteSynchronisationSerializer(
         source="local_service_provider.customer.name"
     )
     remotelocalcategory_set = NestedRemoteLocalCategorySerializer(many=True)
+    get_state_display = serializers.CharField(read_only=True)
 
     class Meta:
         model = models.RemoteSynchronisation

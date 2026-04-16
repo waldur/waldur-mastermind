@@ -274,7 +274,8 @@ class ProjectSerializer(
     resources_count = serializers.SerializerMethodField(
         help_text="Number of active resources in this project"
     )
-    oecd_fos_2007_label = serializers.ReadOnlyField(
+    oecd_fos_2007_label = serializers.CharField(
+        read_only=True,
         source="get_oecd_fos_2007_code_display",
         help_text="Human-readable label for the OECD FOS 2007 classification code",
     )
@@ -1176,7 +1177,7 @@ class ProjectEndDateChangeRequestCreateSerializer(serializers.ModelSerializer):
         lookup_field="uuid",
         queryset=models.Project.available_objects.all(),
     )
-    state = serializers.ReadOnlyField(source="get_state_display")
+    state = serializers.CharField(read_only=True, source="get_state_display")
     uuid = serializers.UUIDField(read_only=True)
 
     class Meta:
@@ -1241,7 +1242,7 @@ class ProjectEndDateChangeRequestSerializer(serializers.HyperlinkedModelSerializ
     def eager_load(queryset, request=None):
         return queryset.select_related("project__customer", "created_by", "reviewed_by")
 
-    state = serializers.ReadOnlyField(source="get_state_display")
+    state = serializers.CharField(read_only=True, source="get_state_display")
     project_uuid = serializers.UUIDField(read_only=True, source="project.uuid")
     project_name = serializers.CharField(read_only=True, source="project.name")
     customer_uuid = serializers.UUIDField(

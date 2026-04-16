@@ -195,7 +195,7 @@ class PolicySerializer(serializers.HyperlinkedModelSerializer):
 
 
 class EstimatedCostPolicySerializer(PolicySerializer):
-    period_name = serializers.ReadOnlyField(source="get_period_display")
+    period_name = serializers.CharField(read_only=True, source="get_period_display")
 
     class Meta(PolicySerializer.Meta):
         fields = PolicySerializer.Meta.fields + (
@@ -369,7 +369,7 @@ class OfferingPolicySerializerMixin(core_serializers.AugmentedSerializerMixin):
 class OfferingEstimatedCostPolicySerializer(
     OfferingPolicySerializerMixin, EstimatedCostPolicySerializer
 ):
-    period_name = serializers.ReadOnlyField(source="get_period_display")
+    period_name = serializers.CharField(read_only=True, source="get_period_display")
 
     class Meta(EstimatedCostPolicySerializer.Meta):
         fields = (
@@ -393,7 +393,7 @@ class NestedOfferingComponentLimitSerializer(serializers.ModelSerializer):
 
 class OfferingUsagePolicySerializer(OfferingPolicySerializerMixin, PolicySerializer):
     component_limits_set = NestedOfferingComponentLimitSerializer(many=True)
-    period_name = serializers.ReadOnlyField(source="get_period_display")
+    period_name = serializers.CharField(read_only=True, source="get_period_display")
 
     class Meta(PolicySerializer.Meta):
         fields = (
@@ -450,7 +450,7 @@ class OfferingUsagePolicySerializer(OfferingPolicySerializerMixin, PolicySeriali
 
 class NestedCustomerUsagePolicyComponentSerializer(serializers.ModelSerializer):
     type = serializers.CharField(source="component.type", read_only=True)
-    period_name = serializers.ReadOnlyField(source="get_period_display", read_only=True)
+    period_name = serializers.CharField(read_only=True, source="get_period_display")
     component = serializers.UUIDField(source="component.uuid")
 
     class Meta:

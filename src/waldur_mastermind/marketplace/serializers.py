@@ -11202,7 +11202,7 @@ class SiteAgentConfigGenerationSerializer(serializers.Serializer):
 class ResourceMissingUsageSerializer(serializers.ModelSerializer):
     """Serializer for resources with missing usage reports."""
 
-    state = serializers.ReadOnlyField(source="get_state_display")
+    state = serializers.CharField(read_only=True, source="get_state_display")
     offering_name = serializers.ReadOnlyField(source="offering.name")
     offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
     provider_name = serializers.ReadOnlyField(source="offering.customer.name")
