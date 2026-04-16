@@ -87,6 +87,7 @@ class DryRunSerializer(
         write_only=True,
     )
     attributes = serializers.JSONField(required=False, write_only=True)
+    get_state_display = serializers.CharField(read_only=True)
 
     class Meta:
         model = marketplace_script_models.DryRun

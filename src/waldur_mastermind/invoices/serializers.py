@@ -823,7 +823,9 @@ class PaymentProfileSerializer(serializers.HyperlinkedModelSerializer):
     organization_uuid = serializers.UUIDField(
         read_only=True, source="organization.uuid"
     )
-    payment_type_display = serializers.ReadOnlyField(source="get_payment_type_display")
+    payment_type_display = serializers.CharField(
+        read_only=True, source="get_payment_type_display"
+    )
     attributes = PaymentProfileAttributesField(required=False)
 
     class Meta:

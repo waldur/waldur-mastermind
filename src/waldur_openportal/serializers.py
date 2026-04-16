@@ -629,7 +629,7 @@ class ManagedProjectSerializer(
     structure_serializers.PermissionFieldFilteringMixin,
     rf_serializers.ModelSerializer,
 ):
-    state = rf_serializers.ReadOnlyField(source="get_state_display")
+    state = rf_serializers.CharField(read_only=True, source="get_state_display")
 
     reviewed_by_full_name = rf_serializers.CharField(
         read_only=True, source="reviewed_by.full_name"

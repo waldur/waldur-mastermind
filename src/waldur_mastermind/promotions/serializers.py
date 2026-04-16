@@ -36,7 +36,7 @@ class CampaignSerializer(
         required=False,
     )
 
-    state = serializers.ReadOnlyField(source="get_state_display")
+    state = serializers.CharField(read_only=True, source="get_state_display")
 
     def get_fields(self):
         fields = super(core_serializers.AugmentedSerializerMixin, self).get_fields()

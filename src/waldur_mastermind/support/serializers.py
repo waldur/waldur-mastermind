@@ -49,8 +49,10 @@ def render_issue_template(config_name, template_name, issue):
 
 
 class NestedFeedbackSerializer(serializers.HyperlinkedModelSerializer):
-    state = serializers.ReadOnlyField(
-        source="get_state_display", help_text="Current state of the feedback"
+    state = serializers.CharField(
+        read_only=True,
+        source="get_state_display",
+        help_text="Current state of the feedback",
     )
     evaluation = serializers.IntegerField(
         read_only=True, help_text="Customer satisfaction rating (1-5 stars)"
