@@ -25,8 +25,8 @@ waldur ai_assistant run_all
 
 ```bash
 
-usage: waldur ai_assistant {health,validate_scenarios,test_evaluation,run_all}
-                           ...
+usage: waldur ai_assistant
+                           {health,validate_scenarios,test_evaluation,run_all} ...
 
 positional arguments:
   {health,validate_scenarios,test_evaluation,run_all}
@@ -255,9 +255,9 @@ Create a user with a specified username and password. User will be created as st
 usage: waldur createstaffuser -u USERNAME -p PASSWORD -e EMAIL
 
 options:
-  -u USERNAME, --username USERNAME
-  -p PASSWORD, --password PASSWORD
-  -e EMAIL, --email EMAIL
+  -u, --username USERNAME
+  -p, --password PASSWORD
+  -e, --email EMAIL
 
 ```
 
@@ -365,9 +365,8 @@ Dumps information about users, their organizations and projects.
 usage: waldur dumpusers [-o OUTPUT]
 
 options:
-  -o OUTPUT, --output OUTPUT
-                        Specifies file to which the output is written. The
-                        output will be printed to stdout by default.
+  -o, --output OUTPUT  Specifies file to which the output is written. The
+                       output will be printed to stdout by default.
 
 ```
 
@@ -381,9 +380,9 @@ usage: waldur evaluate_slurm_policy -p POLICY_UUID [-r RESOURCE_UUID] [--sync]
                                     [--dry-run]
 
 options:
-  -p POLICY_UUID, --policy POLICY_UUID
+  -p, --policy POLICY_UUID
                         UUID of the SlurmPeriodicUsagePolicy to evaluate.
-  -r RESOURCE_UUID, --resource RESOURCE_UUID
+  -r, --resource RESOURCE_UUID
                         UUID of a specific resource to evaluate. If omitted,
                         evaluates all resources in the policy's offering.
   --sync                Run evaluation synchronously (blocking) instead of
@@ -406,9 +405,8 @@ Export OIDC auth configuration as YAML format
 usage: waldur export_auth_social [-o OUTPUT]
 
 options:
-  -o OUTPUT, --output OUTPUT
-                        Specifies file to which the output is written. The
-                        output will be printed to stdout by default.
+  -o, --output OUTPUT  Specifies file to which the output is written. The
+                       output will be printed to stdout by default.
 
 ```
 
@@ -425,9 +423,9 @@ Export an offering from Waldur. Export data includes JSON file with an offering 
 usage: waldur export_offering -o OFFERING -p PATH
 
 options:
-  -o OFFERING, --offering OFFERING
+  -o, --offering OFFERING
                         An offering UUID.
-  -p PATH, --path PATH  Path to the folder where the export data will be
+  -p, --path PATH       Path to the folder where the export data will be
                         saved.
 
 ```
@@ -495,11 +493,10 @@ waldur export_structure --output /path/to/structure.json
 usage: waldur export_structure -o OUTPUT [--verbose] [--include-events]
 
 options:
-  -o OUTPUT, --output OUTPUT
-                        Path to the output JSON file.
-  --verbose             Enable verbose logging output
-  --include-events      Include audit log events related to invoicing, credits
-                        and policies.
+  -o, --output OUTPUT  Path to the output JSON file.
+  --verbose            Enable verbose logging output
+  --include-events     Include audit log events related to invoicing, credits
+                       and policies.
 
 ```
 
@@ -521,12 +518,12 @@ positional arguments:
   app_label             Name of the application or applications.
 
 options:
-  --output OUTPUT_FILE, -o OUTPUT_FILE
+  --output, -o OUTPUT_FILE
                         Save the diagram to a file.
-  --include-models INCLUDE_MODELS, -i INCLUDE_MODELS
+  --include-models, -i INCLUDE_MODELS
                         Models to include (comma-separated, wildcards
                         supported).
-  --exclude-models EXCLUDE_MODELS, -e EXCLUDE_MODELS
+  --exclude-models, -e EXCLUDE_MODELS
                         Models to exclude (comma-separated, wildcards
                         supported).
   --exclude-field-types EXCLUDE_FIELD_TYPES
@@ -534,7 +531,7 @@ options:
                         'TranslationCharField,JsonField').
   --verbose-names       Use model and field verbose_names.
   --no-inheritance      Don't draw inheritance arrows.
-  --direction {TB,BT,LR,RL}, -d {TB,BT,LR,RL}
+  --direction, -d {TB,BT,LR,RL}
                         Direction of the diagram layout.
   --disable-fields      Don't show fields, only model names and relationships.
 
@@ -611,12 +608,12 @@ usage: waldur import_offering -p PATH [-c CUSTOMER] [-ct CATEGORY]
                               [-o OFFERING]
 
 options:
-  -p PATH, --path PATH  File path to offering data.
-  -c CUSTOMER, --customer CUSTOMER
+  -p, --path PATH       File path to offering data.
+  -c, --customer CUSTOMER
                         Customer UUID.
-  -ct CATEGORY, --category CATEGORY
+  -ct, --category CATEGORY
                         Category UUID.
-  -o OFFERING, --offering OFFERING
+  -o, --offering OFFERING
                         Updated offering UUID.
 
 ```
@@ -633,9 +630,8 @@ usage: waldur import_reppu_usages [-m MONTH] [-y YEAR]
                                   [--dry-run | --no-dry-run]
 
 options:
-  -m MONTH, --month MONTH
-                        Month for which data is imported.
-  -y YEAR, --year YEAR  Year for which data is imported.
+  -m, --month MONTH     Month for which data is imported.
+  -y, --year YEAR       Year for which data is imported.
   --reppu-api-url REPPU_API_URL
                         Reppu API URL.
   --reppu-api-token REPPU_API_TOKEN
@@ -691,8 +687,7 @@ usage: waldur import_structure -i INPUT [--update] [--skip-users]
                                [--skip-rabbitmq-messages] [--skip-user-sync]
 
 options:
-  -i INPUT, --input INPUT
-                        Path to the input JSON file.
+  -i, --input INPUT     Path to the input JSON file.
   --update              Update existing objects instead of skipping them.
   --skip-users          Skip importing users.
   --skip-roles          Skip importing roles and role permissions.
@@ -838,9 +833,9 @@ Imports privacy policy and terms of service into DB
 usage: waldur load_user_agreements [-tos TOS] [-pp PP] [-l LANGUAGE] [-f]
 
 options:
-  -tos TOS, --tos TOS   Path to a Terms of service file
-  -pp PP, --pp PP       Path to a Privacy policy file
-  -l LANGUAGE, --language LANGUAGE
+  -tos, --tos TOS       Path to a Terms of service file
+  -pp, --pp PP          Path to a Privacy policy file
+  -l, --language LANGUAGE
                         ISO 639-1 language code (e.g., 'en', 'de', 'et').
                         Leave empty for the default version.
   -f, --force           Force loading agreements even if they are already
@@ -880,9 +875,9 @@ usage: waldur move_project -p PROJECT_UUID -c CUSTOMER_UUID
                            [--preserve-user-permissions]
 
 options:
-  -p PROJECT_UUID, --project PROJECT_UUID
+  -p, --project PROJECT_UUID
                         UUID of a project to move.
-  -c CUSTOMER_UUID, --customer CUSTOMER_UUID
+  -c, --customer CUSTOMER_UUID
                         Target organization UUID
   --preserve-user-permissions
                         Preserve user permissions
@@ -898,9 +893,9 @@ Move a marketplace resource to a different project.
 usage: waldur move_resource -p PROJECT_UUID -r RESOURCE_UUID
 
 options:
-  -p PROJECT_UUID, --project PROJECT_UUID
+  -p, --project PROJECT_UUID
                         Target project UUID
-  -r RESOURCE_UUID, --resource RESOURCE_UUID
+  -r, --resource RESOURCE_UUID
                         UUID of a marketplace resource to move.
 
 ```
@@ -914,10 +909,9 @@ Dumps information about organization access subnets, merging adjacent or overlap
 usage: waldur organization_access_subnets [-o OUTPUT]
 
 options:
-  -o OUTPUT, --output OUTPUT
-                        Specifies file to which the merged subnets will be
-                        written. The output will be printed to stdout by
-                        default.
+  -o, --output OUTPUT  Specifies file to which the merged subnets will be
+                       written. The output will be printed to stdout by
+                       default.
 
 ```
 
@@ -998,7 +992,7 @@ Load data with disabled signals.
 usage: waldur pgmigrate [--path PATH]
 
 options:
-  --path PATH, -p PATH  Path to dumped database.
+  --path, -p PATH  Path to dumped database.
 
 ```
 
@@ -1142,9 +1136,9 @@ Set or remove language-specific login logos
 usage: waldur set_login_logo_language -l LANGUAGE [-f FILE] [-r]
 
 options:
-  -l LANGUAGE, --language LANGUAGE
+  -l, --language LANGUAGE
                         ISO 639-1 language code (e.g., 'de', 'et', 'fr')
-  -f FILE, --file FILE  Path to the logo image file
+  -f, --file FILE       Path to the logo image file
   -r, --remove          Remove the language-specific logo
 
 ```
@@ -1159,10 +1153,10 @@ usage: waldur slurm_policy_status [-p POLICY_UUID] [-r RESOURCE_UUID]
                                   [--logs LOGS] [--commands COMMANDS]
 
 options:
-  -p POLICY_UUID, --policy POLICY_UUID
+  -p, --policy POLICY_UUID
                         UUID of a specific policy. If omitted, shows all SLURM
                         policies.
-  -r RESOURCE_UUID, --resource RESOURCE_UUID
+  -r, --resource RESOURCE_UUID
                         Filter output to a specific resource UUID.
   --logs LOGS           Number of recent evaluation logs to display (default:
                         10).
