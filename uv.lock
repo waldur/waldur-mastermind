@@ -3329,9 +3329,6 @@ dev = [
     { name = "responses" },
     { name = "respx" },
 ]
-local-ml = [
-    { name = "fastembed" },
-]
 
 [package.metadata]
 requires-dist = [
@@ -3436,7 +3433,6 @@ dev = [
     { name = "responses", specifier = "==0.25.3" },
     { name = "respx", specifier = ">=0.22.0,<1.0.0" },
 ]
-local-ml = [{ name = "fastembed", specifier = ">=0.6.0,<1.0.0" }]
 
 [[package]]
 name = "warlock"

@@ -238,7 +238,3 @@ dev = [
     "pydot>=1.4.2,<2.0.0",
     "django-extensions>=3.2.3,<4.0.0",
 ]
-# Local ML inference deps — only for environments with glibc (not Alpine/musl Docker images).
-local-ml = [
-    "fastembed>=0.6.0,<1.0.0",
-]

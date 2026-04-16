@@ -1,47 +1,44 @@
 # Use to avoid pull rate limit for Docker Hub images
 ARG DOCKER_REGISTRY=docker.io/
 
-FROM ${DOCKER_REGISTRY}python:3.12-alpine
+FROM ${DOCKER_REGISTRY}python:3.12-slim
 
 ENV LANG=C.UTF-8
 
 # Install necessary system packages.
-RUN apk update && \
-    apk add --no-cache \
-    git\>=2.45 \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    git \
     # bash is used in multiple scripts in docker/rootfs.
-    bash\>=5.2 \
-    # Commands for managing user accounts and authentication. "useradd" and "groupadd" are used in "app-entrypoint.sh".
-    shadow\>=4.15 \
+    bash \
     # file provides libmagic package. "import magic" in files like "storage.py" or "utils.py".
-    file\>=5.45 \
-    # The ldap-related package used with django-auth-ldap. Openldap-dev is necessary
-    openldap-dev\>=2.6 \
-    openssl\>=3.3 \
-    libffi-dev\>=3.4 \
-    libjpeg-turbo-dev\>=3.0 \
-    libxml2-dev\>=2.12 \
-    libxslt-dev\>=1.1 \
+    file \
+    # The ldap-related package used with django-auth-ldap.
+    libldap2-dev \
+    libsasl2-dev \
+    libssl-dev \
+    libffi-dev \
+    libjpeg-dev \
+    libxml2-dev \
+    libxslt1-dev \
     # xmlsec is used in django saml2.
-    xmlsec\>=1.3 \
-    build-base\>=0.5 \
-    jpeg-dev\>=9 \
-    zlib-dev\>=1.3 \
+    xmlsec1 \
+    libxmlsec1-dev \
+    # Build tools needed for compiling Python packages with C extensions.
+    build-essential \
+    zlib1g-dev \
     # Needed for old style slurm support which requires SSH command.
-    openssh\>=9.7 \
-    # Needed for psutil
-    gcc\>=14.2 \
-    python3-dev\>=3.12 \
-    musl-dev\>=1.2 \
-    linux-headers\>=6.6 \
-    # GNU coreutils to replace BusyBox date command to generate date in correct format in scripts
-    coreutils\>=9.4
+    openssh-client \
+    # Needed for psutil and other C extensions
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set up locales
 RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen
 
 # Create local group and user
-RUN /usr/sbin/groupadd -g 1001 waldur && useradd --home /var/lib/waldur --shell /bin/sh --system --uid 1001 --gid 1001 waldur
+RUN groupadd -g 1001 waldur && useradd --home /var/lib/waldur --shell /bin/sh --system --uid 1001 --gid 1001 waldur
 
 # Create directories and set permissions for OpenShift compatibility
 RUN mkdir -p /usr/src/waldur /var/lib/waldur /run/waldur/celery /run/waldur/celerybeat && \
@@ -58,10 +55,10 @@ COPY docker/rootfs /
 RUN cd /usr/src/waldur && find . -name "tests" -exec rm -r {} + && bash docker_build.sh
 
 # Delete .git directories
-RUN find -f /usr/src/waldur/ -name ".git" -type d -exec rm -rf {} + || true
+RUN find /usr/src/waldur/ -name ".git" -type d -exec rm -rf {} + || true
 
-# Delete build-base package
-RUN apk del build-base
+# Delete build packages
+RUN apt-get purge -y build-essential gcc && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 # Set permissions again after copying files
 RUN chown -R waldur /usr/src/waldur /var/lib/waldur /run/waldur/celery && \
