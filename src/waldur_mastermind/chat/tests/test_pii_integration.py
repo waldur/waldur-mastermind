@@ -11,6 +11,7 @@ from waldur_mastermind.chat.models import Message
 from waldur_mastermind.chat.tests.utils import (
     _make_content_chunk,
     _mock_openai_client,
+    text_from_blocks,
 )
 
 
@@ -151,8 +152,9 @@ class IBANRedactTest(PIIIntegrationBaseTest):
         self.assertTrue(user_msg.is_flagged)
         self.assertEqual(user_msg.action_taken, "redact")
         # Stored content should contain redacted text, not original IBAN
-        self.assertNotIn("EE382200221020145685", user_msg.content)
-        self.assertIn("REDACTED", user_msg.content)
+        stored_text = text_from_blocks(user_msg.blocks)
+        self.assertNotIn("EE382200221020145685", stored_text)
+        self.assertIn("REDACTED", stored_text)
 
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(

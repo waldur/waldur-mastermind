@@ -170,7 +170,7 @@ class GuideProposalTool(BaseTool):
             "data": call_data,
             "summary": summary,
             "ui_component": "homeport_nav",
-            "ui_data": {"links": nav_links, "context": summary},
+            "ui_data": {"links": nav_links, "content": summary},
         }
 
 

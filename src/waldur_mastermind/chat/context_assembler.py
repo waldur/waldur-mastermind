@@ -159,36 +159,9 @@ def _get_conversation_history(thread) -> list[dict]:
     db_messages = _get_thread_messages(thread)
     if db_messages is None or not db_messages.exists():
         return []
-    result = []
-    for role, content, tool_calls in db_messages.values_list(
-        "role", "content", "tool_calls"
-    ):
-        if tool_calls and role == Message.Role.ASSISTANT:
-            msg = {"role": role, "content": content or None}
-            msg["tool_calls"] = [
-                {
-                    "id": tc["id"],
-                    "type": "function",
-                    "function": {
-                        "name": tc["name"],
-                        "arguments": json.dumps(tc["arguments"]),
-                    },
-                }
-                for tc in tool_calls
-            ]
-            result.append(msg)
-            # OpenAI requires tool role messages after assistant tool_calls
-            for tc in tool_calls:
-                summary = tc.get("summary", "Done")
-                result.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tc["id"],
-                        "content": summary,
-                    }
-                )
-        elif content:
-            result.append({"role": role, "content": content})
+    result: list[dict] = []
+    for msg in db_messages:
+        result.extend(blocks_to_llm_messages(msg))
     return result
 
 
@@ -208,3 +181,97 @@ def build_rejection_input(thread) -> list[dict] | None:
         organization=config.SITE_NAME,
     )
     return [{"role": "system", "content": rejection_prompt}, *history]
+
+
+# -------- blocks -> LLM messages --------
+
+_FENCED_KINDS = {"code", "mermaid"}
+_TEXT_KINDS = {"markdown"} | _FENCED_KINDS
+
+
+def _block_to_text(block: dict) -> str:
+    """Render a text-bearing block as the string the LLM will see."""
+    key = block["key"]
+    content = block.get("content", "")
+    if key == "code":
+        return f"```{block.get('tag', '')}\n{content}\n```"
+    if key == "mermaid":
+        return f"```mermaid\n{content}\n```"
+    return content  # markdown
+
+
+def blocks_to_llm_messages(message) -> list[dict]:
+    """Convert Message.blocks into an OpenAI-style message list.
+
+    Text-bearing blocks (markdown/code/mermaid) accumulate into a single
+    role=<message.role> text entry. Tool blocks combine any pending text
+    into the `content` field of the assistant tool_calls entry — this is
+    the canonical OpenAI shape the model itself emits when calling tools
+    with accompanying prose. The tool_calls entry is followed by a
+    role=tool reply built from the tool summary. Any trailing text after
+    a tool block flushes as its own role=assistant message.
+    """
+    result: list[dict] = []
+    text_buf: list[str] = []
+
+    def _drain_text() -> str:
+        content = "\n\n".join(text_buf) if text_buf else ""
+        text_buf.clear()
+        return content
+
+    def _flush_text_msg():
+        content = _drain_text()
+        if content:
+            result.append({"role": message.role, "content": content})
+
+    for block in message.blocks or []:
+        key = block.get("key")
+        if key in _TEXT_KINDS:
+            text_buf.append(_block_to_text(block))
+        elif key == "tool":
+            # Defensive: skip malformed tool blocks missing the `tool`
+            # metadata sub-dict. This can happen for rows persisted before
+            # `_finalize_current_block` learned to drop loading tool blocks
+            # that never received a result (hidden tool errors, cancellation).
+            # We skip rather than synthesize a placeholder because emitting a
+            # tool_calls entry without a matching tool-role reply would leave
+            # the LLM context in an invalid state.
+            tool = block.get("tool")
+            if not tool or not tool.get("call_id"):
+                logger.warning(
+                    "Skipping malformed tool block in message %s: missing tool metadata",
+                    getattr(message, "uuid", "?"),
+                )
+                continue
+            # Combine pending text onto the tool_calls message (OpenAI
+            # canonical shape). content=None when there's no preceding text.
+            pending = _drain_text()
+            result.append(
+                {
+                    "role": "assistant",
+                    "content": pending or None,
+                    "tool_calls": [
+                        {
+                            "id": tool["call_id"],
+                            "type": "function",
+                            "function": {
+                                "name": tool.get("name", ""),
+                                "arguments": json.dumps(tool.get("arguments") or {}),
+                            },
+                        }
+                    ],
+                }
+            )
+            result.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool["call_id"],
+                    "content": tool.get("summary", ""),
+                }
+            )
+        # vm_order blocks without a tool wrapper are unusual -- skip them
+        # in LLM context (they would only appear if the assistant emitted
+        # a standalone structured block, which our streamer does not
+        # currently do).
+    _flush_text_msg()
+    return result

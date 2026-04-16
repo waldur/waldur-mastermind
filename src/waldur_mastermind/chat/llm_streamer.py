@@ -120,7 +120,10 @@ class LLMStreamer:
             timeout=httpx.Timeout(60.0, connect=5.0),
         )
         self.parser = StreamParser()
-        self.accumulated_content = ""
+        self.accumulated_blocks: list[dict] = []
+        self._current_block: dict | None = None
+        self.accumulated_warning: str = ""
+        self.pending_tool_calls: dict[str, dict] = {}
         self.tool_calls: dict[int, dict] = {}
         self.user = user
         self.input_tokens = None
@@ -215,8 +218,11 @@ class LLMStreamer:
         return self._client_gone.is_set() or self._cancel_requested.is_set()
 
     def _enqueue(self, item):
-        """When the client has disconnected or canceled we silently discard items so the
-        worker thread is never blocked on a full queue that nobody drains."""
+        """Put an item on the consumer queue, discarding only when the client
+        has disconnected so the worker thread is never blocked on a full queue
+        that nobody drains. On cancel the client is still reading the stream,
+        so we keep enqueuing final frames (cancel marker, persisted meta,
+        _StreamDone)."""
         while not self._client_gone.is_set():
             try:
                 self._queue.put(item, timeout=0.5)
@@ -266,13 +272,173 @@ class LLMStreamer:
                 return True
         return False
 
+    def _absorb_block(self, chunk: dict) -> None:
+        """Update accumulated_blocks / accumulated_warning from a parsed chunk.
+
+        Chunks are the same dicts the streamer already yields to the frontend
+        (via self.parser.parse()). This method keeps a finalized blocks list
+        mirroring the wire stream so persistence can write Message.blocks as-is.
+        """
+        if "w" in chunk:
+            self.accumulated_warning = chunk["w"]
+            return
+
+        kind = chunk.get("k")
+        call_id = chunk.get("call_id")
+
+        if kind == "load":
+            self._finalize_current_block()
+            self._current_block = {
+                "id": self._next_block_id(),
+                "key": "tool",
+                "status": "loading",
+                "_pending_call_id": call_id,
+            }
+            return
+
+        if (
+            self._current_block is not None
+            and self._current_block.get("key") == "tool"
+            and self._current_block.get("status") == "loading"
+            and call_id
+            and self._current_block.get("_pending_call_id") == call_id
+        ):
+            result_block = self._chunk_to_block(
+                chunk, blk_id=f"{self._current_block['id']}_r"
+            )
+            tool_meta = (self.pending_tool_calls or {}).get(call_id, {})
+            self._current_block = {
+                "id": self._current_block["id"],
+                "key": "tool",
+                "status": "complete",
+                "tool": {
+                    "call_id": call_id,
+                    "name": tool_meta.get("name", ""),
+                    "arguments": tool_meta.get("arguments") or {},
+                    "summary": tool_meta.get("summary", ""),
+                },
+                "result": result_block,
+            }
+            self._finalize_current_block()
+            return
+
+        if kind in ("markdown", "code", "mermaid"):
+            if (
+                self._current_block is not None
+                and self._current_block.get("key") == kind
+                and self._current_block.get("status") != "loading"
+            ):
+                self._current_block["content"] += chunk.get("c", "")
+            else:
+                self._finalize_current_block()
+                self._current_block = self._chunk_to_block(
+                    chunk, blk_id=self._next_block_id()
+                )
+            return
+
+        if kind == "vm_order":
+            self._finalize_current_block()
+            self._current_block = self._chunk_to_block(
+                chunk, blk_id=self._next_block_id()
+            )
+            self._finalize_current_block()
+            return
+
+        logger.warning(
+            "Unknown block kind in accumulator: kind=%r chunk_keys=%r",
+            kind,
+            sorted(chunk.keys()),
+        )
+
+    def _finalize_current_block(self) -> None:
+        """Move _current_block into accumulated_blocks with status=complete.
+
+        Loading tool blocks that never received a result (hidden tool errors,
+        mid-stream cancellation, or arg-parse failures) are dropped instead of
+        persisted.  Persisting them would yield a ``key=="tool"`` block with no
+        ``tool`` sub-dict, which later crashes context assembly.
+        """
+        if self._current_block is None:
+            return
+        if (
+            self._current_block.get("key") == "tool"
+            and self._current_block.get("status") == "loading"
+        ):
+            self._current_block = None
+            return
+        blk = {k: v for k, v in self._current_block.items() if not k.startswith("_")}
+        blk["status"] = "complete"
+        self.accumulated_blocks.append(blk)
+        self._current_block = None
+
+    def _next_block_id(self) -> str:
+        """Return the next stable block id.
+
+        Invariant: ids are monotonically increasing per absorbed block.
+        `len(accumulated_blocks)` is the count of finalized blocks; the
+        `+1` reserves the slot occupied by `_current_block` if one is
+        open but not yet finalized. This relies on `_finalize_current_block`
+        always nulling `_current_block` after append — never reuse a
+        finalized block.
+        """
+        return f"blk_{len(self.accumulated_blocks) + (1 if self._current_block else 0)}"
+
+    def _chunk_to_block(self, chunk: dict, blk_id: str) -> dict:
+        """Normalize a wire chunk dict into a persisted block dict."""
+        kind = chunk.get("k", "markdown")
+        base: dict = {"id": blk_id, "key": kind, "status": "complete"}
+        if kind in ("markdown", "code", "mermaid"):
+            base["content"] = chunk.get("c", "")
+            if "t" in chunk and kind == "code":
+                base["tag"] = chunk["t"]
+        elif kind == "vm_order":
+            for field in (
+                "order_id",
+                "name",
+                "flavor",
+                "image",
+                "project",
+                "organization",
+                "project_uuid",
+                "order_status",
+                "message",
+                "error",
+                "flavors",
+                "images",
+                "projects",
+                "offerings",
+            ):
+                if field in chunk:
+                    base[field] = chunk[field]
+        elif kind == "resource_list":
+            for field in (
+                "project_uuid",
+                "customer_uuid",
+                "category_uuid",
+                "state",
+            ):
+                if field in chunk:
+                    base[field] = chunk[field]
+        elif kind == "homeport_nav":
+            for field in ("links", "content"):
+                if field in chunk:
+                    base[field] = chunk[field]
+        return base
+
     def _flush_parser(self):
-        """Flush remaining parser content to the queue. Idempotent."""
+        """Flush remaining parser content to the queue. Idempotent.
+
+        Also finalizes any in-progress accumulator block — by the time
+        the parser flushes, the stream is done and no further deltas can
+        extend the current block.
+        """
         if self._flushed:
             return
         self._flushed = True
         for block in self.parser.flush():
+            self._absorb_block(block)
             self._enqueue(self._format_ndjson(block))
+        self._finalize_current_block()
 
     @staticmethod
     def _parse_arguments(raw: str) -> dict | None:
@@ -303,15 +469,22 @@ class LLMStreamer:
 
         # Yield PII warning as first content event (before LLM content)
         if self.pii_warning:
+            self._absorb_block({"w": self.pii_warning})
             yield self._format_ndjson({"w": self.pii_warning})
 
         # Blocked input: stream canned rejection synchronously (no LLM call)
         if self.canned_response:
-            self.accumulated_content = self.canned_response
             for block in self.parser.parse(self.canned_response):
+                self._absorb_block(block)
                 yield self._format_ndjson(block)
+            # Drain the remaining parser buffer and finalize any in-progress
+            # block. We can't use _flush_parser() here because it enqueues
+            # frames on self._queue, but the canned path yields directly.
+            self._flushed = True
             for block in self.parser.flush():
+                self._absorb_block(block)
                 yield self._format_ndjson(block)
+            self._finalize_current_block()
             self._persist_messages()
             if self._persisted_message_meta:
                 yield self._format_ndjson({"m": self._persisted_message_meta})
@@ -398,6 +571,11 @@ class LLMStreamer:
                 )
             )
         finally:
+            # Flush any buffered parser content / in-progress block so
+            # accumulated_blocks reflects everything the stream produced.
+            # Safe to call even when the normal flush path already ran
+            # (idempotent via self._flushed).
+            self._flush_parser()
             # Always persist — worker is the single owner of DB operations.
             self._persist_messages()
             # Title-gen tokens are stored on ThreadSession.title_gen_tokens
@@ -491,8 +669,8 @@ class LLMStreamer:
                 delta = chunk.choices[0].delta
 
                 if delta.content:
-                    self.accumulated_content += delta.content
                     for block in self.parser.parse(delta.content):
+                        self._absorb_block(block)
                         self._enqueue(self._format_ndjson(block))
 
                 if delta.tool_calls:
@@ -504,8 +682,24 @@ class LLMStreamer:
     def _execute_tool_calls_worker(self, tool_calls: dict[int, dict]):
         """Execute all streamed tool calls and enqueue UI component results."""
         tool_executor = ToolExecutor(self.user)
+
+        # Build call_id → metadata lookup for the blocks accumulator. The
+        # wire chunks do not carry call_id (to preserve the frontend
+        # protocol), so we inject it into local copies below and have the
+        # accumulator look up name/arguments/summary via this dict.
+        self.pending_tool_calls = {
+            entry["id"]: {
+                "name": entry["name"],
+                "arguments": self._parse_arguments(entry["arguments"]) or {},
+                "summary": "",
+            }
+            for entry in tool_calls.values()
+            if entry.get("id")
+        }
+
         for entry in tool_calls.values():
             tool_name = entry["name"]
+            call_id = entry.get("id", "")
             arguments = self._parse_arguments(entry["arguments"])
             if arguments is None:
                 logger.warning(
@@ -516,7 +710,9 @@ class LLMStreamer:
                 continue
 
             # Emit loading indicator so the frontend can show an inline spinner
-            self._enqueue(self._format_ndjson({"k": "load", "t": "tool"}))
+            load_chunk = {"k": "load", "t": "tool"}
+            self._absorb_block({**load_chunk, "call_id": call_id})
+            self._enqueue(self._format_ndjson(load_chunk))
 
             logger.debug(
                 "Executing tool call",
@@ -531,28 +727,14 @@ class LLMStreamer:
             # Store full data for LLM follow-up call
             entry["_result_data"] = result.get("data", {})
 
+            # Keep accumulator metadata in sync so the tool block has the
+            # correct summary when the result chunk is folded in.
+            if call_id in self.pending_tool_calls:
+                self.pending_tool_calls[call_id]["summary"] = result.get("summary", "")
+
             if tool_block:
+                self._absorb_block({**tool_block, "call_id": call_id})
                 self._enqueue(self._format_ndjson(tool_block))
-
-    def _serialized_tool_calls(self) -> list[dict]:
-        """Return tool calls in a clean format for DB storage."""
-        result = []
-        for entry in self.tool_calls.values():
-            arguments = self._parse_arguments(entry["arguments"]) or {}
-            tc_data = {"id": entry["id"], "name": entry["name"], "arguments": arguments}
-
-            # Include rendered tool result for history reconstruction
-            tool_block = entry.get("_result_block")
-            if tool_block:
-                tc_data["result"] = tool_block
-
-            # Include summary for LLM context in subsequent turns
-            summary = entry.get("_summary")
-            if summary:
-                tc_data["summary"] = summary
-
-            result.append(tc_data)
-        return result
 
     def _persist_on_cancel(self):
         """Flush parser and persist partial content immediately on cancel.
@@ -579,6 +761,12 @@ class LLMStreamer:
             return
         if self._persisted:
             return
+
+        # Defensive: the worker's finally block already flushes the parser,
+        # but _persist_on_cancel / canned-response paths bypass that, so
+        # guarantee accumulated_blocks is fully materialized before we hit
+        # the database. Idempotent via self._flushed.
+        self._flush_parser()
 
         try:
             with transaction.atomic():
@@ -615,21 +803,23 @@ class LLMStreamer:
 
         On error-before-content the placeholder is deleted so the original
         message revives (SET_NULL on ``replaces``).  Otherwise, the
-        placeholder is updated with the accumulated content.
-
-        Returns the saved Message, or None if deleted.
+        placeholder is updated with the accumulated blocks.
         """
-        if self.error and not self.accumulated_content:
+        # Finalize any block still streaming.
+        self._finalize_current_block()
+
+        if self.error and not self.accumulated_blocks:
             self.assistant_msg.delete()
             return None
-        self.assistant_msg.content = self.accumulated_content
-        self.assistant_msg.tool_calls = self._serialized_tool_calls()
+
+        self.assistant_msg.blocks = self.accumulated_blocks
+        self.assistant_msg.warning = self.accumulated_warning
         self.assistant_msg.input_tokens = self.input_tokens
         self.assistant_msg.output_tokens = self.output_tokens
         self.assistant_msg.save(
             update_fields=[
-                "content",
-                "tool_calls",
+                "blocks",
+                "warning",
                 "input_tokens",
                 "output_tokens",
                 "modified",
@@ -682,19 +872,28 @@ class LLMStreamer:
             user_msg = models.Message.objects.create(
                 thread=locked_thread,
                 role=models.Message.Role.USER,
-                content=self.original_input,
+                blocks=[
+                    {
+                        "id": "blk_0",
+                        "key": "markdown",
+                        "status": "complete",
+                        "content": self.original_input,
+                    }
+                ],
                 sequence_index=last_index + 1,
             )
 
         if self.assistant_msg:
             assistant_msg = self._resolve_assistant_placeholder()
         else:
+            # Finalize any block still streaming before persisting.
+            self._finalize_current_block()
             assistant_msg = models.Message.objects.create(
                 thread=locked_thread,
                 role=models.Message.Role.ASSISTANT,
-                content=self.accumulated_content,
+                blocks=self.accumulated_blocks,
+                warning=self.accumulated_warning,
                 sequence_index=user_msg.sequence_index + 1,
-                tool_calls=self._serialized_tool_calls(),
                 input_tokens=self.input_tokens,
                 output_tokens=self.output_tokens,
             )
@@ -716,17 +915,36 @@ class LLMStreamer:
         locked_thread.cancel_requested_at = None
         locked_thread.save(update_fields=["modified", "cancel_requested_at"])
 
+    def _title_source_text(self) -> str:
+        """Return the user text to use as title generation input.
+
+        Prefers blocks[0]['content'] when the persisted user_msg is available,
+        falling back to original_input for:
+        - the canned-response path where user_msg is never created;
+        - user_msg with empty blocks;
+        - first block that is non-textual or has empty content (e.g. a
+          vm_order block, where .get("content") returns "" or None).
+        For the normal markdown path, both sources are equal by construction,
+        so this is a blocks-first cleanup with no behavior change.
+        """
+        if self.user_msg and self.user_msg.blocks:
+            content = self.user_msg.blocks[0].get("content") or ""
+            if content:
+                return content
+        return self.original_input
+
     def _generate_thread_name(self):
         """
         Generate a short title for a new thread via a second LLM call.
         Updates the thread name and title_gen_tokens in DB.
         Failures are logged but never break the main response.
         """
-        if not self.is_new_thread or not self.thread or not self.original_input:
+        source_text = self._title_source_text()
+        if not self.is_new_thread or not self.thread or not source_text:
             return
 
         try:
-            prompt = TITLE_GENERATION_PROMPT + self.original_input[:500]
+            prompt = TITLE_GENERATION_PROMPT + source_text[:500]
             title_messages = [{"role": "user", "content": prompt}]
             title_parts = []
             title_input = 0

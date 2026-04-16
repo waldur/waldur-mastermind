@@ -20,6 +20,8 @@ from waldur_mastermind.chat.tests.utils import (
     _make_usage_chunk,
     _mock_openai_client,
     _SynchronousThread,
+    blocks_from_text,
+    text_from_blocks,
 )
 
 
@@ -46,7 +48,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         return Message.objects.create(
             thread=thread,
             role=Message.Role.USER,
-            content=content,
+            blocks=blocks_from_text(content),
             sequence_index=last_index + 1,
         )
 
@@ -69,7 +71,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
                 return Message.objects.create(
                     thread=thread,
                     role=Message.Role.ASSISTANT,
-                    content="",
+                    blocks=[],
                     sequence_index=last_assistant.sequence_index,
                     replaces=last_assistant,
                 )
@@ -78,7 +80,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
             return Message.objects.create(
                 thread=thread,
                 role=Message.Role.ASSISTANT,
-                content="",
+                blocks=[],
                 sequence_index=user_msg.sequence_index + 1,
             )
         return None
@@ -127,8 +129,8 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         user_msg = Message.objects.get(thread=thread, role=Message.Role.USER)
         assistant_msg = Message.objects.get(thread=thread, role=Message.Role.ASSISTANT)
 
-        self.assertEqual(user_msg.content, "User question")
-        self.assertEqual(assistant_msg.content, "Hello")
+        self.assertEqual(text_from_blocks(user_msg.blocks), "User question")
+        self.assertEqual(text_from_blocks(assistant_msg.blocks), "Hello")
         self.assertEqual(user_msg.sequence_index, 1)
         self.assertEqual(assistant_msg.sequence_index, 2)
 
@@ -145,21 +147,24 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         thread = self._make_thread(user)
 
         Message.objects.create(
-            thread=thread, role=Message.Role.USER, content="Old Q", sequence_index=1
+            thread=thread,
+            role=Message.Role.USER,
+            blocks=blocks_from_text("Old Q"),
+            sequence_index=1,
         )
         Message.objects.create(
             thread=thread,
             role=Message.Role.ASSISTANT,
-            content="Old A",
+            blocks=blocks_from_text("Old A"),
             sequence_index=2,
         )
 
         self._run_streamer(user, thread, "New Q", self._content_and_usage_chunks())
 
-        new_user = Message.objects.get(thread=thread, content="New Q")
-        new_asst = Message.objects.get(thread=thread, content="Hello")
-        self.assertEqual(new_user.sequence_index, 3)
-        self.assertEqual(new_asst.sequence_index, 4)
+        new_user = Message.objects.get(thread=thread, sequence_index=3)
+        new_asst = Message.objects.get(thread=thread, sequence_index=4)
+        self.assertEqual(text_from_blocks(new_user.blocks), "New Q")
+        self.assertEqual(text_from_blocks(new_asst.blocks), "Hello")
 
     def test_partial_content_persisted_on_stream_error(self):
         """Unexpected errors are caught, an error frame is yielded, and partial content is persisted."""
@@ -199,10 +204,15 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         self.assertTrue(error_frames, "Expected an error frame in the stream output")
 
         self.assertEqual(
-            Message.objects.get(thread=thread, role=Message.Role.USER).content, "Q"
+            text_from_blocks(
+                Message.objects.get(thread=thread, role=Message.Role.USER).blocks
+            ),
+            "Q",
         )
         self.assertEqual(
-            Message.objects.get(thread=thread, role=Message.Role.ASSISTANT).content,
+            text_from_blocks(
+                Message.objects.get(thread=thread, role=Message.Role.ASSISTANT).blocks
+            ),
             "Partial",
         )
 
@@ -217,7 +227,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         self._run_streamer(user, thread, "Hi", metadata_only)
 
         assistant_msg = Message.objects.get(thread=thread, role=Message.Role.ASSISTANT)
-        self.assertEqual(assistant_msg.content, "")
+        self.assertEqual(assistant_msg.blocks, [])
 
     def test_reload_mode_replaces_last_assistant_only(self):
         """reload mode creates replacement assistant message, no new user message."""
@@ -226,12 +236,15 @@ class LLMStreamerPersistenceTest(test.APITestCase):
 
         # Create initial pair
         Message.objects.create(
-            thread=thread, role=Message.Role.USER, content="Question", sequence_index=1
+            thread=thread,
+            role=Message.Role.USER,
+            blocks=blocks_from_text("Question"),
+            sequence_index=1,
         )
         original_assistant = Message.objects.create(
             thread=thread,
             role=Message.Role.ASSISTANT,
-            content="Old answer",
+            blocks=blocks_from_text("Old answer"),
             sequence_index=2,
         )
 
@@ -257,7 +270,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         replacement = Message.objects.get(
             thread=thread, role=Message.Role.ASSISTANT, replaces=original_assistant
         )
-        self.assertEqual(replacement.content, "New answer")
+        self.assertEqual(text_from_blocks(replacement.blocks), "New answer")
         self.assertEqual(replacement.sequence_index, 2)  # Same index as original
         self.assertEqual(replacement.replaces, original_assistant)
 
@@ -286,8 +299,8 @@ class LLMStreamerPersistenceTest(test.APITestCase):
 
         user_msg = Message.objects.get(thread=thread, role=Message.Role.USER)
         assistant_msg = Message.objects.get(thread=thread, role=Message.Role.ASSISTANT)
-        self.assertEqual(user_msg.content, "Question")
-        self.assertEqual(assistant_msg.content, "Answer")
+        self.assertEqual(text_from_blocks(user_msg.blocks), "Question")
+        self.assertEqual(text_from_blocks(assistant_msg.blocks), "Answer")
         self.assertIsNone(assistant_msg.replaces)
 
     def test_stream_returns_message_uuids(self):
@@ -353,8 +366,8 @@ class LLMStreamerPersistenceTest(test.APITestCase):
         user_msg = Message.objects.get(thread=thread, role=Message.Role.USER)
         assistant_msg = Message.objects.get(thread=thread, role=Message.Role.ASSISTANT)
 
-        self.assertEqual(user_msg.content, "User question")
-        self.assertEqual(assistant_msg.content, "Hello")
+        self.assertEqual(text_from_blocks(user_msg.blocks), "User question")
+        self.assertEqual(text_from_blocks(assistant_msg.blocks), "Hello")
         self.assertIsNone(user_msg.replaces)
         self.assertIsNone(assistant_msg.replaces)
 
@@ -386,7 +399,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
                 1,
             )
             db_msg = Message.objects.get(thread=thread, role=Message.Role.USER)
-            self.assertEqual(db_msg.content, "My question")
+            self.assertEqual(text_from_blocks(db_msg.blocks), "My question")
             self.assertEqual(db_msg.sequence_index, 1)
 
             # No assistant message yet (generator not consumed)
@@ -405,7 +418,7 @@ class LLMStreamerPersistenceTest(test.APITestCase):
             1,
         )
         assistant_msg = Message.objects.get(thread=thread, role=Message.Role.ASSISTANT)
-        self.assertEqual(assistant_msg.content, "Answer")
+        self.assertEqual(text_from_blocks(assistant_msg.blocks), "Answer")
         self.assertEqual(assistant_msg.sequence_index, 2)
 
     def test_user_message_uuid_in_persist_metadata(self):
@@ -744,10 +757,16 @@ class MessageRBACTest(test.APITestCase):
         thread_b = ThreadSession.objects.create(chat_session=session_b)
 
         self.msg_a = Message.objects.create(
-            thread=thread_a, role=Message.Role.USER, content="A", sequence_index=1
+            thread=thread_a,
+            role=Message.Role.USER,
+            blocks=blocks_from_text("A"),
+            sequence_index=1,
         )
         self.msg_b = Message.objects.create(
-            thread=thread_b, role=Message.Role.USER, content="B", sequence_index=1
+            thread=thread_b,
+            role=Message.Role.USER,
+            blocks=blocks_from_text("B"),
+            sequence_index=1,
         )
 
         self.list_url = reverse("chat-message-list")

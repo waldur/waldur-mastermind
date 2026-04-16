@@ -52,7 +52,7 @@ class StreamParser:
         self._trailing_backticks = ""  # Last 1-2 chars (potential partial fence)
         self._incomplete_fence = None  # Complete fence awaiting tag determination
 
-    def parse(self, chunk: str) -> Generator[dict, None, None]:
+    def parse(self, chunk: str) -> Generator[dict]:
         """
         Parse a chunk of streaming markdown text.
         Yields: UI component dictionaries for rendering
@@ -81,7 +81,7 @@ class StreamParser:
         # Flush text buffer if it's large enough
         yield from self._flush_text_if_threshold_met()
 
-    def flush(self) -> Generator[dict, None, None]:
+    def flush(self) -> Generator[dict]:
         """Force flush all buffers at end of stream."""
         # Treat incomplete fence as regular text
         if self._incomplete_fence:
@@ -132,7 +132,7 @@ class StreamParser:
 
     def _handle_fence_crossing(
         self, segment: str, is_last_segment: bool
-    ) -> Generator[dict, None, None]:
+    ) -> Generator[dict]:
         """
         Handle crossing a fence delimiter (```).
 
@@ -183,9 +183,7 @@ class StreamParser:
 
         return TagExtractionResult(None, "", needs_more_data=True)
 
-    def _open_block(
-        self, tag: str, initial_content: str
-    ) -> Generator[dict, None, None]:
+    def _open_block(self, tag: str, initial_content: str) -> Generator[dict]:
         """
         Transition to INSIDE_BLOCK state and emit loading indicator.
         """
@@ -200,7 +198,7 @@ class StreamParser:
         # Emit loading indicator if block type supports it
         yield from self._emit_loading_indicator(tag)
 
-    def _close_current_block(self) -> Generator[dict, None, None]:
+    def _close_current_block(self) -> Generator[dict]:
         """
         Transition to OUTSIDE_BLOCK state and emit the completed block.
         """
@@ -212,7 +210,7 @@ class StreamParser:
         self._block_buffer = []
         self._current_block_tag = None
 
-    def _flush_text_if_threshold_met(self) -> Generator[dict, None, None]:
+    def _flush_text_if_threshold_met(self) -> Generator[dict]:
         if self._state == ParserState.INSIDE_BLOCK:
             return
 
@@ -220,7 +218,7 @@ class StreamParser:
         if buffered_size >= self.MIN_CHUNK_SIZE:
             yield from self._flush_text_buffer()
 
-    def _flush_text_buffer(self) -> Generator[dict, None, None]:
+    def _flush_text_buffer(self) -> Generator[dict]:
         """Emit buffered text as markdown and clear buffer."""
         if not self._text_buffer:
             return
@@ -231,9 +229,7 @@ class StreamParser:
         ui_component = ui_registry.create_content("markdown", {"c": content})
         yield self._to_ui_dict(ui_component)
 
-    def _render_block_content(
-        self, tag: str, content: str
-    ) -> Generator[dict, None, None]:
+    def _render_block_content(self, tag: str, content: str) -> Generator[dict]:
         """Render a code block using UI registry with fallback."""
         try:
             ui_component = ui_registry.create_content_from_block(
@@ -249,7 +245,7 @@ class StreamParser:
             ui_component = ui_registry.create_content("code", {"c": content, "t": tag})
             yield self._to_ui_dict(ui_component)
 
-    def _emit_loading_indicator(self, tag: str) -> Generator[dict, None, None]:
+    def _emit_loading_indicator(self, tag: str) -> Generator[dict]:
         """
         Emit loading indicator for block types that support it.
         """

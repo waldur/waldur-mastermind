@@ -19,6 +19,7 @@ from waldur_mastermind.chat.tests.utils import (
     _make_usage_chunk,
     _mock_openai_client,
     _SynchronousThread,
+    text_from_blocks,
 )
 
 
@@ -279,13 +280,13 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         msgs = list(Message.objects.filter(thread=thread).order_by("sequence_index"))
         self.assertEqual(len(msgs), 4)
         self.assertEqual(msgs[0].role, Message.Role.USER)
-        self.assertEqual(msgs[0].content, "Question A")
+        self.assertEqual(text_from_blocks(msgs[0].blocks), "Question A")
         self.assertEqual(msgs[1].role, Message.Role.ASSISTANT)
-        self.assertEqual(msgs[1].content, "Response A")
+        self.assertEqual(text_from_blocks(msgs[1].blocks), "Response A")
         self.assertEqual(msgs[2].role, Message.Role.USER)
-        self.assertEqual(msgs[2].content, "Question B")
+        self.assertEqual(text_from_blocks(msgs[2].blocks), "Question B")
         self.assertEqual(msgs[3].role, Message.Role.ASSISTANT)
-        self.assertEqual(msgs[3].content, "Response B")
+        self.assertEqual(text_from_blocks(msgs[3].blocks), "Response B")
 
     @override_constance_config(
         AI_ASSISTANT_ENABLED=True,

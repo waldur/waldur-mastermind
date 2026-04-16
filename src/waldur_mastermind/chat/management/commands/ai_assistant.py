@@ -4,6 +4,7 @@ from pathlib import Path
 from constance import config
 from django.core.management.base import BaseCommand, CommandError
 
+from waldur_mastermind.chat.block_schemas import blocks_to_text
 from waldur_mastermind.chat.context_assembler import build_context
 from waldur_mastermind.chat.health_checks import (
     LLMConfigurationHealthCheck,
@@ -303,7 +304,9 @@ class Command(BaseCommand):
                             pass
 
                         # Get the accumulated response
-                        llm_response = streamer.accumulated_content.strip()
+                        llm_response = blocks_to_text(
+                            streamer.accumulated_blocks
+                        ).strip()
 
                         duration_ms = int((time.time() - start_time) * 1000)
                         total_duration_ms += duration_ms

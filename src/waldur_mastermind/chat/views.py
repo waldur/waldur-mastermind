@@ -298,7 +298,14 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
         return models.Message.objects.create(
             thread=locked_thread,
             role=models.Message.Role.USER,
-            content=stored_content,
+            blocks=[
+                {
+                    "id": "blk_0",
+                    "key": "markdown",
+                    "status": "complete",
+                    "content": stored_content,
+                }
+            ],
             sequence_index=original_msg.sequence_index,
             replaces=original_msg,
         )
@@ -340,7 +347,14 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
                 user_msg = models.Message.objects.create(
                     thread=locked_thread,
                     role=models.Message.Role.USER,
-                    content=stored_content,
+                    blocks=[
+                        {
+                            "id": "blk_0",
+                            "key": "markdown",
+                            "status": "complete",
+                            "content": stored_content,
+                        }
+                    ],
                     sequence_index=last_index + 1,
                 )
 
@@ -359,7 +373,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
                     assistant_placeholder = models.Message.objects.create(
                         thread=locked_thread,
                         role=models.Message.Role.ASSISTANT,
-                        content="",
+                        blocks=[],
                         sequence_index=last_assistant.sequence_index,
                         replaces=last_assistant,
                     )
@@ -368,7 +382,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
                 assistant_placeholder = models.Message.objects.create(
                     thread=locked_thread,
                     role=models.Message.Role.ASSISTANT,
-                    content="",
+                    blocks=[],
                     sequence_index=user_msg.sequence_index + 1,
                 )
 
@@ -618,6 +632,10 @@ class ThreadSessionFilter(django_filters.FilterSet):
     total_tokens_max = django_filters.NumberFilter(
         field_name="total_tokens", lookup_expr="lte"
     )
+    scope = django_filters.ChoiceFilter(
+        choices=[("own", "Own")],
+        method="filter_scope",
+    )
     o = django_filters.OrderingFilter(
         fields=(
             "created",
@@ -652,6 +670,11 @@ class ThreadSessionFilter(django_filters.FilterSet):
             | Q(chat_session__user__last_name__icontains=value)
             | Q(chat_session__user__email__icontains=value)
         ).distinct()
+
+    def filter_scope(self, queryset, name, value):
+        if value == "own":
+            return queryset.filter(chat_session__user=self.request.user)
+        return queryset
 
 
 class MessageFilter(django_filters.FilterSet):
@@ -729,12 +752,11 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
 
     def get_queryset(self):
         """Filter threads to current user's threads; staff/support see all."""
-        if self.request.user.is_staff or self.request.user.is_support:
-            qs = models.ThreadSession.objects.all()
-        else:
-            qs = models.ThreadSession.objects.filter(
-                chat_session__user=self.request.user
-            )
+        qs = models.ThreadSession.objects.all()
+
+        if not (self.request.user.is_staff or self.request.user.is_support):
+            qs = qs.filter(chat_session__user=self.request.user)
+
         return (
             qs.select_related("chat_session__user")
             .annotate(

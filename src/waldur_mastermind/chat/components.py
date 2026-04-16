@@ -123,9 +123,9 @@ ui_registry.register(
             "links": {
                 "type": "array",
             },  # [{label, url, variant (primary/secondary/info), icon?}]
-            "context": {
+            "content": {
                 "type": "string",
-            },  # Brief context text shown above links
+            },  # Brief caption text shown above links
         },
     },
 )

@@ -19,6 +19,7 @@ from waldur_mastermind.chat.prompts.ui_capabilities import UI_CAPABILITIES
 from waldur_mastermind.chat.tests.utils import (
     _make_content_chunk,
     _mock_openai_client,
+    blocks_from_text,
 )
 
 
@@ -30,12 +31,15 @@ class BuildContextTest(TestCase):
 
     def test_builds_context_with_system_prompt_and_history(self):
         Message.objects.create(
-            thread=self.thread, role="user", content="Hello", sequence_index=1
+            thread=self.thread,
+            role="user",
+            blocks=blocks_from_text("Hello"),
+            sequence_index=1,
         )
         Message.objects.create(
             thread=self.thread,
             role="assistant",
-            content="Hi there!",
+            blocks=blocks_from_text("Hi there!"),
             sequence_index=2,
         )
 
@@ -74,16 +78,22 @@ class BuildContextTest(TestCase):
 
     def test_conversation_history_chronological_order(self):
         Message.objects.create(
-            thread=self.thread, role="user", content="First", sequence_index=1
+            thread=self.thread,
+            role="user",
+            blocks=blocks_from_text("First"),
+            sequence_index=1,
         )
         Message.objects.create(
             thread=self.thread,
             role="assistant",
-            content="Second",
+            blocks=blocks_from_text("Second"),
             sequence_index=2,
         )
         Message.objects.create(
-            thread=self.thread, role="user", content="Third", sequence_index=3
+            thread=self.thread,
+            role="user",
+            blocks=blocks_from_text("Third"),
+            sequence_index=3,
         )
 
         context = build_context(self.user, "Fourth", thread=self.thread)
@@ -112,12 +122,15 @@ class BuildContextTest(TestCase):
 
     def test_excludes_replaced_messages(self):
         original = Message.objects.create(
-            thread=self.thread, role="user", content="Original", sequence_index=1
+            thread=self.thread,
+            role="user",
+            blocks=blocks_from_text("Original"),
+            sequence_index=1,
         )
         Message.objects.create(
             thread=self.thread,
             role="user",
-            content="Edited",
+            blocks=blocks_from_text("Edited"),
             sequence_index=1,
             replaces=original,
         )
@@ -135,7 +148,7 @@ class BuildContextTest(TestCase):
             Message.objects.create(
                 thread=self.thread,
                 role="user" if i % 2 == 0 else "assistant",
-                content=f"Message {i}",
+                blocks=blocks_from_text(f"Message {i}"),
                 sequence_index=i + 1,
             )
 
@@ -151,19 +164,30 @@ class BuildContextTest(TestCase):
             self.assertNotIn(f"Message {i}", all_contents)
 
     def test_tool_call_history_reconstructed_for_llm(self):
-        """Assistant messages with tool_calls are expanded into assistant + tool messages."""
+        """Assistant messages with tool blocks are expanded into assistant + tool messages."""
         Message.objects.create(
             thread=self.thread,
             role="assistant",
-            content="",
-            sequence_index=1,
-            tool_calls=[
+            blocks=[
                 {
-                    "id": "call_abc123",
-                    "name": "show_user_resources",
-                    "arguments": {},
+                    "id": "blk_0",
+                    "key": "tool",
+                    "status": "complete",
+                    "tool": {
+                        "call_id": "call_abc123",
+                        "name": "show_user_resources",
+                        "arguments": {},
+                        "summary": "",
+                    },
+                    "result": {
+                        "id": "blk_0_r",
+                        "key": "markdown",
+                        "status": "complete",
+                        "content": "",
+                    },
                 }
             ],
+            sequence_index=1,
         )
 
         context = build_context(self.user, "Follow-up", thread=self.thread)
@@ -174,9 +198,7 @@ class BuildContextTest(TestCase):
         self.assertEqual(context[asst_idx + 1]["role"], "tool")
 
         # assistant message must carry tool_calls in OpenAI format
-        # (content is None because empty string is coerced to None for OpenAI compat)
         asst_msg = context[asst_idx]
-        self.assertIsNone(asst_msg["content"])
         self.assertEqual(len(asst_msg["tool_calls"]), 1)
         tc = asst_msg["tool_calls"][0]
         self.assertEqual(tc["id"], "call_abc123")
@@ -198,7 +220,10 @@ class BuildContextTest(TestCase):
     @override_constance_config(AI_ASSISTANT_HISTORY_LIMIT=-1)
     def test_invalid_history_limit_skips_history(self):
         Message.objects.create(
-            thread=self.thread, role="user", content="Old msg", sequence_index=1
+            thread=self.thread,
+            role="user",
+            blocks=blocks_from_text("Old msg"),
+            sequence_index=1,
         )
         context = build_context(self.user, "Hello", thread=self.thread)
         all_contents = " ".join(m["content"] for m in context)
@@ -252,19 +277,30 @@ class BuildContextWithIntentTest(TestCase):
         self.assertIn("TOOL USAGE GUIDELINES", system_msg["content"])
 
     def test_mid_workflow_returns_ambiguous(self):
-        """History with tool_calls should override to AMBIGUOUS."""
+        """History with tool blocks should override to AMBIGUOUS."""
         Message.objects.create(
             thread=self.thread,
             role="assistant",
-            content="",
-            sequence_index=1,
-            tool_calls=[
+            blocks=[
                 {
-                    "id": "call_abc",
-                    "name": "show_user_resources",
-                    "arguments": {},
+                    "id": "blk_0",
+                    "key": "tool",
+                    "status": "complete",
+                    "tool": {
+                        "call_id": "call_abc",
+                        "name": "show_user_resources",
+                        "arguments": {},
+                        "summary": "",
+                    },
+                    "result": {
+                        "id": "blk_0_r",
+                        "key": "markdown",
+                        "status": "complete",
+                        "content": "",
+                    },
                 }
             ],
+            sequence_index=1,
         )
         result = build_context_with_intent(
             self.user, "what is this?", thread=self.thread
@@ -364,7 +400,7 @@ class ChatStreamIntegrationTest(test.APITestCase):
         # The persisted user message should be the raw message, not the full context
         user_msg = Message.objects.filter(role="user").first()
         self.assertIsNotNone(user_msg)
-        self.assertEqual(user_msg.content, "My raw question")
+        self.assertEqual(user_msg.blocks[0]["content"], "My raw question")
 
     @override_constance_config(
         AI_ASSISTANT_ENABLED=True,

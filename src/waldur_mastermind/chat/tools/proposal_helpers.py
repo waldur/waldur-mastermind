@@ -29,12 +29,12 @@ def public_calls_url() -> str:
     return f"{get_homeport_url()}/calls/"
 
 
-def build_nav_block(links: list[dict], context: str = "") -> dict:
+def build_nav_block(links: list[dict], content: str = "") -> dict:
     """Build a homeport_nav UI block for the streaming response.
 
     Args:
         links: List of dicts with keys: label, url, variant (primary/secondary/info).
-        context: Optional brief text shown above the links.
+        content: Optional brief caption shown above the links.
 
     Returns:
         Dict ready for NDJSON serialization as a homeport_nav block.
@@ -42,5 +42,5 @@ def build_nav_block(links: list[dict], context: str = "") -> dict:
     return {
         "k": "homeport_nav",
         "links": links,
-        "context": context,
+        "content": content,
     }

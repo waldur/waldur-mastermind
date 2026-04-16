@@ -4,6 +4,7 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession
+from waldur_mastermind.chat.tests.utils import blocks_from_text, markdown_block
 
 
 @override_constance_config(
@@ -35,13 +36,13 @@ class MessageViewSetTest(test.APITestCase):
         my_msg = Message.objects.create(
             thread=self.thread,
             role=Message.Role.USER,
-            content="My message",
+            blocks=blocks_from_text("My message"),
             sequence_index=1,
         )
         Message.objects.create(
             thread=self.other_thread,
             role=Message.Role.USER,
-            content="Other message",
+            blocks=blocks_from_text("Other message"),
             sequence_index=1,
         )
 
@@ -56,13 +57,13 @@ class MessageViewSetTest(test.APITestCase):
         original = Message.objects.create(
             thread=self.thread,
             role=Message.Role.USER,
-            content="Original",
+            blocks=blocks_from_text("Original"),
             sequence_index=1,
         )
         replacement = Message.objects.create(
             thread=self.thread,
             role=Message.Role.USER,
-            content="Edited",
+            blocks=blocks_from_text("Edited"),
             sequence_index=1,
             replaces=original,
         )
@@ -78,13 +79,13 @@ class MessageViewSetTest(test.APITestCase):
         original = Message.objects.create(
             thread=self.thread,
             role=Message.Role.USER,
-            content="Original",
+            blocks=blocks_from_text("Original"),
             sequence_index=1,
         )
         Message.objects.create(
             thread=self.thread,
             role=Message.Role.USER,
-            content="Edited",
+            blocks=blocks_from_text("Edited"),
             sequence_index=1,
             replaces=original,
         )
@@ -99,13 +100,13 @@ class MessageViewSetTest(test.APITestCase):
         original = Message.objects.create(
             thread=self.thread,
             role=Message.Role.USER,
-            content="Original",
+            blocks=blocks_from_text("Original"),
             sequence_index=1,
         )
         Message.objects.create(
             thread=self.thread,
             role=Message.Role.USER,
-            content="Edited",
+            blocks=blocks_from_text("Edited"),
             sequence_index=1,
             replaces=original,
         )
@@ -114,61 +115,93 @@ class MessageViewSetTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["content"], "Edited")
+        self.assertEqual(response.data[0]["blocks"][0]["content"], "Edited")
 
-    def test_content_display_with_content_only(self):
-        """content_display returns content when no tool calls."""
+    def test_blocks_text_only(self):
+        """Message with a single markdown block is serialized as-is."""
         msg = Message.objects.create(
             thread=self.thread,
             role=Message.Role.ASSISTANT,
-            content="Hello world",
+            blocks=blocks_from_text("Hello world"),
             sequence_index=1,
         )
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = next(d for d in response.data if d["uuid"] == str(msg.uuid))
-        self.assertEqual(data["content_display"], "Hello world")
+        self.assertEqual(len(data["blocks"]), 1)
+        self.assertEqual(data["blocks"][0]["key"], "markdown")
+        self.assertEqual(data["blocks"][0]["content"], "Hello world")
 
-    def test_content_display_with_tool_calls_only(self):
-        """content_display shows tool call when no text content."""
+    def test_blocks_tool_only(self):
+        """Message with a tool block is serialized with tool + nested result."""
+        tool_block = {
+            "id": "blk_0",
+            "key": "tool",
+            "status": "complete",
+            "tool": {
+                "call_id": "call_x",
+                "name": "list_projects",
+                "arguments": {},
+                "summary": "",
+            },
+            "result": markdown_block("", blk_id="blk_0_r"),
+        }
         msg = Message.objects.create(
             thread=self.thread,
             role=Message.Role.ASSISTANT,
-            content="",
-            tool_calls=[{"name": "list_projects", "arguments": {}}],
+            blocks=[tool_block],
             sequence_index=1,
         )
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = next(d for d in response.data if d["uuid"] == str(msg.uuid))
-        self.assertEqual(data["content_display"], "[Tool: list_projects()]")
+        self.assertEqual(len(data["blocks"]), 1)
+        self.assertEqual(data["blocks"][0]["key"], "tool")
+        self.assertEqual(data["blocks"][0]["tool"]["name"], "list_projects")
 
-    def test_content_display_with_content_and_tool_calls(self):
-        """content_display includes both text and tool call when both are present."""
+    def test_blocks_text_and_tool(self):
+        """Message carrying both a text block and a tool block round-trips."""
+        text_block = markdown_block("Let me look that up.")
+        tool_block = {
+            "id": "blk_1",
+            "key": "tool",
+            "status": "complete",
+            "tool": {
+                "call_id": "call_y",
+                "name": "show_user_resources",
+                "arguments": {"limit": "5"},
+                "summary": "",
+            },
+            "result": markdown_block("", blk_id="blk_1_r"),
+        }
         msg = Message.objects.create(
             thread=self.thread,
             role=Message.Role.ASSISTANT,
-            content="Let me look that up.",
-            tool_calls=[{"name": "show_user_resources", "arguments": {"limit": "5"}}],
+            blocks=[text_block, tool_block],
             sequence_index=1,
         )
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = next(d for d in response.data if d["uuid"] == str(msg.uuid))
-        self.assertEqual(
-            data["content_display"],
-            'Let me look that up.\n[Tool: show_user_resources(limit="5")]',
-        )
+        self.assertEqual(len(data["blocks"]), 2)
+        self.assertEqual(data["blocks"][0]["content"], "Let me look that up.")
+        self.assertEqual(data["blocks"][1]["tool"]["arguments"], {"limit": "5"})
 
     def test_filter_by_thread(self):
         """list endpoint can filter messages by thread UUID."""
         thread2 = ThreadSession.objects.create(chat_session=self.session)
 
         msg1 = Message.objects.create(
-            thread=self.thread, role=Message.Role.USER, content="T1", sequence_index=1
+            thread=self.thread,
+            role=Message.Role.USER,
+            blocks=blocks_from_text("T1"),
+            sequence_index=1,
         )
         Message.objects.create(
-            thread=thread2, role=Message.Role.USER, content="T2", sequence_index=1
+            thread=thread2,
+            role=Message.Role.USER,
+            blocks=blocks_from_text("T2"),
+            sequence_index=1,
         )
 
         response = self.client.get(self.list_url, {"thread": str(self.thread.uuid)})
@@ -182,7 +215,7 @@ class MessageViewSetTest(test.APITestCase):
         Message.objects.create(
             thread=self.thread,
             role=Message.Role.ASSISTANT,
-            content="Reply",
+            blocks=blocks_from_text("Reply"),
             sequence_index=1,
             input_tokens=100,
             output_tokens=40,
@@ -203,7 +236,7 @@ class MessageViewSetTest(test.APITestCase):
         Message.objects.create(
             thread=self.thread,
             role=Message.Role.ASSISTANT,
-            content="Reply",
+            blocks=blocks_from_text("Reply"),
             sequence_index=1,
             input_tokens=100,
             output_tokens=40,
