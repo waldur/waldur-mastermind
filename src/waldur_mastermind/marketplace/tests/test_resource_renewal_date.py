@@ -163,7 +163,6 @@ class ResourceRenewalDateTest(TestCase):
         # Create offering with non-limit components
         component = self.fixture.offering_component
         component.billing_type = BillingTypes.USAGE
-        component.limit_period = None
         component.save()
 
         resource = self.fixture.resource
@@ -254,19 +253,6 @@ class ResourceRenewalDateTest(TestCase):
             self.assertIn("annual_limit", renewal_dates)
             self.assertEqual(renewal_dates["annual_limit"], datetime.date(2026, 1, 1))
 
-    def test_components_without_limit_period_are_ignored(self):
-        """Test that limit components without limit_period are ignored."""
-        # Create offering with limit component but no limit_period
-        component = self.fixture.offering_component
-        component.billing_type = BillingTypes.LIMIT
-        component.limit_period = None
-        component.save()
-
-        resource = self.fixture.resource
-
-        renewal_date = self.serializer.get_renewal_date(resource)
-        self.assertIsNone(renewal_date)
-
     def test_all_total_components_returns_empty_dict(self):
         """Test that offerings with only TOTAL limit components return empty dict."""
         offering = self.fixture.offering
@@ -328,7 +314,6 @@ class ResourceSerializerRenewalDateIntegrationTest(TestCase):
         # Create offering with usage component (not limit)
         component = self.marketplace_fixture.offering_component
         component.billing_type = BillingTypes.USAGE
-        component.limit_period = None
         component.save()
 
         resource = self.marketplace_fixture.resource

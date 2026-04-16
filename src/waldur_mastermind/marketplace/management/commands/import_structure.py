@@ -37,6 +37,7 @@ from waldur_mastermind.invoices.models import (
     InvoiceItem,
     ProjectCredit,
 )
+from waldur_mastermind.marketplace.enums import LimitPeriods
 from waldur_mastermind.marketplace.models import (
     Category,
     CategoryGroup,
@@ -3763,7 +3764,8 @@ class Command(BaseCommand):
                     "description": component_data.get("description", ""),
                     "billing_type": component_data.get("billing_type", "fixed"),
                     "measured_unit": component_data.get("measured_unit", ""),
-                    "limit_period": component_data.get("limit_period"),
+                    "limit_period": component_data.get("limit_period")
+                    or LimitPeriods.MONTH,
                     "limit_amount": component_data.get("limit_amount"),
                     "min_value": component_data.get("min_value"),
                     "max_value": component_data.get("max_value"),

@@ -1054,7 +1054,7 @@ class OfferingComponent(
     )
     # limit_period and limit_amount fields are used if billing_type is USAGE or LIMIT
     limit_period = models.CharField(
-        choices=LimitPeriods.CHOICES, blank=True, null=True, max_length=10
+        choices=LimitPeriods.CHOICES, default=LimitPeriods.MONTH, max_length=10
     )
     limit_amount = models.IntegerField(blank=True, null=True)
     # unit_factor is for metadata only and is not involved in any computations in Mastermind
@@ -1106,6 +1106,11 @@ class OfferingComponent(
         ),
     )
     objects = managers.MixinManager("scope")
+
+    def save(self, *args, **kwargs):
+        if not self.limit_period:
+            self.limit_period = LimitPeriods.MONTH
+        super().save(*args, **kwargs)
 
     def validate_amount(self, resource, amount, date):
         if not self.limit_period or not self.limit_amount:
