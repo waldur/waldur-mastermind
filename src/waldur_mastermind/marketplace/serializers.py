@@ -6706,6 +6706,7 @@ class OfferingUserSerializer(
     service_provider_comment_url = serializers.ReadOnlyField()
     has_consent = serializers.SerializerMethodField()
     requires_reconsent = serializers.SerializerMethodField()
+    offering_has_active_tos = serializers.SerializerMethodField()
     has_compliance_checklist = serializers.SerializerMethodField()
     consent_data = serializers.SerializerMethodField()
     is_profile_complete = serializers.SerializerMethodField()
@@ -6793,6 +6794,7 @@ class OfferingUserSerializer(
             "service_provider_comment_url",
             "has_consent",
             "requires_reconsent",
+            "offering_has_active_tos",
             "has_compliance_checklist",
             "consent_data",
             "is_profile_complete",
@@ -6926,6 +6928,10 @@ class OfferingUserSerializer(
         if not active_tos or not active_tos.requires_reconsent:
             return False
         return active_tos.version != consent.version
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_offering_has_active_tos(self, obj) -> bool:
+        return self._has_active_terms_of_service(obj.offering)
 
     def get_has_compliance_checklist(self, offering_user) -> bool:
         """Check if the offering user has a connected compliance checklist completion."""
