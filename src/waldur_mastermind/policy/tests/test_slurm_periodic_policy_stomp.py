@@ -178,9 +178,10 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITestCase):
             self.assertEqual(fairshare, expected_fairshare)
 
             # Validate TRES minutes: nodeHours component should be present
+            # With grace_ratio=0.2, SLURM limit is set at grace level (1.2x base)
             grp_tres_mins = settings["grp_tres_mins"]
             self.assertIn("nodeHours", grp_tres_mins)
-            expected_minutes = int(1150.0 * 60)
+            expected_minutes = int(1150.0 * 1.2 * 60)
             self.assertEqual(grp_tres_mins["nodeHours"], expected_minutes)
 
             print("✅ Settings calculation in STOMP message validated")
@@ -432,8 +433,9 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITestCase):
             expected_fairshare = int(1150.0 // 3)
             self.assertEqual(fairshare, expected_fairshare)
 
+            # With grace_ratio=0.2, SLURM limit is set at grace level (1.2x base)
             grp_tres_mins = settings["grp_tres_mins"]["nodeHours"]
-            expected_minutes = int(1150.0 * 60)
+            expected_minutes = int(1150.0 * 1.2 * 60)
             self.assertEqual(grp_tres_mins, expected_minutes)
 
             print(f"  Applied fairshare: {fairshare}")
