@@ -7,6 +7,7 @@ from rest_framework import test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat import tasks
 from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession
+from waldur_mastermind.chat.tests.utils import blocks_from_text
 
 
 class ChatSessionCleanupTest(test.APITestCase):
@@ -30,7 +31,7 @@ class ChatSessionCleanupTest(test.APITestCase):
         Message.objects.create(
             thread=old_thread,
             role=Message.Role.USER,
-            content="Old message",
+            blocks=blocks_from_text("Old message"),
             sequence_index=1,
         )
         ChatSession.objects.filter(pk=self.old_session.pk).update(

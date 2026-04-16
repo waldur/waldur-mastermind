@@ -1,4 +1,5 @@
 import json
+import queue
 import threading
 import unittest
 from contextlib import contextmanager
@@ -16,12 +17,15 @@ from waldur_mastermind.chat.models import (
     ThreadSession,
     TokenQuota,
 )
+from waldur_mastermind.chat.serializers import MessageSerializer
 from waldur_mastermind.chat.tests.utils import (
     SYNC_THREAD_PATCH,
     _make_chunk,
     _make_tool_call_delta,
     _mock_openai_client,
     _SynchronousThread,
+    blocks_from_text,
+    text_from_blocks,
 )
 from waldur_mastermind.chat.ui_registry import ui_registry  # noqa: F401
 
@@ -304,7 +308,7 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
         mock_exec.assert_called_once_with("show_user_resources", {})
 
     def test_streamer_stores_tool_result_for_persistence(self):
-        """Test that tool results are stored in tool_calls for DB persistence."""
+        """Tool results land in accumulated_blocks so persistence writes them."""
         tc = _make_tool_call_delta(
             0, name="show_user_resources", arguments="{}", call_id="call_abc"
         )
@@ -328,15 +332,14 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
             streamer = self._make_streamer(chunks, user=mock_user)
             list(streamer)  # Consume the stream
 
-        # Verify serialized tool calls include the result
-        serialized = streamer._serialized_tool_calls()
-        self.assertEqual(len(serialized), 1)
-        self.assertIn("result", serialized[0])
-        self.assertEqual(serialized[0]["result"]["k"], "resource_list")
-        self.assertEqual(serialized[0]["result"]["project_uuid"], "abc123")
+        tool_blocks = [b for b in streamer.accumulated_blocks if b["key"] == "tool"]
+        self.assertEqual(len(tool_blocks), 1)
+        self.assertEqual(tool_blocks[0]["tool"]["name"], "show_user_resources")
+        self.assertEqual(tool_blocks[0]["result"]["key"], "resource_list")
+        self.assertEqual(tool_blocks[0]["result"]["project_uuid"], "abc123")
 
     def test_streamer_hides_tool_errors(self):
-        """Test that tool errors are not displayed to users and not persisted."""
+        """Tool errors are not displayed to users and not persisted."""
         tc = _make_tool_call_delta(
             0, name="unknown_tool", arguments="{}", call_id="call_x"
         )
@@ -363,10 +366,9 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
 
         mock_exec.assert_called_once()
 
-        # Error results should NOT be stored for persistence
-        serialized = streamer._serialized_tool_calls()
-        self.assertEqual(len(serialized), 1)
-        self.assertNotIn("result", serialized[0])
+        # Error results leave no tool block in the persisted accumulator
+        tool_blocks = [b for b in streamer.accumulated_blocks if b["key"] == "tool"]
+        self.assertEqual(tool_blocks, [])
 
 
 class LLMStreamerDisconnectTest(_LLMStreamerTestBase, unittest.TestCase):
@@ -414,7 +416,8 @@ class LLMStreamerDisconnectTest(_LLMStreamerTestBase, unittest.TestCase):
 
         # All content accumulated — disconnect doesn't freeze content
         self.assertEqual(
-            streamer.accumulated_content, first_chunk + "beautiful " + "world"
+            text_from_blocks(streamer.accumulated_blocks),
+            first_chunk + "beautiful " + "world",
         )
 
     def test_disconnect_does_not_block_worker(self):
@@ -466,7 +469,9 @@ class LLMStreamerDisconnectTest(_LLMStreamerTestBase, unittest.TestCase):
         streamer._worker_thread.join(timeout=5)
 
         # All content accumulated — disconnect doesn't freeze content
-        self.assertEqual(streamer.accumulated_content, first_chunk + "world")
+        self.assertEqual(
+            text_from_blocks(streamer.accumulated_blocks), first_chunk + "world"
+        )
         # Usage chunk was still processed
         self.assertEqual(streamer.input_tokens, 42)
         self.assertEqual(streamer.output_tokens, 18)
@@ -525,7 +530,10 @@ class LLMStreamerDisconnectTest(_LLMStreamerTestBase, unittest.TestCase):
         list(streamer)
 
         self.assertIsNone(streamer._worker_thread)
-        self.assertEqual(streamer.accumulated_content, "This input has been blocked.")
+        self.assertEqual(
+            text_from_blocks(streamer.accumulated_blocks),
+            "This input has been blocked.",
+        )
 
     def test_normal_stream_completes_identically(self):
         """Normal (no disconnect) stream produces the same output as before."""
@@ -542,7 +550,7 @@ class LLMStreamerDisconnectTest(_LLMStreamerTestBase, unittest.TestCase):
             for c in output
         )
         self.assertTrue(found, f"Did not find expected content in: {output}")
-        self.assertEqual(streamer.accumulated_content, "Hello world")
+        self.assertEqual(text_from_blocks(streamer.accumulated_blocks), "Hello world")
 
     def test_client_gone_set_after_disconnect(self):
         """_client_gone event is set after client disconnects via GeneratorExit."""
@@ -581,8 +589,7 @@ class LLMStreamerDisconnectTest(_LLMStreamerTestBase, unittest.TestCase):
 
         def delayed_workflow():
             gate.wait(timeout=10)
-            # Simulate a minimal LLM response
-            streamer.accumulated_content = "delayed"
+            # Simulate a minimal LLM response (no blocks needed — persist handles empty)
 
         streamer._run_llm_workflow = delayed_workflow
 
@@ -629,7 +636,66 @@ class LLMStreamerDisconnectTest(_LLMStreamerTestBase, unittest.TestCase):
 
         streamer._worker_thread.join(timeout=5)
         self.assertFalse(streamer._worker_thread.is_alive())
-        self.assertEqual(streamer.accumulated_content, "partial")
+        self.assertEqual(text_from_blocks(streamer.accumulated_blocks), "partial")
+
+    def test_enqueue_returns_when_client_gone(self):
+        """_enqueue must unblock when the client disconnects so the worker
+        thread isn't stuck on a full queue that nobody drains."""
+        chunks = [_make_chunk(content="x")]
+        streamer = self._make_streamer(chunks)
+
+        # Fill the queue past capacity so put() blocks.
+        try:
+            while True:
+                streamer._queue.put_nowait(b"filler")
+        except queue.Full:
+            pass
+
+        streamer._client_gone.set()
+        done = threading.Event()
+
+        def call_enqueue():
+            streamer._enqueue(b"item")
+            done.set()
+
+        t = threading.Thread(target=call_enqueue)
+        t.start()
+        assert done.wait(timeout=2.0), "_enqueue did not return after client gone"
+        t.join(timeout=1.0)
+
+    def test_enqueue_keeps_blocking_on_cancel_while_client_connected(self):
+        """On cancel the client is still reading the stream, so _enqueue must
+        keep delivering final frames (cancel marker, persisted meta, done)
+        instead of silently discarding them."""
+        chunks = [_make_chunk(content="x")]
+        streamer = self._make_streamer(chunks)
+
+        # Fill the queue past capacity so put() blocks.
+        try:
+            while True:
+                streamer._queue.put_nowait(b"filler")
+        except queue.Full:
+            pass
+
+        streamer._cancel_requested.set()
+        done = threading.Event()
+
+        def call_enqueue():
+            streamer._enqueue(b"item")
+            done.set()
+
+        t = threading.Thread(target=call_enqueue)
+        t.start()
+        # Must NOT return while the client is still connected — even though
+        # cancel was requested, the final frames still need to be delivered.
+        assert not done.wait(timeout=1.0), (
+            "_enqueue returned on cancel; final frames would be dropped"
+        )
+
+        # Drain one slot so the pending put() can complete, then the thread exits.
+        streamer._queue.get_nowait()
+        assert done.wait(timeout=2.0), "_enqueue did not return after queue drained"
+        t.join(timeout=1.0)
 
 
 @patch(SYNC_THREAD_PATCH, _SynchronousThread)
@@ -969,7 +1035,7 @@ class LLMStreamerCancelViaDBTest(_LLMStreamerTestBase, drf_test.APITestCase):
         list(streamer)
 
         # Content should be frozen at or before the cancel check interval
-        word_count = len(streamer.accumulated_content.strip().split())
+        word_count = len(text_from_blocks(streamer.accumulated_blocks).strip().split())
         self.assertLessEqual(word_count, _CANCEL_CHECK_INTERVAL)
         # Usage was still recorded
         self.assertEqual(streamer.input_tokens, 100)
@@ -1003,10 +1069,16 @@ class LLMStreamerCancelViaDBTest(_LLMStreamerTestBase, drf_test.APITestCase):
         """_persist_normal() updates the pre-created placeholder instead of inserting a new row."""
         thread = self._make_thread_session()
         user_msg = Message.objects.create(
-            thread=thread, role=Message.Role.USER, content="hi", sequence_index=1
+            thread=thread,
+            role=Message.Role.USER,
+            blocks=blocks_from_text("hi"),
+            sequence_index=1,
         )
         placeholder = Message.objects.create(
-            thread=thread, role=Message.Role.ASSISTANT, content="", sequence_index=2
+            thread=thread,
+            role=Message.Role.ASSISTANT,
+            blocks=[],
+            sequence_index=2,
         )
 
         streamer = LLMStreamer(
@@ -1021,7 +1093,7 @@ class LLMStreamerCancelViaDBTest(_LLMStreamerTestBase, drf_test.APITestCase):
         list(streamer)
 
         placeholder.refresh_from_db()
-        self.assertEqual(placeholder.content, "Hello world")
+        self.assertEqual(text_from_blocks(placeholder.blocks), "Hello world")
         # No extra row should have been inserted
         self.assertEqual(Message.objects.filter(thread=thread).count(), 2)
 
@@ -1033,13 +1105,13 @@ class LLMStreamerCancelViaDBTest(_LLMStreamerTestBase, drf_test.APITestCase):
         old_user_msg = Message.objects.create(
             thread=thread,
             role=Message.Role.USER,
-            content="old question",
+            blocks=blocks_from_text("old question"),
             sequence_index=1,
         )
         assistant_placeholder = Message.objects.create(
             thread=thread,
             role=Message.Role.ASSISTANT,
-            content="",
+            blocks=[],
             sequence_index=2,
         )
 
@@ -1053,7 +1125,7 @@ class LLMStreamerCancelViaDBTest(_LLMStreamerTestBase, drf_test.APITestCase):
         Message.objects.create(
             thread=thread,
             role=Message.Role.USER,
-            content="new question",
+            blocks=blocks_from_text("new question"),
             sequence_index=3,
         )
 
@@ -1069,7 +1141,7 @@ class LLMStreamerCancelViaDBTest(_LLMStreamerTestBase, drf_test.APITestCase):
         list(streamer)
 
         # Content should be frozen at or before the cancel check interval
-        word_count = len(streamer.accumulated_content.strip().split())
+        word_count = len(text_from_blocks(streamer.accumulated_blocks).strip().split())
         self.assertLessEqual(word_count, _CANCEL_CHECK_INTERVAL)
         # Usage was still recorded (stream drained for usage-only chunk)
         self.assertEqual(streamer.input_tokens, 100)
@@ -1083,7 +1155,7 @@ class LLMStreamerCancelViaDBTest(_LLMStreamerTestBase, drf_test.APITestCase):
         old_user_msg = Message.objects.create(
             thread=thread,
             role=Message.Role.USER,
-            content="old question",
+            blocks=blocks_from_text("old question"),
             sequence_index=1,
         )
 
@@ -1095,7 +1167,7 @@ class LLMStreamerCancelViaDBTest(_LLMStreamerTestBase, drf_test.APITestCase):
         Message.objects.create(
             thread=thread,
             role=Message.Role.USER,
-            content="new question",
+            blocks=blocks_from_text("new question"),
             sequence_index=3,
         )
 
@@ -1113,7 +1185,7 @@ class LLMStreamerCancelViaDBTest(_LLMStreamerTestBase, drf_test.APITestCase):
         streamer.client = _mock_openai_client(chunks)
         list(streamer)
 
-        word_count = len(streamer.accumulated_content.strip().split())
+        word_count = len(text_from_blocks(streamer.accumulated_blocks).strip().split())
         self.assertLessEqual(word_count, _CANCEL_CHECK_INTERVAL)
 
     def test_explicit_cancel_still_works_without_newer_message(self):
@@ -1123,7 +1195,7 @@ class LLMStreamerCancelViaDBTest(_LLMStreamerTestBase, drf_test.APITestCase):
         old_user_msg = Message.objects.create(
             thread=thread,
             role=Message.Role.USER,
-            content="question",
+            blocks=blocks_from_text("question"),
             sequence_index=1,
         )
 
@@ -1147,7 +1219,7 @@ class LLMStreamerCancelViaDBTest(_LLMStreamerTestBase, drf_test.APITestCase):
         streamer.client = _mock_openai_client(chunks)
         list(streamer)
 
-        word_count = len(streamer.accumulated_content.strip().split())
+        word_count = len(text_from_blocks(streamer.accumulated_blocks).strip().split())
         self.assertLessEqual(word_count, _CANCEL_CHECK_INTERVAL)
 
     def test_no_false_positive_from_own_assistant_placeholder(self):
@@ -1157,14 +1229,14 @@ class LLMStreamerCancelViaDBTest(_LLMStreamerTestBase, drf_test.APITestCase):
         user_msg = Message.objects.create(
             thread=thread,
             role=Message.Role.USER,
-            content="question",
+            blocks=blocks_from_text("question"),
             sequence_index=1,
         )
         # Own assistant placeholder (higher seq, but role=ASSISTANT)
         Message.objects.create(
             thread=thread,
             role=Message.Role.ASSISTANT,
-            content="",
+            blocks=[],
             sequence_index=2,
         )
 
@@ -1184,5 +1256,273 @@ class LLMStreamerCancelViaDBTest(_LLMStreamerTestBase, drf_test.APITestCase):
         list(streamer)
 
         # Should NOT be cancelled — all 30 words should be accumulated
-        word_count = len(streamer.accumulated_content.strip().split())
+        word_count = len(text_from_blocks(streamer.accumulated_blocks).strip().split())
         self.assertEqual(word_count, 30)
+
+
+class BlockAccumulatorTest(unittest.TestCase):
+    """Unit tests for LLMStreamer's blocks accumulator (no LLM, no DB)."""
+
+    def _new_streamer(self):
+        # Bypass __init__ so we can unit-test the accumulator in isolation.
+        return LLMStreamer.__new__(LLMStreamer)
+
+    def test_single_markdown_chunk_yields_one_block(self):
+        s = self._new_streamer()
+        s.accumulated_blocks = []
+        s._current_block = None
+        s.accumulated_warning = ""
+        s._absorb_block({"k": "markdown", "c": "hello"})
+        s._finalize_current_block()
+        self.assertEqual(len(s.accumulated_blocks), 1)
+        self.assertEqual(s.accumulated_blocks[0]["key"], "markdown")
+        self.assertEqual(s.accumulated_blocks[0]["content"], "hello")
+        self.assertEqual(s.accumulated_blocks[0]["status"], "complete")
+
+    def test_same_kind_chunks_concat_into_single_block(self):
+        s = self._new_streamer()
+        s.accumulated_blocks = []
+        s._current_block = None
+        s.accumulated_warning = ""
+        s._absorb_block({"k": "markdown", "c": "hello "})
+        s._absorb_block({"k": "markdown", "c": "world"})
+        s._finalize_current_block()
+        self.assertEqual(len(s.accumulated_blocks), 1)
+        self.assertEqual(s.accumulated_blocks[0]["content"], "hello world")
+
+    def test_different_kinds_produce_separate_blocks(self):
+        s = self._new_streamer()
+        s.accumulated_blocks = []
+        s._current_block = None
+        s.accumulated_warning = ""
+        s._absorb_block({"k": "markdown", "c": "text "})
+        s._absorb_block({"k": "code", "c": "print(1)", "t": "python"})
+        s._absorb_block({"k": "markdown", "c": " done"})
+        s._finalize_current_block()
+        kinds = [b["key"] for b in s.accumulated_blocks]
+        self.assertEqual(kinds, ["markdown", "code", "markdown"])
+        self.assertEqual(s.accumulated_blocks[1]["tag"], "python")
+
+    def test_warning_chunk_stored(self):
+        s = self._new_streamer()
+        s.accumulated_blocks = []
+        s._current_block = None
+        s.accumulated_warning = ""
+        s._absorb_block({"w": "Sensitive info detected"})
+        self.assertEqual(s.accumulated_warning, "Sensitive info detected")
+        self.assertEqual(s.accumulated_blocks, [])
+
+    def test_later_warning_overwrites_earlier(self):
+        s = self._new_streamer()
+        s.accumulated_blocks = []
+        s._current_block = None
+        s.accumulated_warning = ""
+        s._absorb_block({"w": "first"})
+        s._absorb_block({"w": "second"})
+        self.assertEqual(s.accumulated_warning, "second")
+
+    def test_tool_loading_then_result_becomes_tool_block(self):
+        s = self._new_streamer()
+        s.accumulated_blocks = []
+        s._current_block = None
+        s.accumulated_warning = ""
+        s.pending_tool_calls = {
+            "call_1": {
+                "name": "list_vm_projects",
+                "arguments": {"org": "acme"},
+                "summary": "1 project",
+            },
+        }
+        s._absorb_block({"k": "load", "t": "tool", "call_id": "call_1"})
+        s._absorb_block(
+            {
+                "k": "vm_order",
+                "status": "project_form",
+                "projects": [{"name": "proj-a"}],
+                "call_id": "call_1",
+            }
+        )
+        s._finalize_current_block()
+        self.assertEqual(len(s.accumulated_blocks), 1)
+        blk = s.accumulated_blocks[0]
+        self.assertEqual(blk["key"], "tool")
+        self.assertEqual(blk["tool"]["call_id"], "call_1")
+        self.assertEqual(blk["tool"]["name"], "list_vm_projects")
+        self.assertEqual(blk["result"]["key"], "vm_order")
+        self.assertEqual(blk["result"]["projects"], [{"name": "proj-a"}])
+
+    def test_interleaved_text_and_tool_preserves_order(self):
+        s = self._new_streamer()
+        s.accumulated_blocks = []
+        s._current_block = None
+        s.accumulated_warning = ""
+        s.pending_tool_calls = {
+            "call_1": {"name": "x", "arguments": {}, "summary": "done"},
+        }
+        s._absorb_block({"k": "markdown", "c": "before"})
+        s._absorb_block({"k": "load", "t": "tool", "call_id": "call_1"})
+        s._absorb_block({"k": "markdown", "c": "result is...", "call_id": "call_1"})
+        s._absorb_block({"k": "markdown", "c": "after"})
+        s._finalize_current_block()
+        kinds = [b["key"] for b in s.accumulated_blocks]
+        self.assertEqual(kinds, ["markdown", "tool", "markdown"])
+        self.assertEqual(len(s.accumulated_blocks), 3)
+        # Verify the tool block correctly correlated result via call_id.
+        tool_block = s.accumulated_blocks[1]
+        self.assertEqual(tool_block["tool"]["call_id"], "call_1")
+        self.assertEqual(tool_block["result"]["content"], "result is...")
+
+    def test_loading_tool_block_without_result_is_dropped_on_finalize(self):
+        """Hidden tool errors leave a loading tool block with no result.
+
+        Finalizing such a block must drop it rather than persist a malformed
+        `{"key": "tool", "status": "complete"}` row with no tool metadata.
+        """
+        s = self._new_streamer()
+        s.accumulated_blocks = []
+        s._current_block = None
+        s.accumulated_warning = ""
+        s.pending_tool_calls = {}
+        s._absorb_block({"k": "markdown", "c": "before"})
+        s._absorb_block({"k": "load", "t": "tool", "call_id": "call_1"})
+        # No result absorb — simulates tool_block=None (hidden error path).
+        s._finalize_current_block()
+        kinds = [b["key"] for b in s.accumulated_blocks]
+        self.assertEqual(kinds, ["markdown"])
+        self.assertEqual(s.accumulated_blocks[0]["content"], "before")
+
+    def test_loading_tool_block_dropped_when_next_tool_arrives(self):
+        """A second tool load must not finalize the previous loading block."""
+        s = self._new_streamer()
+        s.accumulated_blocks = []
+        s._current_block = None
+        s.accumulated_warning = ""
+        s.pending_tool_calls = {
+            "call_2": {"name": "y", "arguments": {}, "summary": "done2"},
+        }
+        s._absorb_block({"k": "load", "t": "tool", "call_id": "call_1"})
+        # tool_1 errored hidden — no result absorb
+        s._absorb_block({"k": "load", "t": "tool", "call_id": "call_2"})
+        s._absorb_block({"k": "markdown", "c": "answer", "call_id": "call_2"})
+        s._finalize_current_block()
+        # Only the second tool call produced a persisted block.
+        kinds = [b["key"] for b in s.accumulated_blocks]
+        self.assertEqual(kinds, ["tool"])
+        self.assertEqual(s.accumulated_blocks[0]["tool"]["call_id"], "call_2")
+
+
+@patch(SYNC_THREAD_PATCH, _SynchronousThread)
+class LLMStreamerBlockRoundtripTest(_LLMStreamerTestBase, drf_test.APITestCase):
+    """End-to-end: LLM stream -> parser -> accumulator -> DB -> serializer.
+
+    Proves that the four supported block kinds round-trip through the full
+    persistence pipeline in order, with shapes preserved. Complements the
+    isolated parser, accumulator, and serializer unit tests by wiring the
+    whole stack together.
+    """
+
+    def _make_thread(self, user):
+        session = ChatSession.objects.create(user=user)
+        return ThreadSession.objects.create(chat_session=session)
+
+    def _pre_create_user_msg(self, thread, content):
+        return Message.objects.create(
+            thread=thread,
+            role=Message.Role.USER,
+            blocks=blocks_from_text(content),
+            sequence_index=1,
+        )
+
+    def _pre_create_assistant_placeholder(self, thread, user_msg):
+        return Message.objects.create(
+            thread=thread,
+            role=Message.Role.ASSISTANT,
+            blocks=[],
+            sequence_index=user_msg.sequence_index + 1,
+        )
+
+    def test_all_block_kinds_roundtrip_through_persistence_and_serializer(self):
+        """Markdown, mermaid, tool, and markdown blocks survive the full pipeline.
+
+        The stream yields content-then-tool_calls-then-content. The streamer
+        processes content inline via the parser but defers tool execution until
+        the stream is fully drained, so the final on-disk order is:
+        markdown -> mermaid -> trailing markdown -> tool. This test pins that
+        order and verifies it round-trips through DB persistence and the DRF
+        serializer untouched.
+
+        Note: if the streamer is ever updated to issue a tool-use continuation
+        completion (standard OpenAI tool loop) so the model can respond to the
+        tool result, trailing markdown would come from that second call and the
+        expected order here would shift to [markdown, mermaid, tool, markdown].
+        """
+        user = structure_factories.UserFactory()
+        thread = self._make_thread(user)
+        user_msg = self._pre_create_user_msg(thread, "Show me a diagram and a table")
+        assistant_msg = self._pre_create_assistant_placeholder(thread, user_msg)
+
+        # Stream chunks: markdown -> mermaid fence -> tool_call deltas -> trailing markdown
+        chunks = [
+            _make_chunk(content="Here is a diagram:\n"),
+            _make_chunk(content="```mermaid\ngraph TD\nA-->B\n```\n"),
+            _make_chunk(
+                tool_calls=[
+                    _make_tool_call_delta(
+                        0, name="show_user_resources", call_id="call_abc"
+                    )
+                ]
+            ),
+            _make_chunk(tool_calls=[_make_tool_call_delta(0, arguments="{}")]),
+            _make_chunk(content="All done."),
+            _make_chunk(usage={"prompt_tokens": 10, "completion_tokens": 5}),
+        ]
+
+        tool_result = {
+            "type": "success",
+            "summary": "1 project",
+            "ui_component": "resource_list",
+            "ui_data": {"project_uuid": "abc123"},
+        }
+
+        with (
+            patch(
+                "waldur_mastermind.chat.llm_streamer.openai.OpenAI"
+            ) as mock_openai_cls,
+            patch(
+                "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool"
+            ) as mock_exec,
+        ):
+            mock_openai_cls.return_value = _mock_openai_client(chunks)
+            mock_exec.return_value = tool_result
+            streamer = LLMStreamer(
+                [{"role": "user", "content": "Show me a diagram and a table"}],
+                "https://llm/stream",
+                "tok",
+                user=user,
+                thread=thread,
+                original_input="Show me a diagram and a table",
+                user_msg=user_msg,
+                assistant_msg=assistant_msg,
+            )
+            list(streamer)
+
+        assistant_msg.refresh_from_db()
+
+        kinds = [b["key"] for b in assistant_msg.blocks]
+        self.assertEqual(
+            kinds,
+            ["markdown", "mermaid", "markdown", "tool"],
+            f"Unexpected block order; got blocks={assistant_msg.blocks}",
+        )
+        # No guards configured in this path, so warning must be empty.
+        self.assertEqual(assistant_msg.warning, "")
+
+        tool_block = assistant_msg.blocks[3]
+        self.assertEqual(tool_block["tool"]["name"], "show_user_resources")
+        self.assertEqual(tool_block["result"]["key"], "resource_list")
+        self.assertEqual(tool_block["result"]["project_uuid"], "abc123")
+
+        data = MessageSerializer(assistant_msg).data
+        # Full round-trip: serialized blocks equal persisted blocks.
+        self.assertEqual(data["blocks"], assistant_msg.blocks)
+        self.assertEqual(data["warning"], "")

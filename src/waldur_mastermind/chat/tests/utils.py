@@ -3,8 +3,30 @@
 from contextlib import contextmanager
 from unittest.mock import MagicMock
 
+from waldur_mastermind.chat.block_schemas import blocks_to_text
+
 # Patch target for _SynchronousThread — use with @mock.patch(SYNC_THREAD_PATCH, ...)
 SYNC_THREAD_PATCH = "waldur_mastermind.chat.llm_streamer.threading.Thread"
+
+
+def markdown_block(text: str, blk_id: str = "blk_0") -> dict:
+    """Build a single complete markdown block matching the persisted shape."""
+    return {
+        "id": blk_id,
+        "key": "markdown",
+        "status": "complete",
+        "content": text,
+    }
+
+
+def blocks_from_text(text: str) -> list[dict]:
+    """Single-block wrapper for tests that only care about text content."""
+    return [markdown_block(text)] if text else []
+
+
+def text_from_blocks(blocks: list[dict]) -> str:
+    """Test alias for block_schemas.blocks_to_text."""
+    return blocks_to_text(blocks)
 
 
 class _SynchronousThread:

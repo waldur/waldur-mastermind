@@ -75,19 +75,21 @@ def _ensure_index() -> bool:
 
 def get_relevant_tools(
     query: str,
-    user_tools: list[ToolName],
+    user_tools: list[ToolName] | None,
     max_tools: int = 6,
-) -> list[ToolName]:
+) -> list[ToolName] | None:
     """Return the most relevant tools for a query using semantic similarity.
 
     Args:
         query: The user's chat input.
-        user_tools: Tools the user has access to (from tool_sets).
+        user_tools: Tools the user has access to (from tool_sets). ``None``
+            means unrestricted access to all registered tools.
         max_tools: Maximum number of tools to return.
 
     Returns:
-        Filtered list of ToolName. Falls back to *user_tools* when semantic
-        routing is unavailable or no route matches.
+        Filtered list of ToolName, or ``None`` to preserve the "all tools"
+        sentinel. Falls back to *user_tools* when semantic routing is
+        unavailable or no route matches.
     """
     if not _ensure_index():
         return user_tools
@@ -111,7 +113,10 @@ def get_relevant_tools(
 
     matched_tool = _route_names[best_idx]
 
-    if matched_tool not in user_tools:
+    if matched_tool is None:
+        return user_tools
+    # When the user is restricted, the matched tool must be in their set.
+    if user_tools is not None and matched_tool not in user_tools:
         return user_tools
 
     # Build relevant set: the matched tool + semantically nearby tools.
@@ -138,8 +143,11 @@ def get_relevant_tools(
     elif matched_tool in _VM_TOOLS:
         relevant.update(_VM_TOOLS)
 
-    # Filter to tools the user actually has access to
-    filtered = [t for t in user_tools if t in relevant]
+    # Filter to tools the user actually has access to. None means unrestricted.
+    if user_tools is None:
+        filtered = list(relevant)
+    else:
+        filtered = [t for t in user_tools if t in relevant]
 
     # If filtering is too aggressive (< 2 tools), fall back to all
     if len(filtered) < 2:

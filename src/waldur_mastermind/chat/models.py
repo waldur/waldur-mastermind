@@ -369,9 +369,11 @@ class Message(UuidMixin, TimeStampedModel):
         ThreadSession, on_delete=models.CASCADE, related_name="messages"
     )
     role = models.CharField(max_length=10, choices=Role.choices)
-    content = models.TextField(
-        blank=True
-    )  # blank=True allows streaming placeholder (content="")
+    # Persisted rendering of the assistant/user turn as a list of UI blocks.
+    # Mirrors the frontend UIBlock shape so history reload needs no conversion.
+    blocks = models.JSONField(default=list)
+    # Optional non-blocking warning surfaced by guards (e.g. PII redaction).
+    warning = models.TextField(blank=True, default="")
     sequence_index = models.PositiveIntegerField()
     replaces = models.ForeignKey(
         "self",
@@ -380,9 +382,6 @@ class Message(UuidMixin, TimeStampedModel):
         on_delete=models.SET_NULL,
         related_name="replaced_by",
     )
-
-    # Tool calls executed by the assistant to produce this message
-    tool_calls = models.JSONField(default=list, blank=True)
 
     # Token usage tracking (populated on assistant messages only)
     input_tokens = models.PositiveIntegerField(null=True, blank=True, default=None)

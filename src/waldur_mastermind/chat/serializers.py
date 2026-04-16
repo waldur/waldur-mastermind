@@ -6,6 +6,7 @@ from rest_framework import serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_mastermind.chat import models
+from waldur_mastermind.chat.block_schemas import BLOCK_KINDS, BlockSerializer
 from waldur_mastermind.chat.input_guards import SeverityLevel
 
 
@@ -192,20 +193,6 @@ class ChatResponseSerializer(serializers.Serializer):
         required=False,
         help_text="State display name filters (e.g. ['OK', 'Erred']). Present when k='resource_list'.",
     )
-    # table fields
-    h = serializers.ListField(
-        required=False,
-        help_text="Table headers - list of column names. Present when k='table'.",
-    )
-    r = serializers.ListField(
-        required=False,
-        help_text="Table rows - list of row data (each row is a list of strings). Present when k='table'.",
-    )
-    n = serializers.IntegerField(
-        required=False,
-        allow_null=True,
-        help_text="Total count of rows in the table (used for pagination display). Present when k='table'.",
-    )
 
 
 class TokenQuotaUsageResponseSerializer(serializers.ModelSerializer):
@@ -321,6 +308,31 @@ class SetTokenQuotaSerializer(serializers.Serializer):
     )
 
 
+@extend_schema_field(
+    {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "key": {"type": "string", "enum": list(BLOCK_KINDS)},
+                "status": {"type": "string"},
+            },
+            "required": ["id", "key", "status"],
+            "additionalProperties": True,
+        },
+    }
+)
+class _BlocksField(serializers.ListField):
+    """Typed list field for Message.blocks — schema hint for drf-spectacular.
+
+    The polymorphic BlockSerializer has no declared fields (it dispatches on
+    ``key``), so drf-spectacular can't auto-infer a schema. We annotate a
+    minimal shape here: every block has id/key/status, and the rest is free
+    (additionalProperties: true).
+    """
+
+
 class MessageSerializer(serializers.ModelSerializer):
     thread = serializers.SlugRelatedField(slug_field="uuid", read_only=True)
     replaces = serializers.SlugRelatedField(
@@ -328,7 +340,8 @@ class MessageSerializer(serializers.ModelSerializer):
         read_only=True,
         allow_null=True,
     )
-    content_display = serializers.SerializerMethodField()
+    blocks = _BlocksField(child=BlockSerializer(), read_only=True)
+    warning = serializers.CharField(allow_blank=True, read_only=True)
 
     class Meta:
         model = models.Message
@@ -336,9 +349,8 @@ class MessageSerializer(serializers.ModelSerializer):
             "uuid",
             "thread",
             "role",
-            "content",
-            "content_display",
-            "tool_calls",
+            "blocks",
+            "warning",
             "sequence_index",
             "replaces",
             "created",
@@ -355,8 +367,9 @@ class MessageSerializer(serializers.ModelSerializer):
             "created",
             "sequence_index",
             "role",
+            "blocks",
+            "warning",
             "replaces",
-            "tool_calls",
             "input_tokens",
             "output_tokens",
             "is_flagged",
@@ -365,20 +378,6 @@ class MessageSerializer(serializers.ModelSerializer):
             "pii_categories",
             "action_taken",
         )
-
-    def get_content_display(self, obj) -> str:
-        parts = []
-        if obj.content:
-            parts.append(obj.content)
-        if obj.tool_calls:
-            tool_parts = []
-            for call in obj.tool_calls:
-                name = call.get("name", "")
-                args = call.get("arguments", {})
-                args_str = ", ".join(f'{k}="{v}"' for k, v in args.items())
-                tool_parts.append(f"{name}({args_str})")
-            parts.append(f"[Tool: {', '.join(tool_parts)}]")
-        return "\n".join(parts)
 
     def get_fields(self):
         fields = super().get_fields()

@@ -19,6 +19,8 @@ from waldur_mastermind.chat.tests.utils import (
     _make_content_chunk,
     _make_usage_chunk,
     _SynchronousThread,
+    blocks_from_text,
+    markdown_block,
 )
 
 
@@ -35,7 +37,7 @@ class MessageModelTest(test.APITestCase):
         Message.objects.create(
             thread=self.thread,
             role=Message.Role.USER,
-            content="First",
+            blocks=blocks_from_text("First"),
             sequence_index=1,
         )
 
@@ -44,7 +46,7 @@ class MessageModelTest(test.APITestCase):
             Message.objects.create(
                 thread=self.thread,
                 role=Message.Role.USER,
-                content="Duplicate",
+                blocks=blocks_from_text("Duplicate"),
                 sequence_index=1,
             )
 
@@ -172,12 +174,15 @@ class ThreadSessionViewSetTest(test.APITestCase):
         """List response includes message_count."""
         thread = ThreadSession.objects.create(chat_session=self.session)
         Message.objects.create(
-            thread=thread, role=Message.Role.USER, content="Test", sequence_index=1
+            thread=thread,
+            role=Message.Role.USER,
+            blocks=blocks_from_text("Test"),
+            sequence_index=1,
         )
         Message.objects.create(
             thread=thread,
             role=Message.Role.ASSISTANT,
-            content="Response",
+            blocks=blocks_from_text("Response"),
             sequence_index=2,
         )
 
@@ -195,7 +200,7 @@ class ThreadSessionViewSetTest(test.APITestCase):
         Message.objects.create(
             thread=thread,
             role=Message.Role.ASSISTANT,
-            content="Hi",
+            blocks=blocks_from_text("Hi"),
             sequence_index=1,
             input_tokens=100,
             output_tokens=50,
@@ -203,7 +208,7 @@ class ThreadSessionViewSetTest(test.APITestCase):
         Message.objects.create(
             thread=thread,
             role=Message.Role.ASSISTANT,
-            content="More",
+            blocks=blocks_from_text("More"),
             sequence_index=3,
             input_tokens=200,
             output_tokens=80,
@@ -230,7 +235,7 @@ class ThreadSessionViewSetTest(test.APITestCase):
         Message.objects.create(
             thread=thread,
             role=Message.Role.ASSISTANT,
-            content="Reply",
+            blocks=blocks_from_text("Reply"),
             sequence_index=1,
             input_tokens=100,
             output_tokens=50,
@@ -254,7 +259,7 @@ class ThreadSessionViewSetTest(test.APITestCase):
         Message.objects.create(
             thread=thread,
             role=Message.Role.USER,
-            content="Hello",
+            blocks=blocks_from_text("Hello"),
             sequence_index=1,
         )
 
@@ -274,7 +279,7 @@ class ThreadSessionViewSetTest(test.APITestCase):
         original = Message.objects.create(
             thread=thread,
             role=Message.Role.ASSISTANT,
-            content="Old",
+            blocks=blocks_from_text("Old"),
             sequence_index=1,
             input_tokens=500,
             output_tokens=200,
@@ -282,7 +287,7 @@ class ThreadSessionViewSetTest(test.APITestCase):
         Message.objects.create(
             thread=thread,
             role=Message.Role.ASSISTANT,
-            content="New",
+            blocks=blocks_from_text("New"),
             sequence_index=1,
             replaces=original,
             input_tokens=100,
@@ -306,7 +311,7 @@ class ThreadSessionViewSetTest(test.APITestCase):
         Message.objects.create(
             thread=thread,
             role=Message.Role.ASSISTANT,
-            content="Hi",
+            blocks=blocks_from_text("Hi"),
             sequence_index=1,
             input_tokens=100,
             output_tokens=50,
@@ -331,7 +336,7 @@ class ThreadSessionViewSetTest(test.APITestCase):
         Message.objects.create(
             thread=thread,
             role=Message.Role.ASSISTANT,
-            content="Hi",
+            blocks=blocks_from_text("Hi"),
             sequence_index=1,
             input_tokens=50,
             output_tokens=25,
@@ -352,7 +357,7 @@ class ThreadSessionViewSetTest(test.APITestCase):
         Message.objects.create(
             thread=t_small,
             role=Message.Role.ASSISTANT,
-            content="Small",
+            blocks=blocks_from_text("Small"),
             sequence_index=1,
             input_tokens=10,
             output_tokens=5,
@@ -361,7 +366,7 @@ class ThreadSessionViewSetTest(test.APITestCase):
         Message.objects.create(
             thread=t_large,
             role=Message.Role.ASSISTANT,
-            content="Large",
+            blocks=blocks_from_text("Large"),
             sequence_index=1,
             input_tokens=500,
             output_tokens=300,
@@ -387,7 +392,7 @@ class ThreadSessionViewSetTest(test.APITestCase):
         Message.objects.create(
             thread=t1,
             role=Message.Role.ASSISTANT,
-            content="A",
+            blocks=blocks_from_text("A"),
             sequence_index=1,
             input_tokens=10,
             output_tokens=5,
@@ -396,7 +401,7 @@ class ThreadSessionViewSetTest(test.APITestCase):
         Message.objects.create(
             thread=t2,
             role=Message.Role.ASSISTANT,
-            content="B",
+            blocks=blocks_from_text("B"),
             sequence_index=1,
             input_tokens=500,
             output_tokens=300,
@@ -420,7 +425,7 @@ class ThreadSessionViewSetTest(test.APITestCase):
         Message.objects.create(
             thread=thread,
             role=Message.Role.ASSISTANT,
-            content="Hi",
+            blocks=blocks_from_text("Hi"),
             sequence_index=1,
             input_tokens=1000,
             output_tokens=500,
@@ -640,3 +645,138 @@ class ThreadTitleGenerationTest(test.APITestCase):
         self.assertIsNotNone(assistant_msg)
         self.assertEqual(assistant_msg.input_tokens, 80)
         self.assertEqual(assistant_msg.output_tokens, 30)
+
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_title_generation_reads_blocks_from_user_msg(self, mock_openai_cls):
+        """When user_msg has blocks, title gen uses blocks[0]['content'], not original_input."""
+        user_msg = Message.objects.create(
+            thread=self.thread,
+            role=Message.Role.USER,
+            blocks=[markdown_block("How do I list my VMs?")],
+            sequence_index=1,
+        )
+
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.side_effect = [
+            _fake_stream([_make_content_chunk("Main response")]),
+            _fake_stream([_make_content_chunk("List VMs Title")]),
+        ]
+
+        streamer = self._make_streamer(
+            is_new_thread=True,
+            user_msg=user_msg,
+            original_input="stale raw input",
+        )
+        list(streamer)
+
+        # Explicit assert so a missing title call produces a clear failure,
+        # not a cryptic IndexError on call_args_list[1].
+        self.assertEqual(mock_client.chat.completions.create.call_count, 2)
+        title_prompt = mock_client.chat.completions.create.call_args_list[1].kwargs[
+            "messages"
+        ][0]["content"]
+        self.assertIn("How do I list my VMs?", title_prompt)
+        self.assertNotIn("stale raw input", title_prompt)
+
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_title_generation_falls_back_to_original_input_when_no_user_msg(
+        self, mock_openai_cls
+    ):
+        """Without user_msg (canned-response path), title gen falls back to original_input."""
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.side_effect = [
+            _fake_stream([_make_content_chunk("Main response")]),
+            _fake_stream([_make_content_chunk("Fallback Title")]),
+        ]
+
+        streamer = self._make_streamer(
+            is_new_thread=True,
+            original_input="Fallback text",
+        )
+        list(streamer)
+
+        self.assertEqual(mock_client.chat.completions.create.call_count, 2)
+        title_prompt = mock_client.chat.completions.create.call_args_list[1].kwargs[
+            "messages"
+        ][0]["content"]
+        self.assertIn("Fallback text", title_prompt)
+
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_title_generation_falls_back_when_user_msg_has_empty_blocks(
+        self, mock_openai_cls
+    ):
+        """When user_msg.blocks is empty, title gen falls back to original_input."""
+        user_msg = Message.objects.create(
+            thread=self.thread,
+            role=Message.Role.USER,
+            blocks=[],
+            sequence_index=1,
+        )
+
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.side_effect = [
+            _fake_stream([_make_content_chunk("Main response")]),
+            _fake_stream([_make_content_chunk("Empty Blocks Fallback Title")]),
+        ]
+
+        streamer = self._make_streamer(
+            is_new_thread=True,
+            user_msg=user_msg,
+            original_input="Fallback when blocks empty",
+        )
+        list(streamer)
+
+        self.assertEqual(mock_client.chat.completions.create.call_count, 2)
+        title_prompt = mock_client.chat.completions.create.call_args_list[1].kwargs[
+            "messages"
+        ][0]["content"]
+        self.assertIn("Fallback when blocks empty", title_prompt)
+
+    @patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_title_generation_falls_back_when_first_block_has_empty_content(
+        self, mock_openai_cls
+    ):
+        """When blocks[0] is a non-textual/empty-content block (e.g. a
+        vm_order block), title gen falls back to original_input instead
+        of silently skipping. Regression guard: earlier version would
+        set source_text='' and return.
+        """
+        user_msg = Message.objects.create(
+            thread=self.thread,
+            role=Message.Role.USER,
+            blocks=[
+                {
+                    "id": "b0",
+                    "key": "vm_order",
+                    "status": "complete",
+                    "order_status": "project_form",
+                    "projects": [{"name": "proj-a"}],
+                },
+            ],
+            sequence_index=1,
+        )
+
+        mock_client = MagicMock()
+        mock_openai_cls.return_value = mock_client
+        mock_client.chat.completions.create.side_effect = [
+            _fake_stream([_make_content_chunk("Main response")]),
+            _fake_stream([_make_content_chunk("Non-text Block Fallback Title")]),
+        ]
+
+        streamer = self._make_streamer(
+            is_new_thread=True,
+            user_msg=user_msg,
+            original_input="show my vms",
+        )
+        list(streamer)
+
+        self.assertEqual(mock_client.chat.completions.create.call_count, 2)
+        title_prompt = mock_client.chat.completions.create.call_args_list[1].kwargs[
+            "messages"
+        ][0]["content"]
+        self.assertIn("show my vms", title_prompt)
+        self.thread.refresh_from_db()
+        self.assertEqual(self.thread.name, "Non-text Block Fallback Title")

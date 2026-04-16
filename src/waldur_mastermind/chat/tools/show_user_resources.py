@@ -5,6 +5,7 @@ from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace.enums import ResourceStates
+from waldur_mastermind.marketplace.models import Resource
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +135,37 @@ class ShowUserResourcesTool(BaseTool):
             "ui_component": "resource_list",
             "ui_data": ui_data,
         }
+
+    def _count_resources(
+        self, user, arguments: dict, valid_states: list[str] | None
+    ) -> int:
+        """Permission-scoped count matching the frontend's resource_list filters.
+
+        Uses the same scoping as ``ConsumerResourceViewSet`` (the endpoint the
+        frontend calls) so the number referenced in narration matches what the
+        user actually sees in the rendered resource_list.
+        """
+        qs = Resource.objects.all().filter_for_service_consumer(user)
+
+        project_uuid = arguments.get("project_uuid")
+        if project_uuid:
+            qs = qs.filter(project__uuid=project_uuid)
+
+        customer_uuid = arguments.get("customer_uuid")
+        if customer_uuid:
+            qs = qs.filter(project__customer__uuid=customer_uuid)
+
+        category_uuid = arguments.get("category_uuid")
+        if category_uuid:
+            qs = qs.filter(offering__category__uuid=category_uuid)
+
+        if valid_states:
+            state_ids = [_STATE_MAP[d] for d in valid_states]
+            qs = qs.filter(state__in=state_ids)
+        else:
+            qs = qs.exclude(state=ResourceStates.TERMINATED)
+
+        return qs.count()
 
 
 tool_registry.register(ShowUserResourcesTool())
