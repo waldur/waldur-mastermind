@@ -1351,6 +1351,8 @@ class TermsOfServiceConsentTest(APITestCase):
         self.assertIn("requires_reconsent", response.data)
         self.assertFalse(response.data["has_consent"])
         self.assertFalse(response.data["requires_reconsent"])
+        self.assertIn("offering_has_active_tos", response.data)
+        self.assertTrue(response.data["offering_has_active_tos"])
 
         # Check consent_data field is None when no consent
         self.assertIn("consent_data", response.data)
@@ -1490,6 +1492,102 @@ class TermsOfServiceConsentTest(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         user_uuids = [ou["user_uuid"] for ou in response.data]
         self.assertIn(str(other_user.uuid), user_uuids)
+
+    def test_offering_user_response_includes_offering_has_active_tos(self):
+        """OfferingUser response should include offering_has_active_tos flag."""
+        offering_without_tos = OfferingFactory(
+            category=self.category,
+            customer=self.customer,
+            type="Marketplace.Basic",
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+                "username_generation_policy": "waldur_username",
+            },
+        )
+        plan_without_tos = PlanFactory(offering=offering_without_tos)
+        resource_without_tos = ResourceFactory(
+            project=self.project,
+            offering=offering_without_tos,
+            plan=plan_without_tos,
+        )
+        resource_without_tos.state = ResourceStates.OK
+        resource_without_tos.save()
+        resource_creation_succeeded(resource_without_tos)
+        tasks.create_or_restore_offering_users_for_user(
+            self.user.uuid.hex, self.project.uuid.hex
+        )
+
+        offering_user_with_tos = models.OfferingUser.objects.get(
+            user=self.user, offering=self.offering
+        )
+        offering_user_without_tos = models.OfferingUser.objects.get(
+            user=self.user, offering=offering_without_tos
+        )
+
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(
+            f"/api/marketplace-offering-users/{offering_user_with_tos.uuid}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["offering_has_active_tos"])
+
+        response = self.client.get(
+            f"/api/marketplace-offering-users/{offering_user_without_tos.uuid}/"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["offering_has_active_tos"])
+
+    def test_offering_user_filter_offering_has_active_tos(self):
+        """Test filtering offering users by offering_has_active_tos."""
+        offering_without_tos = OfferingFactory(
+            category=self.category,
+            customer=self.customer,
+            type="Marketplace.Basic",
+            plugin_options={
+                "service_provider_can_create_offering_user": True,
+                "username_generation_policy": "waldur_username",
+            },
+        )
+        plan_without_tos = PlanFactory(offering=offering_without_tos)
+        resource_without_tos = ResourceFactory(
+            project=self.project,
+            offering=offering_without_tos,
+            plan=plan_without_tos,
+        )
+        resource_without_tos.state = ResourceStates.OK
+        resource_without_tos.save()
+        resource_creation_succeeded(resource_without_tos)
+        tasks.create_or_restore_offering_users_for_user(
+            self.user.uuid.hex, self.project.uuid.hex
+        )
+
+        offering_user_with_tos = models.OfferingUser.objects.get(
+            user=self.user, offering=self.offering
+        )
+        offering_user_without_tos = models.OfferingUser.objects.get(
+            user=self.user, offering=offering_without_tos
+        )
+
+        self.client.force_authenticate(user=self.user)
+
+        response = self.client.get(
+            "/api/marketplace-offering-users/",
+            {"offering_has_active_tos": "true"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering_user_uuids = {ou["uuid"] for ou in response.data}
+        self.assertIn(str(offering_user_with_tos.uuid), offering_user_uuids)
+        self.assertNotIn(str(offering_user_without_tos.uuid), offering_user_uuids)
+
+        response = self.client.get(
+            "/api/marketplace-offering-users/",
+            {"offering_has_active_tos": "false"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        offering_user_uuids = {ou["uuid"] for ou in response.data}
+        self.assertIn(str(offering_user_without_tos.uuid), offering_user_uuids)
+        self.assertNotIn(str(offering_user_with_tos.uuid), offering_user_uuids)
 
 
 @override_constance_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)

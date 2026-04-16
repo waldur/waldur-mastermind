@@ -2073,6 +2073,11 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
         label="User has complete profile for the offering",
         widget=BooleanWidget,
     )
+    offering_has_active_tos = django_filters.BooleanFilter(
+        method="filter_offering_has_active_tos",
+        label="Offering has active Terms of Service",
+        widget=BooleanWidget,
+    )
 
     o = django_filters.OrderingFilter(fields=("created", "modified", "username"))
     query = django_filters.CharFilter(
@@ -2113,6 +2118,19 @@ class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter
             return queryset.exclude(incomplete_q).distinct()
         else:
             return queryset.filter(incomplete_q).distinct()
+
+    def filter_offering_has_active_tos(self, queryset, name, value):
+        if value is None:
+            return queryset
+
+        if value:
+            return queryset.filter(
+                offering__terms_of_service_configs__is_active=True
+            ).distinct()
+        else:
+            return queryset.exclude(
+                offering__terms_of_service_configs__is_active=True
+            ).distinct()
 
 
 class OfferingUserChecklistCompletionsFilter(core_filters.CreatedModifiedFilter):
