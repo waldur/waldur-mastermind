@@ -4842,7 +4842,8 @@ class ProviderOfferingViewSet(
                     "billing_type": component_data.get("billing_type", ""),
                     "measured_unit": component_data.get("measured_unit", ""),
                     "unit_factor": component_data.get("unit_factor", 1),
-                    "limit_period": component_data.get("limit_period"),
+                    "limit_period": component_data.get("limit_period")
+                    or LimitPeriods.MONTH,
                     "limit_amount": component_data.get("limit_amount"),
                     "article_code": component_data.get("article_code", ""),
                     "backend_id": component_data.get("backend_id", ""),

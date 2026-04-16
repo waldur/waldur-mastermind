@@ -432,20 +432,6 @@ class SlurmPeriodicUsagePolicyPeriodValidationTest(test.APITestCase):
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
-    def test_create_with_empty_limit_period_allows_any_period(self):
-        self._create_limit_component("")
-        self.client.force_authenticate(self.staff)
-        payload = self._base_payload(period=PeriodMixin.Periods.MONTH_3)
-        response = self.client.post(self.url, payload)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-    def test_create_with_null_limit_period_allows_any_period(self):
-        self._create_limit_component(None)
-        self.client.force_authenticate(self.staff)
-        payload = self._base_payload(period=PeriodMixin.Periods.MONTH_3)
-        response = self.client.post(self.url, payload)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
     def test_update_period_to_mismatched_value_fails(self):
         self._create_limit_component(LimitPeriods.MONTH)
         policy = SlurmPeriodicUsagePolicyFactory(
@@ -571,16 +557,6 @@ class SlurmPolicyGetCurrentPeriodFromComponentTest(test.APITransactionTestCase):
         )
         result = policy._get_current_period()
         self.assertEqual(result, "2026-03")
-
-    def test_falls_back_to_db_when_limit_period_is_empty(self):
-        """When component has empty limit_period, use the DB period field."""
-        self._create_limit_component("")
-        policy = SlurmPeriodicUsagePolicyFactory(
-            scope=self.offering,
-            period=PeriodMixin.Periods.MONTH_3,
-        )
-        result = policy._get_current_period()
-        self.assertEqual(result, "2026-Q1")
 
     def test_monthly_component_returns_monthly_format(self):
         self._create_limit_component(LimitPeriods.MONTH)

@@ -2318,9 +2318,12 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
         )
         extra_kwargs = {
             "billing_type": {"required": True},
+            "limit_period": {"allow_null": True},
         }
 
     def validate(self, attrs):
+        if not attrs.get("limit_period"):
+            attrs["limit_period"] = LimitPeriods.MONTH
         if attrs.get("is_boolean"):
             attrs["min_value"] = 0
             attrs["max_value"] = 1
@@ -10845,7 +10848,7 @@ class ExportComponentDataSerializer(serializers.Serializer):
     billing_type = serializers.CharField()
     measured_unit = serializers.CharField()
     unit_factor = serializers.FloatField(allow_null=True)
-    limit_period = serializers.CharField(allow_null=True)
+    limit_period = serializers.CharField(allow_null=True, allow_blank=True)
     limit_amount = serializers.IntegerField(allow_null=True)
     article_code = serializers.CharField(allow_blank=True)
     backend_id = serializers.CharField(allow_blank=True)

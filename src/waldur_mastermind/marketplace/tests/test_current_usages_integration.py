@@ -32,7 +32,9 @@ from waldur_mastermind.marketplace.utils import (
 )
 
 
-def _create_resource_with_components(fixture, billing_type, limit_period=None):
+def _create_resource_with_components(
+    fixture, billing_type, limit_period=LimitPeriods.MONTH
+):
     """Create a resource with an offering that has a single LIMIT or USAGE component."""
     offering = factories.OfferingFactory(customer=fixture.customer)
     plan = factories.PlanFactory(offering=offering)
