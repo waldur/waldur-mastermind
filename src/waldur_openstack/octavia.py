@@ -8,6 +8,7 @@ import openstack as openstack_sdk
 from openstack import exceptions as openstack_exceptions
 
 from waldur_openstack import models
+from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.session import get_credentials
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,11 @@ class OctaviaClient:
     @property
     def connection(self):
         if not self._lb_proxy:
+            if not self.is_available():
+                raise OpenStackBackendError(
+                    "Octavia load-balancer service is not available "
+                    "for tenant %s." % self.tenant
+                )
             self._lb_proxy = self._get_connection().load_balancer
         return self._lb_proxy
 

@@ -675,6 +675,30 @@ class RouterSetRoutesExecutor(core_executors.ActionExecutor):
         )
 
 
+class RouterSetExternalGatewayExecutor(core_executors.ActionExecutor):
+    action = "set_external_gateway"
+
+    @classmethod
+    def get_task_signature(cls, router, serialized_router, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_router,
+            "set_external_gateway",
+            state_transition="begin_updating",
+        )
+
+
+class RouterRemoveExternalGatewayExecutor(core_executors.ActionExecutor):
+    action = "remove_external_gateway"
+
+    @classmethod
+    def get_task_signature(cls, router, serialized_router, **kwargs):
+        return core_tasks.BackendMethodTask().si(
+            serialized_router,
+            "remove_external_gateway",
+            state_transition="begin_updating",
+        )
+
+
 class NetworkCreateExecutor(core_executors.CreateExecutor):
     @classmethod
     def get_task_signature(cls, network, serialized_network, **kwargs):

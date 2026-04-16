@@ -4,6 +4,8 @@ from rest_framework import status, test
 
 from waldur_core.core.enums import CoreStates
 from waldur_openstack import models
+from waldur_openstack.exceptions import OpenStackBackendError
+from waldur_openstack.octavia import OctaviaClient
 
 from . import factories, fixtures
 
@@ -977,3 +979,38 @@ class HealthMonitorPullTest(BaseHealthMonitorTest):
         _, kwargs = mock_execute.call_args
         self.assertIn("serialized_pool", kwargs)
         self.assertIn("serialized_load_balancer", kwargs)
+
+
+class OctaviaAvailabilityGuardTest(test.APITestCase):
+    """Test that OctaviaClient raises a clear error when Octavia is not available."""
+
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.tenant = self.fixture.tenant
+
+    @mock.patch.object(OctaviaClient, "_get_connection")
+    def test_connection_raises_when_octavia_not_available(self, mock_conn):
+        mock_conn.return_value.has_service.return_value = False
+        client = OctaviaClient(self.tenant)
+        with self.assertRaises(OpenStackBackendError) as ctx:
+            _ = client.connection
+        self.assertIn("not available", str(ctx.exception))
+
+    @mock.patch.object(OctaviaClient, "_get_connection")
+    def test_connection_succeeds_when_octavia_available(self, mock_conn):
+        mock_conn.return_value.has_service.return_value = True
+        mock_conn.return_value.load_balancer = mock.MagicMock()
+        client = OctaviaClient(self.tenant)
+        self.assertIsNotNone(client.connection)
+
+    @mock.patch.object(OctaviaClient, "_get_connection")
+    def test_create_load_balancer_fails_when_octavia_not_available(self, mock_conn):
+        mock_conn.return_value.has_service.return_value = False
+        client = OctaviaClient(self.tenant)
+        lb = factories.LoadBalancerFactory(
+            tenant=self.tenant,
+            project=self.fixture.project,
+            service_settings=self.fixture.settings,
+        )
+        with self.assertRaises(OpenStackBackendError):
+            client.create_load_balancer(lb)

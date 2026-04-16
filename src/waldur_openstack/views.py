@@ -1135,6 +1135,158 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     )
     remove_router_interface_validators = [core_validators.StateValidator(CoreStates.OK)]
 
+    @extend_schema(
+        summary="Set external gateway",
+        description=(
+            "Set an external network as the gateway for this router. "
+            "Advanced options (SNAT control, fixed IPs) require additional permissions."
+        ),
+        request=serializers.SetExternalGatewaySerializer,
+        responses={202: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def set_external_gateway(self, request, uuid=None):
+        router: models.Router = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        router.external_network_id = data["external_network_id"]
+        router.external_network_ref = data.get("external_network_ref")
+        router.enable_snat = data.get("enable_snat")
+        router.external_fixed_ips = data.get("external_fixed_ips", [])
+        router.save(
+            update_fields=[
+                "external_network_id",
+                "external_network_ref",
+                "enable_snat",
+                "external_fixed_ips",
+            ]
+        )
+        executors.RouterSetExternalGatewayExecutor.execute(router)
+        return response.Response(
+            {"status": _("External gateway update was successfully scheduled.")},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    set_external_gateway_permissions = [
+        openstack_permissions.can_manage_openstack_router_gateway
+    ]
+    set_external_gateway_validators = [
+        core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED)
+    ]
+    set_external_gateway_serializer_class = serializers.SetExternalGatewaySerializer
+
+    @extend_schema(
+        summary="Remove external gateway",
+        description="Remove the external gateway from this router.",
+        request=None,
+        responses={202: None},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def remove_external_gateway(self, request, uuid=None):
+        router: models.Router = self.get_object()
+        if not router.has_external_gateway:
+            return response.Response(
+                {"detail": _("Router does not have an external gateway.")},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        # Check for floating IPs associated via the gateway network
+        floating_ip_count = models.FloatingIP.objects.filter(
+            tenant=router.tenant,
+            backend_network_id=router.external_network_id,
+        ).count()
+        if floating_ip_count > 0:
+            return response.Response(
+                {
+                    "detail": _(
+                        "Cannot remove external gateway: %d floating IP(s) "
+                        "are still associated with this gateway network."
+                    )
+                    % floating_ip_count
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        executors.RouterRemoveExternalGatewayExecutor.execute(router)
+        return response.Response(
+            {"status": _("External gateway removal was successfully scheduled.")},
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+    remove_external_gateway_permissions = [
+        openstack_permissions.can_manage_openstack_router_gateway
+    ]
+    remove_external_gateway_validators = [
+        core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED)
+    ]
+    remove_external_gateway_serializer_class = EmptySerializer
+
+    @extend_schema(
+        summary="List available external networks",
+        description=(
+            "Returns a merged list of external networks available for this router's tenant, "
+            "from both global external networks and RBAC-exposed networks."
+        ),
+        responses={200: serializers.AvailableExternalNetworkSerializer(many=True)},
+    )
+    @decorators.action(detail=True, methods=["get"])
+    def available_external_networks(self, request, uuid=None):
+        router: models.Router = self.get_object()
+        tenant = router.tenant
+        result = []
+
+        # Global external networks
+        for ext_net in models.ExternalNetwork.objects.filter(
+            settings=tenant.service_settings
+        ):
+            subnets = [
+                {
+                    "backend_id": s.backend_id,
+                    "name": s.name,
+                    "cidr": getattr(s, "cidr", ""),
+                }
+                for s in ext_net.subnets.all()
+            ]
+            result.append(
+                {
+                    "backend_id": ext_net.backend_id,
+                    "name": ext_net.name,
+                    "description": ext_net.description,
+                    "source": "global",
+                    "subnets": subnets,
+                }
+            )
+
+        # RBAC-exposed-as-external networks
+        seen_backend_ids = {r["backend_id"] for r in result}
+        rbac_networks = models.Network.objects.filter(
+            rbac_policies__target_tenant=tenant,
+            rbac_policies__policy_type=models.NetworkRBACPolicy.NetworkShareType.EXTERNAL,
+        ).distinct()
+        for network in rbac_networks:
+            if network.backend_id in seen_backend_ids:
+                continue
+            subnets = [
+                {
+                    "backend_id": s.backend_id,
+                    "name": s.name,
+                    "cidr": s.cidr,
+                }
+                for s in network.subnets.all()
+            ]
+            result.append(
+                {
+                    "backend_id": network.backend_id,
+                    "name": network.name,
+                    "description": network.description,
+                    "source": "rbac",
+                    "subnets": subnets,
+                }
+            )
+
+        serializer = serializers.AvailableExternalNetworkSerializer(result, many=True)
+        return response.Response(serializer.data)
+
     set_erred_serializer_class = structure_serializers.SetErredSerializer
 
     @extend_schema(

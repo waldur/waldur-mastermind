@@ -165,9 +165,11 @@ Only the Keystone endpoint needs to be configured explicitly; all other service 
 | **Routers** | | |
 | Create Router | Set up network router | `POST /api/openstack-routers/` |
 | Delete Router | Remove router | `DELETE /api/openstack-routers/{uuid}/` |
-| Add Interface | Connect subnet to router | `POST /api/openstack-routers/{uuid}/add_interface/` |
-| Remove Interface | Disconnect subnet from router | `POST /api/openstack-routers/{uuid}/remove_interface/` |
-| Set Gateway | Configure external gateway | `POST /api/openstack-routers/{uuid}/set_gateway/` |
+| Add Interface | Connect subnet to router | `POST /api/openstack-routers/{uuid}/add_router_interface/` |
+| Remove Interface | Disconnect subnet from router | `POST /api/openstack-routers/{uuid}/remove_router_interface/` |
+| Set External Gateway | Attach external network as gateway | `POST /api/openstack-routers/{uuid}/set_external_gateway/` |
+| Remove External Gateway | Detach external gateway | `POST /api/openstack-routers/{uuid}/remove_external_gateway/` |
+| Available External Networks | List networks usable as gateway | `GET /api/openstack-routers/{uuid}/available_external_networks/` |
 | **Load Balancers** (Octavia LBaaS) | | |
 | List Load Balancers | Get load balancers | `GET /api/openstack-loadbalancers/` |
 | Create Load Balancer | Create Octavia load balancer | `POST /api/openstack-loadbalancers/` |
@@ -416,6 +418,326 @@ This feature was introduced as Phase 1 of a two-phase migration:
 
 - **Phase 1 (current)**: `ExternalNetwork` and `ExternalSubnet` models exist alongside the legacy `external_network_id` CharField on `Tenant` and `CustomerOpenStack`. Both the FK (`external_network_ref`) and the string field are maintained in parallel. Internal code reads from the FK first and falls back to the string.
 - **Phase 2 (follow-up)**: The legacy `external_network_id` CharFields and `ipv4_external_ip_mapping` in `secret_options` will be removed. All consumers will use the FK exclusively.
+
+### Router External Gateway
+
+Routers can be connected to external networks to provide outbound connectivity and floating IP support. The external gateway feature supports two types of external networks with a tiered permission model.
+
+#### Network Topology Overview
+
+The following diagram shows how a VPC router connects to external networks via the gateway feature, and how the two network source types differ:
+
+```mermaid
+flowchart LR
+    subgraph tenant["Tenant (Project A)"]
+        VM1["VM 1<br/>10.0.1.10"]
+        VM2["VM 2<br/>10.0.1.20"]
+        INT_NET["Internal Network<br/>10.0.1.0/24"]
+        ROUTER["VPC Router"]
+        VM1 --- INT_NET
+        VM2 --- INT_NET
+        INT_NET --- ROUTER
+    end
+
+    subgraph global_ext["Global External Network"]
+        PUB_NET["public<br/>203.0.113.0/24"]
+    end
+
+    subgraph tenant_b["Tenant (Project B)"]
+        RBAC_NET["transit-net<br/>10.100.0.0/24"]
+        RBAC_LABEL["RBAC policy:<br/>access_as_external"]
+        RBAC_LABEL -.-> RBAC_NET
+    end
+
+    ROUTER -->|"Gateway<br/>(SNAT enabled)"| PUB_NET
+    ROUTER -.->|"Gateway<br/>(SNAT disabled)"| RBAC_NET
+
+    style global_ext fill:#e8f5e9,stroke:#4caf50
+    style tenant_b fill:#e3f2fd,stroke:#2196f3
+    style tenant fill:#fff3e0,stroke:#ff9800
+```
+
+#### External Network Sources
+
+A network can serve as an external gateway for a router via two paths:
+
+| Source | Description | Model |
+|--------|-------------|-------|
+| **Global external** | Provider-level networks discovered from OpenStack (`router:external=True`) | `ExternalNetwork` (ServiceProperty) |
+| **RBAC-exposed** | A tenant's network shared to another tenant as external via RBAC policy | `Network` + `NetworkRBACPolicy(policy_type='access_as_external')` |
+
+#### Permission Model
+
+The gateway feature uses a two-tier permission model:
+
+Tier 1 — Basic Gateway: Users with the `CAN_MANAGE_OPENSTACK_ROUTER_GATEWAY` permission (project admin, manager, customer owner, staff) can set or remove an external gateway on a router and choose which external network to use. SNAT defaults to enabled, IP is auto-assigned by OpenStack.
+
+Tier 2 — Advanced Controls (SNAT + fixed IPs): Disabling SNAT or pinning specific external IPs requires elevated access, which depends on the network source:
+
+| Network Source | Who Can Set Advanced Options |
+|----------------|----------------------------|
+| **Global external** | Service provider (service settings customer owner) or staff |
+| **RBAC-exposed** | User with admin/manager role on the source network's project |
+
+**Rationale for RBAC exception**: When a user sets up an RBAC policy to share their network as external, they control both sides of the routing topology. Disabling SNAT for direct L3 routing between controlled networks is the primary use case for RBAC-exposed external networks.
+
+The following flowchart shows the complete permission decision tree when a user calls `set_external_gateway`:
+
+```mermaid
+flowchart TD
+    START["POST set_external_gateway"] --> AUTH{"User has<br/>MANAGE_GATEWAY<br/>permission?"}
+    AUTH -->|No| DENY_403["403 Forbidden"]
+    AUTH -->|Yes| RESOLVE{"Resolve<br/>external_network_id"}
+
+    RESOLVE --> CHECK_GLOBAL{"Matches<br/>ExternalNetwork?"}
+    CHECK_GLOBAL -->|Yes| SOURCE_GLOBAL["Source = global"]
+    CHECK_GLOBAL -->|No| CHECK_RBAC{"Matches Network<br/>with RBAC policy<br/>access_as_external?"}
+    CHECK_RBAC -->|Yes| SOURCE_RBAC["Source = rbac"]
+    CHECK_RBAC -->|No| DENY_400_NET["400 Bad Request<br/>Network not available"]
+
+    SOURCE_GLOBAL --> ADV{"Advanced options?<br/>enable_snat set OR<br/>fixed_ips non-empty"}
+    SOURCE_RBAC --> ADV
+
+    ADV -->|No| ACCEPT["202 Accepted<br/>Schedule gateway update"]
+    ADV -->|Yes| ADV_CHECK{"Check Tier 2<br/>permission"}
+
+    ADV_CHECK --> IS_STAFF{"Staff user?"}
+    IS_STAFF -->|Yes| ACCEPT
+    IS_STAFF -->|No| NET_SOURCE{"Network source?"}
+
+    NET_SOURCE -->|global| PROVIDER{"User is<br/>service settings<br/>customer owner?"}
+    PROVIDER -->|Yes| ACCEPT
+    PROVIDER -->|No| DENY_400_ADV["400 Bad Request<br/>Advanced options<br/>not permitted"]
+
+    NET_SOURCE -->|rbac| SRC_ADMIN{"User has admin/manager<br/>on source project?"}
+    SRC_ADMIN -->|Yes| ACCEPT
+    SRC_ADMIN -->|No| DENY_400_ADV
+
+    style ACCEPT fill:#c8e6c9,stroke:#4caf50
+    style DENY_403 fill:#ffcdd2,stroke:#f44336
+    style DENY_400_NET fill:#ffcdd2,stroke:#f44336
+    style DENY_400_ADV fill:#ffcdd2,stroke:#f44336
+```
+
+#### API Endpoints
+
+##### Set External Gateway
+
+**Endpoint**: `POST /api/openstack-routers/{uuid}/set_external_gateway/`
+
+Attaches an external network as the router's gateway. The router transitions to UPDATING state while the backend operation completes.
+
+**Request Body**:
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `external_network_id` | string | Yes | Backend ID (OpenStack UUID) of the external network |
+| `enable_snat` | boolean/null | No | Enable/disable SNAT. `null` uses OpenStack default (enabled). Requires Tier 2 permission. |
+| `external_fixed_ips` | list[object] | No | Fixed IP specs for the gateway port. Each entry must have `ip_address`. Requires Tier 2 permission. |
+
+**Example — Basic gateway**:
+
+```json
+{
+    "external_network_id": "d32a49e1-1234-5678-abcd-ef1234567890"
+}
+```
+
+**Example — Advanced (disable SNAT, pin IP)**:
+
+```json
+{
+    "external_network_id": "d32a49e1-1234-5678-abcd-ef1234567890",
+    "enable_snat": false,
+    "external_fixed_ips": [
+        {"ip_address": "203.0.113.10", "subnet_id": "e43b5af2-..."}
+    ]
+}
+```
+
+**Responses**:
+
+| Status | Condition |
+|--------|-----------|
+| 202 Accepted | Gateway update scheduled |
+| 400 Bad Request | Invalid network ID, permission denied for advanced options, or invalid fixed IP format |
+| 403 Forbidden | User lacks `CAN_MANAGE_OPENSTACK_ROUTER_GATEWAY` permission |
+| 409 Conflict | Router not in OK or ERRED state |
+
+**Validation**:
+
+1. `external_network_id` must match either a global `ExternalNetwork` or a `Network` with an `access_as_external` RBAC policy targeting the router's tenant
+2. If `enable_snat` is set (not null) or `external_fixed_ips` is non-empty, Tier 2 permission is checked
+3. Each `external_fixed_ips` entry must contain an `ip_address` field
+
+The following sequence diagram shows the end-to-end flow for setting an external gateway, from API request through backend execution:
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant API as Waldur API
+    participant Serializer
+    participant DB as Database
+    participant Executor as Celery Executor
+    participant Neutron as OpenStack Neutron<br/>(admin session)
+
+    User->>API: POST /routers/{uuid}/set_external_gateway/
+    API->>API: Check MANAGE_GATEWAY permission
+    API->>Serializer: Validate request data
+
+    Serializer->>DB: Lookup ExternalNetwork by backend_id
+    alt Global network found
+        DB-->>Serializer: ExternalNetwork (source=global)
+    else No global match
+        Serializer->>DB: Lookup Network with RBAC policy
+        alt RBAC network found
+            DB-->>Serializer: Network (source=rbac)
+        else No match
+            Serializer-->>API: 400 Network not available
+            API-->>User: 400 Bad Request
+        end
+    end
+
+    opt Advanced options requested
+        Serializer->>Serializer: Check Tier 2 permission
+        alt Denied
+            Serializer-->>API: 400 Not permitted
+            API-->>User: 400 Bad Request
+        end
+    end
+
+    Serializer-->>API: Validated data
+    API->>DB: Update Router fields
+    API->>Executor: Schedule set_external_gateway
+    API-->>User: 202 Accepted
+
+    Note over Executor,Neutron: Async (Celery task)
+    Executor->>DB: Router state → UPDATING
+    Executor->>Neutron: update_router(external_gateway_info)
+    Neutron-->>Executor: Success
+    Executor->>Neutron: show_router (pull latest state)
+    Neutron-->>Executor: Router data with gateway
+    Executor->>DB: Sync gateway fields + state → OK
+```
+
+##### Remove External Gateway
+
+**Endpoint**: `POST /api/openstack-routers/{uuid}/remove_external_gateway/`
+
+Detaches the external gateway from the router. No request body required.
+
+**Responses**:
+
+| Status | Condition |
+|--------|-----------|
+| 202 Accepted | Gateway removal scheduled |
+| 400 Bad Request | Router has no external gateway |
+| 403 Forbidden | User lacks permission |
+| 409 Conflict | Router not in OK or ERRED state, or floating IPs still associated with gateway network |
+
+**Safety check**: If any floating IPs are allocated on the gateway network for this tenant, the request is rejected with 409 to prevent connectivity loss.
+
+The following diagram shows the remove gateway flow with its safety checks:
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant API as Waldur API
+    participant DB as Database
+    participant Executor as Celery Executor
+    participant Neutron as OpenStack Neutron<br/>(admin session)
+
+    User->>API: POST /routers/{uuid}/remove_external_gateway/
+    API->>API: Check MANAGE_GATEWAY permission
+
+    API->>DB: Check router.has_external_gateway
+    alt No gateway set
+        API-->>User: 400 No external gateway
+    end
+
+    API->>DB: Count FloatingIPs on gateway network
+    alt Floating IPs exist
+        API-->>User: 409 Conflict (floating IPs still allocated)
+    end
+
+    API->>Executor: Schedule remove_external_gateway
+    API-->>User: 202 Accepted
+
+    Note over Executor,Neutron: Async (Celery task)
+    Executor->>DB: Router state → UPDATING
+    Executor->>Neutron: update_router(external_gateway_info=null)
+    Neutron-->>Executor: Success
+    Executor->>DB: Clear gateway fields + state → OK
+```
+
+##### Available External Networks
+
+**Endpoint**: `GET /api/openstack-routers/{uuid}/available_external_networks/`
+
+Returns a merged, deduplicated list of external networks available for the router's tenant. No special permissions beyond router visibility.
+
+**Response Format**:
+
+```json
+[
+    {
+        "backend_id": "d32a49e1-1234-5678-abcd-ef1234567890",
+        "name": "public",
+        "description": "Public external network",
+        "source": "global",
+        "subnets": [
+            {
+                "backend_id": "e43b5af2-...",
+                "name": "public-subnet-v4",
+                "cidr": "203.0.113.0/24"
+            }
+        ]
+    },
+    {
+        "backend_id": "a1b2c3d4-...",
+        "name": "shared-transit-net",
+        "description": "Inter-tenant transit network",
+        "source": "rbac",
+        "subnets": [
+            {
+                "backend_id": "f5g6h7i8-...",
+                "name": "transit-subnet",
+                "cidr": "10.100.0.0/24"
+            }
+        ]
+    }
+]
+```
+
+#### Router Response Fields
+
+When retrieving a router, the following gateway-related fields are included:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `external_network_id` | string | Backend ID of the gateway network (empty if no gateway) |
+| `external_network_uuid` | UUID/null | Waldur UUID of the `ExternalNetwork` record (null for RBAC networks) |
+| `external_network_name` | string/null | Name of the `ExternalNetwork` record |
+| `has_external_gateway` | boolean | Whether the router has an external gateway |
+| `enable_snat` | boolean/null | SNAT status (`null` = OpenStack default) |
+| `external_fixed_ips` | list[object] | Fixed IPs on the gateway port |
+
+#### Backend Implementation
+
+All gateway Neutron API calls use the **admin session** (not tenant credentials), because OpenStack requires admin privileges for SNAT and fixed-IP operations at the Neutron policy level. This ensures consistent behavior regardless of the permission tier.
+
+The `pull_tenant_routers` periodic sync automatically reconciles gateway fields from the OpenStack backend, resolving `external_network_ref` FK references from the `ExternalNetwork` catalog.
+
+#### Edge Cases
+
+| Scenario | Behavior |
+|----------|----------|
+| Router already has a gateway | `set_external_gateway` replaces the existing gateway (idempotent) |
+| Active floating IPs on gateway network | `remove_external_gateway` returns 409 |
+| Router not in OK/ERRED state | State validator rejects with 409 |
+| Backend call fails | Executor transitions router to ERRED; error message saved |
+| Model fields out of sync | `pull_tenant_routers` reconciles on next sync |
+| Concurrent operations | State transition to UPDATING blocks subsequent requests |
 
 ### Glance (Image Service)
 
