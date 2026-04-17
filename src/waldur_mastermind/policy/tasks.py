@@ -499,3 +499,69 @@ def reset_slurm_policies_on_period_boundary():
         "Period reset check complete: queued %d total evaluations", total_evaluated
     )
     return {"evaluated": total_evaluated}
+
+
+@shared_task(name="waldur_mastermind.policy.sync_slurm_periodic_settings")
+def sync_slurm_periodic_settings():
+    """Send apply_periodic_settings to all active SLURM resources.
+
+    Runs every 10 minutes to keep SLURM GrpTRESMins, fairshare, and QoS
+    thresholds in sync with current policy settings. This is needed
+    because:
+
+    - The site agent sets initial limits without the grace buffer
+    - Carryover and period boundaries change the effective allocation
+    - Drift can occur after site-agent or SLURM restarts
+
+    Uses a cache to skip resources whose settings haven't changed since
+    the last sync, avoiding unnecessary STOMP messages.
+    """
+    import hashlib
+    import json
+
+    from django.core.cache import cache
+
+    total_sent = 0
+    total_skipped = 0
+    total_failed = 0
+
+    for policy in models.SlurmPeriodicUsagePolicy.objects.all():
+        resources = marketplace_models.Resource.objects.filter(
+            offering=policy.scope,
+            state=marketplace_models.ResourceStates.OK,
+        )
+
+        if not policy.apply_to_all and policy.organization_groups.exists():
+            resources = resources.filter(
+                project__customer__organization_groups__in=policy.organization_groups.all()
+            )
+
+        for resource in resources:
+            settings = policy.calculate_slurm_settings(resource)
+
+            # Hash the settings to detect changes since last sync
+            settings_hash = hashlib.md5(
+                json.dumps(settings, sort_keys=True, default=str).encode()
+            ).hexdigest()
+            cache_key = f"slurm_periodic_settings:{resource.uuid}"
+
+            if cache.get(cache_key) == settings_hash:
+                total_skipped += 1
+                continue
+
+            success = policy.apply_policy_actions(resource)
+            if success:
+                # Cache for 24h — beat runs every 10min, so this just
+                # prevents re-sending identical settings until they change.
+                cache.set(cache_key, settings_hash, timeout=86400)
+                total_sent += 1
+            else:
+                total_failed += 1
+
+    logger.info(
+        "SLURM periodic settings sync: %d sent, %d skipped (unchanged), %d failed",
+        total_sent,
+        total_skipped,
+        total_failed,
+    )
+    return {"sent": total_sent, "skipped": total_skipped, "failed": total_failed}
