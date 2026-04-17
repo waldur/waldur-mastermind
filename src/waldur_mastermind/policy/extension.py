@@ -36,4 +36,9 @@ class PolicyExtension(WaldurExtension):
                 "schedule": crontab(hour=1, minute=0),
                 "args": (),
             },
+            "sync-slurm-periodic-settings": {
+                "task": "waldur_mastermind.policy.sync_slurm_periodic_settings",
+                "schedule": crontab(minute="*/10"),
+                "args": (),
+            },
         }
