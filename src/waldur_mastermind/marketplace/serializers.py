@@ -2279,6 +2279,7 @@ class OfferingOptionsSerializer(serializers.Serializer):
 
 
 class OfferingComponentSerializer(serializers.ModelSerializer):
+    offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
     factor = serializers.SerializerMethodField()
     overage_component = serializers.SlugRelatedField(
         slug_field="uuid",
@@ -2291,6 +2292,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
         model = models.OfferingComponent
         fields = (
             "uuid",
+            "offering_uuid",
             "billing_type",
             "type",
             "name",
