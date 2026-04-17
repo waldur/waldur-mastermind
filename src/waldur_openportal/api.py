@@ -1,22 +1,12 @@
-import datetime
-import hashlib
-import httpx
 import logging
 from http import HTTPStatus as status
 
 from django.contrib import auth
-from django.core.cache import cache
 from django.http import JsonResponse
-from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import (
     OpenApiParameter,
-    OpenApiTypes,
     extend_schema,
-    inline_serializer,
 )
-from rest_framework import serializers as drf_serializers
-from rest_framework import status as rest_status
-from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import (
     api_view,
     authentication_classes,
@@ -24,16 +14,12 @@ from rest_framework.decorators import (
 )
 from rest_framework.permissions import IsAuthenticated
 
-from waldur_auth_social.models import IdentityProvider
-from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
-from waldur_core.core.authentication import refresh_token, set_user_context
 from waldur_core.structure import models as structure_models
-from waldur_core.structure.managers import get_connected_projects, get_visible_projects
+from waldur_core.structure.managers import get_connected_projects
 from waldur_core.users.enums import InvitationState
-from waldur_mastermind.invoices import models as invoice_models
 
-from . import models, tasks, utils
+from . import models, serializers, tasks, utils
 from . import op as openportal
 from .board import OpenPortalBoard
 
@@ -140,12 +126,19 @@ def fetch_job(request):
     return response
 
 
-# Extracted from isambard/devel:src/waldur_openportal/api.py
-
-
-@extend_schema(exclude=True)
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            name="q",
+            type=str,
+            location=OpenApiParameter.QUERY,
+            description="Free text search query (email, short_name, project_name, or project_id)",
+            required=True,
+        ),
+    ],
+    responses={200: serializers.AccessResponseSerializer(many=True)},
+)
 @api_view(["GET"])
-@authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def access_for_email(request):
     """
@@ -289,7 +282,6 @@ def _intelligent_search(requesting_user, query, can_query_all):
     Non-staff users can only search by their own email or short_name.
     Staff/support users can search by any criteria.
     """
-    results = []
 
     # Strategy 1: Check if it's an email (contains @)
     if "@" in query:
@@ -316,14 +308,14 @@ def _intelligent_search(requesting_user, query, can_query_all):
 
     # Strategy 2: Check if it looks like a project ID (shortname.portal format or just shortname)
     # NON-STAFF USERS CANNOT SEARCH BY PROJECT
-    if "." in query or (len(query) < 10 and not " " in query):
+    if "." in query or (len(query) < 10 and " " not in query):
         logger.info(f"Attempting project ID search for query: '{query}'")
 
         # Permission check: only staff can search by project
         if not can_query_all:
             # This might be a short_name, so don't block yet - let it fall through to short_name search
             logger.info(
-                f"Non-staff user attempted project search, will try short_name instead"
+                "Non-staff user attempted project search, will try short_name instead"
             )
         else:
             try:
@@ -343,7 +335,7 @@ def _intelligent_search(requesting_user, query, can_query_all):
 
     # Strategy 3: Try short_name search (for usernames)
     # Short names are between 5 and 20 characters, no spaces
-    if not " " in query and 5 <= len(query) <= 20:
+    if " " not in query and 5 <= len(query) <= 20:
         logger.info(f"Attempting short_name search for query: '{query}'")
         try:
             result = _search_by_short_name(requesting_user, query, can_query_all)

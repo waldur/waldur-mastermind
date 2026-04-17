@@ -11,18 +11,17 @@ from datetime import timedelta
 from waldur_core.core import WaldurExtension
 from waldur_core.core.metadata import WaldurConfiguration
 from waldur_core.server.admin.settings import *
-
-from waldur_core.server.openapi_settings import *
-from waldur_core.server.constance_settings import *
 from waldur_core.server.celery_settings import *
+from waldur_core.server.constance_settings import *
+from waldur_core.server.openapi_settings import *
 
 encoding = locale.getpreferredencoding()
 if encoding.lower() != "utf-8":
     raise Exception(
-        """Your system's preferred encoding is `{}`, but Waldur requires `UTF-8`.
+        f"""Your system's preferred encoding is `{encoding}`, but Waldur requires `UTF-8`.
 Fix it by setting the LC_* and LANG environment settings. Example:
 LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
-""".format(encoding)
+"""
     )
 
 ADMINS = ()
@@ -270,7 +269,7 @@ _FOREIGN_PRE_CHAIN = [
 ]
 
 # Use JSON in production, readable console in development
-_USE_JSON_LOGS = not os.environ.get("WALDUR_DEV_LOGS", "").lower() in (
+_USE_JSON_LOGS = os.environ.get("WALDUR_DEV_LOGS", "").lower() not in (
     "1",
     "true",
     "yes",

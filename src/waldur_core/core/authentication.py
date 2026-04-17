@@ -1,6 +1,6 @@
 import hashlib
 import logging
-from enum import Enum
+from enum import StrEnum
 
 import httpx
 import jwt
@@ -66,7 +66,7 @@ def refresh_token(user: models.User) -> Token:
     return token
 
 
-class AuthenticationMethod(str, Enum):
+class AuthenticationMethod(StrEnum):
     TARA = "tara"
     EDUTEAMS = "eduteams"
     KEYCLOAK = "keycloak"

@@ -26,7 +26,6 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import Dict, Optional, Set
 
 # --- Third-party Library Imports and Checks ---
 
@@ -63,7 +62,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 IGNORE_COMMENT_MARKER = "test-dependency-ignore"
 
 
-def find_django_apps(src_path: Path) -> Dict[str, Path]:
+def find_django_apps(src_path: Path) -> dict[str, Path]:
     """
     Recursively scans the source directory to find all valid Django apps.
     Identifies apps by their 'apps.py' file and extracts the canonical name.
@@ -77,7 +76,7 @@ def find_django_apps(src_path: Path) -> Dict[str, Path]:
     for app_config_path in src_path.rglob("apps.py"):
         app_dir = app_config_path.parent
         try:
-            with open(app_config_path, "r", encoding="utf-8") as f:
+            with open(app_config_path, encoding="utf-8") as f:
                 content = f.read()
             match = re.search(r"name\s*=\s*['\"]([^'\"]+)['\"]", content)
             if not match:
@@ -97,9 +96,7 @@ def find_django_apps(src_path: Path) -> Dict[str, Path]:
     return apps
 
 
-def resolve_import_to_app(
-    module_str: Optional[str], project_apps: Set[str]
-) -> Optional[str]:
+def resolve_import_to_app(module_str: str | None, project_apps: set[str]) -> str | None:
     """
     Resolves a Python import string to the longest matching project app name.
     This correctly handles nested apps.
@@ -149,7 +146,7 @@ def build_dependency_graph():
     # Initialize a dictionary to hold the dependency data.
     # The keys will be app names, and the values will be sets of their dependencies.
     # Using a set automatically handles duplicates.
-    dependency_map: Dict[str, Set[str]] = {
+    dependency_map: dict[str, set[str]] = {
         app_name: set() for app_name in project_app_names
     }
 
@@ -165,7 +162,7 @@ def build_dependency_graph():
                 continue
             try:
                 # Read the entire file content once to get lines and parse the AST.
-                with open(py_file, "r", encoding="utf-8") as f:
+                with open(py_file, encoding="utf-8") as f:
                     source_code = f.read()
                     source_lines = source_code.splitlines()
                     tree = ast.parse(source_code, filename=py_file.name)
