@@ -1,8 +1,8 @@
-from enum import Enum
+from enum import StrEnum
 from typing import Literal
 
 
-class RoleEnum(str, Enum):
+class RoleEnum(StrEnum):
     CUSTOMER_OWNER = "CUSTOMER.OWNER"
     CUSTOMER_SUPPORT = "CUSTOMER.SUPPORT"
     CUSTOMER_MANAGER = "CUSTOMER.MANAGER"
@@ -54,7 +54,7 @@ TYPE_KEYS = Literal[
 ]
 
 
-class PermissionEnum(str, Enum):
+class PermissionEnum(StrEnum):
     REGISTER_SERVICE_PROVIDER = "SERVICE_PROVIDER.REGISTER"
 
     CREATE_OFFERING = "OFFERING.CREATE"

@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import Enum, StrEnum
 
 
-class EventType(str, Enum):
+class EventType(StrEnum):
     ACCESS_SUBNET_CREATION_SUCCEEDED = "access_subnet_creation_succeeded"
     ACCESS_SUBNET_DELETION_SUCCEEDED = "access_subnet_deletion_succeeded"
     ACCESS_SUBNET_UPDATE_SUCCEEDED = "access_subnet_update_succeeded"
@@ -337,7 +337,7 @@ class EventType(str, Enum):
     PAT_USED_FROM_NEW_IP = "pat_used_from_new_ip"
 
 
-class EventGroup(str, Enum):
+class EventGroup(StrEnum):
     ACCESS_SUBNETS = "access_subnets"
     AUTH = "auth"
     CALL = "call"

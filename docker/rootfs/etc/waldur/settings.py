@@ -1,7 +1,7 @@
 # Django settings for Waldur
-from waldur_core.server.base_settings import *
-
 import os
+
+from waldur_core.server.base_settings import *
 
 BASE_DIR = os.path.abspath(
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "..")
@@ -105,10 +105,11 @@ sentry_dsn = env.get("SENTRY_DSN")
 sentry_traces_sample_rate = float(env.get("SENTRY_TRACES_SAMPLE_RATE", 0.01))
 
 if sentry_dsn:
-    import sentry_sdk
-    from sentry_sdk.integrations.django import DjangoIntegration
-    from sentry_sdk.integrations.celery import CeleryIntegration
     import importlib
+
+    import sentry_sdk
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    from sentry_sdk.integrations.django import DjangoIntegration
 
     sentry_sdk.init(
         dsn=sentry_dsn,

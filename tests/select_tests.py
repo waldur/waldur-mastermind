@@ -28,7 +28,6 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Set
 
 # --- Third-party Library Imports and Checks ---
 
@@ -126,7 +125,7 @@ def get_changed_files() -> list[str]:
         return ["pyproject.toml"]
 
 
-def load_dependency_graph(path: Path) -> Dict[str, List[str]]:
+def load_dependency_graph(path: Path) -> dict[str, list[str]]:
     """
     Loads the dependency graph from the YAML file.
 
@@ -140,13 +139,13 @@ def load_dependency_graph(path: Path) -> Dict[str, List[str]]:
         log(f"ERROR: Dependency graph not found at {path}")
         return {}  # Return empty dict, which will trigger a full run later.
 
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
 def build_reverse_dependency_map(
-    dependency_map: Dict[str, List[str]],
-) -> Dict[str, List[str]]:
+    dependency_map: dict[str, list[str]],
+) -> dict[str, list[str]]:
     """
     Inverts the dependency graph.
 
@@ -166,7 +165,7 @@ def build_reverse_dependency_map(
     return reverse_map
 
 
-def map_file_to_app(file_path: str, all_apps: Set[str]) -> Optional[str]:
+def map_file_to_app(file_path: str, all_apps: set[str]) -> str | None:
     """
     Maps a file path to its corresponding canonical Django app name.
 
@@ -215,7 +214,7 @@ def main():
         any(f.startswith(trigger) for trigger in FULL_RUN_TRIGGERS)
         for f in changed_files
     ):
-        log(f"Core file changed, triggering a full test run.")
+        log("Core file changed, triggering a full test run.")
         print("src")
         return
 

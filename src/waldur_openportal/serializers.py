@@ -687,3 +687,22 @@ class ManagedProjectSerializer(
 
     def get_filtered_field_names(self):
         return ("project",)
+
+
+class AccessResourceSerializer(rf_serializers.Serializer):
+    name = rf_serializers.CharField()
+    username = rf_serializers.CharField()
+
+
+class AccessProjectSerializer(rf_serializers.Serializer):
+    name = rf_serializers.CharField()
+    resources = AccessResourceSerializer(many=True)
+
+
+class AccessResponseSerializer(rf_serializers.Serializer):
+    email = rf_serializers.EmailField()
+    status = rf_serializers.CharField()
+    short_name = rf_serializers.CharField()
+    projects = rf_serializers.DictField(child=AccessProjectSerializer())
+    invited_by = rf_serializers.CharField(allow_blank=True)
+    reason = rf_serializers.CharField(allow_blank=True)

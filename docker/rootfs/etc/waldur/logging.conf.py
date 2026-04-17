@@ -1,6 +1,5 @@
 # Logging with structlog
 # See also: https://docs.djangoproject.com/en/4.2/ref/settings/#logging
-import logging
 import sys
 
 import structlog

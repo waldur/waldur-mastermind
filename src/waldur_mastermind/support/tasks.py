@@ -139,8 +139,8 @@ def _send_email(
             notification = core_models.Notification.objects.get(key=notification_key)
             if not notification.enabled:
                 message = (
-                    "Notification %s is disabled. ",
-                    "Please enable it to send notifications." % notification_key,
+                    "Notification %s is disabled. Please enable it to send notifications."
+                    % notification_key
                 )
                 logger.info(message)
                 return

@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from django.contrib.auth import get_user_model
@@ -10,7 +10,7 @@ User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
-class ActionCategory(str, Enum):
+class ActionCategory(StrEnum):
     """Semantic categories for corrective actions"""
 
     VIEW = "view"
@@ -27,7 +27,7 @@ class ActionCategory(str, Enum):
     MONITOR = "monitor"
 
 
-class ActionSeverity(str, Enum):
+class ActionSeverity(StrEnum):
     """Severity levels for risk assessment"""
 
     SAFE = "safe"  # No risk (view, contact)
