@@ -3876,7 +3876,16 @@ class BaseItemSerializer(
 
         limits = attrs.get("limits")
         if limits:
-            utils.validate_limits(limits, offering)
+            if offering.parent:
+                parent_component_types = set(
+                    offering.parent.components.values_list("type", flat=True)
+                )
+                limits = {
+                    k: v for k, v in limits.items() if k not in parent_component_types
+                }
+                attrs["limits"] = limits
+            if limits:
+                utils.validate_limits(limits, offering, is_creation=True)
         return attrs
 
     def get_fields(self):
