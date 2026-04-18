@@ -8,7 +8,8 @@ from django.utils.module_loading import import_string
 
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
-from waldur_core.logging.enums import EventType
+from waldur_core.logging.enums import EventType, ObservableObjectType
+from waldur_core.logging.models import EventSubscriptionQueue
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -526,6 +527,14 @@ def sync_slurm_periodic_settings():
     total_failed = 0
 
     for policy in models.SlurmPeriodicUsagePolicy.objects.all():
+        # Skip offerings without a connected site-agent
+        has_queue = EventSubscriptionQueue.objects.filter(
+            offering_uuid=policy.scope.uuid,
+            object_type=ObservableObjectType.RESOURCE_PERIODIC_LIMITS.value,
+        ).exists()
+        if not has_queue:
+            continue
+
         resources = marketplace_models.Resource.objects.filter(
             offering=policy.scope,
             state=marketplace_models.ResourceStates.OK,

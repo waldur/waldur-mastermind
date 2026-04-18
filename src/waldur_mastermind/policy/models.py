@@ -1235,7 +1235,7 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
                 )
                 return True
             else:
-                logger.error(
+                logger.warning(
                     f"Failed to apply periodic settings for resource {resource.uuid}"
                 )
                 return False
