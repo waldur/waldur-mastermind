@@ -120,3 +120,15 @@ def _mock_openai_client(chunks):
     client = MagicMock()
     client.chat.completions.create.return_value = _fake_stream(chunks)
     return client
+
+
+def _mock_openai_client_multi(streams_list):
+    """Return a mock client whose create() yields each chunk-list in sequence.
+
+    streams_list: list of chunk-lists, one per expected create() call.
+    """
+    client = MagicMock()
+    client.chat.completions.create.side_effect = [
+        _fake_stream(chunks) for chunks in streams_list
+    ]
+    return client
