@@ -23,6 +23,7 @@ from waldur_mastermind.chat.tests.utils import (
     _make_chunk,
     _make_tool_call_delta,
     _mock_openai_client,
+    _mock_openai_client_multi,
     _SynchronousThread,
     blocks_from_text,
     text_from_blocks,
@@ -337,6 +338,99 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
         self.assertEqual(tool_blocks[0]["tool"]["name"], "show_user_resources")
         self.assertEqual(tool_blocks[0]["result"]["key"], "resource_list")
         self.assertEqual(tool_blocks[0]["result"]["project_uuid"], "abc123")
+
+    def test_followup_content_includes_code_block_text(self):
+        """Pre-tool code block text must reach the follow-up assistant message content field."""
+        tc = _make_tool_call_delta(
+            0, name="show_user_resources", arguments="{}", call_id="call_1"
+        )
+        first_chunks = [
+            _make_chunk(content="```python\nprint('hi')\n```"),
+            _make_chunk(tool_calls=[tc]),
+        ]
+        second_chunks = [_make_chunk(content="Done.")]
+
+        tool_result = {
+            "type": "success",
+            "summary": "ok",
+            "ui_component": "resource_list",
+            "ui_data": {},
+        }
+
+        mock_user = Mock()
+        mock_user.id = 1
+        mock_user.username = "testuser"
+
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool",
+            return_value=tool_result,
+        ):
+            streamer = LLMStreamer(
+                _messages(),
+                "https://example.com/v1",
+                "dummy-token",
+                user=mock_user,
+            )
+            streamer.client = _mock_openai_client_multi([first_chunks, second_chunks])
+            list(streamer)
+
+        followup_messages = streamer.client.chat.completions.create.call_args_list[
+            1
+        ].kwargs["messages"]
+        assistant_msg = next(
+            m for m in followup_messages if m.get("role") == "assistant"
+        )
+        self.assertIsNotNone(assistant_msg["content"])
+        self.assertIn("print", assistant_msg["content"])
+
+    def test_tool_call_followup_two_stream_flow(self):
+        """Full two-stream tool-call flow: pre-tool text, tool exec, follow-up answer."""
+        tc = _make_tool_call_delta(
+            0, name="show_user_resources", arguments="{}", call_id="call_42"
+        )
+        first_chunks = [
+            _make_chunk(content="Let me check that."),
+            _make_chunk(tool_calls=[tc]),
+        ]
+        second_chunks = [_make_chunk(content="Here are your resources.")]
+
+        tool_result = {
+            "type": "success",
+            "summary": "Showing resources",
+            "ui_component": "resource_list",
+            "ui_data": {"project_uuid": "abc123"},
+        }
+
+        mock_user = Mock()
+        mock_user.id = 1
+        mock_user.username = "testuser"
+
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool",
+            return_value=tool_result,
+        ):
+            streamer = LLMStreamer(
+                _messages(),
+                "https://example.com/v1",
+                "dummy-token",
+                user=mock_user,
+            )
+            streamer.client = _mock_openai_client_multi([first_chunks, second_chunks])
+            output = [json.loads(c) for c in streamer]
+
+        self.assertEqual(streamer.client.chat.completions.create.call_count, 2)
+
+        followup_messages = streamer.client.chat.completions.create.call_args_list[
+            1
+        ].kwargs["messages"]
+        assistant_msg = next(
+            m for m in followup_messages if m.get("role") == "assistant"
+        )
+        self.assertEqual(assistant_msg["content"], "Let me check that.")
+
+        markdown_chunks = [e.get("c", "") for e in output if e.get("k") == "markdown"]
+        self.assertIn("Let me check that.", markdown_chunks)
+        self.assertIn("Here are your resources.", markdown_chunks)
 
     def test_streamer_hides_tool_errors(self):
         """Tool errors are not displayed to users and not persisted."""

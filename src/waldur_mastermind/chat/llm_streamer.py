@@ -13,6 +13,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions as rf_exceptions
 
 from waldur_mastermind.chat import models
+from waldur_mastermind.chat.block_schemas import blocks_to_text
 from waldur_mastermind.chat.models import TokenQuota
 from waldur_mastermind.chat.parsers import StreamParser
 from waldur_mastermind.chat.prompts.rejection import TITLE_GENERATION_PROMPT
@@ -615,7 +616,7 @@ class LLMStreamer:
             followup_messages.append(
                 {
                     "role": "assistant",
-                    "content": self.accumulated_content or None,
+                    "content": blocks_to_text(self.accumulated_blocks) or None,
                     "tool_calls": [
                         {
                             "id": entry["id"],
@@ -643,6 +644,9 @@ class LLMStreamer:
                     }
                 )
 
+            # Reset flush guard so the second stream's trailing parser buffer
+            # can be flushed by _stream_and_collect -> _flush_parser().
+            self._flushed = False
             # Second LLM call — no tools this time, just generate text.
             self._stream_and_collect(followup_messages, include_tools=False)
 
