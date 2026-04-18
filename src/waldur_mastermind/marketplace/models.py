@@ -1,3 +1,4 @@
+import datetime
 import logging
 from collections.abc import Callable
 from datetime import timedelta
@@ -1218,7 +1219,13 @@ class Plan(
     class Permissions:
         customer_path = "offering__customer"
 
-    def get_estimate(self, limits=None):
+    def get_estimate(self, limits=None, start_date=None, end_date=None):
+        """Estimate total cost for given limits.
+
+        For prepaid components, multiplies by the number of months between
+        start_date and end_date. Without dates, returns single-period cost.
+        """
+
         cost = self.unit_price
 
         if limits:
@@ -1229,11 +1236,17 @@ class Plan(
 
             factors = self.offering.component_factors
 
-            for key in components_map.keys():
+            for key, component in components_map.items():
                 price = component_prices.get(key, 0)
                 limit = limits.get(key, 0)
                 factor = factors.get(key, 1)
-                cost += Decimal(price) * Decimal(str(limit)) / Decimal(str(factor))
+                per_unit = Decimal(price) * Decimal(str(limit)) / Decimal(str(factor))
+
+                if component.is_prepaid and start_date and end_date:
+                    months = core_utils.calculate_duration_months(start_date, end_date)
+                    per_unit *= months
+
+                cost += per_unit
 
         return cost
 
@@ -1247,6 +1260,25 @@ class Plan(
     @property
     def init_price(self) -> float:
         return self.sum_components(BillingTypes.ONE_TIME)
+
+    @property
+    def non_prepaid_init_price(self) -> float:
+        """Activation fee excluding prepaid ONE_TIME components.
+
+        Prepaid ONE_TIME components are already accounted for in
+        get_estimate() with the duration multiplier. This avoids
+        double-counting them via init_price.
+        """
+        components = self.components.filter(
+            component__billing_type=BillingTypes.ONE_TIME,
+            component__is_prepaid=False,
+        )
+        return (
+            components.aggregate(
+                sum=models.Sum(models.F("price") * models.F("amount"))
+            )["sum"]
+            or 0
+        )
 
     @property
     def switch_price(self) -> float:
@@ -1405,11 +1437,18 @@ class CostEstimateMixin(models.Model):
     plan = models.ForeignKey(on_delete=models.CASCADE, to=Plan, null=True, blank=True)
     limits = models.JSONField(blank=True, default=dict)
 
+    def _get_cost_dates(self):
+        """Return (start_date, end_date) for prepaid duration calculation."""
+        start_date = getattr(self, "start_date", None) or timezone.now().date()
+        end_date = getattr(self, "end_date", None)
+        return start_date, end_date
+
     def init_cost(self):
         if not self.plan:
             return
         try:
-            self.cost = self.plan.get_estimate(self.limits)
+            start_date, end_date = self._get_cost_dates()
+            self.cost = self.plan.get_estimate(self.limits, start_date, end_date)
 
             # Proactive policy validation for new resources
             if self._should_validate_cost_policies():
@@ -1814,13 +1853,13 @@ class Resource(
         """
         Calculates the cost for renewing a prepaid resource.
 
-        The cost is based on the plan's pricing for the prepaid components.
-        It supports both simple extensions and upgrades (increasing limits).
+        Uses the same pricing logic as Plan.get_estimate: for each prepaid
+        component, cost = price × limit / factor × months.
 
         Args:
-            extension_months (int): The number of months to extend the subscription by.
-            new_limits (dict, optional): A dictionary of new limits. If provided,
-                                         the cost will reflect the upgraded capacity.
+            extension_months: Number of months to extend the subscription.
+            new_limits: New limits for the renewal period. Defaults to
+                current resource limits.
 
         Returns:
             Decimal: The total calculated cost for the renewal.
@@ -1828,25 +1867,37 @@ class Resource(
         if not self.plan:
             return Decimal("0.0")
 
-        total_cost = Decimal("0.0")
         final_limits = new_limits or self.limits
 
-        # Find all prepaid components in the plan and sum their renewal costs
-        component_factors = self.offering.component_factors
-        for plan_component in self.plan.components.filter(component__is_prepaid=True):
-            component = plan_component.component
-            if not component:
+        # Compute prepaid cost for the extension period.
+        # Use a synthetic date range so calculate_duration_months returns
+        # exactly extension_months.
+        start_date = timezone.now().date()
+        end_date = start_date + relativedelta(months=extension_months)
+
+        total = Decimal("0.0")
+        components_map = self.offering.get_limit_components()
+        component_prices = {
+            c.component.type: c.price for c in self.plan.components.all()
+        }
+        factors = self.offering.component_factors
+
+        for key, component in components_map.items():
+            if not component.is_prepaid:
                 continue
+            price = component_prices.get(key, 0)
+            limit = final_limits.get(key, 0)
+            factor = factors.get(key, 1)
 
-            # The price is per display unit (e.g., per GB), but limits are stored
-            # in internal units (e.g., MB). Divide by the factor to convert.
-            limit_amount = Decimal(str(final_limits.get(component.type, 0)))
-            factor = Decimal(str(component_factors.get(component.type, 1)))
-            display_amount = limit_amount / factor
-            component_cost = plan_component.price * display_amount * extension_months
-            total_cost += component_cost
+            months = core_utils.calculate_duration_months(start_date, end_date)
+            total += (
+                Decimal(str(price))
+                * Decimal(str(limit))
+                / Decimal(str(factor))
+                * months
+            )
 
-        return total_cost
+        return total
 
     def get_renewal_estimate(
         self, extension_months: int, new_limits: dict | None = None
@@ -2105,11 +2156,27 @@ class Order(
             Index(fields=["state", "-created"], name="mp_order_state_created_idx"),
         ]
 
+    def _get_cost_dates(self):
+        """Return (start_date, end_date) for prepaid duration calculation.
+
+        For orders, end_date comes from the resource or order attributes.
+        """
+        start_date = self.start_date or timezone.now().date()
+        end_date = None
+        if self.resource_id and self.resource and self.resource.end_date:
+            end_date = self.resource.end_date
+        elif self.attributes.get("end_date"):
+            try:
+                end_date = datetime.date.fromisoformat(self.attributes["end_date"])
+            except (ValueError, TypeError):
+                pass
+        return start_date, end_date
+
     def init_cost(self):
         super().init_cost()
         if self.plan:
             if self.type == OrderTypes.CREATE:
-                self.cost += self.plan.init_price
+                self.cost += self.plan.non_prepaid_init_price
             elif self.type == OrderTypes.UPDATE:
                 self.cost += self.plan.switch_price
 
@@ -2121,16 +2188,34 @@ class Order(
 
     @property
     def old_cost_estimate(self) -> float:
-        if "old_limits" in self.attributes:
-            plan = self.old_plan or self.plan
-            if plan:
-                return plan.get_estimate(self.attributes["old_limits"])
-        return 0
+        if "old_limits" not in self.attributes:
+            return 0
+        plan = self.old_plan or self.plan
+        if not plan:
+            return 0
+
+        # For renewals, include the old subscription duration
+        start_date = None
+        end_date = None
+        old_end_date_str = self.attributes.get("old_end_date")
+        if old_end_date_str:
+            try:
+                end_date = datetime.date.fromisoformat(old_end_date_str)
+            except (ValueError, TypeError):
+                pass
+        if end_date and self.resource_id and self.resource:
+            start_date = (
+                self.resource.created.date()
+                if hasattr(self.resource.created, "date")
+                else self.resource.created
+            )
+
+        return plan.get_estimate(self.attributes["old_limits"], start_date, end_date)
 
     @property
     def activation_price(self) -> float:
         if self.type == OrderTypes.CREATE:
-            return self.plan.init_price
+            return self.plan.non_prepaid_init_price
         elif self.type == OrderTypes.UPDATE:
             return self.plan.switch_price
         return 0

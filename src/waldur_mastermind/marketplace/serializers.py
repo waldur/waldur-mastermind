@@ -4487,7 +4487,7 @@ class OrderCreateSerializer(
             attributes=attributes,
             name=attributes.get("name") or "",
         )
-        resource.init_cost()
+        # Set end_date BEFORE init_cost so prepaid duration is included
         end_date = validate_end_date(
             resource.offering,
             resource.created.date(),
@@ -4498,6 +4498,7 @@ class OrderCreateSerializer(
             resource.end_date_requested_by = (
                 request.user if attributes.get("end_date") else None
             )
+        resource.init_cost()
 
         # Set resource options from offering's resource_options
         resource.options = {}

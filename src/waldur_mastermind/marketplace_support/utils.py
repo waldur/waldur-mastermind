@@ -73,6 +73,19 @@ def format_create_description(order):
                     f"\n{component.name} ({component.type}): {value} {component.measured_unit}"
                 )
 
+    # Add total cost (includes prepaid duration multiplier via order.init_cost)
+    if order.cost is not None:
+        result.append(f"\nTotal cost: {order.cost:.2f}")
+
+    # Add resource, project and customer slugs
+    resource = order.resource
+    if resource:
+        result.append(f"\nResource slug: {resource.slug}")
+    if order.project:
+        result.append(f"Project slug: {order.project.slug}")
+        if order.project.customer:
+            result.append(f"Customer slug: {order.project.customer.slug}")
+
     description = "\n".join(result)
 
     return description

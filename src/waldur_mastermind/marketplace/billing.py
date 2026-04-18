@@ -368,14 +368,10 @@ class MarketplaceBillingService:
                 factor = resource.offering.component_factors.get(component_type, 1)
                 quantity = limit / factor if factor != 1 else limit
                 if resource.end_date:
-                    from dateutil.relativedelta import relativedelta
-
                     start_date = start.date() if hasattr(start, "date") else start
-                    delta = relativedelta(resource.end_date, start_date)
-                    months = (
-                        delta.years * 12 + delta.months + (1 if delta.days > 0 else 0)
+                    quantity *= core_utils.calculate_duration_months(
+                        start_date, resource.end_date
                     )
-                    quantity *= months
             elif is_one or is_switch:
                 unit = invoice_models.Units.QUANTITY
                 quantity = 1
