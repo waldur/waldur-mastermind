@@ -230,6 +230,76 @@ class BuildContextTest(TestCase):
         self.assertIn("Hello", all_contents)
         self.assertNotIn("Old msg", all_contents)
 
+    def test_staff_user_gets_general_assistance_scope(self):
+        staff_user = structure_factories.UserFactory(is_staff=True)
+        session = ChatSession.objects.create(user=staff_user)
+        thread = ThreadSession.objects.create(chat_session=session)
+
+        context = build_context(staff_user, "What is Python?", thread=thread)
+
+        system_msg = next(m for m in context if m["role"] == "system")
+        self.assertIn("TECHNICAL ASSISTANCE", system_msg["content"])
+        self.assertNotIn("CLOUD MANAGEMENT ONLY", system_msg["content"])
+
+    def test_support_user_gets_technical_support_scope(self):
+        support_user = structure_factories.UserFactory(is_support=True)
+        session = ChatSession.objects.create(user=support_user)
+        thread = ThreadSession.objects.create(chat_session=session)
+
+        context = build_context(support_user, "What is Python?", thread=thread)
+
+        system_msg = next(m for m in context if m["role"] == "system")
+        self.assertIn("TECHNICAL SUPPORT", system_msg["content"])
+        self.assertNotIn("CLOUD MANAGEMENT ONLY", system_msg["content"])
+
+    def test_non_staff_user_gets_strict_scope(self):
+        context = build_context(self.user, "What is Python?", thread=self.thread)
+
+        system_msg = next(m for m in context if m["role"] == "system")
+        self.assertIn("CLOUD MANAGEMENT ONLY", system_msg["content"])
+        self.assertNotIn("TECHNICAL ASSISTANCE", system_msg["content"])
+        self.assertNotIn("TECHNICAL SUPPORT", system_msg["content"])
+
+    def test_staff_takes_precedence_over_support(self):
+        user = structure_factories.UserFactory(is_staff=True, is_support=True)
+        session = ChatSession.objects.create(user=user)
+        thread = ThreadSession.objects.create(chat_session=session)
+
+        context = build_context(user, "Hello", thread=thread)
+
+        system_msg = next(m for m in context if m["role"] == "system")
+        self.assertIn("TECHNICAL ASSISTANCE", system_msg["content"])
+        self.assertNotIn("TECHNICAL SUPPORT", system_msg["content"])
+        self.assertNotIn("CLOUD MANAGEMENT ONLY", system_msg["content"])
+
+    @override_constance_config(AI_ASSISTANT_NAME="Mari", SITE_NAME="ETAIS")
+    def test_staff_scope_uses_custom_organization(self):
+        staff_user = structure_factories.UserFactory(is_staff=True)
+        session = ChatSession.objects.create(user=staff_user)
+        thread = ThreadSession.objects.create(chat_session=session)
+
+        context = build_context(staff_user, "Hello", thread=thread)
+
+        system_msg = next(m for m in context if m["role"] == "system")
+        self.assertIn("ETAIS", system_msg["content"])
+        self.assertIn("TECHNICAL ASSISTANCE", system_msg["content"])
+        self.assertNotIn("{organization}", system_msg["content"])
+
+    def test_scope_guardrails_present_for_all_roles(self):
+        """COMPOUND REQUESTS and PREREQUISITE FRAMING guardrails apply to every role."""
+        users = [
+            self.user,  # end user
+            structure_factories.UserFactory(is_staff=True),
+            structure_factories.UserFactory(is_support=True),
+        ]
+        for user in users:
+            session = ChatSession.objects.get_or_create(user=user)[0]
+            thread = ThreadSession.objects.get_or_create(chat_session=session)[0]
+            context = build_context(user, "Hello", thread=thread)
+            system_msg = next(m for m in context if m["role"] == "system")
+            self.assertIn("COMPOUND REQUESTS", system_msg["content"])
+            self.assertIn("PREREQUISITE FRAMING", system_msg["content"])
+
 
 class BuildContextWithIntentTest(TestCase):
     def setUp(self):
