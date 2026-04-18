@@ -88,6 +88,8 @@ from .enums import OrderTypes
 
 logger = logging.getLogger(__name__)
 USERNAME_ANONYMIZED_POSTFIX_LENGTH = 5
+
+
 USERNAME_POSTFIX_LENGTH = 2
 
 

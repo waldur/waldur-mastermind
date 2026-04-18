@@ -1,5 +1,7 @@
 import calendar
 import datetime
+
+from dateutil.relativedelta import relativedelta
 import functools
 import importlib
 import logging
@@ -58,6 +60,19 @@ def timestamp_to_datetime(timestamp, replace_tz=True):
 
 def timeshift(**kwargs):
     return timezone.now().replace(microsecond=0) + datetime.timedelta(**kwargs)
+
+
+def calculate_duration_months(start_date, end_date):
+    """Calculate duration in whole months, rounding up partial months.
+
+    Used by prepaid billing, cost estimation, and the site agent.
+    A partial month at the end counts as a full month.
+    """
+    delta = relativedelta(end_date, start_date)
+    months = delta.years * 12 + delta.months
+    if delta.days > 0:
+        months += 1
+    return max(1, months)
 
 
 def month_start(date):
