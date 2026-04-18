@@ -11,6 +11,12 @@ from waldur_mastermind.chat.intent_classifier import Intent, classify_intent
 from waldur_mastermind.chat.models import Message
 from waldur_mastermind.chat.prompts.assembly import SYSTEM_PROMPT_TEMPLATE
 from waldur_mastermind.chat.prompts.rejection import REJECTION_SYSTEM_PROMPT_TEMPLATE
+from waldur_mastermind.chat.prompts.scope_boundary import (
+    SCOPE_BOUNDARY_TEMPLATE,
+    SCOPE_GUARDRAILS_TEMPLATE,
+    STAFF_SCOPE_BOUNDARY_TEMPLATE,
+    SUPPORT_SCOPE_BOUNDARY_TEMPLATE,
+)
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.chat.tools.tool_sets import get_tool_set_for_user
 
@@ -102,10 +108,23 @@ def build_context(
     tools_prompt = (
         tool_registry.get_tools_prompt(tool_names) if include_tools_prompt else ""
     )
+    if user and user.is_staff:
+        scope_boundary_template = STAFF_SCOPE_BOUNDARY_TEMPLATE
+    elif user and user.is_support:
+        scope_boundary_template = SUPPORT_SCOPE_BOUNDARY_TEMPLATE
+    else:
+        scope_boundary_template = SCOPE_BOUNDARY_TEMPLATE
+    organization = config.SITE_NAME
+    scope_boundary = (
+        scope_boundary_template.format(organization=organization)
+        + "\n\n"
+        + SCOPE_GUARDRAILS_TEMPLATE.format(organization=organization)
+    )
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+        scope_boundary=scope_boundary,
         tools=tools_prompt,
         assistant_name=config.AI_ASSISTANT_NAME,
-        organization=config.SITE_NAME,
+        organization=organization,
     )
 
     messages = [{"role": "system", "content": system_prompt}]

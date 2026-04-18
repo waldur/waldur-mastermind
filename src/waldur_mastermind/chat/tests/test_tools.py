@@ -176,11 +176,13 @@ class SystemPromptTest(TestCase):
 
     def test_system_prompt_template_has_placeholders(self):
         self.assertIn("{tools}", SYSTEM_PROMPT_TEMPLATE)
+        self.assertIn("{scope_boundary}", SYSTEM_PROMPT_TEMPLATE)
         self.assertIn("{assistant_name}", SYSTEM_PROMPT_TEMPLATE)
         self.assertIn("{organization}", SYSTEM_PROMPT_TEMPLATE)
 
     def test_system_prompt_template_formats_correctly(self):
         result = SYSTEM_PROMPT_TEMPLATE.format(
+            scope_boundary="[scope boundary]",
             tools="[tool prompt]",
             assistant_name="TestBot",
             organization="TestOrg",
@@ -188,9 +190,11 @@ class SystemPromptTest(TestCase):
         self.assertIn("TestBot", result)
         self.assertIn("TestOrg", result)
         self.assertIn("[tool prompt]", result)
+        self.assertIn("[scope boundary]", result)
         self.assertNotIn("{assistant_name}", result)
         self.assertNotIn("{organization}", result)
         self.assertNotIn("{tools}", result)
+        self.assertNotIn("{scope_boundary}", result)
 
 
 class ToolSetsTest(TestCase):
