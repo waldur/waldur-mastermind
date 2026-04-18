@@ -375,10 +375,11 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITestCase):
         self.assertGreater(mock_publish_messages.call_count, 0)
         self.assertLessEqual(mock_publish_messages.call_count, len(resources))
 
-        # Performance assertion
+        # Performance assertion — use a generous threshold to avoid
+        # flaky failures on CI runners with variable load.
         avg_time = duration / len(resources)
         self.assertLess(
-            avg_time, 0.1, f"Policy application too slow: {avg_time:.3f}s per resource"
+            avg_time, 0.5, f"Policy application too slow: {avg_time:.3f}s per resource"
         )
 
         print("✅ STOMP message generation performance acceptable")

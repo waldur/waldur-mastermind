@@ -14,6 +14,7 @@ from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models, plugins
 from waldur_mastermind.marketplace.enums import (
+    BASIC_OFFERING,
     SUPPORT_OFFERING,
     BillingTypes,
     LimitPeriods,
@@ -885,6 +886,188 @@ class OrderLimitsCreateTest(BaseOrderCreateTest):
             "offering": factories.OfferingFactory.get_public_url(offering),
             "plan": factories.PlanFactory.get_public_url(plan),
             "limits": {"cpu_count": 5},
+            "attributes": {},
+        }
+
+        response = self.create_order(
+            self.fixture.staff, offering, add_payload=add_payload
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+
+    def _create_child_offering_with_parent_limits(self):
+        """Create a child offering (like OpenStack Instance) whose parent has
+        LIMIT components (cores, ram, storage). Uses BASIC_OFFERING type which
+        doesn't have can_update_limits=True, matching the OpenStack.Instance scenario.
+        """
+        parent_offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            type=SUPPORT_OFFERING,
+        )
+        for comp_type in ("cores", "ram", "storage"):
+            models.OfferingComponent.objects.create(
+                offering=parent_offering,
+                type=comp_type,
+                billing_type=BillingTypes.LIMIT,
+            )
+        child_offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            type=BASIC_OFFERING,
+            parent=parent_offering,
+        )
+        plan = factories.PlanFactory(offering=child_offering)
+        return child_offering, plan
+
+    def test_instance_order_with_only_parent_limits_succeeds(self):
+        """When the frontend sends parent (tenant) component limits for an instance
+        order, they should be stripped and the order should succeed.
+        """
+        instance_offering, plan = self._create_child_offering_with_parent_limits()
+
+        add_payload = {
+            "offering": factories.OfferingFactory.get_public_url(instance_offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "limits": {"cores": 4, "ram": 8192, "storage": 102400},
+            "attributes": {},
+        }
+
+        response = self.create_order(
+            self.fixture.staff, instance_offering, add_payload=add_payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        order = models.Order.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(order.limits, {})
+
+    def test_instance_order_with_parent_and_own_limit_components(self):
+        """When a child offering has its own LIMIT component alongside parent
+        components, parent limits are stripped and child limits are validated.
+        """
+        instance_offering, plan = self._create_child_offering_with_parent_limits()
+        models.OfferingComponent.objects.create(
+            offering=instance_offering,
+            type="consultancy",
+            billing_type=BillingTypes.LIMIT,
+        )
+
+        add_payload = {
+            "offering": factories.OfferingFactory.get_public_url(instance_offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "limits": {"cores": 4, "ram": 8192, "consultancy": 5},
+            "attributes": {},
+        }
+
+        response = self.create_order(
+            self.fixture.staff, instance_offering, add_payload=add_payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        order = models.Order.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(order.limits, {"consultancy": 5})
+
+    def test_instance_order_with_unknown_limit_key_rejected(self):
+        """Limit keys that belong to neither parent nor child components
+        are rejected by component validation.
+        """
+        instance_offering, plan = self._create_child_offering_with_parent_limits()
+
+        add_payload = {
+            "offering": factories.OfferingFactory.get_public_url(instance_offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "limits": {"unknown_component": 10},
+            "attributes": {},
+        }
+
+        response = self.create_order(
+            self.fixture.staff, instance_offering, add_payload=add_payload
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+
+    def test_creation_with_limits_succeeds_for_offering_without_can_update_limits(self):
+        """Creating an order with valid LIMIT components should succeed even
+        if the offering type does not support limit updates (can_update_limits=False).
+        The can_update_limits check only applies to update orders.
+        """
+        offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE,
+            type=BASIC_OFFERING,
+        )
+        plan = factories.PlanFactory(offering=offering)
+        models.OfferingComponent.objects.create(
+            offering=offering,
+            type="consultancy",
+            billing_type=BillingTypes.LIMIT,
+        )
+
+        add_payload = {
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "limits": {"consultancy": 5},
+            "attributes": {},
+        }
+
+        response = self.create_order(
+            self.fixture.staff, offering, add_payload=add_payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_empty_limits_dict_for_child_offering_passes(self):
+        """An empty limits dict should not trigger validation."""
+        instance_offering, plan = self._create_child_offering_with_parent_limits()
+
+        add_payload = {
+            "offering": factories.OfferingFactory.get_public_url(instance_offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "limits": {},
+            "attributes": {},
+        }
+
+        response = self.create_order(
+            self.fixture.staff, instance_offering, add_payload=add_payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+    def test_parent_limits_stripped_from_stored_order(self):
+        """Parent component limits must not be stored on the order."""
+        instance_offering, plan = self._create_child_offering_with_parent_limits()
+
+        add_payload = {
+            "offering": factories.OfferingFactory.get_public_url(instance_offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "limits": {"cores": 4, "ram": 8192},
+            "attributes": {},
+        }
+
+        response = self.create_order(
+            self.fixture.staff, instance_offering, add_payload=add_payload
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+
+        order = models.Order.objects.get(uuid=response.data["uuid"])
+        self.assertNotIn("cores", order.limits)
+        self.assertNotIn("ram", order.limits)
+
+    def test_top_level_offering_still_validates_limits_on_creation(self):
+        """Orders for top-level offerings still go through component-level
+        validation — invalid limit types are rejected.
+        """
+        offering = factories.OfferingFactory(
+            state=OfferingStates.ACTIVE, type=SUPPORT_OFFERING
+        )
+        plan = factories.PlanFactory(offering=offering)
+        models.OfferingComponent.objects.create(
+            offering=offering,
+            type="cpu_count",
+            billing_type=BillingTypes.FIXED,
+        )
+
+        add_payload = {
+            "offering": factories.OfferingFactory.get_public_url(offering),
+            "plan": factories.PlanFactory.get_public_url(plan),
+            "limits": {"cpu_count": 4},
             "attributes": {},
         }
 

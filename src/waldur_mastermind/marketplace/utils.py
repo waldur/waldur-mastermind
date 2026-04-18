@@ -439,13 +439,14 @@ def get_components_map(limits, offering: models.Offering):
     return result
 
 
-def validate_limits(limits, offering, resource=None):
+def validate_limits(limits, offering, resource=None, is_creation=False):
     """
     @param limits Maximum/Minimum limit-based components values and maximum available limit
     @param offering The offering being created
     @param resource Passing the resource if the limits of the resource are being updated.
+    @param is_creation If True, skip the can_update_limits check (it only applies to updates).
     """
-    if not plugins.manager.can_update_limits(offering.type):
+    if not is_creation and not plugins.manager.can_update_limits(offering.type):
         raise serializers.ValidationError(
             {"limits": _("Limits update is not supported for this resource.")}
         )
