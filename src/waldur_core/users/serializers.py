@@ -6,6 +6,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core.models import UserDetailsMatchMixin
+from waldur_core.core import serializers as core_serializers
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.permissions.models import Role
@@ -151,7 +152,9 @@ class BaseInvitationSerializer(BaseInvitationDetailsSerializer):
         return super().create(validated_data)
 
 
-class GroupInvitationSerializer(BaseInvitationSerializer):
+class GroupInvitationSerializer(
+    core_serializers.UserEmailPatternsValidatorMixin, BaseInvitationSerializer
+):
     project_role = serializers.SlugRelatedField(
         queryset=Role.objects.filter(is_active=True, name__startswith="PROJECT."),
         slug_field="uuid",
@@ -162,10 +165,6 @@ class GroupInvitationSerializer(BaseInvitationSerializer):
     scope_image = serializers.SerializerMethodField(
         help_text="Image URL of the invitation scope (Customer or Project)"
     )
-
-    def validate_user_email_patterns(self, value):
-        models.GroupInvitation.validate_user_email_patterns(value)
-        return value
 
     def validate_project_name_template(self, value):
         """Validate that the template only uses allowed placeholders."""
@@ -305,7 +304,9 @@ class GroupInvitationSerializer(BaseInvitationSerializer):
         return data
 
 
-class GroupInvitationUpdateSerializer(serializers.ModelSerializer):
+class GroupInvitationUpdateSerializer(
+    core_serializers.UserEmailPatternsValidatorMixin, serializers.ModelSerializer
+):
     role = serializers.SlugRelatedField(
         queryset=Role.objects.filter(is_active=True),
         slug_field="uuid",
@@ -342,10 +343,6 @@ class GroupInvitationUpdateSerializer(serializers.ModelSerializer):
             "allow_multiple_requests",
             "allow_custom_project_details",
         )
-
-    def validate_user_email_patterns(self, value):
-        models.GroupInvitation.validate_user_email_patterns(value)
-        return value
 
     def validate_project_name_template(self, value):
         if not value:

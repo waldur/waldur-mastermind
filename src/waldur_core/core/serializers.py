@@ -25,7 +25,7 @@ from rest_framework.serializers import ListSerializer
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.clean_html import clean_html
-from waldur_core.core.models import generate_slug
+from waldur_core.core.models import UserDetailsMatchMixin, generate_slug
 from waldur_core.core.signals import pre_serializer_fields
 from waldur_mastermind.common.serializers import StringListSerializer
 
@@ -368,6 +368,14 @@ class GenericRelatedField(Field):
             raise serializers.ValidationError(message)
 
         return obj
+
+
+class UserEmailPatternsValidatorMixin:
+    """Provides validate_user_email_patterns for serializers with a user_email_patterns field."""
+
+    def validate_user_email_patterns(self, value):
+        UserDetailsMatchMixin.validate_user_email_patterns(value)
+        return value
 
 
 class AugmentedSerializerMixin:

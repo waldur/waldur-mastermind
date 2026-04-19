@@ -265,6 +265,7 @@ class AffiliatedOrganizationsUpdateSerializer(serializers.Serializer):
 
 
 class ProjectSerializer(
+    core_serializers.UserEmailPatternsValidatorMixin,
     core_serializers.SlugSerializerMixin,
     core_serializers.RestrictedSerializerMixin,
     PermissionFieldFilteringMixin,
@@ -504,11 +505,6 @@ class ProjectSerializer(
             )
         return end_date
 
-    def validate_user_email_patterns(self, patterns):
-        """Validate that email patterns are valid regex patterns."""
-        core_models.UserDetailsMatchMixin.validate_user_email_patterns(patterns)
-        return patterns
-
     @staticmethod
     def eager_load(queryset, request=None):
         return queryset.select_related(
@@ -702,6 +698,7 @@ class CustomerContactUpdateSerializer(serializers.ModelSerializer):
 
 
 class CustomerSerializer(
+    core_serializers.UserEmailPatternsValidatorMixin,
     core_serializers.SlugSerializerMixin,
     CountrySerializerMixin,
     core_serializers.RestrictedSerializerMixin,
@@ -863,11 +860,6 @@ class CustomerSerializer(
                 _("Checklist must be of type PROJECT_METADATA")
             )
         return checklist
-
-    def validate_user_email_patterns(self, patterns):
-        """Validate that email patterns are valid regex patterns."""
-        core_models.UserDetailsMatchMixin.validate_user_email_patterns(patterns)
-        return patterns
 
     def get_display_name(self, customer) -> str:
         return customer.get_display_name()
