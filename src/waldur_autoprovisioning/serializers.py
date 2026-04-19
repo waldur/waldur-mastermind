@@ -2,12 +2,16 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
 from waldur_autoprovisioning import models
+from waldur_core.core import serializers as core_serializers
 from waldur_core.permissions.models import Role
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.fields import PublicPlanField
 
 
-class RuleSerializer(serializers.HyperlinkedModelSerializer):
+class RuleSerializer(
+    core_serializers.UserEmailPatternsValidatorMixin,
+    serializers.HyperlinkedModelSerializer,
+):
     project_role = serializers.HyperlinkedRelatedField(
         queryset=Role.objects.all(),
         view_name="role-detail",
@@ -111,11 +115,6 @@ class RuleSerializer(serializers.HyperlinkedModelSerializer):
                 "lookup_field": "uuid",
             },
         }
-
-    def validate_user_email_patterns(self, value):
-        """Validate that all email patterns are valid regex patterns."""
-        models.Rule.validate_user_email_patterns(value)
-        return value
 
     def validate(self, attrs):
         project_role = attrs.get("project_role")
