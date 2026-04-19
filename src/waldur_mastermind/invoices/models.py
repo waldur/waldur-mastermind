@@ -822,3 +822,5 @@ class PeriodMixin(models.Model):
 
 reversion.register(InvoiceItem)
 reversion.register(Invoice, follow=("items",))
+reversion.register(CustomerCredit)
+reversion.register(ProjectCredit)
