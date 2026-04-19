@@ -129,14 +129,14 @@ class PaymentAdmin(admin.ModelAdmin):
     list_display = ("profile", "date_of_payment", "sum")
 
 
-class CustomerCreditAdmin(admin.ModelAdmin):
+class CustomerCreditAdmin(VersionAdmin, admin.ModelAdmin):
     list_display = (
         "customer",
         "value",
     )
 
 
-class ProjectCreditAdmin(admin.ModelAdmin):
+class ProjectCreditAdmin(VersionAdmin, admin.ModelAdmin):
     list_display = (
         "project",
         "value",
