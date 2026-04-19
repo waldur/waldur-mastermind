@@ -522,9 +522,12 @@ class LimitPeriodProcessor:
             measured_unit=offering_component.measured_unit,
         )
 
-        # Check if discount applies and create separate discount item
+        # Check if discount applies and create separate discount item.
+        # Use raw component quantity (before duration multiplication) for discount
+        # calculation, so the discount is based on the component value, not the
+        # duration-multiplied total.
         discount_amount, discount_applies = cls._calculate_discount_amount(
-            plan_component, total_quantity, plan_component.price
+            plan_component, quantity, plan_component.price
         )
 
         if discount_applies:
@@ -533,7 +536,7 @@ class LimitPeriodProcessor:
                 plan_component=plan_component,
                 invoice=invoice,
                 discount_amount=discount_amount,
-                quantity=total_quantity,
+                quantity=quantity,
                 start=start,
                 end=end,
             )
