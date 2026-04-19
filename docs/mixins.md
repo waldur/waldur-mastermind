@@ -49,6 +49,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`RestrictedSerializerMixin`](#restrictedserializermixin) | `waldur_core.core.serializers` | This mixin allows to specify list of fields to be rendered by serializer |
 | [`SlugSerializerMixin`](#slugserializermixin) | `waldur_core.core.serializers` | Ensures that slug is editable only by staff |
 | [`TranslatedModelSerializerMixin`](#translatedmodelserializermixin) | `waldur_core.core.serializers` | A `ModelSerializer` is just a regular `Serializer`, except that:  * A set of ... |
+| [`UserEmailPatternsValidatorMixin`](#useremailpatternsvalidatormixin) | `waldur_core.core.serializers` | Provides validate_user_email_patterns for serializers with a user_email_patte... |
 | [`ExtensionTaskMixin`](#extensiontaskmixin) | `waldur_core.core.tasks` | This mixin allows to skip task scheduling if extension is disabled |
 | [`ActionMethodMixin`](#actionmethodmixin) | `waldur_core.core.views` | Implements helper methods for viewset when use separate nested endpoints for ... |
 | [`CheckExtensionMixin`](#checkextensionmixin) | `waldur_core.core.views` | Raise exception if extension is disabled |
@@ -732,6 +733,14 @@ you need you should either declare the extra/differing fields explicitly on
 the serializer class, or simply use a `Serializer` class.
 
 **Base classes:** `ModelSerializer`
+
+### UserEmailPatternsValidatorMixin
+
+**Module:** `waldur_core.core.serializers`
+
+**Description:**
+
+Provides validate_user_email_patterns for serializers with a user_email_patterns field.
 
 ### ExtensionTaskMixin
 
