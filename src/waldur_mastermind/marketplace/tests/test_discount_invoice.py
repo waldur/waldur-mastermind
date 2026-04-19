@@ -145,3 +145,43 @@ class VolumeDiscountTest(test.APITestCase):
         self.assertEqual(discount_item.details["original_quantity"], 15)
         self.assertEqual(discount_item.details["discount_rate"], 20)
         self.assertIn("Volume Discount", discount_item.name)
+
+    def test_discount_uses_component_value_not_duration_multiplied(self):
+        """Discount should be based on the raw component quantity (e.g. 15 CPUs),
+        not the duration-multiplied total (e.g. 15 * 17 days = 255)."""
+        # Arrange: switch to PER_DAY billing
+        plan = self.plan_component.plan
+        plan.unit = marketplace_models.Plan.Units.PER_DAY
+        plan.save()
+
+        self.plan_component.discount_threshold = 10
+        self.plan_component.discount_rate = 20  # 20%
+        self.plan_component.save()
+        self.resource.limits = {self.offering_component.type: 15}
+        self.resource.save()
+
+        # Act
+        items = self._trigger_billing_and_get_items()
+
+        # Assert
+        self.assertEqual(items.count(), 2)
+
+        discount_item = items.get(unit_price__lt=0)
+        main_item = items.get(unit_price__gt=0)
+
+        # Main item: quantity is multiplied by days in the billing period
+        self.assertEqual(main_item.unit_price, self.plan_component.price)
+        # The main item quantity should be raw_quantity * number_of_days
+        self.assertGreater(main_item.quantity, 15)
+
+        # Discount must be based on raw component value (15), not multiplied.
+        # discount = price * raw_quantity * rate% = 10 * 15 * 0.20 = 30
+        raw_quantity = 15
+        expected_discount = (
+            self.plan_component.price
+            * raw_quantity
+            * Decimal(self.plan_component.discount_rate)
+            / 100
+        )
+        self.assertEqual(discount_item.unit_price, -expected_discount)
+        self.assertEqual(discount_item.details["original_quantity"], raw_quantity)
