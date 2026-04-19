@@ -380,6 +380,7 @@ def set_to_zero_overdue_credits(effective_date=None):
             .filter(end_date__lt=effective_date)
             .exclude(value=0)
         ):
+            old_value = int(credit.value)
             credit.value = 0
             credit.save(update_fields=["value"])
             event_logger.emit(
@@ -388,6 +389,8 @@ def set_to_zero_overdue_credits(effective_date=None):
                 event_context={
                     "customer": credit.customer,
                     "credit_end_date": credit.end_date,
+                    "old_value": old_value,
+                    "new_value": 0,
                 },
             )
         for project_credit in (
@@ -395,6 +398,7 @@ def set_to_zero_overdue_credits(effective_date=None):
             .filter(end_date__lt=effective_date)
             .exclude(value=0)
         ):
+            old_value = int(project_credit.value)
             project_credit.value = 0
             project_credit.save(update_fields=["value"])
             event_logger.emit(
@@ -404,6 +408,8 @@ def set_to_zero_overdue_credits(effective_date=None):
                     "customer": project_credit.project.customer,
                     "project": project_credit.project,
                     "credit_end_date": project_credit.end_date,
+                    "old_value": old_value,
+                    "new_value": 0,
                 },
             )
 

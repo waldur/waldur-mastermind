@@ -284,6 +284,7 @@ class MonthlyCompensation:
                     "consumption": self.tail,
                     "minimal_consumption": self.credit.minimal_consumption,
                     "customer": self.customer,
+                    "credit_balance": int(self.credit.value),
                 },
                 scopes=[self.customer],
             )
@@ -296,8 +297,17 @@ class MonthlyCompensation:
                     "consumption": invoice_item.unit_price,
                     "customer": self.customer,
                     "invoice_item": str(invoice_item),
+                    "credit_balance": int(self.credit.value),
                 },
                 scopes=[self.customer],
+            )
+            project_credit = next(
+                (
+                    pc
+                    for pc in self.projects_credits
+                    if pc.project == invoice_item.project
+                ),
+                None,
             )
             event_logger.emit(
                 "Reduction of {project_name} credit by {consumption} due to compensation of invoice item {invoice_item}.",
@@ -307,6 +317,12 @@ class MonthlyCompensation:
                     "customer": self.customer,
                     "project": invoice_item.project,
                     "invoice_item": str(invoice_item),
+                    "credit_balance": int(self.credit.value),
+                    **(
+                        {"project_credit_balance": int(project_credit.value)}
+                        if project_credit
+                        else {}
+                    ),
                 },
                 scopes=[self.customer, invoice_item.project],
             )
@@ -330,6 +346,8 @@ class MonthlyCompensation:
                     "minimal_consumption": project_credit.minimal_consumption,
                     "customer": self.customer,
                     "project": project_credit.project,
+                    "credit_balance": int(self.credit.value),
+                    "project_credit_balance": int(project_credit.value),
                 },
                 scopes=[self.customer, project_credit.project],
             )
