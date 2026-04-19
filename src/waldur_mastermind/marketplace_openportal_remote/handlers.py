@@ -1,13 +1,9 @@
 import logging
 
-from django.core import exceptions as django_exceptions
 from django.db.models.signals import post_save
-from django.utils import timezone
 
-from waldur_core.core.utils import month_start
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import utils as marketplace_utils
-from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace_openportal_remote import PLUGIN_NAME
 
 logger = logging.getLogger(__name__)
@@ -25,76 +21,7 @@ def update_component_quota(sender, instance, created=False, **kwargs):
     if not set(instance.tracker.changed()) & COMPONENT_FIELDS:
         return
 
-    allocation = instance
-
-    try:
-        resource = marketplace_models.Resource.objects.get(scope=allocation)
-    except django_exceptions.ObjectDoesNotExist:
-        return
-
-    new_limits = {}
-    new_usages = {}
-    for component in manager.get_components(PLUGIN_NAME):
-        usage = float(getattr(allocation, component.type + "_usage"))
-        limit = float(getattr(allocation, component.type + "_limit"))
-
-        try:
-            offering_component = marketplace_models.OfferingComponent.objects.get(
-                offering=resource.offering, type=component.type
-            )
-        except marketplace_models.OfferingComponent.DoesNotExist:
-            logger.warning(
-                "Skipping Allocation synchronization because this "
-                "marketplace.OfferingComponent does not exist."
-                "Allocation ID: %s",
-                allocation.id,
-            )
-        else:
-            new_limits[component.type] = limit
-            new_usages[component.type] = usage
-            marketplace_models.ComponentQuota.objects.update_or_create(
-                resource=resource,
-                component=offering_component,
-                defaults={"limit": limit, "usage": usage},
-            )
-
-            plan_period = marketplace_models.ResourcePlanPeriod.objects.filter(
-                resource=resource, end=None
-            )
-
-            if not plan_period.exists():
-                logger.warning(
-                    "Skipping component usage synchronization because valid "
-                    "ResourcePlanPeriod is not found. "
-                    f"Allocation: {allocation}, Resource: {resource}",
-                )
-                continue
-
-            if plan_period.count() > 1:
-                logger.warning(
-                    f"More than one active ResourcePlanPeriod found for Allocation: {allocation}, Resource: {resource}. "
-                    "Using the first plan only."
-                )
-
-            plan_period = plan_period.first()
-
-            date = timezone.now()
-            marketplace_models.ComponentUsage.objects.update_or_create(
-                resource=resource,
-                component=offering_component,
-                billing_period=month_start(date),
-                plan_period=plan_period,
-                defaults={"usage": usage, "date": date},
-            )
-
-    logger.info(f"Old limits: {resource.limits}, new limits: {new_limits}")
-
-    if resource.limits != new_limits:
-        logger.debug(
-            f"Syncing limits for OpenPortal Remote. Allocation: {allocation}. Old limits: {resource.limits}. New limits: {new_limits}",
-        )
-        resource.limits = new_limits
-        resource.save(update_fields=["limits"])
+    marketplace_utils.update_component_quota(instance, PLUGIN_NAME)
 
 
 def create_offering_user_for_openportal_remote_user(sender, allocation, user, **kwargs):
