@@ -5994,7 +5994,10 @@ class OpenStackBackend(ServiceBackend):
         console_domain_override = service_settings.get_option("console_domain_override")
         if console_domain_override:
             parsed_url = urlparse(result_url)
-            if parsed_url.port:
+            if ":" in console_domain_override:
+                # Override includes port (e.g. "lb.example.com:443")
+                parsed_url = parsed_url._replace(netloc=console_domain_override)
+            elif parsed_url.port:
                 parsed_url = parsed_url._replace(
                     netloc=f"{console_domain_override}:{parsed_url.port}"
                 )

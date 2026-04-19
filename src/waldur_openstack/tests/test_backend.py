@@ -1510,3 +1510,45 @@ class EnhancedImageDetectionTest(BaseBackendTest):
         instance.refresh_from_db()
         self.assertEqual(instance.state, CoreStates.ERRED)
         self.assertIn("Does not exist at backend", instance.error_message)
+
+
+class GetConsoleUrlDomainOverrideTest(BaseBackendTest):
+    def setUp(self):
+        super().setUp()
+        self.instance = self.fixture.instance
+        self.original_url = (
+            "http://nova-console.internal:13080/vnc_auto.html?token=abc123"
+        )
+
+    def _get_console_url(self, override_value):
+        self.openstack_settings.options["console_domain_override"] = override_value
+        self.openstack_settings.save()
+        self.mocked_nova.servers.get_console_url.return_value = {
+            "console": {"url": self.original_url}
+        }
+        return self.backend.get_console_url(self.instance)
+
+    def test_domain_only_override_preserves_original_port(self):
+        url = self._get_console_url("lb.example.com")
+        self.assertEqual(url, "http://lb.example.com:13080/vnc_auto.html?token=abc123")
+
+    def test_domain_and_port_override_replaces_both(self):
+        url = self._get_console_url("lb.example.com:443")
+        self.assertEqual(url, "http://lb.example.com:443/vnc_auto.html?token=abc123")
+
+    def test_domain_override_without_original_port(self):
+        self.original_url = "http://nova-console.internal/vnc_auto.html?token=abc123"
+        url = self._get_console_url("lb.example.com")
+        self.assertEqual(url, "http://lb.example.com/vnc_auto.html?token=abc123")
+
+    def test_domain_and_port_override_without_original_port(self):
+        self.original_url = "http://nova-console.internal/vnc_auto.html?token=abc123"
+        url = self._get_console_url("lb.example.com:443")
+        self.assertEqual(url, "http://lb.example.com:443/vnc_auto.html?token=abc123")
+
+    def test_no_override_returns_original_url(self):
+        self.mocked_nova.servers.get_console_url.return_value = {
+            "console": {"url": self.original_url}
+        }
+        url = self.backend.get_console_url(self.instance)
+        self.assertEqual(url, self.original_url)

@@ -205,7 +205,9 @@ class OpenStackServiceSerializer(structure_serializers.ServiceOptionsSerializer)
     console_domain_override = serializers.CharField(
         source="options.console_domain_override",
         label=_("Console domain override"),
-        help_text=_("Override of the console URL domain"),
+        help_text=_(
+            "Override of the console URL domain. Supports hostname (e.g. lb.example.com) or hostname:port (e.g. lb.example.com:443)."
+        ),
         required=False,
     )
 
