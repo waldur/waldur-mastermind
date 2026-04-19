@@ -1,0 +1,601 @@
+{
+  "_metadata": {
+    "title": "Credit Management",
+    "description": "A preset for testing credit allocation, cost policies, and credit usage scenarios. Includes organization credits, project credits with varying budgets (well-funded, near-limit, low budget), invoice history, and cost policies.",
+    "version": "1.0.0",
+    "scenarios": [
+      "Credit allocation and tracking",
+      "Cost policy threshold testing",
+      "Credit usage history verification",
+      "Budget limit alerting"
+    ]
+  },
+  "user_agreements": [
+    {
+      "uuid": "cc0a000000000000000000000000def0",
+      "agreement_type": "TOS",
+      "content": "# Terms of Service\n\nBy using this platform you agree to the Terms of Service."
+    },
+    {
+      "uuid": "cc0a000000000000000000000000def1",
+      "agreement_type": "PP",
+      "content": "# Privacy Policy\n\nWe handle your data according to applicable data protection regulations."
+    }
+  ],
+  "users": [
+    {
+      "uuid": "00000000000000000000000000000001",
+      "username": "staff",
+      "email": "staff@demo.waldur.com",
+      "first_name": "Staff",
+      "last_name": "User",
+      "is_staff": true,
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001001",
+      "organization": "Credit Test Organization",
+      "job_title": "System Administrator",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "00000000000000000000000000000003",
+      "username": "owner",
+      "email": "owner@demo.waldur.com",
+      "first_name": "Organization",
+      "last_name": "Owner",
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001003",
+      "organization": "Credit Test Organization",
+      "job_title": "Chief Technology Officer",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "00000000000000000000000000000004",
+      "username": "manager",
+      "email": "manager@demo.waldur.com",
+      "first_name": "Project",
+      "last_name": "Manager",
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001004",
+      "organization": "Credit Test Organization",
+      "job_title": "Project Manager",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    },
+    {
+      "uuid": "00000000000000000000000000000005",
+      "username": "member",
+      "email": "member@demo.waldur.com",
+      "first_name": "Project",
+      "last_name": "Member",
+      "is_active": true,
+      "password": "demo",
+      "phone_number": "+37256001005",
+      "organization": "Credit Test Organization",
+      "job_title": "Software Developer",
+      "agreement_date": "2025-01-01T00:00:00Z"
+    }
+  ],
+  "customers": [
+    {
+      "uuid": "cc000000000000000000000000000001",
+      "name": "Credit Test Organization",
+      "abbreviation": "CTO",
+      "description": "An organization for testing credit management, cost policies, and budget tracking.",
+      "email": "contact@credit-test.org",
+      "country": "CH"
+    }
+  ],
+  "projects": [
+    {
+      "uuid": "cc100000000000000000000000000001",
+      "name": "Project Alpha",
+      "description": "Well-funded project with ample credit allocation",
+      "customer_uuid": "cc000000000000000000000000000001"
+    },
+    {
+      "uuid": "cc100000000000000000000000000002",
+      "name": "Project Beta",
+      "description": "Project approaching credit limit",
+      "customer_uuid": "cc000000000000000000000000000001"
+    },
+    {
+      "uuid": "cc100000000000000000000000000003",
+      "name": "Project Gamma",
+      "description": "Low budget project for testing policy triggers",
+      "customer_uuid": "cc000000000000000000000000000001"
+    }
+  ],
+  "category_groups": [
+    {
+      "uuid": "cc200000000000000000000000000001",
+      "title": "Infrastructure",
+      "description": "Core infrastructure services"
+    }
+  ],
+  "categories": [
+    {
+      "uuid": "cc300000000000000000000000000001",
+      "title": "Compute",
+      "description": "Virtual machines and compute resources",
+      "group_uuid": "cc200000000000000000000000000001"
+    }
+  ],
+  "service_providers": [
+    {
+      "uuid": "cc400000000000000000000000000001",
+      "customer_uuid": "cc000000000000000000000000000001",
+      "description": "Credit Test Service Provider"
+    }
+  ],
+  "offerings": [
+    {
+      "uuid": "cc500000000000000000000000000001",
+      "name": "Basic Compute VM",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "cc300000000000000000000000000001",
+      "customer_uuid": "cc000000000000000000000000000001",
+      "description": "Basic virtual machine offering with CPU and RAM components for credit testing"
+    }
+  ],
+  "offering_components": [
+    {
+      "uuid": "cc600000000000000000000000000001",
+      "offering_uuid": "cc500000000000000000000000000001",
+      "type": "cpu",
+      "name": "CPU Cores",
+      "description": "Number of virtual CPU cores",
+      "billing_type": "limit",
+      "measured_unit": "cores"
+    },
+    {
+      "uuid": "cc600000000000000000000000000002",
+      "offering_uuid": "cc500000000000000000000000000001",
+      "type": "ram",
+      "name": "RAM",
+      "description": "Amount of RAM allocated",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    },
+    {
+      "uuid": "cc600000000000000000000000000003",
+      "offering_uuid": "cc500000000000000000000000000001",
+      "type": "storage",
+      "name": "Storage",
+      "description": "Storage capacity",
+      "billing_type": "limit",
+      "measured_unit": "GB"
+    }
+  ],
+  "plans": [
+    {
+      "uuid": "cc700000000000000000000000000001",
+      "name": "Standard VM",
+      "offering_uuid": "cc500000000000000000000000000001",
+      "unit": "month"
+    }
+  ],
+  "plan_components": [
+    {
+      "plan_uuid": "cc700000000000000000000000000001",
+      "component_uuid": "cc600000000000000000000000000001",
+      "price": "5.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "cc700000000000000000000000000001",
+      "component_uuid": "cc600000000000000000000000000002",
+      "price": "2.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "cc700000000000000000000000000001",
+      "component_uuid": "cc600000000000000000000000000003",
+      "price": "0.10",
+      "amount": 0
+    }
+  ],
+  "resources": [
+    {
+      "uuid": "cc800000000000000000000000000001",
+      "name": "Alpha Web Server",
+      "offering_uuid": "cc500000000000000000000000000001",
+      "project_uuid": "cc100000000000000000000000000001",
+      "plan_uuid": "cc700000000000000000000000000001",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu": 4,
+        "ram": 8,
+        "storage": 100
+      },
+      "created": "2025-06-01T00:00:00Z"
+    },
+    {
+      "uuid": "cc800000000000000000000000000002",
+      "name": "Alpha Database",
+      "offering_uuid": "cc500000000000000000000000000001",
+      "project_uuid": "cc100000000000000000000000000001",
+      "plan_uuid": "cc700000000000000000000000000001",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu": 8,
+        "ram": 16,
+        "storage": 500
+      },
+      "created": "2025-06-01T00:00:00Z"
+    },
+    {
+      "uuid": "cc800000000000000000000000000003",
+      "name": "Beta App Server",
+      "offering_uuid": "cc500000000000000000000000000001",
+      "project_uuid": "cc100000000000000000000000000002",
+      "plan_uuid": "cc700000000000000000000000000001",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu": 4,
+        "ram": 8,
+        "storage": 100
+      },
+      "created": "2025-06-01T00:00:00Z"
+    },
+    {
+      "uuid": "cc800000000000000000000000000004",
+      "name": "Beta Cache",
+      "offering_uuid": "cc500000000000000000000000000001",
+      "project_uuid": "cc100000000000000000000000000002",
+      "plan_uuid": "cc700000000000000000000000000001",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu": 2,
+        "ram": 4,
+        "storage": 50
+      },
+      "created": "2025-06-01T00:00:00Z"
+    },
+    {
+      "uuid": "cc800000000000000000000000000005",
+      "name": "Gamma Worker",
+      "offering_uuid": "cc500000000000000000000000000001",
+      "project_uuid": "cc100000000000000000000000000003",
+      "plan_uuid": "cc700000000000000000000000000001",
+      "state": 2,
+      "attributes": {},
+      "limits": {
+        "cpu": 2,
+        "ram": 4,
+        "storage": 50
+      },
+      "created": "2025-06-01T00:00:00Z"
+    }
+  ],
+  "user_roles": [
+    {
+      "uuid": "cc900000000000000000000000000001",
+      "user_uuid": "00000000000000000000000000000003",
+      "user_username": "owner",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "cc000000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "cc900000000000000000000000000002",
+      "user_uuid": "00000000000000000000000000000004",
+      "user_username": "manager",
+      "role_name": "PROJECT.MANAGER",
+      "scope_type": "structure.project",
+      "scope_uuid": "cc100000000000000000000000000001",
+      "is_active": true
+    },
+    {
+      "uuid": "cc900000000000000000000000000003",
+      "user_uuid": "00000000000000000000000000000004",
+      "user_username": "manager",
+      "role_name": "PROJECT.MANAGER",
+      "scope_type": "structure.project",
+      "scope_uuid": "cc100000000000000000000000000002",
+      "is_active": true
+    },
+    {
+      "uuid": "cc900000000000000000000000000004",
+      "user_uuid": "00000000000000000000000000000004",
+      "user_username": "manager",
+      "role_name": "PROJECT.MANAGER",
+      "scope_type": "structure.project",
+      "scope_uuid": "cc100000000000000000000000000003",
+      "is_active": true
+    },
+    {
+      "uuid": "cc900000000000000000000000000005",
+      "user_uuid": "00000000000000000000000000000005",
+      "user_username": "member",
+      "role_name": "PROJECT.MEMBER",
+      "scope_type": "structure.project",
+      "scope_uuid": "cc100000000000000000000000000001",
+      "is_active": true
+    }
+  ],
+  "customer_credits": [
+    {
+      "uuid": "cca00000000000000000000000000001",
+      "customer_uuid": "cc000000000000000000000000000001",
+      "value": "50000",
+      "expected_consumption": "40000",
+      "minimal_consumption_logic": "fixed",
+      "grace_coefficient": "0.1",
+      "apply_as_minimal_consumption": true,
+      "end_date": "2027-01-01",
+      "created": "2025-01-15T00:00:00",
+      "offering_uuids": ["cc500000000000000000000000000001"]
+    }
+  ],
+  "project_credits": [
+    {
+      "uuid": "ccb00000000000000000000000000001",
+      "project_uuid": "cc100000000000000000000000000001",
+      "value": "20000",
+      "end_date": "2027-01-01",
+      "grace_coefficient": "15",
+      "created": "2025-01-20T00:00:00"
+    },
+    {
+      "uuid": "ccb00000000000000000000000000002",
+      "project_uuid": "cc100000000000000000000000000002",
+      "value": "500",
+      "end_date": "2027-01-01",
+      "grace_coefficient": "15",
+      "created": "2025-01-20T00:00:00"
+    },
+    {
+      "uuid": "ccb00000000000000000000000000003",
+      "project_uuid": "cc100000000000000000000000000003",
+      "value": "100",
+      "end_date": "2027-01-01",
+      "grace_coefficient": "15",
+      "created": "2025-01-20T00:00:00"
+    }
+  ],
+  "invoices": [
+    {
+      "uuid": "ccc00000000000000000000000000001",
+      "customer_uuid": "cc000000000000000000000000000001",
+      "year": 2025,
+      "month": 7,
+      "state": "paid",
+      "total_cost": "1050.00",
+      "total_price": "1050.00",
+      "tax_percent": "0.00",
+      "created": "2025-07-01",
+      "invoice_date": "2025-07-15"
+    },
+    {
+      "uuid": "ccc00000000000000000000000000002",
+      "customer_uuid": "cc000000000000000000000000000001",
+      "year": 2025,
+      "month": 8,
+      "state": "paid",
+      "total_cost": "1080.00",
+      "total_price": "1080.00",
+      "tax_percent": "0.00",
+      "created": "2025-08-01",
+      "invoice_date": "2025-08-15"
+    },
+    {
+      "uuid": "ccc00000000000000000000000000003",
+      "customer_uuid": "cc000000000000000000000000000001",
+      "year": 2025,
+      "month": 9,
+      "state": "paid",
+      "total_cost": "1100.00",
+      "total_price": "1100.00",
+      "tax_percent": "0.00",
+      "created": "2025-09-01",
+      "invoice_date": "2025-09-15"
+    }
+  ],
+  "invoice_items": [
+    {
+      "uuid": "ccd00000000000000000000000000001",
+      "invoice_uuid": "ccc00000000000000000000000000001",
+      "resource_uuid": "cc800000000000000000000000000001",
+      "project_uuid": "cc100000000000000000000000000001",
+      "name": "Alpha Web Server (Standard VM)",
+      "quantity": 1,
+      "measured_unit": "month",
+      "unit_price": "346.00",
+      "start": "2025-07-01T00:00:00",
+      "end": "2025-07-31T23:59:59"
+    },
+    {
+      "uuid": "ccd00000000000000000000000000002",
+      "invoice_uuid": "ccc00000000000000000000000000001",
+      "resource_uuid": "cc800000000000000000000000000002",
+      "project_uuid": "cc100000000000000000000000000001",
+      "name": "Alpha Database (Standard VM)",
+      "quantity": 1,
+      "measured_unit": "month",
+      "unit_price": "622.00",
+      "start": "2025-07-01T00:00:00",
+      "end": "2025-07-31T23:59:59"
+    },
+    {
+      "uuid": "ccd00000000000000000000000000003",
+      "invoice_uuid": "ccc00000000000000000000000000001",
+      "resource_uuid": "cc800000000000000000000000000003",
+      "project_uuid": "cc100000000000000000000000000002",
+      "name": "Beta App Server (Standard VM)",
+      "quantity": 1,
+      "measured_unit": "month",
+      "unit_price": "346.00",
+      "start": "2025-07-01T00:00:00",
+      "end": "2025-07-31T23:59:59"
+    },
+    {
+      "uuid": "ccd00000000000000000000000000004",
+      "invoice_uuid": "ccc00000000000000000000000000001",
+      "resource_uuid": "cc800000000000000000000000000004",
+      "project_uuid": "cc100000000000000000000000000002",
+      "name": "Beta Cache (Standard VM)",
+      "quantity": 1,
+      "measured_unit": "month",
+      "unit_price": "119.00",
+      "start": "2025-07-01T00:00:00",
+      "end": "2025-07-31T23:59:59"
+    },
+    {
+      "uuid": "ccd00000000000000000000000000005",
+      "invoice_uuid": "ccc00000000000000000000000000001",
+      "resource_uuid": "cc800000000000000000000000000005",
+      "project_uuid": "cc100000000000000000000000000003",
+      "name": "Gamma Worker (Standard VM)",
+      "quantity": 1,
+      "measured_unit": "month",
+      "unit_price": "119.00",
+      "start": "2025-07-01T00:00:00",
+      "end": "2025-07-31T23:59:59"
+    },
+    {
+      "uuid": "ccd00000000000000000000000000006",
+      "invoice_uuid": "ccc00000000000000000000000000002",
+      "resource_uuid": "cc800000000000000000000000000001",
+      "project_uuid": "cc100000000000000000000000000001",
+      "name": "Alpha Web Server (Standard VM)",
+      "quantity": 1,
+      "measured_unit": "month",
+      "unit_price": "346.00",
+      "start": "2025-08-01T00:00:00",
+      "end": "2025-08-31T23:59:59"
+    },
+    {
+      "uuid": "ccd00000000000000000000000000007",
+      "invoice_uuid": "ccc00000000000000000000000000002",
+      "resource_uuid": "cc800000000000000000000000000002",
+      "project_uuid": "cc100000000000000000000000000001",
+      "name": "Alpha Database (Standard VM)",
+      "quantity": 1,
+      "measured_unit": "month",
+      "unit_price": "622.00",
+      "start": "2025-08-01T00:00:00",
+      "end": "2025-08-31T23:59:59"
+    },
+    {
+      "uuid": "ccd00000000000000000000000000008",
+      "invoice_uuid": "ccc00000000000000000000000000002",
+      "resource_uuid": "cc800000000000000000000000000003",
+      "project_uuid": "cc100000000000000000000000000002",
+      "name": "Beta App Server (Standard VM)",
+      "quantity": 1,
+      "measured_unit": "month",
+      "unit_price": "346.00",
+      "start": "2025-08-01T00:00:00",
+      "end": "2025-08-31T23:59:59"
+    },
+    {
+      "uuid": "ccd00000000000000000000000000009",
+      "invoice_uuid": "ccc00000000000000000000000000002",
+      "resource_uuid": "cc800000000000000000000000000004",
+      "project_uuid": "cc100000000000000000000000000002",
+      "name": "Beta Cache (Standard VM)",
+      "quantity": 1,
+      "measured_unit": "month",
+      "unit_price": "119.00",
+      "start": "2025-08-01T00:00:00",
+      "end": "2025-08-31T23:59:59"
+    },
+    {
+      "uuid": "ccd0000000000000000000000000000a",
+      "invoice_uuid": "ccc00000000000000000000000000002",
+      "resource_uuid": "cc800000000000000000000000000005",
+      "project_uuid": "cc100000000000000000000000000003",
+      "name": "Gamma Worker (Standard VM)",
+      "quantity": 1,
+      "measured_unit": "month",
+      "unit_price": "119.00",
+      "start": "2025-08-01T00:00:00",
+      "end": "2025-08-31T23:59:59"
+    },
+    {
+      "uuid": "ccd0000000000000000000000000000b",
+      "invoice_uuid": "ccc00000000000000000000000000003",
+      "resource_uuid": "cc800000000000000000000000000001",
+      "project_uuid": "cc100000000000000000000000000001",
+      "name": "Alpha Web Server (Standard VM)",
+      "quantity": 1,
+      "measured_unit": "month",
+      "unit_price": "346.00",
+      "start": "2025-09-01T00:00:00",
+      "end": "2025-09-30T23:59:59"
+    },
+    {
+      "uuid": "ccd0000000000000000000000000000c",
+      "invoice_uuid": "ccc00000000000000000000000000003",
+      "resource_uuid": "cc800000000000000000000000000002",
+      "project_uuid": "cc100000000000000000000000000001",
+      "name": "Alpha Database (Standard VM)",
+      "quantity": 1,
+      "measured_unit": "month",
+      "unit_price": "622.00",
+      "start": "2025-09-01T00:00:00",
+      "end": "2025-09-30T23:59:59"
+    },
+    {
+      "uuid": "ccd0000000000000000000000000000d",
+      "invoice_uuid": "ccc00000000000000000000000000003",
+      "resource_uuid": "cc800000000000000000000000000003",
+      "project_uuid": "cc100000000000000000000000000002",
+      "name": "Beta App Server (Standard VM)",
+      "quantity": 1,
+      "measured_unit": "month",
+      "unit_price": "346.00",
+      "start": "2025-09-01T00:00:00",
+      "end": "2025-09-30T23:59:59"
+    },
+    {
+      "uuid": "ccd0000000000000000000000000000e",
+      "invoice_uuid": "ccc00000000000000000000000000003",
+      "resource_uuid": "cc800000000000000000000000000004",
+      "project_uuid": "cc100000000000000000000000000002",
+      "name": "Beta Cache (Standard VM)",
+      "quantity": 1,
+      "measured_unit": "month",
+      "unit_price": "119.00",
+      "start": "2025-09-01T00:00:00",
+      "end": "2025-09-30T23:59:59"
+    },
+    {
+      "uuid": "ccd0000000000000000000000000000f",
+      "invoice_uuid": "ccc00000000000000000000000000003",
+      "resource_uuid": "cc800000000000000000000000000005",
+      "project_uuid": "cc100000000000000000000000000003",
+      "name": "Gamma Worker (Standard VM)",
+      "quantity": 1,
+      "measured_unit": "month",
+      "unit_price": "119.00",
+      "start": "2025-09-01T00:00:00",
+      "end": "2025-09-30T23:59:59"
+    }
+  ],
+  "project_estimated_cost_policies": [
+    {
+      "uuid": "cce00000000000000000000000000001",
+      "project_uuid": "cc100000000000000000000000000003",
+      "limit_cost": 80,
+      "actions": "request_pausing",
+      "period": 1,
+      "has_fired": false
+    }
+  ],
+  "constance_settings": {
+    "SITE_NAME": "Waldur Credit Management Demo",
+    "SITE_DESCRIPTION": "A demo environment for testing credit allocation, cost policies, and budget tracking.",
+    "CURRENCY_NAME": "CHF"
+  }
+}
