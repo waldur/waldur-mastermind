@@ -28,6 +28,7 @@ from waldur_core.core.user_attributes import (
     get_federated_identity_sync_allowed_fields,
 )
 from waldur_core.core.validators import validate_ssh_public_key
+from waldur_core.permissions.handlers import reactivate_user_with_logging
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.models import GroupInvitation, Invitation
 
@@ -219,7 +220,32 @@ def create_or_update_oauth_user(
     if user is not None:
         # --- Existing user found (primary or email match) ---
         if not user.is_active:
-            raise OAuthException(identity_provider.provider, "User is deactivated.")
+            # When DEACTIVATE_USER_IF_NO_ROLES is enabled, users are auto-deactivated
+            # upon losing all roles. If such a user has a pending invitation or matches
+            # a group invitation, reactivate them so they can log in and accept it.
+            # Without this, the user is permanently locked out: can't log in → can't
+            # accept invitation → can't regain roles → stays deactivated.
+            if config.DEACTIVATE_USER_IF_NO_ROLES and user.email:
+                has_pending_invitation = Invitation.objects.filter(
+                    email__iexact=user.email, state=InvitationState.PENDING
+                ).exists()
+                has_group_invitation_match = any(
+                    GroupInvitation._is_pattern_match(pattern, user.email)
+                    for gi in GroupInvitation.objects.filter(is_active=True).only(
+                        "user_email_patterns"
+                    )
+                    for pattern in (gi.user_email_patterns or [])
+                )
+                if has_pending_invitation or has_group_invitation_match:
+                    reactivate_user_with_logging(
+                        user, reason="Pending invitation exists during OIDC login"
+                    )
+                else:
+                    raise OAuthException(
+                        identity_provider.provider, "User is deactivated."
+                    )
+            else:
+                raise OAuthException(identity_provider.provider, "User is deactivated.")
 
         created = False
         update_fields = set()
