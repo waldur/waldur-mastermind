@@ -418,10 +418,7 @@ def sync_remote_usage():
     fail_count = 0
     processed_count = 0
 
-    # Use iterator() to avoid loading all RemoteAllocation objects into memory at once
-    for allocation in models.RemoteAllocation.objects.filter(is_active=True).iterator(
-        chunk_size=100
-    ):
+    for allocation in list(models.RemoteAllocation.objects.filter(is_active=True)):
         try:
             sync_remote_allocation_usage(allocation)
             processed_count += 1
@@ -684,10 +681,9 @@ def sync_allocation_limits():
     now = datetime.datetime.now()
     processed_count = 0
 
-    # Use iterator() to avoid loading all ProjectCredit objects into memory at once
-    for project_credit in invoice_models.ProjectCredit.objects.select_related(
-        "project"
-    ).iterator(chunk_size=100):
+    for project_credit in list(
+        invoice_models.ProjectCredit.objects.select_related("project")
+    ):
         project = project_credit.project
 
         # Skip fully removed projects
