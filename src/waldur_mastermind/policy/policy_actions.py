@@ -28,6 +28,38 @@ from . import enums, structures
 logger = logging.getLogger(__name__)
 
 
+def _get_cost_policy_context(policy):
+    """Build extra event context with cost policy state for debugging.
+
+    Returns a dict with limit_cost and credit balance fields when available.
+    Only adds fields that are cheap to compute (no extra queries beyond
+    the credit lookup).
+    """
+    from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
+
+    ctx = {}
+
+    if not hasattr(policy, "limit_cost"):
+        return ctx
+
+    ctx["limit_cost"] = policy.limit_cost
+
+    scope = policy.scope
+    if isinstance(scope, Project):
+        project_credit = ProjectCredit.objects.filter(project=scope).first()
+        if project_credit:
+            ctx["project_credit_balance"] = int(project_credit.value)
+        customer_credit = CustomerCredit.objects.filter(customer=scope.customer).first()
+        if customer_credit:
+            ctx["credit_balance"] = int(customer_credit.value)
+    elif isinstance(scope, Customer):
+        customer_credit = CustomerCredit.objects.filter(customer=scope).first()
+        if customer_credit:
+            ctx["credit_balance"] = int(customer_credit.value)
+
+    return ctx
+
+
 def _get_base_policy_scopes(policy):
     """Return policy-level scope objects (without resource). Compute once per action."""
     scope = policy.scope
@@ -295,7 +327,10 @@ def notify_project_team(policy: models.Policy):
     event_logger.emit(
         "Cost policy has been triggered and notification to project members has been scheduled.",
         event_type=EventType.NOTIFY_PROJECT_TEAM,
-        event_context={"policy_uuid": policy.uuid.hex},
+        event_context={
+            "policy_uuid": policy.uuid.hex,
+            **_get_cost_policy_context(policy),
+        },
         scopes=_get_base_policy_scopes(policy),
     )
 
@@ -312,7 +347,10 @@ def notify_organization_owners(policy: models.Policy):
     event_logger.emit(
         "Cost policy has been triggered and notification to organization owners has been scheduled.",
         event_type=EventType.NOTIFY_ORGANIZATION_OWNERS,
-        event_context={"policy_uuid": policy.uuid.hex},
+        event_context={
+            "policy_uuid": policy.uuid.hex,
+            **_get_cost_policy_context(policy),
+        },
         scopes=_get_base_policy_scopes(policy),
     )
 
@@ -364,7 +402,10 @@ def terminate_resources(policy: models.Policy):
                 "Cost policy has been triggered and termination order has been created. Resource: %s."
                 % str(resource),
                 event_type=EventType.TERMINATE_RESOURCES,
-                event_context={"policy_uuid": policy.uuid.hex},
+                event_context={
+                    "policy_uuid": policy.uuid.hex,
+                    **_get_cost_policy_context(policy),
+                },
                 scopes=[resource] + _get_base_policy_scopes(policy),
             )
 
@@ -380,7 +421,10 @@ def block_creation_of_new_resources(policy, created):
         event_logger.emit(
             "Cost policy has been triggered and creation of new resource has been blocked.",
             event_type=EventType.BLOCK_CREATION_OF_NEW_RESOURCES,
-            event_context={"policy_uuid": policy.uuid.hex},
+            event_context={
+                "policy_uuid": policy.uuid.hex,
+                **_get_cost_policy_context(policy),
+            },
             scopes=_get_base_policy_scopes(policy),
         )
         raise PolicyException(
@@ -397,7 +441,10 @@ def block_modification_of_existing_resources(policy, created):
         event_logger.emit(
             "Cost policy has been triggered and updating existing resource has been blocked.",
             event_type=EventType.BLOCK_MODIFICATION_OF_EXISTING_RESOURCES,
-            event_context={"policy_uuid": policy.uuid.hex},
+            event_context={
+                "policy_uuid": policy.uuid.hex,
+                **_get_cost_policy_context(policy),
+            },
             scopes=_get_base_policy_scopes(policy),
         )
         raise PolicyException(
@@ -434,6 +481,7 @@ def _apply_generic_action(
 
     base_scopes = _get_base_policy_scopes(policy)
     system_robot = get_system_robot()
+    cost_policy_ctx = _get_cost_policy_context(policy)
     resource_names = []
     pending_events = []
 
@@ -456,7 +504,10 @@ def _apply_generic_action(
                 {
                     "message": f"Cost policy has triggered {action_name} on resource {resource.name}.",
                     "event_type": event_type,
-                    "event_context": {"policy_uuid": policy.uuid.hex},
+                    "event_context": {
+                        "policy_uuid": policy.uuid.hex,
+                        **cost_policy_ctx,
+                    },
                     "scopes": [resource] + base_scopes,
                 }
             )
@@ -561,7 +612,10 @@ def notify_external_user(policy: models.Policy):
     event_logger.emit(
         "Cost policy has been triggered and notification to external user has been scheduled.",
         event_type=EventType.NOTIFY_EXTERNAL_USER,
-        event_context={"policy_uuid": policy.uuid.hex},
+        event_context={
+            "policy_uuid": policy.uuid.hex,
+            **_get_cost_policy_context(policy),
+        },
         scopes=_get_base_policy_scopes(policy),
     )
 
