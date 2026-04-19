@@ -19,9 +19,14 @@ def evaluate_policies(policies):
                 continue  # Already fired by another worker
 
             policy.refresh_from_db()
+
+            extra = ""
+            if hasattr(policy, "limit_cost"):
+                extra = f" limit_cost={policy.limit_cost}"
             logger.info(
-                "A policy %s has fired.",
+                "A policy %s has fired.%s",
                 policy.uuid.hex,
+                extra,
             )
 
             for action in policy.get_immediate_actions():
