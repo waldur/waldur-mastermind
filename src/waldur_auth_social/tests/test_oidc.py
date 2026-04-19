@@ -492,6 +492,77 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         )
         self.assertEqual(User.objects.count(), 0)
 
+    @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
+    def test_new_user_creation_is_allowed_if_matching_group_invitation_exists(self):
+        # Arrange: A new user whose email matches an active group invitation pattern
+        user_info = {
+            "sub": "group_invited_user",
+            "given_name": "Group",
+            "family_name": "Invited",
+            "email": "groupuser@example.com",
+        }
+        user_factories.CustomerGroupInvitationFactory(
+            user_email_patterns=[".*@example.com"],
+            is_active=True,
+        )
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Act
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        # Assert: user should be created
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        self.assertTrue(User.objects.filter(username=user_info["sub"]).exists())
+
+    @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
+    def test_new_user_creation_is_blocked_if_group_invitation_is_inactive(self):
+        # Arrange: A new user whose email matches an inactive group invitation pattern
+        user_info = {
+            "sub": "inactive_group_user",
+            "given_name": "Inactive",
+            "family_name": "Group",
+            "email": "inactivegroup@example.com",
+        }
+        user_factories.CustomerGroupInvitationFactory(
+            user_email_patterns=[".*@example.com"],
+            is_active=False,
+        )
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Act
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        # Assert: user should NOT be created
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertFalse(User.objects.filter(username=user_info["sub"]).exists())
+
+    @override_config(OIDC_BLOCK_CREATION_OF_UNINVITED_USERS=True)
+    def test_new_user_creation_is_blocked_if_email_does_not_match_group_invitation_pattern(
+        self,
+    ):
+        # Arrange: A new user whose email does NOT match the group invitation pattern
+        user_info = {
+            "sub": "nonmatching_user",
+            "given_name": "NonMatching",
+            "family_name": "User",
+            "email": "user@otherdomain.com",
+        }
+        user_factories.CustomerGroupInvitationFactory(
+            user_email_patterns=[".*@example.com"],
+            is_active=True,
+        )
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        # Act
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        # Assert: user should NOT be created
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertFalse(User.objects.filter(username=user_info["sub"]).exists())
+
     @override_config(WALDUR_AUTH_SOCIAL_ROLE_CLAIM="roles")
     def test_user_assigned_roles_from_claims(self):
         user_info = {

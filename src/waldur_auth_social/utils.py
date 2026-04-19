@@ -29,7 +29,7 @@ from waldur_core.core.user_attributes import (
 )
 from waldur_core.core.validators import validate_ssh_public_key
 from waldur_core.users.enums import InvitationState
-from waldur_core.users.models import Invitation
+from waldur_core.users.models import GroupInvitation, Invitation
 
 logger = logging.getLogger(__name__)
 
@@ -293,10 +293,19 @@ def create_or_update_oauth_user(
             if not Invitation.objects.filter(
                 email__iexact=payload["email"], state=InvitationState.PENDING
             ).exists():
-                raise OAuthException(
-                    identity_provider.provider,
-                    config.OIDC_BLOCK_CREATION_OF_UNINVITED_USERS_RESPONSE_MESSAGE,
+                email = payload["email"]
+                group_invitation_match = any(
+                    GroupInvitation._is_pattern_match(pattern, email)
+                    for gi in GroupInvitation.objects.filter(is_active=True).only(
+                        "user_email_patterns"
+                    )
+                    for pattern in (gi.user_email_patterns or [])
                 )
+                if not group_invitation_match:
+                    raise OAuthException(
+                        identity_provider.provider,
+                        config.OIDC_BLOCK_CREATION_OF_UNINVITED_USERS_RESPONSE_MESSAGE,
+                    )
         created = True
 
         if "username" not in payload and "username" not in lookup_params:

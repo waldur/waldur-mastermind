@@ -930,7 +930,7 @@ CONSTANCE_CONFIG = {
     ),
     "OIDC_BLOCK_CREATION_OF_UNINVITED_USERS": (
         False,
-        "If true, block creation of an account on OIDC login if user email is not provided or provided and is not in the list of one of the active invitations.",
+        "If true, block creation of an account on OIDC login if user email is not provided or provided and is not in the list of one of the active invitations or matching active group invitation email patterns.",
     ),
     "OIDC_BLOCK_CREATION_OF_UNINVITED_USERS_RESPONSE_MESSAGE": (
         "Account creation is blocked for uninvited users.",
