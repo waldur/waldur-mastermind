@@ -1915,6 +1915,92 @@ def sync_component_user_usage(allocation_user_usage, plugin_name):
             logger.info("%s has been updated, new usage: %s", component_usage, usage)
 
 
+def update_component_quota(allocation, plugin_name):
+    """Shared handler for syncing allocation component quotas to marketplace resources.
+
+    Used by marketplace_slurm, marketplace_openportal, and marketplace_openportal_remote
+    plugins to update ComponentQuota, ComponentUsage, and Resource.limits when an
+    allocation's usage or limit fields change.
+    """
+    from waldur_mastermind.marketplace.plugins import manager
+
+    try:
+        resource = models.Resource.objects.get(scope=allocation)
+    except models.Resource.DoesNotExist:
+        return
+
+    new_limits = {}
+    new_usages = {}
+    for component in manager.get_components(plugin_name):
+        usage = float(getattr(allocation, component.type + "_usage"))
+        limit = float(getattr(allocation, component.type + "_limit"))
+
+        try:
+            offering_component = models.OfferingComponent.objects.get(
+                offering=resource.offering, type=component.type
+            )
+        except models.OfferingComponent.DoesNotExist:
+            logger.warning(
+                "Skipping Allocation synchronization because "
+                "marketplace.OfferingComponent does not exist. "
+                "Allocation ID: %s",
+                allocation.id,
+            )
+            continue
+
+        new_limits[component.type] = limit
+        new_usages[component.type] = usage
+        models.ComponentQuota.objects.update_or_create(
+            resource=resource,
+            component=offering_component,
+            defaults={"limit": limit, "usage": usage},
+        )
+
+        plan_periods = models.ResourcePlanPeriod.objects.filter(
+            resource=resource, end=None
+        )
+
+        if not plan_periods.exists():
+            logger.warning(
+                "Skipping component usage synchronization because valid "
+                "ResourcePlanPeriod is not found. "
+                "Allocation: %s, Resource: %s",
+                allocation,
+                resource,
+            )
+            continue
+
+        if plan_periods.count() > 1:
+            logger.warning(
+                "More than one active ResourcePlanPeriod found for "
+                "Allocation: %s, Resource: %s. Using the first plan only.",
+                allocation,
+                resource,
+            )
+
+        plan_period = plan_periods.first()
+
+        date = timezone.now()
+        models.ComponentUsage.objects.update_or_create(
+            resource=resource,
+            component=offering_component,
+            billing_period=core_utils.month_start(date),
+            plan_period=plan_period,
+            defaults={"usage": usage, "date": date},
+        )
+
+    if resource.limits != new_limits:
+        logger.debug(
+            "Syncing limits for %s. Allocation ID: %s. Old limits: %s. New limits: %s",
+            plugin_name,
+            allocation.id,
+            resource.limits,
+            new_limits,
+        )
+        resource.limits = new_limits
+        resource.save(update_fields=["limits"])
+
+
 class SafeFormatDict(dict):
     """A dict subclass that returns empty string for missing keys during str.format_map()."""
 
