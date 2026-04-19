@@ -237,6 +237,100 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertIn("User is deactivated", str(response.content))
 
+    @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+    def test_deactivated_user_with_pending_invitation_can_login(self):
+        """
+        When DEACTIVATE_USER_IF_NO_ROLES is enabled and a user was auto-deactivated
+        due to losing all roles, they should still be able to log in via OIDC
+        if they have a pending invitation — otherwise they can never regain access.
+        """
+        user_info = {
+            "sub": "deactivated_invited_user",
+            "given_name": "Invited",
+            "family_name": "User",
+            "email": "invited@example.com",
+        }
+        user = structure_factories.UserFactory(
+            username=user_info["sub"],
+            email=user_info["email"],
+            is_active=False,
+            deactivation_reason="No active roles and no course accounts",
+        )
+        # Create a pending invitation for this user
+        user_factories.ProjectInvitationFactory(
+            email=user_info["email"],
+            state=InvitationState.PENDING,
+        )
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        # User should be allowed to log in and be reactivated
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user.refresh_from_db()
+        self.assertTrue(user.is_active)
+
+    @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+    def test_deactivated_user_with_matching_group_invitation_can_login(self):
+        """
+        When DEACTIVATE_USER_IF_NO_ROLES is enabled and a user was auto-deactivated,
+        they should still be able to log in if their email matches an active
+        group invitation pattern.
+        """
+        user_info = {
+            "sub": "deactivated_group_user",
+            "given_name": "Group",
+            "family_name": "User",
+            "email": "groupuser@example.com",
+        }
+        user = structure_factories.UserFactory(
+            username=user_info["sub"],
+            email=user_info["email"],
+            is_active=False,
+            deactivation_reason="No active roles and no course accounts",
+        )
+        # Create an active group invitation matching this email
+        user_factories.CustomerGroupInvitationFactory(
+            user_email_patterns=[".*@example.com"],
+            is_active=True,
+        )
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        # User should be allowed to log in and be reactivated
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user.refresh_from_db()
+        self.assertTrue(user.is_active)
+
+    @override_config(DEACTIVATE_USER_IF_NO_ROLES=True)
+    def test_deactivated_user_without_invitation_still_blocked(self):
+        """
+        When DEACTIVATE_USER_IF_NO_ROLES is enabled but the deactivated user has
+        no pending invitation or matching group invitation, login should still fail.
+        """
+        user_info = {
+            "sub": "deactivated_no_invite",
+            "given_name": "No",
+            "family_name": "Invite",
+            "email": "noinvite@example.com",
+        }
+        structure_factories.UserFactory(
+            username=user_info["sub"],
+            email=user_info["email"],
+            is_active=False,
+            deactivation_reason="No active roles and no course accounts",
+        )
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertIn("User is deactivated", str(response.content))
+
     def test_invalid_state(self):
         response = self.client.get(
             self.url, {"state": "invalid_state", "code": self.code}
