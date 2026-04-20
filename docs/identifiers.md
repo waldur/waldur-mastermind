@@ -148,6 +148,48 @@ def generate_unique_slug(name, model_class):
     return f"{base_slug}-{counter}"
 ```
 
+### Project Slug Templates
+
+Organizations can define custom slug templates for their projects via the `project_slug_template` field on the Customer model. When set, new projects auto-generate slugs using the template instead of the default name-based generation.
+
+**Configuration:** Staff users set the template on a Customer via the API:
+
+```http
+PATCH /api/customers/{uuid}/
+{"project_slug_template": "{customer_slug}-{year}-{counter_padded}"}
+```
+
+The field is read-only for non-staff users but visible in API responses.
+
+**Supported placeholders:**
+
+| Placeholder | Description | Example |
+|-------------|-------------|---------|
+| `{customer_slug}` | Organization slug | `acme` |
+| `{project_name}` | Slugified project name | `my-project` |
+| `{year}` | Current year (4-digit) | `2026` |
+| `{month}` | Current month (2-digit) | `04` |
+| `{counter}` | Sequential project number per organization | `3` |
+| `{counter_padded}` | Zero-padded 3-digit counter | `003` |
+
+**Behavior:**
+
+- Slug is generated only on project creation when no slug is provided
+- If a staff user provides a slug explicitly, it takes precedence over the template
+- If the template is invalid or contains unknown placeholders, generation falls back to the default name-based slug
+- Counter is scoped per customer (counts existing projects in the organization)
+- Uniqueness is enforced globally; a numeric suffix is appended on collision
+- The template can be changed at any time, even when projects exist
+
+**Examples:**
+
+| Template | Result (3rd project, customer slug `csc`) |
+|----------|----------------------------------------------|
+| `{customer_slug}-{counter_padded}` | `csc-003` |
+| `{customer_slug}-{year}{month}-{counter_padded}` | `csc-202604-003` |
+| `{project_name}-{counter}` | `my-project-3` |
+| *(no template set)* | Default: slugified project name, e.g. `my-projec` |
+
 ### Backend ID Usage
 
 The `backend_id` field serves as a bridge to external systems with specific characteristics:

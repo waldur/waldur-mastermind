@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import datetime
 
 from constance import config
@@ -771,6 +772,7 @@ class CustomerSerializer(
             "user_email_patterns",
             "user_affiliations",
             "user_identity_sources",
+            "project_slug_template",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
@@ -807,6 +809,44 @@ class CustomerSerializer(
             # Staff can specify domain name on organization creation
             validated_data["domain"] = user.organization
         return super().create(validated_data)
+
+    def validate_project_slug_template(self, value):
+        if not value:
+            return value
+
+        placeholders = re.findall(r"\{([^}:]+)", value)
+
+        allowed_placeholders = {
+            "customer_slug",
+            "project_name",
+            "year",
+            "month",
+            "counter",
+            "counter_padded",
+        }
+
+        invalid_placeholders = set(placeholders) - allowed_placeholders
+        if invalid_placeholders:
+            raise serializers.ValidationError(
+                f"Invalid placeholders: {', '.join(sorted(invalid_placeholders))}. "
+                f"Allowed: {', '.join(sorted(allowed_placeholders))}"
+            )
+
+        test_context = {
+            "customer_slug": "test-org",
+            "project_name": "test-project",
+            "year": "2026",
+            "month": "04",
+            "counter": "1",
+            "counter_padded": "001",
+        }
+
+        try:
+            value.format(**test_context)
+        except (KeyError, ValueError) as e:
+            raise serializers.ValidationError(f"Invalid template format: {e}")
+
+        return value
 
     @staticmethod
     def eager_load(queryset, request=None):
