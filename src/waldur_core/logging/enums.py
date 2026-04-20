@@ -328,6 +328,7 @@ class EventType(StrEnum):
     CHAT_THREAD_ACCESSED = "chat_thread_accessed"
     CHAT_INJECTION_DETECTED = "chat_injection_detected"
     CHAT_PII_DETECTED = "chat_pii_detected"
+    CHAT_FEEDBACK_SUBMITTED = "chat_feedback_submitted"
     ONBOARDING_VERIFICATION_DELETED = "onboarding_verification_deleted"
     ONBOARDING_VERIFICATION_DELETED_BY_TASK = "onboarding_verification_deleted_by_task"
     PAT_CREATED = "pat_created"
@@ -690,6 +691,7 @@ EVENT_GROUP_MAPPING = {
         EventType.CHAT_THREAD_ACCESSED,
         EventType.CHAT_INJECTION_DETECTED,
         EventType.CHAT_PII_DETECTED,
+        EventType.CHAT_FEEDBACK_SUBMITTED,
     ],
 }
 

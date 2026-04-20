@@ -3,7 +3,7 @@ import logging
 import django_filters
 from constance import config
 from django.db import transaction
-from django.db.models import Case, Count, Max, Q, Sum, Value, When
+from django.db.models import Case, Count, Exists, Max, OuterRef, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
 from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404
@@ -610,6 +610,7 @@ class ThreadSessionFilter(django_filters.FilterSet):
     modified = django_filters.DateFilter(field_name="modified", lookup_expr="date")
     query = django_filters.CharFilter(method="filter_by_query")
     is_flagged = django_filters.BooleanFilter(method="filter_is_flagged")
+    has_feedback = django_filters.BooleanFilter(method="filter_has_feedback")
     max_severity = django_filters.ChoiceFilter(
         choices=[(s.value, s.value.title()) for s in SeverityLevel],
         method="filter_max_severity",
@@ -650,6 +651,9 @@ class ThreadSessionFilter(django_filters.FilterSet):
         model = models.ThreadSession
         fields = ["is_archived", "user"]
 
+    def filter_has_feedback(self, queryset, name, value):
+        return queryset.filter(has_feedback=value)
+
     def filter_is_flagged(self, queryset, name, value):
         if value:
             return queryset.filter(flags__contains={"is_flagged": True})
@@ -683,6 +687,7 @@ class MessageFilter(django_filters.FilterSet):
     )
     include_history = django_filters.BooleanFilter(method="filter_include_history")
     is_flagged = django_filters.BooleanFilter()
+    feedback_score = django_filters.BooleanFilter()
 
     def filter_include_history(self, queryset, name, value):
         if not value:
@@ -699,7 +704,7 @@ class MessageFilter(django_filters.FilterSet):
 
     class Meta:
         model = models.Message
-        fields = ["thread", "is_flagged"]
+        fields = ["thread", "is_flagged", "feedback_score"]
 
 
 class ChatSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
@@ -795,6 +800,14 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
                     + Coalesce("output_tokens", Value(0)),
                 ),
             )
+            .annotate(
+                has_feedback=Exists(
+                    models.Message.objects.filter(
+                        thread=OuterRef("pk"),
+                        feedback_score__isnull=False,
+                    )
+                )
+            )
             .order_by("-created")
         )
 
@@ -876,6 +889,9 @@ class MessageViewSet(LLMConfigurationMixin, ActionsViewSet):
     permission_classes = [IsAuthenticated, core_permissions.ActionsPermission]
     disabled_actions = ["create", "destroy", "update", "partial_update", "retrieve"]
 
+    # Feedback permissions are enforced by thread__chat_session__user filter
+    feedback_serializer_class = serializers.MessageFeedbackSerializer
+
     def get_queryset(self):
         """Filter messages to current user's; staff/support see all."""
         if self.request.user.is_staff or self.request.user.is_support:
@@ -885,3 +901,64 @@ class MessageViewSet(LLMConfigurationMixin, ActionsViewSet):
                 thread__chat_session__user=self.request.user
             )
         return qs.select_related("thread", "replaces")
+
+    @extend_schema(
+        summary="Submit or update feedback for an assistant message",
+        request=serializers.MessageFeedbackSerializer,
+        responses={200: serializers.MessageSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def feedback(self, request, uuid=None):
+        serializer = serializers.MessageFeedbackSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            # Lock only the Message row (of=("self",)) so the JOIN on
+            # thread__chat_session__user doesn't try to lock joined tables —
+            # PostgreSQL rejects FOR UPDATE against outer joins.
+            message = get_object_or_404(
+                models.Message.objects.select_for_update(of=("self",)).filter(
+                    thread__chat_session__user=request.user,
+                ),
+                uuid=uuid,
+            )
+
+            if message.role != models.Message.Role.ASSISTANT:
+                raise ValidationError(
+                    _("Feedback can only be given on assistant messages.")
+                )
+
+            message.feedback_score = serializer.validated_data["score"]
+            message.feedback_comment = serializer.validated_data.get("comment")
+            if serializer.validated_data["score"]:
+                message.feedback_category = None
+            else:
+                message.feedback_category = serializer.validated_data.get("category")
+            message.feedback_submitted_at = timezone.now()
+            message.save(
+                update_fields=[
+                    "feedback_score",
+                    "feedback_comment",
+                    "feedback_category",
+                    "feedback_submitted_at",
+                ]
+            )
+
+            event_logger.emit(
+                "Chat feedback submitted by {user_username}: score={score}.",
+                event_type=EventType.CHAT_FEEDBACK_SUBMITTED,
+                event_context={
+                    "user": request.user,
+                    "score": message.feedback_score,
+                    "category": message.feedback_category,
+                    "has_comment": bool(message.feedback_comment),
+                    "message_uuid": message.uuid.hex,
+                    "thread_uuid": message.thread.uuid.hex,
+                },
+                scopes=[request.user],
+            )
+
+        return Response(
+            serializers.MessageSerializer(message, context={"request": request}).data,
+            status=status.HTTP_200_OK,
+        )
