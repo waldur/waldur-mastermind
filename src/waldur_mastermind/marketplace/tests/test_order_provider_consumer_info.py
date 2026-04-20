@@ -4,7 +4,7 @@ from django.test import override_settings
 from rest_framework import status, test
 
 from waldur_core.permissions.enums import PermissionEnum
-from waldur_core.permissions.fixtures import CustomerRole
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace import tasks
 from waldur_mastermind.marketplace.enums import OrderStates
@@ -23,7 +23,9 @@ def _make_pdf(name="test.pdf"):
 
 class BaseProviderConsumerInfoTest(test.APITestCase):
     def setUp(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_CONSUMER_ORDER_INFO)
         CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        ProjectRole.MANAGER.add_permission(PermissionEnum.SET_CONSUMER_ORDER_INFO)
         self.fixture = fixtures.MarketplaceFixture()
         self.offering = self.fixture.offering
         self.offering.plugin_options["enable_provider_consumer_messaging"] = True
@@ -38,6 +40,7 @@ class BaseProviderConsumerInfoTest(test.APITestCase):
 
 class ToggleDisabledTest(test.APITestCase):
     def setUp(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_CONSUMER_ORDER_INFO)
         CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
         self.fixture = fixtures.MarketplaceFixture()
         self.order = self.fixture.order
@@ -206,6 +209,15 @@ class SetConsumerInfoTest(BaseProviderConsumerInfoTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.order.refresh_from_db()
         self.assertEqual(self.order.consumer_message, "Signed document attached")
+
+    def test_project_manager_can_respond(self):
+        response = self._post(
+            self.fixture.manager,
+            {"consumer_message": "Responding as project manager"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.order.refresh_from_db()
+        self.assertEqual(self.order.consumer_message, "Responding as project manager")
 
     def test_consumer_can_upload_pdf(self):
         response = self._post(

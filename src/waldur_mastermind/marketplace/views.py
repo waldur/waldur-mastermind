@@ -6234,7 +6234,7 @@ class OrderViewSet(
 
     set_consumer_info_permissions = [
         permission_factory(
-            PermissionEnum.APPROVE_ORDER,
+            PermissionEnum.SET_CONSUMER_ORDER_INFO,
             ["project", "project.customer"],
         )
     ]
