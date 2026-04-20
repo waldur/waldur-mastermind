@@ -804,14 +804,11 @@ class SlugSerializerMixin(serializers.Serializer):
 
         return value
 
-    def generate_slug(self, validated_data):
-        klass = self.Meta.model
-        slug_source = validated_data[klass.get_slug_source_field()]
-        return generate_slug(slug_source, klass)
-
     def create(self, validated_data):
-        if "slug" not in validated_data:
-            validated_data["slug"] = self.generate_slug(validated_data)
+        # Strip empty slug so the model's generate_slug() is used on save.
+        # This ensures model-level slug templates (e.g. project_slug_template) are respected.
+        if "slug" in validated_data and not validated_data["slug"]:
+            validated_data.pop("slug")
         return super().create(validated_data)
 
 

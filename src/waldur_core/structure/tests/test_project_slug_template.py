@@ -135,6 +135,77 @@ class ProjectSlugTemplateGenerationTest(TestCase):
         self.assertEqual(p2.slug, f"{customer.slug}-002")
 
 
+class ProjectSlugTemplateAPICreateTest(test.APITransactionTestCase):
+    """Tests that slug template is applied when creating projects via the API."""
+
+    def setUp(self):
+        self.fixture = fixtures.ServiceFixture()
+        self.customer = self.fixture.customer
+        self.list_url = factories.ProjectFactory.get_list_url()
+
+    @freeze_time("2026-06-15")
+    def test_template_slug_applied_when_no_slug_provided(self):
+        self.customer.project_slug_template = "{customer_slug}-{year}-{counter_padded}"
+        self.customer.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.list_url,
+            {
+                "name": "My Research Project",
+                "customer": factories.CustomerFactory.get_url(self.customer),
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["slug"], f"{self.customer.slug}-2026-001")
+
+    @freeze_time("2026-06-15")
+    def test_template_slug_applied_when_empty_slug_provided(self):
+        self.customer.project_slug_template = "{customer_slug}-{year}-{counter_padded}"
+        self.customer.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.list_url,
+            {
+                "name": "My Research Project",
+                "slug": "",
+                "customer": factories.CustomerFactory.get_url(self.customer),
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["slug"], f"{self.customer.slug}-2026-001")
+
+    def test_explicit_slug_overrides_template(self):
+        self.customer.project_slug_template = "{customer_slug}-{counter_padded}"
+        self.customer.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.list_url,
+            {
+                "name": "My Research Project",
+                "slug": "my-custom-slug",
+                "customer": factories.CustomerFactory.get_url(self.customer),
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["slug"], "my-custom-slug")
+
+    def test_default_slug_when_no_template_via_api(self):
+        self.customer.project_slug_template = None
+        self.customer.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.list_url,
+            {
+                "name": "My Research Project",
+                "customer": factories.CustomerFactory.get_url(self.customer),
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        # Should be a name-based slug, not empty
+        self.assertTrue(len(response.data["slug"]) > 0)
+        self.assertNotIn("{", response.data["slug"])
+
+
 class CustomerProjectSlugTemplateAPITest(test.APITransactionTestCase):
     def setUp(self):
         self.fixture = fixtures.ServiceFixture()
