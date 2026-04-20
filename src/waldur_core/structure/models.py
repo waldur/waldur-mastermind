@@ -1,3 +1,4 @@
+import logging
 import re
 from datetime import timedelta
 from decimal import Decimal
@@ -17,6 +18,7 @@ from django.core.validators import (
 from django.db import models, transaction
 from django.db.models import Model, Q, signals
 from django.utils import timezone
+from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from model_utils import FieldTracker
 from model_utils.fields import AutoCreatedField
@@ -352,6 +354,7 @@ CUSTOMER_DETAILS_FIELDS = (
     "house_nr",
     "apartment_nr",
     "household",
+    "project_slug_template",
 )
 
 
@@ -581,6 +584,16 @@ class Customer(
         blank=True,
         help_text=_(
             "Number of extra days after project end date before resources are terminated"
+        ),
+    )
+    project_slug_template = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text=(
+            "Template for project slugs. Supports: {customer_slug}, {project_name}, "
+            "{year}, {month}, {counter}, {counter_padded}. "
+            "Default: slugified project name"
         ),
     )
     tracker = cast(
@@ -919,6 +932,75 @@ class Project(
             Project.objects.filter(pk=self.pk).update(
                 end_date_updated_at=timezone.now()
             )
+
+    def generate_slug(self):
+        if self.customer and self.customer.project_slug_template:
+            return self._generate_template_slug()
+        return super().generate_slug()
+
+    def _generate_template_slug(self):
+        logger = logging.getLogger(__name__)
+        template = self.customer.project_slug_template
+        if not template:
+            return super().generate_slug()
+        context = self._get_slug_context()
+
+        try:
+            raw_slug = template.format(**context)
+        except (KeyError, ValueError) as e:
+            logger.error(
+                "Failed to format project slug template '%s' "
+                "for project '%s' in customer '%s': %s. "
+                "Falling back to default slug generation.",
+                template,
+                self.name,
+                self.customer,
+                e,
+            )
+            return super().generate_slug()
+
+        base_slug = core_models.clean_slug_hyphens(slugify(raw_slug))
+        return self._ensure_slug_unique(base_slug)
+
+    def _get_slug_context(self):
+        now = timezone.now()
+        counter = self._calculate_project_counter()
+        return {
+            "customer_slug": self.customer.slug if self.customer else "",
+            "project_name": slugify(self.name) if self.name else "",
+            "year": now.strftime("%Y"),
+            "month": now.strftime("%m"),
+            "counter": str(counter),
+            "counter_padded": f"{counter:03d}",
+        }
+
+    def _calculate_project_counter(self):
+        existing_count = (
+            Project.objects.filter(customer=self.customer)
+            .exclude(pk=self.pk if self.pk else None)
+            .count()
+        )
+        return existing_count + 1
+
+    def _ensure_slug_unique(self, base_slug):
+        existing_slugs = Project.objects.filter(slug__startswith=base_slug).values_list(
+            "slug", flat=True
+        )
+
+        if base_slug not in existing_slugs:
+            return base_slug
+
+        max_num = 1
+        for slug in existing_slugs:
+            if slug == base_slug:
+                continue
+            try:
+                num = int(slug.split("-")[-1])
+                if num > max_num:
+                    max_num = num
+            except ValueError:
+                pass
+        return f"{base_slug}-{max_num + 1}"
 
     def get_grace_period_days(self):
         """Get the grace period days, with project-level setting overriding customer-level."""
