@@ -391,12 +391,6 @@ class RemoteAllocation(
         if project.end_date is not None:
             details.end_date = project.end_date
 
-        # The project key is the UUID of the organisation that owns
-        # the project. This way, only projects within the approved
-        # organisation can create remote projects using this
-        # allocation, thereby preventing an admin of another
-        # organisation from guessing the project template name
-        # and using that
         details.key = str(project.customer.uuid)
 
         # now get the allocation for this project (if requested)
@@ -997,10 +991,24 @@ class UserInfo(models.Model):
                 shortname != self.user.unix_username
                 and self.user.unix_username is not None
             ):
-                self.user.unix_username = self.shortname
-                self.user.save()
+                # Set flag to prevent circular updates when saving unix_username
+                self.user._syncing_to_userinfo = True
+                try:
+                    self.user.unix_username = self.shortname
+                    self.user.save(update_fields=["unix_username"])
+                finally:
+                    self.user._syncing_to_userinfo = False
 
             self.shortname = self.user.unix_username
+
+        # make sure to copy the shortname to the slug
+        # Set flag to prevent circular updates
+        self.user._syncing_to_userinfo = True
+        try:
+            self.user.slug = shortname
+            self.user.save(update_fields=["slug"])
+        finally:
+            self.user._syncing_to_userinfo = False
 
         if self.shortname and self.shortname != shortname:
             logger.error(
@@ -1211,10 +1219,10 @@ class ProjectInfo(models.Model):
                     self.project.save()
             else:
                 # no shortname set - need to get it from the slug
-                logger.warning(
-                    f"No shortname set for project {self.project} - using slug"
-                )
                 shortname = self.project.slug.strip()
+                logger.warning(
+                    f"No shortname set for project {self.project} - using slug: {shortname}"
+                )
 
                 if len(shortname) == 0:
                     raise ValueError(
@@ -1295,6 +1303,36 @@ class ProjectInfo(models.Model):
         self.shortname = shortname
         self.save(force_accept_changed_shortname=force)
         self.sanitise()
+
+        if self.project:
+            # Set flag to prevent circular updates
+            self.project._syncing_to_projectinfo = True
+            try:
+                if hasattr(self.project, "short_name"):
+                    if self.project.short_name != shortname:
+                        try:
+                            self.project.short_name = shortname
+                            self.project.save(update_fields=["short_name"])
+                        except Exception as e:
+                            logger.warning(
+                                f"Failed to save project short_name {shortname} for project {self.project}: {e}"
+                            )
+
+                # Only copy the shortname to the slug if we are NOT in
+                # application_portal_only mode (i.e., we're in Project Management mode)
+                try:
+                    application_portal_only = core_models.Feature.objects.get(
+                        key="deployment.application_portal_only"
+                    ).value
+                except core_models.Feature.DoesNotExist:
+                    # Default to False if feature flag doesn't exist
+                    application_portal_only = False
+
+                if not application_portal_only:
+                    self.project.slug = shortname
+                    self.project.save(update_fields=["slug"])
+            finally:
+                self.project._syncing_to_projectinfo = False
 
     def has_shortname(self) -> bool:
         """
@@ -1749,11 +1787,26 @@ class ProjectTemplate(core_models.UuidMixin, models.Model):
         If the allocation unit does not exist, raise an error.
         """
         if allocation_unit not in self.allocation_units_mapping:
-            raise ValueError(
-                f"Allocation unit {allocation_unit} does not exist in this class."
-            )
+            canonical_unit = openportal.Allocation.canonicalize(allocation_unit)
 
-        return self.allocation_units_mapping[allocation_unit]
+            if (
+                canonical_unit == allocation_unit
+                and allocation_unit.lower().endswith("s")
+                and len(allocation_unit) > 1
+            ):
+                canonical_unit = openportal.Allocation.canonicalize(
+                    allocation_unit[:-1]
+                )
+
+            if canonical_unit not in self.allocation_units_mapping:
+                raise ValueError(
+                    f"Allocation unit {allocation_unit} does not exist in this class. "
+                    f"Available allocation units: {list(self.allocation_units_mapping.keys())}"
+                )
+
+            return self.allocation_units_mapping[canonical_unit]
+        else:
+            return self.allocation_units_mapping[allocation_unit]
 
     def create_allocation_mappings_from_node(self, node: openportal.Node):
         """

@@ -413,6 +413,12 @@ def sync_remote_usage():
     """
     This task is called to synchronise the usage for all remote allocations
     """
+    if not openportal.ensure_config_loaded():
+        logger.debug(
+            "OpenPortal not enabled or config not available, skipping sync_remote_usage"
+        )
+        return
+
     logger.info("OpenPortal task.sync_remote_usage")
     now = datetime.datetime.now()
     fail_count = 0
@@ -480,6 +486,12 @@ def sync_usage():
     The sync_allocation_limits task should be scheduled separately (e.g., via cron)
     to run after this task typically completes to update resource limits.
     """
+    if not openportal.ensure_config_loaded():
+        logger.debug(
+            "OpenPortal not enabled or config not available, skipping sync_usage"
+        )
+        return
+
     logger.info("OpenPortal task.sync_usage")
 
     # Group allocations by customer to enable parallel processing
@@ -531,6 +543,12 @@ def sync_storage():
     Runs every 8 hours so each project gets at least one storage report per day
     without hammering the filesystems.
     """
+    if not openportal.ensure_config_loaded():
+        logger.debug(
+            "OpenPortal not enabled or config not available, skipping sync_storage"
+        )
+        return
+
     logger.info("OpenPortal task.sync_storage")
 
     allocations = list(models.Allocation.objects.filter(is_active=True))
@@ -588,6 +606,12 @@ def sync_remote_storage():
     Fetch and store accumulated storage reports from remote portals for all
     active RemoteAllocations.
     """
+    if not openportal.ensure_config_loaded():
+        logger.debug(
+            "OpenPortal not enabled or config not available, skipping sync_remote_storage"
+        )
+        return
+
     logger.info("OpenPortal task.sync_remote_storage")
     now = datetime.datetime.now()
     fail_count = 0
@@ -622,6 +646,12 @@ def sync_local_users():
     users associated with those allocations are properly synced (e.g.
     added or removed)
     """
+    if not openportal.ensure_config_loaded():
+        logger.debug(
+            "OpenPortal not enabled or config not available, skipping sync_local_users"
+        )
+        return
+
     logger.info("OpenPortal task.sync_local_users")
     now = datetime.datetime.now()
 
@@ -650,6 +680,12 @@ def sync_remote_users():
     users associated with those allocations are properly synced (e.g.
     added or removed)
     """
+    if not openportal.ensure_config_loaded():
+        logger.debug(
+            "OpenPortal not enabled or config not available, skipping sync_remote_users"
+        )
+        return
+
     logger.info("OpenPortal task.sync_remote_users")
     now = datetime.datetime.now()
 
@@ -677,6 +713,12 @@ def sync_allocation_limits():
     This task updates the resource limits for all allocations based on project credits
     and current usage. This should be run after sync_usage to ensure all usage data is current.
     """
+    if not openportal.ensure_config_loaded():
+        logger.debug(
+            "OpenPortal not enabled or config not available, skipping sync_allocation_limits"
+        )
+        return
+
     logger.info("OpenPortal task.sync_allocation_limits")
     now = datetime.datetime.now()
     processed_count = 0
@@ -890,44 +932,10 @@ def sync_remote():
 @run_once_task(takeover_timeout=60 * 60)
 def sync():
     """
-    This is a full OpenPortal sync - this will go through all projects
-    and ensure that only users associated with those projects have
-    the correct associations with any OpenPortal allocations.
+    Perform a complete sync of OpenPortal.
     This will add and remove users as needed.
     """
     logger.info("OpenPortal task.sync")
-    now = datetime.datetime.now()
-    fail_count = 0
-
-    # First, sync all of the usage, so we have up-to-date accounting data
-    for customer in structure_models.Customer.objects.all():
-        for allocation in get_structure_allocations(customer):
-            try:
-                sync_allocation_users(allocation)
-            except Exception as e:
-                logger.error(f"Failed to sync users for {allocation}: {e}")
-                fail_count += 1
-
-                if fail_count > 5 and (datetime.datetime.now() - now).seconds > 60:
-                    logger.error("Too many failures - aborting")
-                    break
-                elif (datetime.datetime.now() - now).seconds > 3600:
-                    logger.error("sync_usage took too long - aborting")
-                    break
-
-        for allocation in get_structure_remote_allocations(customer):
-            try:
-                sync_remote_allocation_users(allocation)
-            except Exception as e:
-                logger.error(f"Failed to sync remote users for {allocation}: {e}")
-                fail_count += 1
-
-                if fail_count > 5 and (datetime.datetime.now() - now).seconds > 60:
-                    logger.error("Too many failures - aborting")
-                    break
-                elif (datetime.datetime.now() - now).seconds > 3600:
-                    logger.error("sync_remote_usage took too long - aborting")
-                    break
 
 
 @shared_task(name="waldur_openportal.sync_project")
@@ -1609,11 +1617,17 @@ def run_job(serialized_job):
             result = board.get_project_mapping(identifier)
         elif command == "get_usage_report":
             identifier = openportal.ProjectIdentifier(args[0])
-            dates = openportal.DateRange.parse(args[1])
+            if len(args) > 1:
+                dates = openportal.DateRange.parse(args[1])
+            else:
+                dates = openportal.DateRange.this_month()
             result = board.get_usage_report(identifier, dates)
         elif command == "get_usage_reports":
             identifier = openportal.PortalIdentifier(args[0])
-            dates = openportal.DateRange.parse(args[1])
+            if len(args) > 1:
+                dates = openportal.DateRange.parse(args[1])
+            else:
+                dates = openportal.DateRange.this_month()
             result = board.get_usage_reports(identifier, dates)
         elif command == "get_storage_report":
             identifier = openportal.ProjectIdentifier(args[0])
@@ -1731,7 +1745,7 @@ def sync_offering_agents():
 @shared_task(name="waldur_openportal.sync_board")
 def sync_board():
     """
-    This task polls the OpenPortal jobs board to see if this portal
+    This task is called to synchronise the board to check if OpenPortal
     has received any jobs. If it has, then it pulls the job from the
     board and then spawns a new task to process the job.
     """

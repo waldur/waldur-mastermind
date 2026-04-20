@@ -1,7 +1,17 @@
 from django.urls import re_path
 
 from . import views
-from .api import access_for_email, fetch_job
+from .api import (
+    access_for_email,
+    customer_spend_info,
+    fetch_job,
+    get_api_token,
+    offering_mapping,
+    project_mapping,
+    project_spend_info,
+    user_mapping,
+    whoami,
+)
 
 
 def register_in(router):
@@ -79,9 +89,44 @@ urlpatterns = [
         name="access-for-email",
     ),
     re_path(
+        r"^api/openportal/project_spend_info/",
+        project_spend_info,
+        name="project-spend-info",
+    ),
+    re_path(
+        r"^api/openportal/customer_spend_info/",
+        customer_spend_info,
+        name="customer-spend-info",
+    ),
+    re_path(
         r"^api/openportal/fetch_job/",
         fetch_job,
         name="fetch-job",
+    ),
+    re_path(
+        r"^api/openportal/whoami/",
+        whoami,
+        name="whoami",
+    ),
+    re_path(
+        r"^api/openportal/get_api_token/",
+        get_api_token,
+        name="get_api_token",
+    ),
+    re_path(
+        r"^api/openportal/offering_mapping/",
+        offering_mapping,
+        name="offering-mapping",
+    ),
+    re_path(
+        r"^api/openportal/project_mapping/",
+        project_mapping,
+        name="project-mapping",
+    ),
+    re_path(
+        r"^api/openportal/user_mapping/",
+        user_mapping,
+        name="user-mapping",
     ),
     # Custom routes for ManagedProject with composite lookup
     re_path(

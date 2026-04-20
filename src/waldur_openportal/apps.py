@@ -12,7 +12,6 @@ class OpenPortalConfig(AppConfig):
         # This is the same as in waldur_slurm.apps.py
         from waldur_core.core import models as core_models
         from waldur_core.permissions import signals as permission_signals
-        from waldur_core.quotas import models as quota_models
         from waldur_core.quotas.fields import CounterQuotaField, QuotaField
         from waldur_core.structure import models as structure_models
         from waldur_core.structure.registry import SupportedServices
@@ -45,12 +44,6 @@ class OpenPortalConfig(AppConfig):
             handlers.delete_project,
             sender=structure_models.Project,
             dispatch_uid="waldur_openportal.handlers.delete_project",
-        )
-
-        signals.post_save.connect(
-            handlers.schedule_sync_on_quota_change,
-            sender=quota_models.QuotaLimit,
-            dispatch_uid="waldur_openportal.handlers.schedule_sync_on_quota_save",
         )
 
         signals.post_save.connect(
