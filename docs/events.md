@@ -26,6 +26,7 @@
 
 ## Chat
 
+- chat_feedback_submitted
 - chat_injection_detected
 - chat_pii_detected
 - chat_session_accessed
