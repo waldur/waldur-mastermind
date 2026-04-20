@@ -1,119 +1,9 @@
-# flake8: noqa: F401
 import logging
 import os
 
 from django.conf import settings
-from openportal import (
-    Allocation,  # type: ignore
-    DailyProjectUsageReport,  # type: ignore
-    DateRange,  # type: ignore
-    Destination,  # type: ignore
-    Health,  # type: ignore
-    Instruction,  # type: ignore
-    Job,  # type: ignore
-    Node,  # type: ignore
-    PortalIdentifier,  # type: ignore
-    ProjectDetails,  # type: ignore
-    ProjectIdentifier,  # type: ignore
-    ProjectMapping,  # type: ignore
-    ProjectTemplate,  # type: ignore
-    ProjectUsageReport,  # type: ignore
-    Quota,  # type: ignore
-    Status,  # type: ignore
-    Usage,  # type: ignore
-    UsageReport,  # type: ignore
-    UserIdentifier,  # type: ignore
-    UserMapping,  # type: ignore
-    fetch_job,  # type: ignore
-    fetch_jobs,  # type: ignore
-    get,  # type: ignore
-    get_portal,  # type: ignore
-    health,  # type: ignore
-    is_config_loaded,  # type: ignore
-    load_config,  # type: ignore
-    run,  # type: ignore
-    send_result,  # type: ignore
-    sync_offerings,  # type: ignore
-)
 
-# These classes may not be available in all versions of the openportal library
-try:
-    from openportal import (
-        ProjectStorageReport,  # type: ignore
-        StorageReport,  # type: ignore
-    )
-except ImportError:
-
-    class ProjectStorageReport:  # type: ignore
-        """Stub for ProjectStorageReport - not available in this version of openportal"""
-
-        def __init__(self, *args, **kwargs):
-            raise NotImplementedError(
-                "ProjectStorageReport is not available in this version of openportal"
-            )
-
-        @staticmethod
-        def from_json(*args, **kwargs):
-            raise NotImplementedError(
-                "ProjectStorageReport is not available in this version of openportal"
-            )
-
-        @staticmethod
-        def combine(*args, **kwargs):
-            raise NotImplementedError(
-                "ProjectStorageReport is not available in this version of openportal"
-            )
-
-        def to_json(self):
-            raise NotImplementedError(
-                "ProjectStorageReport is not available in this version of openportal"
-            )
-
-        def filter(self, *args, **kwargs):
-            raise NotImplementedError(
-                "ProjectStorageReport is not available in this version of openportal"
-            )
-
-        def remap_project(self, *args, **kwargs):
-            raise NotImplementedError(
-                "ProjectStorageReport is not available in this version of openportal"
-            )
-
-        def remap_users(self, *args, **kwargs):
-            raise NotImplementedError(
-                "ProjectStorageReport is not available in this version of openportal"
-            )
-
-        def to_storage_report(self, *args, **kwargs):
-            raise NotImplementedError(
-                "ProjectStorageReport is not available in this version of openportal"
-            )
-
-        def __iadd__(self, other):
-            raise NotImplementedError(
-                "ProjectStorageReport is not available in this version of openportal"
-            )
-
-    class StorageReport:  # type: ignore
-        """Stub for StorageReport - not available in this version of openportal"""
-
-        def __init__(self, *args, **kwargs):
-            raise NotImplementedError(
-                "StorageReport is not available in this version of openportal"
-            )
-
-        @staticmethod
-        def combine(*args, **kwargs):
-            raise NotImplementedError(
-                "StorageReport is not available in this version of openportal"
-            )
-
-
-_have_openportal = True
-
-
-def have_openportal():
-    return _have_openportal
+logger = logging.getLogger(__name__)
 
 
 class OpenPortalError(Exception):
@@ -207,6 +97,434 @@ def convert_to_openportal_error(error_message: str) -> OpenPortalError:
         return ManagedProjectPendingError(error_message[28:])
     else:
         return OpenPortalOtherError(error_message)
+
+
+try:
+    from openportal import (  # noqa: F401
+        Allocation,
+        DailyProjectUsageReport,
+        DateRange,
+        Destination,
+        Health,
+        Instruction,
+        Job,
+        Node,
+        PortalIdentifier,
+        ProjectDetails,
+        ProjectIdentifier,
+        ProjectMapping,
+        ProjectStorageReport,
+        ProjectTemplate,
+        ProjectUsageReport,
+        Quota,
+        Status,
+        StorageReport,
+        Usage,
+        UsageReport,
+        UserIdentifier,
+        UserMapping,
+        fetch_job,
+        fetch_jobs,
+        get,
+        get_portal,
+        health,
+        is_config_loaded,
+        load_config,
+        run,
+        send_result,
+        sync_offerings,
+    )
+
+    _have_openportal = True
+
+    def have_openportal():
+        return _have_openportal
+
+    def ensure_config_loaded():
+        if not is_config_loaded():
+            try:
+                import os
+
+                config_file = os.environ.get("OPENPORTAL_CONFIG")
+            except KeyError:
+                raise OpenPortalError("OPENPORTAL_CONFIG environment variable not set")
+
+            if not config_file:
+                raise OpenPortalError("OPENPORTAL_CONFIG environment variable not set")
+
+            try:
+                # this isn't thread-safe - we should make it thread-save
+                # in the OpenPortal python layer
+                load_config(config_file)
+            except Exception as e:
+                raise OpenPortalError(
+                    f"Failed to load OpenPortal config from '{config_file}': {e}"
+                )
+
+except ImportError:
+    _have_openportal = False
+
+    def have_openportal():
+        return _have_openportal
+
+    def _raise_no_openportal_error():
+        raise OpenPortalError("OpenPortal is not installed.")
+
+    class Allocation:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+    class DailyProjectUsageReport:
+        # Properties (Rust #[getter])
+        @property
+        def num_jobs(self):
+            _raise_no_openportal_error()
+
+        @property
+        def total_wait_seconds(self):
+            _raise_no_openportal_error()
+
+        @property
+        def is_consistent(self):
+            _raise_no_openportal_error()
+
+        @property
+        def average_wait_seconds(self):
+            _raise_no_openportal_error()
+
+        @property
+        def components(self):
+            _raise_no_openportal_error()
+            return []
+
+        @property
+        def total_usage(self):
+            _raise_no_openportal_error()
+
+        @property
+        def is_complete(self):
+            _raise_no_openportal_error()
+
+        # Regular methods
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def add_unattributed_usage(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def set_complete(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+    class Destination:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+    class Health:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+    class Instruction:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+    class Job:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+    class Node:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+    class PortalIdentifier:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+    class ProjectIdentifier:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+    class ProjectMapping:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+    class UserIdentifier:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+    class UserMapping:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+    class DateRange:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+    class UsageReport:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        @staticmethod
+        def combine(*args, **kwargs):
+            _raise_no_openportal_error()
+
+        def filter(self, *args, **kwargs):
+            _raise_no_openportal_error()
+            return self
+
+    class Usage:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        @staticmethod
+        def from_hours(*args, **kwargs):
+            _raise_no_openportal_error()
+
+    class Quota:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+    class StorageReport:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def filter(self, *args, **kwargs):
+            _raise_no_openportal_error()
+            return self
+
+    class ProjectStorageReport:
+        # Properties (Rust #[getter])
+        @property
+        def project(self):
+            _raise_no_openportal_error()
+
+        @property
+        def generated_at(self):
+            _raise_no_openportal_error()
+
+        @property
+        def project_quotas(self):
+            _raise_no_openportal_error()
+
+        @property
+        def user_quotas(self):
+            _raise_no_openportal_error()
+
+        @property
+        def users(self):
+            _raise_no_openportal_error()
+            return []
+
+        @property
+        def user_mapping(self):
+            _raise_no_openportal_error()
+
+        # Regular methods
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        @staticmethod
+        def from_json(*args, **kwargs):
+            _raise_no_openportal_error()
+
+        @staticmethod
+        def combine(*args, **kwargs):
+            _raise_no_openportal_error()
+
+        def to_json(self):
+            _raise_no_openportal_error()
+
+        def is_empty(self):
+            _raise_no_openportal_error()
+
+        def daily_reports(self, *args, **kwargs):
+            _raise_no_openportal_error()
+            return []
+
+        def get_report(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def remap_project(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def remap_portal(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def remap_users(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def filter(self, *args, **kwargs):
+            _raise_no_openportal_error()
+            return self
+
+        def __iadd__(self, other):
+            _raise_no_openportal_error()
+            return self
+
+        def __add__(self, other):
+            _raise_no_openportal_error()
+            return self
+
+    class ProjectUsageReport(UsageReport):
+        # Properties (Rust #[getter])
+        @property
+        def dates(self):
+            _raise_no_openportal_error()
+            return []
+
+        @property
+        def components(self):
+            _raise_no_openportal_error()
+            return []
+
+        @property
+        def project(self):
+            _raise_no_openportal_error()
+
+        @property
+        def portal(self):
+            _raise_no_openportal_error()
+
+        @property
+        def users(self):
+            _raise_no_openportal_error()
+            return []
+
+        @property
+        def user_mapping(self):
+            _raise_no_openportal_error()
+
+        @property
+        def unmapped_users(self):
+            _raise_no_openportal_error()
+            return []
+
+        @property
+        def total_usage(self):
+            _raise_no_openportal_error()
+
+        @property
+        def num_jobs(self):
+            _raise_no_openportal_error()
+
+        @property
+        def total_wait_seconds(self):
+            _raise_no_openportal_error()
+
+        @property
+        def average_wait_seconds(self):
+            _raise_no_openportal_error()
+
+        @property
+        def unmapped_usage(self):
+            _raise_no_openportal_error()
+
+        @property
+        def is_complete(self):
+            _raise_no_openportal_error()
+
+        # Regular methods
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        @staticmethod
+        def from_json(*args, **kwargs):
+            _raise_no_openportal_error()
+
+        @staticmethod
+        def combine(*args, **kwargs):
+            _raise_no_openportal_error()
+
+        def to_json(self):
+            _raise_no_openportal_error()
+
+        def in_hours(self):
+            _raise_no_openportal_error()
+
+        def usage(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def get_report(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def get_component(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def add_mapping(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def add_mappings(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def set_project(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def scale_total(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def set_report(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def add_report(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def daily_reports(self, *args, **kwargs):
+            _raise_no_openportal_error()
+            return []
+
+        def set_complete(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def set_day_complete(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def to_usage_report(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def remap_project(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def remap_portal(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def remap_users(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+        def filter(self, *args, **kwargs):
+            _raise_no_openportal_error()
+            return self
+
+        def __iadd__(self, other):
+            _raise_no_openportal_error()
+            return self
+
+        def __add__(self, other):
+            _raise_no_openportal_error()
+            return self
+
+    class ProjectTemplate:
+        def __init__(self, *args, **kwargs):
+            _raise_no_openportal_error()
+
+    def is_config_loaded():
+        _raise_no_openportal_error()
+
+    def load_config(*args, **kwargs):
+        _raise_no_openportal_error()
+
+    def health(*args, **kwargs):
+        _raise_no_openportal_error()
+
+    def get(*args, **kwargs):
+        _raise_no_openportal_error()
+
+    def get_portal(*args, **kwargs):
+        _raise_no_openportal_error()
+
+    def sync_offerings(*args, **kwargs):
+        _raise_no_openportal_error()
+
+    def run(*args, **kwargs):
+        _raise_no_openportal_error()
 
 
 def is_config_available():

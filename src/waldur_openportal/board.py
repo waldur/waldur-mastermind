@@ -185,7 +185,7 @@ class OpenPortalBoard:
             managed_project.delete()
 
             raise openportal.ManagedProjectRejectedError(
-                f"Project class is empty for project {identifier}"
+                f"Project class is empty for project {managed_project}"
             )
 
         # Make sure that we are the right board to manage this project
@@ -901,7 +901,9 @@ class OpenPortalBoard:
             )
             project.save(update_fields=update_fields)
 
-        if project.is_expired or project.is_removed:
+        if (
+            project.is_expired and not project.is_in_grace_period
+        ) or project.is_removed:
             # we can't make any further changes to this project - return an error
             managed_project.reject(
                 utils.get_openportal_robot(),
@@ -1091,7 +1093,7 @@ class OpenPortalBoard:
         return details
 
     def get_projects(
-        self, identifier: openportal.PortalIdentifier
+        self, portal: openportal.PortalIdentifier
     ) -> list[openportal.ProjectMapping]:
         """
         Get all projects in OpenPortal for the given portal identifier.
@@ -1099,8 +1101,8 @@ class OpenPortalBoard:
         identifier in the requesting portal and the OpenPortal project
         identifier used internally.
         """
-        if not isinstance(identifier, openportal.PortalIdentifier):
-            raise openportal.OpenPortalError(f"Invalid portal identifier: {identifier}")
+        if not isinstance(portal, openportal.PortalIdentifier):
+            raise openportal.OpenPortalError(f"Invalid portal identifier: {portal}")
 
         mappings = []
 
@@ -1112,7 +1114,7 @@ class OpenPortalBoard:
 
             remote_identifier = project.get_remote_identifier()
 
-            if remote_identifier.portal_identifier != identifier:
+            if remote_identifier.portal_identifier != portal:
                 # This project is not in the requested portal
                 continue
 
@@ -1121,7 +1123,7 @@ class OpenPortalBoard:
             else:
                 mappings.append(openportal.ProjectMapping(f"{remote_identifier}:None"))
 
-        logger.info(f"Mappings for portal {identifier}: {mappings}")
+        logger.info(f"Mappings for portal {portal}: {mappings}")
 
         return mappings
 
@@ -1263,95 +1265,139 @@ class OpenPortalBoard:
                     scale_factor = template.get_allocation_mapping_for(allocation_units)
                 except Exception as e:
                     logger.warning(
-                        f"Failed to get the allocation mapping for {allocation_units}: {e}"
+                        f"Failed to get the allocation mapping for {allocation_units} from template {template}: {e}"
                     )
 
         report = openportal.ProjectUsageReport(managed_project.get_remote_identifier())
-
         this_month = date.today().month
         this_year = date.today().year
 
         # Get the usage month by month
         for month_range in date_range.months:
-            # get all of the invoice items for this project for this month
-            # These are the consumption details, and are not deleted when the
-            # project is deleted
             month = month_range.start_date.month
             year = month_range.start_date.year
 
-            logger.debug(
-                f"Fetching invoice items for project {project} for {month}/{year}"
-            )
+            # Try to use CachedProjectUsageReport first, if all allocations
+            # for this project are OpenPortal-managed with project identifiers
+            cached = self._get_cached_report_for_month(project, month, year)
 
-            try:
-                invoice_items = invoice_models.InvoiceItem.objects.filter(
-                    project=project, invoice__month=month, invoice__year=year
+            if cached is not None:
+                logger.info(
+                    f"Using cached usage report for project {project} for {month}/{year}"
                 )
-            except Exception as e:
-                logger.warning(
-                    f"Failed to retrieve invoice items for project {project}: {e}"
-                )
-                invoice_items = []
 
-            for invoice_item in invoice_items:
-                usage = float(invoice_item.price)
+                # Build {UserIdentifier: email} map for remap_users.
+                # resolve_useridentifiers works on strings; we keep the
+                # original UserIdentifier objects to pass to remap_users.
+                user_identifiers = cached.users
+                uid_strings = [str(uid) for uid in user_identifiers]
+                user_info_map = utils.resolve_useridentifiers(uid_strings)
 
-                logger.info(f"Invoice {invoice_item} : Usage {usage}")
+                user_email_map = {}
+                for uid in user_identifiers:
+                    user_info = user_info_map.get(str(uid))
+                    if user_info and user_info.get("email"):
+                        user_email_map[uid] = user_info["email"]
 
-                if usage == 0:
-                    continue
-                elif usage < 0:
-                    # this is a credit, so can be safely ignored here
-                    continue
+                if user_email_map:
+                    cached.remap_users(user_email_map)
 
-                # get the month and year of the usage
-                try:
-                    invoice_month = invoice_item.invoice.month
-                    invoice_year = invoice_item.invoice.year
-                except Exception:
-                    logger.warning(
-                        f"Invoice item {invoice_item} has no invoice month/year - skipping"
-                    )
-                    continue
+                # remap_project updates the project identifier and rebuilds
+                # all UserIdentifier keys so that report += cached succeeds.
+                remote_id = managed_project.get_remote_identifier()
+                cached.remap_project(remote_id)
 
-                if invoice_month is None or invoice_year is None:
-                    logger.warning(
-                        f"Invoice item {invoice_item} has no invoice month/year - skipping"
-                    )
-                    continue
-
-                if invoice_month < 1 or invoice_month > 12:
-                    logger.warning(
-                        f"Invoice item {invoice_item} has invalid month {invoice_month} - skipping"
-                    )
-                    continue
-
-                if invoice_month != month or invoice_year != year:
-                    logger.warning(
-                        f"Invoice item {invoice_item} has mismatched month/year - skipping"
-                    )
-                    continue
-
-                consumption_date = date(year=year, month=month, day=1)
-
-                # change the day to the first of the month
-                consumption_date = utils.get_first_day_of_month(consumption_date)
-
-                d = openportal.DailyProjectUsageReport()
-                d.add_unattributed_usage(openportal.Usage.from_hours(usage))
-
-                if year <= this_year and month < this_month:
+                if year <= this_year and month < this_month and not cached.is_complete:
                     # this is a month in the past - we don't expect the usage to change
-                    d.set_complete()
+                    logger.warning(
+                        f"Cached usage report for project {project} for {month}/{year} is not marked complete, but this month is in the past. Will need to refetch in the future to get the completed report."
+                    )
 
-                report.add_report(consumption_date, d)
+                report += cached
+            else:
+                # Fall back to building usage from InvoiceItem objects
+                logger.info(
+                    f"Fetching invoice items for project {project} for {month}/{year}"
+                )
+
+                try:
+                    invoice_items = invoice_models.InvoiceItem.objects.filter(
+                        project=project, invoice__month=month, invoice__year=year
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to retrieve invoice items for project {project}: {e}"
+                    )
+                    invoice_items = []
+
+                for invoice_item in invoice_items:
+                    usage = float(invoice_item.price)
+
+                    logger.info(f"Invoice {invoice_item} : Usage {usage}")
+
+                    if usage == 0:
+                        continue
+                    elif usage < 0:
+                        # this is a credit, so can be safely ignored here
+                        continue
+
+                    # get the month and year of the usage
+                    try:
+                        invoice_month = invoice_item.invoice.month
+                        invoice_year = invoice_item.invoice.year
+                    except Exception:
+                        logger.warning(
+                            f"Invoice item {invoice_item} has no invoice month/year - skipping"
+                        )
+                        continue
+
+                    if invoice_month is None or invoice_year is None:
+                        logger.warning(
+                            f"Invoice item {invoice_item} has no invoice month/year - skipping"
+                        )
+                        continue
+
+                    if invoice_month < 1 or invoice_month > 12:
+                        logger.warning(
+                            f"Invoice item {invoice_item} has invalid month {invoice_month} - skipping"
+                        )
+                        continue
+
+                    if invoice_month != month or invoice_year != year:
+                        logger.warning(
+                            f"Invoice item {invoice_item} has mismatched month/year - skipping"
+                        )
+                        continue
+
+                    consumption_date = date(year=year, month=month, day=1)
+
+                    # change the day to the first of the month
+                    consumption_date = utils.get_first_day_of_month(consumption_date)
+
+                    # But make sure that the consumption date fits within
+                    # the date range - this is messy as we don't have day-based
+                    # consumption from the invoice
+                    if consumption_date < date_range.start_date:
+                        consumption_date = date_range.start_date
+                    elif consumption_date > date_range.end_date:
+                        consumption_date = date_range.end_date
+
+                    d = openportal.DailyProjectUsageReport()
+                    d.add_unattributed_usage(openportal.Usage.from_hours(usage))
+
+                    if year <= this_year and month < this_month:
+                        # this is a month in the past - we don't expect the usage to change
+                        d.set_complete()
+
+                    report.add_report(consumption_date, d)
 
         if scale_factor is None or scale_factor <= 0:
             logger.warning(f"Invalid scale factor: {scale_factor}")
         elif scale_factor != 1.0:
-            report *= scale_factor
+            report.scale_total(scale_factor)
 
-        return report
+        # now filter the report to the requested date range
+        return report.filter(date_range)
 
     def get_usage_reports(
         self, portal: openportal.PortalIdentifier, date_range: openportal.DateRange
@@ -1387,40 +1433,15 @@ class OpenPortalBoard:
 
         return openportal.UsageReport.combine(reports)
 
-    def _get_cached_storage_report_for_month(
-        self,
-        project_identifiers: list,
-        year: int,
-        month: int,
-    ) -> "openportal.ProjectStorageReport | None":
-        """
-        Return a combined ProjectStorageReport for the given month from the
-        CachedProjectStorageReport table, or None if no records exist.
-        """
-        cached_records = models.CachedProjectStorageReport.objects.filter(
-            project_identifier__in=project_identifiers,
-            year=year,
-            month=month,
-        )
-
-        if not cached_records.exists():
-            return None
-
-        records = [cr.get_report() for cr in cached_records]
-        return (
-            records[0]
-            if len(records) == 1
-            else openportal.ProjectStorageReport.combine(records)
-        )
-
     def get_storage_report(
         self,
         identifier: openportal.ProjectIdentifier,
         date_range: openportal.DateRange,
-    ) -> "openportal.ProjectStorageReport":
+    ) -> openportal.ProjectStorageReport:
         """
-        Return a storage report for a project in OpenPortal for the given date range.
-        Uses the CachedProjectStorageReport table to serve pre-accumulated snapshots.
+        Return the accumulated storage report for a managed project over the given
+        date range.  Only CachedProjectStorageReport records are used — there is no
+        InvoiceItem fallback, and no unit scaling.
         """
         if not isinstance(identifier, openportal.ProjectIdentifier):
             raise openportal.OpenPortalError(
@@ -1429,6 +1450,10 @@ class OpenPortalBoard:
 
         if not isinstance(date_range, openportal.DateRange):
             raise openportal.OpenPortalError(f"Invalid date range: {date_range}")
+
+        logger.info(
+            f"Getting storage report for project {identifier} and date range {date_range}"
+        )
 
         try:
             managed_project = models.ManagedProject.objects.get(
@@ -1440,16 +1465,25 @@ class OpenPortalBoard:
                 f"ManagedProject for identifier '{identifier}' does not exist"
             )
 
-        # Collect all project_identifier strings for this managed project
-        project_identifiers = []
-        if managed_project.has_local_identifier():
-            local_id = str(managed_project.get_local_identifier())
-            if local_id:
-                project_identifiers.append(local_id)
+        if managed_project.project is None:
+            raise openportal.OpenPortalError(
+                f"ManagedProject '{managed_project}' does not have an associated project"
+            )
+
+        project = managed_project.project
+
+        if project.is_removed:
+            raise openportal.OpenPortalError(
+                f"ManagedProject '{managed_project}' is removed"
+            )
+
+        from .filters import _identifiers_for_project_uuid
+
+        project_identifiers = _identifiers_for_project_uuid(project.uuid)
 
         if not project_identifiers:
             raise openportal.OpenPortalError(
-                f"No project identifiers found for project {identifier}"
+                f"No project identifiers found for project {project}"
             )
 
         report = openportal.ProjectStorageReport(
@@ -1472,14 +1506,13 @@ class OpenPortalBoard:
 
             if not cached_records.exists():
                 logger.info(
-                    f"No cached storage report for project {identifier}"
+                    f"No cached storage report for project {project}"
                     f" for {month}/{year} - skipping"
                 )
                 continue
 
             logger.info(
-                f"Using cached storage report for project {identifier}"
-                f" for {month}/{year}"
+                f"Using cached storage report for project {project} for {month}/{year}"
             )
 
             records = [cr.get_report() for cr in cached_records]

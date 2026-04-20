@@ -629,8 +629,6 @@ class RemoteOpenPortalBackend(ServiceBackend):
             allocation.node_usage = report.total_usage.hours
             allocation.save(update_fields=["node_usage"])
 
-            # TODO - check if we need to update anything missed during a change of month?
-
     def _adjust_project_credits_for_reconciliation(
         self, resource, month_date: datetime.date, usage_change: float
     ):
@@ -932,34 +930,33 @@ class RemoteOpenPortalBackend(ServiceBackend):
 
             if is_report_complete:
                 logger.debug(f"Skipping {month} as report is complete")
-                continue
+            else:
+                report = self.client.get_usage_report(project, month)
 
-            report = self.client.get_usage_report(project, month)
+                if report.total_usage.seconds > 0:
+                    self._update_usage_from_report(
+                        allocation, report, update_current=is_current_month
+                    )
 
-            if report.total_usage.seconds > 0:
-                self._update_usage_from_report(
-                    allocation, report, update_current=is_current_month
+                historical_report.node_usage = report.total_usage.hours
+                historical_report.is_complete = (
+                    not is_current_month
+                ) and report.is_complete
+                historical_report.save()
+
+                # Cache the full report JSON so the remote portal can serve
+                # rich usage data (per-user, per-date) without re-fetching
+                resource = str(self.client.destination())
+                models.CachedProjectUsageReport.objects.update_or_create(
+                    year=first_day.year,
+                    month=first_day.month,
+                    project_identifier=str(project),
+                    resource=resource,
+                    defaults={
+                        "is_complete": historical_report.is_complete,
+                        "report": json.loads(report.to_json()),
+                    },
                 )
-
-            historical_report.node_usage = report.total_usage.hours
-            historical_report.is_complete = (
-                not is_current_month
-            ) and report.is_complete
-            historical_report.save()
-
-            # Cache the full report JSON so the remote portal can serve
-            # rich usage data (per-user, per-date) without re-fetching
-            resource = str(self.client.destination())
-            models.CachedProjectUsageReport.objects.update_or_create(
-                year=first_day.year,
-                month=first_day.month,
-                project_identifier=str(project),
-                resource=resource,
-                defaults={
-                    "is_complete": historical_report.is_complete,
-                    "report": json.loads(report.to_json()),
-                },
-            )
 
             # Reconcile historical usage with billing for completed months
             try:

@@ -52,7 +52,6 @@ class RemoteOpenPortalClient:
             details = openportal.ProjectDetails(str(details))
 
         details.project_template = self._project_template
-
         return details
 
     def _to_usage(self, usage) -> openportal.Usage:
@@ -157,10 +156,10 @@ class RemoteOpenPortalClient:
 
         if project_shortname is None or not project_shortname.strip():
             logger.error(
-                f"Empty project_shortname for allocation: {project} - cannot create in OpenPortal"
+                f"Empty project_shortname for project: {project} - cannot create in OpenPortal"
             )
             raise openportal.OpenPortalOtherError(
-                f"Empty project_shortname for allocation. Please set a short name for {project}"
+                f"Empty project_shortname for project. Please set a short name for {project}"
             )
 
         return self._to_project_identifier(project_shortname)
@@ -265,6 +264,21 @@ class RemoteOpenPortalClient:
 
         report = self.run(
             f"{self.destination()} get_usage_report {project} {date_range}"
+        )
+        return report
+
+    def get_storage_report(
+        self,
+        project: openportal.ProjectIdentifier,
+        date_range: openportal.DateRange,
+    ) -> "openportal.ProjectStorageReport":
+        """
+        Return the accumulated storage report for the specified project and date range
+        """
+        project = self._to_project_identifier(project)
+
+        report = self.run(
+            f"{self.destination()} get_storage_report {project} {date_range}"
         )
         return report
 
