@@ -75,7 +75,7 @@ def create_monthly_invoices():
     if settings.WALDUR_CORE["ENABLE_ACCOUNTING_START_DATE"]:
         customers = customers.filter(accounting_start_date__lt=timezone.now())
 
-    for customer in customers.iterator():
+    for customer in customers:
         try:
             MarketplaceBillingService.get_or_create_invoice(
                 customer, core_utils.month_start(local_date)

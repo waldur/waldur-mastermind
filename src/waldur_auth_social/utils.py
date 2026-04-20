@@ -834,9 +834,7 @@ def get_identity_bridge_stats(stale_threshold_days: int = 7) -> dict:
     isd_stale_counter = Counter()
     isd_oldest_sync = {}
 
-    for user in federated_users.only(
-        "active_isds", "attribute_sources", "is_active"
-    ).iterator():
+    for user in federated_users.only("active_isds", "attribute_sources", "is_active"):
         active_isds = user.active_isds or []
         attribute_sources = user.attribute_sources or {}
 

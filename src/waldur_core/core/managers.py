@@ -160,10 +160,10 @@ class SummaryQuerySet:
     def _get_chained_querysets(self):
         if self._order_by:
             return self._merge(
-                [qs.iterator() for qs in self.querysets], compared_attr=self._order_by
+                [iter(qs) for qs in self.querysets], compared_attr=self._order_by
             )
         else:
-            return itertools.chain(*[qs.iterator() for qs in self.querysets])
+            return itertools.chain(*[iter(qs) for qs in self.querysets])
 
     def _merge(self, subsequences, compared_attr="pk"):
         @functools.total_ordering

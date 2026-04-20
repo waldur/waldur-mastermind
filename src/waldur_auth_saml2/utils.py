@@ -43,7 +43,7 @@ def sync_providers():
             continue
         models.IdentityProvider.objects.create(url=url, name=name, metadata=metadata)
 
-    for provider in models.IdentityProvider.objects.all().iterator():
+    for provider in models.IdentityProvider.objects.all():
         backend_metadata = providers.get(provider.url)
         if backend_metadata and provider.metadata != backend_metadata:
             provider.metadata = backend_metadata

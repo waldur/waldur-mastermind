@@ -4468,7 +4468,7 @@ class OpenStackBackend(ServiceBackend):
                 nics.append({"port-id": external_port_id["id"]})
 
             block_device_mapping_v2 = []
-            for volume in instance.volumes.iterator():
+            for volume in instance.volumes.all():
                 device_mapping = {
                     "destination_type": "volume",
                     "device_type": "disk",
