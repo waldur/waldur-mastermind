@@ -208,6 +208,34 @@ def format_update_limits_description(order):
     )
 
 
+def format_renewal_description(order):
+    offering = order.resource.offering
+    request_url = get_request_link(order.resource)
+    components_map = offering.get_limit_components()
+    old_limits = format_limits_list(
+        components_map, order.attributes.get("old_limits", {})
+    )
+    new_limits = format_limits_list(components_map, order.limits)
+    resource = order.resource
+    context = {
+        "order": order,
+        "request_url": request_url,
+        "old_limits": old_limits,
+        "new_limits": new_limits,
+        "extension_months": order.attributes.get("extension_months", "N/A"),
+        "old_end_date": order.attributes.get("old_end_date", "N/A"),
+        "new_end_date": order.attributes.get("new_end_date", "N/A"),
+        "cost": f"{order.cost:.2f}" if order.cost is not None else "N/A",
+        "request_comment": order.request_comment or "",
+        "resource_slug": getattr(resource, "slug", ""),
+        "project_slug": getattr(order.project, "slug", "") if order.project else "",
+        "customer_slug": getattr(order.project.customer, "slug", "")
+        if order.project and order.project.customer
+        else "",
+    }
+    return format_description("renewal_template", context)
+
+
 def format_delete_description(order):
     request_url = get_request_link(order.resource)
     return format_description(

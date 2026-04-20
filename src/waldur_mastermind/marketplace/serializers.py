@@ -5702,10 +5702,14 @@ class ResourceResponseStatusSerializer(serializers.Serializer):
 class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Order
-        fields = ("limits", "request_comment")
+        fields = ("limits", "request_comment", "attachment")
 
     limits = serializers.DictField(
         child=serializers.IntegerField(min_value=0), required=True
+    )
+    attachment = serializers.FileField(
+        required=False,
+        help_text=_("Optional PDF attachment for the limit update request."),
     )
 
 
