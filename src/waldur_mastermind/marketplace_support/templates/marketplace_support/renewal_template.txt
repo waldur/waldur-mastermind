@@ -1,0 +1,13 @@
+[Renewal request for resource {{order.resource.name}}|{{request_url}}].
+Marketplace resource UUID: {{order.resource.uuid.hex}}
+Extension: {{ extension_months }} months
+Old end date: {{ old_end_date }}
+New end date: {{ new_end_date }}
+Renewal cost: {{ cost }}
+{% if request_comment %}Purchase order reference: {{ request_comment }}
+{% endif %}Old limits: {{ old_limits }}.
+New limits: {{ new_limits }}.
+{% if resource_slug %}Resource slug: {{ resource_slug }}
+{% endif %}{% if project_slug %}Project slug: {{ project_slug }}
+{% endif %}{% if customer_slug %}Customer slug: {{ customer_slug }}
+{% endif %}

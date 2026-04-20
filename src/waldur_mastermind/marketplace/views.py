@@ -7662,6 +7662,8 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         limits = serializer.validated_data["limits"]
+        request_comment = serializer.validated_data.get("request_comment", "")
+        attachment = serializer.validated_data.get("attachment")
 
         if resource.limits == limits:
             raise ValidationError(
@@ -7677,6 +7679,8 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
             type=OrderTypes.UPDATE,
             limits=limits,
             attributes={"old_limits": resource.limits},
+            request_comment=request_comment,
+            attachment=attachment,
         )
 
     @extend_schema(

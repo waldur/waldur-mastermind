@@ -46,9 +46,16 @@ class UpdateRequestProcessor(processors.UpdateScopedResourceProcessor):
         return self.order.resource
 
     def update_limits_process(self, user):
+        if self.order.attributes.get("action") == "renew":
+            description = utils.format_renewal_description(self.order)
+            summary = "Renewal request for %s" % self.order.resource.name
+        else:
+            description = utils.format_update_limits_description(self.order)
+            summary = "Request to update limits for %s" % self.order.resource.name
+
         utils.create_issue(
             self.order,
-            description=utils.format_update_limits_description(self.order),
-            summary="Request to update limits for %s" % self.order.resource.name,
+            description=description,
+            summary=summary,
         )
         return False
