@@ -361,6 +361,10 @@ class MessageSerializer(serializers.ModelSerializer):
             "injection_categories",
             "pii_categories",
             "action_taken",
+            "feedback_score",
+            "feedback_comment",
+            "feedback_category",
+            "feedback_submitted_at",
         )
         read_only_fields = (
             "uuid",
@@ -377,6 +381,10 @@ class MessageSerializer(serializers.ModelSerializer):
             "injection_categories",
             "pii_categories",
             "action_taken",
+            "feedback_score",
+            "feedback_comment",
+            "feedback_category",
+            "feedback_submitted_at",
         )
 
     def get_fields(self):
@@ -395,6 +403,37 @@ class MessageSerializer(serializers.ModelSerializer):
             ):
                 fields.pop(field_name, None)
         return fields
+
+
+class MessageFeedbackSerializer(serializers.Serializer):
+    score = serializers.BooleanField(
+        required=True,
+        help_text="Feedback score: true=thumbs up, false=thumbs down.",
+    )
+    comment = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+        default=None,
+        max_length=2000,
+        help_text="Optional comment.",
+    )
+    category = serializers.ChoiceField(
+        choices=models.FeedbackCategory.choices,
+        required=False,
+        allow_null=True,
+        default=None,
+        help_text="Optional category tag (only accepted when score=false).",
+    )
+
+    def validate(self, attrs):
+        if attrs["score"] and attrs.get("category"):
+            raise serializers.ValidationError(
+                {
+                    "category": "A category is only allowed with a negative score (thumbs down)."
+                }
+            )
+        return attrs
 
 
 class ThreadSessionSerializer(
@@ -426,6 +465,7 @@ class ThreadSessionSerializer(
     )
     is_flagged = serializers.SerializerMethodField()
     max_severity = serializers.SerializerMethodField()
+    has_feedback = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = models.ThreadSession
@@ -443,6 +483,7 @@ class ThreadSessionSerializer(
             "title_gen_output_tokens",
             "is_flagged",
             "max_severity",
+            "has_feedback",
             "user_username",
             "user_full_name",
             "created",

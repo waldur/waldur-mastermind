@@ -10,6 +10,7 @@ from waldur_core.server.constance_settings import (
     USER_ATTRIBUTE_CHOICES,
 )
 from waldur_core.users.enums import InvitationState
+from waldur_mastermind.chat.enums import FeedbackCategory
 from waldur_mastermind.chat.input_guards.base import SeverityLevel
 from waldur_mastermind.common.enums import Units
 from waldur_mastermind.marketplace.attribute_types import ATTRIBUTE_TYPES
@@ -106,6 +107,7 @@ SPECTACULAR_SETTINGS = {
         "ObservableObjectTypeEnum": ObservableObjectType.choices(),
         "GenderEnum": GENDER_CHOICES,
         "InjectionSeverityEnum": SeverityLevel.choices(),
+        "FeedbackCategoryEnum": FeedbackCategory.choices,
         "GrowthPeriodEnum": ["weekly", "monthly"],
         "PolicyPeriodEnum": (
             (1, "Total"),

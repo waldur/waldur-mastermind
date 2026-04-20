@@ -10,6 +10,7 @@ from django.utils.translation import gettext_lazy as _
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core.models import User, UuidMixin
+from waldur_mastermind.chat.enums import FeedbackCategory
 from waldur_mastermind.chat.input_guards import (
     DetectionAction,
     InputGuardResult,
@@ -404,6 +405,38 @@ class Message(UuidMixin, TimeStampedModel):
         blank=True,
         db_index=True,
     )
+    feedback_score = models.BooleanField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text=_(
+            "User feedback: True=thumbs up, False=thumbs down, None=no feedback."
+        ),
+    )
+    feedback_comment = models.TextField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text=_("Optional user comment accompanying feedback."),
+    )
+    feedback_category = models.CharField(
+        max_length=32,
+        choices=FeedbackCategory.choices,  # type: ignore[arg-type]
+        null=True,
+        blank=True,
+        default=None,
+        help_text=_(
+            "Category tag when feedback_score is False (thumbs down); null otherwise."
+        ),
+    )
+    feedback_submitted_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text=_(
+            "Timestamp of the most recent feedback submission; overwritten on resubmit."
+        ),
+    )
 
     class Meta:
         ordering = ["sequence_index"]
@@ -411,6 +444,13 @@ class Message(UuidMixin, TimeStampedModel):
         indexes = [
             models.Index(fields=["thread"]),
             models.Index(fields=["replaces"]),
+            # Partial index: only rows with submitted feedback. Most messages
+            # never get feedback, so a full index would be mostly NULL padding.
+            models.Index(
+                fields=["feedback_score"],
+                condition=models.Q(feedback_score__isnull=False),
+                name="chat_msg_fb_score_partial_idx",
+            ),
         ]
         constraints = [
             models.UniqueConstraint(
