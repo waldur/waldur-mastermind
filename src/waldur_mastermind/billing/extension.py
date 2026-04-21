@@ -21,3 +21,15 @@ class BillingExtension(WaldurExtension):
     @staticmethod
     def is_assembly():
         return True
+
+    @staticmethod
+    def celery_tasks():
+        from datetime import timedelta
+
+        return {
+            "waldur-billing-refresh-estimates": {
+                "task": "waldur_mastermind.billing.refresh_estimates",
+                "schedule": timedelta(hours=24),
+                "args": (),
+            },
+        }
