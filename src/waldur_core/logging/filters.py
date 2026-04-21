@@ -5,7 +5,6 @@ from django_filters.widgets import BooleanWidget
 from drf_spectacular.plumbing import build_parameter_type
 from drf_spectacular.utils import OpenApiParameter
 from rest_framework import filters
-from rest_framework.filters import BaseFilterBackend
 
 from waldur_core.core import filters as core_filters
 from waldur_core.core import serializers as core_serializers
@@ -30,6 +29,10 @@ class BaseHookFilter(django_filters.FilterSet):
     is_active = django_filters.BooleanFilter(widget=BooleanWidget)
     last_published = django_filters.DateTimeFilter()
 
+    class Meta:
+        model = models.BaseHook
+        fields = []
+
     def filter_by_full_name(self, queryset, name, value):
         return core_filters.filter_by_full_name(queryset, value, "user")
 
@@ -52,47 +55,6 @@ class EmailHookFilter(BaseHookFilter):
     class Meta:
         model = models.EmailHook
         fields = ("email",)
-
-
-class HookSummaryFilterBackend(BaseFilterBackend):
-    def filter_queryset(self, request, queryset, view):
-        """Filter each resource separately using its own filter"""
-        summary_queryset = queryset
-        filtered_querysets = []
-        for queryset in summary_queryset.querysets:
-            filter_class = self.get_queryset_filter(queryset)
-            queryset = filter_class(request.query_params, queryset=queryset).qs
-            filtered_querysets.append(queryset)
-
-        summary_queryset.querysets = filtered_querysets
-        return summary_queryset
-
-    def get_queryset_filter(self, queryset):
-        if queryset.model == models.WebHook:
-            return WebHookFilter
-        elif queryset.model == models.EmailHook:
-            return EmailHookFilter
-
-        return BaseHookFilter
-
-    def get_schema_operation_parameters(self, view):
-        return [
-            build_parameter_type(
-                name="author_uuid",
-                schema={"type": "string", "format": "uuid"},
-                location=OpenApiParameter.QUERY,
-                required=False,
-                description="Filter by author UUID.",
-                extensions={"x-waldur-operation-id": "users_retrieve"},
-            ),
-            build_parameter_type(
-                name="is_active",
-                schema={"type": "boolean"},
-                location=OpenApiParameter.QUERY,
-                required=False,
-                description="Filter by active status.",
-            ),
-        ]
 
 
 class EventFilter(django_filters.FilterSet):

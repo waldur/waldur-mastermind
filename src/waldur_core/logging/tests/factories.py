@@ -74,6 +74,28 @@ class WebHookFactory(
         )
 
 
+class EmailHookFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.EmailHook]
+):
+    class Meta:
+        model = models.EmailHook
+
+    event_types = get_valid_events()[:3]
+    email = "hook@example.com"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("emailhook-list")
+
+    @classmethod
+    def get_url(cls, hook=None):
+        if hook is None:
+            hook = EmailHookFactory()
+        return "http://testserver" + reverse(
+            "emailhook-detail", kwargs={"uuid": hook.uuid.hex}
+        )
+
+
 class SystemNotificationFactory(
     factory.django.DjangoModelFactory,
     metaclass=BaseMetaFactory[models.SystemNotification],

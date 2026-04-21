@@ -20,7 +20,6 @@ from waldur_core.core import filters as core_filters
 from waldur_core.core import models as core_models
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
-from waldur_core.core.managers import SummaryQuerySet
 from waldur_core.logging import backend, filters, models, serializers, utils
 from waldur_core.logging.event_logger import get_event_groups
 from waldur_core.structure.serializers_data_access import (
@@ -165,10 +164,11 @@ class HookSummary(mixins.ListModelMixin, viewsets.GenericViewSet):
     """
 
     serializer_class = serializers.SummaryHookSerializer
-    filter_backends = (core_filters.StaffOrUserFilter, filters.HookSummaryFilterBackend)
+    filter_backends = (core_filters.StaffOrUserFilter, DjangoFilterBackend)
+    filterset_class = filters.BaseHookFilter
 
     def get_queryset(self):
-        return SummaryQuerySet(models.BaseHook.get_all_models())
+        return models.BaseHook.objects.select_related("webhook", "emailhook")
 
 
 class EventsStatsViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
