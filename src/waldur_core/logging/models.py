@@ -51,7 +51,6 @@ class EventTypesMixin(models.Model):
 
 class BaseHook(EventTypesMixin, UuidMixin, TimeStampedModel):
     class Meta:
-        abstract = True
         ordering = ["-created"]
 
     user = models.ForeignKey[core_models.User](

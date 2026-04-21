@@ -97,6 +97,14 @@ class BaseHookSerializer(serializers.HyperlinkedModelSerializer):
 
 class SummaryHookSerializer(serializers.Serializer):
     def to_representation(self, instance):
+        if type(instance) is models.BaseHook:
+            for model in models.BaseHook.get_all_models():
+                if model == models.BaseHook:
+                    continue
+                attr = model.__name__.lower()
+                if hasattr(instance, attr):
+                    instance = getattr(instance, attr)
+                    break
         serializer = self.get_hook_serializer(instance.__class__)
         return serializer(instance, context=self.context).data
 
