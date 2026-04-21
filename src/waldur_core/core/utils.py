@@ -1,7 +1,5 @@
 import calendar
 import datetime
-
-from dateutil.relativedelta import relativedelta
 import functools
 import importlib
 import logging
@@ -19,6 +17,7 @@ import jwt
 import requests
 import textile
 from constance import config
+from dateutil.relativedelta import relativedelta
 from django.apps import apps
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives

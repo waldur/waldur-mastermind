@@ -1,13 +1,9 @@
-from unittest import mock
-
 from django.test import TestCase
 from freezegun import freeze_time
 from rest_framework import status, test
-from rest_framework.reverse import reverse
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CustomerRole
-from waldur_core.structure import models
 from waldur_core.structure.tests import factories, fixtures
 
 
@@ -68,7 +64,7 @@ class ProjectSlugTemplateGenerationTest(TestCase):
         customer = factories.CustomerFactory(
             project_slug_template="{customer_slug}-{counter_padded}"
         )
-        p1 = factories.ProjectFactory(customer=customer, slug="")
+        factories.ProjectFactory(customer=customer, slug="")
         # Manually set another project's slug to collide with what the next one would generate
         expected_slug = f"{customer.slug}-002"
         factories.ProjectFactory(customer=customer, slug=expected_slug)
