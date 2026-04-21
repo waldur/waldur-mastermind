@@ -7363,6 +7363,15 @@ class BaseResourceViewSet(
         request=None,
         responses=serializers.ProjectUserSerializer(many=True),
         filters=False,
+        parameters=[
+            OpenApiParameter(
+                name="has_consent",
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                description="When true, return only users who have active consent for this offering.",
+                required=False,
+            ),
+        ],
     )
     @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
     def team(self, request, uuid=None):
@@ -7370,6 +7379,13 @@ class BaseResourceViewSet(
         project = resource.project
         offering = resource.offering
         users = project.get_users()
+
+        has_consent_param = request.query_params.get("has_consent")
+        if has_consent_param is not None and has_consent_param.lower() == "true":
+            users = users.filter(
+                offering_consents__offering=offering,
+                offering_consents__revocation_date__isnull=True,
+            ).distinct()
 
         # Prefetch permissions for all users in bulk to avoid N+1
         from waldur_core.permissions.utils import get_permissions
