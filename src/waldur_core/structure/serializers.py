@@ -249,7 +249,7 @@ class AffiliatedOrganizationSerializer(serializers.HyperlinkedModelSerializer):
             return 0
 
 
-class AffiliatedOrganizationsUpdateSerializer(serializers.Serializer):
+class ProjectAffiliatedOrganizationsUpdateSerializer(serializers.Serializer):
     affiliated_organizations = serializers.SlugRelatedField(
         slug_field="uuid",
         queryset=models.AffiliatedOrganization.objects.all(),

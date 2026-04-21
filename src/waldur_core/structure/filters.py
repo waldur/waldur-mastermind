@@ -823,7 +823,6 @@ class ProjectEndDateChangeRequestFilter(django_filters.FilterSet):
 
 
 class SshKeyFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
-    uuid = django_filters.UUIDFilter(label="UUID")
     user_uuid = core_filters.RelatedUUIDFilter(
         view_name="user-detail", field_name="user__uuid", label="User UUID"
     )
@@ -837,7 +836,6 @@ class SshKeyFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
             "fingerprint_md5",
             "fingerprint_sha256",
             "fingerprint_sha512",
-            "uuid",
             "user_uuid",
             "is_shared",
         ]
@@ -940,7 +938,6 @@ class BaseResourceFilter(NameFilterSet):
         lookup_expr="icontains", label="Description"
     )
     state = core_filters.MappedMultipleChoiceFilter(CoreStates.choices, label="State")
-    uuid = django_filters.UUIDFilter(lookup_expr="exact", label="UUID")
     backend_id = django_filters.CharFilter(
         field_name="backend_id", lookup_expr="exact", label="Backend ID"
     )
@@ -1006,7 +1003,6 @@ class BaseResourceFilter(NameFilterSet):
             "name_exact",
             "description",
             "state",
-            "uuid",
             "backend_id",
         )
 
