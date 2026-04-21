@@ -32,6 +32,7 @@ RUN apt-get update && \
     # Needed for psutil and other C extensions
     gcc \
     python3-dev \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up locales
