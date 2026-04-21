@@ -1296,5 +1296,8 @@ Trigger integration tests:
   variables:
     WALDUR_MASTERMIND_IMAGE: "${CI_REGISTRY_IMAGE}:latest"
   rules:
+    # Skip tests if said so
+    - if: '$SKIP_TESTS == "true" || $SKIP_TESTS == "yes"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
