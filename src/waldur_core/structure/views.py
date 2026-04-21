@@ -1037,13 +1037,13 @@ class ProjectViewSet(
     @extend_schema(
         summary="Update affiliated organizations for a project",
         description="Assigns a project to one or more affiliated organizations. Replaces the current set.",
-        request=serializers.AffiliatedOrganizationsUpdateSerializer,
+        request=serializers.ProjectAffiliatedOrganizationsUpdateSerializer,
         responses={200: None},
     )
     @action(detail=True, methods=["post"])
     def update_affiliated_organizations(self, request, uuid=None):
         project = self.get_object()
-        serializer = serializers.AffiliatedOrganizationsUpdateSerializer(
+        serializer = serializers.ProjectAffiliatedOrganizationsUpdateSerializer(
             instance=project, data=request.data, context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
@@ -1051,7 +1051,7 @@ class ProjectViewSet(
         return Response(status=status.HTTP_200_OK)
 
     update_affiliated_organizations_serializer_class = (
-        serializers.AffiliatedOrganizationsUpdateSerializer
+        serializers.ProjectAffiliatedOrganizationsUpdateSerializer
     )
     update_affiliated_organizations_permissions = [
         permission_factory(PermissionEnum.UPDATE_PROJECT, ["*", "customer"])
