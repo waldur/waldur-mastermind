@@ -56,7 +56,7 @@ class TestSyncSlurmPeriodicSettings(TestCase):
     @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
     def test_sync_sends_grace_adjusted_limits(self, mock_publish):
         """Beat job sends apply_periodic_settings with grace-adjusted GrpTRESMins."""
-        resource = marketplace_factories.ResourceFactory(
+        marketplace_factories.ResourceFactory(
             project=self.fixture.project,
             offering=self.offering,
             plan=self.plan,

@@ -5,8 +5,8 @@ from django.utils.translation import gettext as _
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
-from waldur_core.core.models import UserDetailsMatchMixin
 from waldur_core.core import serializers as core_serializers
+from waldur_core.core.models import UserDetailsMatchMixin
 from waldur_core.core.serializers import GenericRelatedField
 from waldur_core.permissions.enums import TYPE_MAP
 from waldur_core.permissions.models import Role

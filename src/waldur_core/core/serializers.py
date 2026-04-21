@@ -25,7 +25,7 @@ from rest_framework.serializers import ListSerializer
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.clean_html import clean_html
-from waldur_core.core.models import UserDetailsMatchMixin, generate_slug
+from waldur_core.core.models import UserDetailsMatchMixin
 from waldur_core.core.signals import pre_serializer_fields
 from waldur_mastermind.common.serializers import StringListSerializer
 

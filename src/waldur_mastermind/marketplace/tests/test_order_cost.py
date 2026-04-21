@@ -10,9 +10,9 @@ from decimal import Decimal
 from django.test import TestCase
 from django.utils import timezone
 
+from waldur_core.core.utils import calculate_duration_months
 from waldur_mastermind.marketplace.enums import BillingTypes, OrderTypes
 from waldur_mastermind.marketplace.tests import factories
-from waldur_core.core.utils import calculate_duration_months
 
 
 class CalculateDurationMonthsTest(TestCase):
