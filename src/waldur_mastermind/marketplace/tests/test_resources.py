@@ -2215,6 +2215,46 @@ class ResourceGetTeamTest(test.APITestCase):
         user = users[0]
         self.assertEqual(self.admin.username, user["username"])
 
+    def test_has_consent_filter_excludes_users_without_consent(self):
+        self.client.force_authenticate(self.service_owner)
+
+        response = self.client.get(self.provider_url, {"has_consent": "true"})
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(0, len(response.data))
+
+    def test_has_consent_filter_includes_users_with_active_consent(self):
+        models.UserOfferingConsent.objects.create(
+            user=self.admin,
+            offering=self.offering,
+            version="1.0",
+        )
+        self.client.force_authenticate(self.service_owner)
+
+        response = self.client.get(self.provider_url, {"has_consent": "true"})
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, len(response.data))
+        self.assertEqual(self.admin.full_name, response.data[0]["full_name"])
+
+    def test_has_consent_filter_excludes_users_with_revoked_consent(self):
+        models.UserOfferingConsent.objects.create(
+            user=self.admin,
+            offering=self.offering,
+            version="1.0",
+            revocation_date=timezone.now(),
+        )
+        self.client.force_authenticate(self.service_owner)
+
+        response = self.client.get(self.provider_url, {"has_consent": "true"})
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(0, len(response.data))
+
+    def test_without_has_consent_filter_returns_all_team_members(self):
+        self.client.force_authenticate(self.service_owner)
+
+        response = self.client.get(self.provider_url)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, len(response.data))
+
 
 class ResourceUsageLimitsTest(test.APITestCase):
     def setUp(self):
