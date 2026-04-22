@@ -1198,6 +1198,12 @@ class ProjectCreditSerializer(serializers.HyperlinkedModelSerializer):
 
 
 def get_project_credit(serializer, project) -> float | None:
+    # 1. Check bulk context
+    bulk_credits = serializer.context.get("bulk_data", {}).get("project_credits")
+    if bulk_credits and project.id in bulk_credits:
+        return bulk_credits[project.id]
+
+    # 2. Fallback to prefetch/query
     try:
         return project.projectcredit.value
     except models.ProjectCredit.DoesNotExist:
@@ -1217,7 +1223,12 @@ core_signals.pre_serializer_fields.connect(
 
 
 def get_customer_credit(serializer, customer) -> float | None:
-    # Use prefetched data if available to avoid N+1 queries
+    # 1. Check bulk context
+    bulk_credits = serializer.context.get("bulk_data", {}).get("customer_credits")
+    if bulk_credits and customer.id in bulk_credits:
+        return bulk_credits[customer.id]
+
+    # 2. Fallback to prefetched data
     if (
         hasattr(customer, "_prefetched_objects_cache")
         and "customercredit" in customer._prefetched_objects_cache
@@ -1227,12 +1238,12 @@ def get_customer_credit(serializer, customer) -> float | None:
         if credit:
             return credit.value
         return None
-    else:
-        # Fallback to original query behavior
-        try:
-            return models.CustomerCredit.objects.get(customer=customer).value
-        except models.CustomerCredit.DoesNotExist:
-            return None
+
+    # 3. Final fallback: database query
+    try:
+        return models.CustomerCredit.objects.get(customer=customer).value
+    except models.CustomerCredit.DoesNotExist:
+        return None
 
 
 def add_customer_credit(sender, fields, **kwargs):
@@ -1240,104 +1251,25 @@ def add_customer_credit(sender, fields, **kwargs):
     fields["customer_credit"] = serializers.SerializerMethodField()
     setattr(sender, "get_customer_credit", get_customer_credit)
 
-    # Also optimize eager loading for CustomerSerializer
-    if sender.__name__ == "CustomerSerializer":
-        _optimize_customer_serializer_eager_load_for_credit(sender)
-
-
-def _optimize_customer_serializer_eager_load_for_credit(sender):
-    """Optimize eager loading for CustomerSerializer to prefetch customer credits."""
-    # Check if we already have an optimized eager_load method
-    # The flag is on the underlying function if it's a staticmethod
-    eager_load_func = getattr(sender.eager_load, "__func__", sender.eager_load)
-    if hasattr(eager_load_func, "_credit_optimized"):
-        return
-
-    # If billing optimization is already applied, we need to combine them
-    if hasattr(eager_load_func, "_billing_optimized"):
-        # Get the true original method that was stored by the billing optimization
-        original_eager_load = getattr(
-            eager_load_func, "_original_eager_load", sender.eager_load
-        )
-
-        def combined_eager_load(queryset, request=None):
-            # Call the true original method first
-            queryset = original_eager_load(queryset, request)
-
-            # Add billing optimizations
-            if request:
-                fields = request.query_params.getlist("field")
-                if "billing_price_estimate" in fields:
-                    queryset._billing_optimization_enabled = True
-
-            # Add credit optimizations
-            if request:
-                fields = request.query_params.getlist("field")
-                if "customer_credit" in fields:
-                    queryset = queryset.select_related("customercredit")
-
-            return queryset
-
-        # Mark as optimized for both and store original
-        combined_eager_load._billing_optimized = True
-        combined_eager_load._credit_optimized = True
-        combined_eager_load._original_eager_load = original_eager_load
-
-        # Replace the eager_load method
-        sender.eager_load = staticmethod(combined_eager_load)
-        return
-
-    # Store the original eager_load method
-    original_eager_load = sender.eager_load
-
-    def optimized_eager_load(queryset, request=None):
-        # Call the original eager_load first
-        queryset = original_eager_load(queryset, request)
-
-        # Add optimizations for customer_credit if requested
-        if request:
-            fields = request.query_params.getlist("field")
-
-            # Prefetch customer credit if requested
-            if "customer_credit" in fields:
-                queryset = queryset.select_related("customercredit")
-
-        return queryset
-
-    # Mark as optimized to avoid double optimization and store original
-    optimized_eager_load._credit_optimized = True
-    optimized_eager_load._original_eager_load = original_eager_load
-
-    # Replace the eager_load method
-    sender.eager_load = staticmethod(optimized_eager_load)
-
 
 def get_customer_unallocated_credit(serializer, customer) -> float | None:
-    # Use prefetched data if available to avoid N+1 queries for customer credit
-    if (
-        hasattr(customer, "_prefetched_objects_cache")
-        and "customercredit" in customer._prefetched_objects_cache
-    ):
-        # For OneToOneField, Django stores the related object directly, not as a list
-        credit = customer._prefetched_objects_cache.get("customercredit")
-        if not credit:
-            return None
-        customer_credit = credit.value
-    else:
-        # Fallback to original query behavior
-        try:
-            customer_credit = models.CustomerCredit.objects.get(customer=customer).value
-        except models.CustomerCredit.DoesNotExist:
-            return None
+    # 1. Get customer credit (using bulk context if available)
+    customer_credit = get_customer_credit(serializer, customer)
+    if customer_credit is None:
+        return None
 
-    # Calculate project credits sum
-    # TODO: This could be further optimized with bulk prefetching
-    project_credits_sum = (
-        models.ProjectCredit.objects.filter(project__customer=customer).aggregate(
-            sum=Sum("value")
-        )["sum"]
-        or 0
-    )
+    # 2. Get project credits sum
+    bulk_sums = serializer.context.get("bulk_data", {}).get("project_credits_sums")
+    if bulk_sums and customer.id in bulk_sums:
+        project_credits_sum = bulk_sums[customer.id]
+    else:
+        # Fallback: calculate project credits sum
+        project_credits_sum = (
+            models.ProjectCredit.objects.filter(project__customer=customer).aggregate(
+                sum=Sum("value")
+            )["sum"]
+            or 0
+        )
 
     return customer_credit - project_credits_sum
 
