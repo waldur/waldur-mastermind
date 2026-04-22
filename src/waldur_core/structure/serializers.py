@@ -1,5 +1,6 @@
 import logging
 import re
+from collections import defaultdict
 from datetime import datetime
 
 from constance import config
@@ -32,7 +33,7 @@ from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.serializers import PermissionSerializer
 from waldur_core.permissions.utils import has_permission
-from waldur_core.structure import models, utils
+from waldur_core.structure import managers, models, utils
 from waldur_core.structure.enums import ProjectKind
 from waldur_core.structure.filters import filter_visible_users
 from waldur_core.structure.managers import (
@@ -698,6 +699,195 @@ class CustomerContactUpdateSerializer(serializers.ModelSerializer):
         )
 
 
+class CustomerListSerializer(serializers.ListSerializer):
+    """
+    Handles bulk optimizations for Customer collections to prevent N+1 queries.
+    Calculates context data ONCE per page and injects it into child serializers.
+    """
+
+    def to_representation(self, data):
+        # 1. Extract context and requested fields
+        request = self.context.get("request")
+        requested_fields = self._get_requested_fields(request)
+
+        # 'data' is the queryset/list of objects for the current page
+        customer_ids = [item.id for item in data]
+
+        if not customer_ids:
+            return super().to_representation(data)
+
+        # 2. Build the bulk context dictionary
+        bulk_context = {
+            "visibility": self._get_visibility_context(request, customer_ids),
+            "users_count": {},
+            "billing_estimates": {},
+        }
+
+        # 3. Bulk fetch complex aggregations only if requested
+        if not requested_fields or "users_count" in requested_fields:
+            bulk_context["users_count"] = self._bulk_calculate_users_count(
+                bulk_context["visibility"], customer_ids
+            )
+
+        if not requested_fields or "billing_price_estimate" in requested_fields:
+            bulk_context["billing_estimates"] = self._bulk_fetch_billing_estimates(
+                bulk_context["visibility"], customer_ids
+            )
+
+        # 4. Inject into the serializer context for child serializers to consume
+        self.context["bulk_data"] = bulk_context
+
+        # 5. Proceed with standard serialization
+        return super().to_representation(data)
+
+    def _get_requested_fields(self, request):
+        if not request:
+            return []
+        return request.query_params.getlist(
+            "field", getattr(request, "GET", {}).getlist("field")
+        )
+
+    def _get_visibility_context(self, request, customer_ids):
+        """Returns a mapping of {customer_id: [visible_project_ids]}"""
+        user = getattr(request, "user", None)
+        visibility_map = defaultdict(list)
+
+        if not user or not user.is_authenticated:
+            return visibility_map
+
+        if user.is_staff or user.is_support:
+            # None signifies 'Full Visibility'
+            return {cid: None for cid in customer_ids}
+
+        # Query user roles ONCE for the page
+        user_projects = managers.get_visible_projects(user)
+
+        # Map customers to their visible projects
+        visible_projects = models.Project.available_objects.filter(
+            customer_id__in=customer_ids, id__in=user_projects
+        ).values_list("customer_id", "id")
+
+        for customer_id, project_id in visible_projects:
+            visibility_map[customer_id].append(project_id)
+
+        # Check for direct customer roles (full visibility for those customers)
+        customer_ct = ContentType.objects.get_for_model(models.Customer)
+        direct_customers = UserRole.objects.filter(
+            user=user,
+            is_active=True,
+            content_type=customer_ct,
+            object_id__in=customer_ids,
+        ).values_list("object_id", flat=True)
+
+        for cid in direct_customers:
+            visibility_map[cid] = None
+
+        return visibility_map
+
+    def _bulk_calculate_users_count(self, visibility_map, customer_ids):
+        """Bulk query to count unique users per customer based on visibility."""
+        counts = {}
+        customer_ct = ContentType.objects.get_for_model(models.Customer)
+        project_ct = ContentType.objects.get_for_model(models.Project)
+
+        for customer_id in customer_ids:
+            pids = visibility_map.get(customer_id)
+            if pids is None:
+                # Full visibility: count users across all projects and the customer itself
+                project_ids = list(
+                    models.Project.available_objects.filter(
+                        customer_id=customer_id
+                    ).values_list("id", flat=True)
+                )
+
+                user_roles_query = Q(
+                    content_type=customer_ct,
+                    object_id=customer_id,
+                    is_active=True,
+                )
+
+                if project_ids:
+                    user_roles_query |= Q(
+                        content_type=project_ct,
+                        object_id__in=project_ids,
+                        is_active=True,
+                    )
+            else:
+                # Restricted visibility: count users only in visible projects
+                if not pids:
+                    counts[customer_id] = 0
+                    continue
+
+                user_roles_query = Q(
+                    content_type=project_ct,
+                    object_id__in=pids,
+                    is_active=True,
+                )
+
+            unique_user_count = (
+                UserRole.objects.filter(user_roles_query)
+                .values("user_id")
+                .distinct()
+                .count()
+            )
+            counts[customer_id] = unique_user_count
+
+        return counts
+
+    def _bulk_fetch_billing_estimates(self, visibility_map, customer_ids):
+        """Bulk query for billing estimates."""
+        # Note: We import billing models here to avoid circular dependencies
+        from waldur_mastermind.billing import models as billing_models
+
+        customer_ct = ContentType.objects.get_for_model(models.Customer)
+        project_ct = ContentType.objects.get_for_model(models.Project)
+
+        full_visibility_cids = [
+            cid for cid, pids in visibility_map.items() if pids is None
+        ]
+        restricted_visibility_map = {
+            cid: pids for cid, pids in visibility_map.items() if pids is not None
+        }
+
+        all_restricted_pids = []
+        for pids in restricted_visibility_map.values():
+            all_restricted_pids.extend(pids)
+
+        estimates_cache = {}
+
+        # 1. Fetch customer-level estimates for full visibility
+        if full_visibility_cids:
+            customer_estimates = billing_models.PriceEstimate.objects.filter(
+                content_type=customer_ct, object_id__in=full_visibility_cids
+            ).select_related("content_type")
+            for est in customer_estimates:
+                estimates_cache[est.object_id] = est
+
+        # 2. Fetch project-level estimates for restricted visibility
+        if all_restricted_pids:
+            project_estimates = billing_models.PriceEstimate.objects.filter(
+                content_type=project_ct, object_id__in=all_restricted_pids
+            ).select_related("content_type")
+
+            # Group project estimates by customer
+            # We need to know which project belongs to which customer
+            project_to_customer = dict(
+                models.Project.available_objects.filter(
+                    id__in=all_restricted_pids
+                ).values_list("id", "customer_id")
+            )
+
+            for est in project_estimates:
+                cid = project_to_customer.get(est.object_id)
+                if cid:
+                    if cid not in estimates_cache:
+                        estimates_cache[cid] = []
+                    if isinstance(estimates_cache[cid], list):
+                        estimates_cache[cid].append(est)
+
+        return estimates_cache
+
+
 class CustomerSerializer(
     core_serializers.UserEmailPatternsValidatorMixin,
     core_serializers.SlugSerializerMixin,
@@ -732,6 +922,7 @@ class CustomerSerializer(
 
     class Meta:
         model = models.Customer
+        list_serializer_class = CustomerListSerializer
         fields = (
             "url",
             "uuid",
@@ -792,14 +983,9 @@ class CustomerSerializer(
             return fields
 
         if not user.is_staff:
-            for field_name in set(CustomerSerializer.Meta.staff_only_fields) & set(
-                fields.keys()
-            ):
+            staff_fields = set(self.Meta.staff_only_fields) | {"grace_period_days"}
+            for field_name in staff_fields & set(fields.keys()):
                 fields[field_name].read_only = True
-
-            # Make grace_period_days read-only for non-staff users
-            if "grace_period_days" in fields:
-                fields["grace_period_days"].read_only = True
 
         return fields
 
@@ -905,52 +1091,29 @@ class CustomerSerializer(
         return customer.get_display_name()
 
     def get_projects_count(self, customer) -> int:
-        # Use cached value from bulk optimization if available
-        if hasattr(customer, "_cached_projects_count"):
-            return customer._cached_projects_count
-        # Fallback for detail view: respect visibility context
-        request = self.context.get("request")
-        if request and hasattr(request, "_user_has_full_visibility"):
-            if (
-                not request._user_has_full_visibility
-                and customer.id not in request._direct_customer_ids
-            ):
-                return models.Project.available_objects.filter(
-                    customer=customer, id__in=request._user_project_ids
-                ).count()
+        # Use annotated value if available (from ViewSet.get_queryset)
+        if hasattr(customer, "annotated_projects_count"):
+            return customer.annotated_projects_count
+
+        # Fallback for cases when annotation wasn't applied (e.g. detail view or nested)
         return models.Project.available_objects.filter(customer=customer).count()
 
     @extend_schema_field(PermissionProjectSerializer(many=True))
     def get_projects(self, customer):
-        # Use prefetched projects if available to avoid N+1 queries
-        if hasattr(customer, "_prefetched_projects"):
-            projects = customer._prefetched_projects
+        # Use prefetched projects if available (via to_attr="visible_projects")
+        if hasattr(customer, "visible_projects"):
+            projects = customer.visible_projects
         else:
             projects = models.Project.available_objects.filter(customer=customer)
 
-        # Apply visibility filtering for users with only project-level roles
-        request = self.context.get("request")
-        if request and hasattr(request, "_user_has_full_visibility"):
-            if (
-                not request._user_has_full_visibility
-                and customer.id not in request._direct_customer_ids
-            ):
-                visible_ids = request._user_project_ids
-                if hasattr(customer, "_prefetched_projects"):
-                    projects = [p for p in projects if p.id in visible_ids]
-                else:
-                    projects = projects.filter(id__in=visible_ids)
-
-        show_all_projects = self.context["request"].query_params.get(
+        show_all_projects = self.context.get("request", {}).query_params.get(
             "show_all_projects"
         )
         if show_all_projects not in ["true", "True"]:
-            query = self.context["request"].query_params.get("query")
+            query = self.context.get("request", {}).query_params.get("query")
             if query:
                 # If we have prefetched data, filter in Python; otherwise use DB filter
                 if isinstance(projects, list):
-                    projects = [p for p in projects if query.lower() in p.name.lower()]
-                elif hasattr(customer, "_prefetched_projects"):
                     projects = [p for p in projects if query.lower() in p.name.lower()]
                 else:
                     projects = projects.filter(name__icontains=query)
@@ -960,34 +1123,50 @@ class CustomerSerializer(
         ).data
 
     def get_users_count(self, customer) -> int:
-        # Use cached/optimized calculation if available
-        if hasattr(customer, "_cached_users_count"):
-            return customer._cached_users_count
-        # Fallback for detail view: respect visibility context
+        # Use bulk-loaded data if available
+        bulk_data = self.context.get("bulk_data", {})
+        if "users_count" in bulk_data:
+            return bulk_data["users_count"].get(customer.id, 0)
+
+        # Fallback for single-object view
+        return self._calculate_single_user_count(customer)
+
+    def _calculate_single_user_count(self, customer) -> int:
         request = self.context.get("request")
-        if request and hasattr(request, "_user_has_full_visibility"):
-            if (
-                not request._user_has_full_visibility
-                and customer.id not in request._direct_customer_ids
-            ):
-                project_ct = ContentType.objects.get_for_model(models.Project)
-                visible_project_ids = list(
-                    models.Project.available_objects.filter(
-                        customer=customer, id__in=request._user_project_ids
-                    ).values_list("id", flat=True)
+        if request and hasattr(request, "user"):
+            user = request.user
+            if user.is_staff or user.is_support:
+                return count_customer_users(customer)
+
+            customer_ct = ContentType.objects.get_for_model(models.Customer)
+            project_ct = ContentType.objects.get_for_model(models.Project)
+            if UserRole.objects.filter(
+                user=user,
+                is_active=True,
+                content_type=customer_ct,
+                object_id=customer.id,
+            ).exists():
+                return count_customer_users(customer)
+
+            user_projects = managers.get_visible_projects(user)
+            visible_project_ids = list(
+                models.Project.available_objects.filter(
+                    customer=customer,
+                    id__in=user_projects,
+                ).values_list("id", flat=True)
+            )
+            if not visible_project_ids:
+                return 0
+            return (
+                UserRole.objects.filter(
+                    content_type=project_ct,
+                    object_id__in=visible_project_ids,
+                    is_active=True,
                 )
-                if not visible_project_ids:
-                    return 0
-                return (
-                    UserRole.objects.filter(
-                        content_type=project_ct,
-                        object_id__in=visible_project_ids,
-                        is_active=True,
-                    )
-                    .values("user_id")
-                    .distinct()
-                    .count()
-                )
+                .values("user_id")
+                .distinct()
+                .count()
+            )
         return count_customer_users(customer)
 
 

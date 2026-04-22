@@ -184,12 +184,21 @@ def get_price_estimate(serializer, scope):
     request = serializer.context.get("request")
 
     # Check if bulk optimization is available
-    if (
+    bulk_estimates = serializer.context.get("bulk_data", {}).get("billing_estimates")
+    cached = None
+    has_cache = False
+    if bulk_estimates and scope.id in bulk_estimates:
+        cached = bulk_estimates[scope.id]
+        has_cache = True
+    elif (
         request
         and hasattr(request, "_price_estimates_cache")
         and scope.id in request._price_estimates_cache
     ):
         cached = request._price_estimates_cache[scope.id]
+        has_cache = True
+
+    if has_cache:
         # Cache may contain pre-computed dicts (from project bulk),
         # PriceEstimate objects (from customer view bulk loading),
         # or lists (aggregated from multiple project-level estimates for restricted visibility)
