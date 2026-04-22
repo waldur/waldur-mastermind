@@ -3605,40 +3605,7 @@ class ProviderOfferingViewSet(
         )
         projects = structure_models.Project.objects.filter(id__in=project_ids)
         projects = structure_serializers.ProjectSerializer.eager_load(projects, request)
-        projects = projects.annotate(
-            _resources_count=Count(
-                "resource",
-                filter=Q(
-                    resource__state__in=(
-                        ResourceStates.OK,
-                        ResourceStates.UPDATING,
-                    )
-                ),
-            )
-        )
         page = self.paginate_queryset(projects)
-
-        # Prefetch marketplace resource counts to avoid N+1 queries
-        page_ids = [p.id for p in page] if page else []
-        if page_ids:
-            category_counts = (
-                models.Resource.objects.order_by()
-                .exclude(state=ResourceStates.TERMINATED)
-                .filter(project_id__in=page_ids)
-                .values("project_id", "offering__category__uuid")
-                .annotate(count=Count("*"))
-            )
-            prefetched = {}
-            for item in category_counts:
-                project_id = item["project_id"]
-                category_uuid = str(item["offering__category__uuid"])
-                count = item["count"]
-                if project_id not in prefetched:
-                    prefetched[project_id] = {}
-                prefetched[project_id][category_uuid] = count
-            request._marketplace_resource_counts = prefetched
-        else:
-            request._marketplace_resource_counts = {}
 
         serializer = structure_serializers.ProjectSerializer(
             instance=page,
