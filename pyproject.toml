@@ -32,7 +32,7 @@ dependencies = [
   "djangosaml2>=1.11.0,<2.0.0",
   "docker==7.1.0",
   "iptools==0.7.0",
-  "lxml>=5.0.0,<6.0.0",
+  "lxml>=6.1.0",
   "pbr>=6.0.0,<7.0.0",
   "openportal>=0.20.2",
   "Pillow>=12.2.0,<13.0.0",
