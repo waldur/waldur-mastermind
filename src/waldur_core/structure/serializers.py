@@ -12,7 +12,7 @@ from django.core import exceptions as django_exceptions
 from django.core.exceptions import ImproperlyConfigured
 from django.db import connection, transaction
 from django.db import models as django_models
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.template import Template, TemplateSyntaxError
 from django.utils import timezone
 from django.utils import timezone as django_timezone
@@ -273,6 +273,41 @@ class ProjectListSerializer(serializers.ListSerializer):
         if not project_ids:
             return super().to_representation(data)
 
+        request = self.context.get("request")
+        requested_fields = self._get_requested_fields(request)
+
+        # Initialize bulk context
+        bulk_data = {
+            "resources_count": {},
+            "marketplace_resource_counts": {},
+            "billing_estimates": {},
+            "project_credits": {},
+        }
+
+        # 1. Bulk fetch resource counts
+        if not requested_fields or "resources_count" in requested_fields:
+            bulk_data["resources_count"] = self._bulk_fetch_resources_count(project_ids)
+
+        # 2. Bulk fetch marketplace resource counts
+        if not requested_fields or "marketplace_resource_count" in requested_fields:
+            bulk_data["marketplace_resource_counts"] = (
+                self._bulk_fetch_marketplace_resource_counts(project_ids)
+            )
+
+        # 3. Bulk fetch billing estimates
+        if not requested_fields or "billing_price_estimate" in requested_fields:
+            bulk_data["billing_estimates"] = self._bulk_fetch_billing_estimates(
+                request, project_ids
+            )
+
+        # 4. Bulk fetch project credits
+        if not requested_fields or "project_credit" in requested_fields:
+            bulk_data["project_credits"] = self._bulk_fetch_project_credits(project_ids)
+
+        self.context["bulk_data"] = bulk_data
+        return super().to_representation(data)
+
+    def _bulk_fetch_resources_count(self, project_ids):
         from waldur_mastermind.marketplace import models as marketplace_models
 
         resources_counts = (
@@ -283,11 +318,11 @@ class ProjectListSerializer(serializers.ListSerializer):
             .values("project_id")
             .annotate(count=Count("*"))
         )
-        resources_counts_map = {
-            item["project_id"]: item["count"] for item in resources_counts
-        }
+        return {item["project_id"]: item["count"] for item in resources_counts}
 
-        # Bulk fetch category resource counts
+    def _bulk_fetch_marketplace_resource_counts(self, project_ids):
+        from waldur_mastermind.marketplace import models as marketplace_models
+
         category_counts = (
             marketplace_models.Resource.objects.order_by()
             .exclude(state=ResourceStates.TERMINATED)
@@ -303,12 +338,33 @@ class ProjectListSerializer(serializers.ListSerializer):
             if project_id not in category_counts_map:
                 category_counts_map[project_id] = {}
             category_counts_map[project_id][category_uuid] = count
+        return category_counts_map
 
-        self.context["bulk_data"] = self.context.get("bulk_data", {})
-        self.context["bulk_data"]["resources_count"] = resources_counts_map
-        self.context["bulk_data"]["marketplace_resource_counts"] = category_counts_map
+    def _bulk_fetch_billing_estimates(self, request, project_ids):
+        if not request:
+            return {}
+        from waldur_mastermind.billing import serializers as billing_serializers
 
-        return super().to_representation(data)
+        year, month = billing_serializers._parse_period_from_request(request)
+        return billing_serializers._bulk_compute_project_estimates(
+            project_ids, year, month
+        )
+
+    def _bulk_fetch_project_credits(self, project_ids):
+        from waldur_mastermind.invoices import models as invoice_models
+
+        return dict(
+            invoice_models.ProjectCredit.objects.filter(
+                project_id__in=project_ids
+            ).values_list("project_id", "value")
+        )
+
+    def _get_requested_fields(self, request):
+        if not request:
+            return []
+        return request.query_params.getlist(
+            "field", getattr(request, "GET", {}).getlist("field")
+        )
 
 
 class ProjectSerializer(
@@ -770,6 +826,8 @@ class CustomerListSerializer(serializers.ListSerializer):
             "visibility": self._get_visibility_context(request, customer_ids),
             "users_count": {},
             "billing_estimates": {},
+            "customer_credits": {},
+            "project_credits_sums": {},
         }
 
         # 3. Bulk fetch complex aggregations only if requested
@@ -782,6 +840,15 @@ class CustomerListSerializer(serializers.ListSerializer):
             bulk_context["billing_estimates"] = self._bulk_fetch_billing_estimates(
                 bulk_context["visibility"], customer_ids
             )
+
+        if (
+            not requested_fields
+            or "customer_credit" in requested_fields
+            or "customer_unallocated_credit" in requested_fields
+        ):
+            credits_data = self._bulk_fetch_credits(customer_ids)
+            bulk_context["customer_credits"] = credits_data["customer_credits"]
+            bulk_context["project_credits_sums"] = credits_data["project_credits_sums"]
 
         # 4. Inject into the serializer context for child serializers to consume
         self.context["bulk_data"] = bulk_context
@@ -935,6 +1002,32 @@ class CustomerListSerializer(serializers.ListSerializer):
                         estimates_cache[cid].append(est)
 
         return estimates_cache
+
+    def _bulk_fetch_credits(self, customer_ids):
+        """Bulk query for customer and project credits."""
+        from waldur_mastermind.invoices import models as invoice_models
+
+        # Fetch customer credits
+        customer_credits = dict(
+            invoice_models.CustomerCredit.objects.filter(
+                customer_id__in=customer_ids
+            ).values_list("customer_id", "value")
+        )
+
+        # Fetch project credits sum per customer (for unallocated credit calculation)
+        project_credits_sums = dict(
+            invoice_models.ProjectCredit.objects.filter(
+                project__customer_id__in=customer_ids
+            )
+            .values("project__customer_id")
+            .annotate(sum=Sum("value"))
+            .values_list("project__customer_id", "sum")
+        )
+
+        return {
+            "customer_credits": customer_credits,
+            "project_credits_sums": project_credits_sums,
+        }
 
 
 class CustomerSerializer(
