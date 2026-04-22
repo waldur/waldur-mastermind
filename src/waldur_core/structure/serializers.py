@@ -12,7 +12,7 @@ from django.core import exceptions as django_exceptions
 from django.core.exceptions import ImproperlyConfigured
 from django.db import connection, transaction
 from django.db import models as django_models
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.template import Template, TemplateSyntaxError
 from django.utils import timezone
 from django.utils import timezone as django_timezone
@@ -266,6 +266,51 @@ class ProjectAffiliatedOrganizationsUpdateSerializer(serializers.Serializer):
             project.affiliated_organizations.add(*orgs)
 
 
+class ProjectListSerializer(serializers.ListSerializer):
+    def to_representation(self, data):
+        project_ids = [item.id for item in data]
+
+        if not project_ids:
+            return super().to_representation(data)
+
+        from waldur_mastermind.marketplace import models as marketplace_models
+
+        resources_counts = (
+            marketplace_models.Resource.objects.filter(
+                project_id__in=project_ids,
+                state__in=(ResourceStates.OK, ResourceStates.UPDATING),
+            )
+            .values("project_id")
+            .annotate(count=Count("*"))
+        )
+        resources_counts_map = {
+            item["project_id"]: item["count"] for item in resources_counts
+        }
+
+        # Bulk fetch category resource counts
+        category_counts = (
+            marketplace_models.Resource.objects.order_by()
+            .exclude(state=ResourceStates.TERMINATED)
+            .filter(project_id__in=project_ids)
+            .values("project_id", "offering__category__uuid")
+            .annotate(count=Count("*"))
+        )
+        category_counts_map = {}
+        for item in category_counts:
+            project_id = item["project_id"]
+            category_uuid = str(item["offering__category__uuid"])
+            count = item["count"]
+            if project_id not in category_counts_map:
+                category_counts_map[project_id] = {}
+            category_counts_map[project_id][category_uuid] = count
+
+        self.context["bulk_data"] = self.context.get("bulk_data", {})
+        self.context["bulk_data"]["resources_count"] = resources_counts_map
+        self.context["bulk_data"]["marketplace_resource_counts"] = category_counts_map
+
+        return super().to_representation(data)
+
+
 class ProjectSerializer(
     core_serializers.UserEmailPatternsValidatorMixin,
     core_serializers.SlugSerializerMixin,
@@ -330,6 +375,7 @@ class ProjectSerializer(
 
     class Meta:
         model = models.Project
+        list_serializer_class = ProjectListSerializer
         fields = (
             "url",
             "uuid",
@@ -570,11 +616,14 @@ class ProjectSerializer(
         return attrs
 
     def get_resources_count(self, project) -> int:
-        # Use annotated value if available (from eager_load)
+        bulk_data = self.context.get("bulk_data", {})
+        if "resources_count" in bulk_data:
+            return bulk_data["resources_count"].get(project.id, 0)
+
+        # Fallback for cases when eager_load wasn't applied
         if hasattr(project, "_resources_count"):
             return project._resources_count
 
-        # Fallback for cases when eager_load wasn't applied
         from waldur_mastermind.marketplace import models as marketplace_models
 
         return marketplace_models.Resource.objects.filter(

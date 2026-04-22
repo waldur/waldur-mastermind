@@ -662,15 +662,6 @@ class ProjectViewSet(
         # Apply eager loading to prevent N+1 queries
         if getattr(self, "action", None) in ("list", "retrieve"):
             queryset = serializers.ProjectSerializer.eager_load(queryset, self.request)
-            # Annotate resources_count to avoid N+1 queries in serializer
-            queryset = queryset.annotate(
-                _resources_count=Count(
-                    "resource",
-                    filter=Q(
-                        resource__state__in=(ResourceStates.OK, ResourceStates.UPDATING)
-                    ),
-                )
-            )
 
         return queryset
 
@@ -777,40 +768,6 @@ class ProjectViewSet(
             return models.Customer.objects.get(uuid=parent_uuid)
         except models.Customer.DoesNotExist:
             return None
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        # Prefetch marketplace resource counts by category to avoid N+1 queries
-        project_ids = list(queryset.values_list("id", flat=True))
-        if project_ids:
-            category_counts = (
-                marketplace_models.Resource.objects.order_by()
-                .exclude(state=ResourceStates.TERMINATED)
-                .filter(project_id__in=project_ids)
-                .values("project_id", "offering__category__uuid")
-                .annotate(count=Count("*"))
-            )
-            # Build a nested dict: {project_id: {category_uuid: count}}
-            prefetched = {}
-            for item in category_counts:
-                project_id = item["project_id"]
-                category_uuid = str(item["offering__category__uuid"])
-                count = item["count"]
-                if project_id not in prefetched:
-                    prefetched[project_id] = {}
-                prefetched[project_id][category_uuid] = count
-            request._marketplace_resource_counts = prefetched
-        else:
-            request._marketplace_resource_counts = {}
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
 
     @extend_schema(
         summary="Create a new project",
