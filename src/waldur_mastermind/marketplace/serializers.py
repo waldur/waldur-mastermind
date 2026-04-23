@@ -9705,6 +9705,12 @@ class MaintenanceAnnouncementOfferingTemplateSerializer(
 
 
 class MaintenanceAnnouncementTemplateSerializer(MaintenanceAnnouncementSerializer):
+    affected_offerings = MaintenanceAnnouncementOfferingTemplateSerializer(
+        source="affected_offerings.all",
+        many=True,
+        read_only=True,
+    )
+
     class Meta(MaintenanceAnnouncementSerializer.Meta):
         model = models.MaintenanceAnnouncementTemplate
         fields = [
