@@ -2590,6 +2590,12 @@ API key for authenticating with the AI Assistant service.
 
 Name of the AI Assistant model to use for inference.
 
+#### AI_ASSISTANT_SYSTEM_PROMPT_CUSTOM_INSTRUCTIONS
+
+**Type:** text_field
+
+Additional instructions injected into the AI Assistant system prompt. Use this for organisation-specific context, terminology, FAQ content, or behavioural guidelines. Supports {assistant_name} and {organization} placeholders. Overridden by the active SystemPrompt record when set.
+
 #### AI_ASSISTANT_COMPLETION_KWARGS
 
 **Type:** dict_field
