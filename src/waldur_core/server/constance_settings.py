@@ -1140,6 +1140,14 @@ CONSTANCE_CONFIG = {
         "Waldur Assistant",
         "Display name for the AI Assistant persona (e.g. 'Mari', 'Waldur Assistant').",
     ),
+    "AI_ASSISTANT_SYSTEM_PROMPT_CUSTOM_INSTRUCTIONS": (
+        "",
+        "Additional instructions injected into the AI Assistant system prompt. "
+        "Use this for organisation-specific context, terminology, FAQ content, "
+        "or behavioural guidelines. Supports {assistant_name} and {organization} "
+        "placeholders. Overridden by the active SystemPrompt record when set.",
+        "text_field",
+    ),
     # Software catalog settings
     "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED": (
         False,
@@ -1597,6 +1605,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "AI_ASSISTANT_API_URL",
         "AI_ASSISTANT_API_TOKEN",
         "AI_ASSISTANT_MODEL",
+        "AI_ASSISTANT_SYSTEM_PROMPT_CUSTOM_INSTRUCTIONS",
         "AI_ASSISTANT_COMPLETION_KWARGS",
         "AI_ASSISTANT_TOKEN_LIMIT_DAILY",
         "AI_ASSISTANT_TOKEN_LIMIT_WEEKLY",

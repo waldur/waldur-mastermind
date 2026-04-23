@@ -9,7 +9,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from model_utils.models import TimeStampedModel
 
-from waldur_core.core.models import User, UuidMixin
+from waldur_core.core.models import DescribableMixin, NameMixin, User, UuidMixin
 from waldur_mastermind.chat.enums import FeedbackCategory
 from waldur_mastermind.chat.input_guards import (
     DetectionAction,
@@ -480,3 +480,50 @@ class Message(UuidMixin, TimeStampedModel):
                 "action_taken",
             ]
         )
+
+
+class SystemPrompt(UuidMixin, NameMixin, DescribableMixin, TimeStampedModel):
+    """Pre-defined system prompt configuration for the AI Assistant.
+
+    Admins can create multiple prompts; exactly one may be active at a time.
+    The custom_instructions field is injected as an additive section into
+    the system prompt — the core prompt structure (persona, scope boundary,
+    tool instructions, UI capabilities) remains immutable.
+    """
+
+    custom_instructions = models.TextField(
+        blank=True,
+        help_text=_(
+            "Additional instructions injected into the system prompt. "
+            "Use this for organisation-specific context, terminology, "
+            "FAQ content, or behavioural guidelines. "
+            "Supports {assistant_name} and {organization} placeholders."
+        ),
+    )
+    is_active = models.BooleanField(
+        default=False,
+        help_text=_(
+            "Whether this prompt is currently used by the AI Assistant. "
+            "Only one prompt can be active."
+        ),
+    )
+
+    class Meta:
+        verbose_name = _("System Prompt")
+        verbose_name_plural = _("System Prompts")
+        ordering = ["-created"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["is_active"],
+                condition=models.Q(is_active=True),
+                name="unique_active_system_prompt",
+            )
+        ]
+
+    def __str__(self):
+        active = " (active)" if self.is_active else ""
+        return f"{self.name}{active}"
+
+    @classmethod
+    def get_active(cls):
+        return cls.objects.filter(is_active=True).first()

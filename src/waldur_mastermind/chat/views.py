@@ -962,3 +962,101 @@ class MessageViewSet(LLMConfigurationMixin, ActionsViewSet):
             serializers.MessageSerializer(message, context={"request": request}).data,
             status=status.HTTP_200_OK,
         )
+
+
+class SystemPromptViewSet(ActionsViewSet):
+    """CRUD for pre-defined system prompt configurations. Staff-only access.
+
+    Does not use LLMConfigurationMixin because prompt management should be
+    available even when the AI Assistant is disabled.
+    """
+
+    queryset = models.SystemPrompt.objects.all().order_by("-created")
+    serializer_class = serializers.SystemPromptSerializer
+    lookup_field = "uuid"
+    permission_classes = [IsAuthenticated, core_permissions.ActionsPermission]
+
+    create_permissions = [permissions.is_staff]
+    update_permissions = [permissions.is_staff]
+    partial_update_permissions = [permissions.is_staff]
+    destroy_permissions = [permissions.is_staff]
+    list_permissions = [permissions.is_staff]
+    retrieve_permissions = [permissions.is_staff]
+
+    def perform_create(self, serializer):
+        prompt = serializer.save()
+        logger.info(
+            "System prompt '%s' (uuid=%s) created by user %s",
+            prompt.name,
+            prompt.uuid.hex,
+            self.request.user.username,
+        )
+
+    def perform_update(self, serializer):
+        changed_fields = sorted(serializer.validated_data.keys())
+        prompt = serializer.save()
+        logger.info(
+            "System prompt '%s' (uuid=%s) updated by user %s; changed fields: %s",
+            prompt.name,
+            prompt.uuid.hex,
+            self.request.user.username,
+            ", ".join(changed_fields) or "none",
+        )
+
+    def perform_destroy(self, instance):
+        name = instance.name
+        uuid_hex = instance.uuid.hex
+        instance.delete()
+        logger.info(
+            "System prompt '%s' (uuid=%s) deleted by user %s",
+            name,
+            uuid_hex,
+            self.request.user.username,
+        )
+
+    @extend_schema(
+        summary="Activate a system prompt",
+        description="Set this prompt as the active one. Deactivates any currently active prompt.",
+        responses={200: serializers.SystemPromptSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def activate(self, request, uuid=None):
+        prompt = self.get_object()
+        with transaction.atomic():
+            models.SystemPrompt.objects.filter(is_active=True).exclude(
+                pk=prompt.pk
+            ).update(is_active=False)
+            prompt.is_active = True
+            prompt.save(update_fields=["is_active"])
+        logger.info(
+            "System prompt '%s' (uuid=%s) activated by user %s",
+            prompt.name,
+            prompt.uuid.hex,
+            request.user.username,
+        )
+        return Response(serializers.SystemPromptSerializer(prompt).data)
+
+    activate_permissions = [permissions.is_staff]
+
+    @extend_schema(
+        summary="Deactivate the active system prompt",
+        description=(
+            "Deactivate this prompt. The system will fall back to "
+            "Constance overrides or built-in defaults."
+        ),
+        responses={200: serializers.SystemPromptSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def deactivate(self, request, uuid=None):
+        prompt = self.get_object()
+        prompt.is_active = False
+        prompt.save(update_fields=["is_active"])
+        logger.info(
+            "System prompt '%s' (uuid=%s) deactivated by user %s",
+            prompt.name,
+            prompt.uuid.hex,
+            request.user.username,
+        )
+        return Response(serializers.SystemPromptSerializer(prompt).data)
+
+    deactivate_permissions = [permissions.is_staff]
