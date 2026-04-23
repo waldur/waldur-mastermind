@@ -1,11 +1,16 @@
+import hashlib
+import json
 import logging
 
 from celery import shared_task
+from django.core.cache import cache
+from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.module_loading import import_string
 
+from waldur_core.core import tasks as core_tasks
 from waldur_core.core import utils as core_utils
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType, ObservableObjectType
@@ -502,7 +507,10 @@ def reset_slurm_policies_on_period_boundary():
     return {"evaluated": total_evaluated}
 
 
-@shared_task(name="waldur_mastermind.policy.sync_slurm_periodic_settings")
+@shared_task(
+    name="waldur_mastermind.policy.sync_slurm_periodic_settings",
+    base=core_tasks.BackgroundTask,
+)
 def sync_slurm_periodic_settings():
     """Send apply_periodic_settings to all active SLURM resources.
 
@@ -517,11 +525,6 @@ def sync_slurm_periodic_settings():
     Uses a cache to skip resources whose settings haven't changed since
     the last sync, avoiding unnecessary STOMP messages.
     """
-    import hashlib
-    import json
-
-    from django.core.cache import cache
-
     total_sent = 0
     total_skipped = 0
     total_failed = 0
@@ -545,27 +548,29 @@ def sync_slurm_periodic_settings():
                 project__customer__organization_groups__in=policy.organization_groups.all()
             )
 
-        for resource in resources:
-            settings = policy.calculate_slurm_settings(resource)
+        paginator = Paginator(resources.order_by("pk"), 200)
+        for page_num in paginator.page_range:
+            for resource in paginator.page(page_num).object_list:
+                settings = policy.calculate_slurm_settings(resource)
 
-            # Hash the settings to detect changes since last sync
-            settings_hash = hashlib.md5(
-                json.dumps(settings, sort_keys=True, default=str).encode()
-            ).hexdigest()
-            cache_key = f"slurm_periodic_settings:{resource.uuid}"
+                # Hash the settings to detect changes since last sync
+                settings_hash = hashlib.md5(
+                    json.dumps(settings, sort_keys=True, default=str).encode()
+                ).hexdigest()
+                cache_key = f"slurm_periodic_settings:{resource.uuid}"
 
-            if cache.get(cache_key) == settings_hash:
-                total_skipped += 1
-                continue
+                if cache.get(cache_key) == settings_hash:
+                    total_skipped += 1
+                    continue
 
-            success = policy.apply_policy_actions(resource)
-            if success:
-                # Cache for 24h — beat runs every 10min, so this just
-                # prevents re-sending identical settings until they change.
-                cache.set(cache_key, settings_hash, timeout=86400)
-                total_sent += 1
-            else:
-                total_failed += 1
+                success = policy.apply_policy_actions(resource)
+                if success:
+                    # Cache for 24h — beat runs every 10min, so this just
+                    # prevents re-sending identical settings until they change.
+                    cache.set(cache_key, settings_hash, timeout=86400)
+                    total_sent += 1
+                else:
+                    total_failed += 1
 
     logger.info(
         "SLURM periodic settings sync: %d sent, %d skipped (unchanged), %d failed",
