@@ -235,3 +235,62 @@ class MaintenanceAnnouncementTemplateUpdateTest(test.APITestCase):
         self.client.force_authenticate(user)
         response = self.client.patch(self.url, {"message": "New template message"})
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class MaintenanceAnnouncementTemplateAffectedOfferingsTest(test.APITestCase):
+    """
+    Regression tests for affected_offerings always being present in template responses.
+
+    Previously, MaintenanceAnnouncementTemplateSerializer inherited affected_offerings
+    from the parent serializer which used source="affected_offerings.all" pointing to
+    the MaintenanceAnnouncementOffering reverse relation — which does not exist on
+    MaintenanceAnnouncementTemplate. DRF silently skipped the field (SkipField) because
+    the field is read_only=True, causing it to be absent from the response entirely.
+    The Python API client (waldur_api_client) calls d.pop("affected_offerings") without
+    a default, raising KeyError on any instance that has templates.
+    """
+
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.template = self.fixture.maintenance_announcement_template
+        self.list_url = (
+            marketplace_factories.MaintenanceAnnouncementTemplateFactory.get_list_url()
+        )
+        self.detail_url = (
+            marketplace_factories.MaintenanceAnnouncementTemplateFactory.get_url(
+                self.template
+            )
+        )
+
+    def test_affected_offerings_field_always_present_in_list(self):
+        """affected_offerings must be in the response even when no offerings are linked."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertTrue(len(data) > 0)
+        for item in data:
+            self.assertIn(
+                "affected_offerings",
+                item,
+                "affected_offerings field missing — would cause KeyError in waldur_api_client",
+            )
+            self.assertIsInstance(item["affected_offerings"], list)
+
+    def test_affected_offerings_field_always_present_in_detail(self):
+        """affected_offerings must be in the detail response even when empty."""
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("affected_offerings", response.json())
+        self.assertEqual(response.json()["affected_offerings"], [])
+
+    def test_affected_offerings_contains_linked_offering_templates(self):
+        """When offering templates are linked, they appear in affected_offerings."""
+        offering_template = self.fixture.maintenance_announcement_offering_template
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.detail_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        affected = response.json()["affected_offerings"]
+        self.assertEqual(len(affected), 1)
+        self.assertEqual(affected[0]["uuid"], str(offering_template.uuid))

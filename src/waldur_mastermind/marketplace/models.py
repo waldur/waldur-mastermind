@@ -3899,7 +3899,7 @@ class MaintenanceAnnouncementOfferingTemplate(core_models.UuidMixin, TimeStamped
     maintenance_template = models.ForeignKey(
         MaintenanceAnnouncementTemplate,
         on_delete=models.CASCADE,
-        related_name="+",
+        related_name="affected_offerings",
     )
     offering = models.ForeignKey(Offering, on_delete=models.CASCADE, related_name="+")
     impact_level = models.PositiveSmallIntegerField(
