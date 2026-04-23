@@ -8,7 +8,7 @@ from rest_framework.exceptions import PermissionDenied
 
 from waldur_mastermind.chat.input_guards import SeverityLevel
 from waldur_mastermind.chat.intent_classifier import Intent, classify_intent
-from waldur_mastermind.chat.models import Message
+from waldur_mastermind.chat.models import Message, SystemPrompt
 from waldur_mastermind.chat.prompts.assembly import SYSTEM_PROMPT_TEMPLATE
 from waldur_mastermind.chat.prompts.rejection import REJECTION_SYSTEM_PROMPT_TEMPLATE
 from waldur_mastermind.chat.prompts.scope_boundary import (
@@ -21,6 +21,19 @@ from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.chat.tools.tool_sets import get_tool_set_for_user
 
 logger = logging.getLogger(__name__)
+
+
+class _SafeFormatDict(dict):
+    """Dict subclass that returns unknown keys as literal ``{key}`` strings.
+
+    Used with ``str.format_map`` so that admin-supplied prompt templates
+    containing stray ``{placeholders}`` pass through harmlessly instead of
+    raising ``KeyError``.
+    """
+
+    def __missing__(self, key):
+        return f"{{{key}}}"
+
 
 # Messages with injection at MEDIUM severity or above are excluded from AI Assistant context history.
 # LOW severity messages are kept since they only indicate possible, not confirmed, injections.
@@ -77,6 +90,45 @@ def _get_thread_messages(thread):
     return filtered
 
 
+def _get_default_scope_boundary(user):
+    """Return the default role-aware scope boundary text (incl. guardrails)."""
+    if user and user.is_staff:
+        scope_template = STAFF_SCOPE_BOUNDARY_TEMPLATE
+    elif user and user.is_support:
+        scope_template = SUPPORT_SCOPE_BOUNDARY_TEMPLATE
+    else:
+        scope_template = SCOPE_BOUNDARY_TEMPLATE
+    organization = config.SITE_NAME
+    return (
+        scope_template.format(organization=organization)
+        + "\n\n"
+        + SCOPE_GUARDRAILS_TEMPLATE.format(organization=organization)
+    )
+
+
+def _get_custom_instructions():
+    """Return the custom instructions section, or an empty string.
+
+    Priority: active SystemPrompt > Constance override > none.
+    """
+    active = SystemPrompt.get_active()
+    if active and active.custom_instructions and active.custom_instructions.strip():
+        text = active.custom_instructions.strip()
+    else:
+        text = (config.AI_ASSISTANT_SYSTEM_PROMPT_CUSTOM_INSTRUCTIONS or "").strip()
+    if not text:
+        return ""
+    # Resolve {assistant_name}/{organization} in admin-supplied text; unknown
+    # placeholders are preserved literally by _SafeFormatDict.
+    resolved = text.format_map(
+        _SafeFormatDict(
+            assistant_name=config.AI_ASSISTANT_NAME,
+            organization=config.SITE_NAME,
+        )
+    )
+    return f"=== ADDITIONAL INSTRUCTIONS ===\n{resolved}"
+
+
 def build_context(
     user,
     user_input,
@@ -108,23 +160,16 @@ def build_context(
     tools_prompt = (
         tool_registry.get_tools_prompt(tool_names) if include_tools_prompt else ""
     )
-    if user and user.is_staff:
-        scope_boundary_template = STAFF_SCOPE_BOUNDARY_TEMPLATE
-    elif user and user.is_support:
-        scope_boundary_template = SUPPORT_SCOPE_BOUNDARY_TEMPLATE
-    else:
-        scope_boundary_template = SCOPE_BOUNDARY_TEMPLATE
-    organization = config.SITE_NAME
-    scope_boundary = (
-        scope_boundary_template.format(organization=organization)
-        + "\n\n"
-        + SCOPE_GUARDRAILS_TEMPLATE.format(organization=organization)
-    )
-    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
-        scope_boundary=scope_boundary,
-        tools=tools_prompt,
-        assistant_name=config.AI_ASSISTANT_NAME,
-        organization=organization,
+    scope_boundary = _get_default_scope_boundary(user)
+    custom_instructions = _get_custom_instructions()
+    system_prompt = SYSTEM_PROMPT_TEMPLATE.format_map(
+        _SafeFormatDict(
+            scope_boundary=scope_boundary,
+            tools=tools_prompt,
+            assistant_name=config.AI_ASSISTANT_NAME,
+            organization=config.SITE_NAME,
+            custom_instructions=custom_instructions,
+        )
     )
 
     messages = [{"role": "system", "content": system_prompt}]

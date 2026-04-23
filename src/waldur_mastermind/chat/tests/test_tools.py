@@ -186,15 +186,18 @@ class SystemPromptTest(TestCase):
             tools="[tool prompt]",
             assistant_name="TestBot",
             organization="TestOrg",
+            custom_instructions="[custom instructions]",
         )
         self.assertIn("TestBot", result)
         self.assertIn("TestOrg", result)
         self.assertIn("[tool prompt]", result)
         self.assertIn("[scope boundary]", result)
+        self.assertIn("[custom instructions]", result)
         self.assertNotIn("{assistant_name}", result)
         self.assertNotIn("{organization}", result)
         self.assertNotIn("{tools}", result)
         self.assertNotIn("{scope_boundary}", result)
+        self.assertNotIn("{custom_instructions}", result)
 
 
 class ToolSetsTest(TestCase):

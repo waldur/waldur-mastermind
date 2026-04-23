@@ -537,3 +537,18 @@ class ChatSessionSerializer(
             "modified",
         )
         read_only_fields = ("uuid", "user", "created", "modified")
+
+
+class SystemPromptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.SystemPrompt
+        fields = (
+            "uuid",
+            "name",
+            "description",
+            "custom_instructions",
+            "is_active",
+            "created",
+            "modified",
+        )
+        read_only_fields = ("uuid", "is_active", "created", "modified")

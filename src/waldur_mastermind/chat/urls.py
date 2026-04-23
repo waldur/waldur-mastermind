@@ -32,3 +32,8 @@ def register_in(router):
         views.MessageViewSet,
         basename="chat-message",
     )
+    router.register(
+        r"chat-system-prompts",
+        views.SystemPromptViewSet,
+        basename="chat-system-prompt",
+    )
