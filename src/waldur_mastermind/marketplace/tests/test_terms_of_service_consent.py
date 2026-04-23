@@ -3026,6 +3026,69 @@ class OfferingTermsOfServiceFilterTest(APITestCase):
         for offering in response.data:
             self.assertFalse(offering["user_has_consent"])
 
+    def test_filter_user_has_consent_false_no_consent_records(self):
+        """Regression: offering with NO consent records must be returned by user_has_consent=false.
+
+        The old exclude()-based implementation incorrectly excluded such offerings because
+        the LEFT JOIN produced NULL rows and NOT (NULL AND TRUE) evaluates to NULL in SQL,
+        which WHERE treats as FALSE.
+        """
+        # No UserOfferingConsent records exist at all for this offering
+        response = self.client.get(
+            self.url,
+            {
+                "user_has_consent": "false",
+                "has_active_terms_of_service": "true",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["uuid"], self.offering_with_active_tos.uuid.hex
+        )
+        self.assertFalse(response.data[0]["user_has_consent"])
+
+    def test_filter_user_has_consent_false_with_revoked_consent(self):
+        """Offering with a revoked consent must be returned by user_has_consent=false."""
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering_with_active_tos,
+            version="1.0",
+            revocation_date=timezone.now(),
+        )
+
+        response = self.client.get(
+            self.url,
+            {
+                "user_has_consent": "false",
+                "has_active_terms_of_service": "true",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(
+            response.data[0]["uuid"], self.offering_with_active_tos.uuid.hex
+        )
+        self.assertFalse(response.data[0]["user_has_consent"])
+
+    def test_filter_user_has_consent_false_excludes_active_consent(self):
+        """Offering with an active consent must NOT be returned by user_has_consent=false."""
+        models.UserOfferingConsent.objects.create(
+            user=self.user,
+            offering=self.offering_with_active_tos,
+            version="1.0",
+        )
+
+        response = self.client.get(
+            self.url,
+            {
+                "user_has_consent": "false",
+                "has_active_terms_of_service": "true",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
     def test_filter_offerings_user_has_offering_user_true(self):
         """Test filtering offerings where user has OfferingUser record."""
         models.OfferingUser.objects.create(
