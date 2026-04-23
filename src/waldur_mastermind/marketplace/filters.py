@@ -3,7 +3,7 @@ import json
 import django_filters
 from constance import config
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Count, F, Q, QuerySet
+from django.db.models import Count, Exists, F, OuterRef, Q, QuerySet
 from django.utils.translation import gettext_lazy as _
 from django_filters import DateFromToRangeFilter
 from django_filters.widgets import BooleanWidget
@@ -368,14 +368,15 @@ class OfferingFilter(
             return queryset.none() if value else queryset
 
         user = request.user
+        active_consent = models.UserOfferingConsent.objects.filter(
+            offering=OuterRef("pk"),
+            user=user,
+            revocation_date__isnull=True,
+        )
         if value:
-            return queryset.filter(
-                user_consents__user=user, user_consents__revocation_date__isnull=True
-            ).distinct()
+            return queryset.filter(Exists(active_consent)).distinct()
         else:
-            return queryset.exclude(
-                user_consents__user=user, user_consents__revocation_date__isnull=True
-            ).distinct()
+            return queryset.exclude(Exists(active_consent)).distinct()
 
     def filter_user_has_offering_user(self, queryset, name, value):
         if value is None:
