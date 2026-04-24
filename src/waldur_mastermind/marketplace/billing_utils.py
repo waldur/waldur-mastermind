@@ -26,7 +26,7 @@ def convert_slurm_usage(usage: int | float | Decimal, component_type: str) -> in
     return quantity
 
 
-def convert_quantity(usage, offering_type, component_type: str):
+def convert_quantity(usage, offering_type, component_type: str, billing_type=None):
     """
     Convert usage quantity for billing purposes.
 
@@ -36,16 +36,25 @@ def convert_quantity(usage, offering_type, component_type: str):
     Args:
         usage: Raw usage quantity
         component_type: Type of component being processed
+        billing_type: Optional billing type for precision control.
+            When USAGE, returns Decimal instead of int to preserve
+            fractional component-hours.
 
     Returns:
         Converted quantity for billing
     """
+    from waldur_mastermind.marketplace.enums import BillingTypes
+
     if offering_type == SLURM_OFFERING:
         return convert_slurm_usage(usage, component_type)
     if offering_type == OPENSTACK_TENANT_OFFERING:
         if component_type in (STORAGE_TYPE, RAM_TYPE):
-            return int(usage / 1024)
-        return int(usage)
+            result = Decimal(str(usage)) / 1024
+        else:
+            result = Decimal(str(usage))
+        if billing_type == BillingTypes.USAGE:
+            return result.quantize(Decimal("0.01"))
+        return int(result)
     return usage
 
 

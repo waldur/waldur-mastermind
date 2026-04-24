@@ -63,6 +63,11 @@ class OpenStackExtension(WaldurExtension):
                 "schedule": timedelta(hours=1),
                 "args": (),
             },
+            "openstack-tenant-usage-billing-poll": {
+                "task": "openstack.TenantUsageBillingPoll",
+                "schedule": timedelta(minutes=30),
+                "args": (),
+            },
         }
 
     @staticmethod

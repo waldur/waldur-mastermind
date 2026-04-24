@@ -2936,3 +2936,19 @@ def notify_quota_75_percent(serialized_resource, serialized_component, current_u
         current_usage,
         "notification_quota_75_percent",
     )
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.cleanup_usage_poll_records",
+)
+def cleanup_usage_poll_records():
+    """Delete ComponentUsagePollRecord entries older than the retention period."""
+    retention_months = getattr(config, "USAGE_POLL_RECORD_RETENTION_MONTHS", 3)
+    cutoff = timezone.now() - timedelta(days=retention_months * 30)
+    deleted, _ = models.ComponentUsagePollRecord.objects.filter(
+        last_poll_time__lt=cutoff
+    ).delete()
+    if deleted:
+        logger.info(
+            "Deleted %d stale usage poll records older than %s", deleted, cutoff
+        )

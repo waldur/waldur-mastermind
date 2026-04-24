@@ -8,6 +8,7 @@ from rest_framework.reverse import reverse
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_mastermind.marketplace import models, processors, signals
+from waldur_mastermind.marketplace.enums import BillingTypes
 from waldur_mastermind.marketplace.processors import (
     copy_attributes,
     get_order_post_data,
@@ -53,16 +54,21 @@ class TenantCreateProcessor(processors.BaseCreateResourceProcessor):
                     f"Invalid MTU value: {mtu} in {order.offering}. Skipping."
                 )
 
-        if not order.limits:
-            raise serializers.ValidationError(
-                _(
-                    "Order does not contain limits. Quotas are required to create a tenant."
-                )
-            )
+        if order.limits:
+            quotas = utils.map_limits_to_quotas(order.limits, order.offering)
+            return dict(quotas=quotas, **payload)
 
-        quotas = utils.map_limits_to_quotas(order.limits, order.offering)
+        # Usage-based offerings don't require limits — tenants are created
+        # with default quotas and billed by actual consumption.
+        has_usage_billing = order.offering.components.filter(
+            billing_type=BillingTypes.USAGE,
+        ).exists()
+        if has_usage_billing:
+            return payload
 
-        return dict(quotas=quotas, **payload)
+        raise serializers.ValidationError(
+            _("Order does not contain limits. Quotas are required to create a tenant.")
+        )
 
     @classmethod
     def get_resource_model(cls):

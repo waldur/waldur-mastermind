@@ -855,8 +855,6 @@ class GenericSwitchBillingModeTest(test.APITransactionTestCase):
             (cfg[0], cfg[1], cfg[2], mode)
             for cfg in OFFERING_CONFIGS
             for mode in ["monthly", "prepaid", "usage"]
-            # Usage-based billing is not supported for OpenStack
-            if not (cfg[0] == OPENSTACK_TENANT_OFFERING and mode == "usage")
         ]
     )
     @unpack
@@ -953,12 +951,7 @@ class GenericSwitchBillingModeTest(test.APITransactionTestCase):
         self._create_offering_with_components(offering_type, default_bt, default_lp)
         self.client.force_authenticate(self.fixture.staff)
 
-        # OpenStack doesn't support usage-based billing
-        modes = ["prepaid", "monthly"]
-        if offering_type != OPENSTACK_TENANT_OFFERING:
-            modes = ["prepaid", "usage", "monthly"]
-
-        for mode in modes:
+        for mode in ["prepaid", "usage", "monthly"]:
             response = self.client.post(
                 self._get_url(), {"billing_mode": mode}, format="json"
             )
@@ -989,14 +982,34 @@ class GenericSwitchBillingModeTest(test.APITransactionTestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("at least one component", response.data["detail"])
 
-    def test_usage_mode_rejected_for_openstack(self):
+    def test_openstack_measured_units_updated_for_usage_mode(self):
         self._create_offering_with_components(
             OPENSTACK_TENANT_OFFERING, BillingTypes.LIMIT, LimitPeriods.MONTH
         )
         self.client.force_authenticate(self.fixture.staff)
 
+        # Switch to usage mode
         response = self.client.post(
             self._get_url(), {"billing_mode": "usage"}, format="json"
         )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("not supported", response.data["detail"])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        for comp in self.target_components:
+            comp.refresh_from_db()
+            if comp.type == "cores":
+                self.assertEqual(comp.measured_unit, "core-hours")
+            else:
+                self.assertEqual(comp.measured_unit, "GB-hours")
+
+        # Switch back to monthly — units should be restored
+        response = self.client.post(
+            self._get_url(), {"billing_mode": "monthly"}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        for comp in self.target_components:
+            comp.refresh_from_db()
+            if comp.type == "cores":
+                self.assertEqual(comp.measured_unit, "cores")
+            else:
+                self.assertEqual(comp.measured_unit, "GB")

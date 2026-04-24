@@ -214,7 +214,10 @@ class BillingUsageProcessor:
                 )
 
         converted_usage = convert_quantity(
-            usage_to_bill, resource.offering.type, offering_component.type
+            usage_to_bill,
+            resource.offering.type,
+            offering_component.type,
+            billing_type=offering_component.billing_type,
         )
 
         if item:
