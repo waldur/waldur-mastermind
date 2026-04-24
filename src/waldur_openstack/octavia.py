@@ -9,7 +9,7 @@ from openstack import exceptions as openstack_exceptions
 
 from waldur_openstack import models
 from waldur_openstack.exceptions import OpenStackBackendError
-from waldur_openstack.session import get_credentials
+from waldur_openstack.session import get_credentials, get_verify_ssl
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +36,7 @@ class OctaviaClient:
             credentials.pop("project_name", None)
             credentials.pop("project_domain_name", None)
             credentials["project_id"] = self.tenant.backend_id
+            verify = get_verify_ssl(self.tenant.service_settings)
             auth_type = credentials.pop("auth_type", "password")
             if auth_type == "v3applicationcredential":
                 self._connection = openstack_sdk.connect(
@@ -43,9 +44,10 @@ class OctaviaClient:
                     auth_type="v3applicationcredential",
                     application_credential_id=credentials["username"],
                     application_credential_secret=credentials["password"],
+                    verify=verify,
                 )
             else:
-                self._connection = openstack_sdk.connect(**credentials)
+                self._connection = openstack_sdk.connect(**credentials, verify=verify)
         return self._connection
 
     @property
