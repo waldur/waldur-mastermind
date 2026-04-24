@@ -305,3 +305,60 @@ class ScienceDomainPresetTest(test.APITestCase):
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.post(LOAD_PRESET_URL, {"preset": "nonexistent"})
         self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+
+
+class ScienceDomainNaturalOrderingTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.url = factories.ScienceDomainFactory.get_list_url()
+        # Create domains with codes that break under naive string sort
+        factories.ScienceDomainFactory(name="Domain 1", code="1")
+        factories.ScienceDomainFactory(name="Domain 2", code="2")
+        factories.ScienceDomainFactory(name="Domain 10", code="10")
+        factories.ScienceDomainFactory(name="Domain 3", code="3")
+
+    def test_default_ordering_is_natural(self):
+        self.client.force_authenticate(user=self.fixture.user)
+        response = self.client.get(self.url)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        codes = [d["code"] for d in response.data]
+        self.assertEqual(codes, ["1", "2", "3", "10"])
+
+    def test_ordering_by_code_ascending_is_natural(self):
+        self.client.force_authenticate(user=self.fixture.user)
+        response = self.client.get(self.url, {"o": "code"})
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        codes = [d["code"] for d in response.data]
+        self.assertEqual(codes, ["1", "2", "3", "10"])
+
+    def test_ordering_by_code_descending_is_natural(self):
+        self.client.force_authenticate(user=self.fixture.user)
+        response = self.client.get(self.url, {"o": "-code"})
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        codes = [d["code"] for d in response.data]
+        self.assertEqual(codes, ["10", "3", "2", "1"])
+
+
+class ScienceSubDomainNaturalOrderingTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.UserFixture()
+        self.url = factories.ScienceSubDomainFactory.get_list_url()
+        domain = factories.ScienceDomainFactory(name="Physics", code="1")
+        factories.ScienceSubDomainFactory(name="Sub 1", code="1.1", domain=domain)
+        factories.ScienceSubDomainFactory(name="Sub 2", code="1.2", domain=domain)
+        factories.ScienceSubDomainFactory(name="Sub 10", code="1.10", domain=domain)
+        factories.ScienceSubDomainFactory(name="Sub 3", code="1.3", domain=domain)
+
+    def test_default_ordering_is_natural(self):
+        self.client.force_authenticate(user=self.fixture.user)
+        response = self.client.get(self.url)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        codes = [d["code"] for d in response.data]
+        self.assertEqual(codes, ["1.1", "1.2", "1.3", "1.10"])
+
+    def test_ordering_by_code_ascending_is_natural(self):
+        self.client.force_authenticate(user=self.fixture.user)
+        response = self.client.get(self.url, {"o": "code"})
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        codes = [d["code"] for d in response.data]
+        self.assertEqual(codes, ["1.1", "1.2", "1.3", "1.10"])

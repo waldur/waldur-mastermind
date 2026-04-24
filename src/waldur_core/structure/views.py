@@ -10,6 +10,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q, QuerySet, Sum
+from django.db.models.functions import Length
 from django.db.models.functions import TruncMonth
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -2389,15 +2390,14 @@ class AffiliatedOrganizationViewSet(core_views.ActionsViewSet):
 class ScienceDomainViewSet(core_views.ActionsViewSet):
     queryset = (
         models.ScienceDomain.objects.all()
-        .order_by("name")
+        .order_by(Length("code"), "code", "name")
         .annotate(subdomains_count=Count("subdomains"))
     )
     serializer_class = serializers.ScienceDomainSerializer
     lookup_field = "uuid"
-    filter_backends = (DjangoFilterBackend, rf_filters.OrderingFilter)
+    filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.ScienceDomainFilter
     permission_classes = (core_permissions.IsAdminOrReadOnly,)
-    ordering_fields = ("name",)
 
     @extend_schema(
         summary="List available science domain presets",
@@ -2443,7 +2443,7 @@ class ScienceSubDomainViewSet(core_views.ActionsViewSet):
     queryset = (
         models.ScienceSubDomain.objects.all()
         .select_related("domain")
-        .order_by("domain__name", "name")
+        .order_by(Length("code"), "code")
         .annotate(
             projects_count=Count(
                 "projects",
@@ -2453,10 +2453,9 @@ class ScienceSubDomainViewSet(core_views.ActionsViewSet):
     )
     serializer_class = serializers.ScienceSubDomainSerializer
     lookup_field = "uuid"
-    filter_backends = (DjangoFilterBackend, rf_filters.OrderingFilter)
+    filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.ScienceSubDomainFilter
     permission_classes = (core_permissions.IsAdminOrReadOnly,)
-    ordering_fields = ("name", "domain__name", "projects_count")
 
 
 @extend_schema_view(

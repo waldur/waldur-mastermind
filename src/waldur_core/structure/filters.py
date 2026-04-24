@@ -5,7 +5,7 @@ from django.conf import settings as django_settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions
 from django.db.models import OuterRef, Q, Subquery
-from django.db.models.functions import Concat
+from django.db.models.functions import Concat, Length
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.widgets import BooleanWidget
@@ -1103,7 +1103,35 @@ class AffiliatedOrganizationFilter(NameFilterSet):
         )
 
 
+class NaturalCodeOrderingFilter(django_filters.OrderingFilter):
+    """OrderingFilter that sorts 'code' field naturally (1, 2, 10 not 1, 10, 2)."""
+
+    def filter(self, qs, value):
+        if not value:
+            return qs
+        ordering = []
+        for field in value:
+            bare = field.lstrip("-")
+            desc = field.startswith("-")
+            if bare == "code":
+                length_expr = Length("code")
+                if desc:
+                    ordering.extend([length_expr.desc(), "-code"])
+                else:
+                    ordering.extend([length_expr.asc(), "code"])
+            else:
+                ordering.append(field)
+        return qs.order_by(*ordering)
+
+
 class ScienceDomainFilter(NameFilterSet):
+    o = NaturalCodeOrderingFilter(
+        fields=(
+            ("name", "name"),
+            ("code", "code"),
+        ),
+    )
+
     class Meta:
         model = models.ScienceDomain
         fields = ["name"]
@@ -1119,6 +1147,14 @@ class ScienceSubDomainFilter(NameFilterSet):
         field_name="domain__name",
         lookup_expr="icontains",
         label="Domain name",
+    )
+    o = NaturalCodeOrderingFilter(
+        fields=(
+            ("name", "name"),
+            ("code", "code"),
+            ("domain__name", "domain_name"),
+            ("projects_count", "projects_count"),
+        ),
     )
 
     class Meta:
