@@ -6917,11 +6917,6 @@ class BaseResourceViewSet(
                 _("Restoring resource is not supported for this offering type.")
             )
 
-        if resource.state != models.Resource.States.TERMINATED:
-            raise ValidationError(
-                _("Resource must be in TERMINATED state to be restored.")
-            )
-
         resource.set_state_creating()
         resource.save(update_fields=["state"])
 
@@ -6933,6 +6928,20 @@ class BaseResourceViewSet(
             plan=resource.plan,
             limits=resource.limits,
         )
+
+    restore_permissions = [
+        permission_factory(
+            PermissionEnum.SET_RESOURCE_STATE,
+            ["offering.customer"],
+        )
+    ]
+
+    restore_validators = [
+        core_validators.StateValidator(
+            ResourceStates.TERMINATED,
+            state_enum=ResourceStates,
+        ),
+    ]
 
     terminate_serializer_class = serializers.ResourceTerminateSerializer
 

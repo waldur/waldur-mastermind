@@ -1,6 +1,9 @@
 from rest_framework import status, test
 
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import fixtures
+from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace import enums, models
 from waldur_mastermind.marketplace.tests import factories
 
@@ -51,36 +54,44 @@ class ResourceRestoreTest(test.APITestCase):
         url = factories.ResourceFactory.get_url(self.resource, "restore")
         response = self.client.post(url)
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn(
-            "Resource must be in TERMINATED state to be restored.", str(response.data)
-        )
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
-    def test_restore_permissions(self):
-        # User who is not staff/owner/manager should not be able to restore
+    def test_restore_not_allowed_for_regular_user(self):
         self.client.force_authenticate(self.fixture.user)
         url = factories.ResourceFactory.get_url(self.resource, "restore")
         response = self.client.post(url)
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn(
+            response.status_code,
+            [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND],
+        )
 
-        # Owner should be able to restore
-        self.client.force_authenticate(self.fixture.owner)
+    def test_restore_allowed_for_service_provider_owner(self):
+        sp_owner = UserFactory()
+        self.offering.customer.add_user(sp_owner, CustomerRole.OWNER)
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_STATE)
+
+        self.client.force_authenticate(sp_owner)
+        url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, "restore"
+        )
         response = self.client.post(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_restore_not_allowed_for_consumer_organization_owner(self):
+        # Owner of the consuming organization should NOT be able to restore
+        self.client.force_authenticate(self.fixture.owner)
+        url = factories.ResourceFactory.get_url(self.resource, "restore")
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
     def test_restore_disabled_by_plugin(self):
-        # Arrange
         self.offering.plugin_options["can_restore_resource"] = False
         self.offering.save()
 
         self.client.force_authenticate(self.fixture.staff)
         url = factories.ResourceFactory.get_url(self.resource, "restore")
-
-        # Act
-        # Default behavior is False, so it should fail
         response = self.client.post(url)
 
-        # Assert
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn(
             "Restoring resource is not supported for this offering type.",
