@@ -293,6 +293,55 @@ class AffiliatedOrganizationFactory(
         return "http://testserver" + reverse("affiliated-organization-list")
 
 
+class ScienceDomainFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ScienceDomain],
+):
+    class Meta:
+        model = models.ScienceDomain
+
+    name = factory.Sequence(lambda n: "ScienceDomain_%s" % n)
+
+    @classmethod
+    def get_url(cls, science_domain=None, action=None):
+        if science_domain is None:
+            science_domain = ScienceDomainFactory()
+        url = "http://testserver" + reverse(
+            "science-domain-detail",
+            kwargs={"uuid": science_domain.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("science-domain-list")
+
+
+class ScienceSubDomainFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ScienceSubDomain],
+):
+    class Meta:
+        model = models.ScienceSubDomain
+
+    name = factory.Sequence(lambda n: "ScienceSubDomain_%s" % n)
+    domain = factory.SubFactory(ScienceDomainFactory)
+
+    @classmethod
+    def get_url(cls, science_sub_domain=None, action=None):
+        if science_sub_domain is None:
+            science_sub_domain = ScienceSubDomainFactory()
+        url = "http://testserver" + reverse(
+            "science-sub-domain-detail",
+            kwargs={"uuid": science_sub_domain.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("science-sub-domain-list")
+
+
 class NotificationTemplateFactory(
     factory.django.DjangoModelFactory,
     metaclass=BaseMetaFactory[core_models.NotificationTemplate],

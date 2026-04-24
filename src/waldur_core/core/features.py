@@ -60,6 +60,8 @@ class ProjectSection(FeatureSection):
 
     oecd_fos_2007_code = Feature("Enable OECD code.")
 
+    science_domain = Feature("Enable science domain/sub-domain selection for projects.")
+
     show_industry_flag = Feature("Show industry flag.")
 
     show_description_in_create_dialog = Feature(

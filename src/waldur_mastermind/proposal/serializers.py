@@ -21,6 +21,7 @@ from waldur_core.permissions import enums as permissions_enums
 from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.permissions.models import Role
+from waldur_core.structure import models as structure_models
 from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import permissions as marketplace_permissions
@@ -1339,6 +1340,21 @@ class ProposalSerializer(
     oecd_fos_2007_label = serializers.CharField(
         read_only=True, source="get_oecd_fos_2007_code_display"
     )
+    science_sub_domain = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=structure_models.ScienceSubDomain.objects.all(),
+        allow_null=True,
+        required=False,
+    )
+    science_sub_domain_name = serializers.ReadOnlyField(
+        source="science_sub_domain.name",
+    )
+    science_domain_uuid = serializers.ReadOnlyField(
+        source="science_sub_domain.domain.uuid",
+    )
+    science_domain_name = serializers.ReadOnlyField(
+        source="science_sub_domain.domain.name",
+    )
     created_by_name = serializers.ReadOnlyField(source="created_by.full_name")
     created_by_uuid = serializers.UUIDField(source="created_by.uuid", read_only=True)
     project_name = serializers.ReadOnlyField(source="project.name")
@@ -1375,6 +1391,10 @@ class ProposalSerializer(
             "call_managing_organisation_uuid",
             "oecd_fos_2007_code",
             "oecd_fos_2007_label",
+            "science_sub_domain",
+            "science_sub_domain_name",
+            "science_domain_uuid",
+            "science_domain_name",
             "allocation_comment",
             "created",
             "compliance_status",

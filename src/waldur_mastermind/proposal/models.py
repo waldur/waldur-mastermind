@@ -627,6 +627,14 @@ class Proposal(
 
     resources = models.ManyToManyField(RequestedOffering, through="RequestedResource")
     allocation_comment = models.CharField(blank=True, max_length=150, null=True)
+    science_sub_domain = models.ForeignKey(
+        "structure.ScienceSubDomain",
+        verbose_name=_("science sub-domain"),
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="proposals",
+    )
 
     # Note: checklist_completions relationship is automatically available via ChecklistCompletion.scope
 

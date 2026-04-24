@@ -656,6 +656,17 @@ class AffiliatedOrganizationAdmin(admin.ModelAdmin):
     search_fields = ["name", "code", "abbreviation"]
 
 
+class ScienceDomainAdmin(admin.ModelAdmin):
+    list_display = ("code", "name", "uuid")
+    search_fields = ["name", "code"]
+
+
+class ScienceSubDomainAdmin(admin.ModelAdmin):
+    list_display = ("code", "name", "domain", "uuid")
+    search_fields = ["name", "code", "domain__name"]
+    list_filter = ("domain",)
+
+
 class UserAgreementAdmin(admin.ModelAdmin):
     fields = ("content", "agreement_type", "language", "created", "modified")
     readonly_fields = ("created", "modified")
@@ -705,6 +716,8 @@ admin.site.register(models.PrivateServiceSettings, PrivateServiceSettingsAdmin)
 admin.site.register(models.SharedServiceSettings, SharedServiceSettingsAdmin)
 admin.site.register(models.OrganizationGroup, OrganizationGroupAdmin)
 admin.site.register(models.AffiliatedOrganization, AffiliatedOrganizationAdmin)
+admin.site.register(models.ScienceDomain, ScienceDomainAdmin)
+admin.site.register(models.ScienceSubDomain, ScienceSubDomainAdmin)
 admin.site.register(models.UserAgreement, UserAgreementAdmin)
 admin.site.register(NotificationTemplate, NotificationTemplateAdmin)
 admin.site.register(Notification, NotificationAdmin)

@@ -2386,6 +2386,79 @@ class AffiliatedOrganizationViewSet(core_views.ActionsViewSet):
     report_permissions = [permissions.is_staff]
 
 
+class ScienceDomainViewSet(core_views.ActionsViewSet):
+    queryset = (
+        models.ScienceDomain.objects.all()
+        .order_by("name")
+        .annotate(subdomains_count=Count("subdomains"))
+    )
+    serializer_class = serializers.ScienceDomainSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend, rf_filters.OrderingFilter)
+    filterset_class = filters.ScienceDomainFilter
+    permission_classes = (core_permissions.IsAdminOrReadOnly,)
+    ordering_fields = ("name",)
+
+    @extend_schema(
+        summary="List available science domain presets",
+        responses={200: serializers.ScienceDomainPresetSerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"])
+    def presets(self, request):
+        from waldur_core.structure.presets import SCIENCE_DOMAIN_PRESETS
+
+        data = [
+            {
+                "name": name,
+                "label": preset["label"],
+                "description": preset["description"],
+            }
+            for name, preset in SCIENCE_DOMAIN_PRESETS.items()
+        ]
+        serializer = serializers.ScienceDomainPresetSerializer(data, many=True)
+        return Response(serializer.data)
+
+    @extend_schema(
+        summary="Load a science domain preset",
+        request=serializers.LoadScienceDomainPresetSerializer,
+        responses={200: serializers.LoadScienceDomainPresetResponseSerializer},
+    )
+    @action(detail=False, methods=["post"])
+    def load_preset(self, request):
+        serializer = serializers.LoadScienceDomainPresetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        from waldur_core.structure.presets import load_preset
+
+        result = load_preset(serializer.validated_data["preset"])
+        response_serializer = serializers.LoadScienceDomainPresetResponseSerializer(
+            result
+        )
+        return Response(response_serializer.data)
+
+    load_preset_permissions = [permissions.is_staff]
+
+
+class ScienceSubDomainViewSet(core_views.ActionsViewSet):
+    queryset = (
+        models.ScienceSubDomain.objects.all()
+        .select_related("domain")
+        .order_by("domain__name", "name")
+        .annotate(
+            projects_count=Count(
+                "projects",
+                filter=Q(projects__is_removed=False),
+            )
+        )
+    )
+    serializer_class = serializers.ScienceSubDomainSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend, rf_filters.OrderingFilter)
+    filterset_class = filters.ScienceSubDomainFilter
+    permission_classes = (core_permissions.IsAdminOrReadOnly,)
+    ordering_fields = ("name", "domain__name", "projects_count")
+
+
 @extend_schema_view(
     list=extend_schema(
         summary="List user agreements",

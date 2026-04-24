@@ -435,6 +435,18 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
         label="Filter projects that have at least one affiliated organization.",
     )
 
+    science_domain_uuid = core_filters.RelatedUUIDFilter(
+        view_name="science-domain-detail",
+        field_name="science_sub_domain__domain__uuid",
+        label="Science domain UUID",
+    )
+
+    science_sub_domain_uuid = core_filters.RelatedUUIDFilter(
+        view_name="science-sub-domain-detail",
+        field_name="science_sub_domain__uuid",
+        label="Science sub-domain UUID",
+    )
+
     o = django_filters.OrderingFilter(
         fields=(
             ("name", "name"),
@@ -1089,6 +1101,29 @@ class AffiliatedOrganizationFilter(NameFilterSet):
             | Q(code__icontains=value)
             | Q(abbreviation__icontains=value)
         )
+
+
+class ScienceDomainFilter(NameFilterSet):
+    class Meta:
+        model = models.ScienceDomain
+        fields = ["name"]
+
+
+class ScienceSubDomainFilter(NameFilterSet):
+    domain_uuid = core_filters.RelatedUUIDFilter(
+        view_name="science-domain-detail",
+        field_name="domain__uuid",
+        label="Domain UUID",
+    )
+    domain_name = django_filters.CharFilter(
+        field_name="domain__name",
+        lookup_expr="icontains",
+        label="Domain name",
+    )
+
+    class Meta:
+        model = models.ScienceSubDomain
+        fields = ["name", "domain_uuid", "domain_name"]
 
 
 class UserAgreementsFilter(django_filters.FilterSet):
