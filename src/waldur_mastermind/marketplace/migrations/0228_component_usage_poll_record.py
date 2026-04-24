@@ -6,7 +6,10 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0226_alter_offeringcomponent_limit_period"),
+        (
+            "marketplace",
+            "0227_fix_maintenanceannouncementofferingtemplate_related_name",
+        ),
     ]
 
     operations = [
