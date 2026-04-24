@@ -40,6 +40,16 @@ def register_in(router):
         basename="affiliated-organization",
     )
     router.register(
+        r"science-domains",
+        views.ScienceDomainViewSet,
+        basename="science-domain",
+    )
+    router.register(
+        r"science-sub-domains",
+        views.ScienceSubDomainViewSet,
+        basename="science-sub-domain",
+    )
+    router.register(
         r"user-agreements",
         views.UserAgreementsViewSet,
         basename="user-agreements",

@@ -324,6 +324,106 @@ class AffiliatedOrganization(
         return self.name
 
 
+class ScienceDomain(
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    TimeStampedModel,
+):
+    """
+    Top-level science domain for classifying projects (e.g. Physics, Life Science).
+
+    Part of a two-level taxonomy: ScienceDomain → ScienceSubDomain.
+    Staff-managed; any authenticated user can read.
+    """
+
+    code = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name=_("code"),
+        help_text=_("Domain code (e.g. '1'). Auto-derived if left blank."),
+    )
+
+    class Meta:
+        verbose_name = _("science domain")
+        ordering = ("code", "name")
+
+    @classmethod
+    def get_url_name(cls):
+        return "science-domain"
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            max_code = (
+                ScienceDomain.objects.exclude(pk=self.pk)
+                .exclude(code="")
+                .order_by("-code")
+                .values_list("code", flat=True)
+                .first()
+            )
+            next_num = int(max_code) + 1 if max_code and max_code.isdigit() else 1
+            self.code = str(next_num)
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.code} {self.name}"
+
+
+class ScienceSubDomain(
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    TimeStampedModel,
+):
+    """
+    Sub-domain within a science domain (e.g. Astrophysics & Cosmology under Physics).
+
+    Projects and proposals reference a ScienceSubDomain; the parent domain
+    is always derivable from the FK.
+    """
+
+    domain = models.ForeignKey(
+        ScienceDomain,
+        on_delete=models.CASCADE,
+        related_name="subdomains",
+    )
+    code = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name=_("code"),
+        help_text=_(
+            "Sub-domain code (e.g. '1.1'). Auto-derived from domain code if left blank."
+        ),
+    )
+
+    class Meta:
+        verbose_name = _("science sub-domain")
+        ordering = ("code", "name")
+
+    @classmethod
+    def get_url_name(cls):
+        return "science-sub-domain"
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            prefix = self.domain.code or "0"
+            max_code = (
+                ScienceSubDomain.objects.filter(domain=self.domain)
+                .exclude(pk=self.pk)
+                .exclude(code="")
+                .order_by("-code")
+                .values_list("code", flat=True)
+                .first()
+            )
+            if max_code and "." in max_code:
+                next_num = int(max_code.split(".")[-1]) + 1
+            else:
+                next_num = 1
+            self.code = f"{prefix}.{next_num}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.code} {self.name}"
+
+
 CUSTOMER_DETAILS_FIELDS = (
     "name",
     "slug",
@@ -914,6 +1014,14 @@ class Project(
         to=AffiliatedOrganization,
         related_name="projects",
         blank=True,
+    )
+    science_sub_domain = models.ForeignKey(
+        ScienceSubDomain,
+        verbose_name=_("science sub-domain"),
+        blank=True,
+        null=True,
+        on_delete=models.SET_NULL,
+        related_name="projects",
     )
 
     tracker = cast(FieldInstanceTracker, FieldTracker())

@@ -266,6 +266,100 @@ class ProjectAffiliatedOrganizationsUpdateSerializer(serializers.Serializer):
             project.affiliated_organizations.add(*orgs)
 
 
+class ScienceDomainSerializer(serializers.HyperlinkedModelSerializer):
+    subdomains_count = serializers.SerializerMethodField(
+        help_text="Number of sub-domains in this domain"
+    )
+
+    class Meta:
+        model = models.ScienceDomain
+        fields = (
+            "uuid",
+            "url",
+            "code",
+            "name",
+            "created",
+            "modified",
+            "subdomains_count",
+        )
+        extra_kwargs = {
+            "url": {
+                "view_name": "science-domain-detail",
+                "lookup_field": "uuid",
+            },
+        }
+
+    def get_subdomains_count(self, obj) -> int:
+        try:
+            return obj.subdomains_count
+        except AttributeError:
+            return obj.subdomains.count()
+
+
+class ScienceSubDomainSerializer(serializers.HyperlinkedModelSerializer):
+    domain_uuid = serializers.ReadOnlyField(source="domain.uuid")
+    domain_name = serializers.ReadOnlyField(source="domain.name")
+    domain_code = serializers.ReadOnlyField(source="domain.code")
+    projects_count = serializers.SerializerMethodField(
+        help_text="Number of active projects using this sub-domain"
+    )
+
+    class Meta:
+        model = models.ScienceSubDomain
+        fields = (
+            "uuid",
+            "url",
+            "code",
+            "name",
+            "domain",
+            "domain_uuid",
+            "domain_name",
+            "domain_code",
+            "created",
+            "modified",
+            "projects_count",
+        )
+        extra_kwargs = {
+            "url": {
+                "view_name": "science-sub-domain-detail",
+                "lookup_field": "uuid",
+            },
+            "domain": {
+                "lookup_field": "uuid",
+                "view_name": "science-domain-detail",
+            },
+        }
+
+    def get_projects_count(self, obj) -> int:
+        try:
+            return obj.projects_count
+        except AttributeError:
+            return 0
+
+
+class ScienceDomainPresetSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    label = serializers.CharField()
+    description = serializers.CharField()
+
+
+class LoadScienceDomainPresetSerializer(serializers.Serializer):
+    preset = serializers.ChoiceField(choices=[])
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from waldur_core.structure.presets import SCIENCE_DOMAIN_PRESETS
+
+        self.fields["preset"].choices = list(SCIENCE_DOMAIN_PRESETS.keys())
+
+
+class LoadScienceDomainPresetResponseSerializer(serializers.Serializer):
+    created_domains = serializers.IntegerField()
+    created_subdomains = serializers.IntegerField()
+    skipped_domains = serializers.IntegerField()
+    skipped_subdomains = serializers.IntegerField()
+
+
 class ProjectListSerializer(serializers.ListSerializer):
     def to_representation(self, data):
         project_ids = [item.id for item in data]
@@ -428,6 +522,27 @@ class ProjectSerializer(
         many=True,
         read_only=True,
     )
+    science_sub_domain = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.ScienceSubDomain.objects.all(),
+        allow_null=True,
+        required=False,
+    )
+    science_sub_domain_name = serializers.ReadOnlyField(
+        source="science_sub_domain.name",
+    )
+    science_sub_domain_code = serializers.ReadOnlyField(
+        source="science_sub_domain.code",
+    )
+    science_domain_uuid = serializers.ReadOnlyField(
+        source="science_sub_domain.domain.uuid",
+    )
+    science_domain_name = serializers.ReadOnlyField(
+        source="science_sub_domain.domain.name",
+    )
+    science_domain_code = serializers.ReadOnlyField(
+        source="science_sub_domain.domain.code",
+    )
 
     class Meta:
         model = models.Project
@@ -472,6 +587,12 @@ class ProjectSerializer(
             "user_affiliations",
             "user_identity_sources",
             "affiliated_organizations",
+            "science_sub_domain",
+            "science_sub_domain_name",
+            "science_sub_domain_code",
+            "science_domain_uuid",
+            "science_domain_name",
+            "science_domain_code",
         )
         read_only_fields = (
             "end_date_requested_by",
@@ -612,7 +733,12 @@ class ProjectSerializer(
     @staticmethod
     def eager_load(queryset, request=None):
         return queryset.select_related(
-            "customer", "type", "projectcredit", "end_date_requested_by"
+            "customer",
+            "type",
+            "projectcredit",
+            "end_date_requested_by",
+            "science_sub_domain",
+            "science_sub_domain__domain",
         ).prefetch_related("affiliated_organizations")
 
     def get_filtered_field_names(self):
