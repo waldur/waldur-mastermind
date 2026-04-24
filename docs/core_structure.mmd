@@ -98,6 +98,7 @@ classDiagram
         +JSONField termination_metadata
         +string staff_notes
         +int grace_period_days
+        +ScienceSubDomain science_sub_domain [FK]
         +AffiliatedOrganization affiliated_organizations
     }
     Customer "*" -- "*" OrganizationGroup : organization_groups

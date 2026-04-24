@@ -218,6 +218,22 @@ options:
 
 ```
 
+## cleanup_usage_poll_records
+
+Delete ComponentUsagePollRecord entries.
+
+```bash
+
+usage: waldur cleanup_usage_poll_records
+                                         [--older-than-months OLDER_THAN_MONTHS]
+
+options:
+  --older-than-months OLDER_THAN_MONTHS
+                        Only delete records older than N months (0 = delete
+                        all).
+
+```
+
 ## copy_category
 
 Copy structure of categories for the Marketplace
@@ -1068,6 +1084,10 @@ options:
 ## print_settings_description
 
 Prints all Waldur feature description as typescript code.
+
+## pull_openstack_usage
+
+Trigger OpenStack usage billing poll synchronously.
 
 ## pull_openstack_volume_metadata
 

@@ -2880,6 +2880,16 @@ Billing export check interval in hours for reconciliation
 
 Number of days to retain SLURM policy evaluation log entries before automatic cleanup.
 
+### Usage Polling
+
+#### USAGE_POLL_RECORD_RETENTION_MONTHS
+
+**Type:** int
+
+**Default value:** 3
+
+Number of months to retain usage poll records before automatic cleanup.
+
 ### Identity Bridge
 
 #### FEDERATED_IDENTITY_SYNC_ENABLED

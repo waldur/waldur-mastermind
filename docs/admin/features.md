@@ -148,6 +148,10 @@ Make the project start date mandatory.
 
 Enable OECD code.
 
+## project.science_domain
+
+Enable science domain/sub-domain selection for projects.
+
 ## project.show_credit_in_create_dialog
 
 Show credit field in project create dialog.
