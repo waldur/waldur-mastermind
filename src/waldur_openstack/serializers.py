@@ -3652,6 +3652,11 @@ class OpenStackSnapshotRestorationSerializer(
         return super().create(validated_data)
 
 
+class OpenStackSnapshotBackupSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField(read_only=True)
+    name = serializers.CharField(read_only=True)
+
+
 class OpenStackSnapshotSerializer(structure_serializers.BaseResourceActionSerializer):
     source_volume_name = serializers.ReadOnlyField(source="source_volume.name")
     source_volume_marketplace_uuid = serializers.UUIDField(
@@ -3660,6 +3665,7 @@ class OpenStackSnapshotSerializer(structure_serializers.BaseResourceActionSerial
     action_details = serializers.JSONField(read_only=True)
     metadata = serializers.JSONField(required=False)
     restorations = OpenStackSnapshotRestorationSerializer(many=True, read_only=True)
+    backups = OpenStackSnapshotBackupSerializer(many=True, read_only=True)
 
     class Meta(structure_serializers.BaseResourceSerializer.Meta):
         model = models.Snapshot
@@ -3673,6 +3679,7 @@ class OpenStackSnapshotSerializer(structure_serializers.BaseResourceActionSerial
             "action",
             "action_details",
             "restorations",
+            "backups",
             "kept_until",
         )
         read_only_fields = (

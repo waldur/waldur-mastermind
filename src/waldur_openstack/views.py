@@ -2478,6 +2478,12 @@ class SnapshotViewSet(structure_views.ResourceViewSet):
     filterset_class = filters.SnapshotFilter
     disabled_actions = ["create"]
 
+    def destroy(self, request, *args, **kwargs):
+        snapshot = self.get_object()
+        for backup in snapshot.backups.all():
+            backup.delete()
+        return super().destroy(request, *args, **kwargs)
+
     @extend_schema(
         summary="Restore volume from snapshot",
         description="Restore volume from snapshot",
