@@ -3419,18 +3419,6 @@ class ProviderOfferingViewSet(
 
         mode = serializer.validated_data["billing_mode"]
 
-        # Usage-based billing requires an external usage reporter (e.g. site agent).
-        # OpenStack is managed directly by Waldur and does not report usage.
-        if mode == "usage" and offering.type == OPENSTACK_TENANT_OFFERING:
-            return Response(
-                {
-                    "detail": _(
-                        "Usage-based billing is not supported for OpenStack offerings."
-                    )
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
         # Determine which components to switch:
         # - For offerings with builtin types (OpenStack, Rancher), switch only builtin + volume types
         # - For generic offerings (site agent), switch all components
@@ -3454,6 +3442,8 @@ class ProviderOfferingViewSet(
             )
             offering.plugin_options["is_resource_termination_date_required"] = True
             offering.save(update_fields=["plugin_options"])
+            if offering.type == OPENSTACK_TENANT_OFFERING:
+                self._restore_openstack_measured_units(target_components)
         elif mode == "usage":
             target_components.update(
                 billing_type=BillingTypes.USAGE,
@@ -3467,6 +3457,7 @@ class ProviderOfferingViewSet(
                     "is_resource_termination_date_required", None
                 )
                 offering.save(update_fields=["plugin_options"])
+                self._set_openstack_usage_measured_units(target_components)
         else:
             target_components.update(
                 billing_type=BillingTypes.LIMIT,
@@ -3478,8 +3469,33 @@ class ProviderOfferingViewSet(
                     "is_resource_termination_date_required", None
                 )
                 offering.save(update_fields=["plugin_options"])
+                self._restore_openstack_measured_units(target_components)
 
         return Response(status=status.HTTP_200_OK)
+
+    # Deterministic measured_unit mappings for OpenStack billing modes.
+    # Usage mode tracks component-hours; limit/prepaid uses raw units.
+    OPENSTACK_USAGE_UNITS = {"cores": "core-hours"}
+    OPENSTACK_LIMIT_UNITS = {"cores": "cores"}
+    # RAM, storage, and volume types all use GB / GB-hours.
+    OPENSTACK_USAGE_DEFAULT_UNIT = "GB-hours"
+    OPENSTACK_LIMIT_DEFAULT_UNIT = "GB"
+
+    @classmethod
+    def _set_openstack_usage_measured_units(cls, target_components):
+        for comp in target_components:
+            comp.measured_unit = cls.OPENSTACK_USAGE_UNITS.get(
+                comp.type, cls.OPENSTACK_USAGE_DEFAULT_UNIT
+            )
+            comp.save(update_fields=["measured_unit"])
+
+    @classmethod
+    def _restore_openstack_measured_units(cls, target_components):
+        for comp in target_components:
+            comp.measured_unit = cls.OPENSTACK_LIMIT_UNITS.get(
+                comp.type, cls.OPENSTACK_LIMIT_DEFAULT_UNIT
+            )
+            comp.save(update_fields=["measured_unit"])
 
     switch_billing_mode_permissions = [
         permission_factory(

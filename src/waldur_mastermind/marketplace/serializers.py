@@ -279,6 +279,12 @@ class OpenStackPluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="If True, Octavia LBaaS (load balancers) is intended to be available for tenants from this offering.",
     )
+    usage_poll_interval_minutes = serializers.IntegerField(
+        required=False,
+        min_value=15,
+        max_value=1440,
+        help_text="Interval in minutes between usage polling for this offering (default: 60)",
+    )
 
 
 class HeappePluginOptionsSerializer(serializers.Serializer):

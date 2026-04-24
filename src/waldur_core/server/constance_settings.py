@@ -1279,6 +1279,11 @@ CONSTANCE_CONFIG = {
         6,
         "Billing export check interval in hours for reconciliation",
     ),
+    # Usage polling settings
+    "USAGE_POLL_RECORD_RETENTION_MONTHS": (
+        3,
+        "Number of months to retain usage poll records before automatic cleanup.",
+    ),
     # SLURM Policy settings
     "SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS": (
         90,
@@ -1657,6 +1662,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ARROW_BILLING_CHECK_INTERVAL_HOURS",
     ),
     "SLURM Policy": ("SLURM_POLICY_EVALUATION_LOG_RETENTION_DAYS",),
+    "Usage Polling": ("USAGE_POLL_RECORD_RETENTION_MONTHS",),
     "Identity Bridge": (
         "FEDERATED_IDENTITY_SYNC_ENABLED",
         "FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES",

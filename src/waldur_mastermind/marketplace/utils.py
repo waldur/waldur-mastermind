@@ -1,4 +1,5 @@
 import datetime
+import decimal
 import hashlib
 import json
 import logging
@@ -970,8 +971,9 @@ def get_or_create_plan_period(resource: models.Resource, date):
     return plan_period
 
 
-def import_current_usages(resource, usages=None):
-    date = datetime.date.today()
+def import_current_usages(resource, usages=None, hourly_accumulation=False):
+    now = timezone.now()
+    date = now.date()
     if usages is None:
         usages = resource.current_usages
 
@@ -992,28 +994,123 @@ def import_current_usages(resource, usages=None):
         plan_period = get_plan_period(resource, date)
         billing_period = core_utils.month_start(date)
 
-        # Look up by (resource, component, billing_period) only —
-        # plan_period is mutable and should not be part of the identity.
-        existing_qs = models.ComponentUsage.objects.filter(
+        use_accumulation = (
+            hourly_accumulation
+            and offering_component.billing_type == BillingTypes.USAGE
+        )
+
+        if use_accumulation:
+            _accumulate_hourly_usage(
+                resource,
+                offering_component,
+                component_usage,
+                plan_period,
+                billing_period,
+                date,
+                now,
+            )
+        else:
+            _update_high_watermark_usage(
+                resource,
+                offering_component,
+                component_usage,
+                plan_period,
+                billing_period,
+                date,
+            )
+
+
+def _update_high_watermark_usage(
+    resource, offering_component, component_usage, plan_period, billing_period, date
+):
+    """Original high-watermark logic: usage = max(new, existing)."""
+    # Look up by (resource, component, billing_period) only —
+    # plan_period is mutable and should not be part of the identity.
+    existing_qs = models.ComponentUsage.objects.filter(
+        resource=resource,
+        component=offering_component,
+        billing_period=billing_period,
+    )
+    existing = existing_qs.first()
+    if existing:
+        existing_qs.exclude(pk=existing.pk).delete()
+        existing.plan_period = plan_period
+        existing.usage = max(component_usage, existing.usage)
+        existing.save()
+    else:
+        models.ComponentUsage.objects.create(
             resource=resource,
             component=offering_component,
             billing_period=billing_period,
+            plan_period=plan_period,
+            usage=component_usage,
+            date=date,
         )
-        existing = existing_qs.first()
-        if existing:
-            existing_qs.exclude(pk=existing.pk).delete()
-            existing.plan_period = plan_period
-            existing.usage = max(component_usage, existing.usage)
-            existing.save()
-        else:
-            models.ComponentUsage.objects.create(
-                resource=resource,
-                component=offering_component,
-                billing_period=billing_period,
-                plan_period=plan_period,
-                usage=component_usage,
-                date=date,
-            )
+
+
+def _accumulate_hourly_usage(
+    resource,
+    offering_component,
+    component_usage,
+    plan_period,
+    billing_period,
+    date,
+    now,
+):
+    """Hourly accumulation: usage += current_value × hours_since_last_poll."""
+    # Read last poll time from the persistent poll record
+    poll_record = models.ComponentUsagePollRecord.objects.filter(
+        resource=resource,
+        component=offering_component,
+    ).first()
+
+    if poll_record and poll_record.last_poll_time:
+        elapsed_seconds = (now - poll_record.last_poll_time).total_seconds()
+        elapsed_hours = min(elapsed_seconds / 3600.0, 24.0)
+    else:
+        # First poll for this resource+component — default to 1 hour
+        elapsed_hours = 1.0
+
+    increment = decimal.Decimal(str(component_usage)) * decimal.Decimal(
+        str(elapsed_hours)
+    )
+
+    existing_qs = models.ComponentUsage.objects.filter(
+        resource=resource,
+        component=offering_component,
+        billing_period=billing_period,
+    )
+    existing = existing_qs.first()
+    if existing:
+        existing_qs.exclude(pk=existing.pk).delete()
+        existing.plan_period = plan_period
+        new_total = existing.usage + increment
+        existing.usage = new_total
+        existing.save()
+    else:
+        new_total = increment
+        models.ComponentUsage.objects.create(
+            resource=resource,
+            component=offering_component,
+            billing_period=billing_period,
+            plan_period=plan_period,
+            usage=new_total,
+            date=date,
+        )
+
+    # Upsert the poll record for staff observability and next-poll timestamp
+    models.ComponentUsagePollRecord.objects.update_or_create(
+        resource=resource,
+        component=offering_component,
+        defaults={
+            "last_poll_time": now,
+            "raw_usage": component_usage,
+            "elapsed_hours": decimal.Decimal(str(round(elapsed_hours, 2))),
+            "increment": increment,
+            "accumulated_total": new_total,
+            "billing_period": billing_period,
+        },
+    )
 
 
 def get_current_period_usage(resource, limit_period=None):

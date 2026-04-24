@@ -2435,6 +2435,53 @@ class ComponentUsage(
         return ("uuid", "description", "usage", "date", "resource", "component")
 
 
+class ComponentUsagePollRecord(models.Model):
+    """Tracks the latest usage poll state per resource+component for staff debugging.
+
+    One row per (resource, component) — upserted on each poll.
+    Replaces Django cache for last_poll_time tracking and provides
+    staff observability into usage-based billing accumulation.
+    """
+
+    resource = models.ForeignKey(
+        Resource, on_delete=models.CASCADE, related_name="usage_poll_records"
+    )
+    component = models.ForeignKey(OfferingComponent, on_delete=models.CASCADE)
+    last_poll_time = models.DateTimeField(
+        help_text="When this resource+component was last polled."
+    )
+    raw_usage = models.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        help_text="Raw value from the backend API at last poll.",
+    )
+    elapsed_hours = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        help_text="Hours since previous poll (capped at 24h).",
+    )
+    increment = models.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        help_text="raw_usage × elapsed_hours added to the running total.",
+    )
+    accumulated_total = models.DecimalField(
+        max_digits=20,
+        decimal_places=2,
+        help_text="Running total for the current billing period.",
+    )
+    billing_period = models.DateField(help_text="Month this accumulation belongs to.")
+
+    class Meta:
+        unique_together = ("resource", "component")
+
+    def __str__(self):
+        return (
+            f"{self.resource.name} / {self.component.type}: "
+            f"last_poll={self.last_poll_time}, total={self.accumulated_total}"
+        )
+
+
 class ComponentUserUsage(
     TimeStampedModel,
     core_models.DescribableMixin,

@@ -319,3 +319,66 @@ def mark_stuck_updating_tenants_as_erred():
     for tenant in tenants_stuck:
         tenant.set_erred()
         tenant.save(update_fields=["state"])
+
+
+@shared_task(name="openstack.PullTenantUsageQuotas")
+def pull_tenant_usage_quotas(tenant_id):
+    """Pull quotas for a single tenant during usage billing poll."""
+    try:
+        tenant = models.Tenant.objects.get(pk=tenant_id)
+    except models.Tenant.DoesNotExist:
+        logger.warning("Tenant %s not found for usage quota pull", tenant_id)
+        return
+    try:
+        backend = OpenStackBackend(tenant.service_settings)
+        backend.pull_tenant_quotas(tenant)
+    except Exception:
+        logger.exception(
+            "Failed to pull quotas for tenant %s during usage billing poll",
+            tenant.uuid,
+        )
+
+
+@shared_task(name="openstack.TenantUsageBillingPoll")
+def tenant_usage_billing_poll():
+    """Poll quota usage for tenants whose offering uses USAGE billing.
+
+    Runs on a 30-min base tick. Per-offering throttle (via Django cache)
+    ensures each offering is polled at its configured interval.
+    Dispatches a separate Celery task per tenant to leverage multiple workers.
+    """
+    from django.core.cache import cache
+
+    from waldur_mastermind.marketplace import models as marketplace_models
+    from waldur_mastermind.marketplace.enums import (
+        OPENSTACK_TENANT_OFFERING,
+        BillingTypes,
+    )
+
+    offerings = marketplace_models.Offering.objects.filter(
+        type=OPENSTACK_TENANT_OFFERING,
+        components__billing_type=BillingTypes.USAGE,
+    ).distinct()
+
+    for offering in offerings:
+        interval_minutes = offering.plugin_options.get(
+            "usage_poll_interval_minutes", 60
+        )
+        interval_minutes = max(15, min(1440, interval_minutes))
+
+        throttle_key = f"usage_poll_throttle_{offering.uuid}"
+        if not cache.add(throttle_key, True, timeout=interval_minutes * 60):
+            continue
+
+        resources = marketplace_models.Resource.objects.filter(
+            offering=offering,
+            state=marketplace_models.Resource.States.OK,
+        ).prefetch_related("scope")
+
+        for resource in resources:
+            tenant = resource.scope
+            if not tenant or not isinstance(tenant, models.Tenant):
+                continue
+            if tenant.state != CoreStates.OK:
+                continue
+            pull_tenant_usage_quotas.delay(tenant.pk)

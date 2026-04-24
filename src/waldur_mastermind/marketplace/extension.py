@@ -118,4 +118,9 @@ class MarketplaceExtension(WaldurExtension):
                 "schedule": crontab(minute=30, hour=2),  # Run daily at 2:30 AM
                 "args": (),
             },
+            "cleanup_usage_poll_records": {
+                "task": "waldur_mastermind.marketplace.cleanup_usage_poll_records",
+                "schedule": timedelta(days=1),
+                "args": (),
+            },
         }

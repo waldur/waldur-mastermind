@@ -19,6 +19,7 @@ from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
     OPENSTACK_TENANT_OFFERING,
     OPENSTACK_VOLUME_OFFERING,
+    BillingTypes,
     OrderTypes,
 )
 from waldur_mastermind.marketplace.utils import (
@@ -176,7 +177,10 @@ def import_usage(resource: marketplace_models.Resource):
         return
 
     usages = import_quotas(resource.offering, tenant.quota_usages)
-    import_current_usages(resource, usages)
+    has_usage_billing = resource.offering.components.filter(
+        billing_type=BillingTypes.USAGE,
+    ).exists()
+    import_current_usages(resource, usages, hourly_accumulation=has_usage_billing)
 
 
 def import_limits(resource: marketplace_models.Resource):

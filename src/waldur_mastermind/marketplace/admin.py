@@ -758,3 +758,42 @@ admin.site.register(models.Plan, PlanAdmin)
 admin.site.register(models.Resource, ResourceAdmin)
 admin.site.register(models.OfferingUser, OfferingUserAdmin)
 admin.site.register(models.CategoryHelpArticle, CategoryHelpArticleAdmin)
+
+
+class ComponentUsagePollRecordAdmin(admin.ModelAdmin):
+    list_display = (
+        "resource",
+        "component_type",
+        "last_poll_time",
+        "raw_usage",
+        "elapsed_hours",
+        "increment",
+        "accumulated_total",
+        "billing_period",
+    )
+    list_filter = ("billing_period",)
+    search_fields = ("resource__name",)
+    readonly_fields = (
+        "resource",
+        "component",
+        "last_poll_time",
+        "raw_usage",
+        "elapsed_hours",
+        "increment",
+        "accumulated_total",
+        "billing_period",
+    )
+
+    def component_type(self, obj):
+        return obj.component.type
+
+    component_type.short_description = "Component"
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+admin.site.register(models.ComponentUsagePollRecord, ComponentUsagePollRecordAdmin)
