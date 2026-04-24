@@ -113,6 +113,72 @@ def resource_creation_canceled(resource: models.Resource, validate=False):
     return order
 
 
+def resource_restore_succeeded(resource: models.Resource, validate=False):
+    order = set_order_state(
+        resource,
+        OrderTypes.RESTORE,
+        OrderStates.DONE,
+        validate,
+    )
+
+    if resource.state != ResourceStates.OK:
+        resource.set_state_ok()
+        resource.save(update_fields=["state"])
+
+    signals.resource_creation_succeeded.send(sender=models.Resource, instance=resource)
+    event_logger.emit(
+        "Resource {resource_name} has been restored.",
+        event_type=EventType.MARKETPLACE_RESOURCE_CREATE_SUCCEEDED,
+        event_context={"resource": resource},
+        scopes=log.get_resource_scopes(resource),
+    )
+    return order
+
+
+def resource_restore_failed(resource: models.Resource, validate=False):
+    order = set_order_state(
+        resource,
+        OrderTypes.RESTORE,
+        OrderStates.ERRED,
+        validate,
+    )
+    resource.set_state_erred()
+    resource.save(update_fields=["state"])
+
+    if order:
+        copy_error_from_resource_to_order(resource, order)
+
+    event_logger.emit(
+        "Resource {resource_name} restoration has failed.",
+        event_type=EventType.MARKETPLACE_RESOURCE_CREATE_FAILED,
+        event_context={"resource": resource},
+        scopes=log.get_resource_scopes(resource),
+        level="error",
+    )
+    return order
+
+
+def resource_restore_canceled(resource: models.Resource, validate=False):
+    order = set_order_state(
+        resource,
+        OrderTypes.RESTORE,
+        OrderStates.CANCELED,
+        validate,
+    )
+
+    if resource.state != ResourceStates.TERMINATED:
+        resource.set_state_terminated()
+        resource.save(update_fields=["state"])
+
+    event_logger.emit(
+        "Resource {resource_name} restoration has been canceled.",
+        event_type=EventType.MARKETPLACE_RESOURCE_CREATE_CANCELED,
+        event_context={"resource": resource},
+        scopes=log.get_resource_scopes(resource),
+    )
+    return order
+
+
 def resource_update_succeeded(resource: models.Resource, validate=False):
     """
     Handle successful resource update completion.
@@ -487,6 +553,18 @@ OrderHandlers = {
         OrderTypes.TERMINATE,
         OrderStates.CANCELED,
     ): resource_deletion_canceled,
+    (
+        OrderTypes.RESTORE,
+        OrderStates.DONE,
+    ): resource_restore_succeeded,
+    (
+        OrderTypes.RESTORE,
+        OrderStates.ERRED,
+    ): resource_restore_failed,
+    (
+        OrderTypes.RESTORE,
+        OrderStates.CANCELED,
+    ): resource_restore_canceled,
 }
 
 

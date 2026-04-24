@@ -143,6 +143,83 @@ class CallbacksTest(test.APITestCase):
         self.assertEqual(order.error_traceback, error_traceback)
 
 
+@freeze_time("2018-11-01")
+class RestoreCallbacksTest(test.APITestCase):
+    def test_restore_succeeded_transitions_order_to_done(self):
+        resource = factories.ResourceFactory(state=ResourceStates.CREATING)
+        order = factories.OrderFactory(
+            state=OrderStates.EXECUTING,
+            type=OrderTypes.RESTORE,
+            resource=resource,
+        )
+
+        callbacks.resource_restore_succeeded(resource)
+
+        order.refresh_from_db()
+        self.assertEqual(order.state, OrderStates.DONE)
+
+    def test_restore_succeeded_sets_resource_ok(self):
+        resource = factories.ResourceFactory(state=ResourceStates.CREATING)
+        factories.OrderFactory(
+            state=OrderStates.EXECUTING,
+            type=OrderTypes.RESTORE,
+            resource=resource,
+        )
+
+        callbacks.resource_restore_succeeded(resource)
+
+        resource.refresh_from_db()
+        self.assertEqual(resource.state, ResourceStates.OK)
+
+    def test_restore_failed_sets_resource_erred(self):
+        resource = factories.ResourceFactory(state=ResourceStates.CREATING)
+        order = factories.OrderFactory(
+            state=OrderStates.EXECUTING,
+            type=OrderTypes.RESTORE,
+            resource=resource,
+        )
+
+        callbacks.resource_restore_failed(resource)
+
+        order.refresh_from_db()
+        self.assertEqual(order.state, OrderStates.ERRED)
+
+        resource.refresh_from_db()
+        self.assertEqual(resource.state, ResourceStates.ERRED)
+
+    def test_restore_canceled_sets_resource_terminated(self):
+        resource = factories.ResourceFactory(state=ResourceStates.CREATING)
+        order = factories.OrderFactory(
+            state=OrderStates.EXECUTING,
+            type=OrderTypes.RESTORE,
+            resource=resource,
+        )
+
+        callbacks.resource_restore_canceled(resource)
+
+        order.refresh_from_db()
+        self.assertEqual(order.state, OrderStates.CANCELED)
+
+        resource.refresh_from_db()
+        self.assertEqual(resource.state, ResourceStates.TERMINATED)
+
+    def test_sync_order_state_dispatches_restore_done(self):
+        resource = factories.ResourceFactory(state=ResourceStates.CREATING)
+        order = factories.OrderFactory(
+            state=OrderStates.EXECUTING,
+            type=OrderTypes.RESTORE,
+            resource=resource,
+        )
+
+        callbacks.sync_order_state(order, OrderStates.DONE)
+
+        order.refresh_from_db()
+        self.assertEqual(order.state, OrderStates.DONE)
+
+        resource.refresh_from_db()
+        self.assertEqual(resource.state, ResourceStates.OK)
+
+
 class LimitUpdateTriggersPolicyReevaluationTest(test.APITestCase):
     def setUp(self):
         self.offering = factories.OfferingFactory(
