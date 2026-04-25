@@ -659,15 +659,49 @@ def terminate_resource(serialized_resource, serialized_user):
     name="waldur_mastermind.marketplace.terminate_resources_if_project_end_date_has_been_reached"
 )
 def terminate_resources_if_project_end_date_has_been_reached():
-    """Terminate resources when their project has reached its end date (including grace period)."""
+    """Terminate resources when their project has reached its end date (including grace period).
+
+    Also pauses resources for projects currently in the grace period,
+    if the offering has supports_pausing=True in plugin_options.
+    """
     today = timezone.datetime.today().date()
 
+    # Pause resources for projects currently IN grace period
+    for project in structure_models.Project.available_objects.exclude(
+        end_date__isnull=True
+    ):
+        if project.is_in_grace_period:
+            resources_to_pause = models.Resource.objects.filter(
+                project=project,
+                offering__plugin_options__supports_pausing=True,
+                paused=False,
+            ).exclude(
+                state__in=(ResourceStates.TERMINATED, ResourceStates.TERMINATING),
+            )
+            for resource in resources_to_pause:
+                resource.paused = True
+                resource.save(update_fields=["paused"])
+                logger.info(
+                    "Resource %s paused due to project %s entering grace period",
+                    resource.uuid,
+                    project.uuid,
+                )
+                event_logger.emit(
+                    "Resource {resource_name} has been paused because "
+                    "project {project_name} has entered the grace period.",
+                    event_type=EventType.MARKETPLACE_RESOURCE_PAUSED,
+                    event_context={
+                        "resource": resource,
+                        "project": project,
+                    },
+                    scopes=[resource, project, project.customer],
+                )
+
     # Find projects where the effective end date (including grace period) has passed
-    # Use iterator for memory efficiency with large project counts
     expired_projects = []
     for project in structure_models.Project.available_objects.exclude(
         end_date__isnull=True
-    ).iterator(chunk_size=100):
+    ):
         if (
             project.get_effective_end_date()
             and project.get_effective_end_date() <= today

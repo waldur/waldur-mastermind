@@ -282,6 +282,64 @@ class ProjectEndDateTest(test.APITestCase):
         self.fixture.project.refresh_from_db()
 
 
+class GracePeriodPausingTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        # Project end_date in the past, but grace period extends beyond today
+        self.fixture.project.end_date = datetime.date(2020, 1, 1)
+        self.fixture.project.grace_period_days = 30
+        self.fixture.project.save()
+        self.fixture.resource.set_state_ok()
+        self.fixture.resource.save()
+
+    @freeze_time("2020-01-15")
+    def test_resource_is_paused_when_project_in_grace_period_and_offering_opts_in(self):
+        self.fixture.offering.plugin_options = {"supports_pausing": True}
+        self.fixture.offering.save()
+
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+
+        self.fixture.resource.refresh_from_db()
+        self.assertTrue(self.fixture.resource.paused)
+
+    @freeze_time("2020-01-15")
+    def test_resource_stays_active_when_offering_opts_out(self):
+        self.fixture.offering.plugin_options = {"supports_pausing": False}
+        self.fixture.offering.save()
+
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+
+        self.fixture.resource.refresh_from_db()
+        self.assertFalse(self.fixture.resource.paused)
+
+    @freeze_time("2020-01-15")
+    def test_already_paused_resource_is_not_saved_again(self):
+        self.fixture.offering.plugin_options = {"supports_pausing": True}
+        self.fixture.offering.save()
+        self.fixture.resource.paused = True
+        self.fixture.resource.save()
+
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+
+        self.fixture.resource.refresh_from_db()
+        self.assertTrue(self.fixture.resource.paused)
+
+    @freeze_time("2020-02-01")
+    def test_resources_terminated_after_grace_period_ends(self):
+        """After effective_end_date passes, resources are terminated regardless of supports_pausing."""
+        self.fixture.offering.plugin_options = {"supports_pausing": True}
+        self.fixture.offering.save()
+
+        tasks.terminate_resources_if_project_end_date_has_been_reached()
+
+        self.assertTrue(
+            models.Order.objects.filter(
+                resource=self.fixture.resource,
+                type=OrderTypes.TERMINATE,
+            ).exists()
+        )
+
+
 @override_config(ENABLE_STALE_RESOURCE_NOTIFICATIONS=True)
 class NotificationAboutStaleResourceTest(test.APITestCase):
     def setUp(self):

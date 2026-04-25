@@ -140,6 +140,14 @@ def evaluate_resource_against_policy(resource_uuid: str, policy_uuid: str):
         ):
             actions_needed.append("pause")
 
+        # Also pause if project is in grace period and offering supports pausing
+        if (
+            resource.project.is_in_grace_period
+            and resource.offering.plugin_options.get("supports_pausing")
+            and "pause" not in actions_needed
+        ):
+            actions_needed.append("pause")
+
         # Check for downscaling (independent of pausing)
         if (
             usage_percentage >= 100
@@ -169,11 +177,21 @@ def evaluate_resource_against_policy(resource_uuid: str, policy_uuid: str):
                         f"Resource {resource.uuid} paused due to {usage_percentage:.1f}% usage"
                     )
             elif resource.paused and usage_percentage < grace_limit_percentage:
-                resource.paused = False
-                resource.save()
-                logger.info(
-                    f"Resource {resource.uuid} pause removed - usage {usage_percentage:.1f}% below grace limit"
+                # Don't unpause if project is in grace period and offering supports pausing
+                in_lifecycle_grace = (
+                    resource.project.is_in_grace_period
+                    and resource.offering.plugin_options.get("supports_pausing")
                 )
+                if not in_lifecycle_grace:
+                    resource.paused = False
+                    resource.save()
+                    logger.info(
+                        f"Resource {resource.uuid} pause removed - usage {usage_percentage:.1f}% below grace limit"
+                    )
+                else:
+                    logger.info(
+                        f"Resource {resource.uuid} remains paused - project in grace period"
+                    )
 
             # Handle downscaling
             if "downscale" in actions_needed:
