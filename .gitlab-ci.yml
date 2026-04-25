@@ -607,6 +607,9 @@ Generate OpenAPI schema:
   stage: deploy
   interruptible: true
   rules:
+    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
   # Use a stock Python image — uv sync installs all required deps.
@@ -663,6 +666,9 @@ Generate TypeScript SDK:
   stage: deploy
   interruptible: true
   rules:
+    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   image: registry.hpc.ut.ee/mirror/library/node:lts-alpine
   needs:
@@ -681,6 +687,9 @@ Generate Python SDK:
   stage: deploy
   interruptible: true
   rules:
+    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
   needs:
@@ -698,6 +707,9 @@ Generate Go SDK:
   stage: deploy
   interruptible: true
   rules:
+    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   image: registry.hpc.ut.ee/mirror/library/golang:tip-alpine
   needs:
@@ -726,6 +738,9 @@ Upload Go SDK:
   stage: postdeploy
   interruptible: true
   rules:
+    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   image:
     name: registry.hpc.ut.ee/mirror/alpine/git:latest
@@ -746,6 +761,9 @@ Upload Python SDK:
   stage: postdeploy
   interruptible: true
   rules:
+    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   image:
     name: registry.hpc.ut.ee/mirror/alpine/git:latest
@@ -856,6 +874,9 @@ Upload HomePort enums:
   stage: postdeploy
   interruptible: true
   rules:
+    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
   variables:
@@ -901,6 +922,9 @@ Upload TypeScript SDK:
   stage: postdeploy
   interruptible: true
   rules:
+    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   image:
     name: registry.hpc.ut.ee/mirror/alpine/git:latest
@@ -922,6 +946,9 @@ Generate Ansible modules:
   stage: deploy
   interruptible: true
   rules:
+    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
+      when: never
     # Run for both tagged releases and scheduled dev releases
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
@@ -971,6 +998,9 @@ Generate Ansible module changelog:
   needs:
     - Generate Ansible modules
   rules:
+    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
+      when: never
     # Run under the same conditions as the generator job
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
@@ -1124,6 +1154,9 @@ Upload Ansible module:
       - api_failure
       - scheduler_failure
   rules:
+    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
+      when: never
     # Run for both tagged releases and scheduled dev releases
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
@@ -1167,6 +1200,9 @@ Publish Ansible Galaxy collection:
   stage: postdeploy
   interruptible: true
   rules:
+    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
+      when: never
     # Run for both tagged releases and scheduled dev releases
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
@@ -1263,6 +1299,9 @@ Update SDK docs generator schema:
     - job: Generate OpenAPI schema
       artifacts: true # This is crucial to get the schema file from the previous job
   rules:
+    # SDK release jobs require explicit opt-in via BUILD_SDK on the schedule
+    - if: '$CI_PIPELINE_SOURCE == "schedule" && $BUILD_SDK != "true" && $BUILD_SDK != "yes"'
+      when: never
     # Run under the exact same conditions as the 'Generate OpenAPI schema' job
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
