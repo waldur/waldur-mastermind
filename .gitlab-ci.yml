@@ -600,9 +600,20 @@ Generate OpenAPI schema:
   rules:
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
     - if: '$CI_COMMIT_TAG =~ /^\d+\.\d+\.\d+$/'
-  image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
+  # Use a stock Python image — uv sync installs all required deps.
+  # Decoupled from "Build docker image for tests" so SDK release pipelines
+  # don't block on test image build/push.
+  image: registry.hpc.ut.ee/mirror/library/python:3.13-slim
+  needs: []
   variables:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
+    UV_CACHE_DIR: .uv-cache
+  cache:
+    key:
+      files:
+        - uv.lock
+    paths:
+      - .uv-cache/
   before_script:
     # Ensure the CI runner has all tags from the remote repository
     - git fetch --tags
