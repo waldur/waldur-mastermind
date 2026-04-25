@@ -94,6 +94,9 @@ Validate documentation:
   stage: test
   interruptible: true
   rules:
+    # Skip on SDK-only scheduled pipelines
+    - if: '$SKIP_BUILD == "true" || $SKIP_BUILD == "yes"'
+      when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
         - docs/**/*
@@ -375,6 +378,9 @@ Build docker image for tests:
   interruptible: true
   image: "quay.io/buildah/stable"
   rules:
+    # Skip on SDK-only scheduled pipelines
+    - if: '$SKIP_BUILD == "true" || $SKIP_BUILD == "yes"'
+      when: never
     # If scheduled pipeline for 'develop' branch is set up
     - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "schedule"'
   variables:
@@ -507,6 +513,9 @@ Upload configuration guide:
   stage: postdeploy
   interruptible: true
   rules:
+    # Skip on SDK-only scheduled pipelines
+    - if: '$SKIP_BUILD == "true" || $SKIP_BUILD == "yes"'
+      when: never
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "schedule"'
   image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
   variables:
