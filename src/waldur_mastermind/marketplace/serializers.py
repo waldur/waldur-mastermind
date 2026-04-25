@@ -4974,6 +4974,7 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
             "project_description",
             "project_end_date",
             "project_effective_end_date",
+            "project_is_in_grace_period",
             "project_end_date_requested_by",
             "customer_uuid",
             "customer_name",
@@ -5065,6 +5066,11 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         allow_null=True,
         source="project.end_date_with_grace",
         help_text="Effective project end date including grace period. After this date, resources will be terminated.",
+    )
+    project_is_in_grace_period = serializers.BooleanField(
+        read_only=True,
+        source="project.is_in_grace_period",
+        help_text="True if the project is past its end date but still within the grace period.",
     )
     project_end_date_requested_by = serializers.HyperlinkedRelatedField(
         source="project.end_date_requested_by",
