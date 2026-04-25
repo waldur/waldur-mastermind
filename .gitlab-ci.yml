@@ -624,6 +624,8 @@ Generate OpenAPI schema:
     paths:
       - .uv-cache/
   before_script:
+    # python:3.13-slim does not include git; required for git fetch --tags below
+    - apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
     # Ensure the CI runner has all tags from the remote repository
     - git fetch --tags
   script:
