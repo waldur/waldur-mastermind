@@ -94,8 +94,8 @@ Validate documentation:
   stage: test
   interruptible: true
   rules:
-    # Skip on SDK-only scheduled pipelines
-    - if: '$SKIP_BUILD == "true" || $SKIP_BUILD == "yes"'
+    # Skip on schedules that opt out of docs jobs (e.g. SDK-only release)
+    - if: '$SKIP_DOCS == "true" || $SKIP_DOCS == "yes"'
       when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes:
@@ -513,8 +513,8 @@ Upload configuration guide:
   stage: postdeploy
   interruptible: true
   rules:
-    # Skip on SDK-only scheduled pipelines
-    - if: '$SKIP_BUILD == "true" || $SKIP_BUILD == "yes"'
+    # Skip on schedules that opt out of docs jobs (e.g. SDK-only release)
+    - if: '$SKIP_DOCS == "true" || $SKIP_DOCS == "yes"'
       when: never
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH && $CI_PIPELINE_SOURCE == "schedule"'
   image: registry.hpc.ut.ee/mirror/$WALDUR_MASTERMIND_TEST_IMAGE
