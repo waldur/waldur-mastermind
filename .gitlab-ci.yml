@@ -612,7 +612,7 @@ Generate OpenAPI schema:
   # Use a stock Python image — uv sync installs all required deps.
   # Decoupled from "Build docker image for tests" so SDK release pipelines
   # don't block on test image build/push.
-  image: registry.hpc.ut.ee/mirror/library/python:3.13-slim
+  image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
   needs: []
   variables:
     DJANGO_SETTINGS_MODULE: waldur_core.server.doc_settings
@@ -624,8 +624,11 @@ Generate OpenAPI schema:
     paths:
       - .uv-cache/
   before_script:
-    # python:3.13-slim does not include git; required for git fetch --tags below
-    - apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+    # System deps needed by some Python packages — mirrors tests/Dockerfile so
+    # uv sync can build python-ldap / load python-magic / parse xmlsec etc.
+    - apt-get update && apt-get install -y --no-install-recommends
+      libldap2-dev libsasl2-dev ldap-utils xmlsec1 libmagic1 python3-dev
+      && rm -rf /var/lib/apt/lists/*
     # Ensure the CI runner has all tags from the remote repository
     - git fetch --tags
   script:
