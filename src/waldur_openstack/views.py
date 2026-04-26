@@ -273,6 +273,15 @@ class HypervisorViewSet(structure_views.BaseServicePropertyViewSet):
             "Return aggregated vCPU, RAM and disk totals across all hypervisors "
             "matching the current filter (e.g. settings_uuid)."
         ),
+        parameters=[
+            OpenApiParameter(
+                "settings_uuid",
+                OpenApiTypes.UUID,
+                OpenApiParameter.QUERY,
+                required=True,
+                description="UUID of the OpenStack ServiceSettings to aggregate over.",
+            ),
+        ],
         responses={200: serializers.HypervisorSummarySerializer},
     )
     @decorators.action(detail=False, methods=["get"])
