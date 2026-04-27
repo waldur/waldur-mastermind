@@ -218,7 +218,17 @@ class LimitPeriodProcessor:
         if diff == 0:
             return
 
-        plan_component = resource.plan.components.get(component__type=component_type)
+        try:
+            plan_component = resource.plan.components.get(
+                component__type=component_type
+            )
+        except ObjectDoesNotExist:
+            logger.warning(
+                "Skipping processing of invoice item %s because "
+                "plan component is not defined.",
+                component_type,
+            )
+            return
         details = get_component_details(resource, plan_component)
 
         start = timezone.now()
