@@ -8672,7 +8672,10 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     queryset = (
         models.ComponentUsage.objects.all()
         .select_related(
+            "component",
             "resource__offering__customer",
+            "resource__project__customer",
+            "plan_period__plan__offering",
         )
         .order_by("-date", "component__type")
     )
