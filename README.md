@@ -2,31 +2,33 @@
 
 # Waldur MasterMind
 
-Waldur is a cloud management, orchestration and accounting system. Used in government clouds, universities, HPC centres and mid-to-large enterprises.
+Waldur is an open-source platform for cloud management, orchestration, accounting, and a self-service marketplace. It is used by government clouds, universities, HPC centres, research infrastructures, and mid-to-large enterprises.
 
-Common uses include:
+Common use cases:
 
-* HPC centres
-* Private and public cloud
-* Service marketplace
-* Federated infrastructure
+* HPC and research computing centres
+* Private and public cloud service providers
+* Federated infrastructures and resource brokers
+* Internal service marketplaces
 
 [![Docs](https://img.shields.io/badge/Docs-docs.waldur.com-green)](https://docs.waldur.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Python](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
 
 ![Waldur Screenshot](https://docs.waldur.com/latest/about/img/Organization-dashboard.png)
 
 ## Features
 
-* User self-service
-* Service Desk with Atlassian Service Desk
-* Support of multiple authentication and authorization mechanisms
-* Billing and fine grained accounting
+* Self-service marketplace with order management and approval workflows
+* Fine-grained accounting, billing, and credit management
+* Multi-tenant organizations, projects, and role-based permissions
+* Pluggable authentication (SAML2, OIDC/social, Keycloak, FreeIPA, and more)
+* Built-in support desk with pluggable backends
+* REST API and OpenAPI schema for full automation
 
-Automated provisioning:
+## Supported integrations
 
-* OpenStack
-* SLURM
-* Kubernetes clusters using Rancher
+Waldur integrates with a wide range of cloud, HPC, container, and identity providers. See the full list at [waldur.com/integrations](https://waldur.com/integrations/).
 
 ## Quick install guide
 
@@ -36,15 +38,15 @@ Automated provisioning:
 
 ## Documentation
 
-Administration and usage guides can be found at [documentation site](http://docs.waldur.com).
+Administration and usage guides are available at the [documentation site](https://docs.waldur.com). Developer-oriented guides live in [`docs/guides/`](docs/guides/).
 
 ## License
 
-Waldur MasterMind is released under MIT license.
+Waldur MasterMind is released under the MIT license.
 
 ## Contribution
 
-Waldur is an open-source project co-developed by OpenNode and University of Tartu. [Contribution](https://docs.waldur.com/latest/about/contributing/) rules are maintained at documentation website.
+Waldur is an open-source project co-developed by OpenNode and the University of Tartu. [Contribution](https://docs.waldur.com/latest/about/contributing/) rules are maintained on the documentation website.
 
 ## Commercial support
 
