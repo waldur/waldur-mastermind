@@ -14,6 +14,7 @@ BLOCK_KINDS = (
     "vm_order",
     "resource_list",
     "homeport_nav",
+    "ask_user_form",
     "tool",
 )
 
@@ -32,6 +33,12 @@ class _TextBlockSerializer(_BaseBlockSerializer):
 
 
 class _VmOrderBlockSerializer(_BaseBlockSerializer):
+    """vm_order surfaces three terminal states emitted by plan_vm/create_vm:
+    `preview` (config card before commit), `success` (post-create), and
+    `error` (validation_error rendering). Selection-style states moved to
+    ``ask_user_form`` when WAL-9884 collapsed list/preview/form into plan_vm.
+    """
+
     order_id = serializers.CharField(required=False, allow_blank=True)
     name = serializers.CharField(required=False, allow_blank=True)
     flavor = serializers.CharField(required=False, allow_blank=True)
@@ -42,10 +49,9 @@ class _VmOrderBlockSerializer(_BaseBlockSerializer):
     order_status = serializers.CharField(required=False, allow_blank=True)
     message = serializers.CharField(required=False, allow_blank=True)
     error = serializers.CharField(required=False, allow_blank=True)
-    flavors = serializers.ListField(required=False, child=serializers.DictField())
-    images = serializers.ListField(required=False, child=serializers.DictField())
-    projects = serializers.ListField(required=False, child=serializers.DictField())
-    offerings = serializers.ListField(required=False, child=serializers.DictField())
+    network = serializers.CharField(required=False, allow_blank=True)
+    ssh_key_name = serializers.CharField(required=False, allow_blank=True)
+    system_volume_size = serializers.IntegerField(required=False, allow_null=True)
 
 
 class _ResourceListBlockSerializer(_BaseBlockSerializer):
@@ -62,6 +68,18 @@ class _HomeportNavBlockSerializer(_BaseBlockSerializer):
 
     links = serializers.ListField(child=serializers.DictField())
     content = serializers.CharField(required=False, allow_blank=True)
+
+
+class _AskUserFormBlockSerializer(_BaseBlockSerializer):
+    """Question form emitted by ``ask_user`` and ``plan_vm``.
+
+    Per-question shape (id, question, options, multiSelect, header) is
+    validated by ``AskUserTool.execute`` before the block is enqueued, so
+    here we only need a permissive list. `context` is optional.
+    """
+
+    questions = serializers.ListField(child=serializers.DictField())
+    context = serializers.CharField(required=False, allow_blank=True)
 
 
 class _ToolMetadataSerializer(serializers.Serializer):
@@ -90,6 +108,7 @@ _KIND_TO_SERIALIZER = {
     "vm_order": _VmOrderBlockSerializer,
     "resource_list": _ResourceListBlockSerializer,
     "homeport_nav": _HomeportNavBlockSerializer,
+    "ask_user_form": _AskUserFormBlockSerializer,
     "tool": _ToolBlockSerializer,
 }
 

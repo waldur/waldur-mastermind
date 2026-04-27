@@ -250,3 +250,31 @@ class ToolAccessLevelTest(AccessLevelBaseTest):
             format="json",
         )
         self.assertNotEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @override_constance_config(
+        **AI_ASSISTANT_ENABLED_CONFIG, AI_ASSISTANT_ENABLED_ROLES="all"
+    )
+    def test_regular_user_cannot_invoke_staff_only_tool(self):
+        """
+        Regression: tool execute endpoint must intersect the requested tool
+        with the caller's permitted tool set. ``get_user_overview`` is in
+        STAFF_TOOLS / SUPPORT_TOOLS only — never in END_USER_TOOLS — so a
+        regular user must not be able to invoke it directly even when access
+        to the chat feature itself is open to "all".
+        """
+        victim = structure_factories.UserFactory(email="victim@example.com")
+
+        self.client.force_authenticate(user=self.regular_user)
+        response = self.client.post(
+            self.tool_execute_url,
+            data={
+                "tool": "get_user_overview",
+                "arguments": {"user_email": victim.email},
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        # And critically: no victim data must leak in the response body.
+        body = response.json() if response.content else {}
+        self.assertNotIn("data", body)

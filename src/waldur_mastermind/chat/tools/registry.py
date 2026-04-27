@@ -1,7 +1,7 @@
 import logging
 
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
-from waldur_mastermind.chat.tools.enums import ToolName
+from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 
 logger = logging.getLogger(__name__)
 
@@ -16,11 +16,44 @@ class ToolRegistry:
     def __init__(self):
         self._tools: dict[ToolName, BaseTool] = {}
 
+    # Tools that opt out of the category taxonomy. They are always
+    # available, never appear in the category-grouped catalog, and are
+    # excluded from search_tools fetches. Keep this set tiny — every entry
+    # ships unconditionally and bypasses lazy-loading.
+    _META_TOOL_NAMES: set[ToolName] = {ToolName.SEARCH_TOOLS, ToolName.ASK_USER}
+
     def register(self, tool: BaseTool) -> None:
-        """Register a tool instance."""
+        """Register a tool instance.
+
+        Every non-meta tool must declare a ``ToolCategory`` on its
+        ``definition``. Only the meta-tools listed in ``_META_TOOL_NAMES``
+        are allowed to have ``category=None``.
+        """
+        if (
+            tool.definition.category is None
+            and tool.definition.name not in self._META_TOOL_NAMES
+        ):
+            raise ValueError(
+                f"Tool {tool.definition.name.value!r} must declare a "
+                "ToolCategory on its ToolDefinition (only meta-tools may "
+                "omit it)."
+            )
         if tool.name in self._tools:
             logger.warning("Tool %s already registered, overwriting", tool.name)
         self._tools[tool.name] = tool
+
+    def tools_by_category(self, category: ToolCategory) -> list[BaseTool]:
+        """Return all registered tools whose definition.category == category.
+
+        Preserves registration order. Tools with category=None (the meta
+        tool ``search_tools``) are never returned — they opt out of the
+        taxonomy.
+        """
+        return [
+            tool
+            for tool in self._tools.values()
+            if tool.definition.category == category
+        ]
 
     def get(self, name: str | ToolName) -> BaseTool | None:
         """Look up a tool by its enum member or raw string value.
@@ -77,36 +110,88 @@ class ToolRegistry:
     def get_tools_prompt(self, tool_names: list[ToolName] | None = None) -> str:
         """Auto-assemble the tools section of the system prompt.
 
-        Generates behavioral guidance sections from registered tools:
-        1. TOOL USAGE GUIDELINES: per-tool usage_instructions (when/when-not to use).
-        2. WORKFLOWS: per-tool workflow_instructions (multi-step sequences).
+        Lazy-load architecture: the prompt ships a one-line catalog of
+        every permitted tool plus cross-tool workflow guidance. Full
+        usage_instructions are NOT inlined — the LLM fetches them via
+        ``search_tools`` when it decides which tool(s) it wants to
+        invoke. Tool schemas also arrive via search_tools, not here.
 
-        Tool schemas are passed via the API ``tools`` parameter, not injected here.
-        Sections are omitted if no tools define those fragments.
+        Sections emitted:
+        1. TOOL CATALOG: name + one-line description, one row per tool.
+        2. WORKFLOWS: cross-tool workflow_instructions (funnels, phases,
+           patterns that span multiple tools). Kept inline because the
+           LLM needs them to know which catalog entries to fetch.
 
         Args:
-            tool_names: If provided, only include tools whose names are in this
-                list. ``None`` (default) includes all tools.
+            tool_names: If provided, only include tools whose names are
+                in this list. ``None`` (default) includes all tools.
         """
         if not self._tools:
             return ""
 
         tools = self._filter_tools(tool_names)
 
-        sections = []
+        sections: list[str] = []
 
-        # Section 1: Per-tool usage guidelines
-        usage_parts = [
-            tool.definition.usage_instructions
-            for tool in tools
-            if tool.definition.usage_instructions.strip()
-        ]
-        if usage_parts:
+        # Section 1: Catalog, grouped by ToolCategory. Uncategorised tools
+        # (search_tools itself) are excluded — the LLM always has
+        # search_tools available and never needs to fetch its schema.
+        # Each catalog entry is the tool's own ToolDefinition.description,
+        # which must stay short and parameter-free: it is also what the
+        # LLM sees on the OpenAI function spec after search_tools loads
+        # the schema, so one string has to serve both surfaces.
+        tools_by_cat: dict[ToolCategory, list[BaseTool]] = {
+            cat: [] for cat in ToolCategory
+        }
+        for tool in tools:
+            cat = tool.definition.category
+            if cat is None:
+                continue
+            tools_by_cat[cat].append(tool)
+
+        catalog_sections: list[str] = []
+        for cat in ToolCategory:
+            bucket = tools_by_cat[cat]
+            if not bucket:
+                continue
+            lines = [f"## {cat.value}"]
+            for tool in bucket:
+                lines.append(
+                    f"- `{tool.definition.name.value}`: {tool.definition.description}"
+                )
+            catalog_sections.append("\n".join(lines))
+
+        if catalog_sections:
             sections.append(
-                "=== TOOL USAGE GUIDELINES ===\n" + "\n\n".join(usage_parts)
+                "=== TOOL CALLING CONTRACT ===\n"
+                "Before calling any categorised tool, call "
+                "`search_tools(categories=[...])` to load the schemas for "
+                "the categories whose tools you plan to use. Load every "
+                "category you expect to need this turn in one call "
+                "(e.g. `search_tools(categories=['marketplace','vm'])` for "
+                "a discovery-then-provision flow) — repeated search_tools "
+                "calls waste rounds. The catalog below lists tools grouped "
+                "by category with short hints only; parameters, return "
+                "shapes, and error conditions are unknown until loaded. "
+                "Calling an unloaded tool is rejected; never guess argument "
+                "shapes.\n"
+                "\n"
+                "Two meta-tools are ALWAYS available and do not appear in "
+                "the catalog: `search_tools` (load categorised tool schemas) "
+                "and `ask_user` (ask the user 1–4 multiple-choice or free-"
+                "form questions when you lack needed detail).\n"
+                "\n"
+                "VM creation: any 'create a VM' / 'spin up a VM' / 'set up "
+                "a server' intent → load the `vm` category and call "
+                "`plan_vm`. Never use `ask_user` to ask about projects, "
+                "offerings, flavors, or images yourself — `plan_vm` builds "
+                "those forms with the correct server-side filters.\n"
+                "\n"
+                "=== TOOL CATALOG ===\n" + "\n\n".join(catalog_sections)
             )
 
-        # Section 2: Per-tool workflow instructions
+        # Section 2: Cross-tool workflow guidance (stays inline — needed
+        # so the LLM knows which catalog entries to fetch for a flow).
         workflow_parts = [
             tool.definition.workflow_instructions
             for tool in tools

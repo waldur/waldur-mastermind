@@ -2,6 +2,7 @@ import logging
 import re
 import uuid as uuid_module
 
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import PermissionDenied
 from django.db import models as django_models
 from django.urls import reverse
@@ -12,7 +13,7 @@ from waldur_core.core.models import SshPublicKey
 from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure.managers import filter_queryset_for_user
-from waldur_core.structure.models import Project
+from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.utils import (
     check_customer_blocked_or_archived,
     check_project_end_date,
@@ -29,26 +30,43 @@ from waldur_openstack.models import Flavor, Image, SecurityGroup, SubNet, Tenant
 logger = logging.getLogger(__name__)
 
 
-def get_project(user, project_uuid: str) -> Project:
-    """Resolve project by UUID or name, and verify user has permission to create resources."""
-    if not project_uuid:
-        raise ValueError(
-            "No project specified. Please tell me which project you'd like to create the VM in."
-        )
+def get_project(user, project_uuid: str = "", project_name: str = "") -> Project:
+    """Resolve a Project the user can access by UUID or name.
+
+    Pass at least one of ``project_uuid`` or ``project_name``. UUID is
+    preferred when both are given. Raises ``ValueError`` with a friendly
+    message when nothing matches or the user has no access; the caller
+    catches this and shapes a ``validation_error`` response.
+
+    Splits the legacy hybrid behaviour (one ``project_uuid`` arg that
+    quietly accepted UUID-or-name) into explicit args, matching the
+    marketplace tool convention.
+    """
+    project_uuid = (project_uuid or "").strip()
+    project_name = (project_name or "").strip()
+
+    if not project_uuid and not project_name:
+        raise ValueError("Pass at least one of project_uuid or project_name.")
 
     accessible = filter_queryset_for_user(Project.objects.all(), user)
 
-    try:
-        uuid_obj = uuid_module.UUID(project_uuid)
+    if project_uuid:
+        try:
+            uuid_obj = uuid_module.UUID(project_uuid)
+        except (ValueError, AttributeError, TypeError):
+            raise ValueError(f"Invalid UUID: {project_uuid}") from None
         project = accessible.filter(uuid=uuid_obj).first()
-    except (ValueError, AttributeError, TypeError):
-        # Not a valid UUID — treat as project name
-        project = accessible.filter(name__iexact=project_uuid).first()
+    else:
+        # name__iexact preserves the existing matching semantics — VM
+        # creation demands an exact match (no fuzzy LLM-side fallback)
+        # since wrong project means resources land in the wrong tenant.
+        project = accessible.filter(name__iexact=project_name).first()
 
     if not project:
+        ref = project_uuid or project_name
         raise ValueError(
-            f"Project '{project_uuid}' not found or you don't have access. "
-            "Try 'show my resources' to see available projects."
+            f"Project '{ref}' not found or you don't have access. "
+            "Call plan_vm to see the projects you can deploy into."
         )
 
     # Check if user has permission to create resources in this project.
@@ -529,50 +547,78 @@ def format_vm_offering_form(name: str, project: Project, offerings) -> dict:
 
 
 def format_vm_preview(
-    name: str, project: Project, flavor: Flavor, image: Image
+    name: str,
+    project: Project,
+    flavor: Flavor,
+    image: Image,
+    network: str = None,
+    ssh_key_name: str = None,
+    system_volume_size: int = None,
 ) -> dict:
     """Format a VM preview response for user confirmation."""
     ram_gb = flavor.ram / 1024  # Convert MiB to GB
     flavor_display = f"{flavor.name} ({flavor.cores} vCPU, {ram_gb:.0f}GB RAM)"
 
+    ui_data = {
+        "name": name,
+        "flavor": flavor_display,
+        "image": image.name,
+        "status": "preview",
+        "project": project.name,
+        "organization": project.customer.name,
+        "project_uuid": str(project.uuid),
+    }
+    if network:
+        ui_data["network"] = network
+    if ssh_key_name:
+        ui_data["ssh_key_name"] = ssh_key_name
+    if system_volume_size:
+        ui_data["system_volume_size"] = system_volume_size
+
     return {
         "type": "success",
         "summary": "VM preview ready for confirmation",
         "ui_component": "vm_order",
-        "ui_data": {
-            "name": name,
-            "flavor": flavor_display,
-            "image": image.name,
-            "status": "preview",
-            "project": project.name,
-            "organization": project.customer.name,
-            "project_uuid": str(project.uuid),
-        },
+        "ui_data": ui_data,
     }
 
 
 def format_vm_success(
-    order: Order, flavor: Flavor, image: Image, project: Project
+    order: Order,
+    flavor: Flavor,
+    image: Image,
+    project: Project,
+    network: str = None,
+    ssh_key_name: str = None,
+    system_volume_size: int = None,
 ) -> dict:
     """Format a successful VM creation order response."""
     ram_gb = flavor.ram / 1024  # Convert MiB to GB
     flavor_display = f"{flavor.name} ({flavor.cores} vCPU, {ram_gb:.0f}GB RAM)"
 
+    ui_data = {
+        "order_id": str(order.uuid),
+        "name": order.attributes.get("name", ""),
+        "flavor": flavor_display,
+        "image": image.name,
+        "status": "success",
+        "message": f"VM '{order.attributes.get('name', '')}' order created successfully. Your VM will be provisioned once approved.",
+        "project": project.name,
+        "organization": project.customer.name,
+        "project_uuid": str(project.uuid),
+    }
+    if network:
+        ui_data["network"] = network
+    if ssh_key_name:
+        ui_data["ssh_key_name"] = ssh_key_name
+    if system_volume_size:
+        ui_data["system_volume_size"] = system_volume_size
+
     return {
         "type": "success",
         "summary": "VM creation order submitted successfully",
         "ui_component": "vm_order",
-        "ui_data": {
-            "order_id": str(order.uuid),
-            "name": order.attributes.get("name", ""),
-            "flavor": flavor_display,
-            "image": image.name,
-            "status": "success",
-            "message": f"VM '{order.attributes.get('name', '')}' order created successfully. Your VM will be provisioned once approved.",
-            "project": project.name,
-            "organization": project.customer.name,
-            "project_uuid": str(project.uuid),
-        },
+        "ui_data": ui_data,
     }
 
 
@@ -593,5 +639,243 @@ def format_vm_error(message: str) -> dict:
             "name": "",
             "status": "error",
             "error": message,
+        },
+    }
+
+
+_MAX_PLAN_VM_OPTIONS = 20
+
+
+def list_compatible_projects(user, limit: int = 50) -> list[dict]:
+    """Return projects where the user can create a VM as plain data.
+
+    Filtering matches the criteria the deleted
+    list_vm_creation_compatible_projects tool used: the user has a
+    project- or customer-level role that allows resource creation, and
+    the project has at least one ACTIVE/PAUSED OpenStack Instance
+    offering whose tenant has flavors and images synced.
+    """
+    accessible = filter_queryset_for_user(Project.objects.all(), user)
+
+    if not user.is_staff:
+        project_ct = ContentType.objects.get_for_model(Project)
+        customer_ct = ContentType.objects.get_for_model(Customer)
+        direct_project_ids = UserRole.objects.filter(
+            user=user,
+            is_active=True,
+            content_type=project_ct,
+            role__name__in=[
+                RoleEnum.PROJECT_ADMIN,
+                RoleEnum.PROJECT_MANAGER,
+                RoleEnum.PROJECT_MEMBER,
+            ],
+        ).values_list("object_id", flat=True)
+        customer_ids = UserRole.objects.filter(
+            user=user,
+            is_active=True,
+            content_type=customer_ct,
+            role__name__in=[
+                RoleEnum.CUSTOMER_OWNER,
+                RoleEnum.CUSTOMER_MANAGER,
+            ],
+        ).values_list("object_id", flat=True)
+        accessible = accessible.filter(
+            django_models.Q(id__in=direct_project_ids)
+            | django_models.Q(customer_id__in=customer_ids)
+        )
+
+    tenant_ct = ContentType.objects.get_for_model(Tenant)
+    vm_offerings = (
+        Offering.objects.filter(
+            type=OPENSTACK_INSTANCE_OFFERING,
+            state__in=(OfferingStates.ACTIVE, OfferingStates.PAUSED),
+            content_type=tenant_ct,
+        )
+        .filter(
+            django_models.Q(shared=True)
+            | django_models.Q(customer_id=django_models.OuterRef("customer_id"))
+            | django_models.Q(project_id=django_models.OuterRef("id"))
+        )
+        .filter(
+            django_models.Exists(
+                Flavor.objects.filter(tenants__id=django_models.OuterRef("object_id"))
+            )
+        )
+        .filter(
+            django_models.Exists(
+                Image.objects.filter(tenants__id=django_models.OuterRef("object_id"))
+            )
+        )
+    )
+    accessible = accessible.annotate(
+        _has_vm_offering=django_models.Exists(vm_offerings)
+    ).filter(_has_vm_offering=True)
+
+    queryset = (
+        accessible.select_related("customer")
+        .only("uuid", "name", "customer__name")
+        .order_by("name")
+    )
+
+    return [
+        {
+            "uuid": str(p.uuid),
+            "name": p.name,
+            "organization": p.customer.name if p.customer else "",
+        }
+        for p in queryset[:limit]
+    ]
+
+
+def format_needs_project(projects: list[dict]) -> dict:
+    """ask_user_form asking the user which project to deploy in."""
+    if not projects:
+        message = "No projects with a usable VM offering. Contact your administrator."
+        return {
+            "type": "validation_error",
+            "summary": message,
+            "ui_component": "markdown",
+            "ui_data": {"c": message},
+        }
+
+    options = [
+        {
+            "id": f"q0o{i}",
+            "label": p["name"],
+            "description": p["organization"],
+            "value": p["uuid"],
+        }
+        for i, p in enumerate(projects[:_MAX_PLAN_VM_OPTIONS])
+    ]
+    return {
+        "type": "success",
+        "summary": (
+            "Project picker form rendered. STOP — wait for the user's "
+            "reply. Do NOT call another tool (no ask_user, no plan_vm) "
+            "until they respond."
+        ),
+        "ui_component": "ask_user_form",
+        "ui_data": {
+            "questions": [
+                {
+                    "id": "q0",
+                    "header": "Project",
+                    "question": "Which project should the VM be created in?",
+                    "options": options,
+                    "multiSelect": False,
+                    "allowFreeText": False,
+                }
+            ],
+        },
+    }
+
+
+def format_needs_offering(offerings: list[dict]) -> dict:
+    """ask_user_form asking which offering (provider) to use."""
+    options = [
+        {"id": f"q0o{i}", "label": o["name"], "value": o["uuid"]}
+        for i, o in enumerate(offerings[:_MAX_PLAN_VM_OPTIONS])
+    ]
+    return {
+        "type": "success",
+        "summary": (
+            "Offering picker form rendered. STOP — wait for the user's "
+            "reply. Do NOT call another tool until they respond."
+        ),
+        "ui_component": "ask_user_form",
+        "ui_data": {
+            "questions": [
+                {
+                    "id": "q0",
+                    "header": "Offering",
+                    "question": "Which offering (provider) should be used?",
+                    "options": options,
+                    "multiSelect": False,
+                    "allowFreeText": False,
+                }
+            ],
+        },
+    }
+
+
+def format_needs_config(
+    flavors: list[dict], images: list[dict], missing: tuple[str, ...]
+) -> dict:
+    """ask_user_form for whichever of flavor/image is missing.
+
+    `missing` is a subset of {"flavor", "image"}. If both are missing we
+    ask both as a 2-question form; otherwise one question.
+    """
+    questions: list[dict] = []
+    if "flavor" in missing:
+        q_idx = len(questions)
+        flavor_options = [
+            {
+                "id": f"q{q_idx}o{i}",
+                "label": f["name"],
+                "description": (
+                    f"{f.get('cores', '?')} vCPU, {(f.get('ram', 0) / 1024):.0f}GB RAM"
+                ),
+                "value": f["name"],
+            }
+            for i, f in enumerate(flavors[:_MAX_PLAN_VM_OPTIONS])
+        ]
+        questions.append(
+            {
+                "id": f"q{q_idx}",
+                "header": "Flavor",
+                "question": "Which flavor (size) should the VM use?",
+                "options": flavor_options,
+                "multiSelect": False,
+                "allowFreeText": False,
+            }
+        )
+    if "image" in missing:
+        q_idx = len(questions)
+        image_options = [
+            {"id": f"q{q_idx}o{i}", "label": img["name"], "value": img["name"]}
+            for i, img in enumerate(images[:_MAX_PLAN_VM_OPTIONS])
+        ]
+        questions.append(
+            {
+                "id": f"q{q_idx}",
+                "header": "Image",
+                "question": "Which OS image should the VM use?",
+                "options": image_options,
+                "multiSelect": False,
+                "allowFreeText": False,
+            }
+        )
+    return {
+        "type": "success",
+        "summary": (
+            "Configuration form rendered ("
+            + " and ".join(missing)
+            + "). STOP — wait for the user's reply. Do NOT call another "
+            "tool until they respond."
+        ),
+        "ui_component": "ask_user_form",
+        "ui_data": {"questions": questions},
+    }
+
+
+def format_needs_name() -> dict:
+    """ask_user_form free-text question asking for the VM name."""
+    return {
+        "type": "success",
+        "summary": (
+            "Name input form rendered. STOP — wait for the user's reply. "
+            "Do NOT call another tool until they respond."
+        ),
+        "ui_component": "ask_user_form",
+        "ui_data": {
+            "questions": [
+                {
+                    "id": "q0",
+                    "header": "Name",
+                    "question": "What should the VM be named?",
+                    "multiSelect": False,
+                }
+            ],
         },
     }

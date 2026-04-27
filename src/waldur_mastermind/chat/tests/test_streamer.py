@@ -10,7 +10,11 @@ from django.utils import timezone
 from rest_framework import test as drf_test
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.chat.llm_streamer import _CANCEL_CHECK_INTERVAL, LLMStreamer
+from waldur_mastermind.chat.llm_streamer import (
+    _CANCEL_CHECK_INTERVAL,
+    _MAX_TOOL_ROUNDS,
+    LLMStreamer,
+)
 from waldur_mastermind.chat.models import (
     ChatSession,
     Message,
@@ -73,7 +77,7 @@ class _LLMStreamerTestBase:
         self.mock_config = config_patcher.start()
         self.addCleanup(config_patcher.stop)
 
-    def _make_streamer(self, chunks, messages=None, user=None):
+    def _make_streamer(self, chunks, messages=None, user=None, enabled_tools=None):
         streamer = LLMStreamer(
             messages or _messages(),
             "https://example.com/v1",
@@ -81,6 +85,8 @@ class _LLMStreamerTestBase:
             user=user,
         )
         streamer.client = _mock_openai_client(chunks)
+        if enabled_tools:
+            streamer._enabled_tool_names.update(enabled_tools)
         return streamer
 
 
@@ -258,12 +264,16 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
 
     def test_streamer_handles_tool_call(self):
         """Test that OpenAI tool_calls are detected and executed server-side."""
-        tc1 = _make_tool_call_delta(0, name="show_user_resources", call_id="call_abc")
+        tc1 = _make_tool_call_delta(
+            0, name="display_user_resources", call_id="call_abc"
+        )
         tc2 = _make_tool_call_delta(0, arguments="{}")
-        chunks = [
+        round0 = [
             _make_chunk(tool_calls=[tc1]),
             _make_chunk(tool_calls=[tc2]),
         ]
+        # Round 1: text-only response so the agentic loop exits cleanly.
+        round1 = [_make_chunk(content="Done.")]
 
         tool_result = {
             "type": "success",
@@ -280,14 +290,15 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
             "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool"
         ) as mock_exec:
             mock_exec.return_value = tool_result
-            streamer = self._make_streamer(chunks, user=mock_user)
+            streamer = LLMStreamer(
+                _messages(),
+                "https://example.com/v1",
+                "dummy-token",
+                user=mock_user,
+            )
+            streamer.client = _mock_openai_client_multi([round0, round1])
+            streamer._enabled_tool_names.add("display_user_resources")
             output = [json.loads(c) for c in streamer]
-
-        # Loading indicator emitted before tool execution
-        self.assertTrue(
-            any(e.get("k") == "load" and e.get("t") == "tool" for e in output),
-            f"Did not find tool loading indicator. Output: {output}",
-        )
 
         # Tool result rendered as resource_list
         self.assertTrue(
@@ -295,25 +306,16 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
             f"Did not find tool result rendered as resource_list. Output: {output}",
         )
 
-        # Loading indicator appears before tool result
-        load_idx = next(
-            i
-            for i, e in enumerate(output)
-            if e.get("k") == "load" and e.get("t") == "tool"
-        )
-        resource_list_idx = next(
-            i for i, e in enumerate(output) if e.get("k") == "resource_list"
-        )
-        self.assertLess(load_idx, resource_list_idx)
-
-        mock_exec.assert_called_once_with("show_user_resources", {})
+        mock_exec.assert_called_once_with("display_user_resources", {})
 
     def test_streamer_stores_tool_result_for_persistence(self):
         """Tool results land in accumulated_blocks so persistence writes them."""
         tc = _make_tool_call_delta(
-            0, name="show_user_resources", arguments="{}", call_id="call_abc"
+            0, name="display_user_resources", arguments="{}", call_id="call_abc"
         )
-        chunks = [_make_chunk(tool_calls=[tc])]
+        round0 = [_make_chunk(tool_calls=[tc])]
+        # Round 1: text-only response so the agentic loop exits cleanly.
+        round1 = [_make_chunk(content="Done.")]
 
         tool_result = {
             "type": "success",
@@ -330,19 +332,26 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
             "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool"
         ) as mock_exec:
             mock_exec.return_value = tool_result
-            streamer = self._make_streamer(chunks, user=mock_user)
+            streamer = LLMStreamer(
+                _messages(),
+                "https://example.com/v1",
+                "dummy-token",
+                user=mock_user,
+            )
+            streamer.client = _mock_openai_client_multi([round0, round1])
+            streamer._enabled_tool_names.add("display_user_resources")
             list(streamer)  # Consume the stream
 
         tool_blocks = [b for b in streamer.accumulated_blocks if b["key"] == "tool"]
         self.assertEqual(len(tool_blocks), 1)
-        self.assertEqual(tool_blocks[0]["tool"]["name"], "show_user_resources")
+        self.assertEqual(tool_blocks[0]["tool"]["name"], "display_user_resources")
         self.assertEqual(tool_blocks[0]["result"]["key"], "resource_list")
         self.assertEqual(tool_blocks[0]["result"]["project_uuid"], "abc123")
 
     def test_followup_content_includes_code_block_text(self):
         """Pre-tool code block text must reach the follow-up assistant message content field."""
         tc = _make_tool_call_delta(
-            0, name="show_user_resources", arguments="{}", call_id="call_1"
+            0, name="display_user_resources", arguments="{}", call_id="call_1"
         )
         first_chunks = [
             _make_chunk(content="```python\nprint('hi')\n```"),
@@ -386,7 +395,7 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
     def test_tool_call_followup_two_stream_flow(self):
         """Full two-stream tool-call flow: pre-tool text, tool exec, follow-up answer."""
         tc = _make_tool_call_delta(
-            0, name="show_user_resources", arguments="{}", call_id="call_42"
+            0, name="display_user_resources", arguments="{}", call_id="call_42"
         )
         first_chunks = [
             _make_chunk(content="Let me check that."),
@@ -433,11 +442,13 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
         self.assertIn("Here are your resources.", markdown_chunks)
 
     def test_streamer_hides_tool_errors(self):
-        """Tool errors are not displayed to users and not persisted."""
+        """Tool errors are not displayed to users; only an empty placeholder is persisted."""
         tc = _make_tool_call_delta(
             0, name="unknown_tool", arguments="{}", call_id="call_x"
         )
-        chunks = [_make_chunk(tool_calls=[tc])]
+        round0 = [_make_chunk(tool_calls=[tc])]
+        # Round 1: text-only response so the agentic loop exits cleanly.
+        round1 = [_make_chunk(content="Done.")]
 
         tool_result = {
             "type": "error",
@@ -451,7 +462,14 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
             "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool"
         ) as mock_exec:
             mock_exec.return_value = tool_result
-            streamer = self._make_streamer(chunks, user=mock_user)
+            streamer = LLMStreamer(
+                _messages(),
+                "https://example.com/v1",
+                "dummy-token",
+                user=mock_user,
+            )
+            streamer.client = _mock_openai_client_multi([round0, round1])
+            streamer._enabled_tool_names.add("unknown_tool")
             output = [json.loads(c) for c in streamer]
 
         for event in output:
@@ -460,9 +478,13 @@ class LLMStreamerTest(_LLMStreamerTestBase, unittest.TestCase):
 
         mock_exec.assert_called_once()
 
-        # Error results leave no tool block in the persisted accumulator
+        # Error results still persist a tool block so cross-turn rehydration
+        # sees the call, but the result block is the synthesized empty
+        # markdown placeholder — no error message reaches the user.
         tool_blocks = [b for b in streamer.accumulated_blocks if b["key"] == "tool"]
-        self.assertEqual(tool_blocks, [])
+        self.assertEqual(len(tool_blocks), 1)
+        self.assertEqual(tool_blocks[0]["result"]["key"], "markdown")
+        self.assertEqual(tool_blocks[0]["result"]["content"], "")
 
 
 class LLMStreamerDisconnectTest(_LLMStreamerTestBase, unittest.TestCase):
@@ -573,7 +595,9 @@ class LLMStreamerDisconnectTest(_LLMStreamerTestBase, unittest.TestCase):
     def test_disconnect_skips_tool_execution(self):
         """Tool calls are not executed when client has disconnected."""
         gate = threading.Event()
-        tc1 = _make_tool_call_delta(0, name="show_user_resources", call_id="call_abc")
+        tc1 = _make_tool_call_delta(
+            0, name="display_user_resources", call_id="call_abc"
+        )
         tc2 = _make_tool_call_delta(0, arguments="{}")
         # First chunk must be >= 50 chars so the parser flushes to the queue
         first_chunk = "C" * 60
@@ -1397,6 +1421,39 @@ class BlockAccumulatorTest(unittest.TestCase):
         self.assertEqual(kinds, ["markdown", "code", "markdown"])
         self.assertEqual(s.accumulated_blocks[1]["tag"], "python")
 
+    def test_ask_user_form_chunk_persisted_as_top_level_block(self):
+        # Standalone ask_user_form chunks (no enclosing tool-loading block)
+        # must land in accumulated_blocks so the form survives into
+        # Message.blocks and rerenders correctly on thread reload.
+        s = self._new_streamer()
+        s.accumulated_blocks = []
+        s._current_block = None
+        s.accumulated_warning = ""
+        s._absorb_block(
+            {
+                "k": "ask_user_form",
+                "questions": [
+                    {
+                        "id": "q0",
+                        "question": "Pick one",
+                        "multiSelect": False,
+                        "options": [
+                            {"id": "q0o0", "label": "A"},
+                            {"id": "q0o1", "label": "B"},
+                        ],
+                    }
+                ],
+                "context": "Need more info:",
+            }
+        )
+        s._finalize_current_block()
+        self.assertEqual(len(s.accumulated_blocks), 1)
+        blk = s.accumulated_blocks[0]
+        self.assertEqual(blk["key"], "ask_user_form")
+        self.assertEqual(blk["status"], "complete")
+        self.assertEqual(len(blk["questions"]), 1)
+        self.assertEqual(blk["context"], "Need more info:")
+
     def test_warning_chunk_stored(self):
         s = self._new_streamer()
         s.accumulated_blocks = []
@@ -1555,14 +1612,15 @@ class LLMStreamerBlockRoundtripTest(_LLMStreamerTestBase, drf_test.APITestCase):
         user_msg = self._pre_create_user_msg(thread, "Show me a diagram and a table")
         assistant_msg = self._pre_create_assistant_placeholder(thread, user_msg)
 
-        # Stream chunks: markdown -> mermaid fence -> tool_call deltas -> trailing markdown
-        chunks = [
+        # Round 0: markdown -> mermaid fence -> tool_call deltas -> trailing markdown.
+        # Round 1: empty follow-up so the agentic loop exits (resource_list is not terminal).
+        round0 = [
             _make_chunk(content="Here is a diagram:\n"),
             _make_chunk(content="```mermaid\ngraph TD\nA-->B\n```\n"),
             _make_chunk(
                 tool_calls=[
                     _make_tool_call_delta(
-                        0, name="show_user_resources", call_id="call_abc"
+                        0, name="display_user_resources", call_id="call_abc"
                     )
                 ]
             ),
@@ -1570,6 +1628,7 @@ class LLMStreamerBlockRoundtripTest(_LLMStreamerTestBase, drf_test.APITestCase):
             _make_chunk(content="All done."),
             _make_chunk(usage={"prompt_tokens": 10, "completion_tokens": 5}),
         ]
+        round1 = []
 
         tool_result = {
             "type": "success",
@@ -1586,7 +1645,7 @@ class LLMStreamerBlockRoundtripTest(_LLMStreamerTestBase, drf_test.APITestCase):
                 "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool"
             ) as mock_exec,
         ):
-            mock_openai_cls.return_value = _mock_openai_client(chunks)
+            mock_openai_cls.return_value = _mock_openai_client_multi([round0, round1])
             mock_exec.return_value = tool_result
             streamer = LLMStreamer(
                 [{"role": "user", "content": "Show me a diagram and a table"}],
@@ -1598,6 +1657,7 @@ class LLMStreamerBlockRoundtripTest(_LLMStreamerTestBase, drf_test.APITestCase):
                 user_msg=user_msg,
                 assistant_msg=assistant_msg,
             )
+            streamer._enabled_tool_names.add("display_user_resources")
             list(streamer)
 
         assistant_msg.refresh_from_db()
@@ -1612,7 +1672,7 @@ class LLMStreamerBlockRoundtripTest(_LLMStreamerTestBase, drf_test.APITestCase):
         self.assertEqual(assistant_msg.warning, "")
 
         tool_block = assistant_msg.blocks[3]
-        self.assertEqual(tool_block["tool"]["name"], "show_user_resources")
+        self.assertEqual(tool_block["tool"]["name"], "display_user_resources")
         self.assertEqual(tool_block["result"]["key"], "resource_list")
         self.assertEqual(tool_block["result"]["project_uuid"], "abc123")
 
@@ -1620,3 +1680,312 @@ class LLMStreamerBlockRoundtripTest(_LLMStreamerTestBase, drf_test.APITestCase):
         # Full round-trip: serialized blocks equal persisted blocks.
         self.assertEqual(data["blocks"], assistant_msg.blocks)
         self.assertEqual(data["warning"], "")
+
+
+class StreamerAgenticLoopTest(_LLMStreamerTestBase, unittest.TestCase):
+    """The streamer should chain tool calls across multiple rounds until
+    the LLM produces plain text, capped at _MAX_TOOL_ROUNDS."""
+
+    def _make_user(self):
+        user = Mock()
+        user.id = 1
+        user.username = "testuser"
+        return user
+
+    def _make_tool_chunks(self, tool_name, call_id, arguments="{}"):
+        """Build a round that returns a single tool_call delta."""
+        tc = _make_tool_call_delta(
+            0, name=tool_name, call_id=call_id, arguments=arguments
+        )
+        return [_make_chunk(tool_calls=[tc])]
+
+    def _make_text_chunks(self, text):
+        """Build a round that returns plain text."""
+        return [_make_chunk(content=text)]
+
+    def test_chains_tool_calls_until_text_response(self):
+        """search_offerings -> compare_offerings -> text should work in one turn."""
+        round0 = self._make_tool_chunks("search_offerings", "call_1")
+        round1 = self._make_tool_chunks("compare_offerings", "call_2")
+        round2 = self._make_text_chunks("Here is the comparison")
+
+        tool_result = {
+            "type": "success",
+            "summary": "ok",
+            "ui_component": "resource_list",
+            "ui_data": {},
+        }
+
+        mock_user = self._make_user()
+
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool",
+            return_value=tool_result,
+        ):
+            streamer = LLMStreamer(
+                _messages(),
+                "https://example.com/v1",
+                "dummy-token",
+                user=mock_user,
+            )
+            streamer.client = _mock_openai_client_multi([round0, round1, round2])
+            streamer._enabled_tool_names.update(
+                {"search_offerings", "compare_offerings"}
+            )
+            list(streamer)
+
+        self.assertEqual(streamer.client.chat.completions.create.call_count, 3)
+
+        tool_blocks = [b for b in streamer.accumulated_blocks if b["key"] == "tool"]
+        markdown_blocks = [
+            b for b in streamer.accumulated_blocks if b["key"] == "markdown"
+        ]
+        self.assertEqual(len(tool_blocks), 2)
+        self.assertEqual(len(markdown_blocks), 1)
+        self.assertIn("Here is the comparison", markdown_blocks[0]["content"])
+
+    def test_stops_at_max_tool_rounds_with_text_fallback(self):
+        """If the LLM keeps tool-calling past the cap, force a final text-only call."""
+        # 6 tool rounds — one more than the cap (_MAX_TOOL_ROUNDS = 5)
+        tool_rounds = [
+            self._make_tool_chunks("search_offerings", f"call_{i}")
+            for i in range(_MAX_TOOL_ROUNDS + 1)
+        ]
+        # The final forced text call returns narration
+        text_round = self._make_text_chunks("Here is a summary.")
+
+        tool_result = {
+            "type": "success",
+            "summary": "ok",
+            "ui_component": "resource_list",
+            "ui_data": {},
+        }
+
+        mock_user = self._make_user()
+
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool",
+            return_value=tool_result,
+        ):
+            streamer = LLMStreamer(
+                _messages(),
+                "https://example.com/v1",
+                "dummy-token",
+                user=mock_user,
+            )
+            # _MAX_TOOL_ROUNDS rounds of tool calls + 1 forced text call
+            streamer.client = _mock_openai_client_multi(
+                tool_rounds[:_MAX_TOOL_ROUNDS] + [text_round]
+            )
+            streamer._enabled_tool_names.add("search_offerings")
+            list(streamer)
+
+        # Exactly _MAX_TOOL_ROUNDS tool rounds + 1 forced final text call
+        self.assertEqual(
+            streamer.client.chat.completions.create.call_count,
+            _MAX_TOOL_ROUNDS + 1,
+        )
+
+        # Last call must NOT include tools
+        last_kwargs = streamer.client.chat.completions.create.call_args_list[-1].kwargs
+        self.assertNotIn("tools", last_kwargs)
+
+    def test_cancellation_exits_loop(self):
+        """Cancellation after round 0 prevents further tool rounds.
+
+        Round 0 runs (one create() call), then after the stream returns the
+        if self._stopped check aborts the loop before round 1.
+        """
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            user=self._make_user(),
+        )
+        # Pre-set cancellation so _stopped is True before any work
+        streamer._cancel_requested.set()
+        # Wire up a mock so we can count calls if any slip through
+        streamer.client = _mock_openai_client_multi(
+            [self._make_text_chunks("should not appear")]
+        )
+
+        # _run_llm_workflow directly (bypasses worker thread so we stay synchronous)
+        streamer._run_llm_workflow()
+
+        # Round 0 runs once, then cancellation check aborts before round 1
+        self.assertEqual(streamer.client.chat.completions.create.call_count, 1)
+
+    def test_lazy_load_guard_uses_correct_search_tools_arg(self):
+        """When the LLM calls an unloaded tool, the guard must point it at
+        ``search_tools(categories=...)``, not the obsolete ``tool_names=``
+        signature, and the category must match the tool's registry entry."""
+        # search_offerings is registered under ToolCategory.MARKETPLACE.
+        round0 = self._make_tool_chunks("search_offerings", "call_1")
+        # Round 1 must terminate the loop — the guard doesn't exit early,
+        # it just stashes a recovery message on the tool_call entry.
+        round1 = self._make_text_chunks("ok")
+
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            user=self._make_user(),
+        )
+        streamer.client = _mock_openai_client_multi([round0, round1])
+        # Don't add search_offerings to _enabled_tool_names — guard must fire.
+        streamer._run_llm_workflow()
+
+        # tool_calls is reset between rounds; pending_tool_calls retains the
+        # guard's recovery message keyed by call_id.
+        summary = streamer.pending_tool_calls["call_1"]["summary"]
+        self.assertIn("categories=['marketplace']", summary)
+        self.assertNotIn("tool_names=", summary)
+
+    def test_assistant_content_per_round_excludes_prior_round_text(self):
+        """Across multi-round chains, each round's assistant message in the
+        LLM-facing history must contain only that round's text — not all
+        accumulated text from prior rounds."""
+        # Each tool round prefixes a thinking line before the tool_call so
+        # accumulated_blocks gains a markdown block per round.
+        round0 = [
+            _make_chunk(content="Looking up offerings."),
+            _make_chunk(
+                tool_calls=[
+                    _make_tool_call_delta(0, name="search_offerings", call_id="c1")
+                ]
+            ),
+        ]
+        round1 = [
+            _make_chunk(content="Now comparing."),
+            _make_chunk(
+                tool_calls=[
+                    _make_tool_call_delta(0, name="compare_offerings", call_id="c2")
+                ]
+            ),
+        ]
+        round2 = self._make_text_chunks("Done.")
+
+        tool_result = {
+            "type": "success",
+            "summary": "ok",
+            "ui_component": "resource_list",
+            "ui_data": {},
+        }
+
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool",
+            return_value=tool_result,
+        ):
+            streamer = LLMStreamer(
+                _messages(),
+                "https://example.com/v1",
+                "dummy-token",
+                user=self._make_user(),
+            )
+            streamer.client = _mock_openai_client_multi([round0, round1, round2])
+            streamer._enabled_tool_names.update(
+                {"search_offerings", "compare_offerings"}
+            )
+            list(streamer)
+
+        # Inspect the messages handed to the second LLM call (round 1's
+        # input). The most recent assistant message in that list is round 0's
+        # follow-up — it should contain round 0 text only.
+        round1_messages = streamer.client.chat.completions.create.call_args_list[
+            1
+        ].kwargs["messages"]
+        round0_assistant = next(
+            m for m in reversed(round1_messages) if m.get("role") == "assistant"
+        )
+        self.assertIn("Looking up offerings.", round0_assistant["content"])
+        self.assertNotIn("Now comparing.", round0_assistant["content"])
+
+        # Round 2's input must have a NEW assistant entry for round 1
+        # whose content is round 1's text only — no round 0 bleed-through.
+        round2_messages = streamer.client.chat.completions.create.call_args_list[
+            2
+        ].kwargs["messages"]
+        round1_assistant = next(
+            m for m in reversed(round2_messages) if m.get("role") == "assistant"
+        )
+        self.assertIn("Now comparing.", round1_assistant["content"])
+        self.assertNotIn("Looking up offerings.", round1_assistant["content"])
+
+
+class RehydrateFromCategoriesTest(_LLMStreamerTestBase, unittest.TestCase):
+    """_rehydrate_enabled_tools must expand past-turn search_tools(categories=...) calls."""
+
+    def _search_tools_call(self, categories):
+        return {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "function": {
+                        "name": "search_tools",
+                        "arguments": json.dumps({"categories": categories}),
+                    },
+                }
+            ],
+        }
+
+    def test_rehydrates_marketplace_tools_from_past_call(self):
+        streamer = self._make_streamer(
+            [], messages=[self._search_tools_call(["marketplace"])]
+        )
+        # Rehydration already ran in __init__ via _make_streamer; call it
+        # again explicitly as a regression guard for idempotency.
+        streamer._rehydrate_enabled_tools_from_history()
+        enabled = streamer._enabled_tool_names
+        self.assertIn("search_offerings", enabled)
+        self.assertIn("get_offering", enabled)
+        self.assertIn("list_categories", enabled)
+        self.assertIn("compare_offerings", enabled)
+        self.assertNotIn("create_vm", enabled)
+
+    def test_rehydrates_multiple_categories(self):
+        streamer = self._make_streamer(
+            [], messages=[self._search_tools_call(["marketplace", "vm"])]
+        )
+        # Rehydration already ran in __init__ via _make_streamer; call it
+        # again explicitly as a regression guard for idempotency.
+        streamer._rehydrate_enabled_tools_from_history()
+        enabled = streamer._enabled_tool_names
+        self.assertIn("search_offerings", enabled)
+        self.assertIn("create_vm", enabled)
+
+    def test_rehydrates_direct_non_search_tool_call(self):
+        past_call = {
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "function": {"name": "create_vm", "arguments": "{}"},
+                }
+            ],
+        }
+        streamer = self._make_streamer([], messages=[past_call])
+        # Rehydration already ran in __init__ via _make_streamer; call it
+        # again explicitly as a regression guard for idempotency.
+        streamer._rehydrate_enabled_tools_from_history()
+        self.assertIn("create_vm", streamer._enabled_tool_names)
+
+    def test_unknown_category_skipped(self):
+        streamer = self._make_streamer(
+            [], messages=[self._search_tools_call(["not_a_real_category"])]
+        )
+        # Rehydration already ran in __init__ via _make_streamer; call it
+        # again explicitly as a regression guard for idempotency.
+        streamer._rehydrate_enabled_tools_from_history()
+        # Only the meta-tools should remain (both are seeded so they ship
+        # on turn 0 without a search_tools round).
+        self.assertEqual(streamer._enabled_tool_names, {"search_tools", "ask_user"})
+
+    def test_meta_tools_seeded_on_init(self):
+        # Both ``search_tools`` and ``ask_user`` must be in the enabled set
+        # after __init__, with no prior tool activity in the history.
+        # ``ask_user`` is universal — the LLM needs to be able to clarify
+        # before any search_tools round.
+        streamer = self._make_streamer([], messages=[])
+        self.assertIn("search_tools", streamer._enabled_tool_names)
+        self.assertIn("ask_user", streamer._enabled_tool_names)

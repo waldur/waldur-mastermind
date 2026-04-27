@@ -35,7 +35,7 @@
   evaluations:
     - type: tool_usage
       config:
-        expected_tool: "show_user_resources"
+        expected_tool: "display_user_resources"
         rationale: "User is explicitly requesting their resource data"
 
 - name: eol_question_no_tool

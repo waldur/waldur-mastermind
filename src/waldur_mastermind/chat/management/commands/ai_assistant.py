@@ -297,6 +297,7 @@ class Command(BaseCommand):
                             config.AI_ASSISTANT_API_URL,
                             config.AI_ASSISTANT_API_TOKEN,
                             user=None,  # No tool execution for validation
+                            preload_all_tools=True,  # Validation tests all tools
                         )
 
                         # Iterate through stream to complete the request

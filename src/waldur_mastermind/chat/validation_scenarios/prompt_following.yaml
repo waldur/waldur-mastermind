@@ -32,8 +32,8 @@
   evaluations:
     - type: tool_usage
       config:
-        expected_tool: "show_user_resources"
-        rationale: "Must call show_user_resources for explicit data requests"
+        expected_tool: "display_user_resources"
+        rationale: "Must call display_user_resources for explicit data requests"
     - type: pattern
       config:
         forbidden_patterns:

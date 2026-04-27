@@ -60,7 +60,7 @@ class InjectionBlockTest(InjectionIntegrationBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = b"".join(response.streaming_content).decode()
-        self.assertIn("I'm sorry, I can't help with that request", content)
+        self.assertIn("I can't help with that request", content)
 
     @override_constance_config(
         AI_ASSISTANT_ENABLED=True,
@@ -76,7 +76,7 @@ class InjectionBlockTest(InjectionIntegrationBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = b"".join(response.streaming_content).decode()
-        self.assertIn("I'm sorry, I can't help with that request", content)
+        self.assertIn("I can't help with that request", content)
 
     @override_constance_config(
         AI_ASSISTANT_ENABLED=True,
@@ -92,7 +92,7 @@ class InjectionBlockTest(InjectionIntegrationBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = b"".join(response.streaming_content).decode()
-        self.assertIn("I'm sorry, I can't help with that request", content)
+        self.assertIn("I can't help with that request", content)
 
 
 class ContextAwareRejectionTest(InjectionIntegrationBaseTest):
@@ -150,7 +150,7 @@ class ContextAwareRejectionTest(InjectionIntegrationBaseTest):
         system_content = next(
             (m["content"] for m in sent_messages if m["role"] == "system"), ""
         )
-        self.assertIn("cannot help with that specific request", system_content)
+        self.assertIn("declining that specific request", system_content)
 
     @override_constance_config(
         AI_ASSISTANT_ENABLED=True,
@@ -167,7 +167,7 @@ class ContextAwareRejectionTest(InjectionIntegrationBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = b"".join(response.streaming_content).decode()
-        self.assertIn("I'm sorry, I can't help with that request", content)
+        self.assertIn("I can't help with that request", content)
 
     @override_constance_config(
         AI_ASSISTANT_ENABLED=True,
@@ -190,7 +190,7 @@ class ContextAwareRejectionTest(InjectionIntegrationBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = b"".join(response.streaming_content).decode()
-        self.assertIn("I'm sorry, I can't help with that request", content)
+        self.assertIn("I can't help with that request", content)
 
 
 class CleanInputPassthroughTest(InjectionIntegrationBaseTest):
@@ -216,7 +216,7 @@ class CleanInputPassthroughTest(InjectionIntegrationBaseTest):
 
         # Clean input should not return canned response
         content = b"".join(response.streaming_content).decode()
-        self.assertNotIn("I'm sorry, I can't help with that request", content)
+        self.assertNotIn("I can't help with that request", content)
 
 
 class InjectionPersistenceTest(InjectionIntegrationBaseTest):
@@ -292,7 +292,7 @@ class CannedResponsePersistenceTest(InjectionIntegrationBaseTest):
         ).first()
         self.assertIsNotNone(assistant_msg)
         self.assertIn(
-            "I'm sorry, I can't help with that request",
+            "I can't help with that request",
             text_from_blocks(assistant_msg.blocks),
         )
 
@@ -653,7 +653,7 @@ class InjectionDetectionErrorHandlingTest(InjectionIntegrationBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = b"".join(response.streaming_content).decode()
-        self.assertIn("I'm sorry, I can't help with that request", content)
+        self.assertIn("I can't help with that request", content)
 
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
@@ -1085,7 +1085,7 @@ class StreamEditModeTest(InjectionIntegrationBaseTest):
             thread=self.thread, role="assistant", replaces=self.assistant_msg
         )
         self.assertIn(
-            "I'm sorry, I can't help with that request",
+            "I can't help with that request",
             text_from_blocks(replacement_assistant.blocks),
         )
 
@@ -1523,7 +1523,7 @@ class StreamReloadModeInjectionTest(InjectionIntegrationBaseTest):
         system_content = next(
             (m["content"] for m in sent_messages if m["role"] == "system"), ""
         )
-        self.assertIn("cannot help with that specific request", system_content)
+        self.assertIn("declining that specific request", system_content)
 
     @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
     @override_constance_config(
@@ -1552,7 +1552,7 @@ class StreamReloadModeInjectionTest(InjectionIntegrationBaseTest):
         )
         self.assertEqual(response.status_code, 200)
         content = b"".join(response.streaming_content).decode()
-        self.assertNotIn("I'm sorry, I can't help with that request", content)
+        self.assertNotIn("I can't help with that request", content)
         mock_openai_cls.assert_called_once()
 
 
@@ -1576,7 +1576,7 @@ class InjectionWithPIIRedactionTest(InjectionIntegrationBaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = b"".join(response.streaming_content).decode()
         # Should be blocked (injection)
-        self.assertIn("I'm sorry, I can't help with that request", content)
+        self.assertIn("I can't help with that request", content)
 
         # Stored content must NOT contain the raw Estonian ID
         user_msg = Message.objects.filter(

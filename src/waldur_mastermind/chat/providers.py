@@ -2,11 +2,13 @@ PROVIDER_DEFAULTS = {
     "ollama": {
         "temperature": 0.7,
         "top_p": 0.8,
+        "parallel_tool_calls": True,
     },
     "vllm": {
         "temperature": 0.7,
         "top_p": 0.8,
         "presence_penalty": 1.5,
+        "parallel_tool_calls": True,
         "extra_body": {
             "top_k": 20,
         },
@@ -14,6 +16,7 @@ PROVIDER_DEFAULTS = {
     "openai": {
         "temperature": 0.7,
         "top_p": 0.8,
+        "parallel_tool_calls": True,
     },
 }
 
@@ -40,5 +43,6 @@ ALLOWED_COMPLETION_KEYS = frozenset(
         "seed",
         "reasoning_effort",
         "extra_body",
+        "parallel_tool_calls",
     }
 )

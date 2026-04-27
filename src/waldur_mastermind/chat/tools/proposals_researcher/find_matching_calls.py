@@ -3,7 +3,7 @@ import logging
 from django.utils import timezone
 
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
-from waldur_mastermind.chat.tools.enums import ToolName
+from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.proposal_helpers import call_detail_url
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.proposal.models import (
@@ -24,46 +24,66 @@ class FindMatchingCallsTool(BaseTool):
     def definition(self) -> ToolDefinition:
         return ToolDefinition(
             name=ToolName.FIND_MATCHING_CALLS,
+            category=ToolCategory.PROPOSALS_RESEARCHER,
             description=(
                 "Find open calls for proposals that match the user's research project. "
                 "Returns active calls with their descriptions, deadlines, available resources, "
-                "and submission statistics to help users discover the best call to apply to."
+                "and submission statistics to help users discover the best call to apply to.\n"
+                "\n"
+                "ALWAYS render results as a markdown table with one row per "
+                "call and a final `Action` column whose cell is `[Open](url)`. "
+                "Use each call's `url` field verbatim. Do NOT add a separate "
+                "row of pill links above or below the table — the Action "
+                "column is the only CTA."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "research_description": {
-                        "type": "string",
+                    "keywords": {
+                        "type": "array",
+                        "items": {"type": "string"},
                         "description": (
-                            "Description of the user's research project, "
-                            "resource needs, and scientific domain."
+                            "Short research keywords (domain, resource type, technique). "
+                            "Do NOT pass a full sentence or description. "
+                            "Examples: ['GPU', 'climate modeling'], "
+                            "['drug discovery', 'CUDA', 'A100']."
                         ),
                     },
                 },
-                "required": ["research_description"],
+                "required": ["keywords"],
             },
-            route_utterances=[
-                "I need GPU time for climate modeling, which calls should I apply to?",
-                "Which open calls accept AI/ML proposals?",
-                "Find calls matching my protein folding research",
-                "I want to apply for HPC resources, what's available?",
-                "Where should I submit my computational biology proposal?",
-                "Are there any calls for quantum computing projects?",
-                "What funding opportunities are open right now?",
-            ],
             usage_instructions=(
+                "GATE: If the user has not provided a research domain, project description, "
+                "or specific resource need — only vague phrasing like 'recommend me calls', "
+                "'find me proposals', 'which calls should I apply to' — call ask_user FIRST "
+                "to collect their domain and resource needs, then call this tool with the "
+                "resulting keywords. Do not fabricate generic placeholder keywords ('research', "
+                "'science') from a vague request.\n"
+                "\n"
                 "Use when the user describes their research project and wants to find "
-                "suitable calls to apply to:\n"
-                "  ✓ 'I need GPU time for climate modeling'\n"
-                "  ✓ 'Which calls accept AI/ML proposals?'\n"
-                "  ✓ 'I want to run protein folding simulations, where should I apply?'\n"
-                "  ✗ 'Show my proposals' — use different approach\n"
-                "  ✗ 'What is a call?' — answer with knowledge, no tool needed"
+                "suitable calls to apply to. Extract 2-5 keywords from what the user "
+                "said — do not paraphrase into prose:\n"
+                "  ✓ user: 'I need GPU time for climate modeling' → ['GPU', 'climate modeling']\n"
+                "  ✓ user: 'Which calls accept AI/ML proposals?' → ['AI', 'ML']\n"
+                "  ✓ user: 'protein folding simulations' → ['protein folding', 'simulation']\n"
+                "  ✗ 'Show my proposals' — use list_proposals instead\n"
+                "  ✗ 'What calls are open?' — use list_calls (no research keywords)\n"
+                "  ✗ 'What is a call?' — answer with knowledge, no tool needed\n"
+                "\n"
+                "ALWAYS render results as a markdown table with EXACTLY these "
+                "columns and no others: Call Name | Organization | Open Rounds "
+                "| Deadline | Action. The Action cell MUST be `[Open](url)` "
+                "using each call's `url` field verbatim. Do NOT add a separate "
+                "row of pill links above or below the table — the Action column "
+                "is the only CTA."
             ),
         )
 
     def execute(self, user, arguments: dict) -> dict:
-        research_description = arguments.get("research_description", "")
+        raw_keywords = arguments.get("keywords", [])
+        if isinstance(raw_keywords, str):
+            raw_keywords = [k.strip() for k in raw_keywords.split(",")]
+        keywords = [k for k in (kw.strip() for kw in raw_keywords if kw) if k]
         now = timezone.now()
 
         active_calls = (
@@ -75,12 +95,8 @@ class FindMatchingCallsTool(BaseTool):
         if not active_calls:
             return {
                 "type": "success",
-                "data": {"calls": [], "total": 0},
+                "data": {"calls": [], "total": 0, "keywords": keywords},
                 "summary": "No active calls found at this time.",
-                "ui_component": "markdown",
-                "ui_data": {
-                    "c": "There are currently no active calls for proposals. Check back later.",
-                },
             }
 
         calls_data = []
@@ -143,29 +159,21 @@ class FindMatchingCallsTool(BaseTool):
                 }
             )
 
-        nav_links = [
-            {"label": c["name"], "url": c["url"], "variant": "primary"}
-            for c in calls_data
-        ]
-
+        keywords_label = ", ".join(keywords) if keywords else "no keywords"
         summary = (
-            f"Found {len(calls_data)} active call{'s' if len(calls_data) != 1 else ''} "
-            f"for proposals. User research focus: {research_description[:100]}"
+            f"Found {len(calls_data)} active call"
+            f"{'s' if len(calls_data) != 1 else ''} for proposals. "
+            f"Keywords: {keywords_label}."
         )
 
         return {
             "type": "success",
             "data": {
                 "calls": calls_data,
-                "research_description": research_description,
+                "keywords": keywords,
                 "total": len(calls_data),
             },
             "summary": summary,
-            "ui_component": "homeport_nav",
-            "ui_data": {
-                "links": nav_links,
-                "content": summary,
-            },
         }
 
 

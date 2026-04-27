@@ -65,17 +65,60 @@ def test_tool_block_with_structured_result_round_trips():
         "status": "complete",
         "tool": {
             "call_id": "call_abc",
-            "name": "list_projects",
-            "arguments": {"organization_uuid": "acme"},
-            "summary": "Listed 14 projects",
+            "name": "plan_vm",
+            "arguments": {"project_uuid": "abc"},
+            "summary": "Preview rendered",
         },
         "result": {
             "id": "blk_5_result",
             "key": "vm_order",
             "status": "complete",
-            "order_status": "project_form",
-            "projects": [{"name": "proj-a"}],
+            "order_status": "preview",
+            "name": "test-vm",
+            "flavor": "m1.small",
+            "image": "Ubuntu 22.04",
+            "project": "Test Project",
+            "organization": "Test Org",
         },
+    }
+    assert _validate(block) == block
+
+
+def test_ask_user_form_block_round_trips_with_questions_and_context():
+    block = {
+        "id": "blk_6",
+        "key": "ask_user_form",
+        "status": "complete",
+        "questions": [
+            {
+                "id": "q0",
+                "question": "What's your workload?",
+                "header": "Workload",
+                "multiSelect": False,
+                "options": [
+                    {"id": "q0o0", "label": "Training"},
+                    {"id": "q0o1", "label": "Inference"},
+                ],
+            }
+        ],
+        "context": "To recommend an offering, I need:",
+    }
+    assert _validate(block) == block
+
+
+def test_ask_user_form_block_without_context_round_trips():
+    # `context` is optional; the form must persist either way.
+    block = {
+        "id": "blk_7",
+        "key": "ask_user_form",
+        "status": "complete",
+        "questions": [
+            {
+                "id": "q0",
+                "question": "Pick a hostname",
+                "multiSelect": False,
+            }
+        ],
     }
     assert _validate(block) == block
 

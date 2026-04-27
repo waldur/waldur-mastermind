@@ -1,22 +1,15 @@
 import json
 import logging
-from dataclasses import dataclass
 
 from constance import config
 from django.db.models import Q
 from rest_framework.exceptions import PermissionDenied
 
 from waldur_mastermind.chat.input_guards import SeverityLevel
-from waldur_mastermind.chat.intent_classifier import Intent, classify_intent
 from waldur_mastermind.chat.models import Message, SystemPrompt
 from waldur_mastermind.chat.prompts.assembly import SYSTEM_PROMPT_TEMPLATE
 from waldur_mastermind.chat.prompts.rejection import REJECTION_SYSTEM_PROMPT_TEMPLATE
-from waldur_mastermind.chat.prompts.scope_boundary import (
-    SCOPE_BOUNDARY_TEMPLATE,
-    SCOPE_GUARDRAILS_TEMPLATE,
-    STAFF_SCOPE_BOUNDARY_TEMPLATE,
-    SUPPORT_SCOPE_BOUNDARY_TEMPLATE,
-)
+from waldur_mastermind.chat.prompts.scope_boundary import build_scope_boundary
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.chat.tools.tool_sets import get_tool_set_for_user
 
@@ -90,22 +83,6 @@ def _get_thread_messages(thread):
     return filtered
 
 
-def _get_default_scope_boundary(user):
-    """Return the default role-aware scope boundary text (incl. guardrails)."""
-    if user and user.is_staff:
-        scope_template = STAFF_SCOPE_BOUNDARY_TEMPLATE
-    elif user and user.is_support:
-        scope_template = SUPPORT_SCOPE_BOUNDARY_TEMPLATE
-    else:
-        scope_template = SCOPE_BOUNDARY_TEMPLATE
-    organization = config.SITE_NAME
-    return (
-        scope_template.format(organization=organization)
-        + "\n\n"
-        + SCOPE_GUARDRAILS_TEMPLATE.format(organization=organization)
-    )
-
-
 def _get_custom_instructions():
     """Return the custom instructions section, or an empty string.
 
@@ -134,40 +111,37 @@ def build_context(
     user_input,
     thread=None,
     *,
-    include_tools_prompt=True,
     history=None,
 ) -> list[dict]:
     """
     Build the messages array for the AI Assistant in OpenAI chat completions format.
 
     Assembles:
-      1. System message (persona + tool usage guidelines + UI capabilities)
+      1. System message (persona + tool catalog + UI capabilities)
       2. Conversation history from DB (limited by AI_ASSISTANT_HISTORY_LIMIT, chronological)
       3. Current user message
-
-    Args:
-        include_tools_prompt: When False, omit tool usage guidelines from the
-            system prompt. Used when the intent classifier determines tools
-            will not be sent to the LLM.
-        history: Pre-fetched conversation history. When provided, skips the
-            DB query for history. Used by ``build_context_with_intent`` to
-            avoid duplicate DB queries.
     """
     if thread and thread.chat_session.user != user:
         raise PermissionDenied("Thread does not belong to the requesting user.")
 
-    tool_names = get_tool_set_for_user(user) if include_tools_prompt else None
-    tools_prompt = (
-        tool_registry.get_tools_prompt(tool_names) if include_tools_prompt else ""
-    )
-    scope_boundary = _get_default_scope_boundary(user)
+    tool_names = get_tool_set_for_user(user)
+    tools_prompt = tool_registry.get_tools_prompt(tool_names)
+    organization = config.SITE_NAME
+    if user and user.is_staff:
+        role = "staff"
+    elif user and user.is_support:
+        role = "support"
+    else:
+        role = "end_user"
+    scope_boundary = build_scope_boundary(role, organization)
     custom_instructions = _get_custom_instructions()
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format_map(
         _SafeFormatDict(
             scope_boundary=scope_boundary,
             tools=tools_prompt,
             assistant_name=config.AI_ASSISTANT_NAME,
-            organization=config.SITE_NAME,
+            organization=organization,
+            currency=config.CURRENCY_NAME or "EUR",
             custom_instructions=custom_instructions,
         )
     )
@@ -183,40 +157,6 @@ def build_context(
     messages.append({"role": "user", "content": user_input})
 
     return messages
-
-
-@dataclass
-class ContextResult:
-    """Result of context assembly with classified intent."""
-
-    messages: list[dict]
-    intent: Intent
-
-
-def build_context_with_intent(user, user_input, thread=None) -> ContextResult:
-    """Build context messages and classify user intent.
-
-    Fetches conversation history once and reuses it for both intent
-    classification and context assembly (avoids a duplicate DB query).
-    When the classified intent suppresses tools, tool usage guidelines
-    are also omitted from the system prompt.
-    """
-    history = _get_conversation_history(thread) if thread else []
-    intent = classify_intent(user_input, history)
-    logger.info(
-        "Intent classified: %s (include_tools=%s) for input: %.80s",
-        intent.value,
-        intent.include_tools,
-        user_input,
-    )
-    messages = build_context(
-        user,
-        user_input,
-        thread,
-        include_tools_prompt=intent.include_tools,
-        history=history,
-    )
-    return ContextResult(messages=messages, intent=intent)
 
 
 def _get_conversation_history(thread) -> list[dict]:

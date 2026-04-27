@@ -1,11 +1,12 @@
 import logging
 
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count
 
 from waldur_core.checklist.models import Answer, ChecklistCompletion
 from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_mastermind.chat.tools.account.helpers import validate_uuid
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
-from waldur_mastermind.chat.tools.enums import ToolName
+from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.proposal.models import (
     AssignmentItem,
@@ -25,6 +26,7 @@ class ReviewAssistantTool(BaseTool):
     def definition(self) -> ToolDefinition:
         return ToolDefinition(
             name=ToolName.REVIEW_ASSISTANT,
+            category=ToolCategory.PROPOSALS_REVIEWER,
             description=(
                 "Help a reviewer evaluate a specific proposal. Analyzes the proposal "
                 "against the call's criteria and provides structured guidance: strengths, "
@@ -34,45 +36,72 @@ class ReviewAssistantTool(BaseTool):
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "proposal_identifier": {
+                    "uuid": {
                         "type": "string",
-                        "description": "Proposal slug (e.g., 'R1-001') or UUID to review.",
+                        "format": "uuid",
+                        "description": "Proposal UUID.",
+                    },
+                    "slug": {
+                        "type": "string",
+                        "description": (
+                            "Structured slug (e.g. 'R1-001'). Use when the user "
+                            "references a proposal by its short ID."
+                        ),
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Exact or partial proposal name.",
                     },
                 },
-                "required": ["proposal_identifier"],
+                # At-least-one of uuid/slug/name is enforced in execute().
             },
-            route_utterances=[
-                "Help me review proposal P-023",
-                "What should I focus on for this review?",
-                "Analyze this proposal for my evaluation",
-                "Give me a review guide for the quantum computing proposal",
-                "What are the strengths and weaknesses of this submission?",
-                "Assist me in evaluating proposal R1-005",
-            ],
             usage_instructions=(
                 "Use when a reviewer asks for help evaluating a proposal:\n"
                 "  ✓ 'Help me review proposal P-023'\n"
                 "  ✓ 'What should I focus on for R1-005?'\n"
                 "  ✓ 'Analyze proposal P-023 for my review'\n"
                 "  ✗ 'Summarize proposal P-023' — use proposal_overview instead\n"
-                "  ✗ Users who are not assigned reviewers for the proposal"
+                "  ✗ Users who are not assigned reviewers for the proposal\n"
+                "\n"
+                "Slugs (R1-001) and names are NOT interchangeable — pass the "
+                "right one explicitly.\n"
+                "\n"
+                "Picking `uuid` vs `name`: fresh from this turn → `uuid`; from an "
+                "earlier turn or typed by the user → `name`. Prefer `name` in doubt — "
+                "UUIDs from earlier turns may be stale or fabricated. Never pass a "
+                "UUID into `name` or `slug`."
             ),
         )
 
     def execute(self, user, arguments: dict) -> dict:
-        identifier = arguments.get("proposal_identifier", "")
+        proposal_uuid = (arguments.get("uuid") or "").strip()
+        proposal_slug = (arguments.get("slug") or "").strip()
+        proposal_name = (arguments.get("name") or "").strip()
 
-        proposal = (
-            filter_queryset_for_user(Proposal.objects.all(), user)
-            .filter(Q(uuid=identifier) | Q(slug=identifier))
-            .select_related(
-                "round__call",
-                "created_by",
-            )
-            .first()
+        if not proposal_uuid and not proposal_slug and not proposal_name:
+            return {
+                "type": "validation_error",
+                "summary": "Pass at least one of `uuid`, `slug`, or `name`.",
+            }
+        if proposal_uuid and not validate_uuid(proposal_uuid):
+            return {
+                "type": "validation_error",
+                "summary": f"Invalid UUID for uuid: {proposal_uuid}",
+            }
+
+        qs = filter_queryset_for_user(Proposal.objects.all(), user).select_related(
+            "round__call",
+            "created_by",
         )
+        if proposal_uuid:
+            proposal = qs.filter(uuid=proposal_uuid).first()
+        elif proposal_slug:
+            proposal = qs.filter(slug=proposal_slug).first()
+        else:
+            proposal = qs.filter(name__icontains=proposal_name).first()
 
         if not proposal:
+            identifier = proposal_uuid or proposal_slug or proposal_name
             return {
                 "type": "error",
                 "summary": f"Proposal '{identifier}' not found.",
@@ -235,8 +264,6 @@ class ReviewAssistantTool(BaseTool):
             "type": "success",
             "data": review_data,
             "summary": summary,
-            "ui_component": "markdown",
-            "ui_data": {"c": summary},
         }
 
 
