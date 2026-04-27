@@ -54,8 +54,8 @@ class SystemPromptContextAssemblerTest(TestCase):
         """When no SystemPrompt is active, hardcoded defaults are used."""
         context = build_context(self.user, "Hello", thread=self.thread)
         system_msg = next(m for m in context if m["role"] == "system")
-        self.assertIn("a highly knowledgeable", system_msg["content"])
-        self.assertIn("SCOPE:", system_msg["content"])
+        self.assertIn("support assistant for Waldur", system_msg["content"])
+        self.assertIn("=== SCOPE ===", system_msg["content"])
 
     @override_constance_config(AI_ASSISTANT_NAME="TestBot", SITE_NAME="TestOrg")
     def test_active_prompt_injects_custom_instructions(self):
@@ -74,8 +74,8 @@ class SystemPromptContextAssemblerTest(TestCase):
             system_msg["content"],
         )
         # Core prompt structure is still present
-        self.assertIn("a highly knowledgeable", system_msg["content"])
-        self.assertIn("SCOPE:", system_msg["content"])
+        self.assertIn("support assistant for", system_msg["content"])
+        self.assertIn("=== SCOPE ===", system_msg["content"])
 
     @override_constance_config(AI_ASSISTANT_NAME="TestBot", SITE_NAME="TestOrg")
     def test_placeholders_resolved_in_custom_instructions(self):

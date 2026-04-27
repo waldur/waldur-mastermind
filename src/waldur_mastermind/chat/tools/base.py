@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 from pydantic import BaseModel, Field
 
-from waldur_mastermind.chat.tools.enums import ToolName
+from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 
 
 class ToolDefinition(BaseModel):
@@ -13,16 +13,16 @@ class ToolDefinition(BaseModel):
     inputSchema: dict
     meta: dict | None = Field(default=None)
 
+    # Functional grouping used by search_tools. Meta-tools (search_tools
+    # itself) leave this None; all other tools MUST declare a category —
+    # enforced at registration time by ToolRegistry.register().
+    category: ToolCategory | None = None
+
     # Per-tool prompt fragments, auto-assembled into the system prompt by ToolRegistry.
     # usage_instructions: when/when-not to use this tool (decision heuristics for AI Assistant).
     # workflow_instructions: multi-step sequences involving this tool (e.g. VM creation phases).
     usage_instructions: str = ""
     workflow_instructions: str = ""
-
-    # Example utterances for semantic routing. When semantic-router is installed,
-    # these are used to build embedding-based routes that pre-filter which tools
-    # are sent to the LLM, reducing token usage and improving accuracy.
-    route_utterances: list[str] = Field(default_factory=list)
 
 
 class BaseTool(ABC):

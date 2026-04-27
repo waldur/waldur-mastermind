@@ -277,9 +277,15 @@ class StreamParser:
             # Hide internal system errors from users - they're logged in tool_executor
             return None
 
-        # Display both success and validation_error types to users
-        # Extract UI component info from tool result
-        ui_key = result.get("ui_component", "markdown")
+        # Tools that deliberately omit ui_component want the LLM to own the
+        # prose — don't auto-render the summary as a markdown block, as that
+        # duplicates whatever the LLM narrates next. Tools that DO want a
+        # visible surface (homeport_nav, resource_list, vm_order, etc.) must
+        # set ui_component explicitly.
+        if "ui_component" not in result:
+            return None
+
+        ui_key = result["ui_component"]
         ui_data = result.get("ui_data", {"c": result.get("summary", "")})
 
         try:
@@ -290,7 +296,6 @@ class StreamParser:
                 "Failed to create UI content for tool result, falling back to markdown",
                 exc_info=True,
             )
-            # Fallback to markdown with summary
             ui_component = ui_registry.create_content(
                 "markdown", {"c": result.get("summary", "")}
             )

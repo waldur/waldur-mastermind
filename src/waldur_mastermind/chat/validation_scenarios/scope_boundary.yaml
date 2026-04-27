@@ -36,7 +36,7 @@
   evaluations:
     - type: tool_usage
       config:
-        expected_tool: "show_user_resources"
+        expected_tool: "display_user_resources"
         rationale: "The Waldur part (show resources) should be handled"
     - type: pattern
       config:
@@ -51,7 +51,7 @@
   evaluations:
     - type: tool_usage
       config:
-        expected_tool: "show_user_resources"
+        expected_tool: "display_user_resources"
         rationale: "The Waldur part (show resources) should still be handled"
     - type: pattern
       config:

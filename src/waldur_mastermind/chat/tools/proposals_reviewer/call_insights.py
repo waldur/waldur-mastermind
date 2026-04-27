@@ -4,8 +4,9 @@ from django.db.models import Avg, Count, Q, StdDev
 from django.utils import timezone
 
 from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_mastermind.chat.tools.account.helpers import validate_uuid
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
-from waldur_mastermind.chat.tools.enums import ToolName
+from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.proposal.enums import ProposalStates
 from waldur_mastermind.proposal.models import (
@@ -25,6 +26,7 @@ class CallInsightsTool(BaseTool):
     def definition(self) -> ToolDefinition:
         return ToolDefinition(
             name=ToolName.CALL_INSIGHTS,
+            category=ToolCategory.PROPOSALS_REVIEWER,
             description=(
                 "Analyze the health of a specific call: submission trends, "
                 "review bottlenecks, score patterns, and actionable recommendations. "
@@ -33,28 +35,38 @@ class CallInsightsTool(BaseTool):
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "call_name_or_uuid": {
+                    "uuid": {
                         "type": "string",
-                        "description": "Name or UUID of the call to analyze. Omit to see all active calls.",
+                        "format": "uuid",
+                        "description": (
+                            "Call UUID. Use when you have it fresh from this turn's "
+                            "tool output."
+                        ),
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": (
+                            "Exact or partial call name. Use when the call was named "
+                            "in an earlier turn and its UUID isn't in your context."
+                        ),
                     },
                 },
                 "required": [],
             },
-            route_utterances=[
-                "How is the AI for Science call going?",
-                "Give me call insights and statistics",
-                "Any issues with Round 2?",
-                "Call status report for HPC allocation",
-                "Show me the submission trends and review bottlenecks",
-                "What's the acceptance rate for the current call?",
-            ],
             usage_instructions=(
                 "Use when a call manager or staff wants a status briefing:\n"
                 "  ✓ 'How is the AI for Science call going?'\n"
                 "  ✓ 'Give me call insights'\n"
                 "  ✓ 'Any issues with Round 2?'\n"
                 "  ✓ 'Call status report'\n"
-                "  ✗ Regular users asking about their own proposals"
+                "  ✗ Regular users asking about their own proposals\n"
+                "\n"
+                "Omit both `uuid` and `name` to list every call this user can see.\n"
+                "\n"
+                "Picking `uuid` vs `name`: fresh from this turn → `uuid`; from an "
+                "earlier turn or typed by the user → `name`. Prefer `name` in doubt — "
+                "UUIDs from earlier turns may be stale or fabricated. Never pass a "
+                "UUID into `name` or vice versa."
             ),
         )
 
@@ -71,7 +83,15 @@ class CallInsightsTool(BaseTool):
                     },
                 }
 
-        identifier = arguments.get("call_name_or_uuid")
+        call_uuid = (arguments.get("uuid") or "").strip()
+        call_name = (arguments.get("name") or "").strip()
+
+        if call_uuid and not validate_uuid(call_uuid):
+            return {
+                "type": "validation_error",
+                "summary": f"Invalid UUID for uuid: {call_uuid}",
+            }
+
         now = timezone.now()
 
         if user.is_staff:
@@ -79,11 +99,13 @@ class CallInsightsTool(BaseTool):
         else:
             call_qs = filter_queryset_for_user(Call.objects.all(), user)
 
-        if identifier:
-            call = call_qs.filter(uuid=identifier).first()
+        if call_uuid or call_name:
+            if call_uuid:
+                call = call_qs.filter(uuid=call_uuid).first()
+            else:
+                call = call_qs.filter(name__icontains=call_name).first()
             if not call:
-                call = call_qs.filter(name__icontains=identifier).first()
-            if not call:
+                identifier = call_uuid or call_name
                 return {
                     "type": "error",
                     "summary": f"Call '{identifier}' not found.",
@@ -189,8 +211,6 @@ class CallInsightsTool(BaseTool):
             "type": "success",
             "data": {"insights": insights, "total": len(insights)},
             "summary": summary,
-            "ui_component": "markdown",
-            "ui_data": {"c": summary},
         }
 
 

@@ -4,8 +4,9 @@ from django.db.models import Avg, Count, Q
 
 from waldur_core.checklist.models import Answer, ChecklistCompletion
 from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_mastermind.chat.tools.account.helpers import validate_uuid
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
-from waldur_mastermind.chat.tools.enums import ToolName
+from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.proposal_helpers import call_detail_url
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.proposal.models import Proposal, RequestedResource, Review
@@ -20,52 +21,90 @@ class ProposalOverviewTool(BaseTool):
     def definition(self) -> ToolDefinition:
         return ToolDefinition(
             name=ToolName.PROPOSAL_OVERVIEW,
+            category=ToolCategory.PROPOSALS_RESEARCHER,
             description=(
                 "Summarize a specific proposal: project details, team, "
                 "resource requests, review status, and compliance. "
-                "Useful for reviewers starting a review or managers scanning submissions."
+                "Useful for reviewers starting a review or managers scanning submissions. "
+                "If the proposal is accepted and the user wants to see "
+                "the granted resources in the project, bridge to the "
+                "`account` category (get_project_resources / get_resource_usage).\n"
+                "\n"
+                "After narrating the proposal's status / reviews / "
+                "compliance, ALWAYS close with a single inline markdown "
+                "link: `[View call](url)` using the parent call's `url` "
+                "field verbatim. Do NOT emit a separate pill button — the "
+                "inline link is the only CTA."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "proposal_identifier": {
+                    "uuid": {
                         "type": "string",
-                        "description": "Proposal slug (e.g., 'R1-001') or UUID.",
+                        "format": "uuid",
+                        "description": "Proposal UUID.",
+                    },
+                    "slug": {
+                        "type": "string",
+                        "description": (
+                            "Structured slug (e.g. 'R1-001'). Use when the user "
+                            "references a proposal by its short ID."
+                        ),
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Exact or partial proposal name.",
                     },
                 },
-                "required": ["proposal_identifier"],
+                # At-least-one of uuid/slug/name is enforced in execute().
             },
-            route_utterances=[
-                "Summarize proposal P-023",
-                "Tell me about proposal R1-001",
-                "What is this proposal about?",
-                "Give me an overview of the quantum computing proposal",
-                "Show proposal details and review status",
-            ],
             usage_instructions=(
                 "Use when the user asks about a specific proposal:\n"
                 "  ✓ 'Summarize proposal P-023'\n"
                 "  ✓ 'Tell me about proposal R1-001'\n"
                 "  ✓ 'What is proposal XYZ about?'\n"
-                "  ✗ 'Show all proposals' — not for listing"
+                "  ✗ 'Show all proposals' — not for listing\n"
+                "\n"
+                "Slugs (R1-001) and names are NOT interchangeable — pass the "
+                "right one explicitly.\n"
+                "\n"
+                "Picking `uuid` vs `name`: fresh from this turn → `uuid`; from an "
+                "earlier turn or typed by the user → `name`. Prefer `name` in doubt — "
+                "UUIDs from earlier turns may be stale or fabricated. Never pass a "
+                "UUID into `name` or `slug`."
             ),
         )
 
     def execute(self, user, arguments: dict) -> dict:
-        identifier = arguments.get("proposal_identifier", "")
+        proposal_uuid = (arguments.get("uuid") or "").strip()
+        proposal_slug = (arguments.get("slug") or "").strip()
+        proposal_name = (arguments.get("name") or "").strip()
 
-        proposal = (
-            filter_queryset_for_user(Proposal.objects.all(), user)
-            .filter(Q(uuid=identifier) | Q(slug=identifier))
-            .select_related(
-                "round__call",
-                "created_by",
-                "project",
-            )
-            .first()
+        if not proposal_uuid and not proposal_slug and not proposal_name:
+            return {
+                "type": "validation_error",
+                "summary": "Pass at least one of `uuid`, `slug`, or `name`.",
+            }
+        if proposal_uuid and not validate_uuid(proposal_uuid):
+            return {
+                "type": "validation_error",
+                "summary": f"Invalid UUID for uuid: {proposal_uuid}",
+            }
+
+        qs = filter_queryset_for_user(Proposal.objects.all(), user).select_related(
+            "round__call",
+            "created_by",
+            "project",
         )
+        if proposal_uuid:
+            proposal = qs.filter(uuid=proposal_uuid).first()
+        elif proposal_slug:
+            proposal = qs.filter(slug=proposal_slug).first()
+        else:
+            proposal = qs.filter(name__icontains=proposal_name).first()
 
         if not proposal:
+            identifier = proposal_uuid or proposal_slug or proposal_name
             return {
                 "type": "error",
                 "summary": f"Proposal '{identifier}' not found or you don't have access.",
@@ -155,28 +194,31 @@ class ProposalOverviewTool(BaseTool):
             "deadline": deadline,
         }
 
-        summary = (
-            f"Proposal '{proposal.slug}' ({proposal.state}) in call '{call.name if call else 'N/A'}': "
-            f"{review_stats['completed']}/{review_stats['total']} reviews completed"
-            f"{', avg score ' + str(round(review_stats['avg_score'], 1)) if review_stats['avg_score'] else ''}."
-        )
-
-        nav_links = []
+        # Expose the parent call's URL on the data so the LLM can drop
+        # it into the closing inline markdown link.
         if call:
-            nav_links.append(
-                {
-                    "label": f"View call: {call.name}",
-                    "url": call_detail_url(str(call.uuid)),
-                    "variant": "secondary",
-                }
-            )
+            proposal_data["url"] = call_detail_url(str(call.uuid))
+
+        # Render directive in the result summary — LLM weights tool
+        # results higher than usage_instructions for "what to do next".
+        score_clause = (
+            f", avg score {round(review_stats['avg_score'], 1)}"
+            if review_stats["avg_score"]
+            else ""
+        )
+        summary = (
+            f"Proposal '{proposal.slug}' ({proposal.state}) in call "
+            f"'{call.name if call else 'N/A'}': "
+            f"{review_stats['completed']}/{review_stats['total']} reviews "
+            f"completed{score_clause}. Close your reply with one inline "
+            "markdown link: `[View call](url)` using the parent call's "
+            "`url` field verbatim."
+        )
 
         return {
             "type": "success",
             "data": proposal_data,
             "summary": summary,
-            "ui_component": "homeport_nav",
-            "ui_data": {"links": nav_links, "content": summary},
         }
 
 

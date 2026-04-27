@@ -22,6 +22,7 @@ from waldur_mastermind.chat.providers import (
     FALLBACK_DEFAULTS,
     PROVIDER_DEFAULTS,
 )
+from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.executor import ToolExecutor
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.chat.tools.tool_sets import get_tool_set_for_user
@@ -52,6 +53,12 @@ _QUEUE_MAXSIZE = 256
 # chunks adds negligible overhead.
 _CANCEL_CHECK_INTERVAL = 5
 
+# Maximum number of tool-use rounds per user turn.  A typical chain is
+# search → compare (2 rounds); 5 gives headroom without unbounded spend.
+# On cap hit the loop forces one final text-only call so the user always
+# gets a narrated response.
+_MAX_TOOL_ROUNDS = 5
+
 
 class _StreamDone:
     """Sentinel placed on queue to signal the worker has finished."""
@@ -68,7 +75,14 @@ class _StreamError:
 
 
 def validate_tool_call(tool_name, user):
-    """Validates if the tool exists and user is authenticated."""
+    """Validates that the user is authenticated, the tool exists, and the
+    tool is in the caller's role-permitted set.
+
+    The per-user tool-set check is the authorisation boundary for the
+    HTTP execute endpoint: without it, any authenticated end user could
+    invoke staff/support-only tools (e.g. ``get_user_overview``) directly,
+    bypassing the LLM-side filter applied via ``get_tool_set_for_user``.
+    """
     if not user or not user.is_authenticated:
         raise rf_exceptions.NotAuthenticated()
 
@@ -79,6 +93,18 @@ def validate_tool_call(tool_name, user):
                 % {"tool_name": tool_name}
             }
         )
+
+    permitted = get_tool_set_for_user(user)
+    if permitted is not None:
+        try:
+            tool_enum = ToolName(tool_name)
+        except ValueError:
+            tool_enum = None
+        if tool_enum is None or tool_enum not in permitted:
+            raise rf_exceptions.PermissionDenied(
+                _("Tool '%(tool_name)s' is not available for your role.")
+                % {"tool_name": tool_name}
+            )
 
 
 class LLMStreamer:
@@ -112,7 +138,7 @@ class LLMStreamer:
         assistant_msg=None,
         canned_response=None,
         pii_warning=None,
-        intent=None,
+        preload_all_tools=False,
     ):
         self.messages = messages
         self.client = openai.OpenAI(
@@ -122,6 +148,11 @@ class LLMStreamer:
         )
         self.parser = StreamParser()
         self.accumulated_blocks: list[dict] = []
+        # Index into ``accumulated_blocks`` marking the start of the
+        # current tool-loop round. ``_extend_with_tool_results`` slices
+        # from here so the assistant message it appends to the LLM-facing
+        # history contains only this round's text, not all prior rounds.
+        self._round_block_offset: int = 0
         self._current_block: dict | None = None
         self.accumulated_warning: str = ""
         self.pending_tool_calls: dict[str, dict] = {}
@@ -139,7 +170,6 @@ class LLMStreamer:
         self._persisted_message_meta = None
         self.canned_response = canned_response
         self.pii_warning = pii_warning
-        self.intent = intent
 
         # Thread-based streaming infrastructure
         self._queue: queue.Queue = queue.Queue(maxsize=_QUEUE_MAXSIZE)
@@ -149,6 +179,101 @@ class LLMStreamer:
         self._chunk_count = 0
         self._persisted = False
         self._flushed = False
+
+        # Per-turn event log. Each step in the agentic loop appends a line;
+        # the whole report is flushed as a single logger.info at workflow
+        # end so a normal turn produces one consolidated entry instead of
+        # 10+ individual log lines.
+        self._turn_report: list[str] = []
+
+        # Lazy tool loading. Both meta-tools are seeded so they ship on
+        # turn 0 without a search_tools round: ``search_tools`` is the
+        # lazy-load mechanism itself, and ``ask_user`` is universal —
+        # always available so the LLM can clarify before any data tool.
+        self._enabled_tool_names: set[str] = {
+            ToolName.SEARCH_TOOLS.value,
+            ToolName.ASK_USER.value,
+        }
+        self._rehydrate_enabled_tools_from_history()
+
+        if preload_all_tools:
+            # Pre-load account tools for validation scenarios
+            account_tools = [
+                ToolName.DISPLAY_USER_RESOURCES,
+                ToolName.LIST_ORGANIZATIONS,
+                ToolName.LIST_PROJECTS,
+                ToolName.GET_PROJECT_RESOURCES,
+                ToolName.GET_PROJECT_QUOTA,
+                ToolName.GET_RESOURCE_USAGE,
+            ]
+            for tool_name in account_tools:
+                self._enabled_tool_names.add(tool_name.value)
+
+    def _rehydrate_enabled_tools_from_history(self) -> None:
+        """Pre-populate ``_enabled_tool_names`` from prior tool activity.
+
+        Walks the conversation history (replayed from Message.blocks via
+        context_assembler) looking for two signals:
+
+        1. Direct assistant tool_calls to any tool — the LLM has a
+           working example of that tool's argument shape in its context.
+        2. search_tools invocations — the ``categories`` argument tells
+           us which buckets were loaded; each expands to its member tools
+           via the registry.
+
+        Adding those names to the enabled set skips redundant search_tools
+        fetches on every new user turn and eliminates the runtime-guard
+        rejection path when the LLM directly calls a previously-used tool.
+        """
+        scanned = 0
+        added_direct: set[str] = set()
+        added_via_search: set[str] = set()
+        for msg in self.messages or []:
+            if msg.get("role") != "assistant":
+                continue
+            for tc in msg.get("tool_calls", []) or []:
+                scanned += 1
+                func = tc.get("function") or {}
+                name = func.get("name")
+                if not name:
+                    continue
+                if name == ToolName.SEARCH_TOOLS.value:
+                    # Parse the categories search_tools loaded in a past
+                    # turn and expand each to its member tool names via
+                    # the registry.
+                    raw_args = func.get("arguments") or "{}"
+                    try:
+                        args = (
+                            json.loads(raw_args)
+                            if isinstance(raw_args, str)
+                            else raw_args
+                        )
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                    for raw_cat in args.get("categories") or []:
+                        if not isinstance(raw_cat, str):
+                            continue
+                        try:
+                            cat = ToolCategory(raw_cat)
+                        except ValueError:
+                            continue
+                        for tool in tool_registry.tools_by_category(cat):
+                            fetched_name = tool.definition.name.value
+                            if fetched_name not in self._enabled_tool_names:
+                                added_via_search.add(fetched_name)
+                            self._enabled_tool_names.add(fetched_name)
+                else:
+                    # Direct call — the tool's schema is visible to the
+                    # LLM via the replayed tool_calls entry.
+                    if name not in self._enabled_tool_names:
+                        added_direct.add(name)
+                    self._enabled_tool_names.add(name)
+        if scanned or added_direct or added_via_search:
+            self._turn_report.append(
+                f"rehydrate: scanned {scanned} prior tool_calls; "
+                f"direct={sorted(added_direct)} "
+                f"via_search_tools={sorted(added_via_search)}"
+            )
 
     def _format_ndjson(self, data: dict) -> str:
         """Helper to format a dict as a Newline Delimited JSON line."""
@@ -164,16 +289,24 @@ class LLMStreamer:
         )
         user_tools = get_tool_set_for_user(self.user)
 
-        # Semantic routing: pre-filter tools based on query similarity.
-        # Falls back to all user tools when fastembed is not available.
-        from waldur_mastermind.chat.semantic_routing import get_relevant_tools
-
-        user_message = next(
-            (m["content"] for m in reversed(messages) if m.get("role") == "user"),
-            "",
+        # Lazy tool loading: only expose tools the LLM has actually asked
+        # for via search_tools in this turn (plus search_tools itself).
+        # ``self._enabled_tool_names`` starts as {"search_tools"} and grows
+        # as search_tools calls return. User-permission intersection is
+        # enforced: we never offer a tool outside the user's tool_set.
+        permitted = (
+            {t.value for t in user_tools}
+            if user_tools is not None
+            else {name.value for name in tool_registry.definitions}
         )
-        relevant_tools = get_relevant_tools(user_message, user_tools)
-        tools = tool_registry.get_openai_tools(relevant_tools)
+        exposed_names = self._enabled_tool_names & permitted
+        exposed_enums = []
+        for raw in exposed_names:
+            try:
+                exposed_enums.append(ToolName(raw))
+            except ValueError:
+                continue
+        tools = tool_registry.get_openai_tools(exposed_enums)
 
         kwargs = {
             "model": model,
@@ -209,7 +342,14 @@ class LLMStreamer:
 
         if include_tools and tools:
             kwargs["tools"] = tools
-            kwargs["parallel_tool_calls"] = False
+            # parallel_tool_calls flows from PROVIDER_DEFAULTS / admin override,
+            # not hardcoded here.
+            # tool_choice left to default "auto" — the LLM decides whether
+            # to call search_tools or emit text. Text-only queries
+            # (clarifications, greetings) save a round compared to forcing
+            # search_tools. Hallucinated direct calls to unloaded tools are
+            # caught by the runtime guard in _execute_tool_calls_worker and
+            # returned as an actionable error so the LLM self-corrects.
 
         return self.client.chat.completions.create(**kwargs)
 
@@ -337,7 +477,11 @@ class LLMStreamer:
                 )
             return
 
-        if kind == "vm_order":
+        if kind in ("vm_order", "homeport_nav", "resource_list", "ask_user_form"):
+            # Tool result chunks arrive here directly now that load chunks
+            # are no longer emitted. Persist as top-level blocks so they
+            # survive into Message.blocks and render in thread history via
+            # the frontend BlockRenderer dispatching on block.key.
             self._finalize_current_block()
             self._current_block = self._chunk_to_block(
                 chunk, blk_id=self._next_block_id()
@@ -408,6 +552,9 @@ class LLMStreamer:
                 "images",
                 "projects",
                 "offerings",
+                "network",
+                "ssh_key_name",
+                "system_volume_size",
             ):
                 if field in chunk:
                     base[field] = chunk[field]
@@ -422,6 +569,10 @@ class LLMStreamer:
                     base[field] = chunk[field]
         elif kind == "homeport_nav":
             for field in ("links", "content"):
+                if field in chunk:
+                    base[field] = chunk[field]
+        elif kind == "ask_user_form":
+            for field in ("questions", "context"):
                 if field in chunk:
                     base[field] = chunk[field]
         return base
@@ -572,6 +723,12 @@ class LLMStreamer:
                 )
             )
         finally:
+            # Emit the consolidated turn report as a single log entry.
+            # Done first so the trace lands even if downstream persistence
+            # or token recording raises.
+            if self._turn_report:
+                logger.info("LLM turn:\n  %s", "\n  ".join(self._turn_report))
+                self._turn_report = []
             # Flush any buffered parser content / in-progress block so
             # accumulated_blocks reflects everything the stream produced.
             # Safe to call even when the normal flush path already ran
@@ -595,71 +752,180 @@ class LLMStreamer:
                 connections.close_all()
 
     def _run_llm_workflow(self):
-        """Execute the full LLM streaming workflow (runs in worker thread).
+        """Execute the agentic tool-use loop (runs in worker thread).
 
-        Implements the standard tool-use loop: if the LLM emits tool_calls,
-        we execute them, append the results as ``tool`` role messages, and
-        make a follow-up LLM call so the model can generate a natural-language
-        response that references the tool data.
+        The loop exits when the model produces plain text instead of a
+        tool_call, when the user is anonymous / stream is cancelled, or when
+        the hard round cap is reached — in which case we issue one final
+        text-only call so the user always gets a narrated response.
         """
-        include_tools = self.intent.include_tools if self.intent else True
-        self._stream_and_collect(self.messages, include_tools=include_tools)
+        messages = list(self.messages)
 
-        # Tool-use follow-up: if the LLM called tools, execute them and
-        # give the LLM a second pass to generate a user-facing response.
-        if self.tool_calls and self.user and not self._stopped:
+        user_label = "anon" if not self.user else getattr(self.user, "username", "?")
+        self._turn_report.insert(
+            0,
+            f"user={user_label} messages={len(messages)} "
+            f"enabled_tools={sorted(self._enabled_tool_names)}",
+        )
+
+        for round_num in range(_MAX_TOOL_ROUNDS):
+            self.tool_calls = {}
+            self._flushed = False
+
+            self._stream_and_collect(messages)
+
+            self._turn_report.append(
+                f"round {round_num}: tool_calls={len(self.tool_calls)}"
+            )
+            for tc in self.tool_calls.values():
+                self._turn_report.append(f"  → {tc.get('name')}({tc.get('arguments')})")
+
+            if not self.tool_calls:
+                fetched = sorted(
+                    self._enabled_tool_names - {ToolName.SEARCH_TOOLS.value}
+                )
+                self._turn_report.append(
+                    f"exit: plain text after {round_num + 1} round(s); "
+                    f"tools_loaded_this_turn={fetched}"
+                )
+                return  # LLM produced text — done.
+            if not self.user or self._stopped:
+                self._turn_report.append(
+                    f"exit: anon/cancelled after {round_num + 1} round(s)"
+                )
+                return  # Anonymous path or cancelled.
+
             self._execute_tool_calls_worker(self.tool_calls)
+            # After execution, enrich the enabled-tools set with anything
+            # search_tools just fetched — next round's API call will
+            # expose those schemas.
+            self._absorb_search_tools_results(self.tool_calls)
+            # If any tool just rendered an interactive surface that the
+            # user is expected to act on (a form, a preview card, a
+            # success/error confirmation), the next move is the user's —
+            # not the LLM's. Exit the loop so the model doesn't (a) fire a
+            # duplicate ask_user form, or (b) duplicate the rendered data
+            # as redundant bullet lists below the card. Observed in
+            # WAL-9884 with qwen3.5.
+            terminal_blocks = {"ask_user_form"}
+            terminal_vm_statuses = {"preview", "success", "error"}
 
-            # Build follow-up messages: original context + assistant tool_call
-            # + tool results with full structured data for the LLM to reference.
-            followup_messages = list(self.messages)
-            followup_messages.append(
+            def _is_terminal(entry):
+                block = entry.get("_result_block")
+                if not isinstance(block, dict):
+                    return False
+                kind = block.get("k")
+                if kind in terminal_blocks:
+                    return True
+                if kind == "vm_order":
+                    status = block.get("status")
+                    return status in terminal_vm_statuses
+                return False
+
+            if any(_is_terminal(entry) for entry in self.tool_calls.values()):
+                self._turn_report.append(
+                    f"exit: terminal UI block after {round_num + 1} round(s)"
+                )
+                return
+            messages = self._extend_with_tool_results(messages, self.tool_calls)
+            # Mark the start of the next round so its assistant content
+            # excludes blocks streamed in earlier rounds.
+            self._round_block_offset = len(self.accumulated_blocks)
+        else:
+            # Hit the cap — force a final text-only call so the user always
+            # receives narration rather than a raw tool result block.
+            self._turn_report.append(
+                f"exit: CAP HIT at {_MAX_TOOL_ROUNDS} rounds — forced text-only call"
+            )
+            self._flushed = False
+            self._stream_and_collect(messages, include_tools=False)
+
+    def _absorb_search_tools_results(self, tool_calls):
+        """Grow ``_enabled_tool_names`` from any search_tools calls this round.
+
+        After search_tools runs, the LLM can invoke the fetched tools
+        directly on the next round. This method reads the captured result
+        data (stashed on each tool_call entry by
+        ``_execute_tool_calls_worker``) and adds fetched names to the
+        enabled set.
+        """
+        added: list[str] = []
+        missing: list[str] = []
+        for entry in tool_calls.values():
+            if entry.get("name") != ToolName.SEARCH_TOOLS.value:
+                continue
+            result_data = entry.get("_result_data") or {}
+            fetched = result_data.get("fetched_names") or []
+            unknown = result_data.get("missing") or []
+            for name in fetched:
+                if name not in self._enabled_tool_names:
+                    self._enabled_tool_names.add(name)
+                    added.append(name)
+            missing.extend(unknown)
+        if added:
+            self._turn_report.append(f"  search_tools loaded: {added}")
+        if missing:
+            self._turn_report.append(
+                f"  search_tools missed (unknown names): {missing}"
+            )
+
+    def _extend_with_tool_results(self, messages, tool_calls):
+        """Build the next round's message list: original + assistant tool_call + tool results.
+
+        Returns a new list; does not mutate the input.
+        """
+        followup = list(messages)
+        followup.append(
+            {
+                "role": "assistant",
+                "content": blocks_to_text(
+                    self.accumulated_blocks[self._round_block_offset :]
+                )
+                or None,
+                "tool_calls": [
+                    {
+                        "id": entry["id"],
+                        "type": "function",
+                        "function": {
+                            "name": entry["name"],
+                            "arguments": entry["arguments"],
+                        },
+                    }
+                    for entry in tool_calls.values()
+                ],
+            }
+        )
+        for entry in tool_calls.values():
+            # Send the full data dict (not just summary) so the LLM can
+            # generate a rich, detailed response from the tool output.
+            result_data = entry.get("_result_data", {})
+            summary = entry.get("_summary", "Done")
+            followup.append(
                 {
-                    "role": "assistant",
-                    "content": blocks_to_text(self.accumulated_blocks) or None,
-                    "tool_calls": [
-                        {
-                            "id": entry["id"],
-                            "type": "function",
-                            "function": {
-                                "name": entry["name"],
-                                "arguments": entry["arguments"],
-                            },
-                        }
-                        for entry in self.tool_calls.values()
-                    ],
+                    "role": "tool",
+                    "tool_call_id": entry["id"],
+                    "content": json.dumps(result_data) if result_data else summary,
                 }
             )
-            for entry in self.tool_calls.values():
-                # Send the full data dict (not just summary) so the LLM can
-                # generate a rich, detailed response from the tool output.
-                result_data = entry.get("_result_data", {})
-                summary = entry.get("_summary", "Done")
-                tool_content = json.dumps(result_data) if result_data else summary
-                followup_messages.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": entry["id"],
-                        "content": tool_content,
-                    }
-                )
-
-            # Reset flush guard so the second stream's trailing parser buffer
-            # can be flushed by _stream_and_collect -> _flush_parser().
-            self._flushed = False
-            # Second LLM call — no tools this time, just generate text.
-            self._stream_and_collect(followup_messages, include_tools=False)
+        return followup
 
     def _stream_and_collect(self, messages, include_tools=True):
         """Stream one LLM completion, accumulating content and tool calls."""
         with self._stream_completion(messages, include_tools=include_tools) as stream:
             for chunk in stream:
                 if chunk.usage:
-                    self.input_tokens = (self.input_tokens or 0) + (
-                        chunk.usage.prompt_tokens or 0
-                    )
-                    self.output_tokens = (self.output_tokens or 0) + (
-                        chunk.usage.completion_tokens or 0
+                    prompt_tokens = chunk.usage.prompt_tokens or 0
+                    completion_tokens = chunk.usage.completion_tokens or 0
+                    self.input_tokens = (self.input_tokens or 0) + prompt_tokens
+                    self.output_tokens = (self.output_tokens or 0) + completion_tokens
+
+                    details = getattr(chunk.usage, "prompt_tokens_details", None)
+                    cached_tokens = getattr(details, "cached_tokens", 0) or 0
+                    logger.info(
+                        "LLM usage: prompt=%d cached=%d completion=%d",
+                        prompt_tokens,
+                        cached_tokens,
+                        completion_tokens,
                     )
 
                 if not chunk.choices:
@@ -713,10 +979,52 @@ class LLMStreamer:
                 )
                 continue
 
-            # Emit loading indicator so the frontend can show an inline spinner
-            load_chunk = {"k": "load", "t": "tool"}
-            self._absorb_block({**load_chunk, "call_id": call_id})
-            self._enqueue(self._format_ndjson(load_chunk))
+            # Lazy-load guard: reject tool calls for tools that haven't
+            # been fetched via search_tools yet. Tells the LLM exactly how
+            # to recover rather than executing with guessed arguments.
+            if tool_name not in self._enabled_tool_names:
+                self._turn_report.append(
+                    f"  ⨯ rejected unloaded tool call: {tool_name}"
+                )
+                # search_tools takes ``categories``, not ``tool_names`` —
+                # look up the unloaded tool's category so the LLM gets a
+                # recovery instruction it can actually execute. Fall back
+                # to listing all categories when the name is unknown.
+                tool = tool_registry.get(tool_name)
+                category = tool.definition.category if tool is not None else None
+                if category is not None:
+                    recovery = f"search_tools(categories=['{category.value}'])"
+                else:
+                    valid_cats = ", ".join(c.value for c in ToolCategory)
+                    recovery = f"search_tools(categories=[<one of: {valid_cats}>])"
+                guard_msg = (
+                    f"Tool '{tool_name}' is not loaded in this turn. "
+                    f"You must call {recovery} FIRST to load its schema, "
+                    f"then invoke the tool with the correct arguments in "
+                    f"the next round. Do NOT guess the schema."
+                )
+                entry["_result_block"] = None
+                entry["_summary"] = guard_msg
+                entry["_result_data"] = {
+                    "type": "error",
+                    "guard": "lazy_load_required",
+                    "tool_name": tool_name,
+                    "message": guard_msg,
+                }
+                if call_id in self.pending_tool_calls:
+                    self.pending_tool_calls[call_id]["summary"] = guard_msg
+                continue
+
+            # Create the loading tool block in the ACCUMULATOR only — the
+            # wire is NOT notified (no skeleton flicker on the frontend).
+            # The accumulator uses this loading block as the target into
+            # which the subsequent result chunk is wrapped, producing the
+            # complete tool block that gets persisted to Message.blocks.
+            # Without this, tools whose results return no ui_component
+            # never get their tool metadata persisted, and cross-turn
+            # rehydration can't see what tools were used in prior turns.
+            load_chunk = {"k": "load", "t": "tool", "call_id": call_id}
+            self._absorb_block(load_chunk)
 
             logger.debug(
                 "Executing tool call",
@@ -731,6 +1039,11 @@ class LLMStreamer:
             # Store full data for LLM follow-up call
             entry["_result_data"] = result.get("data", {})
 
+            result_type = result.get("type", "?")
+            self._turn_report.append(
+                f"  ← {tool_name} [{result_type}] {result.get('summary', '')[:200]}"
+            )
+
             # Keep accumulator metadata in sync so the tool block has the
             # correct summary when the result chunk is folded in.
             if call_id in self.pending_tool_calls:
@@ -739,6 +1052,17 @@ class LLMStreamer:
             if tool_block:
                 self._absorb_block({**tool_block, "call_id": call_id})
                 self._enqueue(self._format_ndjson(tool_block))
+            else:
+                # Tools without ui_component (search_tools, list_categories,
+                # etc.) still need their tool block finalised so the name/
+                # arguments/summary get persisted to Message.blocks — that's
+                # what cross-turn rehydration scans to pre-populate
+                # _enabled_tool_names. Without this, the loading tool block
+                # would be dropped by _finalize_current_block and future
+                # turns would re-search for tools they've already used.
+                # The synthesised empty markdown chunk becomes the tool's
+                # `result` sub-block, which renders as nothing on the frontend.
+                self._absorb_block({"k": "markdown", "c": "", "call_id": call_id})
 
     def _persist_on_cancel(self):
         """Flush parser and persist partial content immediately on cancel.

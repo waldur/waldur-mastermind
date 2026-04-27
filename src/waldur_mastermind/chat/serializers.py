@@ -180,6 +180,18 @@ class ChatResponseSerializer(serializers.Serializer):
         required=False,
         help_text="Available offering options [{uuid, name}]. Present when status='offering_form'.",
     )
+    network = serializers.CharField(
+        required=False,
+        help_text="Network name (e.g. 'default'). Present when status='preview'.",
+    )
+    ssh_key_name = serializers.CharField(
+        required=False,
+        help_text="SSH key name. Present when status='preview'.",
+    )
+    system_volume_size = serializers.IntegerField(
+        required=False,
+        help_text="System volume size in GB. Present when status='preview'.",
+    )
     # resource_list fields
     customer_uuid = serializers.CharField(
         required=False,

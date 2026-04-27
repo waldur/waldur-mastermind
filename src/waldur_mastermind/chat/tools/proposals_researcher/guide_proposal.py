@@ -3,8 +3,10 @@ import logging
 from django.utils import timezone
 
 from waldur_core.checklist.models import Question
+from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_mastermind.chat.tools.account.helpers import validate_uuid
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
-from waldur_mastermind.chat.tools.enums import ToolName
+from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.proposal_helpers import call_detail_url
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.proposal.models import Call, CallResourceTemplate, Proposal
@@ -19,47 +21,77 @@ class GuideProposalTool(BaseTool):
     def definition(self) -> ToolDefinition:
         return ToolDefinition(
             name=ToolName.GUIDE_PROPOSAL,
+            category=ToolCategory.PROPOSALS_RESEARCHER,
             description=(
                 "Provide guidance on what is needed to submit a proposal to a specific call. "
                 "Returns the call's requirements, available resources, deadlines, "
-                "compliance checklist questions, and submission tips."
+                "compliance checklist questions, and submission tips.\n"
+                "\n"
+                "After narrating the call's requirements / resources / "
+                "checklist, ALWAYS close with a single inline markdown "
+                "link: `[View call](url)` using the call's `url` field "
+                "verbatim. Do NOT emit a separate pill button — the inline "
+                "link is the only CTA."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "call_name_or_uuid": {
+                    "uuid": {
                         "type": "string",
-                        "description": "Name or UUID of the call to get guidance for.",
+                        "format": "uuid",
+                        "description": (
+                            "Call UUID. Use when you have it fresh from this turn's "
+                            "tool output (e.g. find_matching_calls)."
+                        ),
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": (
+                            "Exact or partial call name. Use when the call was named "
+                            "in an earlier turn and its UUID isn't in your context."
+                        ),
                     },
                 },
-                "required": ["call_name_or_uuid"],
+                # At-least-one of uuid/name is enforced in execute().
             },
-            route_utterances=[
-                "What do I need to prepare for the Extreme Scale call?",
-                "Help me understand the requirements for call X",
-                "What documents are needed for the GPU Research Program?",
-                "Guide me through the application process for this call",
-                "What are the submission requirements and deadlines?",
-                "How do I apply to the HPC allocation call?",
-                "What fields do I need to fill for this proposal?",
-            ],
             usage_instructions=(
                 "Use when the user wants to understand a specific call's requirements:\n"
                 "  ✓ 'What do I need for the Extreme Scale call?'\n"
                 "  ✓ 'Help me prepare for call X'\n"
                 "  ✓ 'What are the requirements for applying to the AI for Science call?'\n"
-                "  ✗ 'Find calls for my project' — use find_matching_calls instead"
+                "  ✗ 'Find calls for my project' — use find_matching_calls instead\n"
+                "\n"
+                "Picking `uuid` vs `name`: fresh from this turn → `uuid`; from an "
+                "earlier turn or typed by the user → `name`. Prefer `name` in doubt — "
+                "UUIDs from earlier turns may be stale or fabricated. Never pass a "
+                "UUID into `name` or vice versa."
             ),
         )
 
     def execute(self, user, arguments: dict) -> dict:
-        identifier = arguments.get("call_name_or_uuid", "")
+        call_uuid = (arguments.get("uuid") or "").strip()
+        call_name = (arguments.get("name") or "").strip()
+
+        if not call_uuid and not call_name:
+            return {
+                "type": "validation_error",
+                "summary": "Pass either `uuid` or `name`.",
+            }
+        if call_uuid and not validate_uuid(call_uuid):
+            return {
+                "type": "validation_error",
+                "summary": f"Invalid UUID for uuid: {call_uuid}",
+            }
+
         now = timezone.now()
 
-        call = Call.objects.filter(uuid=identifier).first()
+        qs = filter_queryset_for_user(Call.objects.all(), user)
+        if call_uuid:
+            call = qs.filter(uuid=call_uuid).first()
+        else:
+            call = qs.filter(name__icontains=call_name).first()
         if not call:
-            call = Call.objects.filter(name__icontains=identifier).first()
-        if not call:
+            identifier = call_uuid or call_name
             return {
                 "type": "error",
                 "summary": f"Call '{identifier}' not found.",
@@ -159,18 +191,20 @@ class GuideProposalTool(BaseTool):
         call_url = call_detail_url(str(call.uuid))
         call_data["url"] = call_url
 
-        nav_links = [
-            {"label": f"View call: {call.name}", "url": call_url, "variant": "primary"},
-        ]
-
-        summary = f"Guidance for call '{call.name}': {len(round_info)} rounds, {len(resources)} resource types, {len(checklist_questions)} compliance questions."
+        # Render directive in the result summary — LLM weights tool
+        # results higher than usage_instructions for "what to do next".
+        summary = (
+            f"Guidance for call '{call.name}': {len(round_info)} rounds, "
+            f"{len(resources)} resource types, {len(checklist_questions)} "
+            "compliance questions. Close your reply with one inline "
+            "markdown link: `[View call](url)` using the call's `url` "
+            "field verbatim."
+        )
 
         return {
             "type": "success",
             "data": call_data,
             "summary": summary,
-            "ui_component": "homeport_nav",
-            "ui_data": {"links": nav_links, "content": summary},
         }
 
 

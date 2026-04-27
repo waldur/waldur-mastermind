@@ -2,7 +2,7 @@ import logging
 import uuid as uuid_module
 
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
-from waldur_mastermind.chat.tools.enums import ToolName
+from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import Resource
@@ -22,9 +22,12 @@ def _validate_uuid(value: str) -> bool:
 
 # Input parameter names for UUID-based filter hints forwarded to the frontend.
 _UUID_FILTERS = ("project_uuid", "customer_uuid", "category_uuid")
+# Name-based siblings the LLM can pass when no UUID is available; the
+# frontend resolves them when rendering the resource_list block.
+_NAME_FILTERS = ("project_name", "customer_name", "category_name")
 
 
-class ShowUserResourcesTool(BaseTool):
+class DisplayUserResourcesTool(BaseTool):
     """Emits a resource_list UI signal with filter hints.
 
     The tool itself does not query the database — the frontend
@@ -37,7 +40,8 @@ class ShowUserResourcesTool(BaseTool):
     @property
     def definition(self) -> ToolDefinition:
         return ToolDefinition(
-            name=ToolName.SHOW_USER_RESOURCES,
+            name=ToolName.DISPLAY_USER_RESOURCES,
+            category=ToolCategory.ACCOUNT,
             description="List the user's active cloud resources.",
             inputSchema={
                 "type": "object",
@@ -47,15 +51,36 @@ class ShowUserResourcesTool(BaseTool):
                         "format": "uuid",
                         "description": "Filter resources by project UUID.",
                     },
+                    "project_name": {
+                        "type": "string",
+                        "description": (
+                            "Filter resources by project name (fallback "
+                            "when no UUID is known)."
+                        ),
+                    },
                     "customer_uuid": {
                         "type": "string",
                         "format": "uuid",
                         "description": "Filter resources by customer (organization) UUID.",
                     },
+                    "customer_name": {
+                        "type": "string",
+                        "description": (
+                            "Filter resources by customer (organization) "
+                            "name (fallback when no UUID is known)."
+                        ),
+                    },
                     "category_uuid": {
                         "type": "string",
                         "format": "uuid",
                         "description": "Filter resources by offering category UUID.",
+                    },
+                    "category_name": {
+                        "type": "string",
+                        "description": (
+                            "Filter resources by offering category name "
+                            "(fallback when no UUID is known)."
+                        ),
                     },
                     "state": {
                         "type": "array",
@@ -69,37 +94,45 @@ class ShowUserResourcesTool(BaseTool):
                 },
                 "required": [],
             },
-            route_utterances=[
-                "show my resources",
-                "list my VMs",
-                "what virtual machines do I have",
-                "display my cloud instances",
-                "show my deployed services",
-            ],
             usage_instructions=(
-                "ONLY use this tool when the user EXPLICITLY asks to "
-                "see/list/display/show their actual deployed resources (VMs, instances, services):\n"
-                "  CORRECT: 'show my resources', 'list my VMs', 'display my resources'\n"
-                "  WRONG: 'show my offerings', 'show my projects', 'show my organizations', "
-                "'show my invoices', 'show my orders'\n"
-                "  WRONG: 'hello', 'what are resources?', 'how do I...', 'explain resources'\n"
-                "  WRONG: 'create a VM', 'make a VM', 'provision a VM' — use the VM creation workflow instead\n"
+                "Use only when the user explicitly asks to see/list/show "
+                "their actual deployed resources (VMs, instances, services). "
+                "Examples in scope: 'show my resources', 'list my VMs'. "
+                "Out of scope: 'show my offerings / projects / invoices / "
+                "orders' (different concepts), 'create a VM' (use VM "
+                "creation workflow), or concept questions like 'what are "
+                "resources?' (answer from knowledge).\n"
                 "\n"
-                "Optional filter parameters:\n"
-                "  - project_uuid: restrict to a specific project\n"
-                "  - customer_uuid: restrict to a specific organization\n"
-                "  - category_uuid: restrict to a specific offering category\n"
-                "  - state: list of display state names to include (e.g. ['OK', 'Erred']); "
-                "if omitted, terminated resources are excluded automatically\n"
+                "Picking `*_uuid` vs `*_name`: fresh from this turn → "
+                "`*_uuid`; from an earlier turn or typed by the user → "
+                "`*_name`. Prefer name in doubt.\n"
                 "\n"
-                "If the user asks to show/list something OTHER than resources (offerings, "
-                "projects, invoices, etc.), do NOT call any tool. Instead, answer with text.\n"
+                "=== CRITICAL OUTPUT RULE ===\n"
+                "After this tool runs, the UI renders an interactive "
+                "resource table that the user sees BEFORE your reply. This "
+                "tool returns no resource data to you — so you have NONE "
+                "to narrate. Any table, list, or bullet of resource rows "
+                "you write is fabricated and misleading.\n"
                 "\n"
-                "AFTER this tool runs, an interactive resource table widget is rendered in the UI. "
-                "Your follow-up message should:\n"
-                "  - NOT repeat, list, or summarize the resource data — the user already sees it\n"
-                "  - Offer to help with a specific resource (e.g. view details, resize, restart, terminate)\n"
-                "  - Be brief (1-2 sentences)"
+                "Your reply MUST:\n"
+                "  • be ≤2 short sentences\n"
+                "  • contain NO markdown tables (no `|`, no header "
+                "separators)\n"
+                "  • contain NO bulleted or numbered lists of resources\n"
+                "  • NOT name, describe, count, or summarise individual "
+                "resources\n"
+                "  • offer ONE concrete next action (e.g. 'Want me to "
+                "check the quota for a project, or look up usage for one "
+                "of these?')\n"
+                "\n"
+                "Example of a CORRECT reply:\n"
+                '  "Your resources are in the table above. Want me to '
+                "check quota for a specific project or usage for one of "
+                'these?"\n'
+                "\n"
+                "Example of a FORBIDDEN reply (do not imitate):\n"
+                '  "Here are your active cloud resources:\\n\\n| Name | '
+                'Type | State | …"'
             ),
         )
 
@@ -118,6 +151,11 @@ class ShowUserResourcesTool(BaseTool):
 
         for param in _UUID_FILTERS:
             value = arguments.get(param)
+            if value:
+                ui_data[param] = value
+
+        for param in _NAME_FILTERS:
+            value = (arguments.get(param) or "").strip()
             if value:
                 ui_data[param] = value
 
@@ -168,4 +206,4 @@ class ShowUserResourcesTool(BaseTool):
         return qs.count()
 
 
-tool_registry.register(ShowUserResourcesTool())
+tool_registry.register(DisplayUserResourcesTool())

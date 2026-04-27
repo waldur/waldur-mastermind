@@ -3,7 +3,7 @@ import logging
 from django.utils import timezone
 
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
-from waldur_mastermind.chat.tools.enums import ToolName
+from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.proposal.models import (
     AssignmentItem,
@@ -24,24 +24,19 @@ class ReviewWorkloadTool(BaseTool):
     def definition(self) -> ToolDefinition:
         return ToolDefinition(
             name=ToolName.REVIEW_WORKLOAD,
+            category=ToolCategory.PROPOSALS_REVIEWER,
             description=(
-                "Show the reviewer's current workload: pending reviews prioritized by deadline, "
-                "pending assignment invitations, and review statistics. "
-                "Helps reviewers manage their time and identify urgent tasks."
+                "Show the reviewer's current workload: pending reviews "
+                "prioritized by deadline, pending assignment invitations, "
+                "and review statistics. Drill into one row with "
+                "review_assistant (assigned reviewers only) for evaluation "
+                "guidance, or proposal_overview to scan the proposal."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {},
                 "required": [],
             },
-            route_utterances=[
-                "Show my pending reviews",
-                "What reviews do I have?",
-                "Which reviews are urgent?",
-                "My review workload and deadlines",
-                "Do I have any overdue review assignments?",
-                "How many proposals am I reviewing?",
-            ],
             usage_instructions=(
                 "Use when the user asks about their review workload:\n"
                 "  ✓ 'What reviews do I have?'\n"
@@ -50,6 +45,19 @@ class ReviewWorkloadTool(BaseTool):
                 "  ✓ 'Do I have any urgent reviews?'\n"
                 "  ✗ 'Show my proposals' — use find_matching_calls or proposal_overview"
             ),
+            workflow_instructions="""\
+=== REVIEWER WORKFLOW ===
+review_workload → review_assistant: surface pending reviews, then
+drill into one for structured evaluation guidance. review_assistant
+only works for proposals the user is actually assigned to.
+
+call_insights is a separate lens — call manager / staff "how is
+call X going?" briefings, not per-proposal review work.
+
+To deep-read a proposal a reviewer is evaluating, also load the
+`proposals_researcher` category and call proposal_overview alongside
+proposals_reviewer in the same search_tools batch.\
+""",
         )
 
     def execute(self, user, arguments: dict) -> dict:
@@ -158,8 +166,6 @@ class ReviewWorkloadTool(BaseTool):
                 "pending_invitation_count": len(pending_items),
             },
             "summary": summary,
-            "ui_component": "markdown",
-            "ui_data": {"c": summary},
         }
 
 

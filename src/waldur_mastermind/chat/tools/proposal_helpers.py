@@ -14,9 +14,9 @@ def call_detail_url(call_uuid: str) -> str:
     return f"{get_homeport_url()}/calls/{call_uuid}/"
 
 
-def proposal_detail_url(org_uuid: str, proposal_uuid: str) -> str:
-    """Proposal detail page URL (within call management)."""
-    return f"{get_homeport_url()}/call-management/{org_uuid}/proposals/{proposal_uuid}/"
+def proposal_detail_url(proposal_uuid: str) -> str:
+    """Proposal detail page URL."""
+    return f"{get_homeport_url()}/proposals/{proposal_uuid}/"
 
 
 def call_management_url(org_uuid: str) -> str:

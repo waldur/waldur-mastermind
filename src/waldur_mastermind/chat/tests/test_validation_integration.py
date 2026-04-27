@@ -47,7 +47,7 @@ class ScenarioEvaluationTest(unittest.TestCase):
         # Simulate: AI Assistant response text + a native function call in config
         llm_response = "Here are your resources."
         config = dict(greeting_scenario.evaluations[0].config)
-        config["tool_calls"] = [{"name": "show_user_resources"}]
+        config["tool_calls"] = [{"name": "display_user_resources"}]
 
         # Evaluate the response
         evaluation_criteria = greeting_scenario.evaluations[0]
@@ -69,7 +69,7 @@ class ScenarioEvaluationTest(unittest.TestCase):
         # Simulate: AI Assistant response text + native function call in config
         llm_response = "Here are your resources."
         config = dict(show_resources_scenario.evaluations[0].config)
-        config["tool_calls"] = [{"name": "show_user_resources"}]
+        config["tool_calls"] = [{"name": "display_user_resources"}]
 
         # Evaluate the response
         evaluation_criteria = show_resources_scenario.evaluations[0]

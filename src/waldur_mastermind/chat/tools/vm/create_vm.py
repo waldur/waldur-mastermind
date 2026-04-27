@@ -5,9 +5,9 @@ from django.db import transaction
 from rest_framework.exceptions import ValidationError
 
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
-from waldur_mastermind.chat.tools.enums import ToolName
+from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
-from waldur_mastermind.chat.tools.vm_helpers import (
+from waldur_mastermind.chat.tools.vm.helpers import (
     MultipleOfferingsAvailable,
     build_order_attributes,
     format_vm_error,
@@ -34,57 +34,43 @@ class CreateVMTool(BaseTool):
     def definition(self) -> ToolDefinition:
         return ToolDefinition(
             name=ToolName.CREATE_VM,
+            category=ToolCategory.VM,
             description=(
-                "Create the OpenStack VM after user confirms the preview. "
-                "Use ONLY after showing preview_vm and receiving user confirmation (e.g., 'yes', 'proceed', 'create'). "
-                "NEVER use this without showing preview first."
+                "Create the OpenStack VM after the user confirms the plan_vm "
+                "preview. Use ONLY after plan_vm returned a vm_order preview "
+                "and the user said 'yes'/'proceed'/'create'. Never call "
+                "without a preview first."
             ),
-            route_utterances=[
-                "yes create it",
-                "proceed with the VM",
-                "confirm and create",
-                "go ahead and deploy",
-                "looks good, create the VM",
-            ],
             usage_instructions=(
-                "ONLY use this tool after the user has confirmed a VM preview.\n"
-                "NEVER use without first showing a preview result and receiving explicit user confirmation."
+                "Call only after plan_vm has returned a vm_order preview AND "
+                "the user has explicitly confirmed (preview Create button or "
+                "'yes'/'proceed'/'create' message). Use the same field values "
+                "the preview was rendered from. 'modify'/'change' → re-call "
+                "plan_vm, not create_vm.\n"
+                "\n"
+                "`project_uuid` for fresh IDs from this turn's plan_vm reply; "
+                "`project_name` when typed by the user or from an earlier "
+                "turn. Prefer `project_name` in doubt. Never fabricate a UUID."
             ),
-            workflow_instructions="""\
-=== VM CREATION WORKFLOW ===
-For VM creation requests, follow this EXACT sequence:
-
-**Phase 0: Discover Projects (if needed)**
-- If the user has not specified a project, call list_projects to show available projects
-- Show the returned project table and ask: "Which project would you like to create the VM in?"
-- Wait for the user to pick a project before continuing
-- CRITICAL: When the user selects a project, use the UUID from the table (e.g. "66f82a86c3074626a825ee72a09bee67"), NOT the project name. Multiple projects can share the same name; only the UUID uniquely identifies the project.
-
-**Phase 1: Show Configuration Form**
-- Once you have the project UUID and a VM name, call preview_vm with ONLY project_uuid, name, and offering_uuid if already known (DO NOT include flavor or image)
-- If preview_vm returns status="offering_form": the project has multiple providers — show the offerings table and ask "Which provider would you like to use?", wait for the user's selection, then call preview_vm again with offering_uuid included
-- CRITICAL: Use the offering UUID from the table, not the name. If only one offering exists it is selected automatically and you will receive status="form" directly.
-- If preview_vm returns status="form": a form with available flavor and image options is shown to the user
-- Wait for the user to submit their selections from the form
-
-**Phase 2: Show Preview**
-- After user selects flavor and image, call preview_vm again with all parameters
-- The preview shows Modify/Create buttons to the user
-- DO NOT call preview_vm again after showing the preview
-
-**Phase 3: Handle User Response**
-- If user says "modify"/"change": Ask what to change, gather new requirements, return to Phase 2
-- If user says "proceed"/"create"/"yes"/"confirm": IMMEDIATELY call create_vm tool
-- CRITICAL: Never call preview_vm a third time - go straight to create_vm
-
-**Phase 4: Report Results**
-- Explain the outcome (success/pending approval/errors with actionable guidance)""",
             inputSchema={
                 "type": "object",
                 "properties": {
                     "project_uuid": {
                         "type": "string",
-                        "description": "UUID or name of the project where the VM should be created. The user must have access to this project.",
+                        "format": "uuid",
+                        "description": (
+                            "Project UUID. Use when you have it fresh from "
+                            "a recent plan_vm "
+                            "call."
+                        ),
+                    },
+                    "project_name": {
+                        "type": "string",
+                        "description": (
+                            "Exact project name. Use when the user named "
+                            "the project and the UUID isn't in your "
+                            "context. Names match exactly (case-insensitive)."
+                        ),
                     },
                     "name": {
                         "type": "string",
@@ -124,7 +110,8 @@ For VM creation requests, follow this EXACT sequence:
                         "description": "Cloud-init user data script for VM initialization. Optional.",
                     },
                 },
-                "required": ["project_uuid", "name", "flavor", "image"],
+                # project_uuid/project_name at-least-one is enforced in execute()
+                "required": ["name", "flavor", "image"],
             },
         )
 
@@ -134,9 +121,16 @@ For VM creation requests, follow this EXACT sequence:
         All database operations are wrapped in a transaction to ensure atomicity.
         If any step fails, all changes are rolled back to maintain consistency.
         """
+        project_uuid = (arguments.get("project_uuid") or "").strip()
+        project_name = (arguments.get("project_name") or "").strip()
+        if not project_uuid and not project_name:
+            return format_vm_error("Pass project_uuid or project_name.")
+
         with transaction.atomic():
             try:
-                project = get_project(user, arguments["project_uuid"])
+                project = get_project(
+                    user, project_uuid=project_uuid, project_name=project_name
+                )
                 offering = get_offering(
                     user, project, offering_uuid=arguments.get("offering_uuid")
                 )
@@ -154,12 +148,25 @@ For VM creation requests, follow this EXACT sequence:
                 )
                 plan = get_plan(offering)
                 order = submit_order(user, project, offering, plan, attrs)
-                return format_vm_success(order, flavor, image, project)
+
+                network = arguments.get("network_uuid") or "default"
+                ssh_key_name = arguments.get("ssh_key_name")
+                system_volume_size = arguments.get("system_volume_size")
+
+                return format_vm_success(
+                    order,
+                    flavor,
+                    image,
+                    project,
+                    network=network,
+                    ssh_key_name=ssh_key_name,
+                    system_volume_size=system_volume_size,
+                )
             except MultipleOfferingsAvailable:
                 return format_vm_error(
                     "Multiple offerings are available for this project. "
-                    "Call preview_vm first (with only project_uuid and name) to see "
-                    "the available offerings, then include the selected offering_uuid."
+                    "Call plan_vm first to pick one, then include the "
+                    "selected offering_uuid in create_vm."
                 )
             except (ValueError, ValidationError, PermissionDenied) as e:
                 if isinstance(e, ValidationError):

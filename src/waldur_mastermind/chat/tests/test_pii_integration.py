@@ -47,7 +47,7 @@ class CredentialBlockTest(PIIIntegrationBaseTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = b"".join(response.streaming_content).decode()
         # Should get canned rejection (blocked input)
-        self.assertIn("I'm sorry, I can't help with that request", content)
+        self.assertIn("I can't help with that request", content)
 
         # Verify PII detection fields are persisted
         user_msg = Message.objects.filter(
@@ -72,7 +72,7 @@ class CredentialBlockTest(PIIIntegrationBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = b"".join(response.streaming_content).decode()
-        self.assertIn("I'm sorry, I can't help with that request", content)
+        self.assertIn("I can't help with that request", content)
 
     @override_constance_config(
         AI_ASSISTANT_ENABLED=True,
@@ -257,7 +257,7 @@ class DatabaseURLBlockTest(PIIIntegrationBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = b"".join(response.streaming_content).decode()
-        self.assertIn("I'm sorry, I can't help with that request", content)
+        self.assertIn("I can't help with that request", content)
 
         user_msg = Message.objects.filter(
             thread__chat_session__user=self.user, role="user"
@@ -282,7 +282,7 @@ class DatabaseURLBlockTest(PIIIntegrationBaseTest):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         content = b"".join(response.streaming_content).decode()
-        self.assertIn("I'm sorry, I can't help with that request", content)
+        self.assertIn("I can't help with that request", content)
 
         user_msg = Message.objects.filter(
             thread__chat_session__user=self.user, role="user"

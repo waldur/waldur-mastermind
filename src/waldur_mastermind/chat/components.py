@@ -89,6 +89,9 @@ ui_registry.register(
             "offerings": {
                 "type": "array"
             },  # Available offerings list (offering_form mode only)
+            "network": {"type": "string"},  # Network name or "default" (optional)
+            "ssh_key_name": {"type": "string"},  # SSH key name (optional)
+            "system_volume_size": {"type": "number"},  # Volume size in GB (optional)
         },
     },
 )
@@ -128,4 +131,31 @@ ui_registry.register(
             },  # Brief caption text shown above links
         },
     },
+)
+
+
+# Interactive question form emitted by the ``ask_user`` meta-tool. Top-level
+# schema is intentionally loose — deep per-question validation is the tool's
+# job. The frontend picks the rendering mode per question based on the
+# `options` count: 2–4 → button group, 5–20 → searchable list, absent →
+# free-form text input. ``has_loading_state=False`` because the tool is a
+# synchronous shape validator with no DB work.
+ui_registry.register(
+    key="ask_user_form",
+    name="Ask User Form",
+    description=(
+        "Interactive multi-question form. Each question has an optional "
+        "header, a question text, and either a 2–20-option choice set or a "
+        "free-form text input. The user's selections are composed into a "
+        "natural-language follow-up message."
+    ),
+    schema={
+        "type": "object",
+        "required": ["questions"],
+        "properties": {
+            "questions": {"type": "array"},
+            "context": {"type": "string"},
+        },
+    },
+    has_loading_state=False,
 )

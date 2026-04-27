@@ -8,14 +8,8 @@ from rest_framework import status, test
 from rest_framework.exceptions import PermissionDenied
 
 from waldur_core.structure.tests import factories as structure_factories
-from waldur_mastermind.chat.context_assembler import (
-    ContextResult,
-    build_context,
-    build_context_with_intent,
-)
-from waldur_mastermind.chat.intent_classifier import Intent
+from waldur_mastermind.chat.context_assembler import build_context
 from waldur_mastermind.chat.models import ChatSession, Message, ThreadSession
-from waldur_mastermind.chat.prompts.ui_capabilities import UI_CAPABILITIES
 from waldur_mastermind.chat.tests.utils import (
     _make_content_chunk,
     _mock_openai_client,
@@ -47,10 +41,10 @@ class BuildContextTest(TestCase):
 
         # context is a list[dict] in OpenAI messages format
         system_msg = next(m for m in context if m["role"] == "system")
-        self.assertIn("a highly knowledgeable", system_msg["content"])
-        self.assertIn("SCOPE: Waldur CLOUD MANAGEMENT ONLY", system_msg["content"])
-        self.assertIn(UI_CAPABILITIES, system_msg["content"])
-        self.assertIn("TOOL USAGE GUIDELINES", system_msg["content"])
+        self.assertIn("support assistant for Waldur", system_msg["content"])
+        # End-user role: out-of-scope mentions "programming unrelated to ..."
+        self.assertIn("programming unrelated to Waldur", system_msg["content"])
+        self.assertIn("TOOL CATALOG", system_msg["content"])
         history_roles_contents = [(m["role"], m["content"]) for m in context]
         self.assertIn(("user", "Hello"), history_roles_contents)
         self.assertIn(("assistant", "Hi there!"), history_roles_contents)
@@ -60,7 +54,7 @@ class BuildContextTest(TestCase):
         context = build_context(self.user, "Hello", thread=None)
 
         system_msg = next(m for m in context if m["role"] == "system")
-        self.assertIn("a highly knowledgeable", system_msg["content"])
+        self.assertIn("support assistant for Waldur", system_msg["content"])
         roles = [m["role"] for m in context]
         self.assertIn("user", roles)
         self.assertNotIn("assistant", roles)
@@ -238,8 +232,10 @@ class BuildContextTest(TestCase):
         context = build_context(staff_user, "What is Python?", thread=thread)
 
         system_msg = next(m for m in context if m["role"] == "system")
-        self.assertIn("TECHNICAL ASSISTANCE", system_msg["content"])
-        self.assertNotIn("CLOUD MANAGEMENT ONLY", system_msg["content"])
+        # Staff role grants the broad-technical extended scope.
+        self.assertIn("broader technical topics", system_msg["content"])
+        # Staff out-of-scope is the narrow non-technical-only fragment.
+        self.assertNotIn("programming unrelated to Waldur", system_msg["content"])
 
     def test_support_user_gets_technical_support_scope(self):
         support_user = structure_factories.UserFactory(is_support=True)
@@ -249,16 +245,19 @@ class BuildContextTest(TestCase):
         context = build_context(support_user, "What is Python?", thread=thread)
 
         system_msg = next(m for m in context if m["role"] == "system")
-        self.assertIn("TECHNICAL SUPPORT", system_msg["content"])
-        self.assertNotIn("CLOUD MANAGEMENT ONLY", system_msg["content"])
+        # Support role grants the support-flavoured extended scope.
+        self.assertIn("support role", system_msg["content"])
+        self.assertNotIn("programming unrelated to Waldur", system_msg["content"])
 
     def test_non_staff_user_gets_strict_scope(self):
         context = build_context(self.user, "What is Python?", thread=self.thread)
 
         system_msg = next(m for m in context if m["role"] == "system")
-        self.assertIn("CLOUD MANAGEMENT ONLY", system_msg["content"])
-        self.assertNotIn("TECHNICAL ASSISTANCE", system_msg["content"])
-        self.assertNotIn("TECHNICAL SUPPORT", system_msg["content"])
+        # End user gets no extended-scope paragraph and the strict
+        # out-of-scope listing.
+        self.assertIn("programming unrelated to Waldur", system_msg["content"])
+        self.assertNotIn("broader technical topics", system_msg["content"])
+        self.assertNotIn("support role", system_msg["content"])
 
     def test_staff_takes_precedence_over_support(self):
         user = structure_factories.UserFactory(is_staff=True, is_support=True)
@@ -268,9 +267,11 @@ class BuildContextTest(TestCase):
         context = build_context(user, "Hello", thread=thread)
 
         system_msg = next(m for m in context if m["role"] == "system")
-        self.assertIn("TECHNICAL ASSISTANCE", system_msg["content"])
-        self.assertNotIn("TECHNICAL SUPPORT", system_msg["content"])
-        self.assertNotIn("CLOUD MANAGEMENT ONLY", system_msg["content"])
+        # Staff path wins over support path: broad-technical scope, not
+        # support-role wording.
+        self.assertIn("broader technical topics", system_msg["content"])
+        self.assertNotIn("support role", system_msg["content"])
+        self.assertNotIn("programming unrelated to Waldur", system_msg["content"])
 
     @override_constance_config(AI_ASSISTANT_NAME="Mari", SITE_NAME="ETAIS")
     def test_staff_scope_uses_custom_organization(self):
@@ -282,7 +283,7 @@ class BuildContextTest(TestCase):
 
         system_msg = next(m for m in context if m["role"] == "system")
         self.assertIn("ETAIS", system_msg["content"])
-        self.assertIn("TECHNICAL ASSISTANCE", system_msg["content"])
+        self.assertIn("broader technical topics", system_msg["content"])
         self.assertNotIn("{organization}", system_msg["content"])
 
     def test_scope_guardrails_present_for_all_roles(self):
@@ -299,83 +300,6 @@ class BuildContextTest(TestCase):
             system_msg = next(m for m in context if m["role"] == "system")
             self.assertIn("COMPOUND REQUESTS", system_msg["content"])
             self.assertIn("PREREQUISITE FRAMING", system_msg["content"])
-
-
-class BuildContextWithIntentTest(TestCase):
-    def setUp(self):
-        self.user = structure_factories.UserFactory()
-        session = ChatSession.objects.create(user=self.user)
-        self.thread = ThreadSession.objects.create(chat_session=session)
-
-    def test_returns_context_result(self):
-        result = build_context_with_intent(self.user, "hello")
-        self.assertIsInstance(result, ContextResult)
-        self.assertIsInstance(result.messages, list)
-        self.assertIsInstance(result.intent, Intent)
-
-    def test_greeting_classified(self):
-        result = build_context_with_intent(self.user, "hello")
-        self.assertEqual(result.intent, Intent.GREETING)
-
-    def test_tool_action_classified(self):
-        result = build_context_with_intent(self.user, "show my resources")
-        self.assertEqual(result.intent, Intent.TOOL_ACTION)
-
-    def test_knowledge_classified_as_ambiguous(self):
-        """Knowledge queries are now AMBIGUOUS (tools included, LLM decides)."""
-        result = build_context_with_intent(self.user, "what is a VM?")
-        self.assertEqual(result.intent, Intent.AMBIGUOUS)
-
-    def test_messages_match_build_context(self):
-        result = build_context_with_intent(
-            self.user, "show my resources", thread=self.thread
-        )
-        expected = build_context(self.user, "show my resources", thread=self.thread)
-        self.assertEqual(len(result.messages), len(expected))
-        self.assertEqual(result.messages[0]["role"], expected[0]["role"])
-
-    def test_knowledge_intent_includes_tool_instructions(self):
-        """Knowledge queries now include tools (AMBIGUOUS) so the LLM decides."""
-        result = build_context_with_intent(self.user, "what is a VM?")
-        system_msg = next(m for m in result.messages if m["role"] == "system")
-        self.assertIn("TOOL USAGE GUIDELINES", system_msg["content"])
-
-    def test_tool_action_intent_includes_tool_instructions(self):
-        """When intent is TOOL_ACTION, tool usage guidelines should appear."""
-        result = build_context_with_intent(self.user, "show my resources")
-        system_msg = next(m for m in result.messages if m["role"] == "system")
-        self.assertIn("TOOL USAGE GUIDELINES", system_msg["content"])
-
-    def test_mid_workflow_returns_ambiguous(self):
-        """History with tool blocks should override to AMBIGUOUS."""
-        Message.objects.create(
-            thread=self.thread,
-            role="assistant",
-            blocks=[
-                {
-                    "id": "blk_0",
-                    "key": "tool",
-                    "status": "complete",
-                    "tool": {
-                        "call_id": "call_abc",
-                        "name": "show_user_resources",
-                        "arguments": {},
-                        "summary": "",
-                    },
-                    "result": {
-                        "id": "blk_0_r",
-                        "key": "markdown",
-                        "status": "complete",
-                        "content": "",
-                    },
-                }
-            ],
-            sequence_index=1,
-        )
-        result = build_context_with_intent(
-            self.user, "what is this?", thread=self.thread
-        )
-        self.assertEqual(result.intent, Intent.AMBIGUOUS)
 
 
 class ChatStreamIntegrationTest(test.APITestCase):
@@ -449,7 +373,7 @@ class ChatStreamIntegrationTest(test.APITestCase):
         user_content = next(
             m["content"] for m in reversed(sent_messages) if m["role"] == "user"
         )
-        self.assertIn("a highly knowledgeable", system_content)
+        self.assertIn("support assistant for Waldur", system_content)
         self.assertIn("Test message", user_content)
 
     @override_constance_config(
