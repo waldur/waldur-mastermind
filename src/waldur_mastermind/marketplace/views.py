@@ -203,6 +203,13 @@ def get_allowed_offering_users_for_user(
     visible_organization_groups = structure_models.Customer.objects.filter(
         id__in=visible_customers
     ).values_list("organization_groups__id", flat=True)
+    # Resolve M2M-via-organization_groups to a flat set of offering ids so that
+    # the outer query does not need a LEFT JOIN on
+    # marketplace_offering_organization_groups (which forces SELECT DISTINCT
+    # over the wide OfferingUser/Offering/User column set).
+    offerings_via_organization_groups = models.Offering.objects.filter(
+        organization_groups__in=visible_organization_groups
+    ).values("id")
 
     # Build base visibility conditions
     managed_offerings = get_connected_offerings(request_user)
@@ -218,7 +225,7 @@ def get_allowed_offering_users_for_user(
                 Q(offering__customer__id__in=visible_customers)
                 |
                 # only offerings from organization_groups including the current user's customers
-                Q(offering__organization_groups__in=visible_organization_groups)
+                Q(offering__id__in=offerings_via_organization_groups)
             )
         )
         | (
