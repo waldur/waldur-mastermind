@@ -3147,6 +3147,30 @@ This is an automated message from the {{ site_name }}. Please do not reply to th
 
 ```
 
+### reviewer_invitation_message.txt (waldur_mastermind.proposal)
+
+```txt
+
+You have been invited by {{ invited_by_name }} to join the reviewer pool for the call "{{ call_name }}" on {{ site_name }}.
+
+To accept or decline this invitation, please follow the link below:
+
+{{ invitation_link }}
+
+If you do not yet have an account, you will need to register and create a reviewer profile before accepting.
+
+This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+### reviewer_invitation_subject.txt (waldur_mastermind.proposal)
+
+```txt
+
+You are invited to join the reviewer pool for "{{ call_name }}"
+
+```
+
 ### round_opening_for_reviewers_subject.txt (waldur_mastermind.proposal)
 
 ```txt
@@ -3470,6 +3494,29 @@ You can assign a new reviewer by visiting:
 {{ create_review_link }}
 
 This is an automated message from the {{ site_name }}. Please do not reply to this email.
+
+```
+
+### reviewer_invitation_message.html (waldur_mastermind.proposal)
+
+```html
+
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+<p>You have been invited by <strong>{{ invited_by_name }}</strong> to join the reviewer pool for the call "<strong>{{ call_name }}</strong>" on {{ site_name }}.</p>
+
+<p>To accept or decline this invitation, please follow the link below:</p>
+
+<p><a href="{{ invitation_link }}">{{ invitation_link }}</a></p>
+
+<p>If you do not yet have an account, you will need to register and create a reviewer profile before accepting.</p>
+
+<p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+</body>
+</html>
 
 ```
 

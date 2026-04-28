@@ -3558,6 +3558,59 @@ A notification to the call managers about a rejected review.
 
 ```
 
+### proposal.reviewer_invitation
+
+Sent to a person invited to join the reviewer pool for a call.
+
+#### Templates
+
+=== "proposal/reviewer_invitation_subject.txt"
+
+```txt
+
+    You are invited to join the reviewer pool for "{{ call_name }}"
+
+```
+
+=== "proposal/reviewer_invitation_message.txt"
+
+```txt
+
+    You have been invited by {{ invited_by_name }} to join the reviewer pool for the call "{{ call_name }}" on {{ site_name }}.
+
+    To accept or decline this invitation, please follow the link below:
+
+    {{ invitation_link }}
+
+    If you do not yet have an account, you will need to register and create a reviewer profile before accepting.
+
+    This is an automated message from {{ site_name }}. Please do not reply to this email.
+
+```
+
+=== "proposal/reviewer_invitation_message.html"
+
+```txt
+
+    <html>
+    <head>
+        <meta charset="UTF-8">
+    </head>
+    <body>
+    <p>You have been invited by <strong>{{ invited_by_name }}</strong> to join the reviewer pool for the call "<strong>{{ call_name }}</strong>" on {{ site_name }}.</p>
+
+    <p>To accept or decline this invitation, please follow the link below:</p>
+
+    <p><a href="{{ invitation_link }}">{{ invitation_link }}</a></p>
+
+    <p>If you do not yet have an account, you will need to register and create a reviewer profile before accepting.</p>
+
+    <p><em>This is an automated message from {{ site_name }}. Please do not reply to this email.</em></p>
+    </body>
+    </html>
+
+```
+
 ### proposal.reviews_complete
 
 Notifies call managers when all required reviews for a proposal have been submitted, providing a summary.
