@@ -1222,8 +1222,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             invitation_status=ReviewerPoolInvitationStatuses.PENDING,
         )
 
-        # TODO: Send invitation email
-        # tasks.send_reviewer_invitation_email.delay(pool_member.uuid)
+        tasks.send_reviewer_invitation_email.delay(pool_member.uuid)
 
         return response.Response(
             serializers.CallReviewerPoolSerializer(
