@@ -922,3 +922,37 @@ def notify_managers_of_expired_batches():
 
     if count > 0:
         logger.info(f"Notified managers about {count} expired assignment batches")
+
+
+@shared_task(name="waldur_mastermind.proposal.send_reviewer_invitation_email")
+def send_reviewer_invitation_email(pool_member_uuid):
+    pool_member = proposal_models.CallReviewerPool.objects.select_related(
+        "call", "invited_by"
+    ).get(uuid=pool_member_uuid)
+
+    if not pool_member.invited_email:
+        logger.warning(
+            f"Cannot send reviewer invitation email. Pool member {pool_member_uuid} has no invited_email."
+        )
+        return
+
+    invitation_link = core_utils.format_homeport_link(
+        f"reviewer-invitation/{pool_member.invitation_token}/"
+    )
+    invited_by_name = (
+        pool_member.invited_by.full_name if pool_member.invited_by else config.SITE_NAME
+    )
+
+    context = {
+        "site_name": config.SITE_NAME,
+        "call_name": pool_member.call.name,
+        "invited_by_name": invited_by_name,
+        "invitation_link": invitation_link,
+    }
+
+    core_utils.broadcast_mail(
+        "proposal",
+        "reviewer_invitation",
+        context,
+        [pool_member.invited_email],
+    )

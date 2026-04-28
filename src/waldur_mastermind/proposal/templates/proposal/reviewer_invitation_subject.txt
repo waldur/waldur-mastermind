@@ -1,0 +1,1 @@
+You are invited to join the reviewer pool for "{{ call_name }}"

@@ -1025,6 +1025,17 @@ class ReviewsCompleteContext(BaseModel):
     )
 
 
+class ReviewerInvitationContext(BaseModel):
+    site_name: str = Field(description="Name of the site from settings.")
+    call_name: str = Field(description="Name of the call the reviewer is invited to.")
+    invited_by_name: str = Field(
+        description="Full name of the user who sent the invitation."
+    )
+    invitation_link: str = Field(
+        description="URL for the invitee to accept or decline the invitation."
+    )
+
+
 class ProposalSection(NotificationSection):
     class Meta:
         key = "proposal"
@@ -1088,6 +1099,11 @@ class ProposalSection(NotificationSection):
         key="round_opening_for_reviewers",
         description="A notification to reviewers about a new call round opening.",
         context_model=RoundOpeningForReviewersContext,
+    )
+    reviewer_invitation = Notification(
+        key="reviewer_invitation",
+        description="Sent to a person invited to join the reviewer pool for a call.",
+        context_model=ReviewerInvitationContext,
     )
     reviews_complete = Notification(
         key="reviews_complete",
