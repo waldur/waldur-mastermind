@@ -25,7 +25,10 @@ from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.models import SafeAttributesMixin
+from waldur_mastermind.marketplace.models import (
+    SafeAttributesMixin,
+    UserAttributeConfigBase,
+)
 from waldur_mastermind.proposal.enums import (
     AssignmentBatchStatuses,
     AssignmentItemStatuses,
@@ -226,6 +229,26 @@ class Call(
                 raise ValidationError(
                     "Cannot change proposal slug template when proposals exist"
                 )
+
+
+class CallApplicantVisibilityConfig(UserAttributeConfigBase):
+    """Configures which applicant fields are visible to reviewers during evaluation."""
+
+    SCOPE_RELATED_NAME = "applicant_visibility_config"
+    DEFAULT_CONSTANCE_KEY = "DEFAULT_CALL_USER_ATTRIBUTES"
+
+    call = models.OneToOneField(
+        Call,
+        on_delete=models.CASCADE,
+        related_name="applicant_visibility_config",
+    )
+
+    def __str__(self):
+        return f"Applicant visibility config for {self.call}"
+
+    @classmethod
+    def get_exposed_fields_for_call(cls, call, default_attributes=None) -> list[str]:
+        return cls.get_exposed_fields_for_scope(call, default_attributes)
 
 
 class CallApplicantAttributeConfig(TimeStampedModel, core_models.UuidMixin):

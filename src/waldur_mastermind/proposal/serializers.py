@@ -29,6 +29,7 @@ from waldur_mastermind.marketplace.serializers import (
     BasePublicPlanSerializer,
     OfferingComponentSerializer,
     OfferingOptionsField,
+    UserAttributeConfigBaseSerializer,
 )
 from waldur_mastermind.proposal.enums import (
     CallStates,
@@ -41,8 +42,86 @@ from waldur_mastermind.proposal.enums import (
 )
 
 from . import models
+from .managers import get_connected_calls
 
 logger = logging.getLogger(__name__)
+
+
+# Maps applicant attribute name (from CallApplicantVisibilityConfig.expose_*)
+# to ProposalSerializer field names that should be filtered when a reviewer
+# views a proposal and the attribute is not exposed.
+APPLICANT_FIELD_MAP: dict[str, list[str]] = {
+    "full_name": [
+        "created_by_name",
+        "applicant_full_name",
+        "applicant_first_name",
+        "applicant_last_name",
+    ],
+    "username": [
+        "created_by",
+        "created_by_uuid",
+        "applicant_username",
+    ],
+    "email": ["applicant_email"],
+    "registration_method": ["applicant_registration_method"],
+    "phone_number": ["applicant_phone_number"],
+    "organization": ["applicant_organization"],
+    "organization_country": ["applicant_organization_country"],
+    "organization_type": ["applicant_organization_type"],
+    "organization_registry_code": ["applicant_organization_registry_code"],
+    "job_title": ["applicant_job_title"],
+    "affiliations": ["applicant_affiliations"],
+    "gender": ["applicant_gender"],
+    "personal_title": ["applicant_personal_title"],
+    "place_of_birth": ["applicant_place_of_birth"],
+    "address": ["applicant_address"],
+    "country_of_residence": ["applicant_country_of_residence"],
+    "nationality": ["applicant_nationality"],
+    "nationalities": ["applicant_nationalities"],
+    "eduperson_assurance": ["applicant_eduperson_assurance"],
+    "identity_source": ["applicant_identity_source"],
+    "civil_number": ["applicant_civil_number"],
+    "birth_date": ["applicant_birth_date"],
+    "active_isds": ["applicant_active_isds"],
+}
+
+
+def _is_reviewer_only_view(user, proposal) -> bool:
+    """True if the user views this proposal solely as a reviewer.
+
+    Returns False for the applicant, call managers, staff, support, and
+    anonymous users — all of whom should see unfiltered data.
+    """
+    if not user or user.is_anonymous:
+        return False
+    if user.is_staff or user.is_support:
+        return False
+    if proposal.created_by_id == user.id:
+        return False
+    call_id = proposal.round.call_id
+    if call_id in get_connected_calls(user, CallRole.MANAGER):
+        return False
+    return call_id in get_connected_calls(user, CallRole.REVIEWER)
+
+
+def filter_applicant_fields_for_reviewer(data: dict, proposal, user) -> dict:
+    """Mutate the serialized representation to drop applicant fields that
+    are not exposed by the call's visibility config when the user is a
+    reviewer-only viewer."""
+    if not _is_reviewer_only_view(user, proposal):
+        return data
+    exposed = models.CallApplicantVisibilityConfig.get_exposed_fields_for_call(
+        proposal.round.call
+    )
+    kept_serializer_fields: set[str] = set()
+    for attr in exposed:
+        kept_serializer_fields.update(APPLICANT_FIELD_MAP.get(attr, []))
+    all_filterable: set[str] = set()
+    for serializer_fields in APPLICANT_FIELD_MAP.values():
+        all_filterable.update(serializer_fields)
+    for field_name in all_filterable - kept_serializer_fields:
+        data.pop(field_name, None)
+    return data
 
 
 class EligibilityCheckSerializer(serializers.Serializer):
@@ -993,6 +1072,11 @@ class ProviderRequestedOfferingSerializer(NestedRequestedOfferingSerializer):
         }
 
 
+class CallApplicantVisibilityConfigSerializer(UserAttributeConfigBaseSerializer):
+    class Meta(UserAttributeConfigBaseSerializer.Meta):
+        model = models.CallApplicantVisibilityConfig
+
+
 class ProtectedCallSerializer(PublicCallSerializer):
     reference_code = serializers.CharField(source="backend_id", required=False)
     fixed_duration_in_days = serializers.IntegerField(required=False, allow_null=True)
@@ -1059,6 +1143,11 @@ class ProtectedCallSerializer(PublicCallSerializer):
         help_text="List of required assurance URIs (REFEDS). User must have ALL of these.",
     )
 
+    applicant_visibility_config = CallApplicantVisibilityConfigSerializer(
+        required=False,
+        allow_null=True,
+    )
+
     class Meta(PublicCallSerializer.Meta):
         fields = PublicCallSerializer.Meta.fields + (
             "created_by",
@@ -1072,6 +1161,7 @@ class ProtectedCallSerializer(PublicCallSerializer):
             "user_nationalities",
             "user_organization_types",
             "user_assurance_levels",
+            "applicant_visibility_config",
         )
         view_name = "proposal-protected-call-detail"
         protected_fields = ("manager",)
@@ -1165,7 +1255,14 @@ class ProtectedCallSerializer(PublicCallSerializer):
             raise PermissionDenied()
 
         validated_data["created_by"] = request.user
-        return super().create(validated_data)
+        has_visibility = "applicant_visibility_config" in validated_data
+        visibility_data = validated_data.pop("applicant_visibility_config", None)
+        call = super().create(validated_data)
+        if has_visibility and visibility_data is not None:
+            models.CallApplicantVisibilityConfig.objects.create(
+                call=call, **visibility_data
+            )
+        return call
 
     def update(self, instance, validated_data):
         if "fixed_duration_in_days" in validated_data:
@@ -1178,7 +1275,17 @@ class ProtectedCallSerializer(PublicCallSerializer):
                 proposal.duration_in_days = fixed_duration_in_days
                 proposal.save()
 
-        return super().update(instance, validated_data)
+        has_visibility = "applicant_visibility_config" in validated_data
+        visibility_data = validated_data.pop("applicant_visibility_config", None)
+        call = super().update(instance, validated_data)
+        if has_visibility:
+            if visibility_data is None:
+                models.CallApplicantVisibilityConfig.objects.filter(call=call).delete()
+            else:
+                models.CallApplicantVisibilityConfig.objects.update_or_create(
+                    call=call, defaults=visibility_data
+                )
+        return call
 
 
 class CallApplicantAttributeConfigSerializer(serializers.ModelSerializer):
@@ -1360,6 +1467,53 @@ class ProposalSerializer(
     project_name = serializers.ReadOnlyField(source="project.name")
     description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
 
+    # Applicant attributes — gated by CallApplicantVisibilityConfig for reviewers.
+    applicant_username = serializers.ReadOnlyField(source="created_by.username")
+    applicant_full_name = serializers.ReadOnlyField(source="created_by.full_name")
+    applicant_first_name = serializers.ReadOnlyField(source="created_by.first_name")
+    applicant_last_name = serializers.ReadOnlyField(source="created_by.last_name")
+    applicant_email = serializers.ReadOnlyField(source="created_by.email")
+    applicant_registration_method = serializers.ReadOnlyField(
+        source="created_by.registration_method"
+    )
+    applicant_phone_number = serializers.ReadOnlyField(source="created_by.phone_number")
+    applicant_organization = serializers.ReadOnlyField(source="created_by.organization")
+    applicant_organization_country = serializers.ReadOnlyField(
+        source="created_by.organization_country"
+    )
+    applicant_organization_type = serializers.ReadOnlyField(
+        source="created_by.organization_type"
+    )
+    applicant_organization_registry_code = serializers.ReadOnlyField(
+        source="created_by.organization_registry_code"
+    )
+    applicant_job_title = serializers.ReadOnlyField(source="created_by.job_title")
+    applicant_affiliations = serializers.ReadOnlyField(source="created_by.affiliations")
+    applicant_gender = serializers.ReadOnlyField(source="created_by.gender")
+    applicant_personal_title = serializers.ReadOnlyField(
+        source="created_by.personal_title"
+    )
+    applicant_place_of_birth = serializers.ReadOnlyField(
+        source="created_by.place_of_birth"
+    )
+    applicant_address = serializers.ReadOnlyField(source="created_by.address")
+    applicant_country_of_residence = serializers.ReadOnlyField(
+        source="created_by.country_of_residence"
+    )
+    applicant_nationality = serializers.ReadOnlyField(source="created_by.nationality")
+    applicant_nationalities = serializers.ReadOnlyField(
+        source="created_by.nationalities"
+    )
+    applicant_eduperson_assurance = serializers.ReadOnlyField(
+        source="created_by.eduperson_assurance"
+    )
+    applicant_identity_source = serializers.ReadOnlyField(
+        source="created_by.identity_source"
+    )
+    applicant_civil_number = serializers.ReadOnlyField(source="created_by.civil_number")
+    applicant_birth_date = serializers.ReadOnlyField(source="created_by.birth_date")
+    applicant_active_isds = serializers.ReadOnlyField(source="created_by.active_isds")
+
     # Compliance fields
     compliance_status = serializers.SerializerMethodField()
     can_submit = serializers.SerializerMethodField()
@@ -1382,6 +1536,32 @@ class ProposalSerializer(
             "created_by",
             "created_by_name",
             "created_by_uuid",
+            # Applicant attributes (gated by CallApplicantVisibilityConfig)
+            "applicant_username",
+            "applicant_full_name",
+            "applicant_first_name",
+            "applicant_last_name",
+            "applicant_email",
+            "applicant_registration_method",
+            "applicant_phone_number",
+            "applicant_organization",
+            "applicant_organization_country",
+            "applicant_organization_type",
+            "applicant_organization_registry_code",
+            "applicant_job_title",
+            "applicant_affiliations",
+            "applicant_gender",
+            "applicant_personal_title",
+            "applicant_place_of_birth",
+            "applicant_address",
+            "applicant_country_of_residence",
+            "applicant_nationality",
+            "applicant_nationalities",
+            "applicant_eduperson_assurance",
+            "applicant_identity_source",
+            "applicant_civil_number",
+            "applicant_birth_date",
+            "applicant_active_isds",
             "duration_in_days",
             "project",
             "round",
@@ -1448,6 +1628,14 @@ class ProposalSerializer(
             proposal.save()
 
         return proposal
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
+            return data
+        request = self.context.get("request")
+        user = request.user if request else None
+        return filter_applicant_fields_for_reviewer(data, instance, user)
 
     def get_fields(self):
         fields = super().get_fields()
