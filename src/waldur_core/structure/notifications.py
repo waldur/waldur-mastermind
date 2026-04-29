@@ -247,6 +247,12 @@ class PermissionRequestSubmittedContext(BaseModel):
     )
 
 
+class PermissionRequestRejectedContext(BaseModel):
+    permission_request: Any = Field(
+        description="The PermissionRequest model instance. Provides `permission_request.created_by`, `permission_request.invitation`, `permission_request.review_comment`, and `permission_request.reviewed_by`."
+    )
+
+
 class UserSection(NotificationSection):
     class Meta:
         key = "users"
@@ -280,6 +286,11 @@ class UserSection(NotificationSection):
         key="permission_request_submitted",
         description="Sent to staff or customer owners about a submitted permission request.",
         context_model=PermissionRequestSubmittedContext,
+    )
+    permission_request_rejected = Notification(
+        key="permission_request_rejected",
+        description="Sent to the user who submitted a permission request to inform them that their request has been rejected.",
+        context_model=PermissionRequestRejectedContext,
     )
 
 

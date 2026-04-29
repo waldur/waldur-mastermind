@@ -1,0 +1,19 @@
+<html>
+<head lang="en">
+  <meta charset="UTF-8">
+  <title>Your permission request has been rejected</title>
+</head>
+<body>
+<p>
+  Hello!
+</p>
+<p>
+  Your permission request for {{ permission_request.invitation }} has been rejected.
+</p>
+{% if permission_request.review_comment %}
+<p>
+  Reviewer comment: {{ permission_request.review_comment }}
+</p>
+{% endif %}
+</body>
+</html>

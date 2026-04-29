@@ -2,6 +2,8 @@ from unittest import mock
 
 from constance.test.unittest import override_config
 from ddt import data, ddt
+from django.core import mail
+from django.test import override_settings
 from rest_framework import status
 
 from waldur_core.core.enums import ReviewStates
@@ -926,6 +928,21 @@ class RequestRejectTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.permission_request.refresh_from_db()
         self.assertEqual(self.permission_request.state, ReviewStates.REJECTED)
+
+    @override_settings(task_always_eager=True)
+    def test_rejection_notifies_requester(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        structure_factories.NotificationFactory(key="users.permission_request_rejected")
+        self.permission_request.created_by.email = "requester@example.com"
+        self.permission_request.created_by.save(update_fields=["email"])
+
+        self.client.force_authenticate(user=self.customer_owner)
+        response = self.client.post(self.url, {"comment": "Not eligible"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["requester@example.com"])
+        self.assertIn("rejected", mail.outbox[0].subject.lower())
 
 
 @ddt

@@ -1,0 +1,6 @@
+Hello!
+
+Your permission request for {{ permission_request.invitation }} has been rejected.
+{% if permission_request.review_comment %}
+Reviewer comment: {{ permission_request.review_comment }}
+{% endif %}

@@ -28,3 +28,27 @@ def create_notification_about_permission_request_has_been_submitted(
             )
         )
     )
+
+
+def create_notification_about_permission_request_has_been_rejected(
+    sender, instance: PermissionRequest, created=False, **kwargs
+):
+    """Notify the requester when their permission request has been rejected."""
+    if created:
+        return
+
+    permission_request = instance
+
+    if (
+        not permission_request.tracker.has_changed("state")
+        or permission_request.state != ReviewStates.REJECTED
+    ):
+        return
+
+    transaction.on_commit(
+        lambda: (
+            tasks.send_mail_notification_about_permission_request_has_been_rejected.delay(
+                permission_request.id
+            )
+        )
+    )

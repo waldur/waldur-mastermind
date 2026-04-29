@@ -399,6 +399,27 @@ def send_mail_notification_about_permission_request_has_been_submitted(
         )
 
 
+@shared_task(
+    name="waldur_core.users.send_mail_notification_about_permission_request_has_been_rejected"
+)
+def send_mail_notification_about_permission_request_has_been_rejected(
+    permission_request_id,
+):
+    """Notify the requester that their permission request has been rejected."""
+    permission_request = models.PermissionRequest.objects.get(id=permission_request_id)
+    requester = permission_request.created_by
+
+    if not requester.email:
+        return
+
+    broadcast_mail(
+        "users",
+        "permission_request_rejected",
+        {"permission_request": permission_request},
+        [requester.email],
+    )
+
+
 @shared_task(name="waldur_core.users.process_pending_project_invitations")
 def process_pending_project_invitations():
     """Process project invitations for projects that have become active."""
