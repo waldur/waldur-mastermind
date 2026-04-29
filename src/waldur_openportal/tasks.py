@@ -5,10 +5,13 @@ import random
 import time
 
 from celery import shared_task
+from constance import config
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.models import User
+from waldur_core.permissions.enums import RoleEnum
+from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -1819,3 +1822,89 @@ def fix_total_allocation():
             continue
 
         utils.fix_total_allocation(project)
+
+
+@shared_task(name="waldur_openportal.notify_users_about_rejected_allocation")
+def notify_users_about_rejected_allocation(serialized_managed_project):
+    """
+    Send a rejection notification to the admins and managers of the
+    Waldur project linked to the managed project, when its resource
+    allocation request has been rejected.
+    """
+    logger.info(
+        "OpenPortal task.notify_users_about_rejected_allocation: %s",
+        serialized_managed_project,
+    )
+
+    managed_project = core_utils.deserialize_instance(serialized_managed_project)
+
+    if not isinstance(managed_project, models.ManagedProject):
+        logger.error(
+            "OpenPortal - %s is not a ManagedProject instance - it is %s",
+            managed_project,
+            type(managed_project),
+        )
+        raise ValueError(
+            f"OpenPortal - {managed_project} is not a ManagedProject instance - it is {type(managed_project)}"
+        )
+
+    if not managed_project.is_rejected():
+        logger.error(
+            "OpenPortal - ManagedProject %s is not rejected - cannot send rejection notification!",
+            managed_project,
+        )
+        raise ValueError(
+            f"OpenPortal - ManagedProject {managed_project} is not rejected - cannot send rejection notification!"
+        )
+
+    project = managed_project.project
+    if project is None:
+        logger.warning(
+            "OpenPortal - ManagedProject %s has no linked Waldur project - skipping rejection notification",
+            managed_project,
+        )
+        return
+
+    reviewer = managed_project.reviewed_by
+    if reviewer is None:
+        logger.warning(
+            "OpenPortal - ManagedProject %s has no reviewer - skipping rejection notification",
+            managed_project,
+        )
+        return
+
+    admins = get_users(project, RoleEnum.PROJECT_ADMIN)
+    managers = get_users(project, RoleEnum.PROJECT_MANAGER)
+    recipients = {u.id: u for u in [*admins, *managers] if u.email}
+
+    if not recipients:
+        logger.warning(
+            "OpenPortal - project %s has no admins or managers with an email - skipping rejection notification",
+            project,
+        )
+        return
+
+    details = managed_project.get_details()
+    project_name = details.name or managed_project.identifier
+
+    for user in recipients.values():
+        context = {
+            "recipient_first_name": user.first_name,
+            "project_name": project_name,
+            "reviewer_full_name": reviewer.full_name,
+            "reviewer_email": reviewer.email,
+            "reviewer_organization": reviewer.organization,
+            "review_comment": managed_project.review_comment or "",
+            "site_name": config.SITE_NAME,
+        }
+        logger.info(
+            "OpenPortal - sending rejection notification to %s for project %s",
+            user.email,
+            managed_project,
+        )
+        core_utils.broadcast_mail(
+            "openportal",
+            "managed_project_rejected",
+            context,
+            [user.email],
+        )

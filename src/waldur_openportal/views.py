@@ -993,6 +993,12 @@ class ManagedProjectViewSet(core_views.ActionsViewSet):
         serializer.is_valid(raise_exception=True)
         comment = serializer.validated_data.get("comment")
         project.reject(request.user, comment)
+
+        # notify project admins and managers about the rejection
+        tasks.notify_users_about_rejected_allocation.delay(
+            core_utils.serialize_instance(project)
+        )
+
         return Response(status=status.HTTP_200_OK)
 
     @extend_schema(

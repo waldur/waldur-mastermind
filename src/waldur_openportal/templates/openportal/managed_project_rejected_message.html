@@ -1,0 +1,10 @@
+<html lang="en">
+<head><meta charset="UTF-8"><title>Resource allocation request rejected</title></head>
+<body>
+<p>Dear {% if recipient_first_name %}{{ recipient_first_name }}{% else %}user{% endif %},</p>
+<p>This message is from your <strong>{{ site_name }}</strong> self-service portal. <strong>{{ reviewer_organization|default:reviewer_full_name }}</strong> has rejected the resource allocation request for project <strong>{{ project_name }}</strong>.</p>
+{% if review_comment %}<p>Rejection reason: {{ review_comment }}</p>{% endif %}
+<p>Please contact your Resource Allocator for details: <a href="mailto:{{ reviewer_email }}">{{ reviewer_email }}</a></p>
+<p>Best regards,<br>{{ reviewer_full_name }}<br>{% if reviewer_organization %}{{ reviewer_organization }}<br>{% endif %}{{ reviewer_email }}</p>
+</body>
+</html>
