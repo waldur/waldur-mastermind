@@ -3977,3 +3977,55 @@ A daily digest notification sent to users with pending actions.
     <a href="{{ actions_url }}">{{ actions_url }}</a></p>
 
 ```
+
+## WALDUR_OPENPORTAL
+
+### openportal.managed_project_rejected
+
+Sent to Project admins and Project managers when their resource allocation request is rejected.
+
+#### Templates
+
+=== "openportal/managed_project_rejected_subject.txt"
+
+```txt
+
+    Resource allocation request for {{ project_name }} has been rejected
+
+```
+
+=== "openportal/managed_project_rejected_message.txt"
+
+```txt
+
+    Dear {% if recipient_first_name %}{{ recipient_first_name }}{% else %}user{% endif %},
+
+    This message is from your {{ site_name }} self-service portal. {{ reviewer_organization|default:reviewer_full_name }} has rejected the resource allocation request for project {{ project_name }}.
+
+    {% if review_comment %}Rejection reason: {{ review_comment }}
+
+    {% endif %}Please contact your Resource Allocator for details: {{ reviewer_email }}
+
+    Best regards,
+    {{ reviewer_full_name }}
+    {% if reviewer_organization %}{{ reviewer_organization }}
+    {% endif %}{{ reviewer_email }}
+
+```
+
+=== "openportal/managed_project_rejected_message.html"
+
+```txt
+
+    <html lang="en">
+    <head><meta charset="UTF-8"><title>Resource allocation request rejected</title></head>
+    <body>
+    <p>Dear {% if recipient_first_name %}{{ recipient_first_name }}{% else %}user{% endif %},</p>
+    <p>This message is from your <strong>{{ site_name }}</strong> self-service portal. <strong>{{ reviewer_organization|default:reviewer_full_name }}</strong> has rejected the resource allocation request for project <strong>{{ project_name }}</strong>.</p>
+    {% if review_comment %}<p>Rejection reason: {{ review_comment }}</p>{% endif %}
+    <p>Please contact your Resource Allocator for details: <a href="mailto:{{ reviewer_email }}">{{ reviewer_email }}</a></p>
+    <p>Best regards,<br>{{ reviewer_full_name }}<br>{% if reviewer_organization %}{{ reviewer_organization }}<br>{% endif %}{{ reviewer_email }}</p>
+    </body>
+    </html>
+
+```

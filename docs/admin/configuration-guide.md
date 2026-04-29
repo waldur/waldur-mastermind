@@ -2250,6 +2250,14 @@ Fields that can be provided in invitations for email personalization. These are 
 
 Default user attributes exposed to service providers (OfferingUser API) when no explicit config exists.
 
+#### DEFAULT_CALL_USER_ATTRIBUTES
+
+**Type:** multiple_choice_field
+
+**Default value:** ['username', 'full_name', 'email']
+
+Default applicant attributes exposed to call reviewers when no explicit CallApplicantVisibilityConfig exists.
+
 #### ENABLED_USER_PROFILE_ATTRIBUTES
 
 **Type:** multiple_choice_field
