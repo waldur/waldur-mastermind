@@ -10062,7 +10062,58 @@ class OfferingTermsOfServiceUpdateSerializer(serializers.Serializer):
     requires_reconsent = serializers.BooleanField(required=False, default=False)
 
 
-class OfferingUserAttributeConfigSerializer(serializers.ModelSerializer):
+class UserAttributeConfigBaseSerializer(serializers.ModelSerializer):
+    """Base serializer exposing the full set of expose_* toggles plus computed
+    fields. Subclasses provide the model and any scope-specific fields (e.g.
+    offering uuid/name)."""
+
+    exposed_fields = serializers.SerializerMethodField()
+    is_default = serializers.SerializerMethodField()
+
+    class Meta:
+        fields = (
+            "uuid",
+            "created",
+            "modified",
+            # Personal data toggles
+            "expose_full_name",
+            "expose_email",
+            "expose_username",
+            "expose_registration_method",
+            "expose_organization",
+            "expose_organization_country",
+            "expose_organization_type",
+            "expose_organization_registry_code",
+            "expose_affiliations",
+            "expose_phone_number",
+            "expose_job_title",
+            "expose_gender",
+            "expose_personal_title",
+            "expose_place_of_birth",
+            "expose_address",
+            "expose_country_of_residence",
+            "expose_nationality",
+            "expose_nationalities",
+            "expose_eduperson_assurance",
+            "expose_identity_source",
+            "expose_civil_number",
+            "expose_birth_date",
+            "expose_active_isds",
+            # Computed
+            "exposed_fields",
+            "is_default",
+        )
+        read_only_fields = ("uuid", "created", "modified")
+
+    def get_exposed_fields(self, obj) -> list[str]:
+        return obj.get_exposed_fields()
+
+    def get_is_default(self, obj) -> bool:
+        """Return True if this is a default (unsaved) config."""
+        return obj.pk is None
+
+
+class OfferingUserAttributeConfigSerializer(UserAttributeConfigBaseSerializer):
     """
     Serializer for configuring which user attributes an offering exposes.
     Supports GDPR compliance by declaring personal data processing.
@@ -10079,64 +10130,17 @@ class OfferingUserAttributeConfigSerializer(serializers.ModelSerializer):
     offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
     offering_name = serializers.ReadOnlyField(source="offering.name")
 
-    exposed_fields = serializers.SerializerMethodField()
-    is_default = serializers.SerializerMethodField()
-
-    class Meta:
+    class Meta(UserAttributeConfigBaseSerializer.Meta):
         model = models.OfferingUserAttributeConfig
-        fields = (
-            "uuid",
-            "created",
-            "modified",
+        fields = UserAttributeConfigBaseSerializer.Meta.fields + (
             "offering",
             "offering_uuid",
             "offering_name",
-            # Core attributes
-            "expose_username",
-            "expose_full_name",
-            "expose_email",
-            # Extended profile
-            "expose_phone_number",
-            "expose_organization",
-            "expose_job_title",
-            "expose_affiliations",
-            # User profile attributes
-            "expose_gender",
-            "expose_personal_title",
-            "expose_place_of_birth",
-            "expose_address",
-            "expose_country_of_residence",
-            "expose_nationality",
-            "expose_nationalities",
-            "expose_organization_country",
-            "expose_organization_type",
-            "expose_organization_registry_code",
-            "expose_eduperson_assurance",
-            # Legal and identity attributes
-            "expose_civil_number",
-            "expose_birth_date",
-            "expose_identity_source",
-            # Identity Bridge attributes
-            "expose_active_isds",
-            # Computed
-            "exposed_fields",
-            "is_default",
         )
-        read_only_fields = (
-            "uuid",
-            "created",
-            "modified",
+        read_only_fields = UserAttributeConfigBaseSerializer.Meta.read_only_fields + (
             "offering_uuid",
             "offering_name",
         )
-
-    def get_exposed_fields(self, obj) -> list[str]:
-        """Return list of field names currently configured for exposure."""
-        return obj.get_exposed_fields()
-
-    def get_is_default(self, obj) -> bool:
-        """Return True if this is a default (unsaved) config."""
-        return obj.pk is None
 
 
 class CourseAccountSerializer(serializers.HyperlinkedModelSerializer):

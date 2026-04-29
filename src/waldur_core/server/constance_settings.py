@@ -274,6 +274,7 @@ CONSTANCE_CONFIG_CHOICES = {
     "WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE": SUPPORT_BACKEND_CHOICES,
     "ZAMMAD_ARTICLE_TYPE": ZAMMAD_ARTICLE_TYPE_CHOICES,
     "DEFAULT_OFFERING_USER_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
+    "DEFAULT_CALL_USER_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
     "INVITATION_ALLOWED_FIELDS": USER_ATTRIBUTE_CHOICES,
     "ENABLED_USER_PROFILE_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
     "MANDATORY_USER_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
@@ -971,6 +972,11 @@ CONSTANCE_CONFIG = {
         "Default user attributes exposed to service providers (OfferingUser API) when no explicit config exists.",
         "multiple_choice_field",
     ),
+    "DEFAULT_CALL_USER_ATTRIBUTES": (
+        ["username", "full_name", "email"],
+        "Default applicant attributes exposed to call reviewers when no explicit CallApplicantVisibilityConfig exists.",
+        "multiple_choice_field",
+    ),
     "INVITATION_ALLOWED_FIELDS": (
         ["full_name", "organization", "job_title"],
         "Fields that can be provided in invitations for email personalization. These are NOT copied to user profile.",
@@ -1551,6 +1557,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
     ),
     "User profile settings": (
         "DEFAULT_OFFERING_USER_ATTRIBUTES",
+        "DEFAULT_CALL_USER_ATTRIBUTES",
         "ENABLED_USER_PROFILE_ATTRIBUTES",
         "MANDATORY_USER_ATTRIBUTES",
         "ENFORCE_MANDATORY_USER_ATTRIBUTES",

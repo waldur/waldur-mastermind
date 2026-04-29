@@ -932,52 +932,94 @@ class OfferingTermsOfService(TimeStampedModel, core_models.UuidMixin):
         )
 
 
-class OfferingUserAttributeConfig(TimeStampedModel, core_models.UuidMixin):
+class UserAttributeConfigBase(TimeStampedModel, core_models.UuidMixin):
+    """
+    Abstract base for models that configure which user attributes are exposed/visible.
+    All common personal-data fields live here; subclasses add their FK and unique fields.
+    Defaults match the original OfferingUserAttributeConfig defaults for backward
+    compatibility (username, full_name, email, registration_method are exposed).
+    """
+
+    # Subclasses override to wire up the generic resolver.
+    SCOPE_RELATED_NAME: str = ""  # OneToOne reverse accessor name on the scope object
+    DEFAULT_CONSTANCE_KEY: str = "DEFAULT_OFFERING_USER_ATTRIBUTES"
+    DEFAULT_FALLBACK = ("username", "full_name", "email")
+
+    expose_full_name = models.BooleanField(default=True)
+    expose_organization = models.BooleanField(default=False)
+    expose_organization_country = models.BooleanField(default=False)
+    expose_email = models.BooleanField(default=True)
+    expose_affiliations = models.BooleanField(default=False)
+    expose_organization_type = models.BooleanField(default=False)
+    expose_nationality = models.BooleanField(default=False)
+    expose_nationalities = models.BooleanField(default=False)
+    expose_country_of_residence = models.BooleanField(default=False)
+    expose_eduperson_assurance = models.BooleanField(default=False)
+    expose_identity_source = models.BooleanField(default=False)
+    expose_username = models.BooleanField(default=True)
+    expose_registration_method = models.BooleanField(default=True)
+    expose_phone_number = models.BooleanField(default=False)
+    expose_job_title = models.BooleanField(default=False)
+    expose_gender = models.BooleanField(default=False)
+    expose_personal_title = models.BooleanField(default=False)
+    expose_place_of_birth = models.BooleanField(default=False)
+    expose_address = models.BooleanField(default=False)
+    expose_organization_registry_code = models.BooleanField(default=False)
+    expose_civil_number = models.BooleanField(default=False)
+    expose_birth_date = models.BooleanField(default=False)
+    expose_active_isds = models.BooleanField(default=False)
+
+    class Meta:
+        abstract = True
+
+    def get_exposed_fields(self) -> list[str]:
+        """Return list of field names (without expose_ prefix) that are enabled."""
+        return [
+            field.name[7:]  # Remove 'expose_' prefix
+            for field in self._meta.fields
+            if field.name.startswith("expose_") and getattr(self, field.name)
+        ]
+
+    @classmethod
+    def get_exposed_fields_for_scope(
+        cls, scope_obj, default_attributes=None
+    ) -> list[str]:
+        """Get exposed fields for a scope object (offering, call, ...).
+
+        Falls back to the subclass-configured Constance key, then to the
+        hardcoded DEFAULT_FALLBACK. When iterating many scopes, pre-fetch the
+        Constance value once and pass it as default_attributes to avoid
+        repeated DB lookups.
+        """
+        if not cls.SCOPE_RELATED_NAME:
+            raise NotImplementedError(f"{cls.__name__} must define SCOPE_RELATED_NAME")
+        try:
+            config = getattr(scope_obj, cls.SCOPE_RELATED_NAME)
+        except cls.DoesNotExist:
+            config = None
+        if config is not None:
+            return config.get_exposed_fields()
+        if default_attributes is not None:
+            return default_attributes
+        return getattr(constance_config, cls.DEFAULT_CONSTANCE_KEY) or list(
+            cls.DEFAULT_FALLBACK
+        )
+
+
+class OfferingUserAttributeConfig(UserAttributeConfigBase):
     """
     Configures which user attributes an offering exposes to its service provider.
     Supports GDPR compliance by declaring personal data processing.
     """
+
+    SCOPE_RELATED_NAME = "user_attribute_config"
+    DEFAULT_CONSTANCE_KEY = "DEFAULT_OFFERING_USER_ATTRIBUTES"
 
     offering = models.OneToOneField(
         Offering,
         on_delete=models.CASCADE,
         related_name="user_attribute_config",
     )
-
-    # Core attributes (enabled by default)
-    expose_username = models.BooleanField(default=True)
-    expose_full_name = models.BooleanField(default=True)
-    expose_email = models.BooleanField(default=True)
-    expose_registration_method = models.BooleanField(default=True)
-
-    # Extended profile attributes
-    expose_phone_number = models.BooleanField(default=False)
-    expose_organization = models.BooleanField(default=False)
-    expose_job_title = models.BooleanField(default=False)
-    expose_affiliations = models.BooleanField(default=False)
-
-    # User profile attributes
-    expose_gender = models.BooleanField(default=False)
-    expose_personal_title = models.BooleanField(default=False)
-    expose_place_of_birth = models.BooleanField(default=False)
-    expose_address = models.BooleanField(default=False)
-    expose_country_of_residence = models.BooleanField(default=False)
-    expose_nationality = models.BooleanField(default=False)
-    expose_nationalities = models.BooleanField(default=False)
-    expose_organization_country = models.BooleanField(default=False)
-    expose_organization_type = models.BooleanField(default=False)
-    expose_eduperson_assurance = models.BooleanField(default=False)
-
-    # Organization extended attributes
-    expose_organization_registry_code = models.BooleanField(default=False)
-
-    # Legal and identity attributes (require explicit enabling)
-    expose_civil_number = models.BooleanField(default=False)
-    expose_birth_date = models.BooleanField(default=False)
-    expose_identity_source = models.BooleanField(default=False)
-
-    # Identity Bridge attributes
-    expose_active_isds = models.BooleanField(default=False)
 
     class Meta:
         verbose_name = _("Offering user attribute config")
@@ -990,36 +1032,11 @@ class OfferingUserAttributeConfig(TimeStampedModel, core_models.UuidMixin):
     def get_url_name(cls):
         return "marketplace-offering-user-attribute-config"
 
-    def get_exposed_fields(self) -> list[str]:
-        """Return list of field names configured for exposure."""
-        return [
-            field.name[7:]  # Remove 'expose_' prefix
-            for field in self._meta.fields
-            if field.name.startswith("expose_") and getattr(self, field.name)
-        ]
-
     @classmethod
     def get_exposed_fields_for_offering(
         cls, offering, default_attributes=None
     ) -> list[str]:
-        """Get exposed fields for offering, falling back to Constance defaults.
-
-        Args:
-            offering: The offering to get exposed fields for.
-            default_attributes: Pre-fetched default attributes from Constance config.
-                When processing multiple offerings in a loop, pass this to avoid
-                repeated database queries for the same config value.
-        """
-        try:
-            return offering.user_attribute_config.get_exposed_fields()
-        except cls.DoesNotExist:
-            if default_attributes is not None:
-                return default_attributes
-            return constance_config.DEFAULT_OFFERING_USER_ATTRIBUTES or [
-                "username",
-                "full_name",
-                "email",
-            ]
+        return cls.get_exposed_fields_for_scope(offering, default_attributes)
 
 
 class OfferingComponent(
