@@ -1166,3 +1166,32 @@ class UserActionsSection(NotificationSection):
         description="A daily digest notification sent to users with pending actions.",
         context_model=NotificationDigestContext,
     )
+
+
+class ManagedProjectRejectedContext(BaseModel):
+    recipient_first_name: str = Field(
+        description="First name of the recipient being notified."
+    )
+    project_name: str = Field(
+        description="Name of the project whose allocation was rejected."
+    )
+    reviewer_full_name: str = Field(
+        description="Full name of the reviewer who rejected the request."
+    )
+    reviewer_email: str = Field(description="Email address of the reviewer.")
+    reviewer_organization: str = Field(description="Organization of the reviewer.")
+    review_comment: str = Field(
+        description="Optional comment provided with the rejection."
+    )
+    site_name: str = Field(description="Name of the site from settings.")
+
+
+class OpenPortalSection(NotificationSection):
+    class Meta:
+        key = "openportal"
+
+    managed_project_rejected = Notification(
+        key="managed_project_rejected",
+        description="Sent to Project admins and Project managers when their resource allocation request is rejected.",
+        context_model=ManagedProjectRejectedContext,
+    )

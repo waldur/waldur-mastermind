@@ -1,0 +1,12 @@
+Dear {% if recipient_first_name %}{{ recipient_first_name }}{% else %}user{% endif %},
+
+This message is from your {{ site_name }} self-service portal. {{ reviewer_organization|default:reviewer_full_name }} has rejected the resource allocation request for project {{ project_name }}.
+
+{% if review_comment %}Rejection reason: {{ review_comment }}
+
+{% endif %}Please contact your Resource Allocator for details: {{ reviewer_email }}
+
+Best regards,
+{{ reviewer_full_name }}
+{% if reviewer_organization %}{{ reviewer_organization }}
+{% endif %}{{ reviewer_email }}
