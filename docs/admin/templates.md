@@ -683,6 +683,14 @@ Invitation request
 
 ```
 
+### permission_request_rejected_subject.txt (waldur_core.users)
+
+```txt
+
+Your permission request has been rejected
+
+```
+
 ### permission_request_submitted_message.txt (waldur_core.users)
 
 ```txt
@@ -819,6 +827,19 @@ Please visit the link below to sign up and accept your invitation:
 
 ```
 
+### permission_request_rejected_message.txt (waldur_core.users)
+
+```txt
+
+Hello!
+
+Your permission request for {{ permission_request.invitation }} has been rejected.
+{% if permission_request.review_comment %}
+Reviewer comment: {{ permission_request.review_comment }}
+{% endif %}
+
+```
+
 ### permission_request_submitted_message.html (waldur_core.users)
 
 ```html
@@ -838,6 +859,32 @@ Please visit the link below to sign up and accept your invitation:
 <p>
   Please visit the <a href="{{ requests_link }}">link</a> to approve or reject permission request.
 </p>
+</body>
+</html>
+
+```
+
+### permission_request_rejected_message.html (waldur_core.users)
+
+```html
+
+<html>
+<head lang="en">
+  <meta charset="UTF-8">
+  <title>Your permission request has been rejected</title>
+</head>
+<body>
+<p>
+  Hello!
+</p>
+<p>
+  Your permission request for {{ permission_request.invitation }} has been rejected.
+</p>
+{% if permission_request.review_comment %}
+<p>
+  Reviewer comment: {{ permission_request.review_comment }}
+</p>
+{% endif %}
 </body>
 </html>
 

@@ -646,6 +646,59 @@ Sent to staff users so they can approve or reject a pending invitation.
 
 ```
 
+### users.permission_request_rejected
+
+Sent to the user who submitted a permission request to inform them that their request has been rejected.
+
+#### Templates
+
+=== "users/permission_request_rejected_subject.txt"
+
+```txt
+
+    Your permission request has been rejected
+
+```
+
+=== "users/permission_request_rejected_message.txt"
+
+```txt
+
+    Hello!
+
+    Your permission request for {{ permission_request.invitation }} has been rejected.
+    {% if permission_request.review_comment %}
+    Reviewer comment: {{ permission_request.review_comment }}
+    {% endif %}
+
+```
+
+=== "users/permission_request_rejected_message.html"
+
+```txt
+
+    <html>
+    <head lang="en">
+      <meta charset="UTF-8">
+      <title>Your permission request has been rejected</title>
+    </head>
+    <body>
+    <p>
+      Hello!
+    </p>
+    <p>
+      Your permission request for {{ permission_request.invitation }} has been rejected.
+    </p>
+    {% if permission_request.review_comment %}
+    <p>
+      Reviewer comment: {{ permission_request.review_comment }}
+    </p>
+    {% endif %}
+    </body>
+    </html>
+
+```
+
 ### users.permission_request_submitted
 
 Sent to staff or customer owners about a submitted permission request.
