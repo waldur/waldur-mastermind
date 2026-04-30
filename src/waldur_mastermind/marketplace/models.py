@@ -944,6 +944,8 @@ class UserAttributeConfigBase(TimeStampedModel, core_models.UuidMixin):
     SCOPE_RELATED_NAME: str = ""  # OneToOne reverse accessor name on the scope object
     DEFAULT_CONSTANCE_KEY: str = "DEFAULT_OFFERING_USER_ATTRIBUTES"
     DEFAULT_FALLBACK = ("username", "full_name", "email")
+    # Convention: every personal-data toggle on this base is named expose_<attr>.
+    EXPOSE_PREFIX = "expose_"
 
     expose_full_name = models.BooleanField(default=True)
     expose_organization = models.BooleanField(default=False)
@@ -972,12 +974,21 @@ class UserAttributeConfigBase(TimeStampedModel, core_models.UuidMixin):
     class Meta:
         abstract = True
 
+    @classmethod
+    def _iter_expose_fields(cls):
+        """Yield every Django field on the model that follows the expose_<attr> convention."""
+        prefix = cls.EXPOSE_PREFIX
+        for field in cls._meta.fields:
+            if field.name.startswith(prefix):
+                yield field
+
     def get_exposed_fields(self) -> list[str]:
-        """Return list of field names (without expose_ prefix) that are enabled."""
+        """Return list of attribute names (without expose_ prefix) that are enabled."""
+        prefix = type(self).EXPOSE_PREFIX
         return [
-            field.name[7:]  # Remove 'expose_' prefix
-            for field in self._meta.fields
-            if field.name.startswith("expose_") and getattr(self, field.name)
+            field.name[len(prefix) :]
+            for field in self._iter_expose_fields()
+            if getattr(self, field.name)
         ]
 
     @classmethod
@@ -1004,6 +1015,27 @@ class UserAttributeConfigBase(TimeStampedModel, core_models.UuidMixin):
         return getattr(constance_config, cls.DEFAULT_CONSTANCE_KEY) or list(
             cls.DEFAULT_FALLBACK
         )
+
+    @classmethod
+    def get_default_exposed_fields(cls) -> list[str]:
+        """Return the Constance-derived list of attribute names exposed by default."""
+        return getattr(constance_config, cls.DEFAULT_CONSTANCE_KEY) or list(
+            cls.DEFAULT_FALLBACK
+        )
+
+    @classmethod
+    def get_default_exposure_flags(cls) -> dict[str, bool]:
+        """Return {expose_<attr>: bool} for every expose_* field on the model,
+        with values derived from the subclass's Constance default. Used to seed
+        a freshly-created config row so unspecified booleans don't fall back to
+        model-level default=True values silently.
+        """
+        prefix = cls.EXPOSE_PREFIX
+        exposed = set(cls.get_default_exposed_fields())
+        return {
+            field.name: field.name[len(prefix) :] in exposed
+            for field in cls._iter_expose_fields()
+        }
 
 
 class OfferingUserAttributeConfig(UserAttributeConfigBase):

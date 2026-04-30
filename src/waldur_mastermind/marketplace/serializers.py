@@ -10106,11 +10106,32 @@ class UserAttributeConfigBaseSerializer(serializers.ModelSerializer):
         read_only_fields = ("uuid", "created", "modified")
 
     def get_exposed_fields(self, obj) -> list[str]:
+        if obj.pk is None:
+            return type(obj).get_default_exposed_fields()
         return obj.get_exposed_fields()
 
     def get_is_default(self, obj) -> bool:
         """Return True if this is a default (unsaved) config."""
         return obj.pk is None
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if instance.pk is None:
+            # Synthesised default: override every expose_* boolean from the
+            # Constance-driven seed so the API reflects what reviewers/providers
+            # actually see in the absence of a persisted row.
+            seed = type(instance).get_default_exposure_flags()
+            for key, value in seed.items():
+                if key in data:
+                    data[key] = value
+        return data
+
+    def create(self, validated_data):
+        # Seed every expose_* from Constance, then apply client overrides on top,
+        # so partial PATCHes don't silently inherit model-level `default=True`.
+        seed = self.Meta.model.get_default_exposure_flags()
+        merged = {**seed, **validated_data}
+        return super().create(merged)
 
 
 class OfferingUserAttributeConfigSerializer(UserAttributeConfigBaseSerializer):
