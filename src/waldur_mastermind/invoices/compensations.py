@@ -11,6 +11,7 @@ from waldur_core.structure.models import Project
 from waldur_mastermind.common.enums import Units
 
 from . import log, models
+from .audit import skip_credit_audit
 
 logger = logging.getLogger(__name__)
 
@@ -271,10 +272,13 @@ class MonthlyCompensation:
 
         models.InvoiceItem.objects.bulk_create(self.compensations)
 
-        for pc in self.projects_credits:
-            pc.save(update_fields=["value"])
+        # The compensation flow emits its own REDUCTION_OF_*_CREDIT* events below;
+        # suppress the generic UPDATE_OF_*_CREDIT_BY_STAFF audit to avoid duplicates.
+        with skip_credit_audit():
+            for pc in self.projects_credits:
+                pc.save(update_fields=["value"])
 
-        self.credit.save(update_fields=["value"])
+            self.credit.save(update_fields=["value"])
 
         if self.tail:
             event_logger.emit(
@@ -409,43 +413,48 @@ class MonthlyCompensation:
             compensation_items.aggregate(sum=Sum("unit_price"))["sum"] or 0
         ) * -1
 
-        old_credit_value = self.credit.value
-        self.credit.value += max(
-            applied_compensations_sum, self.credit.minimal_consumption
-        )
-        self.credit.save(update_fields=["value"])
-        log.log_roll_back_customer_credit(
-            self.credit.customer,
-            old_credit_value,
-            self.credit.value,
-        )
+        # The roll-back flow emits its own ROLL_BACK_*_CREDIT events below;
+        # suppress the generic UPDATE_OF_*_CREDIT_BY_STAFF audit to avoid duplicates.
+        with skip_credit_audit():
+            old_credit_value = self.credit.value
+            self.credit.value += max(
+                applied_compensations_sum, self.credit.minimal_consumption
+            )
+            self.credit.save(update_fields=["value"])
+            log.log_roll_back_customer_credit(
+                self.credit.customer,
+                old_credit_value,
+                self.credit.value,
+            )
 
-        project_consumptions = list(
-            compensation_items.values("project_id").annotate(value=Sum("unit_price"))
-        )
-
-        for project_credit in models.ProjectCredit.objects.filter(
-            project__customer=self.customer
-        ):
-            value = [
-                consumption["value"]
-                for consumption in project_consumptions
-                if consumption["project_id"] == project_credit.project.id
-            ]
-
-            if value:
-                value = value[0] * -1
-                old_project_credit_value = project_credit.value
-                project_credit.value += value
-                project_credit.save(update_fields=["value"])
-                log.log_roll_back_project_credit(
-                    self.credit.customer,
-                    project_credit.project,
-                    old_project_credit_value,
-                    project_credit.value,
+            project_consumptions = list(
+                compensation_items.values("project_id").annotate(
+                    value=Sum("unit_price")
                 )
+            )
 
-        compensation_items.delete()
+            for project_credit in models.ProjectCredit.objects.filter(
+                project__customer=self.customer
+            ):
+                value = [
+                    consumption["value"]
+                    for consumption in project_consumptions
+                    if consumption["project_id"] == project_credit.project.id
+                ]
+
+                if value:
+                    value = value[0] * -1
+                    old_project_credit_value = project_credit.value
+                    project_credit.value += value
+                    project_credit.save(update_fields=["value"])
+                    log.log_roll_back_project_credit(
+                        self.credit.customer,
+                        project_credit.project,
+                        old_project_credit_value,
+                        project_credit.value,
+                    )
+
+            compensation_items.delete()
 
     def apply_compensations(self):
         self.clear_compensations()
