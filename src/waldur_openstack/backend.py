@@ -460,7 +460,7 @@ class OpenStackBackend(ServiceBackend):
         new_image_ids = remote_image_ids - local_image_ids
         for image_backend_id in new_image_ids:
             remote_image = remote_image_mapping[image_backend_id]
-            local_image, _ = models.Image.objects.update_or_create(
+            local_image, _ = models.Image.all_objects.update_or_create(
                 settings=self.settings,
                 backend_id=remote_image["id"],
                 defaults={
@@ -477,7 +477,7 @@ class OpenStackBackend(ServiceBackend):
         existing_image_ids = remote_image_ids & local_image_ids
         for image_backend_id in existing_image_ids:
             remote_image = remote_image_mapping[image_backend_id]
-            local_image, _ = models.Image.objects.update_or_create(
+            local_image, _ = models.Image.all_objects.update_or_create(
                 settings=self.settings,
                 backend_id=remote_image["id"],
                 defaults={
@@ -642,11 +642,11 @@ class OpenStackBackend(ServiceBackend):
                 parsed = timezone.make_aware(parsed, timezone=UTC)
             return parsed
 
-        models.Image.objects.filter(settings=self.settings).exclude(
+        models.Image.all_objects.filter(settings=self.settings).exclude(
             backend_id__in=[image["id"] for image in remote_images]
         ).delete()
         for remote_image in remote_images:
-            models.Image.objects.update_or_create(
+            models.Image.all_objects.update_or_create(
                 settings=self.settings,
                 backend_id=remote_image["id"],
                 defaults={
