@@ -18,6 +18,12 @@ class UserConfig(AppConfig):
             dispatch_uid="waldur_core.users.handlers.create_notification_about_permission_request_has_been_submited",
         )
 
+        signals.post_save.connect(
+            handlers.create_notification_about_permission_request_has_been_rejected,
+            sender=PermissionRequest,
+            dispatch_uid="waldur_core.users.handlers.create_notification_about_permission_request_has_been_rejected",
+        )
+
         permission_signals.role_granted.connect(
             scim_handlers.schedule_user_sync,
             dispatch_uid="waldur_core.users.scim.handlers.schedule_user_sync_on_role_granted",
