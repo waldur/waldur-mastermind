@@ -711,6 +711,44 @@ class PullImagesTest(BaseBackendTestCase):
         self.backend.pull_tenant_images(self.fixture.tenant)
         self.assertEqual(models.Image.objects.count(), 0)
 
+    def test_pull_handles_image_hidden_by_latest_per_name_manager(self):
+        # Reproduces the IntegrityError on
+        # openstack_image_settings_id_..._uniq when an image with the same
+        # (settings, backend_id) exists in the database but is filtered out
+        # by ImageManager.get_queryset() because another image with the same
+        # name has a newer backend_created_at. Image.objects.get() raises
+        # DoesNotExist, the subsequent INSERT hits the unique constraint, and
+        # the recovery get() also returns DoesNotExist — so IntegrityError
+        # propagates instead of being recovered.
+        import datetime
+
+        from django.utils import timezone
+
+        older = timezone.now() - datetime.timedelta(days=10)
+        newer = timezone.now() - datetime.timedelta(days=1)
+
+        hidden = models.Image.all_objects.create(
+            backend_id="1",
+            name="CentOS 7",
+            min_ram=512,
+            min_disk=10240,
+            backend_created_at=older,
+            settings=self.fixture.settings,
+        )
+        models.Image.all_objects.create(
+            backend_id="2",
+            name="CentOS 7",
+            min_ram=2048,
+            min_disk=20480,
+            backend_created_at=newer,
+            settings=self.fixture.settings,
+        )
+
+        self.backend.pull_tenant_images(self.fixture.tenant)
+
+        hidden.refresh_from_db()
+        self.assertEqual(hidden.min_ram, 1024)
+
 
 class PullPortsTest(BaseBackendTestCase):
     def setUp(self):
