@@ -14,6 +14,7 @@ from waldur_core.logging.enums import EventType
 from waldur_core.structure.models import Project
 from waldur_mastermind.invoices import models
 from waldur_mastermind.invoices import signals as cost_signals
+from waldur_mastermind.invoices.audit import credit_audit_skipped, skip_credit_audit
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.enums import ResourceStates
@@ -21,6 +22,10 @@ from waldur_mastermind.marketplace.enums import ResourceStates
 from .models import CustomerCredit, Invoice, InvoiceItem, ProjectCredit
 
 logger = logging.getLogger(__name__)
+
+# Re-export so existing call sites can `from waldur_mastermind.invoices.handlers
+# import skip_credit_audit` if they prefer the shorter import path.
+__all__ = ["skip_credit_audit"]
 
 
 def log_invoice_state_transition(
@@ -212,9 +217,16 @@ def create_recurring_usage_if_invoice_has_been_created(
 
 
 def log_credit(sender, instance: CustomerCredit, created=False, **kwargs):
-    # Skip update events for programmatic saves (e.g. compensation, zeroing).
-    # Those flows emit their own specific events (REDUCTION_OF_*, SET_TO_ZERO_*).
-    if kwargs.get("update_fields"):
+    # Programmatic flows that emit their own specialized credit-mutation event
+    # opt out via the skip_credit_audit() context manager to avoid duplicate
+    # entries. Any other save (manual UI, REST API, shell, integrations) is
+    # audited unconditionally — even when the caller passes update_fields.
+    if credit_audit_skipped():
+        return
+
+    if kwargs.get("update_fields") and "value" not in kwargs["update_fields"]:
+        # Save targeted fields other than `value` (e.g. expected_consumption only)
+        # — nothing to audit here.
         return
 
     credit = instance
@@ -243,9 +255,12 @@ def log_credit(sender, instance: CustomerCredit, created=False, **kwargs):
 
 
 def log_project_credit(sender, instance: ProjectCredit, created=False, **kwargs):
-    # Skip update events for programmatic saves (e.g. compensation, zeroing).
-    # Those flows emit their own specific events (REDUCTION_OF_*, SET_TO_ZERO_*).
-    if kwargs.get("update_fields"):
+    # See log_credit() for the rationale behind opt-in suppression.
+    if credit_audit_skipped():
+        return
+
+    if kwargs.get("update_fields") and "value" not in kwargs["update_fields"]:
+        # Save targeted fields other than `value` — nothing to audit here.
         return
 
     credit = instance
@@ -368,35 +383,36 @@ def refund_project_credit_on_project_removal(sender, instance: Project, **kwargs
     if project_credit.value <= 0:
         return
 
-    if project_credit.mark_unused_credit_as_spent_on_project_termination:
-        old_org_value = int(customer_credit.value or 0)
-        if customer_credit.value > project_credit.value:
-            customer_credit.value -= project_credit.value
-        else:
-            customer_credit.value = 0
-        customer_credit.save(update_fields=["value"])
-        event_logger.emit(
-            "Organization credit has been decreased due to project removal.",
-            event_type=EventType.AUTOMATIC_CREDIT_ADJUSTMENT,
-            event_context={
-                "new_value": int(customer_credit.value or 0),
-                "old_value": old_org_value,
-                "customer": customer_credit.customer,
-            },
-            scopes=[customer_credit.customer],
-        )
+    with skip_credit_audit():
+        if project_credit.mark_unused_credit_as_spent_on_project_termination:
+            old_org_value = int(customer_credit.value or 0)
+            if customer_credit.value > project_credit.value:
+                customer_credit.value -= project_credit.value
+            else:
+                customer_credit.value = 0
+            customer_credit.save(update_fields=["value"])
+            event_logger.emit(
+                "Organization credit has been decreased due to project removal.",
+                event_type=EventType.AUTOMATIC_CREDIT_ADJUSTMENT,
+                event_context={
+                    "new_value": int(customer_credit.value or 0),
+                    "old_value": old_org_value,
+                    "customer": customer_credit.customer,
+                },
+                scopes=[customer_credit.customer],
+            )
 
-    if project_credit.value != 0:
-        old_value = int(project_credit.value)
-        project_credit.value = 0
-        project_credit.save(update_fields=["value"])
-        event_logger.emit(
-            "Project credit has been set to 0 on project removal.",
-            event_type=EventType.AUTOMATIC_CREDIT_ADJUSTMENT,
-            event_context={
-                "new_value": 0,
-                "old_value": old_value,
-                "customer": project.customer,
-            },
-            scopes=[project.customer],
-        )
+        if project_credit.value != 0:
+            old_value = int(project_credit.value)
+            project_credit.value = 0
+            project_credit.save(update_fields=["value"])
+            event_logger.emit(
+                "Project credit has been set to 0 on project removal.",
+                event_type=EventType.AUTOMATIC_CREDIT_ADJUSTMENT,
+                event_context={
+                    "new_value": 0,
+                    "old_value": old_value,
+                    "customer": project.customer,
+                },
+                scopes=[project.customer],
+            )

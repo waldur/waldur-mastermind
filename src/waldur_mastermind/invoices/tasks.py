@@ -21,6 +21,7 @@ from waldur_mastermind.marketplace.billing import MarketplaceBillingService
 from waldur_mastermind.marketplace.tasks import copy_future_price_to_current_price
 
 from ..invoices import compensations, models, serializers, utils
+from ..invoices.audit import skip_credit_audit
 
 logger = logging.getLogger(__name__)
 
@@ -372,9 +373,20 @@ def send_monthly_invoicing_reports_about_customers():
 
 def set_to_zero_overdue_credits(effective_date=None):
     set_current_user(core_utils.get_system_robot())
+    today = timezone.localtime(timezone.now()).date()
     if effective_date is None:
-        effective_date = timezone.localtime(timezone.now()).date()
-    with transaction.atomic():
+        effective_date = today
+    # Reject future effective_date: filtering by end_date < effective_date with a
+    # date in the future would zero out credits whose end_date has not actually
+    # arrived yet. Manual invocations with an off-by-many date have caused this
+    # in production.
+    if effective_date > today:
+        raise ValueError(
+            f"set_to_zero_overdue_credits refuses to run with a future "
+            f"effective_date={effective_date} (today={today}). "
+            f"This would zero credits whose end_date has not arrived yet."
+        )
+    with transaction.atomic(), skip_credit_audit():
         for credit in (
             models.CustomerCredit.objects.select_for_update()
             .filter(end_date__lt=effective_date)

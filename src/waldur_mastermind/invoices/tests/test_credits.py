@@ -13,6 +13,7 @@ from rest_framework import status, test
 from waldur_core.logging import models as logging_models
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices import compensations, models, tasks
+from waldur_mastermind.invoices.audit import skip_credit_audit
 from waldur_mastermind.invoices.tests import factories, fixtures
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
@@ -1239,4 +1240,96 @@ class ConcurrentCreditDeductionTest(TransactionTestCase):
             Decimal("30.00"),
             f"Credit should be 30 (100 - 40 - 30), got {credit.value}. "
             "Lost update indicates missing database locking.",
+        )
+
+
+class SetToZeroOverdueCreditsGuardTest(test.APITestCase):
+    """set_to_zero_overdue_credits must refuse a future effective_date.
+
+    Regression: a manual run with an effective_date in the future zeroed out
+    project credits whose end_date had not actually arrived yet.
+    """
+
+    def test_future_effective_date_is_rejected(self):
+        with freeze_time("2026-03-17"):
+            future = datetime.date(2026, 12, 1)
+            project = structure_factories.ProjectFactory()
+            credit = factories.CustomerCreditFactory(
+                customer=project.customer,
+                value=1000,
+                end_date=datetime.date(2026, 7, 1),
+            )
+            pc = factories.ProjectCreditFactory(
+                project=project,
+                value=200,
+                end_date=datetime.date(2026, 7, 1),
+            )
+            with self.assertRaises(ValueError):
+                tasks.set_to_zero_overdue_credits(effective_date=future)
+            credit.refresh_from_db()
+            pc.refresh_from_db()
+            # Nothing should have been touched.
+            self.assertEqual(credit.value, 1000)
+            self.assertEqual(pc.value, 200)
+            self.assertFalse(
+                logging_models.Event.objects.filter(
+                    event_type="set_to_zero_overdue_credit"
+                ).exists()
+            )
+
+    def test_today_effective_date_is_accepted(self):
+        with freeze_time("2026-03-17"):
+            today = datetime.date(2026, 3, 17)
+            expired = factories.CustomerCreditFactory(
+                value=100, end_date=datetime.date(2026, 3, 1)
+            )
+            tasks.set_to_zero_overdue_credits(effective_date=today)
+            expired.refresh_from_db()
+            self.assertEqual(expired.value, 0)
+
+
+class CreditAuditOnSilentSavesTest(test.APITestCase):
+    """Manual saves with update_fields=['value'] must still be audited.
+
+    Regression: log_project_credit/log_credit used to short-circuit on any
+    update_fields, which let any caller (integration script, shell, third-party
+    subsystem) silently mutate credit value with no audit trail, causing
+    material credit-value drift in production. Now, only callers inside
+    skip_credit_audit() are exempted.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.CreditFixture()
+
+    def test_manual_value_save_with_update_fields_emits_audit(self):
+        pc = self.fixture.project_credit
+        pc.value = Decimal("75.00")  # well below the customer-credit cap of 100
+        pc.save(update_fields=["value"])
+        self.assertTrue(
+            logging_models.Event.objects.filter(
+                event_type="update_of_project_credit_by_staff"
+            ).exists()
+        )
+
+    def test_save_with_unrelated_update_fields_does_not_emit(self):
+        # Saving a non-value field (e.g. only end_date) must NOT produce
+        # a value-mutation audit event.
+        pc = self.fixture.project_credit
+        pc.end_date = datetime.date(2026, 7, 1)
+        pc.save(update_fields=["end_date"])
+        self.assertFalse(
+            logging_models.Event.objects.filter(
+                event_type="update_of_project_credit_by_staff"
+            ).exists()
+        )
+
+    def test_skip_credit_audit_suppresses_event(self):
+        pc = self.fixture.project_credit
+        with skip_credit_audit():
+            pc.value = Decimal("80.00")
+            pc.save(update_fields=["value"])
+        self.assertFalse(
+            logging_models.Event.objects.filter(
+                event_type="update_of_project_credit_by_staff"
+            ).exists()
         )
