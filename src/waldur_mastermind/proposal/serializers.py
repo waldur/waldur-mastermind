@@ -1244,6 +1244,19 @@ class ProtectedCallSerializer(PublicCallSerializer):
 
         return value
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if getattr(self.context.get("view"), "swagger_fake_view", False):
+            return data
+        if data.get("applicant_visibility_config") is None:
+            synthetic = models.CallApplicantVisibilityConfig(call=instance)
+            data["applicant_visibility_config"] = (
+                CallApplicantVisibilityConfigSerializer(
+                    synthetic, context=self.context
+                ).data
+            )
+        return data
+
     def create(self, validated_data):
         request = self.context["request"]
         customer = validated_data.get("manager", None).customer
@@ -1259,8 +1272,9 @@ class ProtectedCallSerializer(PublicCallSerializer):
         visibility_data = validated_data.pop("applicant_visibility_config", None)
         call = super().create(validated_data)
         if has_visibility and visibility_data is not None:
+            seed = models.CallApplicantVisibilityConfig.get_default_exposure_flags()
             models.CallApplicantVisibilityConfig.objects.create(
-                call=call, **visibility_data
+                call=call, **{**seed, **visibility_data}
             )
         return call
 
@@ -1281,58 +1295,23 @@ class ProtectedCallSerializer(PublicCallSerializer):
         if has_visibility:
             if visibility_data is None:
                 models.CallApplicantVisibilityConfig.objects.filter(call=call).delete()
+            elif (
+                existing := models.CallApplicantVisibilityConfig.objects.filter(
+                    call=call
+                ).first()
+            ) is not None:
+                # Row exists — partial PATCH only touches supplied keys.
+                for key, value in visibility_data.items():
+                    setattr(existing, key, value)
+                existing.save()
             else:
-                models.CallApplicantVisibilityConfig.objects.update_or_create(
-                    call=call, defaults=visibility_data
+                # First create — seed Constance defaults so unspecified fields
+                # don't silently fall back to model defaults.
+                seed = models.CallApplicantVisibilityConfig.get_default_exposure_flags()
+                models.CallApplicantVisibilityConfig.objects.create(
+                    call=call, **{**seed, **visibility_data}
                 )
         return call
-
-
-class CallApplicantAttributeConfigSerializer(serializers.ModelSerializer):
-    """Serializer for configuring what applicant attributes are exposed in proposals."""
-
-    call = serializers.SlugRelatedField(
-        queryset=models.Call.objects.all(),
-        slug_field="uuid",
-        write_only=True,
-        required=False,
-    )
-    call_uuid = serializers.UUIDField(source="call.uuid", read_only=True)
-    call_name = serializers.CharField(source="call.name", read_only=True)
-    exposed_fields = serializers.SerializerMethodField()
-    is_default = serializers.SerializerMethodField()
-
-    class Meta:
-        model = models.CallApplicantAttributeConfig
-        fields = (
-            "uuid",
-            "call",
-            "call_uuid",
-            "call_name",
-            "expose_full_name",
-            "expose_email",
-            "expose_organization",
-            "expose_affiliations",
-            "expose_organization_type",
-            "expose_organization_country",
-            "expose_nationality",
-            "expose_nationalities",
-            "expose_country_of_residence",
-            "expose_eduperson_assurance",
-            "expose_identity_source",
-            "reviewers_see_applicant_details",
-            "exposed_fields",
-            "is_default",
-        )
-        read_only_fields = ("uuid", "exposed_fields", "is_default")
-
-    def get_exposed_fields(self, obj) -> list[str]:
-        """Return list of currently exposed field names."""
-        return obj.get_exposed_fields()
-
-    def get_is_default(self, obj) -> bool:
-        """Return True if this is a default (unsaved) config."""
-        return obj.pk is None
 
 
 class ProtectedRoundSerializer(

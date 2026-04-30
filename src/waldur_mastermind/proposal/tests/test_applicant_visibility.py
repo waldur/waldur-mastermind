@@ -85,11 +85,18 @@ class CallApplicantVisibilityConfigAPITest(test.APITestCase):
         self.call = self.fixture.call
         self.url = factories.CallFactory.get_protected_url(self.call)
 
-    def test_get_call_returns_null_visibility_config_when_none_exists(self):
+    def test_get_call_synthesises_default_visibility_config_when_none_exists(self):
         self.client.force_authenticate(self.fixture.call_manager)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIsNone(response.data.get("applicant_visibility_config"))
+        config_data = response.data["applicant_visibility_config"]
+        self.assertTrue(config_data["is_default"])
+        # Booleans match the Constance default DEFAULT_CALL_USER_ATTRIBUTES.
+        self.assertTrue(config_data["expose_username"])
+        self.assertTrue(config_data["expose_full_name"])
+        self.assertTrue(config_data["expose_email"])
+        self.assertFalse(config_data["expose_registration_method"])
+        self.assertFalse(config_data["expose_phone_number"])
 
     def test_get_call_exposes_all_22_fields_when_config_exists(self):
         models.CallApplicantVisibilityConfig.objects.create(call=self.call)
