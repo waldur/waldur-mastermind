@@ -189,9 +189,16 @@ class ResourceQuerySet(django_models.QuerySet["models.Resource"]):
         connected_customers = get_connected_customers_by_permission(
             user, PermissionEnum.LIST_RESOURCES
         )
+        # Direct UserRole on Resource or ResourceProject grants read-only
+        # visibility of the parent Resource regardless of the LIST_RESOURCES
+        # permission on the project / customer chain.
+        direct_resource_ids = get_user_direct_resource_ids(user)
+        rp_resource_ids = get_user_resource_project_resource_ids(user)
         return self.filter(
             Q(project__in=connected_projects)
             | Q(project__customer__in=connected_customers)
+            | Q(id__in=direct_resource_ids)
+            | Q(id__in=rp_resource_ids)
         ).distinct()
 
     def filter_for_service_provider(self, user):
@@ -211,10 +218,76 @@ class ResourceQuerySet(django_models.QuerySet["models.Resource"]):
     def filter_for_user(self, user):
         if user.is_staff or user.is_support:
             return self
+        direct_resource_ids = get_user_direct_resource_ids(user)
+        rp_resource_ids = get_user_resource_project_resource_ids(user)
         return self.filter(
-            project__in=get_connected_projects(user),
-            project__customer__in=get_connected_customers(user),
-        )
+            Q(project__in=get_connected_projects(user))
+            | Q(project__customer__in=get_connected_customers(user))
+            | Q(id__in=direct_resource_ids)
+            | Q(id__in=rp_resource_ids)
+        ).distinct()
+
+
+def get_user_direct_resource_ids(user):
+    """IDs of Resources where the user has a direct UserRole."""
+    resource_ct = ContentType.objects.get_for_model(models.Resource)
+    return get_scope_ids(user, resource_ct)
+
+
+def get_user_resource_project_ids(user):
+    """IDs of ResourceProjects where the user has a direct UserRole."""
+    rp_ct = ContentType.objects.get_for_model(models.ResourceProject)
+    return get_scope_ids(user, rp_ct)
+
+
+def get_user_resource_project_resource_ids(user):
+    """IDs of Resources whose ResourceProjects the user has a UserRole on."""
+    return models.ResourceProject.objects.filter(
+        id__in=get_user_resource_project_ids(user)
+    ).values_list("resource_id", flat=True)
+
+
+def _user_resource_descended_resource_ids_qs(user):
+    """Lazy QuerySet of Resource IDs reachable via the user's Resource OR
+    ResourceProject UserRoles. Filters by content-type app_label/model
+    directly to avoid a per-call ``ContentType.objects.get_for_model`` round
+    trip — the join folds into the outer SQL as a subquery."""
+    direct_role_ids = UserRole.objects.filter(
+        user=user,
+        is_active=True,
+        content_type__app_label="marketplace",
+        content_type__model="resource",
+    ).values_list("object_id", flat=True)
+    rp_role_ids = UserRole.objects.filter(
+        user=user,
+        is_active=True,
+        content_type__app_label="marketplace",
+        content_type__model="resourceproject",
+    ).values_list("object_id", flat=True)
+    rp_resource_ids = models.ResourceProject.objects.filter(
+        id__in=rp_role_ids
+    ).values_list("resource_id", flat=True)
+    return models.Resource.objects.filter(
+        Q(id__in=direct_role_ids) | Q(id__in=rp_resource_ids)
+    )
+
+
+def get_user_resource_descended_project_ids(user):
+    """Lazy QuerySet of structure Project IDs reachable via the user's
+    Resource or ResourceProject UserRoles. Returned as a single QuerySet so
+    callers can fold it into ``Q(id__in=...)`` as a SQL subquery without
+    forcing evaluation."""
+    return _user_resource_descended_resource_ids_qs(user).values_list(
+        "project_id", flat=True
+    )
+
+
+def get_user_resource_descended_customer_ids(user):
+    """Lazy QuerySet of Customer IDs reachable via the user's Resource or
+    ResourceProject UserRoles. See ``get_user_resource_descended_project_ids``."""
+    return _user_resource_descended_resource_ids_qs(user).values_list(
+        "project__customer_id", flat=True
+    )
 
 
 class ResourceManager(MixinManager):

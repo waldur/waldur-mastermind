@@ -20,7 +20,7 @@ from drf_spectacular.utils import (
 )
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
@@ -35,6 +35,8 @@ from waldur_core.permissions.utils import (
     get_permissions,
     update_user,
 )
+from waldur_core.structure import models as structure_models
+from waldur_core.structure.permissions import _get_customer
 
 from . import filters, models, serializers
 
@@ -243,6 +245,79 @@ class RoleViewSet(ActionsViewSet):
         )
 
 
+class RoleAvailabilityViewSet(ActionsViewSet):
+    """Staff-only audit / cleanup view over RoleAvailability rows.
+
+    Day-to-day binding management happens elsewhere — through
+    OfferingProfile.add_role / remove_role for profile-managed catalogs,
+    and through OfferingRoleViewSet for direct per-offering rows. This
+    endpoint is for staff to audit the raw bindings (e.g. spot orphans
+    left over from manual API calls) and to delete a row out-of-band when
+    needed.
+    """
+
+    queryset = models.RoleAvailability.objects.select_related(
+        "role", "content_type"
+    ).order_by("role__name")
+    serializer_class = serializers.RoleAvailabilityDetailsSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.RoleAvailabilityFilter
+    disabled_actions = ["create", "update", "partial_update"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if not (user and user.is_authenticated and user.is_staff):
+            return qs.none()
+        return qs
+
+
+def _user_can_view_scope_team(user, scope) -> bool:
+    """Gate for ``UserRoleMixin.list_users``.
+
+    Pre-existing assumption (relied on by ProjectViewSet and CustomerViewSet)
+    was that a caller could only resolve ``get_object()`` on a scope they
+    were a member of. Once Resource / ResourceProject UserRoles started
+    granting read visibility of the parent project / customer (so that
+    role-only invitees could render the UI), that implicit gate stopped
+    working — an RP-only invitee could enumerate the parent organisation's
+    membership PII via ``list_users``.
+
+    Restore the pre-existing semantic explicitly: only staff/support, or
+    callers with a real consumer-side role on the scope tree (the scope
+    itself, its enclosing customer, or any project under that customer),
+    may list team members. The whole check is folded into one SQL EXISTS
+    so it costs at most one extra query on the request.
+    """
+    if not user or user.is_anonymous:
+        return False
+    if user.is_staff or user.is_support:
+        return True
+
+    scope_meta = scope._meta
+    q = Q(
+        content_type__app_label=scope_meta.app_label,
+        content_type__model=scope_meta.model_name,
+        object_id=scope.id,
+    )
+    customer = _get_customer(scope)
+    if customer is not None:
+        q |= Q(
+            content_type__app_label="structure",
+            content_type__model="customer",
+            object_id=customer.id,
+        )
+        q |= Q(
+            content_type__app_label="structure",
+            content_type__model="project",
+            object_id__in=structure_models.Project.objects.filter(
+                customer_id=customer.id
+            ).values_list("id", flat=True),
+        )
+    return models.UserRole.objects.filter(user=user, is_active=True).filter(q).exists()
+
+
 class UserRoleMixin:
     """Mixin to provide user role management functionality for viewsets."""
 
@@ -351,6 +426,10 @@ class UserRoleMixin:
     @action(detail=True, methods=["GET"])
     def list_users(self, request, uuid=None):
         scope = self.get_object()
+        if not _user_can_view_scope_team(request.user, scope):
+            raise PermissionDenied(
+                "You do not have permission to list team members of this scope."
+            )
         user_uuid = request.query_params.get("user")
 
         user = None
@@ -359,7 +438,10 @@ class UserRoleMixin:
                 user = User.objects.get(uuid=user_uuid)
             except User.DoesNotExist:
                 pass
-        queryset = get_permissions(scope, user)
+        if hasattr(self, "get_user_roles_queryset"):
+            queryset = self.get_user_roles_queryset(scope, user)
+        else:
+            queryset = get_permissions(scope, user)
 
         kwargs = DjangoFilterBackend().get_filterset_kwargs(request, queryset, self)
         filterset = UserPermissionFilter(**kwargs)

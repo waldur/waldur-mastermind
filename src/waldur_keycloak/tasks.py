@@ -196,7 +196,7 @@ def cleanup_orphaned_memberships():
 
 @shared_task(name="waldur_keycloak.cleanup_keycloak_for_deactivated_user")
 def cleanup_keycloak_for_deactivated_user(user_uuid):
-    """Remove all Keycloak memberships and ResourceUser records for a deactivated user."""
+    """Remove all Keycloak memberships for a deactivated user."""
     from waldur_core.core.models import User
 
     try:
@@ -208,14 +208,7 @@ def cleanup_keycloak_for_deactivated_user(user_uuid):
     if user.is_active:
         return
 
-    # Delete ResourceUser records for keycloak-enabled offerings.
-    # Signal handlers cascade to keycloak membership deletion + backend cleanup.
-    marketplace_models.ResourceUser.objects.filter(
-        user=user,
-        resource__offering__plugin_options__keycloak_enabled=True,
-    ).delete()
-
-    # Delete remaining keycloak memberships (offering-level without resource)
+    # Delete keycloak memberships
     models.OfferingKeycloakMembership.objects.filter(user=user).delete()
 
 
@@ -261,13 +254,7 @@ def cleanup_keycloak_for_lost_project_access(user_uuid, project_uuid):
     if not resources.exists():
         return
 
-    # Delete ResourceUser records — signal handlers cascade to keycloak memberships
-    marketplace_models.ResourceUser.objects.filter(
-        resource__in=resources,
-        user=user,
-    ).delete()
-
-    # Delete remaining keycloak-only memberships for these resources
+    # Delete keycloak memberships for these resources
     models.OfferingKeycloakMembership.objects.filter(
         user=user,
         group__resource__in=resources,

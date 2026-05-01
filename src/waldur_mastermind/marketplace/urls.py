@@ -108,16 +108,6 @@ def register_in(router):
         basename="marketplace-offering-referral",
     )
     router.register(
-        r"marketplace-offering-user-roles",
-        views.OfferingUserRoleViewSet,
-        basename="marketplace-offering-user-role",
-    )
-    router.register(
-        r"marketplace-resource-users",
-        views.ResourceUserViewSet,
-        basename="marketplace-resource-user",
-    )
-    router.register(
         r"marketplace-offering-users",
         views.OfferingUsersViewSet,
         basename="marketplace-offering-user",
@@ -271,6 +261,28 @@ def register_in(router):
         r"marketplace-article-code-update",
         views.ArticleCodeUpdateViewSet,
         basename="marketplace-article-code-update",
+    )
+
+    # Resource projects (nested under resources)
+    router.register(
+        r"marketplace-resource-projects",
+        views.ConsumerResourceProjectViewSet,
+        basename="marketplace-resource-project",
+    )
+    router.register(
+        r"marketplace-provider-resource-projects",
+        views.ProviderResourceProjectViewSet,
+        basename="marketplace-provider-resource-project",
+    )
+    router.register(
+        r"marketplace-offering-roles",
+        views.OfferingRoleViewSet,
+        basename="marketplace-offering-role",
+    )
+    router.register(
+        r"marketplace-offering-profiles",
+        views.OfferingProfileViewSet,
+        basename="marketplace-offering-profile",
     )
 
 

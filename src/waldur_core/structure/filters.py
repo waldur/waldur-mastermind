@@ -97,6 +97,26 @@ class GenericRoleFilter(BaseFilterBackend):
             call_manager_ct = None
             call_ct = None
 
+        # Resource and ResourceProject roles also confer customer visibility
+        # via Resource.project.customer. Lazy import keeps waldur_core free of
+        # marketplace dependencies at module load.
+        try:
+            from waldur_mastermind.marketplace.models import (
+                Resource as MarketplaceResource,
+            )
+            from waldur_mastermind.marketplace.models import ResourceProject
+
+            resource_ct = ContentType.objects.get_for_model(MarketplaceResource)
+            resource_project_ct = ContentType.objects.get_for_model(ResourceProject)
+            content_type_conditions |= Q(content_type=resource_ct) | Q(
+                content_type=resource_project_ct
+            )
+        except ImportError:
+            resource_ct = None
+            resource_project_ct = None
+            MarketplaceResource = None
+            ResourceProject = None
+
         # Single query to get all relevant user roles
         user_roles = (
             UserRole.objects.filter(user=user, is_active=True)
@@ -109,6 +129,8 @@ class GenericRoleFilter(BaseFilterBackend):
         project_ids = []
         call_manager_ids = []
         call_ids = []
+        resource_ids = []
+        resource_project_ids = []
 
         for role in user_roles:
             model_name = role["content_type__model"]
@@ -122,6 +144,10 @@ class GenericRoleFilter(BaseFilterBackend):
                 call_manager_ids.append(object_id)
             elif model_name == "call":
                 call_ids.append(object_id)
+            elif model_name == "resource":
+                resource_ids.append(object_id)
+            elif model_name == "resourceproject":
+                resource_project_ids.append(object_id)
 
         # Handle project-level access (customers via projects)
         if project_ids:
@@ -129,6 +155,20 @@ class GenericRoleFilter(BaseFilterBackend):
                 id__in=project_ids
             ).values_list("customer_id", flat=True)
             accessible_customer_ids.update(project_customer_ids)
+
+        # Resource → Project → Customer
+        if resource_ids and MarketplaceResource is not None:
+            resource_customer_ids = MarketplaceResource.objects.filter(
+                id__in=resource_ids
+            ).values_list("project__customer_id", flat=True)
+            accessible_customer_ids.update(resource_customer_ids)
+
+        # ResourceProject → Resource → Project → Customer
+        if resource_project_ids and ResourceProject is not None:
+            rp_customer_ids = ResourceProject.objects.filter(
+                id__in=resource_project_ids
+            ).values_list("resource__project__customer_id", flat=True)
+            accessible_customer_ids.update(rp_customer_ids)
 
         # Handle call management permissions using the data we already collected
         if call_manager_ids and call_manager_ct:

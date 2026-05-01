@@ -39,6 +39,8 @@ TYPE_MAP = {
     "call_organizer": ("proposal", "callmanagingorganisation"),
     "project": ("structure", "project"),
     "offering": ("marketplace", "offering"),
+    "resource": ("marketplace", "resource"),
+    "resource_project": ("marketplace", "resourceproject"),
     "call": ("proposal", "call"),
     "proposal": ("proposal", "proposal"),
 }
@@ -49,6 +51,8 @@ TYPE_KEYS = Literal[
     "call_organizer",
     "project",
     "offering",
+    "resource",
+    "resource_project",
     "call",
     "proposal",
 ]
@@ -114,6 +118,12 @@ class PermissionEnum(StrEnum):
     ACCEPT_BOOKING_REQUEST = "RESOURCE.ACCEPT_BOOKING_REQUEST"
     REJECT_BOOKING_REQUEST = "RESOURCE.REJECT_BOOKING_REQUEST"
     MANAGE_RESOURCE_USERS = "RESOURCE.MANAGE_USERS"
+    CREATE_RESOURCE_PERMISSION = "RESOURCE.CREATE_PERMISSION"
+    UPDATE_RESOURCE_PERMISSION = "RESOURCE.UPDATE_PERMISSION"
+    DELETE_RESOURCE_PERMISSION = "RESOURCE.DELETE_PERMISSION"
+    CREATE_RESOURCE_PROJECT_PERMISSION = "RESOURCE_PROJECT.CREATE_PERMISSION"
+    UPDATE_RESOURCE_PROJECT_PERMISSION = "RESOURCE_PROJECT.UPDATE_PERMISSION"
+    DELETE_RESOURCE_PROJECT_PERMISSION = "RESOURCE_PROJECT.DELETE_PERMISSION"
     RESOURCE_CONSUMPTION_LIMITATION = "RESOURCE.CONSUMPTION_LIMITATION"
     MANAGE_OFFERING_BACKEND_RESOURCES = "OFFERING.MANAGE_BACKEND_RESOURCES"
 
@@ -226,6 +236,8 @@ CREATE_PERMISSIONS = {
     "proposal": PermissionEnum.MANAGE_PROPOSAL,
     "call_organizer": PermissionEnum.CREATE_CALL_PERMISSION,
     "service_provider": PermissionEnum.CREATE_CUSTOMER_PERMISSION,
+    "resource": PermissionEnum.CREATE_RESOURCE_PERMISSION,
+    "resourceproject": PermissionEnum.CREATE_RESOURCE_PROJECT_PERMISSION,
 }
 
 
@@ -237,6 +249,8 @@ UPDATE_PERMISSIONS = {
     "proposal": PermissionEnum.UPDATE_PROPOSAL_PERMISSION,
     "call_organizer": PermissionEnum.UPDATE_CALL_PERMISSION,
     "service_provider": PermissionEnum.UPDATE_CUSTOMER_PERMISSION,
+    "resource": PermissionEnum.UPDATE_RESOURCE_PERMISSION,
+    "resourceproject": PermissionEnum.UPDATE_RESOURCE_PROJECT_PERMISSION,
 }
 
 
@@ -248,6 +262,8 @@ DELETE_PERMISSIONS = {
     "proposal": PermissionEnum.DELETE_PROPOSAL_PERMISSION,
     "call_organizer": PermissionEnum.DELETE_CALL_PERMISSION,
     "service_provider": PermissionEnum.DELETE_CUSTOMER_PERMISSION,
+    "resource": PermissionEnum.DELETE_RESOURCE_PERMISSION,
+    "resourceproject": PermissionEnum.DELETE_RESOURCE_PROJECT_PERMISSION,
 }
 
 
@@ -310,7 +326,9 @@ def categorize_permission(category, action):
     category_mapping = {
         "OFFERING": "Offering",
         "ORDER": "Order",
-        "RESOURCE": "Provider actions"
+        "RESOURCE": "Team members"
+        if "PERMISSION" in action
+        else "Provider actions"
         if action
         in [
             "SET_USAGE",
@@ -338,6 +356,7 @@ def categorize_permission(category, action):
         "OFFERINGUSER": "Offering",
         "OPENSTACK_INSTANCE": "Openstack",
         "OPENSTACK_ROUTER": "Openstack",
+        "RESOURCE_PROJECT": "Team members",
     }
 
     return category_mapping.get(category, category.capitalize())

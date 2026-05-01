@@ -51,6 +51,7 @@ from waldur_core.permissions.utils import (
     get_permissions,
     get_users_with_permission,
     has_permission,
+    has_user,
 )
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -3780,6 +3781,34 @@ def _is_field_empty_q(user_field_name):
     else:
         # DateField, PositiveSmallIntegerField, etc.
         return Q(**{f"{prefix}__isnull": True})
+
+
+def is_resource_project_only_viewer(user, resource) -> bool:
+    """True when ``user`` can only see ``resource`` via a ResourceProject role.
+
+    Returns False for staff/support, for users with project/customer roles on
+    the consuming side, and for users with a direct UserRole on the resource.
+    """
+    if not user or not user.is_authenticated:
+        return False
+    if user.is_staff or user.is_support:
+        return False
+    project = resource.project
+    if get_connected_projects(user).filter(id=project.id).exists():
+        return False
+    if get_connected_customers(user).filter(id=project.customer_id).exists():
+        return False
+    if has_user(resource, user):
+        return False
+    rp_ids = models.ResourceProject.objects.filter(resource=resource).values_list(
+        "id", flat=True
+    )
+    if not rp_ids:
+        return False
+    rp_ct = ContentType.objects.get_for_model(models.ResourceProject)
+    return UserRole.objects.filter(
+        user=user, is_active=True, content_type=rp_ct, object_id__in=list(rp_ids)
+    ).exists()
 
 
 def build_incomplete_profile_q():

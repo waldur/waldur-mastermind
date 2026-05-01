@@ -35,6 +35,13 @@ This is a Django-based cloud orchestration platform. When working on this codeba
 list_permissions = [permission_factory(PermissionEnum.VIEW_RESOURCE)]
 ```
 
+**Adding new permissions:**
+1. Add to `PermissionEnum` in `src/waldur_core/permissions/enums.py`
+2. Assign to roles in `docker/rootfs/etc/waldur/permissions.yaml` (NOT via data migrations)
+3. The `import_roles` management command loads permissions.yaml on deployment
+
+See `docs/guides/waldur-permissions.md` for details.
+
 ### Serializers
 
 ```python
@@ -231,6 +238,7 @@ Detailed guides are in `docs/guides/`:
 - **Testing Guide**: `waldur-testing-guide.md` - Test writing best practices
 - **Code Style**: `waldur-code-style.md` - Formatting and conventions
 - **Permissions**: `waldur-permissions.md` - Permission system details
+- **Resource Projects**: `resource-projects.md` - ResourceProject model, offering roles, invitations, and RoleAvailability
 - **Build Commands**: `build-commands.md` - Test/lint/build commands
 - **OpenAPI Schema**: `openapi.md` - drf-spectacular customization patterns
 

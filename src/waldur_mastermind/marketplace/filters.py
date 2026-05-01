@@ -22,7 +22,8 @@ from waldur_core.core.filters import (
 )
 from waldur_core.core.models import User
 from waldur_core.core.utils import is_uuid_like
-from waldur_core.permissions.enums import PermissionEnum, RoleEnum
+from waldur_core.permissions import models as permission_models
+from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum, RoleEnum
 from waldur_core.permissions.filters import UserPermissionFilter
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure import filters as structure_filters
@@ -514,6 +515,41 @@ class OfferingFilterMixin(django_filters.FilterSet):
             offering__shared=True,
             offering__in=offerings,
         )
+
+
+class OfferingRoleFilter(django_filters.FilterSet):
+    offering_uuid = django_filters.CharFilter(method="filter_by_offering")
+    content_type = django_filters.CharFilter(method="filter_by_content_type")
+    name = django_filters.CharFilter(lookup_expr="icontains")
+
+    class Meta:
+        model = permission_models.Role
+        fields = []
+
+    def filter_by_offering(self, queryset, name, value):
+        try:
+            offering = models.Offering.objects.get(uuid=value)
+        except models.Offering.DoesNotExist:
+            return queryset.none()
+        if offering.profile_id:
+            # Profile-bound offerings own their catalog through the profile;
+            # any direct RoleAvailability rows are ignored to avoid stale
+            # bindings from leaking into the per-offering Roles tab.
+            return queryset.filter(
+                id__in=offering.profile.roles.values_list("id", flat=True)
+            )
+        offering_ct = ContentType.objects.get_for_model(models.Offering)
+        return queryset.filter(
+            availability__content_type=offering_ct,
+            availability__object_id=offering.id,
+        )
+
+    def filter_by_content_type(self, queryset, name, value):
+        if value in TYPE_MAP:
+            app_label, model_name = TYPE_MAP[value]
+            ct = ContentType.objects.get_by_natural_key(app_label, model_name)
+            return queryset.filter(content_type=ct)
+        return queryset.none()
 
 
 class OfferingPermissionFilter(UserPermissionFilter):
@@ -1681,7 +1717,7 @@ class RobotAccountFilter(core_filters.CreatedModifiedFilter, django_filters.Filt
         fields = ["type", "state", "username"]
 
 
-class ResourceUserFilter(django_filters.FilterSet):
+class ResourceProjectFilter(django_filters.FilterSet):
     resource = core_filters.URLFilter(
         view_name="marketplace-resource-detail",
         field_name="resource__uuid",
@@ -1692,22 +1728,13 @@ class ResourceUserFilter(django_filters.FilterSet):
         field_name="resource__uuid",
         label="Resource UUID",
     )
-    role_uuid = core_filters.RelatedUUIDFilter(
-        view_name="marketplace-offering-user-role-detail",
-        field_name="role__uuid",
-        label="Role UUID",
-    )
-    role_name = django_filters.CharFilter(field_name="role__name", label="Role name")
-    user_uuid = core_filters.RelatedUUIDFilter(
-        view_name="user-detail", field_name="user__uuid", label="User UUID"
-    )
+    name = django_filters.CharFilter(lookup_expr="icontains")
 
     class Meta:
-        model = models.ResourceUser
+        model = models.ResourceProject
         fields = []
 
 
-# TODO: Remove after migration of clients to a new endpoint
 class PlanFilter(OfferingFilterMixin, django_filters.FilterSet):
     class Meta:
         model = models.Plan
@@ -2038,12 +2065,6 @@ class CustomerCallManagingOrganisationFilter(core_filters.BaseFilterBackend):
                 description="Filter by customers that are call managing organizations.",
             )
         ]
-
-
-class OfferingUserRoleFilter(OfferingFilterMixin):
-    class Meta:
-        model = models.OfferingUserRole
-        fields = []
 
 
 class OfferingUserFilter(OfferingFilterMixin, core_filters.CreatedModifiedFilter):

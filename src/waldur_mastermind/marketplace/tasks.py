@@ -28,7 +28,7 @@ from waldur_core.logging import models as logging_models
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging.enums import EventType, ObservableObjectType
 from waldur_core.permissions.fixtures import ProjectRole
-from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.models import RoleAvailability, UserRole
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import get_connected_projects
 from waldur_core.structure.models import Project
@@ -2986,3 +2986,135 @@ def cleanup_usage_poll_records():
         logger.info(
             "Deleted %d stale usage poll records older than %s", deleted, cutoff
         )
+
+
+def _revoke_user_roles_for_role_on_offering(role_id, offering):
+    """Revoke active UserRoles for the given role whose scope is a
+    Resource or ResourceProject under this offering. Used by the profile
+    reconcile tasks when a role leaves the catalog."""
+    resource_ct = ContentType.objects.get_for_model(models.Resource)
+    rp_ct = ContentType.objects.get_for_model(models.ResourceProject)
+
+    resource_ids = list(
+        models.Resource.objects.filter(offering=offering).values_list("id", flat=True)
+    )
+    if not resource_ids:
+        return
+
+    rp_ids = list(
+        models.ResourceProject.objects.filter(resource_id__in=resource_ids).values_list(
+            "id", flat=True
+        )
+    )
+
+    qs = UserRole.objects.filter(role_id=role_id, is_active=True).filter(
+        Q(content_type=resource_ct, object_id__in=resource_ids)
+        | Q(content_type=rp_ct, object_id__in=rp_ids)
+    )
+    for ur in qs:
+        ur.revoke(reason="Role removed from offering profile")
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.reconcile_offering_profile_availabilities",
+)
+def reconcile_offering_profile_availabilities(profile_id):
+    """Bring RoleAvailability rows in line with profile.roles for every
+    offering bound to this profile.
+
+    For each (offering, role-in-profile) pair, ensure a RoleAvailability
+    row exists. For (offering, removed-role) pairs, delete the
+    availability AND explicitly revoke active UserRoles on that offering's
+    Resources / ResourceProjects — bypassing the "last availability =
+    globally available" cascade rule that would otherwise leave them
+    intact.
+    """
+    try:
+        profile = models.OfferingProfile.objects.get(id=profile_id)
+    except models.OfferingProfile.DoesNotExist:
+        logger.info(
+            "OfferingProfile id=%s no longer exists; skip reconcile.", profile_id
+        )
+        return
+
+    offering_ct = ContentType.objects.get_for_model(models.Offering)
+    target_role_ids = set(profile.roles.values_list("id", flat=True))
+    offerings = list(profile.offerings.all())
+
+    for offering in offerings:
+        existing = RoleAvailability.objects.filter(
+            content_type=offering_ct, object_id=offering.id
+        )
+        existing_role_ids = set(existing.values_list("role_id", flat=True))
+
+        for role_id in target_role_ids - existing_role_ids:
+            RoleAvailability.objects.get_or_create(
+                role_id=role_id,
+                content_type=offering_ct,
+                object_id=offering.id,
+            )
+
+        # Drop availability rows for roles no longer in the profile catalog.
+        # Per design, profile-bound offerings own their role catalog
+        # exclusively (no mixing with custom roles), so any availability
+        # outside target_role_ids is stale.
+        stale_role_ids = list(
+            existing.exclude(role_id__in=target_role_ids).values_list(
+                "role_id", flat=True
+            )
+        )
+        for role_id in stale_role_ids:
+            _revoke_user_roles_for_role_on_offering(role_id, offering)
+        if stale_role_ids:
+            existing.filter(role_id__in=stale_role_ids).delete()
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.reconcile_offering_availabilities",
+)
+def reconcile_offering_availabilities(offering_id):
+    """Reconcile RoleAvailability rows for a single offering against its
+    current profile (if any). Used when offering.profile changes.
+
+    When an offering leaves a profile, all profile-derived availability
+    rows on that offering are deleted and matching UserRoles are revoked.
+    """
+    try:
+        offering = models.Offering.objects.get(id=offering_id)
+    except models.Offering.DoesNotExist:
+        return
+
+    offering_ct = ContentType.objects.get_for_model(models.Offering)
+    existing = RoleAvailability.objects.filter(
+        content_type=offering_ct, object_id=offering.id
+    )
+
+    if offering.profile is None:
+        # Offering left the profile — drop ALL availability rows for it.
+        # Per design, profile-bound offerings own their catalog
+        # exclusively, so on unbinding the offering returns to "no
+        # roles" until staff/owner re-creates them.
+        stale_role_ids = list(existing.values_list("role_id", flat=True))
+        for role_id in stale_role_ids:
+            _revoke_user_roles_for_role_on_offering(role_id, offering)
+        existing.delete()
+        return
+
+    profile_role_ids = set(offering.profile.roles.values_list("id", flat=True))
+    existing_role_ids = set(existing.values_list("role_id", flat=True))
+
+    for role_id in profile_role_ids - existing_role_ids:
+        RoleAvailability.objects.get_or_create(
+            role_id=role_id,
+            content_type=offering_ct,
+            object_id=offering.id,
+        )
+
+    # Drop rows not in the profile catalog (no mixing).
+    stale_role_ids = list(
+        existing.exclude(role_id__in=profile_role_ids).values_list("role_id", flat=True)
+    )
+    for role_id in stale_role_ids:
+        _revoke_user_roles_for_role_on_offering(role_id, offering)
+    if stale_role_ids:
+        existing.filter(role_id__in=stale_role_ids).delete()

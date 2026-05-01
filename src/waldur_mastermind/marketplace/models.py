@@ -504,6 +504,43 @@ def offering_has_plans(offering):
     return offering.plans.count() or (offering.parent and offering.parent.plans.count())
 
 
+class OfferingProfile(
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    core_models.DescribableMixin,
+    TimeStampedModel,
+):
+    """Logical grouping of offerings that share a common user-role catalog.
+
+    A profile defines a curated set of Roles (e.g. "Cluster Admin",
+    "Namespace Manager" for a Rancher-cluster profile). Offerings opt in by
+    setting their `profile` FK. The profile's roles are reconciled onto
+    every bound offering as RoleAvailability rows. Adding/removing roles
+    on the profile triggers async reconciliation across all bound offerings.
+
+    Profile catalog (the role set itself) is curated by staff via
+    OfferingProfileViewSet. Binding an offering to one of those profiles
+    is a per-offering operation: anyone with UPDATE_OFFERING on that
+    offering's customer (service-provider owner / staff) can attach or
+    detach. Distinct from Offering.type (the plugin id) — a Rancher
+    cluster delivered via site-agent and one delivered via the native
+    plugin can share the same profile.
+    """
+
+    roles = models.ManyToManyField(
+        "permissions.Role",
+        related_name="offering_profiles",
+        blank=True,
+        help_text=_(
+            "Role catalog. These roles become assignable on every offering "
+            "bound to this profile."
+        ),
+    )
+
+    class Meta:
+        ordering = ["name"]
+
+
 class Offering(
     core_models.BackendMixin,
     core_models.UuidMixin,
@@ -534,7 +571,6 @@ class Offering(
     screenshots: models.Manager["Screenshot"]
     files: models.Manager["OfferingFile"]
     endpoints: models.Manager["OfferingAccessEndpoint"]
-    roles: models.Manager["OfferingUserRole"]
     software_catalogs: models.Manager["OfferingSoftwareCatalog"]
     user_consents: models.Manager["UserOfferingConsent"]
     terms_of_service_configs: models.Manager["OfferingTermsOfService"]
@@ -639,6 +675,18 @@ class Offering(
         related_name="offerings",
         blank=True,
     )
+    profile = models.ForeignKey(
+        "OfferingProfile",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="offerings",
+        help_text=_(
+            "Service profile (logical grouping). When set, the offering's "
+            "user-role catalog is reconciled from the profile and managed "
+            "centrally by staff. Leave empty for per-offering custom roles."
+        ),
+    )
 
     # If offering is not shared, it is available only to following user categories:
     # 1) staff user;
@@ -669,6 +717,7 @@ class Offering(
                 "plugin_options",
                 "secret_options",
                 "name",
+                "profile",
             ]
         ),
     )
@@ -1606,6 +1655,7 @@ class ResourceDetailsMixin(
 
 
 class Resource(
+    PermissionMixin,
     ResourceDetailsMixin,
     core_models.UuidMixin,
     core_models.BackendMixin,
@@ -1642,7 +1692,6 @@ class Resource(
     quotas: models.Manager["ComponentQuota"]
     usages: models.Manager["ComponentUsage"]
     endpoints: models.Manager["ResourceAccessEndpoint"]
-    users: models.Manager["ResourceUser"]
     get_state_display: Callable[[], str]
 
     class States(ResourceStates):
@@ -3173,42 +3222,6 @@ class ResourceAccessEndpoint(core_models.UuidMixin, core_models.NameMixin):
     )
 
 
-class OfferingUserRole(core_models.UuidMixin, core_models.NameMixin):
-    """
-    User roles within offerings.
-
-    Defines user roles for offerings providing permission management
-    and access control. Used for role-based access control within
-    offering contexts.
-    """
-
-    offering = models.ForeignKey(
-        on_delete=models.CASCADE, to=Offering, related_name="roles"
-    )
-    scope_type = models.CharField(
-        max_length=50,
-        blank=True,
-        default="",
-        help_text=_(
-            "Level this role applies at, e.g. 'cluster', 'project'. "
-            "Empty means offering-wide."
-        ),
-    )
-    scope_type_label = models.CharField(
-        max_length=150,
-        blank=True,
-        default="",
-        help_text=_(
-            "Human-readable label for scope_type shown to end users, "
-            "e.g. 'Rancher Project', 'Cluster Namespace'. "
-            "Falls back to capitalized scope_type if empty."
-        ),
-    )
-
-    class Meta:
-        ordering = ["name"]
-
-
 class SoftwareCatalog(core_models.UuidMixin, TimeStampedModel):
     """
     Generic software catalog supporting multiple package management systems.
@@ -3602,34 +3615,106 @@ class OfferingPartition(core_models.UuidMixin, TimeStampedModel):
         return f"{self.offering.name} - {self.partition_name}"
 
 
-class ResourceUser(TimeStampedModel, core_models.UuidMixin):
+class ResourceProject(
+    PermissionMixin,
+    core_models.UuidMixin,
+    core_models.NameMixin,
+    core_models.ErrorMessageMixin,
+    TimeStampedModel,
+):
     """
-    User-role assignments for resources.
+    Sub-project within a resource.
 
-    Manages user-role assignments for resources with timestamp tracking.
-    Provides fine-grained access control and permission management
-    for individual resources.
+    Represents a project-level entity within a resource (e.g., a Rancher project
+    within a cluster resource). Enabled per-offering via the
+    ``enable_resource_projects`` plugin option.
     """
+
+    class States(ResourceStates):
+        pass
 
     resource = models.ForeignKey(
-        on_delete=models.CASCADE, to=Resource, related_name="users"
+        Resource,
+        on_delete=models.CASCADE,
+        related_name="projects",
     )
-    user = models.ForeignKey(
-        core_models.User, related_name="+", on_delete=models.CASCADE
+    description = models.TextField(blank=True, default="")
+    backend_id = models.CharField(max_length=255, blank=True, default="")
+    state = FSMIntegerField(
+        default=States.CREATING,
+        choices=States.CHOICES,
     )
-    role = models.ForeignKey(
-        OfferingUserRole, related_name="+", on_delete=models.CASCADE
+    limits = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Dictionary mapping component types to quota values. "
+            "Same format as Resource.limits."
+        ),
+    )
+    current_usages = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=_(
+            "Dictionary mapping component types to current usage amounts. "
+            "Populated by backend synchronization."
+        ),
     )
 
     class Meta:
         ordering = ["created"]
+        unique_together = ("resource", "name")
 
-    def get_log_fields(self):
-        return (
-            "resource",
-            "user",
-            "role",
-        )
+    class Permissions:
+        customer_path = "resource__project__customer"
+        project_path = "resource__project"
+
+    @property
+    def customer(self) -> structure_models.Customer:
+        return self.resource.project.customer
+
+    @property
+    def project(self) -> structure_models.Project:
+        return self.resource.project
+
+    def __str__(self):
+        return f"{self.name} ({self.resource})"
+
+    @transition(
+        field=state,
+        source=[States.CREATING, States.UPDATING],
+        target=States.OK,
+    )
+    def set_state_ok(self):
+        pass
+
+    @transition(field=state, source="*", target=States.ERRED)
+    def set_state_erred(self):
+        pass
+
+    @transition(
+        field=state,
+        source=States.OK,
+        target=States.UPDATING,
+    )
+    def set_state_updating(self):
+        pass
+
+    @transition(
+        field=state,
+        source=States.OK,
+        target=States.TERMINATING,
+    )
+    def set_state_terminating(self):
+        pass
+
+    @transition(
+        field=state,
+        source=States.TERMINATING,
+        target=States.TERMINATED,
+    )
+    def set_state_terminated(self):
+        pass
 
 
 class IntegrationStatus(core_models.UuidMixin):

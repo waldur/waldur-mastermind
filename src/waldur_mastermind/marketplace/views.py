@@ -85,6 +85,7 @@ from waldur_core.core.utils import (
 from waldur_core.logging import event_logger
 from waldur_core.logging import models as logging_models
 from waldur_core.logging.enums import EventType
+from waldur_core.permissions import models as permission_models
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.filters import UserPermissionFilter
 from waldur_core.permissions.fixtures import (
@@ -98,7 +99,7 @@ from waldur_core.permissions.utils import (
     has_permission,
     permission_factory,
 )
-from waldur_core.permissions.views import UserRoleMixin
+from waldur_core.permissions.views import UserRoleMixin, _user_can_view_scope_team
 from waldur_core.quotas.models import QuotaUsage
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -156,6 +157,7 @@ from waldur_mastermind.marketplace.managers import (
     filter_offering_permissions,
     get_connected_offerings,
     get_connected_offerings_by_permission,
+    get_user_resource_project_ids,
 )
 from waldur_mastermind.marketplace.utils import (
     get_model_serializer,
@@ -2527,6 +2529,48 @@ class ProviderOfferingViewSet(
     ]
     update_options_validators = update_validators
     update_options_serializer_class = serializers.OfferingOptionsUpdateSerializer
+
+    @extend_schema(
+        summary="Bind / unbind offering to a service profile",
+        description=(
+            "Sets the offering's `profile` FK. Pass `profile: <uuid>` to bind, "
+            "or `profile: null` to unbind. Requires UPDATE_OFFERING permission "
+            "on the offering's customer (service-provider owners and staff). "
+            "Triggers async reconciliation of RoleAvailability rows on this "
+            "offering against the profile's role catalog (or wipes them on "
+            "unbind)."
+        ),
+        request=serializers.OfferingProfileBindSerializer,
+        responses={200: None},
+    )
+    @action(detail=True, methods=["post"])
+    def set_profile(self, request, uuid=None):
+        offering = self.get_object()
+        if not has_permission(
+            request, PermissionEnum.UPDATE_OFFERING, offering.customer
+        ):
+            raise rf_exceptions.PermissionDenied(
+                "You do not have permission to bind a service profile to this offering."
+            )
+        ser = serializers.OfferingProfileBindSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        profile_uuid = ser.validated_data.get("profile")
+        if profile_uuid is None:
+            offering.profile = None
+        else:
+            try:
+                offering.profile = models.OfferingProfile.objects.get(uuid=profile_uuid)
+            except models.OfferingProfile.DoesNotExist:
+                raise rf_exceptions.NotFound("OfferingProfile not found.")
+        offering.save(update_fields=["profile"])
+        return Response(
+            {
+                "profile_uuid": offering.profile.uuid.hex if offering.profile else None,
+                "profile_name": offering.profile.name if offering.profile else None,
+            }
+        )
+
+    set_profile_serializer_class = serializers.OfferingProfileBindSerializer
 
     @extend_schema(
         summary="Update offering resource options",
@@ -5264,72 +5308,21 @@ class OfferingReferralsViewSet(PublicViewsetMixin, rf_viewsets.ReadOnlyModelView
     filterset_class = filters.OfferingReferralFilter
 
 
-class OfferingUserRoleViewSet(core_views.ActionsViewSet):
-    queryset = models.OfferingUserRole.objects.all()
-    serializer_class = serializers.OfferingUserRoleSerializer
-    lookup_field = "uuid"
-    filter_backends = (DjangoFilterBackend,)
-    filterset_class = filters.OfferingUserRoleFilter
-
-    def get_queryset(self):
-        qs = super().get_queryset()
-        user = self.request.user
-        if user.is_staff or user.is_support:
-            return qs
-        offerings = models.Offering.objects.all().filter_for_user(user)
-        return qs.filter(offering__in=offerings)
-
-    def perform_create(self, serializer):
-        offering = serializer.validated_data["offering"]
-        if not has_permission(
-            self.request, PermissionEnum.MANAGE_OFFERING_USER_ROLE, offering.customer
-        ):
-            raise PermissionDenied()
-
-        serializer.save()
-
-    update_permissions = partial_update_permissions = destroy_permissions = [
-        permission_factory(
-            PermissionEnum.MANAGE_OFFERING_USER_ROLE,
-            ["offering.customer"],
-        )
-    ]
-
-
-@extend_schema_view(
-    list=extend_schema(
-        summary="List resource users",
-        description="Returns a paginated list of users associated with resources, including their roles. The list is filtered based on the permissions of the current user. Staff and support users can see all resource-user links. Other users can only see links for resources they have access to.",
-    ),
-    retrieve=extend_schema(
-        summary="Retrieve a resource-user link",
-        description="Returns details of a specific link between a user and a resource, including their role.",
-    ),
-    create=extend_schema(
-        summary="Link a user to a resource",
-        description="Creates a new association between a user and a resource with a specific role. The user must have permission to manage users for the resource (typically service provider staff or owners).",
-    ),
-    destroy=extend_schema(
-        summary="Unlink a user from a resource",
-        description="Removes the association between a user and a resource, effectively revoking their role on that resource. The user must have permission to manage users for the resource.",
-    ),
-)
-class ResourceUserViewSet(core_views.ActionsViewSet):
+class ConsumerResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
     """
-    Manage the association of users with specific marketplace resources, including their roles.
-    This is typically used by service providers or resource owners to grant specific users
-    access to a provisioned resource with a defined role.
+    Manage sub-projects within a resource (consumer perspective).
 
-    Note: Update and partial update operations are disabled for this endpoint. To change a user's role,
-    the existing link must be deleted and a new one created with the new role.
+    Resource projects represent sub-entities (e.g. Rancher projects within a cluster).
+    Enabled per-offering via the ``enable_resource_projects`` plugin option.
+
+    Filter by resource using ``?resource_uuid={uuid}`` query parameter.
     """
 
-    queryset = models.ResourceUser.objects.all()
-    serializer_class = serializers.ResourceUserSerializer
+    queryset = models.ResourceProject.objects.all().select_related("resource")
+    serializer_class = serializers.ResourceProjectSerializer
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
-    filterset_class = filters.ResourceUserFilter
-    disabled_actions = ["update", "partial_update"]
+    filterset_class = filters.ResourceProjectFilter
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -5337,14 +5330,251 @@ class ResourceUserViewSet(core_views.ActionsViewSet):
         if user.is_staff or user.is_support:
             return qs
         resources = models.Resource.objects.all().filter_for_user(user)
-        return qs.filter(resource__in=resources)
+        # Defense-in-depth: union direct ResourceProject role-holders so an
+        # invitee with only a ResourceProject role sees their project even
+        # when Resource.filter_for_user logic changes upstream.
+        return qs.filter(
+            Q(resource__in=resources) | Q(id__in=get_user_resource_project_ids(user))
+        ).distinct()
 
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_RESOURCE,
+            ["resource.project", "resource.project.customer"],
+        )
+    ]
+
+    def perform_create(self, serializer):
+        resource = serializer.validated_data["resource"]
+        if not has_permission(
+            self.request,
+            PermissionEnum.UPDATE_RESOURCE,
+            resource.project,
+        ) and not has_permission(
+            self.request,
+            PermissionEnum.UPDATE_RESOURCE,
+            resource.project.customer,
+        ):
+            raise PermissionDenied()
+        serializer.save()
+
+
+class ProviderResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
+    """
+    Manage sub-projects within a resource (provider perspective).
+
+    Provides state management actions for provisioning workflow.
+    Filter by resource using ``?resource={uuid}`` query parameter.
+    """
+
+    queryset = models.ResourceProject.objects.all().select_related("resource")
+    serializer_class = serializers.ResourceProjectSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.ResourceProjectFilter
+    disabled_actions = ["create", "destroy"]
     unsafe_methods_permissions = [
         permission_factory(
-            PermissionEnum.MANAGE_RESOURCE_USERS,
+            PermissionEnum.UPDATE_OFFERING,
             ["resource.offering.customer"],
         )
     ]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return qs
+        provider_resources = models.Resource.objects.all().filter_for_service_provider(
+            user
+        )
+        return qs.filter(resource__in=provider_resources)
+
+    @action(detail=True, methods=["post"])
+    def set_backend_id(self, request, uuid=None):
+        project = self.get_object()
+        serializer = serializers.ResourceProjectBackendIdSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        project.backend_id = serializer.validated_data["backend_id"]
+        project.save(update_fields=["backend_id"])
+        return Response({"status": "backend_id updated"}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"])
+    def set_state_ok(self, request, uuid=None):
+        project = self.get_object()
+        project.set_state_ok()
+        project.save(update_fields=["state"])
+        return Response({"status": "state set to OK"}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"])
+    def set_state_erred(self, request, uuid=None):
+        project = self.get_object()
+        error_message = request.data.get("error_message", "")
+        project.error_message = error_message
+        project.set_state_erred()
+        project.save(update_fields=["state", "error_message"])
+        return Response({"status": "state set to Erred"}, status=status.HTTP_200_OK)
+
+    set_backend_id_serializer_class = serializers.ResourceProjectBackendIdSerializer
+
+
+class OfferingRoleViewSet(core_views.ActionsViewSet):
+    """
+    Manage roles available for an offering's resources and resource projects.
+
+    Service providers create custom roles (e.g., "Cluster Admin", "Project Member")
+    that can be assigned to users of their offering's resources.
+    """
+
+    queryset = permission_models.Role.objects.filter(
+        is_system_role=False,
+    ).select_related("content_type")
+    serializer_class = serializers.OfferingRoleSerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend,)
+    filterset_class = filters.OfferingRoleFilter
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        offering_ct = ContentType.objects.get_for_model(models.Offering)
+        return qs.filter(availability__content_type=offering_ct).distinct()
+
+    def _check_update_permission(self, instance):
+        offering_ct = ContentType.objects.get_for_model(models.Offering)
+        availabilities = instance.availability.filter(content_type=offering_ct)
+        offering_ids = list(availabilities.values_list("object_id", flat=True))
+        if not offering_ids:
+            if not self.request.user.is_staff:
+                raise PermissionDenied()
+            return
+        for offering in models.Offering.objects.filter(id__in=offering_ids):
+            if not has_permission(
+                self.request,
+                PermissionEnum.UPDATE_OFFERING,
+                offering.customer,
+            ):
+                raise PermissionDenied()
+
+    @staticmethod
+    def _reject_if_profile_bound(offering, action: str):
+        if offering.profile_id is None:
+            return
+        raise rf_exceptions.ValidationError(
+            f"Cannot {action} role for offering {offering.name}: its role catalog "
+            f"is managed by service profile '{offering.profile.name}'."
+        )
+
+    def perform_create(self, serializer):
+        offering = serializer.validated_data.pop("offering")
+        if not has_permission(
+            self.request,
+            PermissionEnum.UPDATE_OFFERING,
+            offering.customer,
+        ):
+            raise PermissionDenied()
+        self._reject_if_profile_bound(offering, "create")
+        role = serializer.save()
+        offering_ct = ContentType.objects.get_for_model(models.Offering)
+        permission_models.RoleAvailability.objects.get_or_create(
+            role=role,
+            content_type=offering_ct,
+            object_id=offering.id,
+        )
+
+    def perform_update(self, serializer):
+        self._check_update_permission(serializer.instance)
+        offering_ct = ContentType.objects.get_for_model(models.Offering)
+        for ra in serializer.instance.availability.filter(content_type=offering_ct):
+            offering = models.Offering.objects.filter(id=ra.object_id).first()
+            if offering:
+                self._reject_if_profile_bound(offering, "update")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        offering_ct = ContentType.objects.get_for_model(models.Offering)
+        availabilities = instance.availability.filter(content_type=offering_ct)
+        if availabilities.exists():
+            offering_ids = availabilities.values_list("object_id", flat=True)
+            offerings = models.Offering.objects.filter(id__in=offering_ids)
+            for offering in offerings:
+                if not has_permission(
+                    self.request,
+                    PermissionEnum.UPDATE_OFFERING,
+                    offering.customer,
+                ):
+                    raise PermissionDenied()
+                self._reject_if_profile_bound(offering, "delete")
+        elif not self.request.user.is_staff:
+            raise PermissionDenied()
+        instance.delete()
+
+
+class OfferingProfileViewSet(core_views.ActionsViewSet):
+    """Service profile = logical grouping of offerings sharing a role catalog.
+
+    Maintained by staff. Read-open to authenticated users (so service
+    providers can pick a profile when configuring an offering). Adding or
+    removing roles triggers async reconciliation of RoleAvailability rows
+    on every offering bound to the profile.
+    """
+
+    queryset = models.OfferingProfile.objects.prefetch_related("roles", "offerings")
+    serializer_class = serializers.OfferingProfileSerializer
+    lookup_field = "uuid"
+
+    def _check_staff(self):
+        if not self.request.user.is_staff:
+            raise PermissionDenied("Only staff can manage service profiles.")
+
+    def perform_create(self, serializer):
+        self._check_staff()
+        serializer.save()
+
+    def perform_update(self, serializer):
+        self._check_staff()
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        self._check_staff()
+        instance.delete()
+
+    @action(detail=True, methods=["post"])
+    def add_role(self, request, uuid=None):
+        self._check_staff()
+        profile = self.get_object()
+        ser = serializers.OfferingProfileRoleAssignSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            role = permission_models.Role.objects.get(uuid=ser.validated_data["role"])
+        except permission_models.Role.DoesNotExist:
+            raise rf_exceptions.NotFound("Role not found.")
+        profile.roles.add(role)
+        return Response(
+            serializers.OfferingProfileSerializer(
+                profile, context={"request": request}
+            ).data
+        )
+
+    add_role_serializer_class = serializers.OfferingProfileRoleAssignSerializer
+
+    @action(detail=True, methods=["post"])
+    def remove_role(self, request, uuid=None):
+        self._check_staff()
+        profile = self.get_object()
+        ser = serializers.OfferingProfileRoleAssignSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            role = permission_models.Role.objects.get(uuid=ser.validated_data["role"])
+        except permission_models.Role.DoesNotExist:
+            raise rf_exceptions.NotFound("Role not found.")
+        profile.roles.remove(role)
+        return Response(
+            serializers.OfferingProfileSerializer(
+                profile, context={"request": request}
+            ).data
+        )
+
+    remove_role_serializer_class = serializers.OfferingProfileRoleAssignSerializer
 
 
 class OfferingPermissionViewSet(rf_viewsets.ReadOnlyModelViewSet):
@@ -7551,7 +7781,7 @@ def check_end_date_change_for_prepaid(resource, request):
         description="Partially updates the name, description, or end date of a resource.",
     ),
 )
-class ConsumerResourceViewSet(BaseResourceViewSet):
+class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     def get_queryset(self):
         queryset = self.queryset.filter_for_service_consumer(self.request.user)
         queryset = filter_queryset_by_user_ip(queryset, self.request)
@@ -7566,6 +7796,81 @@ class ConsumerResourceViewSet(BaseResourceViewSet):
             "plan",
         )
         return queryset
+
+    def get_user_roles_queryset(self, scope, user=None):
+        """Return UserRoles scoped to this resource AND all its resource projects."""
+        resource_ct = ContentType.objects.get_for_model(scope)
+        project_ct = ContentType.objects.get_for_model(models.ResourceProject)
+        project_ids = scope.projects.values_list("id", flat=True)
+
+        qs = UserRole.objects.filter(
+            Q(content_type=resource_ct, object_id=scope.id)
+            | Q(content_type=project_ct, object_id__in=project_ids),
+            is_active=True,
+            user__is_active=True,
+        ).select_related("role", "user", "created_by")
+        if user:
+            qs = qs.filter(user=user)
+        return qs
+
+    @extend_schema(
+        summary="List team members of a resource",
+        description=(
+            "One row per user (deduplicated) with their direct Resource role "
+            "and a nested `resource_projects[]` array of their per-ResourceProject "
+            "grants under this resource. Mirrors the org-level "
+            "`customers/{uuid}/users/` shape so the frontend can render an "
+            "expandable per-user view."
+        ),
+        responses={200: serializers.ResourceTeamMemberSerializer(many=True)},
+    )
+    @action(detail=True, methods=["get"])
+    def team_members(self, request, uuid=None):
+        resource = self.get_object()
+        if not _user_can_view_scope_team(request.user, resource):
+            raise PermissionDenied(
+                "You do not have permission to list team members of this resource."
+            )
+        resource_ct = ContentType.objects.get_for_model(models.Resource)
+        rp_ct = ContentType.objects.get_for_model(models.ResourceProject)
+        rp_ids = list(
+            models.ResourceProject.objects.filter(resource=resource).values_list(
+                "id", flat=True
+            )
+        )
+        users = (
+            User.objects.filter(
+                Q(
+                    userrole__content_type=resource_ct,
+                    userrole__object_id=resource.id,
+                )
+                | Q(
+                    userrole__content_type=rp_ct,
+                    userrole__object_id__in=rp_ids,
+                ),
+                userrole__is_active=True,
+                is_active=True,
+            )
+            .distinct()
+            .order_by("username")
+        )
+        search_string = request.query_params.get(
+            "search_string"
+        ) or request.query_params.get("user_keyword")
+        if search_string:
+            users = users.filter(
+                Q(first_name__icontains=search_string)
+                | Q(last_name__icontains=search_string)
+                | Q(email__icontains=search_string)
+                | Q(username__icontains=search_string)
+            ).distinct()
+        page = self.paginate_queryset(users)
+        serializer = serializers.ResourceTeamMemberSerializer(
+            page,
+            many=True,
+            context={**self.get_serializer_context(), "resource": resource},
+        )
+        return self.get_paginated_response(serializer.data)
 
     @extend_schema(
         summary="Set end date of the resource",

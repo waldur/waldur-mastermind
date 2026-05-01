@@ -1,6 +1,7 @@
 import logging
 
 from constance import config
+from django.db import transaction
 from django.utils import timezone
 
 from waldur_core.core.middleware import get_skip_side_effects
@@ -320,3 +321,23 @@ def reactivate_user_if_gaining_roles(sender, instance, current_user=None, **kwar
     user = instance.user
     if should_reactivate_user(user):
         reactivate_user_with_logging(user, "Gained a new role")
+
+
+def revoke_user_roles_on_availability_removal(sender, instance, **kwargs):
+    """Schedule async revocation when a RoleAvailability row is removed.
+
+    The actual scan over ``UserRole`` rows for the affected role lives in
+    :func:`waldur_core.permissions.tasks.reconcile_user_roles_for_role`;
+    handlers should not iterate large querysets synchronously inside the
+    request transaction.
+    """
+    # Function-local: tasks.py imports from handlers.py at top, so a
+    # top-level import here would form a circular dependency.
+    from waldur_core.permissions import tasks as permission_tasks
+
+    role_id = instance.role_id
+    if role_id is None:
+        return
+    transaction.on_commit(
+        lambda: permission_tasks.reconcile_user_roles_for_role.delay(role_id)
+    )

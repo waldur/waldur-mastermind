@@ -7,7 +7,6 @@ from waldur_core.permissions.fixtures import CustomerRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_keycloak import models
 from waldur_keycloak.tests import factories, fixtures
-from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
@@ -81,9 +80,7 @@ class OfferingKeycloakMembershipCreateTest(test.APITestCase):
                 "offering": marketplace_factories.OfferingFactory.get_url(
                     self.fixture.offering
                 ),
-                "role": factories.OfferingUserRoleFactory.get_url(
-                    self.fixture.offering_role
-                ),
+                "role": factories.RoleFactory.get_url(self.fixture.offering_role),
                 "username": "newuser",
                 "email": "newuser@example.com",
             },
@@ -113,9 +110,7 @@ class OfferingKeycloakMembershipCreateTest(test.APITestCase):
                 "offering": marketplace_factories.OfferingFactory.get_url(
                     self.fixture.offering
                 ),
-                "role": factories.OfferingUserRoleFactory.get_url(
-                    self.fixture.offering_role
-                ),
+                "role": factories.RoleFactory.get_url(self.fixture.offering_role),
                 "username": "pendinguser",
                 "email": "pending@example.com",
             },
@@ -128,14 +123,14 @@ class OfferingKeycloakMembershipCreateTest(test.APITestCase):
 
     def test_cannot_create_membership_for_offering_without_keycloak(self):
         offering = marketplace_factories.OfferingFactory()
-        role = factories.OfferingUserRoleFactory(offering=offering)
+        role = factories.RoleFactory()
 
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.post(
             self.url,
             {
                 "offering": marketplace_factories.OfferingFactory.get_url(offering),
-                "role": factories.OfferingUserRoleFactory.get_url(role),
+                "role": factories.RoleFactory.get_url(role),
                 "username": "testuser2",
                 "email": "test2@example.com",
             },
@@ -157,56 +152,12 @@ class OfferingKeycloakMembershipCreateTest(test.APITestCase):
                 "offering": marketplace_factories.OfferingFactory.get_url(
                     self.fixture.offering
                 ),
-                "role": factories.OfferingUserRoleFactory.get_url(
-                    self.fixture.offering_role
-                ),
+                "role": factories.RoleFactory.get_url(self.fixture.offering_role),
                 "username": "testuser",
                 "email": "testuser@example.com",
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    @mock.patch("waldur_keycloak.utils.get_keycloak_client_for_offering")
-    @mock.patch("waldur_keycloak.utils.send_membership_notification_email")
-    def test_create_membership_with_user_and_resource_creates_resource_user(
-        self, mock_send_email, mock_get_client
-    ):
-        mock_keycloak = mock.MagicMock()
-        mock_get_client.return_value = mock_keycloak
-        mock_keycloak.create_group.return_value = {"id": "new-group-id"}
-        mock_keycloak.find_user_by_username.return_value = {
-            "id": "kc-user-id",
-            "firstName": "Test",
-            "lastName": "User",
-        }
-
-        user = self.fixture.owner
-        resource = self.fixture.resource
-
-        self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.post(
-            self.url,
-            {
-                "offering": marketplace_factories.OfferingFactory.get_url(
-                    self.fixture.offering
-                ),
-                "role": factories.OfferingUserRoleFactory.get_url(
-                    self.fixture.offering_role
-                ),
-                "resource": marketplace_factories.ResourceFactory.get_url(resource),
-                "username": user.username,
-                "email": user.email,
-                "user": structure_factories.UserFactory.get_url(user),
-            },
-        )
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(
-            marketplace_models.ResourceUser.objects.filter(
-                resource=resource,
-                user=user,
-                role=self.fixture.offering_role,
-            ).exists()
-        )
 
 
 class OfferingKeycloakMembershipDeleteTest(test.APITestCase):
@@ -262,9 +213,7 @@ class OfferingKeycloakMembershipPermissionTest(test.APITestCase):
             "offering": marketplace_factories.OfferingFactory.get_url(
                 self.fixture.offering
             ),
-            "role": factories.OfferingUserRoleFactory.get_url(
-                self.fixture.offering_role
-            ),
+            "role": factories.RoleFactory.get_url(self.fixture.offering_role),
             "username": "permtest-user",
             "email": "permtest@example.com",
         }

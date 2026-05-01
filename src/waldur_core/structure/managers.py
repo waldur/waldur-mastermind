@@ -91,10 +91,50 @@ def filter_queryset_for_user[T: Model](
         content_type = ContentType.objects.get_for_model(queryset.model)
         subquery |= models.Q(id__in=get_scope_ids(user, content_type))
 
+    # Resource and ResourceProject UserRoles confer read-only visibility of
+    # the parent project / customer so role-holders can render the UI. The
+    # helpers return lazy QuerySets — the lookup folds into the outer SQL
+    # as a subquery without an extra round-trip.
+    if queryset.model is structure_models.Project:
+        rp_project_qs = _get_resource_role_project_ids_qs(user)
+        if rp_project_qs is not None:
+            subquery |= models.Q(id__in=rp_project_qs)
+    elif queryset.model is structure_models.Customer:
+        rp_customer_qs = _get_resource_role_customer_ids_qs(user)
+        if rp_customer_qs is not None:
+            subquery |= models.Q(id__in=rp_customer_qs)
+
     if not subquery:
         return queryset
 
     return queryset.filter(subquery).distinct()
+
+
+def _get_resource_role_project_ids_qs(user):
+    """Lazy QuerySet of structure Project IDs reachable via the user's
+    Resource / ResourceProject UserRoles.
+
+    Returns ``None`` when the marketplace module is not installed.
+    """
+    try:
+        from waldur_mastermind.marketplace.managers import (
+            get_user_resource_descended_project_ids,
+        )
+    except ImportError:
+        return None
+    return get_user_resource_descended_project_ids(user)
+
+
+def _get_resource_role_customer_ids_qs(user):
+    """Lazy QuerySet of Customer IDs reachable via the user's Resource /
+    ResourceProject UserRoles. See ``_get_resource_role_project_ids_qs``."""
+    try:
+        from waldur_mastermind.marketplace.managers import (
+            get_user_resource_descended_customer_ids,
+        )
+    except ImportError:
+        return None
+    return get_user_resource_descended_customer_ids(user)
 
 
 def filter_customer_by_ip_address(ip_address):

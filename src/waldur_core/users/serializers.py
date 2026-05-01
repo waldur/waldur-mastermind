@@ -286,6 +286,22 @@ class GroupInvitationSerializer(
                     "project_role must be a project-level role"
                 )
 
+        # When auto_create_project is enabled without a dedicated project_role,
+        # the fallback `role` must itself be project-scoped — otherwise the
+        # generated UserRole on the new project would have a mismatched
+        # content_type and confer no permission.
+        if attrs.get("auto_create_project") and not attrs.get("project_role"):
+            fallback = attrs.get("role")
+            if fallback and not fallback.name.startswith("PROJECT."):
+                raise serializers.ValidationError(
+                    {
+                        "project_role": (
+                            "project_role is required when auto_create_project is "
+                            "enabled and the invitation role is not project-scoped."
+                        )
+                    }
+                )
+
         return attrs
 
     def to_representation(self, instance):

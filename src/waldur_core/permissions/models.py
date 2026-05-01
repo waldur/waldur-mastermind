@@ -1,7 +1,9 @@
 from typing import cast
 
 from django.conf import settings
+from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from model_utils import FieldTracker
@@ -37,7 +39,7 @@ class RoleManager(models.Manager):
 class Role(DescribableMixin, UuidMixin):
     permissions: models.Manager["RolePermission"]
 
-    name = models.CharField(unique=True, db_index=True, max_length=150)
+    name = models.CharField(db_index=True, max_length=150)
     is_system_role = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     objects: RoleManager = RoleManager()
@@ -52,6 +54,24 @@ class Role(DescribableMixin, UuidMixin):
     class Meta:
         ordering = ["name"]
 
+    def save(self, *args, **kwargs):
+        # Enforce name+content_type uniqueness for non-resource scopes.
+        # Resource/ResourceProject roles can have duplicate names
+        # because different offerings define their own roles.
+        if self.content_type_id:
+            model_name = self.content_type.model
+            if model_name not in ("resource", "resourceproject"):
+                qs = Role.objects.filter(name=self.name, content_type=self.content_type)
+                if self.pk:
+                    qs = qs.exclude(pk=self.pk)
+                if qs.exists():
+                    raise ValidationError(
+                        {
+                            "name": "A role with this name already exists for this scope type."
+                        }
+                    )
+        super().save(*args, **kwargs)
+
     def add_permission(self, name):
         RolePermission.objects.get_or_create(role=self, permission=name)
 
@@ -60,6 +80,33 @@ class Role(DescribableMixin, UuidMixin):
 
     def __str__(self):
         return f"{self.name} ({self.is_active})"
+
+
+class RoleAvailability(UuidMixin):
+    """Controls where a Role can be assigned.
+
+    When no RoleAvailability records exist for a role, it is available
+    everywhere (system role behavior). When records exist, the role is
+    only usable in those scopes (typically a specific Offering, Customer
+    or similar).
+
+    Logical "kind" grouping (e.g. all offerings of a Rancher-cluster
+    profile) is expressed via :class:`marketplace.OfferingProfile` —
+    binding an offering to a profile creates one RoleAvailability per
+    catalog role on that offering, reconciled via Celery tasks.
+    """
+
+    role = models.ForeignKey(
+        Role, on_delete=models.CASCADE, related_name="availability"
+    )
+    content_type = models.ForeignKey(
+        ContentType, on_delete=models.CASCADE, related_name="+"
+    )
+    object_id = models.PositiveIntegerField()
+    scope = GenericForeignKey("content_type", "object_id")
+
+    class Meta:
+        unique_together = ("role", "content_type", "object_id")
 
 
 class UserRoleManager(GenericKeyMixin, models.Manager):

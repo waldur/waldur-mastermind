@@ -1,24 +1,27 @@
 import factory
+from django.contrib.contenttypes.models import ContentType
 from django.urls import reverse
 
+from waldur_core.permissions import models as permissions_models
 from waldur_keycloak import models
-from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 
 
-class OfferingUserRoleFactory(factory.django.DjangoModelFactory):
+class RoleFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = marketplace_models.OfferingUserRole
+        model = permissions_models.Role
 
     name = factory.Sequence(lambda n: "role-%s" % n)
-    offering = factory.SubFactory(marketplace_factories.OfferingFactory)
+    content_type = factory.LazyFunction(
+        lambda: ContentType.objects.get(app_label="marketplace", model="resource")
+    )
 
     @classmethod
     def get_url(cls, role=None):
         if role is None:
-            role = OfferingUserRoleFactory()
+            role = RoleFactory()
         return "http://testserver" + reverse(
-            "marketplace-offering-user-role-detail",
+            "role-detail",
             kwargs={"uuid": role.uuid.hex},
         )
 
@@ -29,7 +32,7 @@ class OfferingKeycloakGroupFactory(factory.django.DjangoModelFactory):
 
     name = factory.Sequence(lambda n: "keycloak-group-%s" % n)
     offering = factory.SubFactory(marketplace_factories.OfferingFactory)
-    role = factory.LazyAttribute(lambda o: OfferingUserRoleFactory(offering=o.offering))
+    role = factory.LazyAttribute(lambda o: RoleFactory())
     backend_id = factory.Sequence(lambda n: "backend-group-id-%s" % n)
 
     @classmethod

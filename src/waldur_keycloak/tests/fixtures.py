@@ -39,8 +39,7 @@ class KeycloakFixture(structure_fixtures.ProjectFixture):
 
     @cached_property
     def offering_role(self):
-        return factories.OfferingUserRoleFactory(
-            offering=self.offering,
+        return factories.RoleFactory(
             name="Member",
         )
 

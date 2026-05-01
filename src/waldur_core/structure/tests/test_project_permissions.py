@@ -80,7 +80,13 @@ class ProjectPermissionListTest(ProjectPermissionBaseTest):
 
 class ProjectPermissionListQueryTest(ProjectPermissionBaseTest):
     def test_list_users_does_not_make_n_plus_one_queries(self):
-        """Regression test for CSCS-287: N+1 queries on role and user tables."""
+        """Regression test for CSCS-287: N+1 queries on role and user tables.
+
+        The list_users action also runs a single combined SQL EXISTS to
+        check that the caller has a role on the scope tree (see
+        ``_user_can_view_scope_team`` in waldur_core.permissions.views) —
+        that adds two queries on top of the original 8-query budget.
+        """
         owner = factories.UserFactory()
         customer = factories.CustomerFactory()
         project = factories.ProjectFactory(customer=customer)
@@ -93,7 +99,7 @@ class ProjectPermissionListQueryTest(ProjectPermissionBaseTest):
         self.client.force_authenticate(user=owner)
         url = factories.ProjectFactory.get_url(project) + "list_users/"
 
-        with self.assertNumQueries(8):
+        with self.assertNumQueries(10):
             response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)

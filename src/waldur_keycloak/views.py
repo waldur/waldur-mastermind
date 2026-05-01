@@ -1,5 +1,6 @@
 import logging
 
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -11,10 +12,11 @@ from rest_framework.response import Response
 
 from waldur_core.core import views as core_views
 from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.models import Role
 from waldur_core.permissions.utils import has_permission, permission_factory
 from waldur_mastermind.marketplace import models as marketplace_models
 
-from . import filters, handlers, models, serializers, signals, utils
+from . import filters, models, serializers, signals, utils
 
 logger = logging.getLogger(__name__)
 
@@ -407,13 +409,20 @@ class OfferingKeycloakGroupViewSet(core_views.ActionsViewSet):
             request, PermissionEnum.MANAGE_RESOURCE_USERS
         )
 
-        # Resolve role
+        # Resolve role and validate it's available for this offering
         try:
-            role = marketplace_models.OfferingUserRole.objects.get(
-                uuid=data["role_uuid"], offering=offering
-            )
-        except marketplace_models.OfferingUserRole.DoesNotExist:
-            raise ValidationError({"role_uuid": "Role not found for this offering."})
+            role = Role.objects.get(uuid=data["role_uuid"])
+        except Role.DoesNotExist:
+            raise ValidationError({"role_uuid": "Role not found."})
+
+        if role.availability.exists():
+            offering_ct = ContentType.objects.get_for_model(marketplace_models.Offering)
+            if not role.availability.filter(
+                content_type=offering_ct, object_id=offering.id
+            ).exists():
+                raise ValidationError(
+                    {"role_uuid": "Role is not available for this offering."}
+                )
 
         # Resolve optional resource
         resource = None
@@ -634,18 +643,6 @@ class OfferingKeycloakMembershipViewSet(core_views.ActionsViewSet):
                     membership.activate()
                     membership.save()
 
-                # Auto-create ResourceUser if user FK and resource are set
-                if membership.user and group.resource:
-                    handlers.set_syncing(True)
-                    try:
-                        marketplace_models.ResourceUser.objects.get_or_create(
-                            resource=group.resource,
-                            user=membership.user,
-                            role=group.role,
-                        )
-                    finally:
-                        handlers.set_syncing(False)
-
                 # Send notification email
                 utils.send_membership_notification_email(membership, offering)
 
@@ -658,18 +655,4 @@ class OfferingKeycloakMembershipViewSet(core_views.ActionsViewSet):
                 raise ValidationError("Unable to add a user to the Keycloak group.")
 
     def perform_destroy(self, instance):
-        group = instance.group
-
-        # Delete corresponding ResourceUser if exists
-        if instance.user and group.resource:
-            handlers.set_syncing(True)
-            try:
-                marketplace_models.ResourceUser.objects.filter(
-                    resource=group.resource,
-                    user=instance.user,
-                    role=group.role,
-                ).delete()
-            finally:
-                handlers.set_syncing(False)
-
         instance.delete()
