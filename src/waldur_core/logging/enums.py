@@ -48,9 +48,6 @@ class EventType(StrEnum):
     MARKETPLACE_OFFERING_COMPONENT_DELETED = "marketplace_offering_component_deleted"
     MARKETPLACE_OFFERING_COMPONENT_UPDATED = "marketplace_offering_component_updated"
     MARKETPLACE_OFFERING_CREATED = "marketplace_offering_created"
-    MARKETPLACE_OFFERING_ROLE_CREATED = "marketplace_offering_role_created"
-    MARKETPLACE_OFFERING_ROLE_DELETED = "marketplace_offering_role_deleted"
-    MARKETPLACE_OFFERING_ROLE_UPDATED = "marketplace_offering_role_updated"
     MARKETPLACE_OFFERING_UPDATED = "marketplace_offering_updated"
     MARKETPLACE_OFFERING_USER_CREATED = "marketplace_offering_user_created"
     MARKETPLACE_OFFERING_USER_UPDATED = "marketplace_offering_user_updated"
@@ -107,8 +104,6 @@ class EventType(StrEnum):
     )
     MARKETPLACE_RESOURCE_UPDATE_REQUESTED = "marketplace_resource_update_requested"
     MARKETPLACE_RESOURCE_UPDATE_SUCCEEDED = "marketplace_resource_update_succeeded"
-    MARKETPLACE_RESOURCE_USER_CREATED = "marketplace_resource_user_created"
-    MARKETPLACE_RESOURCE_USER_DELETED = "marketplace_resource_user_deleted"
     NOTIFY_EXTERNAL_USER = "notify_external_user"
     NOTIFY_ORGANIZATION_OWNERS = "notify_organization_owners"
     NOTIFY_PROJECT_TEAM = "notify_project_team"

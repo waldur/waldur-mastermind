@@ -1,6 +1,8 @@
+from django.contrib.contenttypes.models import ContentType
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
+from waldur_core.permissions import models as permissions_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import models, utils
@@ -10,7 +12,6 @@ class OfferingKeycloakGroupSerializer(serializers.HyperlinkedModelSerializer):
     offering_uuid = serializers.ReadOnlyField(source="offering.uuid")
     offering_name = serializers.ReadOnlyField(source="offering.name")
     role_name = serializers.ReadOnlyField(source="role.name")
-    role_scope_type = serializers.ReadOnlyField(source="role.scope_type")
     resource_uuid = serializers.ReadOnlyField(source="resource.uuid")
     resource_name = serializers.SerializerMethodField()
 
@@ -26,7 +27,6 @@ class OfferingKeycloakGroupSerializer(serializers.HyperlinkedModelSerializer):
             "offering_name",
             "role",
             "role_name",
-            "role_scope_type",
             "resource",
             "resource_uuid",
             "resource_name",
@@ -53,7 +53,7 @@ class OfferingKeycloakGroupSerializer(serializers.HyperlinkedModelSerializer):
             },
             "role": {
                 "lookup_field": "uuid",
-                "view_name": "marketplace-offering-user-role-detail",
+                "view_name": "role-detail",
             },
             "resource": {
                 "lookup_field": "uuid",
@@ -145,9 +145,9 @@ class OfferingKeycloakMembershipSerializer(serializers.HyperlinkedModelSerialize
         write_only=True,
     )
     role = serializers.HyperlinkedRelatedField(
-        view_name="marketplace-offering-user-role-detail",
+        view_name="role-detail",
         lookup_field="uuid",
-        queryset=marketplace_models.OfferingUserRole.objects.all(),
+        queryset=permissions_models.Role.objects.all(),
         write_only=True,
     )
     resource = serializers.HyperlinkedRelatedField(
@@ -179,12 +179,6 @@ class OfferingKeycloakMembershipSerializer(serializers.HyperlinkedModelSerialize
         source="group.resource.uuid", default=None
     )
     group_scope_id = serializers.ReadOnlyField(source="group.scope_id", default=None)
-    group_role_scope_type = serializers.ReadOnlyField(
-        source="group.role.scope_type", default=None
-    )
-    group_role_scope_type_label = serializers.ReadOnlyField(
-        source="group.role.scope_type_label", default=""
-    )
 
     class Meta:
         model = models.OfferingKeycloakMembership
@@ -203,8 +197,6 @@ class OfferingKeycloakMembershipSerializer(serializers.HyperlinkedModelSerialize
             "group_resource_name",
             "group_resource_uuid",
             "group_scope_id",
-            "group_role_scope_type",
-            "group_role_scope_type_label",
             "offering",
             "role",
             "resource",
@@ -230,8 +222,6 @@ class OfferingKeycloakMembershipSerializer(serializers.HyperlinkedModelSerialize
             "group_resource_name",
             "group_resource_uuid",
             "group_scope_id",
-            "group_role_scope_type",
-            "group_role_scope_type_label",
         )
         extra_kwargs = {
             "url": {
@@ -265,36 +255,22 @@ class OfferingKeycloakMembershipSerializer(serializers.HyperlinkedModelSerialize
                 _("Keycloak integration is not enabled for this offering.")
             )
 
-        if role.offering_id != offering.id:
-            raise serializers.ValidationError(
-                _("The role does not belong to the specified offering.")
-            )
-
         if resource and resource.offering_id != offering.id:
             raise serializers.ValidationError(
                 _("The resource does not belong to the specified offering.")
             )
 
-        # Validate scope_id against resource's configured scope options
-        scope_id = attrs.get("scope_id", "")
-        if role.scope_type and scope_id and resource:
-            available_scopes = (resource.options or {}).get(
-                "keycloak_available_scopes", []
-            )
-            matching = [
-                s
-                for s in available_scopes
-                if s.get("scope_type") == role.scope_type
-                and s.get("scope_id") == scope_id
-            ]
-            if not matching:
+        # Validate role is available for this offering (via RoleAvailability)
+        if role and role.availability.exists():
+            offering_ct = ContentType.objects.get_for_model(marketplace_models.Offering)
+            if not role.availability.filter(
+                content_type=offering_ct, object_id=offering.id
+            ).exists():
                 raise serializers.ValidationError(
-                    _(
-                        "The scope ID '%(scope_id)s' is not configured for "
-                        "scope type '%(scope_type)s' on this resource."
-                    )
-                    % {"scope_id": scope_id, "scope_type": role.scope_type}
+                    _("The role is not available for this offering.")
                 )
+
+        scope_id = attrs.get("scope_id", "")
 
         # Check for existing membership with same username and role+offering+resource+scope_id
         existing = models.OfferingKeycloakMembership.objects.filter(

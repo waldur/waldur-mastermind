@@ -24,6 +24,31 @@ class RoleFilter(django_filters.FilterSet):
         fields = ["is_active", "name", "description"]
 
 
+class RoleAvailabilityFilter(django_filters.FilterSet):
+    role_uuid = core_filters.RelatedUUIDFilter(
+        view_name="role-detail",
+        field_name="role__uuid",
+        label="Role UUID",
+    )
+    role_name = django_filters.CharFilter(
+        field_name="role__name",
+        lookup_expr="icontains",
+        label="Role name contains",
+    )
+    scope_type = django_filters.CharFilter(
+        method="filter_scope_type",
+        label="Scope content type (e.g. 'offering', 'customer')",
+    )
+    object_id = django_filters.NumberFilter(label="Scope object id")
+
+    def filter_scope_type(self, queryset, name, value):
+        return queryset.filter(content_type__model=value)
+
+    class Meta:
+        model = models.RoleAvailability
+        fields = ["role_uuid", "role_name", "scope_type", "object_id"]
+
+
 class UserPermissionFilter(CreatedModifiedFilter, django_filters.FilterSet):
     user = core_filters.RelatedUUIDFilter(
         view_name="user-detail", field_name="user__uuid"

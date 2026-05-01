@@ -167,6 +167,8 @@ def get_scope_link(scope_type, scope_uuid):
         "project": "projects",
         "organization": "organizations",
         "call": "calls",
+        "resource": "resources",
+        "resource project": "resource-projects",
     }
     api_suffix = scope_to_homeport_prefix_map.get(scope_type, "unknown")
     return core_utils.format_homeport_link(
@@ -187,6 +189,12 @@ def can_manage_invitation_with(request, scope):
         return False
 
     if has_permission(request, permission, scope):
+        return True
+
+    # Walk up to the parent project (e.g. Resource → Project) so project
+    # admins/managers can invite into resources within their project.
+    project = getattr(scope, "project", None)
+    if project is not None and has_permission(request, permission, project):
         return True
 
     customer = get_customer(scope)

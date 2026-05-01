@@ -6,7 +6,9 @@ class PermissionsConfig(AppConfig):
     verbose_name = "Permissions"
 
     def ready(self):
-        from . import handlers, signals
+        from django.db.models.signals import post_delete
+
+        from . import handlers, models, signals
 
         signals.role_granted.connect(
             handlers.log_role_granted,
@@ -31,4 +33,10 @@ class PermissionsConfig(AppConfig):
         signals.role_updated.connect(
             handlers.log_role_updated,
             dispatch_uid="waldur_core.permissions.log_role_updated",
+        )
+
+        post_delete.connect(
+            handlers.revoke_user_roles_on_availability_removal,
+            sender=models.RoleAvailability,
+            dispatch_uid="waldur_core.permissions.revoke_user_roles_on_availability_removal",
         )

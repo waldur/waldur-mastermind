@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
@@ -15,8 +16,7 @@ from waldur_core.permissions.utils import (
     get_delete_permission,
     get_update_permission,
     has_permission,
-    has_user,
-    validate_user_restrictions,
+    validate_role_grant,
 )
 from waldur_core.structure.permissions import _get_customer
 
@@ -44,9 +44,9 @@ class RoleDetailsSerializer(RestrictedSerializerMixin, TranslatedModelSerializer
 
     def get_permissions(self, role: models.Role) -> list[str]:
         return list(
-            models.RolePermission.objects.filter(role=role).values_list(
-                "permission", flat=True
-            )
+            models.RolePermission.objects.filter(role=role)
+            .order_by("permission")
+            .values_list("permission", flat=True)
         )
 
     def get_users_count(self, role: models.Role) -> int:
@@ -127,6 +127,83 @@ class RoleDescriptionSerializer(TranslatedModelSerializerMixin):
         fields = ("description",)
 
 
+class RoleAvailabilityDetailsSerializer(serializers.ModelSerializer):
+    """Read-only flat view of a RoleAvailability row for the staff admin
+    panel — joins role, scope and (where applicable) the OfferingProfile
+    that injected the row so staff can audit role-to-scope bindings."""
+
+    role_uuid = serializers.UUIDField(read_only=True, source="role.uuid")
+    role_name = serializers.CharField(read_only=True, source="role.name")
+    role_content_type = serializers.SerializerMethodField()
+    scope_type = serializers.SerializerMethodField()
+    scope_uuid = serializers.SerializerMethodField()
+    scope_name = serializers.SerializerMethodField()
+    is_profile_managed = serializers.SerializerMethodField()
+    profile_uuid = serializers.SerializerMethodField()
+    profile_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.RoleAvailability
+        fields = (
+            "uuid",
+            "role_uuid",
+            "role_name",
+            "role_content_type",
+            "scope_type",
+            "scope_uuid",
+            "scope_name",
+            "is_profile_managed",
+            "profile_uuid",
+            "profile_name",
+        )
+
+    def get_role_content_type(self, obj) -> str | None:
+        for external, (app_label, model) in TYPE_MAP.items():
+            ct = obj.role.content_type
+            if ct and ct.app_label == app_label and ct.model == model:
+                return external
+        return obj.role.content_type.model if obj.role.content_type else None
+
+    def get_scope_type(self, obj) -> str | None:
+        for external, (app_label, model) in TYPE_MAP.items():
+            ct = obj.content_type
+            if ct.app_label == app_label and ct.model == model:
+                return external
+        return obj.content_type.model
+
+    def get_scope_uuid(self, obj) -> str | None:
+        scope = obj.scope
+        return scope.uuid.hex if scope and getattr(scope, "uuid", None) else None
+
+    def get_scope_name(self, obj) -> str | None:
+        scope = obj.scope
+        return getattr(scope, "name", None) if scope else None
+
+    def _bound_profile(self, obj):
+        """Return the OfferingProfile that contributed this availability,
+        or None for direct (per-offering API) bindings."""
+        offering = obj.scope
+        if offering is None:
+            return None
+        profile = getattr(offering, "profile", None)
+        if profile is None:
+            return None
+        if profile.roles.filter(id=obj.role_id).exists():
+            return profile
+        return None
+
+    def get_is_profile_managed(self, obj) -> bool:
+        return self._bound_profile(obj) is not None
+
+    def get_profile_uuid(self, obj) -> str | None:
+        profile = self._bound_profile(obj)
+        return profile.uuid.hex if profile else None
+
+    def get_profile_name(self, obj) -> str | None:
+        profile = self._bound_profile(obj)
+        return profile.name if profile else None
+
+
 class UserRoleDetailsSerializer(serializers.ModelSerializer):
     role_name = serializers.ReadOnlyField(source="role.name")
     role_uuid = serializers.UUIDField(read_only=True, source="role.uuid")
@@ -175,6 +252,7 @@ class PermissionSerializer(serializers.ModelSerializer):
     scope_name = serializers.CharField(read_only=True, source="scope.name")
     customer_uuid = serializers.UUIDField(read_only=True, source="scope.customer.uuid")
     customer_name = serializers.CharField(read_only=True, source="scope.customer.name")
+    resource_uuid = serializers.SerializerMethodField()
 
     class Meta:
         model = models.UserRole
@@ -194,6 +272,7 @@ class PermissionSerializer(serializers.ModelSerializer):
             "scope_name",
             "customer_uuid",
             "customer_name",
+            "resource_uuid",
         )
 
     def get_scope_type(self, obj) -> str | None:
@@ -204,6 +283,20 @@ class PermissionSerializer(serializers.ModelSerializer):
             if model == model_name:
                 return key
         return model_name
+
+    @extend_schema_field(serializers.UUIDField(allow_null=True))
+    def get_resource_uuid(self, obj) -> str | None:
+        """Parent Resource uuid when the scope is a ResourceProject. Used
+        by the frontend to deep-link the user's project-scoped roles back
+        to the resource detail page (which hosts the Resource projects
+        tab). Null for any other scope type."""
+        scope = obj.scope
+        if scope is None:
+            return None
+        if scope._meta.model_name == "resourceproject":
+            resource = getattr(scope, "resource", None)
+            return resource.uuid.hex if resource is not None else None
+        return None
 
 
 class UserRoleMutateSerializer(serializers.Serializer):
@@ -286,17 +379,7 @@ class UserRoleCreateSerializer(UserRoleMutateSerializer):
                 "Only staff users can assign roles to deactivated users."
             )
 
-        if has_user(scope, target_user, role, expiration_time=expiration_time):
-            raise ValidationError("User has already the same role in this scope.")
-
-        if not isinstance(scope, role.content_type.model_class()):
-            raise ValidationError("Role is not valid for this scope.")
-
-        if not role.is_active:
-            raise ValidationError("Role is not active.")
-
-        # Validate user against scope's email/affiliation restrictions
-        validate_user_restrictions(scope, target_user)
+        validate_role_grant(scope, target_user, role, expiration_time=expiration_time)
 
         return attrs
 

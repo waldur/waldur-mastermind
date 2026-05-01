@@ -7,8 +7,17 @@ def format_enum(enum):
     )
 
 
+# Keys exposed to the frontend must match the public TYPE_MAP / SDK RoleType
+# convention (e.g. ``resource_project``), not Django's model_name
+# (``resourceproject``). The Python-side dict still uses model_name because
+# that's what callers look up via ``model_class._meta.model_name``.
+_KEY_REMAP = {"resourceproject": "resource_project"}
+
+
 def format_dict(enum):
-    return "\n".join(f"  {key}: '{value.value}'," for key, value in enum.items())
+    return "\n".join(
+        f"  {_KEY_REMAP.get(key, key)}: '{value.value}'," for key, value in enum.items()
+    )
 
 
 print(

@@ -2,6 +2,7 @@ import logging
 
 from celery import shared_task
 from constance import config
+from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone
 
 from waldur_core.core.middleware import get_skip_side_effects
@@ -14,6 +15,7 @@ from .handlers import (
     reactivate_user_with_logging,
     should_reactivate_user,
 )
+from .utils import get_scope_ancestors
 
 logger = logging.getLogger(__name__)
 
@@ -67,4 +69,70 @@ def sync_user_deactivation_status():
 
     logger.info(
         f"User deactivation sync completed. Deactivated: {deactivated_count}, Reactivated: {reactivated_count}"
+    )
+
+
+def _revoke_user_roles_outside_availability(role) -> int:
+    """Revoke ``UserRole``s for ``role`` whose scope (and ancestors) is no
+    longer covered by any RoleAvailability row. Returns the number of
+    revocations performed. A role with zero RoleAvailability rows is
+    treated as system-wide (per RoleAvailability docstring) — nothing is
+    revoked in that case."""
+    if not models.RoleAvailability.objects.filter(role=role).exists():
+        return 0
+
+    revoked = 0
+    active_user_roles = models.UserRole.objects.filter(role=role, is_active=True)
+    for user_role in active_user_roles.iterator(chunk_size=200):
+        scope = user_role.scope
+        if scope is None:
+            continue
+        ancestors = get_scope_ancestors(scope)
+        still_valid = any(
+            models.RoleAvailability.objects.filter(
+                role=role,
+                content_type=ContentType.objects.get_for_model(ancestor),
+                object_id=ancestor.id,
+            ).exists()
+            for ancestor in ancestors
+        )
+        if not still_valid:
+            user_role.revoke(reason="Role availability removed")
+            revoked += 1
+    return revoked
+
+
+@shared_task(name="waldur_core.permissions.reconcile_user_roles_for_role")
+def reconcile_user_roles_for_role(role_id: int) -> None:
+    """Async revocation triggered by RoleAvailability removal."""
+    role = models.Role.objects.filter(id=role_id).first()
+    if role is None:
+        return
+    revoked = _revoke_user_roles_outside_availability(role)
+    if revoked:
+        logger.info(
+            "Reconciled UserRoles for role %s (id=%s): revoked %d row(s).",
+            role.name,
+            role.id,
+            revoked,
+        )
+
+
+@shared_task(name="waldur_core.permissions.reconcile_user_roles_against_availability")
+def reconcile_user_roles_against_availability() -> None:
+    """Periodic safety net: reconcile UserRoles against RoleAvailability for
+    every role that has at least one availability row.
+
+    Catches drift from manual DB edits / failed signals.
+    """
+    role_ids = list(
+        models.RoleAvailability.objects.values_list("role_id", flat=True).distinct()
+    )
+    total_revoked = 0
+    for role in models.Role.objects.filter(id__in=role_ids).iterator(chunk_size=50):
+        total_revoked += _revoke_user_roles_outside_availability(role)
+    logger.info(
+        "Periodic UserRole reconciliation: %d role(s) checked, %d revocation(s).",
+        len(role_ids),
+        total_revoked,
     )

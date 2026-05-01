@@ -5,6 +5,7 @@ from django_fsm import FSMField, transition
 from model_utils.models import TimeStampedModel
 
 from waldur_core.core import models as core_models
+from waldur_core.permissions.models import Role
 from waldur_mastermind.marketplace import models as marketplace_models
 
 from .enums import KeycloakMembershipState
@@ -22,7 +23,7 @@ class OfferingKeycloakGroup(
         related_name="keycloak_groups",
     )
     role = models.ForeignKey(
-        marketplace_models.OfferingUserRole,
+        Role,
         on_delete=models.CASCADE,
         related_name="keycloak_groups",
     )

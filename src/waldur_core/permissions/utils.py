@@ -280,6 +280,65 @@ def get_permissions(scope, user=None):
     return qs
 
 
+def get_scope_ancestors(scope):
+    """Walk parent links from scope upward for RoleAvailability checks.
+
+    Resource → Offering / Project → Customer.
+    ResourceProject → Resource → … (chain above).
+    """
+    ancestors = [scope]
+    if hasattr(scope, "resource"):  # ResourceProject -> Resource
+        ancestors.append(scope.resource)
+        if hasattr(scope.resource, "offering"):
+            ancestors.append(scope.resource.offering)
+        if hasattr(scope.resource, "project"):
+            ancestors.append(scope.resource.project)
+            if hasattr(scope.resource.project, "customer"):
+                ancestors.append(scope.resource.project.customer)
+    if hasattr(scope, "offering"):  # Resource -> Offering
+        ancestors.append(scope.offering)
+    if hasattr(scope, "project"):  # Resource -> Project
+        ancestors.append(scope.project)
+        if hasattr(scope.project, "customer"):
+            ancestors.append(scope.project.customer)
+    if hasattr(scope, "customer"):  # Project -> Customer
+        ancestors.append(scope.customer)
+    return ancestors
+
+
+def validate_role_grant(scope, user, role, expiration_time=None):
+    """Validate a role can be granted to a user on scope.
+
+    Mirrors the role/scope checks in UserRoleCreateSerializer.validate so
+    non-DRF callers (Invitation.accept, PermissionRequest.approve) enforce the
+    same invariants. Permission/auth checks stay with the caller — this helper
+    only validates the (scope, user, role) triple.
+    """
+    if has_user(scope, user, role, expiration_time=expiration_time):
+        raise ValidationError("User has already the same role in this scope.")
+
+    if not isinstance(scope, role.content_type.model_class()):
+        raise ValidationError("Role is not valid for this scope.")
+
+    if not role.is_active:
+        raise ValidationError("Role is not active.")
+
+    if role.availability.exists():
+        ancestors = get_scope_ancestors(scope)
+        has_valid = any(
+            models.RoleAvailability.objects.filter(
+                role=role,
+                content_type=ContentType.objects.get_for_model(ancestor),
+                object_id=ancestor.id,
+            ).exists()
+            for ancestor in ancestors
+        )
+        if not has_valid:
+            raise ValidationError("Role is not available for this scope.")
+
+    validate_user_restrictions(scope, user)
+
+
 def add_user(scope, user, role, created_by=None, expiration_time=None):
     content_type = ContentType.objects.get_for_model(scope)
     permission = models.UserRole.objects.create(

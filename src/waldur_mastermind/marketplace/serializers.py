@@ -37,7 +37,7 @@ from waldur_core.core.models import NAME_LENGTH, User, get_ssh_key_fingerprints
 from waldur_core.core.validators import BackendURLValidator, validate_ssh_public_key
 from waldur_core.media.validators import ImageValidator
 from waldur_core.permissions import models as permission_models
-from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import (
     count_users,
@@ -51,7 +51,11 @@ from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure import utils as structure_utils
 from waldur_core.structure.enums import ProjectKind
 from waldur_core.structure.executors import ServiceSettingsCreateExecutor
-from waldur_core.structure.managers import filter_queryset_for_user
+from waldur_core.structure.managers import (
+    filter_queryset_for_user,
+    get_connected_customers,
+    get_connected_projects,
+)
 from waldur_core.structure.serializers import get_options_serializer_class
 from waldur_mastermind.billing.serializers import (
     NestedPriceEstimateSerializer,
@@ -85,7 +89,6 @@ from waldur_mastermind.marketplace.enums import (
     ServiceAccountStatesType,
 )
 from waldur_mastermind.marketplace.fields import PublicPlanField
-from waldur_mastermind.marketplace.managers import ResourceQuerySet
 from waldur_mastermind.marketplace.plugins import manager
 from waldur_mastermind.marketplace.processors import CreateResourceProcessor
 from waldur_mastermind.marketplace.utils import (
@@ -202,6 +205,14 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
     create_orders_on_resource_option_change = serializers.BooleanField(
         required=False,
         help_text="If set to True, create orders when options of related resources are changed.",
+    )
+    enable_resource_projects = serializers.BooleanField(
+        required=False,
+        help_text="Enable sub-project management within resources.",
+    )
+    create_orders_on_resource_project_change = serializers.BooleanField(
+        required=False,
+        help_text="If set to True, create orders when resource projects are created, updated or deleted.",
     )
     can_restore_resource = serializers.BooleanField(
         required=False,
@@ -2772,18 +2783,6 @@ class SoftwareCatalogUUIDSerializer(serializers.Serializer):
     uuid = serializers.UUIDField(help_text="UUID of the software catalog")
 
 
-class NestedRoleSerializer(serializers.HyperlinkedModelSerializer):
-    class Meta:
-        model = models.OfferingUserRole
-        fields = ("uuid", "name", "url")
-        extra_kwargs = {
-            "url": {
-                "lookup_field": "uuid",
-                "view_name": "marketplace-offering-user-role-detail",
-            },
-        }
-
-
 class CatalogSummarySerializer(serializers.ModelSerializer):
     """Summary serializer for SoftwareCatalog used in nested context."""
 
@@ -2911,7 +2910,6 @@ class ProviderOfferingDetailsSerializer(
     endpoints = NestedEndpointSerializer(many=True, read_only=True)
     software_catalogs = NestedSoftwareCatalogSerializer(many=True, read_only=True)
     partitions = NestedPartitionSerializer(many=True, read_only=True)
-    roles = NestedRoleSerializer(many=True, read_only=True)
     has_compliance_requirements = serializers.SerializerMethodField()
     billing_type_classification = serializers.SerializerMethodField()
     effective_available_limits = serializers.SerializerMethodField()
@@ -2923,6 +2921,17 @@ class ProviderOfferingDetailsSerializer(
         lookup_field="uuid",
         required=False,
         allow_null=True,
+    )
+    # `profile` (FK to OfferingProfile) is intentionally NOT exposed for
+    # write here. Binding an offering to a service profile is a staff-only
+    # operation handled through the dedicated ``set_profile`` action on
+    # ``ProviderOfferingViewSet``. Only the read-only display fields below
+    # are exposed.
+    profile_uuid = serializers.UUIDField(
+        read_only=True, source="profile.uuid", allow_null=True
+    )
+    profile_name = serializers.CharField(
+        read_only=True, source="profile.name", allow_null=True
     )
 
     class Meta:
@@ -2942,7 +2951,6 @@ class ProviderOfferingDetailsSerializer(
             "endpoints",
             "software_catalogs",
             "partitions",
-            "roles",
             "customer",
             "customer_uuid",
             "customer_name",
@@ -2999,6 +3007,8 @@ class ProviderOfferingDetailsSerializer(
             "billing_type_classification",
             "effective_available_limits",
             "compliance_checklist",
+            "profile_uuid",
+            "profile_name",
         )
         related_paths = {
             "customer": ("uuid", "name"),
@@ -3702,6 +3712,197 @@ class OfferingIntegrationUpdateSerializer(serializers.ModelSerializer):
         self._update_plugin_options(instance, validated_data)
         offering = super().update(instance, validated_data)
         return offering
+
+
+class _OfferingProfileRoleSerializer(serializers.Serializer):
+    """Inline role descriptor exposed inside OfferingProfile responses."""
+
+    uuid = serializers.CharField()
+    name = serializers.CharField()
+    content_type = serializers.CharField(allow_null=True)
+    description = serializers.CharField(allow_blank=True)
+
+
+class OfferingProfileSerializer(serializers.ModelSerializer):
+    roles = serializers.SerializerMethodField()
+    offerings_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = models.OfferingProfile
+        fields = (
+            "uuid",
+            "name",
+            "description",
+            "roles",
+            "offerings_count",
+            "created",
+            "modified",
+        )
+        read_only_fields = ("uuid", "created", "modified")
+
+    @extend_schema_field(_OfferingProfileRoleSerializer(many=True))
+    def get_roles(self, obj):
+        return [
+            {
+                "uuid": r.uuid.hex,
+                "name": r.name,
+                "content_type": (
+                    "resource_project"
+                    if r.content_type and r.content_type.model == "resourceproject"
+                    else getattr(r.content_type, "model", None)
+                ),
+                "description": r.description or "",
+            }
+            for r in obj.roles.select_related("content_type").all()
+        ]
+
+    def get_offerings_count(self, obj) -> int:
+        return obj.offerings.count()
+
+
+class OfferingProfileRoleAssignSerializer(serializers.Serializer):
+    role = serializers.UUIDField(help_text="Role UUID to add or remove.")
+
+
+class OfferingProfileBindSerializer(serializers.Serializer):
+    profile = serializers.UUIDField(
+        allow_null=True,
+        required=False,
+        help_text="OfferingProfile UUID to bind to. Pass null to unbind.",
+    )
+
+
+class OfferingRoleSerializer(serializers.ModelSerializer):
+    offering = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.Offering.objects.all(),
+        write_only=True,
+        required=False,
+        help_text="Offering UUID — pin role to this single offering.",
+    )
+    content_type_input = serializers.ChoiceField(
+        write_only=True,
+        required=False,
+        choices=["resource", "resource_project"],
+        source="content_type",
+        help_text="Scope on create: 'resource' or 'resource_project'.",
+    )
+    content_type = serializers.SerializerMethodField()
+    offering_uuid = serializers.SerializerMethodField()
+    offering_name = serializers.SerializerMethodField()
+    permissions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = permission_models.Role
+        fields = (
+            "uuid",
+            "name",
+            "description",
+            "content_type",
+            "content_type_input",
+            "offering",
+            "offering_uuid",
+            "offering_name",
+            "is_active",
+            "permissions",
+        )
+        read_only_fields = ("uuid", "is_active")
+
+    def get_content_type(self, obj) -> str | None:
+        if obj.content_type is None:
+            return None
+        if obj.content_type.model == "resourceproject":
+            return "resource_project"
+        return obj.content_type.model
+
+    def _get_offering_for_request(self, obj):
+        """Return the offering this role appears under in the current API
+        scope: prefer the one targeted by the ?offering_uuid filter; fall
+        back to a deterministic 'first by id' pick when no filter exists.
+        """
+        offering_ct = ContentType.objects.get_for_model(models.Offering)
+        request = self.context.get("request")
+        offering_uuid = request.query_params.get("offering_uuid") if request else None
+        availabilities = obj.availability.filter(content_type=offering_ct)
+        if offering_uuid:
+            try:
+                offering = models.Offering.objects.get(uuid=offering_uuid)
+            except (models.Offering.DoesNotExist, ValueError):
+                pass
+            else:
+                if availabilities.filter(object_id=offering.id).exists():
+                    return offering
+        availability = availabilities.order_by("object_id").first()
+        if availability:
+            return models.Offering.objects.filter(id=availability.object_id).first()
+        return None
+
+    def get_offering_uuid(self, obj) -> str | None:
+        offering = self._get_offering_for_request(obj)
+        return offering.uuid.hex if offering else None
+
+    def get_offering_name(self, obj) -> str | None:
+        offering = self._get_offering_for_request(obj)
+        return offering.name if offering else None
+
+    def get_permissions(self, obj) -> list[str]:
+        return list(obj.permissions.values_list("permission", flat=True))
+
+    def validate_content_type_input(self, value):
+        if value not in TYPE_MAP:
+            raise rf_exceptions.ValidationError(f"Invalid content type: {value}")
+        app_label, model_name = TYPE_MAP[value]
+        return ContentType.objects.get_by_natural_key(app_label, model_name)
+
+    def validate(self, attrs):
+        offering = attrs.get("offering")
+        content_type = attrs.get("content_type")
+        name = attrs.get("name")
+
+        if self.instance is None:
+            if not content_type:
+                raise rf_exceptions.ValidationError(
+                    {"content_type_input": "This field is required on create."}
+                )
+            if not offering:
+                raise rf_exceptions.ValidationError(
+                    {"offering": "This field is required on create."}
+                )
+        else:
+            # Update — content_type / offering are immutable.
+            attrs.pop("content_type", None)
+            attrs.pop("offering", None)
+            content_type = self.instance.content_type
+            offering = self._get_offering_for_request(self.instance)
+
+        # Check for duplicate role name within the same offering
+        if name and content_type and offering:
+            offering_ct = ContentType.objects.get_for_model(models.Offering)
+            qs = permission_models.Role.objects.filter(
+                name=name,
+                content_type=content_type,
+                availability__content_type=offering_ct,
+                availability__object_id=offering.id,
+            )
+            if self.instance is not None:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise rf_exceptions.ValidationError(
+                    f"A role with name '{name}' already exists for this offering."
+                )
+
+        # Validate offering has resource projects enabled if content_type is resource_project
+        if self.instance is None and offering and content_type:
+            model_class = content_type.model_class()
+            if (
+                model_class == models.ResourceProject
+                and not offering.plugin_options.get("enable_resource_projects")
+            ):
+                raise rf_exceptions.ValidationError(
+                    "Resource projects are not enabled for this offering."
+                )
+
+        return attrs
 
 
 class OfferingPermissionSerializer(
@@ -5236,6 +5437,8 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
 
     @extend_schema_field(OrderDetailsSerializer)
     def get_order_in_progress(self, resource: models.Resource):
+        if not self._user_can_see_order_workflow(resource):
+            return None
         if resource.order_in_progress:
             return OrderDetailsSerializer(
                 instance=resource.order_in_progress, context=self.context
@@ -5243,10 +5446,54 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
 
     @extend_schema_field(OrderDetailsSerializer)
     def get_creation_order(self, resource: models.Resource):
+        if not self._user_can_see_order_workflow(resource):
+            return None
         if resource.creation_order:
             return OrderDetailsSerializer(
                 instance=resource.creation_order, context=self.context
             ).data
+
+    def _user_can_see_order_workflow(self, resource: models.Resource) -> bool:
+        """A user with only a direct Resource or ResourceProject UserRole has
+        intentional minimal visibility — order workflow timeline is a
+        project/customer-level concern and should be hidden from them."""
+        request = self.context.get("request")
+        if not request or getattr(request, "user", None) is None:
+            return True
+        user = request.user
+        if user.is_anonymous:
+            return False
+        if user.is_staff or user.is_support:
+            return True
+        if resource.project_id in get_connected_projects(
+            user
+        ) or resource.project.customer_id in get_connected_customers(user):
+            return True
+        return False
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not self._user_can_see_order_workflow(instance):
+            for hidden in ("project_description",):
+                data.pop(hidden, None)
+        request = self.context.get("request")
+        if request and utils.is_resource_project_only_viewer(
+            getattr(request, "user", None), instance
+        ):
+            for hidden in (
+                "limits",
+                "current_usages",
+                "limit_usage",
+                "backend_metadata",
+                "report",
+                "available_actions",
+                "endpoints",
+                "options",
+                "error_message",
+                "username",
+            ):
+                data.pop(hidden, None)
+        return data
 
     def get_state(self, resource: models.Resource) -> ResourceStatesType:
         return resource.get_state_display()
@@ -5281,6 +5528,15 @@ class ResourceSerializer(core_serializers.SlugSerializerMixin, BaseItemSerialize
         request = self.context["request"]
         if getattr(self.context.get("view"), "swagger_fake_view", False):
             return fields
+
+        # error_traceback may contain stack frames, file paths, internal
+        # state — staff/support only. Mirrors the OrderDetailsSerializer
+        # convention.
+        user = getattr(request, "user", None)
+        if (
+            not user or user.is_anonymous or not (user.is_staff or user.is_support)
+        ) and "error_traceback" in fields:
+            del fields["error_traceback"]
 
         keys = request.query_params.getlist(self.FIELDS_PARAM_NAME)
         for key in ("order_in_progress", "creation_order"):
@@ -7451,84 +7707,216 @@ class UserChecklistCompletionSerializer(serializers.ModelSerializer):
         return attrs
 
 
-class FilterForUserField(serializers.HyperlinkedRelatedField):
-    def get_queryset(self):
-        user = self.context["request"].user
-        return self.queryset.filter_for_user(user)
-
-
-class OfferingUserRoleSerializer(serializers.HyperlinkedModelSerializer):
-    offering = FilterForUserField(
-        lookup_field="uuid",
-        view_name="marketplace-provider-offering-detail",
-        queryset=models.Offering.objects.all(),
-    )
-    offering_uuid = serializers.UUIDField(read_only=True, source="offering.uuid")
-    offering_name = serializers.ReadOnlyField(source="offering.name")
-
-    class Meta:
-        model = models.OfferingUserRole
-        fields = (
-            "name",
-            "uuid",
-            "offering",
-            "offering_uuid",
-            "offering_name",
-            "scope_type",
-            "scope_type_label",
-        )
-
-
-class ResourceUserSerializer(serializers.HyperlinkedModelSerializer):
-    resource = serializers.HyperlinkedRelatedField(
-        lookup_field="uuid",
-        view_name="marketplace-resource-detail",
+class ResourceProjectSerializer(serializers.ModelSerializer):
+    resource = serializers.SlugRelatedField(
+        slug_field="uuid",
         queryset=models.Resource.objects.all(),
     )
     resource_uuid = serializers.UUIDField(read_only=True, source="resource.uuid")
-    role_uuid = serializers.UUIDField(read_only=True, source="role.uuid")
-    user_uuid = serializers.UUIDField(read_only=True, source="user.uuid")
     resource_name = serializers.ReadOnlyField(source="resource.name")
-    role_name = serializers.ReadOnlyField(source="role.name")
-    user_username = serializers.ReadOnlyField(source="user.username")
-    user_full_name = serializers.ReadOnlyField(source="user.full_name")
+    state = serializers.CharField(source="get_state_display", read_only=True)
 
     class Meta:
-        model = models.ResourceUser
+        model = models.ResourceProject
         fields = (
             "uuid",
             "resource",
-            "role",
-            "user",
+            "name",
+            "description",
+            "backend_id",
+            "state",
+            "limits",
+            "current_usages",
             "resource_uuid",
-            "role_uuid",
-            "user_uuid",
             "resource_name",
-            "role_name",
-            "user_username",
-            "user_full_name",
+            "created",
+            "modified",
         )
-        extra_kwargs = dict(
-            user={"lookup_field": "uuid", "view_name": "user-detail"},
-            role={
-                "lookup_field": "uuid",
-                "view_name": "marketplace-offering-user-role-detail",
-            },
+        read_only_fields = (
+            "uuid",
+            "backend_id",
+            "state",
+            "current_usages",
+            "created",
+            "modified",
         )
-
-    def get_fields(self):
-        fields = super().get_fields()
-        user = self.context["request"].user
-        queryset: ResourceQuerySet = fields["resource"].queryset
-        fields["resource"].queryset = queryset.filter_for_service_consumer(user)
-        return fields
 
     def validate(self, attrs):
-        if attrs["role"].offering != attrs["resource"].offering:
+        # Resolve the resource: provided on create, taken from the instance on update.
+        resource = attrs.get("resource") or (
+            self.instance.resource if self.instance else None
+        )
+        if resource is None:
+            return attrs
+        offering = resource.offering
+        plugin_options = offering.plugin_options or {}
+        if not plugin_options.get("enable_resource_projects"):
             raise ValidationError(
-                "Role and resource should belong to the same offering."
+                "Resource projects are not enabled for this offering."
             )
+
+        # Limits validation. On partial updates `limits` may be omitted —
+        # in that case we skip enforcement (no change requested).
+        limits = attrs.get("limits")
+        if limits is None:
+            return attrs
+
+        # Per-component bounds (offering component min/max) apply regardless
+        # of the policy: an operator's component caps are always honoured.
+        for component, value in utils.get_components_map(limits, offering):
+            utils.validate_min_max_limit(value, component)
+
+        policy = plugin_options.get("resource_projects_limit_policy", "none")
+        if policy not in ("none", "per_project", "aggregate"):
+            raise ValidationError(
+                {
+                    "limits": (
+                        f"Unknown resource_projects_limit_policy: '{policy}'. "
+                        "Allowed values: 'none', 'per_project', 'aggregate'."
+                    )
+                }
+            )
+        if policy == "none":
+            return attrs
+
+        resource_limits = resource.limits or {}
+
+        if policy == "per_project":
+            errors = {}
+            for key, value in limits.items():
+                cap = resource_limits.get(key)
+                if cap is not None and value > cap:
+                    errors[key] = (
+                        f"Project limit {value} exceeds the parent resource limit {cap}."
+                    )
+            if errors:
+                raise rf_exceptions.ValidationError({"limits": errors})
+
+        elif policy == "aggregate":
+            sibling_qs = models.ResourceProject.objects.filter(resource=resource)
+            if self.instance is not None:
+                sibling_qs = sibling_qs.exclude(pk=self.instance.pk)
+            sibling_totals: dict[str, int] = {}
+            for sibling in sibling_qs.only("limits"):
+                for key, value in (sibling.limits or {}).items():
+                    sibling_totals[key] = sibling_totals.get(key, 0) + value
+            errors = {}
+            for key, value in limits.items():
+                cap = resource_limits.get(key)
+                if cap is None:
+                    continue
+                projected_total = sibling_totals.get(key, 0) + value
+                if projected_total > cap:
+                    errors[key] = (
+                        f"Aggregate project limits ({projected_total}) would exceed "
+                        f"the parent resource limit ({cap})."
+                    )
+            if errors:
+                raise rf_exceptions.ValidationError({"limits": errors})
+
         return attrs
+
+
+class ResourceProjectBackendIdSerializer(serializers.Serializer):
+    backend_id = serializers.CharField()
+
+
+class NestedResourceProjectPermissionSerializer(serializers.ModelSerializer):
+    """Mirrors NestedProjectPermissionSerializer from waldur_core.structure
+    but for ResourceProject scope. Used inside ResourceTeamMemberSerializer
+    to expose a user's per-resource_project role grants under one Resource."""
+
+    url = serializers.HyperlinkedRelatedField(
+        source="scope",
+        lookup_field="uuid",
+        view_name="marketplace-resource-project-detail",
+        read_only=True,
+    )
+    uuid = serializers.CharField(read_only=True, source="scope.uuid")
+    name = serializers.CharField(read_only=True, source="scope.name")
+    role_name = serializers.CharField(read_only=True, source="role.name")
+    role_uuid = serializers.UUIDField(read_only=True, source="role.uuid")
+
+    class Meta:
+        model = permission_models.UserRole
+        fields = [
+            "url",
+            "uuid",
+            "name",
+            "role_name",
+            "role_uuid",
+            "expiration_time",
+        ]
+
+
+class ResourceTeamMemberSerializer(
+    core_serializers.RestrictedSerializerMixin, serializers.ModelSerializer
+):
+    """One row per user with their direct Resource role plus a nested
+    list of their per-ResourceProject grants under THIS resource. Mirrors
+    structure.serializers.CustomerUserSerializer.
+    """
+
+    expiration_time = serializers.SerializerMethodField()
+    resource_projects = serializers.SerializerMethodField()
+    role_name = serializers.SerializerMethodField()
+    role_uuid = serializers.SerializerMethodField()
+
+    class Meta:
+        model = core_models.User
+        fields = [
+            "url",
+            "uuid",
+            "username",
+            "full_name",
+            "email",
+            "image",
+            "role_name",
+            "role_uuid",
+            "expiration_time",
+            "resource_projects",
+        ]
+        extra_kwargs = {
+            "url": {"lookup_field": "uuid"},
+        }
+
+    def _get_resource_permission(self, user):
+        resource = self.context["resource"]
+        return permission_models.UserRole.objects.filter(
+            content_type=ContentType.objects.get_for_model(models.Resource),
+            object_id=resource.id,
+            user=user,
+            is_active=True,
+        ).first()
+
+    def get_role_name(self, user) -> str | None:
+        permission = self._get_resource_permission(user)
+        return permission and permission.role.name
+
+    def get_role_uuid(self, user) -> str | None:
+        permission = self._get_resource_permission(user)
+        return permission and permission.role.uuid.hex
+
+    @extend_schema_field(serializers.DateTimeField(allow_null=True))
+    def get_expiration_time(self, user):
+        permission = self._get_resource_permission(user)
+        return permission and permission.expiration_time
+
+    @extend_schema_field(NestedResourceProjectPermissionSerializer(many=True))
+    def get_resource_projects(self, user):
+        resource = self.context["resource"]
+        rp_ids = models.ResourceProject.objects.filter(resource=resource).values_list(
+            "id", flat=True
+        )
+        grants = permission_models.UserRole.objects.filter(
+            content_type=ContentType.objects.get_for_model(models.ResourceProject),
+            object_id__in=rp_ids,
+            user=user,
+            is_active=True,
+        ).select_related("role")
+        return NestedResourceProjectPermissionSerializer(
+            grants, many=True, context=self.context
+        ).data
 
 
 class OfferingUserGroupDetailsSerializer(

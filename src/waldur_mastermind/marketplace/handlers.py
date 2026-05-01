@@ -55,7 +55,6 @@ from waldur_mastermind.marketplace.models import (
     Offering,
     OfferingComponent,
     OfferingUser,
-    OfferingUserRole,
     Order,
     Plan,
     PlanComponent,
@@ -106,11 +105,6 @@ def get_offering_component_scopes(offering_component: models.OfferingComponent):
 
 def get_plan_scopes(plan: models.Plan):
     offering = plan.offering
-    return [offering, offering.customer]
-
-
-def get_offering_role_scopes(offering_role: models.OfferingUserRole):
-    offering = offering_role.offering
     return [offering, offering.customer]
 
 
@@ -1312,7 +1306,7 @@ def log_offering_user_created(sender, instance: OfferingUser, created=False, **k
         f"Account for user {instance.user.username} in offering {instance.offering.name} has been created.",
         event_type=EventType.MARKETPLACE_OFFERING_USER_CREATED,
         event_context={"offering_user": instance},
-        scopes=get_offering_role_scopes(instance),
+        scopes=[instance.offering, instance.offering.customer],
     )
 
 
@@ -1322,7 +1316,7 @@ def log_offering_user_deleted(sender, instance: OfferingUser, **kwargs):
         f"Account for user {instance.user.username} in offering {instance.offering.name} has been deleted.",
         event_type=EventType.MARKETPLACE_OFFERING_USER_DELETED,
         event_context={"offering_user": instance},
-        scopes=get_offering_role_scopes(instance),
+        scopes=[instance.offering, instance.offering.customer],
     )
 
 
@@ -1821,71 +1815,6 @@ def notify_user_about_rejected_order(sender, instance: Order, created=False, **k
     ):
         if order.state == OrderStates.REJECTED:
             tasks.notify_user_that_order_been_rejected.delay(order.uuid.hex)
-
-
-def log_offering_role_created_or_updated(
-    sender, instance: OfferingUserRole, created=False, **kwargs
-):
-    """Log offering role creation and updates."""
-    if created:
-        event_logger.emit(
-            f"Offering role {instance.name} has been created.",
-            event_type=EventType.MARKETPLACE_OFFERING_ROLE_CREATED,
-            event_context={
-                "offering_role": instance,
-            },
-            scopes=get_offering_role_scopes(instance),
-        )
-    else:
-        event_logger.emit(
-            f"Offering role {instance.name} has been updated.",
-            event_type=EventType.MARKETPLACE_OFFERING_ROLE_UPDATED,
-            event_context={
-                "offering_role": instance,
-            },
-            scopes=get_offering_role_scopes(instance),
-        )
-
-
-def log_resource_user_created(
-    sender, instance: models.ResourceUser, created=False, **kwargs
-):
-    """Log resource user creation."""
-    if created:
-        event_logger.emit(
-            f"User {instance.user.username} has been assigned"
-            f" role {instance.role.name} in resource {instance.resource.name}.",
-            event_type=EventType.MARKETPLACE_RESOURCE_USER_CREATED,
-            event_context={
-                "resource_user": instance,
-            },
-            scopes=[instance.resource.offering, instance.resource.offering.customer],
-        )
-
-
-def log_offering_role_deleted(sender, instance: OfferingUserRole, **kwargs):
-    """Log offering role deletion."""
-    event_logger.emit(
-        f"Offering role {instance.name} has been deleted.",
-        event_type=EventType.MARKETPLACE_OFFERING_ROLE_DELETED,
-        event_context={
-            "offering_role": instance,
-        },
-        scopes=get_offering_role_scopes(instance),
-    )
-
-
-def log_resource_user_deleted(sender, instance: models.ResourceUser, **kwargs):
-    """Log resource user deletion."""
-    event_logger.emit(
-        f"User {instance.user.username} has been unassigned"
-        f" role {instance.role.name} in resource {instance.resource.name}.",
-        event_type=EventType.MARKETPLACE_RESOURCE_USER_DELETED,
-        event_context={
-            "resource_user": instance,
-        },
-        scopes=[instance.resource.offering, instance.resource.offering.customer],
-    )
 
 
 def manage_maintenance_admin_announcements(sender, instance, created, **kwargs):
@@ -2761,3 +2690,24 @@ def trigger_user_action_recalculation_on_order_state_change(
 
     # Schedule recalculation for the pending_order provider
     transaction.on_commit(lambda: update_actions_for_provider.delay("pending_order"))
+
+
+def reconcile_offering_profile_on_roles_changed(
+    sender, instance, action, pk_set, **kwargs
+):
+    """When OfferingProfile.roles M2M changes, schedule reconciliation
+    across every offering bound to this profile."""
+    if action not in ("post_add", "post_remove", "post_clear"):
+        return
+    transaction.on_commit(
+        lambda: tasks.reconcile_offering_profile_availabilities.delay(instance.id)
+    )
+
+
+def reconcile_offering_profile_on_offering_changed(sender, instance, **kwargs):
+    """When an Offering is saved, schedule a reconciliation task. Cheap
+    no-op when nothing has changed; covers profile FK changes without
+    the fragility of FieldTracker post-save semantics."""
+    transaction.on_commit(
+        lambda: tasks.reconcile_offering_availabilities.delay(instance.id)
+    )

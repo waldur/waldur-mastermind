@@ -32,6 +32,19 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.process_billing_on_resource_save",
         )
 
+        # OfferingProfile sync — schedule async reconciliation when profile
+        # roles change or when an offering is bound/unbound.
+        signals.m2m_changed.connect(
+            handlers.reconcile_offering_profile_on_roles_changed,
+            sender=models.OfferingProfile.roles.through,
+            dispatch_uid="waldur_mastermind.marketplace.reconcile_offering_profile_on_roles_changed",
+        )
+        signals.post_save.connect(
+            handlers.reconcile_offering_profile_on_offering_changed,
+            sender=models.Offering,
+            dispatch_uid="waldur_mastermind.marketplace.reconcile_offering_profile_on_offering_changed",
+        )
+
         from waldur_core.core.handlers import create_initial_revision
 
         for model in (models.Resource, models.Offering, models.Plan):
@@ -453,30 +466,6 @@ class MarketplaceConfig(AppConfig):
             handlers.update_offering_user_username_after_freeipa_profile_update,
             sender=freeipa_models.Profile,
             dispatch_uid="waldur_mastermind.marketplace.update_offering_user_username_after_freeipa_profile_update",
-        )
-
-        signals.post_save.connect(
-            handlers.log_offering_role_created_or_updated,
-            sender=models.OfferingUserRole,
-            dispatch_uid="waldur_mastermind.marketplace.log_offering_role_created_or_updated",
-        )
-
-        signals.post_delete.connect(
-            handlers.log_offering_role_deleted,
-            sender=models.OfferingUserRole,
-            dispatch_uid="waldur_mastermind.marketplace.log_offering_role_deleted",
-        )
-
-        signals.post_save.connect(
-            handlers.log_resource_user_created,
-            sender=models.ResourceUser,
-            dispatch_uid="waldur_mastermind.marketplace.log_resource_user_created",
-        )
-
-        signals.post_delete.connect(
-            handlers.log_resource_user_deleted,
-            sender=models.ResourceUser,
-            dispatch_uid="waldur_mastermind.marketplace.log_resource_user_deleted",
         )
 
         signals.post_save.connect(

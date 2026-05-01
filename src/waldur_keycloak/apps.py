@@ -32,18 +32,6 @@ class KeycloakConfig(AppConfig):
             dispatch_uid="waldur_keycloak.delete_keycloak_membership_from_backend",
         )
 
-        signals.post_save.connect(
-            handlers.sync_resource_user_to_keycloak_membership,
-            sender=marketplace_models.ResourceUser,
-            dispatch_uid="waldur_keycloak.sync_resource_user_to_keycloak_membership",
-        )
-
-        signals.post_delete.connect(
-            handlers.delete_keycloak_membership_on_resource_user_delete,
-            sender=marketplace_models.ResourceUser,
-            dispatch_uid="waldur_keycloak.delete_keycloak_membership_on_resource_user_delete",
-        )
-
         signals.pre_delete.connect(
             handlers.cleanup_keycloak_groups_on_resource_delete,
             sender=marketplace_models.Resource,

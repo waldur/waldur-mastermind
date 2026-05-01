@@ -60,6 +60,40 @@ destroy_permissions = [check_destroy_permissions]
 - Custom validation that requires dynamic permission targets
 - Legacy code not yet refactored to declarative patterns
 
+## Adding New Permissions
+
+### 1. Define the Permission Enum
+
+Add the new permission to `PermissionEnum` in `src/waldur_core/permissions/enums.py`:
+
+```python
+class PermissionEnum(StrEnum):
+    MY_NEW_PERMISSION = "RESOURCE.MY_ACTION"
+```
+
+If the permission is for managing team members (creating/updating/deleting roles) on a scope type, also add it to the `CREATE_PERMISSIONS`, `UPDATE_PERMISSIONS`, and `DELETE_PERMISSIONS` dicts in the same file.
+
+### 2. Assign to Roles via permissions.yaml
+
+**Do NOT use data migrations to assign permissions to roles.** Instead, add the permission to the appropriate roles in `docker/rootfs/etc/waldur/permissions.yaml`:
+
+```yaml
+- role: CUSTOMER.OWNER
+  scope: customer
+  permissions:
+    - RESOURCE.MY_ACTION   # Add here
+```
+
+This file is loaded by the `import_roles` management command, which runs on deployment. The command creates roles and syncs their permissions from the YAML definition.
+
+### 3. Use in ViewSets
+
+```python
+my_action_permissions = [
+    permission_factory(PermissionEnum.MY_NEW_PERMISSION, ["project.customer"])
+]
+```
+
 ## Permission System Behavior
 
 ### Expiration Handling

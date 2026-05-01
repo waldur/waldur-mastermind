@@ -16,7 +16,11 @@ from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core.mixins import ProjectNameTemplateMixin
 from waldur_core.permissions.models import Role
-from waldur_core.permissions.utils import add_user, has_user, validate_user_restrictions
+from waldur_core.permissions.utils import (
+    add_user,
+    has_user,
+    validate_role_grant,
+)
 from waldur_core.structure.models import Customer, Project
 from waldur_core.structure.signals import permissions_request_approved
 from waldur_core.users.enums import InvitationState
@@ -34,6 +38,13 @@ class BaseInvitation(core_models.UuidMixin, core_mixins.ScopeMixin, TimeStampedM
         null=True,
     )
 
+
+class ScopeInvitationMixin(models.Model):
+    """Mixin for invitations scoped to a Customer with a system Role."""
+
+    class Meta:
+        abstract = True
+
     customer = models.ForeignKey(
         on_delete=models.CASCADE,
         to=Customer,
@@ -45,7 +56,10 @@ class BaseInvitation(core_models.UuidMixin, core_mixins.ScopeMixin, TimeStampedM
 
 
 class GroupInvitation(
-    BaseInvitation, ProjectNameTemplateMixin, core_models.UserDetailsMatchMixin
+    BaseInvitation,
+    ScopeInvitationMixin,
+    ProjectNameTemplateMixin,
+    core_models.UserDetailsMatchMixin,
 ):
     is_active = models.BooleanField(default=True)
     is_public = models.BooleanField(
@@ -121,6 +135,7 @@ class GroupInvitation(
 
 class Invitation(
     BaseInvitation,
+    ScopeInvitationMixin,
     core_models.ErrorMessageMixin,
     core_models.UserDetailsMixin,
 ):
@@ -191,6 +206,7 @@ class Invitation(
         )
 
     def accept(self, user):
+        validate_role_grant(self.scope, user, self.role)
         add_user(self.scope, user, self.role, self.created_by)
 
         self.state = InvitationState.ACCEPTED
@@ -266,38 +282,27 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
     def approve(self, user: core_models.User, comment: str = None):
         super().approve(user, comment)
 
-        # Validate the requesting user against scope's email/affiliation restrictions
-        validate_user_restrictions(self.invitation.scope, self.created_by)
-
         if self.invitation.auto_create_project:
             # Create project and grant project permission instead of customer permission
             project = self._create_project_for_user(user)
             role = self.invitation.project_role or self.invitation.role
-
-            # Defense-in-depth: skip if user already has the role
-            if has_user(project, self.created_by, role):
-                return
-
-            permission = add_user(
-                project,
-                self.created_by,
-                role,
-                created_by=user,
-            )
             scope = project
         else:
-            # Defense-in-depth: skip if user already has the role
-            if has_user(self.invitation.scope, self.created_by, self.invitation.role):
-                return
-
-            # Original behavior - grant customer/scope permission
-            permission = add_user(
-                self.invitation.scope,
-                self.created_by,
-                self.invitation.role,
-                created_by=user,
-            )
             scope = self.invitation.scope
+            role = self.invitation.role
+
+        # Defense-in-depth: skip if user already has the role
+        if has_user(scope, self.created_by, role):
+            return
+
+        validate_role_grant(scope, self.created_by, role)
+
+        permission = add_user(
+            scope,
+            self.created_by,
+            role,
+            created_by=user,
+        )
 
         permissions_request_approved.send(
             sender=self.__class__,

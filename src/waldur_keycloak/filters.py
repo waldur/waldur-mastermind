@@ -11,7 +11,7 @@ class OfferingKeycloakGroupFilter(django_filters.FilterSet):
         field_name="offering__uuid",
     )
     role_uuid = core_filters.RelatedUUIDFilter(
-        view_name="marketplace-offering-user-role-detail",
+        view_name="role-detail",
         field_name="role__uuid",
     )
     resource_uuid = core_filters.RelatedUUIDFilter(
@@ -38,7 +38,7 @@ class OfferingKeycloakMembershipFilter(django_filters.FilterSet):
         field_name="group__offering__uuid",
     )
     role_uuid = core_filters.RelatedUUIDFilter(
-        view_name="marketplace-offering-user-role-detail",
+        view_name="role-detail",
         field_name="group__role__uuid",
     )
     resource_uuid = core_filters.RelatedUUIDFilter(

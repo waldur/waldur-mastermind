@@ -84,6 +84,11 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(hours=3),
         "args": (),
     },
+    "reconcile-user-roles-against-availability": {
+        "task": "waldur_core.permissions.reconcile_user_roles_against_availability",
+        "schedule": timedelta(hours=24),
+        "args": (),
+    },
     "cancel-expired-invitations": {
         "task": "waldur_core.users.cancel_expired_invitations",
         "schedule": timedelta(hours=6),

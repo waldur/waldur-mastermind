@@ -905,6 +905,31 @@ class RequestApproveTest(BaseInvitationTest):
         self.permission_request.refresh_from_db()
         self.assertEqual(self.permission_request.state, ReviewStates.PENDING)
 
+    def test_approve_rejects_mismatched_role_availability(self):
+        """A role limited by RoleAvailability to a different scope must not
+        be granted via PermissionRequest.approve."""
+        from django.contrib.contenttypes.models import ContentType
+
+        from waldur_core.permissions.models import RoleAvailability
+
+        other_customer = structure_factories.CustomerFactory()
+        customer_ct = ContentType.objects.get_for_model(structure_models.Customer)
+        RoleAvailability.objects.create(
+            role=self.customer_group_invitation.role,
+            content_type=customer_ct,
+            object_id=other_customer.id,
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        self.client.force_authenticate(user=self.staff)
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("not available", str(response.data).lower())
+        self.assertFalse(has_user(self.customer, self.permission_request.created_by))
+        self.permission_request.refresh_from_db()
+        # State already moved to APPROVED by super().approve(); the rollback
+        # comes from @transaction.atomic on PermissionRequest.approve.
+        self.assertEqual(self.permission_request.state, ReviewStates.PENDING)
+
 
 @ddt
 class RequestRejectTest(BaseInvitationTest):
@@ -1008,6 +1033,7 @@ class PermissionRequestProjectCreationTest(BaseInvitationTest):
         invitation = factories.CustomerGroupInvitationFactory(
             scope=self.customer,
             auto_create_project=True,
+            project_role=ProjectRole.ADMIN,
             project_name_template="{username}_custom_project",
         )
 
@@ -1026,7 +1052,10 @@ class PermissionRequestProjectCreationTest(BaseInvitationTest):
 
     def test_create_project_without_template_uses_default(self):
         invitation = factories.CustomerGroupInvitationFactory(
-            scope=self.customer, auto_create_project=True, project_name_template=""
+            scope=self.customer,
+            auto_create_project=True,
+            project_role=ProjectRole.ADMIN,
+            project_name_template="",
         )
 
         permission_request = factories.PermissionRequestFactory(
@@ -1061,6 +1090,7 @@ class PermissionRequestProjectCreationTest(BaseInvitationTest):
                     "scope": structure_factories.CustomerFactory.get_url(self.customer),
                     "role": CustomerRole.OWNER.uuid.hex,
                     "auto_create_project": True,
+                    "project_role": ProjectRole.ADMIN.uuid.hex,
                     "project_name_template": template,
                 },
             )
@@ -1089,6 +1119,7 @@ class PermissionRequestProjectCreationTest(BaseInvitationTest):
                     "scope": structure_factories.CustomerFactory.get_url(self.customer),
                     "role": CustomerRole.OWNER.uuid.hex,
                     "auto_create_project": True,
+                    "project_role": ProjectRole.ADMIN.uuid.hex,
                     "project_name_template": template,
                 },
             )
@@ -1105,6 +1136,7 @@ class PermissionRequestProjectCreationTest(BaseInvitationTest):
         invitation = factories.CustomerGroupInvitationFactory(
             scope=self.customer,
             auto_create_project=True,
+            project_role=ProjectRole.ADMIN,
             project_name_template="{invalid_var}_project",
         )
 
