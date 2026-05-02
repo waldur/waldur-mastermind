@@ -204,6 +204,7 @@ class RequestTypeAdminViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         structure_permissions.is_staff
     ]
 
+    @extend_schema(request=None)
     @decorators.action(detail=True, methods=["post"])
     def activate(self, request, uuid=None):
         """Activate a request type so it appears in issue creation."""
@@ -214,6 +215,7 @@ class RequestTypeAdminViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     activate_permissions = [structure_permissions.is_staff]
 
+    @extend_schema(request=None)
     @decorators.action(detail=True, methods=["post"])
     def deactivate(self, request, uuid=None):
         """Deactivate a request type so it no longer appears in issue creation."""
@@ -224,6 +226,7 @@ class RequestTypeAdminViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     deactivate_permissions = [structure_permissions.is_staff]
 
+    @extend_schema(request=None)
     @decorators.action(detail=False, methods=["post"])
     def reorder(self, request):
         """Bulk update order for multiple request types."""
