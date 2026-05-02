@@ -390,6 +390,160 @@ class PullHypervisorsTest(test.APITestCase):
         self.assertEqual(hypervisor.vcpus, 0)
         self.assertEqual(hypervisor.memory_mb, 0)
 
+    def test_inventory_rows_persist_raw_placement_values(self):
+        # The HypervisorInventory child rows preserve the raw `total`,
+        # `reserved` and `allocation_ratio` so admins can explain the math
+        # behind the effective totals on the parent Hypervisor.
+        remote = self._make_remote_hypervisor(1, "oscompute01")
+        self.mock_nova.return_value.hypervisors.list.return_value = [remote]
+        self._set_placement(
+            {
+                "oscompute01": {
+                    "VCPU": (72, 0, 16.0, 5),
+                    "MEMORY_MB": (131072, 16384, 1.5, 8192),
+                    "DISK_GB": (3000, 0, 1.0, 11),
+                }
+            }
+        )
+
+        backend = OpenStackBackend(self.fixture.settings)
+        backend.pull_hypervisors()
+
+        hypervisor = models.Hypervisor.objects.get(
+            settings=self.fixture.settings, backend_id="1"
+        )
+        rows = {row.resource_class: row for row in hypervisor.inventories.all()}
+        self.assertEqual(set(rows), {"VCPU", "MEMORY_MB", "DISK_GB"})
+
+        vcpu = rows["VCPU"]
+        self.assertEqual((vcpu.total, vcpu.reserved, vcpu.used), (72, 0, 5))
+        self.assertEqual(vcpu.allocation_ratio, 16.0)
+        self.assertEqual(vcpu.effective_total, 72 * 16)
+
+        mem = rows["MEMORY_MB"]
+        self.assertEqual(mem.allocation_ratio, 1.5)
+        self.assertEqual(mem.effective_total, int((131072 - 16384) * 1.5))
+
+    def test_inventory_surfaces_specialty_resource_classes(self):
+        # VGPU + a custom class are stored even though they have no legacy
+        # column on Hypervisor itself. This is the headline win of the
+        # foundation ticket — anything Placement reports is now visible.
+        remote = self._make_remote_hypervisor(1, "oscompute01")
+        self.mock_nova.return_value.hypervisors.list.return_value = [remote]
+        self._set_placement(
+            {
+                "oscompute01": {
+                    "VCPU": (40, 0, 1.0, 2),
+                    "VGPU": (8, 0, 1.0, 3),
+                    "CUSTOM_PCI_ACCEL": (4, 0, 1.0, 1),
+                }
+            }
+        )
+
+        backend = OpenStackBackend(self.fixture.settings)
+        backend.pull_hypervisors()
+
+        hypervisor = models.Hypervisor.objects.get(
+            settings=self.fixture.settings, backend_id="1"
+        )
+        classes = set(hypervisor.inventories.values_list("resource_class", flat=True))
+        self.assertEqual(classes, {"VCPU", "VGPU", "CUSTOM_PCI_ACCEL"})
+
+    def test_inventory_rows_are_pruned_when_class_disappears(self):
+        # First pull: VGPU is present.
+        remote = self._make_remote_hypervisor(1, "oscompute01")
+        self.mock_nova.return_value.hypervisors.list.return_value = [remote]
+        self._set_placement(
+            {
+                "oscompute01": {
+                    "VCPU": (40, 0, 1.0, 2),
+                    "VGPU": (8, 0, 1.0, 3),
+                }
+            }
+        )
+        backend = OpenStackBackend(self.fixture.settings)
+        backend.pull_hypervisors()
+        hypervisor = models.Hypervisor.objects.get(
+            settings=self.fixture.settings, backend_id="1"
+        )
+        self.assertTrue(hypervisor.inventories.filter(resource_class="VGPU").exists())
+
+        # Second pull: VGPU pool removed from the host.
+        self._set_placement({"oscompute01": {"VCPU": (40, 0, 1.0, 2)}})
+        backend.pull_hypervisors()
+        hypervisor.refresh_from_db()
+        self.assertFalse(hypervisor.inventories.filter(resource_class="VGPU").exists())
+        self.assertTrue(hypervisor.inventories.filter(resource_class="VCPU").exists())
+
+
+class HypervisorInventoryApiTest(test.APITestCase):
+    """API endpoint visibility for HypervisorInventory rows."""
+
+    def setUp(self):
+        self.fixture = OpenStackFixture()
+        self.hypervisor = factories.HypervisorFactory(settings=self.fixture.settings)
+        self.inventory = models.HypervisorInventory.objects.create(
+            hypervisor=self.hypervisor,
+            resource_class="VCPU",
+            total=72,
+            reserved=0,
+            allocation_ratio=16.0,
+            used=5,
+        )
+        self.list_url = "/api/openstack-hypervisor-inventories/"
+
+    def test_staff_can_list_inventories(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        uuids = [row["uuid"] for row in response.data]
+        self.assertIn(self.inventory.uuid.hex, uuids)
+
+    def test_owner_of_service_provider_can_list_inventories(self):
+        self.client.force_authenticate(self.fixture.owner)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        uuids = [row["uuid"] for row in response.data]
+        self.assertIn(self.inventory.uuid.hex, uuids)
+
+    def test_unrelated_user_cannot_see_inventories(self):
+        unrelated = structure_factories.UserFactory()
+        self.client.force_authenticate(unrelated)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_filter_by_hypervisor_uuid(self):
+        other_hypervisor = factories.HypervisorFactory(settings=self.fixture.settings)
+        models.HypervisorInventory.objects.create(
+            hypervisor=other_hypervisor, resource_class="VCPU", total=10
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.list_url, {"hypervisor_uuid": self.hypervisor.uuid.hex}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.inventory.uuid.hex)
+
+    def test_filter_by_resource_class(self):
+        models.HypervisorInventory.objects.create(
+            hypervisor=self.hypervisor, resource_class="MEMORY_MB", total=131072
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.list_url, {"resource_class": "VCPU"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        classes = {row["resource_class"] for row in response.data}
+        self.assertEqual(classes, {"VCPU"})
+
+    def test_effective_total_in_response(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(self.list_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = next(r for r in response.data if r["uuid"] == self.inventory.uuid.hex)
+        # 72 - 0 = 72; 72 * 16.0 = 1152
+        self.assertEqual(row["effective_total"], 1152)
+
 
 class PullServiceSettingsQuotasTest(test.APITestCase):
     """openstack_vcpu and openstack_ram quotas are now aggregated from

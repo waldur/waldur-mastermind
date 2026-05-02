@@ -33,6 +33,11 @@ def register_in(router):
         basename="openstack-hypervisor",
     )
     router.register(
+        r"openstack-hypervisor-inventories",
+        views.HypervisorInventoryViewSet,
+        basename="openstack-hypervisor-inventory",
+    )
+    router.register(
         r"openstack-tenants", views.TenantViewSet, basename="openstack-tenant"
     )
     router.register(

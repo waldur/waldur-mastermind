@@ -392,6 +392,48 @@ class HypervisorSerializer(structure_serializers.BasePropertySerializer):
         }
 
 
+class HypervisorInventorySerializer(serializers.HyperlinkedModelSerializer):
+    hypervisor = serializers.HyperlinkedRelatedField(
+        view_name="openstack-hypervisor-detail",
+        lookup_field="uuid",
+        read_only=True,
+    )
+    hypervisor_uuid = serializers.ReadOnlyField(source="hypervisor.uuid")
+    hypervisor_name = serializers.ReadOnlyField(source="hypervisor.name")
+    settings = serializers.HyperlinkedRelatedField(
+        source="hypervisor.settings",
+        view_name="servicesettings-detail",
+        lookup_field="uuid",
+        read_only=True,
+    )
+    settings_uuid = serializers.ReadOnlyField(source="hypervisor.settings.uuid")
+    effective_total = serializers.ReadOnlyField()
+
+    class Meta:
+        model = models.HypervisorInventory
+        fields = (
+            "url",
+            "uuid",
+            "hypervisor",
+            "hypervisor_uuid",
+            "hypervisor_name",
+            "settings",
+            "settings_uuid",
+            "resource_class",
+            "total",
+            "reserved",
+            "allocation_ratio",
+            "used",
+            "effective_total",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "openstack-hypervisor-inventory-detail",
+            },
+        }
+
+
 class OpenStackTenantQuotaSerializer(serializers.Serializer):
     instances = serializers.IntegerField(min_value=1, required=False)
     volumes = serializers.IntegerField(min_value=1, required=False)

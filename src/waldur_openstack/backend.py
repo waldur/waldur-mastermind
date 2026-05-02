@@ -577,22 +577,43 @@ class OpenStackBackend(ServiceBackend):
                 },
             )
 
-    # Resource classes to placement resource_provider keys → Hypervisor model
-    # field pairs (capacity, usage). Anything else returned by Placement is
-    # ignored — we only care about the three classic capacity dimensions.
-    _PLACEMENT_CAPACITY_MAP = (
-        ("VCPU", "vcpus", "vcpus_used"),
-        ("MEMORY_MB", "memory_mb", "memory_mb_used"),
-        ("DISK_GB", "local_gb", "local_gb_used"),
-    )
+    # Mapping from Placement resource_class → legacy Hypervisor field names.
+    # Used to populate the backward-compatible vcpus / memory_mb / local_gb
+    # columns on Hypervisor from the per-class HypervisorInventory rows. Other
+    # classes (VGPU, PCI_DEVICE, NUMA_CORE, CUSTOM_*) are stored in
+    # HypervisorInventory but have no legacy column.
+    _LEGACY_HYPERVISOR_CAPACITY_FIELDS = {
+        "VCPU": ("vcpus", "vcpus_used"),
+        "MEMORY_MB": ("memory_mb", "memory_mb_used"),
+        "DISK_GB": ("local_gb", "local_gb_used"),
+    }
+
+    @staticmethod
+    def _effective_total(inv):
+        """Capacity the Nova scheduler treats as available."""
+        total = max(inv.get("total", 0) - inv.get("reserved", 0), 0)
+        return int(total * (inv.get("allocation_ratio", 1.0) or 1.0))
 
     def _collect_placement_capacity(self):
-        """Return a dict mapping resource-provider name → effective capacity.
+        """Return a dict mapping resource-provider name → per-class inventory.
 
-        Effective total = max(total - reserved, 0) * allocation_ratio. This is
-        the value the Nova scheduler treats as available, which Placement's
-        legacy /os-hypervisors counterparts ignored (they returned raw totals,
-        understating overcommit and overstating reservations).
+        Shape::
+
+            {
+              "compute01": {
+                "VCPU":      {"total": 72, "reserved": 0, "allocation_ratio": 16.0, "used": 5},
+                "MEMORY_MB": {...},
+                "DISK_GB":   {...},
+                "VGPU":      {...},   # only when present on this RP
+                ...
+              },
+              ...
+            }
+
+        Raw values are preserved (not pre-multiplied) so admins can answer
+        "why is the effective vCPU count what it is?" from `HypervisorInventory`
+        rows. Compute the effective total via `_effective_total(inv)` when
+        needed.
 
         For compute-node resource providers, the provider name equals
         hypervisor_hostname, which is how we link Placement back to the Nova
@@ -615,20 +636,17 @@ class OpenStackBackend(ServiceBackend):
                     e,
                 )
                 continue
-            capacity = {}
-            for (
-                resource_class,
-                capacity_field,
-                usage_field,
-            ) in self._PLACEMENT_CAPACITY_MAP:
-                inv = inventories.get(resource_class)
-                if not inv:
+            per_class = {}
+            for resource_class, inv in inventories.items():
+                if not isinstance(inv, dict):
                     continue
-                total = max(inv.get("total", 0) - inv.get("reserved", 0), 0)
-                allocation_ratio = inv.get("allocation_ratio", 1.0) or 1.0
-                capacity[capacity_field] = int(total * allocation_ratio)
-                capacity[usage_field] = int(usages.get(resource_class, 0))
-            result[rp.get("name")] = capacity
+                per_class[resource_class] = {
+                    "total": int(inv.get("total", 0)),
+                    "reserved": int(inv.get("reserved", 0)),
+                    "allocation_ratio": float(inv.get("allocation_ratio", 1.0) or 1.0),
+                    "used": int(usages.get(resource_class, 0)),
+                }
+            result[rp.get("name")] = per_class
         return result
 
     def pull_hypervisors(self):
@@ -658,22 +676,32 @@ class OpenStackBackend(ServiceBackend):
         stale_qs.delete()
 
         for remote in remote_hypervisors:
-            capacity = placement_capacity.get(remote.hypervisor_hostname, {})
-            _, created = models.Hypervisor.objects.update_or_create(
+            per_class = placement_capacity.get(remote.hypervisor_hostname, {})
+            # Maintain the legacy three columns on Hypervisor for backward-
+            # compat with the existing summary endpoint and the homeport chart.
+            legacy_fields = {}
+            for resource_class, (
+                cap_field,
+                used_field,
+            ) in self._LEGACY_HYPERVISOR_CAPACITY_FIELDS.items():
+                inv = per_class.get(resource_class)
+                if inv is None:
+                    legacy_fields[cap_field] = 0
+                    legacy_fields[used_field] = 0
+                else:
+                    legacy_fields[cap_field] = self._effective_total(inv)
+                    legacy_fields[used_field] = inv.get("used", 0)
+
+            hypervisor, created = models.Hypervisor.objects.update_or_create(
                 settings=self.settings,
                 backend_id=str(remote.id),
                 defaults={
                     "name": remote.hypervisor_hostname,
                     "hypervisor_type": getattr(remote, "hypervisor_type", ""),
-                    "vcpus": capacity.get("vcpus", 0),
-                    "vcpus_used": capacity.get("vcpus_used", 0),
-                    "memory_mb": capacity.get("memory_mb", 0),
-                    "memory_mb_used": capacity.get("memory_mb_used", 0),
-                    "local_gb": capacity.get("local_gb", 0),
-                    "local_gb_used": capacity.get("local_gb_used", 0),
                     "running_vms": getattr(remote, "running_vms", 0),
                     "state": getattr(remote, "state", ""),
                     "status": getattr(remote, "status", ""),
+                    **legacy_fields,
                 },
             )
             if created:
@@ -683,6 +711,24 @@ class OpenStackBackend(ServiceBackend):
                     remote.id,
                     self.settings,
                 )
+
+            # Mirror Placement's view: the per-class inventory becomes the
+            # source of truth for capacity. Drop classes that the host no
+            # longer reports (e.g. VGPU pool removed).
+            seen_classes = set()
+            for resource_class, inv in per_class.items():
+                models.HypervisorInventory.objects.update_or_create(
+                    hypervisor=hypervisor,
+                    resource_class=resource_class,
+                    defaults={
+                        "total": inv["total"],
+                        "reserved": inv["reserved"],
+                        "allocation_ratio": inv["allocation_ratio"],
+                        "used": inv["used"],
+                    },
+                )
+                seen_classes.add(resource_class)
+            hypervisor.inventories.exclude(resource_class__in=seen_classes).delete()
 
     def pull_global_images(self):
         glance = get_glance_client(self.admin_session)
@@ -3549,10 +3595,19 @@ class OpenStackBackend(ServiceBackend):
         # by pull_hypervisors. This replaces nova.hypervisor_stats.statistics()
         # which is removed at microversion 2.88.
         placement_capacity = self._collect_placement_capacity()
-        total_vcpu = sum(c.get("vcpus", 0) for c in placement_capacity.values())
-        used_vcpu = sum(c.get("vcpus_used", 0) for c in placement_capacity.values())
-        total_ram = sum(c.get("memory_mb", 0) for c in placement_capacity.values())
-        used_ram = sum(c.get("memory_mb_used", 0) for c in placement_capacity.values())
+
+        def aggregate(resource_class):
+            total = used = 0
+            for per_class in placement_capacity.values():
+                inv = per_class.get(resource_class)
+                if not inv:
+                    continue
+                total += self._effective_total(inv)
+                used += inv.get("used", 0)
+            return total, used
+
+        total_vcpu, used_vcpu = aggregate("VCPU")
+        total_ram, used_ram = aggregate("MEMORY_MB")
 
         self.settings.set_quota_limit("openstack_vcpu", total_vcpu)
         self.settings.set_quota_usage("openstack_vcpu", used_vcpu)
