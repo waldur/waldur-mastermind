@@ -307,6 +307,88 @@ class HypervisorViewSet(structure_views.BaseServicePropertyViewSet):
         serializer = serializers.HypervisorSummarySerializer(result)
         return response.Response(serializer.data)
 
+    @extend_schema(
+        summary="Pre-flight allocation candidates",
+        description=(
+            "Ask Placement which compute hosts could currently satisfy a "
+            "request for the given resources (and required traits). Useful "
+            "as a pre-flight check before placing an order on a fully-booked "
+            "cloud. Returns 0 candidates when nothing fits, with the same "
+            "provider_summaries Placement returns for diagnostic display."
+        ),
+        parameters=[
+            OpenApiParameter(
+                "settings_uuid",
+                OpenApiTypes.UUID,
+                OpenApiParameter.QUERY,
+                required=True,
+            ),
+            OpenApiParameter(
+                "resources",
+                str,
+                OpenApiParameter.QUERY,
+                required=True,
+                description="e.g. VCPU:4,MEMORY_MB:8192,DISK_GB:10",
+            ),
+            OpenApiParameter(
+                "required",
+                str,
+                OpenApiParameter.QUERY,
+                required=False,
+                description="e.g. HW_CPU_X86_AVX2,STORAGE_DISK_SSD",
+            ),
+            OpenApiParameter(
+                "limit",
+                int,
+                OpenApiParameter.QUERY,
+                required=False,
+                description="Cap on returned candidates (default 10).",
+            ),
+        ],
+        responses={200: serializers.AllocationCandidatesResponseSerializer},
+    )
+    @decorators.action(detail=False, methods=["get"])
+    def allocation_candidates(self, request):
+        query = serializers.AllocationCandidatesQuerySerializer(
+            data=request.query_params
+        )
+        query.is_valid(raise_exception=True)
+        # Permission scoping: confirm the caller can see at least one
+        # hypervisor for that settings_uuid (relies on the same
+        # GenericRoleFilter the queryset already uses).
+        settings_uuid = query.validated_data["settings_uuid"].hex
+        accessible_qs = self.filter_queryset(self.get_queryset()).filter(
+            settings__uuid=settings_uuid
+        )
+        if not accessible_qs.exists():
+            raise exceptions.PermissionDenied(
+                "No accessible hypervisors for the given settings_uuid."
+            )
+        settings = accessible_qs.first().settings
+
+        resources = serializers.AllocationCandidatesQuerySerializer.parse_resources(
+            query.validated_data["resources"]
+        )
+        required_str = query.validated_data.get("required") or ""
+        required = [t.strip() for t in required_str.split(",") if t.strip()]
+
+        backend = OpenStackBackend(settings)
+        try:
+            raw = backend.get_allocation_candidates(
+                resources=resources,
+                required=required or None,
+                limit=query.validated_data.get("limit"),
+            )
+        except OpenStackBackendError as e:
+            raise exceptions.ValidationError(str(e))
+
+        result = {
+            "candidate_count": len(raw.get("allocation_requests", [])),
+            "provider_summaries": raw.get("provider_summaries", {}),
+        }
+        out = serializers.AllocationCandidatesResponseSerializer(result)
+        return response.Response(out.data)
+
 
 class HypervisorInventoryViewSet(structure_views.BaseServicePropertyViewSet):
     queryset = models.HypervisorInventory.objects.all().order_by(

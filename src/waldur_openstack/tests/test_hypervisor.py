@@ -191,6 +191,109 @@ class HypervisorApiTest(test.APITestCase):
         self.assertEqual(response.data["total_vcpus"], self.hypervisor.vcpus)
 
 
+class AllocationCandidatesActionTest(test.APITestCase):
+    """Pre-flight allocation-candidates endpoint: ask Placement whether a
+    request would fit on this cloud right now."""
+
+    def setUp(self):
+        self.fixture = OpenStackFixture()
+        self.hypervisor = factories.HypervisorFactory(settings=self.fixture.settings)
+        self.url = factories.HypervisorFactory.get_list_url() + "allocation_candidates/"
+        self.placement_patcher = mock.patch(
+            "waldur_openstack.backend.get_placement_client"
+        )
+        self.mock_placement = self.placement_patcher.start()
+        mock_session()
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    def _set_candidates(self, n, summaries=None):
+        self.mock_placement.return_value.list_allocation_candidates.return_value = {
+            "allocation_requests": [{"allocations": {}} for _ in range(n)],
+            "provider_summaries": summaries or {},
+        }
+
+    def test_two_candidates_returned(self):
+        self._set_candidates(
+            2,
+            summaries={
+                "rp-uuid-1": {
+                    "resources": {"VCPU": {"used": 5, "capacity": 1152}},
+                    "traits": ["HW_CPU_X86_AVX2"],
+                },
+            },
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url,
+            {
+                "settings_uuid": self.fixture.settings.uuid.hex,
+                "resources": "VCPU:4,MEMORY_MB:8192",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["candidate_count"], 2)
+        self.assertIn("rp-uuid-1", response.data["provider_summaries"])
+
+    def test_zero_candidates(self):
+        self._set_candidates(0)
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url,
+            {
+                "settings_uuid": self.fixture.settings.uuid.hex,
+                "resources": "VCPU:9999",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["candidate_count"], 0)
+
+    def test_required_traits_passed_through(self):
+        self._set_candidates(1)
+        self.client.force_authenticate(self.fixture.staff)
+        self.client.get(
+            self.url,
+            {
+                "settings_uuid": self.fixture.settings.uuid.hex,
+                "resources": "VCPU:4",
+                "required": "HW_CPU_X86_AVX2,STORAGE_DISK_SSD",
+            },
+        )
+        call_kwargs = (
+            self.mock_placement.return_value.list_allocation_candidates.call_args.kwargs
+        )
+        self.assertEqual(call_kwargs["resources"], {"VCPU": 4})
+        self.assertEqual(
+            call_kwargs["required"], ["HW_CPU_X86_AVX2", "STORAGE_DISK_SSD"]
+        )
+
+    def test_invalid_resources_format_rejected(self):
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            self.url,
+            {
+                "settings_uuid": self.fixture.settings.uuid.hex,
+                "resources": "VCPU=4",  # missing colon
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_unrelated_user_cannot_use_endpoint(self):
+        unrelated = structure_factories.UserFactory()
+        self.client.force_authenticate(unrelated)
+        response = self.client.get(
+            self.url,
+            {
+                "settings_uuid": self.fixture.settings.uuid.hex,
+                "resources": "VCPU:4",
+            },
+        )
+        # No accessible hypervisors → permission denied (the queryset returns
+        # zero rows for unrelated users).
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+
 class PullHypervisorsTest(test.APITestCase):
     """pull_hypervisors now sources capacity from Placement (the legacy
     /os-hypervisors capacity fields are removed at Nova microversion 2.88, and

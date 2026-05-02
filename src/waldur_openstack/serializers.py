@@ -366,6 +366,68 @@ class HypervisorSummarySerializer(serializers.Serializer):
     total_running_vms = serializers.IntegerField()
 
 
+class AllocationCandidatesQuerySerializer(serializers.Serializer):
+    """Query params for the Placement allocation-candidates endpoint."""
+
+    settings_uuid = serializers.UUIDField(
+        help_text="UUID of the OpenStack ServiceSettings to query."
+    )
+    resources = serializers.CharField(
+        help_text=(
+            "Comma-separated resource:amount pairs, e.g. "
+            "'VCPU:4,MEMORY_MB:8192,DISK_GB:10'."
+        ),
+    )
+    required = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text=(
+            "Optional comma-separated list of required traits, e.g. "
+            "'HW_CPU_X86_AVX2,STORAGE_DISK_SSD'."
+        ),
+    )
+    limit = serializers.IntegerField(
+        required=False, min_value=1, max_value=100, default=10
+    )
+
+    @staticmethod
+    def parse_resources(spec: str) -> dict:
+        """Parse 'VCPU:4,MEMORY_MB:8192' → {'VCPU': 4, 'MEMORY_MB': 8192}."""
+        result = {}
+        for pair in (s.strip() for s in spec.split(",") if s.strip()):
+            if ":" not in pair:
+                raise serializers.ValidationError(
+                    f"resources entry '{pair}' must be of form CLASS:N"
+                )
+            cls, raw = pair.split(":", 1)
+            try:
+                result[cls.strip().upper()] = int(raw)
+            except ValueError as e:
+                raise serializers.ValidationError(
+                    f"resources entry '{pair}' has non-integer amount"
+                ) from e
+        if not result:
+            raise serializers.ValidationError(
+                "resources must contain at least one CLASS:N pair"
+            )
+        return result
+
+
+class AllocationCandidatesResponseSerializer(serializers.Serializer):
+    """Response shape for the allocation-candidates endpoint."""
+
+    candidate_count = serializers.IntegerField(
+        help_text="Total number of allocation candidates Placement returned."
+    )
+    provider_summaries = serializers.DictField(
+        child=serializers.DictField(),
+        help_text=(
+            "Placement's per-provider summary: maps resource_provider_uuid → "
+            "{resources: {CLASS: {used, capacity}, ...}, traits: [...]}."
+        ),
+    )
+
+
 class HypervisorSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Hypervisor

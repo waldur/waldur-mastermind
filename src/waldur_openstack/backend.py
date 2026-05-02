@@ -3589,6 +3589,19 @@ class OpenStackBackend(ServiceBackend):
             logger.error("Tenant with id %s does not exist", tenant.backend_id)
             raise OpenStackBackendError(e)
 
+    def get_allocation_candidates(self, resources, required=None, limit=None):
+        """Pre-flight scheduler check via Placement.
+
+        Returns the raw Placement `/allocation_candidates` response so the
+        caller can decide what to project (count, per-RP summaries, etc.).
+        See PlacementClient.list_allocation_candidates for the parameter
+        contract.
+        """
+        placement = get_placement_client(self.admin_session)
+        return placement.list_allocation_candidates(
+            resources=resources, required=required, limit=limit
+        )
+
     def pull_service_settings_quotas(self):
         # Aggregate cluster-wide capacity from Placement, summing the same
         # effective totals (allocation_ratio applied, reserved subtracted) used
