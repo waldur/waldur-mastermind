@@ -83,6 +83,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`SshPublicKeySerializerMixin`](#sshpublickeyserializermixin) | `waldur_core.structure.serializers` | A type of `ModelSerializer` that uses hyperlinked relationships instead of pr... |
 | [`ProjectMetadataTestMixin`](#projectmetadatatestmixin) | `waldur_core.structure.tests.test_project_metadata` | Shared test setup and utilities for project metadata tests |
 | [`AvailabilityCheckViewMixin`](#availabilitycheckviewmixin) | `waldur_core.structure.views` | A viewset that provides default `create()`, `retrieve()`, `update()`, `partia... |
+| [`ScopeInvitationMixin`](#scopeinvitationmixin) | `waldur_core.users.models` | Mixin for invitations scoped to a Customer with a system Role |
 | [`CheckExtensionMixin`](#checkextensionmixin) | `waldur_freeipa.views` | Raise exception if extension is disabled |
 | [`LLMConfigurationMixin`](#llmconfigurationmixin) | `waldur_mastermind.chat.views` | Validates that AI Assistant is enabled, the user has the required role, and t... |
 | [`PeriodMixin`](#periodmixin) | `waldur_mastermind.invoices.models` | Make subclasses preserve the alters_data attribute on overridden methods |
@@ -1174,6 +1175,16 @@ A viewset that provides default `create()`, `retrieve()`, `update()`,
 `partial_update()`, `destroy()` and `list()` actions.
 
 **Base classes:** `ModelViewSet`
+
+### ScopeInvitationMixin
+
+**Module:** `waldur_core.users.models`
+
+**Description:**
+
+Mixin for invitations scoped to a Customer with a system Role.
+
+**Base classes:** `Model`
 
 ### CheckExtensionMixin
 

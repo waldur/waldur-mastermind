@@ -432,6 +432,7 @@ td:nth-child(4) {
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `marketplace.Order` | Recalculate count quota when an instance is created or deleted. |
 | `revoke_roles_on_project_deletion` | `Django Signal (pre_delete)` | `structure.Project` | When project is deleted, capture user role snapshots before revoking them. |
 | `revoke_user_pats_on_deactivation` | `Django Signal (pre_save)` | `core.User` | Revoke all active PATs when a user is deactivated. |
+| `revoke_user_roles_on_availability_removal` | `Django Signal (post_delete)` | `permissions.RoleAvailability` | Schedule async revocation when a RoleAvailability row is removed. |
 | `schedule_cleanup_for_deleted_object` | `Django Signal (post_delete)` | `marketplace.Order` | Signal handler to schedule cleanup of user actions for a deleted object. |
 | `schedule_cleanup_for_deleted_object` | `Django Signal (post_delete)` | `marketplace.Offering` | Signal handler to schedule cleanup of user actions for a deleted object. |
 | `schedule_cleanup_for_deleted_object` | `Django Signal (post_delete)` | `marketplace.Resource` | Signal handler to schedule cleanup of user actions for a deleted object. |
@@ -472,9 +473,7 @@ td:nth-child(4) {
 | `cleanup_keycloak_on_user_deactivation` | `Django Signal (post_save)` | `core.User` | When a user is deactivated, schedule cleanup of all their Keycloak memberships. |
 | `delete_keycloak_group_from_backend` | `Django Signal (post_delete)` | `waldur_keycloak.OfferingKeycloakGroup` | Delete a Keycloak group from the backend when the local model is deleted. |
 | `delete_keycloak_membership_from_backend` | `Django Signal (post_delete)` | `waldur_keycloak.OfferingKeycloakMembership` | Remove a user from a Keycloak group when membership is deleted. |
-| `delete_keycloak_membership_on_resource_user_delete` | `Django Signal (post_delete)` | `marketplace.ResourceUser` | When a ResourceUser is deleted, delete corresponding Keycloak membership. |
 | `mark_keycloak_group_deleting` | `Django Signal (pre_delete)` | `waldur_keycloak.OfferingKeycloakGroup` | Mark a group as being deleted so cascade membership handlers skip re-deletion. |
-| `sync_resource_user_to_keycloak_membership` | `Django Signal (post_save)` | `marketplace.ResourceUser` | When a ResourceUser is created, auto-create a Keycloak membership |
 
 ## Application: `waldur_lexis`
 
@@ -638,8 +637,6 @@ td:nth-child(4) {
 | `log_invoice_state_transition` | `Django Signal (post_save)` | `invoices.Invoice` | No description |
 | `log_issue_delete` | `Django Signal (post_delete)` | `support.Issue` | No description |
 | `log_issue_save` | `Django Signal (post_save)` | `support.Issue` | No description |
-| `log_offering_role_created_or_updated` | `Django Signal (post_save)` | `marketplace.OfferingUserRole` | Log offering role creation and updates. |
-| `log_offering_role_deleted` | `Django Signal (post_delete)` | `marketplace.OfferingUserRole` | Log offering role deletion. |
 | `log_offering_user_created` | `Django Signal (post_save)` | `marketplace.OfferingUser` | Log offering user creation. |
 | `log_offering_user_deleted` | `Django Signal (post_delete)` | `marketplace.OfferingUser` | Log offering user deletion. |
 | `log_offering_user_username_updated` | `Django Signal (post_save)` | `marketplace.OfferingUser` | No description |
@@ -649,8 +646,6 @@ td:nth-child(4) {
 | `log_resource_events` | `Django Signal (post_save)` | `marketplace.Resource` | Log resource creation request events. |
 | `log_resource_robot_account_created_or_updated` | `Django Signal (post_save)` | `marketplace.RobotAccount` | Log resource robot account creation and updates. |
 | `log_resource_robot_account_deleted` | `Django Signal (post_delete)` | `marketplace.RobotAccount` | Log resource robot account deletion. |
-| `log_resource_user_created` | `Django Signal (post_save)` | `marketplace.ResourceUser` | Log resource user creation. |
-| `log_resource_user_deleted` | `Django Signal (post_delete)` | `marketplace.ResourceUser` | Log resource user deletion. |
 | `log_service_account_created_or_updated` | `Django Signal (post_save)` | `ScopedServiceAccount` | Log service account creation and updates. |
 | `log_service_account_deleted` | `Django Signal (post_delete)` | `ScopedServiceAccount` | Log service account deletion. |
 | `log_terms_of_service_consent_granted` | `Django Signal (post_save)` | `marketplace.UserOfferingConsent` | Log when a user grants consent to Terms of Service. |
@@ -675,6 +670,8 @@ td:nth-child(4) {
 | `process_invoice_item` | `Django Signal (post_save)` | `invoices.InvoiceItem` | Process invoice item changes and update related price estimates. |
 | `project_credit_changed_handler` | `Django Signal (post_save)` | `invoices.ProjectCredit` | No description |
 | `project_estimated_cost_policy_trigger_handler` | `Django Signal (post_save)` | `invoices.InvoiceItem` | Evaluate project cost policies when invoice items are updated. |
+| `reconcile_offering_profile_on_offering_changed` | `Django Signal (post_save)` | `marketplace.Offering` | When an Offering is saved, schedule a reconciliation task. Cheap |
+| `reconcile_offering_profile_on_roles_changed` | `Django Signal (m2m_changed)` | `OfferingProfile_roles` | When OfferingProfile.roles M2M changes, schedule reconciliation |
 | `refund_project_credit_on_project_removal` | `Django Signal (pre_delete)` | `structure.Project` | No description |
 | `request_offering_user_deletion_when_project_access_lost` | `Custom Signal (role_revoked)` | `—` | Schedule task to request offering user deletion when project access is lost. |
 | `resource_has_been_changed` | `Django Signal (post_save)` | `marketplace.Resource` | Log resource changes. |
@@ -875,15 +872,15 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 791
+Total unique handlers found: 788
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 411 handlers
+- **waldur_core**: 412 handlers
 - **waldur_freeipa**: 12 handlers
-- **waldur_keycloak**: 9 handlers
+- **waldur_keycloak**: 7 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 313 handlers
+- **waldur_mastermind**: 311 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
