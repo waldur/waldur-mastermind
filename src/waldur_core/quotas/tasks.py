@@ -1,5 +1,6 @@
 from celery import shared_task
 
+from waldur_core.core.utils import chunked_queryset
 from waldur_core.quotas import signals
 from waldur_core.quotas.utils import get_models_with_quotas
 
@@ -13,6 +14,7 @@ def update_custom_quotas():
 def update_standard_quotas():
     for model in get_models_with_quotas():
         for field in model.get_quotas_fields():
-            # Use iterator() with chunk_size to prevent loading all instances into memory
-            for instance in model.objects.all().iterator(chunk_size=100):
+            for instance in chunked_queryset(
+                model.objects.all(), chunk_size=100, max_records=100_000
+            ):
                 field.recalculate(scope=instance)

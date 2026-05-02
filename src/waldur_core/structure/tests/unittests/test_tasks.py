@@ -117,8 +117,8 @@ class BackgroundListPullTaskTest(TestCase):
     def test_run_schedules_pull_tasks_and_uses_iterator(self):
         """Test that run() schedules pull tasks for each valid instance.
 
-        Note: The run() method uses .iterator(chunk_size=50) for memory efficiency.
-        This test verifies that instances are processed correctly.
+        Note: run() iterates with chunked_queryset (client-side PK pagination)
+        for memory efficiency without server-side cursors.
         """
         instance1 = factories.TestNewInstanceFactory(
             state=CoreStates.OK, backend_id="id1"

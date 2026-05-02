@@ -754,3 +754,44 @@ def stable_topological_sort(nodes, dependency_graph):
             if node in layer:
                 result.append(node)
     return result
+
+
+def chunked_queryset(queryset, chunk_size=100, max_records=None):
+    """Iterate a queryset in client-side chunks using primary-key pagination.
+
+    Avoids server-side cursors (which ``QuerySet.iterator(chunk_size=...)``
+    uses on psycopg3) — those break with PgBouncer transaction pooling
+    and load-balanced PostgreSQL connections, since a cursor opened on
+    one backend connection may not exist when the next fetch lands on a
+    different one. Each chunk here is a fresh ``LIMIT``-bounded query
+    that any pooled connection can serve.
+
+    Memory stays bounded by ``chunk_size``. When ``max_records`` is
+    set, iteration stops after yielding that many rows and emits a
+    warning — use this as a safety net against accidentally walking
+    a table that has grown unexpectedly large.
+    """
+    queryset = queryset.order_by("pk")
+    last_pk = None
+    yielded = 0
+    while True:
+        chunk_qs = queryset
+        if last_pk is not None:
+            chunk_qs = chunk_qs.filter(pk__gt=last_pk)
+        chunk = list(chunk_qs[:chunk_size])
+        if not chunk:
+            return
+        for obj in chunk:
+            if max_records is not None and yielded >= max_records:
+                logger.warning(
+                    "chunked_queryset reached max_records=%d on %s; "
+                    "iteration truncated",
+                    max_records,
+                    queryset.model.__name__,
+                )
+                return
+            yield obj
+            yielded += 1
+        if len(chunk) < chunk_size:
+            return
+        last_pk = chunk[-1].pk

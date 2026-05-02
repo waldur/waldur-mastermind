@@ -1,7 +1,10 @@
+import logging
+
 from django.http import HttpRequest
 from django.test import TestCase
 
-from waldur_core.core.utils import get_ip_address
+from waldur_core.core.models import User
+from waldur_core.core.utils import chunked_queryset, get_ip_address
 
 
 class GetIpAddressTest(TestCase):
@@ -61,3 +64,45 @@ class GetIpAddressTest(TestCase):
         result = get_ip_address(request)
 
         self.assertEqual(result, "")
+
+
+class ChunkedQuerysetTest(TestCase):
+    def setUp(self):
+        self.users = [
+            User.objects.create(username=f"chunked-user-{i}") for i in range(7)
+        ]
+
+    def test_yields_all_rows_across_multiple_chunks(self):
+        result = list(chunked_queryset(User.objects.all(), chunk_size=3))
+        self.assertEqual(len(result), len(self.users))
+        self.assertEqual({u.pk for u in result}, {u.pk for u in self.users})
+
+    def test_yields_in_pk_order(self):
+        result = list(chunked_queryset(User.objects.all(), chunk_size=2))
+        pks = [u.pk for u in result]
+        self.assertEqual(pks, sorted(pks))
+
+    def test_empty_queryset(self):
+        User.objects.all().delete()
+        self.assertEqual(list(chunked_queryset(User.objects.all(), chunk_size=10)), [])
+
+    def test_respects_filter(self):
+        target_pks = {u.pk for u in self.users[:3]}
+        qs = User.objects.filter(pk__in=target_pks)
+        result = list(chunked_queryset(qs, chunk_size=2))
+        self.assertEqual({u.pk for u in result}, target_pks)
+
+    def test_max_records_truncates_and_warns(self):
+        with self.assertLogs("waldur_core.core.utils", level=logging.WARNING) as logs:
+            result = list(
+                chunked_queryset(User.objects.all(), chunk_size=2, max_records=3)
+            )
+        self.assertEqual(len(result), 3)
+        self.assertTrue(
+            any("max_records=3" in line for line in logs.output),
+            f"expected truncation warning in {logs.output!r}",
+        )
+
+    def test_chunk_size_larger_than_dataset(self):
+        result = list(chunked_queryset(User.objects.all(), chunk_size=100))
+        self.assertEqual(len(result), len(self.users))
