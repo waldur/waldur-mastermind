@@ -236,6 +236,31 @@ class PlacementClient:
     def get_usages(self, rp_uuid):
         return self._get(f"/resource_providers/{rp_uuid}/usages").get("usages", {})
 
+    def list_allocation_candidates(self, resources, required=None, limit=None):
+        """Pre-flight scheduler check: ask Placement which resource providers
+        could currently satisfy a request for the given resources (and traits,
+        if `required` is provided). Used by WAL-9893 to fail orders early on
+        a fully-booked cloud instead of letting Nova fail provisioning later.
+
+        Args:
+            resources: dict like ``{"VCPU": 4, "MEMORY_MB": 8192}``.
+            required: optional iterable of trait names. Sent as comma-joined
+                ``required=`` query string. Trait filtering needs Placement
+                microversion 1.17+ (covered by the pinned 1.36).
+            limit: optional cap on returned candidates.
+
+        Returns the raw Placement response dict with `allocation_requests` and
+        `provider_summaries` keys; callers project as needed.
+        """
+        params = {
+            "resources": ",".join(f"{k}:{v}" for k, v in resources.items()),
+        }
+        if required:
+            params["required"] = ",".join(required)
+        if limit is not None:
+            params["limit"] = str(limit)
+        return self._get("/allocation_candidates", **params)
+
 
 def get_placement_client(session: keystone_session.Session) -> PlacementClient:
     return PlacementClient(session)
