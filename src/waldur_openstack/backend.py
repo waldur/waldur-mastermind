@@ -56,6 +56,7 @@ from waldur_openstack.session import (
     get_keystone_session,
     get_neutron_client,
     get_nova_client,
+    get_placement_client,
 )
 from waldur_openstack.utils import get_external_network_id, is_valid_volume_type_name
 
@@ -576,12 +577,72 @@ class OpenStackBackend(ServiceBackend):
                 },
             )
 
+    # Resource classes to placement resource_provider keys → Hypervisor model
+    # field pairs (capacity, usage). Anything else returned by Placement is
+    # ignored — we only care about the three classic capacity dimensions.
+    _PLACEMENT_CAPACITY_MAP = (
+        ("VCPU", "vcpus", "vcpus_used"),
+        ("MEMORY_MB", "memory_mb", "memory_mb_used"),
+        ("DISK_GB", "local_gb", "local_gb_used"),
+    )
+
+    def _collect_placement_capacity(self):
+        """Return a dict mapping resource-provider name → effective capacity.
+
+        Effective total = max(total - reserved, 0) * allocation_ratio. This is
+        the value the Nova scheduler treats as available, which Placement's
+        legacy /os-hypervisors counterparts ignored (they returned raw totals,
+        understating overcommit and overstating reservations).
+
+        For compute-node resource providers, the provider name equals
+        hypervisor_hostname, which is how we link Placement back to the Nova
+        Hypervisor records below.
+        """
+        placement = get_placement_client(self.admin_session)
+        rps = placement.list_resource_providers()
+        result = {}
+        for rp in rps:
+            rp_uuid = rp.get("uuid")
+            if not rp_uuid:
+                continue
+            try:
+                inventories = placement.get_inventories(rp_uuid)
+                usages = placement.get_usages(rp_uuid)
+            except OpenStackBackendError as e:
+                logger.warning(
+                    "Skipping Placement resource provider %s due to error: %s",
+                    rp.get("name"),
+                    e,
+                )
+                continue
+            capacity = {}
+            for (
+                resource_class,
+                capacity_field,
+                usage_field,
+            ) in self._PLACEMENT_CAPACITY_MAP:
+                inv = inventories.get(resource_class)
+                if not inv:
+                    continue
+                total = max(inv.get("total", 0) - inv.get("reserved", 0), 0)
+                allocation_ratio = inv.get("allocation_ratio", 1.0) or 1.0
+                capacity[capacity_field] = int(total * allocation_ratio)
+                capacity[usage_field] = int(usages.get(resource_class, 0))
+            result[rp.get("name")] = capacity
+        return result
+
     def pull_hypervisors(self):
         nova = get_nova_client(self.admin_session)
         try:
             remote_hypervisors = nova.hypervisors.list()
         except nova_exceptions.ClientException as e:
             raise OpenStackBackendError(e)
+
+        # Capacity now comes from Placement; Nova's hypervisor_stats fields are
+        # documented as misleading (ignored CPU pinning, file-backed memory,
+        # shared storage) and removed at microversion 2.88. running_vms, state
+        # and status remain Nova-sourced for now (still present at 2.87).
+        placement_capacity = self._collect_placement_capacity()
 
         remote_ids = [str(h.id) for h in remote_hypervisors]
         stale_qs = models.Hypervisor.objects.filter(settings=self.settings).exclude(
@@ -597,18 +658,19 @@ class OpenStackBackend(ServiceBackend):
         stale_qs.delete()
 
         for remote in remote_hypervisors:
+            capacity = placement_capacity.get(remote.hypervisor_hostname, {})
             _, created = models.Hypervisor.objects.update_or_create(
                 settings=self.settings,
                 backend_id=str(remote.id),
                 defaults={
                     "name": remote.hypervisor_hostname,
                     "hypervisor_type": getattr(remote, "hypervisor_type", ""),
-                    "vcpus": getattr(remote, "vcpus", 0),
-                    "vcpus_used": getattr(remote, "vcpus_used", 0),
-                    "memory_mb": getattr(remote, "memory_mb", 0),
-                    "memory_mb_used": getattr(remote, "memory_mb_used", 0),
-                    "local_gb": getattr(remote, "local_gb", 0),
-                    "local_gb_used": getattr(remote, "local_gb_used", 0),
+                    "vcpus": capacity.get("vcpus", 0),
+                    "vcpus_used": capacity.get("vcpus_used", 0),
+                    "memory_mb": capacity.get("memory_mb", 0),
+                    "memory_mb_used": capacity.get("memory_mb_used", 0),
+                    "local_gb": capacity.get("local_gb", 0),
+                    "local_gb_used": capacity.get("local_gb_used", 0),
                     "running_vms": getattr(remote, "running_vms", 0),
                     "state": getattr(remote, "state", ""),
                     "status": getattr(remote, "status", ""),
@@ -3482,17 +3544,21 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e)
 
     def pull_service_settings_quotas(self):
-        nova = get_nova_client(self.admin_session)
-        try:
-            stats = nova.hypervisor_stats.statistics()
-        except nova_exceptions.ClientException as e:
-            raise OpenStackBackendError(e)
+        # Aggregate cluster-wide capacity from Placement, summing the same
+        # effective totals (allocation_ratio applied, reserved subtracted) used
+        # by pull_hypervisors. This replaces nova.hypervisor_stats.statistics()
+        # which is removed at microversion 2.88.
+        placement_capacity = self._collect_placement_capacity()
+        total_vcpu = sum(c.get("vcpus", 0) for c in placement_capacity.values())
+        used_vcpu = sum(c.get("vcpus_used", 0) for c in placement_capacity.values())
+        total_ram = sum(c.get("memory_mb", 0) for c in placement_capacity.values())
+        used_ram = sum(c.get("memory_mb_used", 0) for c in placement_capacity.values())
 
-        self.settings.set_quota_limit("openstack_vcpu", stats.vcpus)
-        self.settings.set_quota_usage("openstack_vcpu", stats.vcpus_used)
+        self.settings.set_quota_limit("openstack_vcpu", total_vcpu)
+        self.settings.set_quota_usage("openstack_vcpu", used_vcpu)
 
-        self.settings.set_quota_limit("openstack_ram", stats.memory_mb)
-        self.settings.set_quota_usage("openstack_ram", stats.memory_mb_used)
+        self.settings.set_quota_limit("openstack_ram", total_ram)
+        self.settings.set_quota_usage("openstack_ram", used_ram)
 
         self.settings.set_quota_usage("openstack_storage", self.get_storage_usage())
 

@@ -182,6 +182,65 @@ def get_keystone_client(session):
     )
 
 
+class PlacementClient:
+    """Thin wrapper around a keystoneauth session for the Placement REST API.
+
+    Why not openstacksdk's placement proxy: we only need three read endpoints,
+    keystoneauth's session.get already does endpoint discovery + auth + JSON
+    parsing, and a hand-rolled wrapper is trivial to mock in tests. Placement's
+    default microversion (1.0) is sufficient for all three reads.
+    """
+
+    SERVICE_TYPE = "placement"
+
+    def __init__(self, session: keystone_session.Session):
+        self.session = session
+
+    def _get(self, path, **params):
+        # Some clouds register Placement only on the internal interface, so
+        # try public first and fall back. Re-raise as OpenStackBackendError on
+        # full failure so callers can decide whether to abort or skip.
+        last_error = None
+        for interface in ("public", "internal"):
+            try:
+                response = self.session.get(
+                    path,
+                    endpoint_filter={
+                        "service_type": self.SERVICE_TYPE,
+                        "interface": interface,
+                    },
+                    params=params or None,
+                )
+                response.raise_for_status()
+                return response.json()
+            except keystoneauth_exceptions.EndpointNotFound as e:
+                last_error = e
+                continue
+            except keystoneauth_exceptions.ClientException as e:
+                raise OpenStackBackendError(e)
+        raise OpenStackBackendError(
+            f"Placement service is not registered in the catalog (public/internal): {last_error}"
+        )
+
+    def list_resource_providers(self, member_of=None):
+        params = {}
+        if member_of:
+            params["member_of"] = "in:" + ",".join(member_of)
+        return self._get("/resource_providers", **params).get("resource_providers", [])
+
+    def get_inventories(self, rp_uuid):
+        return self._get(f"/resource_providers/{rp_uuid}/inventories").get(
+            "inventories", {}
+        )
+
+    def get_usages(self, rp_uuid):
+        return self._get(f"/resource_providers/{rp_uuid}/usages").get("usages", {})
+
+
+def get_placement_client(session: keystone_session.Session) -> PlacementClient:
+    return PlacementClient(session)
+
+
 def get_nova_client(session: keystone_session.Session) -> "nova2_client.Client":
     # 2.87 is required for volume-backed instance rescue; pinned exactly because
     # 2.88 removes capacity fields from /os-hypervisors/* (consumed by

@@ -1,10 +1,15 @@
 from unittest import mock
 
 import pytest
+from keystoneauth1 import exceptions as keystoneauth_exceptions
 from keystoneauth1.identity import v3
 
 from waldur_openstack.exceptions import OpenStackBackendError
-from waldur_openstack.session import create_session, get_nova_client
+from waldur_openstack.session import (
+    PlacementClient,
+    create_session,
+    get_nova_client,
+)
 
 
 @pytest.fixture
@@ -108,3 +113,77 @@ def test_get_nova_client_pins_microversion_2_87(mock_nova_client_class):
     session = mock.MagicMock()
     get_nova_client(session)
     assert mock_nova_client_class.call_args.kwargs["version"] == "2.87"
+
+
+class TestPlacementClient:
+    def _make_session(self, response=None, raise_=None):
+        session = mock.MagicMock()
+        if raise_ is not None:
+            session.get.side_effect = raise_
+        else:
+            response = response or mock.MagicMock()
+            response.json.return_value = response.json.return_value or {}
+            session.get.return_value = response
+        return session
+
+    def test_falls_back_from_public_to_internal_interface(self):
+        """Some clouds register Placement only on the internal interface."""
+        public_response = mock.MagicMock()
+        internal_response = mock.MagicMock()
+        internal_response.json.return_value = {"resource_providers": [{"uuid": "x"}]}
+        session = mock.MagicMock()
+        # First call (public) raises EndpointNotFound, second (internal) succeeds.
+        session.get.side_effect = [
+            keystoneauth_exceptions.EndpointNotFound("no public placement"),
+            internal_response,
+        ]
+
+        client = PlacementClient(session)
+        result = client.list_resource_providers()
+
+        assert result == [{"uuid": "x"}]
+        assert session.get.call_count == 2
+        assert (
+            session.get.call_args_list[0].kwargs["endpoint_filter"]["interface"]
+            == "public"
+        )
+        assert (
+            session.get.call_args_list[1].kwargs["endpoint_filter"]["interface"]
+            == "internal"
+        )
+
+    def test_raises_when_placement_missing_in_both_interfaces(self):
+        """If Placement isn't registered at all, raise rather than return [].
+        Returning empty would silently zero hypervisor capacity in the DB."""
+        session = mock.MagicMock()
+        session.get.side_effect = keystoneauth_exceptions.EndpointNotFound("missing")
+
+        client = PlacementClient(session)
+        with pytest.raises(OpenStackBackendError, match="Placement service"):
+            client.list_resource_providers()
+
+    def test_member_of_query_param_is_set_for_aggregate_filter(self):
+        response = mock.MagicMock()
+        response.json.return_value = {"resource_providers": []}
+        session = mock.MagicMock()
+        session.get.return_value = response
+
+        client = PlacementClient(session)
+        client.list_resource_providers(member_of=["agg-1", "agg-2"])
+
+        params = session.get.call_args.kwargs["params"]
+        assert params == {"member_of": "in:agg-1,agg-2"}
+
+    def test_get_inventories_returns_inventories_dict(self):
+        response = mock.MagicMock()
+        response.json.return_value = {
+            "inventories": {"VCPU": {"total": 40, "reserved": 0}}
+        }
+        session = mock.MagicMock()
+        session.get.return_value = response
+
+        client = PlacementClient(session)
+        result = client.get_inventories("rp-uuid")
+
+        assert result == {"VCPU": {"total": 40, "reserved": 0}}
+        assert "/resource_providers/rp-uuid/inventories" in session.get.call_args.args
