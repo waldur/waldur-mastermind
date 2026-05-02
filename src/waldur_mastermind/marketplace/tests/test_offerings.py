@@ -1064,7 +1064,6 @@ class OfferingCreateTest(test.APITestCase):
             "initial_primarygroup_number": 5000,
             "initial_uidnumber": 5000,
             "initial_usergroup_number": 6000,
-            "keycloak_username_label": "",
             "offering_user_auto_deletion": False,
             "resource_expiration_threshold": 30,
             "slurm_periodic_policy_enabled": False,

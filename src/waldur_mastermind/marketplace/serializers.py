@@ -483,70 +483,6 @@ class ScriptPluginOptionsSerializer(serializers.Serializer):
     )
 
 
-class KeycloakScopeOptionSerializer(serializers.Serializer):
-    scope_type = serializers.CharField(
-        help_text="Scope type, e.g. 'project', 'cluster'.",
-    )
-    scope_id = serializers.CharField(
-        help_text="Identifier of the scope (UUID or external ID).",
-    )
-    label = serializers.CharField(
-        help_text="Human-readable label shown to end users.",
-    )
-
-
-class KeycloakPluginOptionsSerializer(serializers.Serializer):
-    keycloak_enabled = serializers.BooleanField(
-        required=False,
-        help_text="If set to True, Keycloak group management is enabled for this offering.",
-    )
-    keycloak_base_group = serializers.CharField(
-        required=False,
-        help_text="Root parent group in Keycloak under which offering groups are created. "
-        "Groups are organized as: {base_group}/{offering_slug}/{role_group}. "
-        "If empty, offering groups are created at the realm root.",
-    )
-    keycloak_sync_frequency = serializers.IntegerField(
-        required=False,
-        min_value=1,
-        help_text="Frequency in minutes for syncing Keycloak group memberships.",
-    )
-    keycloak_group_name_template = serializers.CharField(
-        required=False,
-        help_text="Template for generating Keycloak group names. "
-        "Uses $variable syntax (e.g. $offering_uuid_$role_name). "
-        "Allowed variables: offering_uuid, offering_name, offering_slug, "
-        "resource_uuid, resource_name, resource_slug, "
-        "project_uuid, project_name, project_slug, "
-        "organization_uuid, organization_name, organization_slug, "
-        "role_name, scope_id.",
-    )
-
-    def validate_keycloak_group_name_template(self, value):
-        if value:
-            from waldur_keycloak.utils import validate_group_name_template
-
-            error = validate_group_name_template(value)
-            if error:
-                raise serializers.ValidationError(error)
-        return value
-
-    keycloak_username_label = serializers.CharField(
-        required=False,
-        default="",
-        allow_blank=True,
-        help_text="Custom label for the username field when inviting external users "
-        "(e.g. 'Civil code', 'CUID'). If empty, defaults to 'Username'.",
-    )
-
-
-class ResourceKeycloakScopesSerializer(serializers.Serializer):
-    keycloak_available_scopes = KeycloakScopeOptionSerializer(
-        many=True,
-        help_text="Pre-configured scope options for this resource.",
-    )
-
-
 class MergedPluginOptionsSerializer(
     LifecyclePluginOptionsSerializer,
     OpenStackPluginOptionsSerializer,
@@ -556,7 +492,6 @@ class MergedPluginOptionsSerializer(
     RancherPluginOptionsSerializer,
     AgentPluginOptionsSerializer,
     ScriptPluginOptionsSerializer,
-    KeycloakPluginOptionsSerializer,
     OfferingResourceDisplayOptionsSerializer,
 ):
     pass

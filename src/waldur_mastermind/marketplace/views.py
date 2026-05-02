@@ -8528,47 +8528,6 @@ class ProviderResourceViewSet(BaseResourceViewSet):
     )
 
     @extend_schema(
-        summary="Set Keycloak scope options for a resource",
-        description="Allows a service provider to configure available scope options "
-        "for Keycloak memberships on a resource. "
-        "Requires Keycloak integration to be enabled on the offering.",
-        request=serializers.ResourceKeycloakScopesSerializer,
-        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
-    )
-    @action(detail=True, methods=["post"])
-    def set_keycloak_scopes(self, request, uuid=None):
-        resource = cast(models.Resource, self.get_object())
-
-        if not resource.offering.plugin_options.get("keycloak_enabled"):
-            raise ValidationError(
-                _("Keycloak integration is not enabled for this offering.")
-            )
-
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
-        options = resource.options or {}
-        options["keycloak_available_scopes"] = serializer.validated_data[
-            "keycloak_available_scopes"
-        ]
-        resource.options = options
-        resource.save(update_fields=["options"])
-
-        return Response(
-            {"status": _("Keycloak scope options have been updated.")},
-            status=status.HTTP_200_OK,
-        )
-
-    set_keycloak_scopes_permissions = [
-        permission_factory(
-            PermissionEnum.UPDATE_RESOURCE_OPTIONS,
-            ["offering.customer"],
-        )
-    ]
-
-    set_keycloak_scopes_serializer_class = serializers.ResourceKeycloakScopesSerializer
-
-    @extend_schema(
         summary="Set resource state to erred",
         description="Allows a service provider to manually set the state of a resource to 'erred'. An error message and traceback can be provided.",
         request=serializers.ResourceSetStateErredSerializer,
