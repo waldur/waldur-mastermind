@@ -187,3 +187,19 @@ class TestPlacementClient:
 
         assert result == {"VCPU": {"total": 40, "reserved": 0}}
         assert "/resource_providers/rp-uuid/inventories" in session.get.call_args.args
+
+    def test_pinned_microversion_header_is_sent(self):
+        # Without this header Placement defaults to microversion 1.0 and
+        # silently drops parent_provider_uuid/traits/aggregates that downstream
+        # code needs. Lab probe (May 2026) confirmed the fields appear only
+        # when the header is present.
+        response = mock.MagicMock()
+        response.json.return_value = {"resource_providers": []}
+        session = mock.MagicMock()
+        session.get.return_value = response
+
+        client = PlacementClient(session)
+        client.list_resource_providers()
+
+        headers = session.get.call_args.kwargs["headers"]
+        assert headers["OpenStack-API-Version"] == "placement 1.36"

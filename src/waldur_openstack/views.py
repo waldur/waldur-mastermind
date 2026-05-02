@@ -308,6 +308,16 @@ class HypervisorViewSet(structure_views.BaseServicePropertyViewSet):
         return response.Response(serializer.data)
 
 
+class HypervisorInventoryViewSet(structure_views.BaseServicePropertyViewSet):
+    queryset = models.HypervisorInventory.objects.all().order_by(
+        "hypervisor", "resource_class"
+    )
+    serializer_class = serializers.HypervisorInventorySerializer
+    lookup_field = "uuid"
+    filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
+    filterset_class = filters.HypervisorInventoryFilter
+
+
 @extend_schema_view(
     list=extend_schema(
         summary="List security groups",

@@ -157,6 +157,22 @@ class HypervisorFilter(structure_filters.ServicePropertySettingsFilter):
         )
 
 
+class HypervisorInventoryFilter(django_filters.FilterSet):
+    hypervisor_uuid = core_filters.RelatedUUIDFilter(
+        field_name="hypervisor__uuid",
+        view_name="openstack-hypervisor-detail",
+    )
+    settings_uuid = core_filters.RelatedUUIDFilter(
+        field_name="hypervisor__settings__uuid",
+        view_name="servicesettings-detail",
+    )
+    resource_class = django_filters.CharFilter(lookup_expr="iexact")
+
+    class Meta:
+        model = models.HypervisorInventory
+        fields = ("hypervisor_uuid", "settings_uuid", "resource_class")
+
+
 class RouterFilter(TenantFilterSet, structure_filters.NameFilterSet):
     state = core_filters.MappedMultipleChoiceFilter(CoreStates.choices, label="State")
 

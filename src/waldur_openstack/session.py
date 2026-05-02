@@ -185,13 +185,22 @@ def get_keystone_client(session):
 class PlacementClient:
     """Thin wrapper around a keystoneauth session for the Placement REST API.
 
-    Why not openstacksdk's placement proxy: we only need three read endpoints,
-    keystoneauth's session.get already does endpoint discovery + auth + JSON
-    parsing, and a hand-rolled wrapper is trivial to mock in tests. Placement's
-    default microversion (1.0) is sufficient for all three reads.
+    Why not openstacksdk's placement proxy: we only need a handful of read
+    endpoints, keystoneauth's session.get already does endpoint discovery +
+    auth + JSON parsing, and a hand-rolled wrapper is trivial to mock in tests.
     """
 
     SERVICE_TYPE = "placement"
+    # Pinned microversion. 1.36 covers everything Waldur reads:
+    #   - parent_provider_uuid / root_provider_uuid on resource_providers (1.14)
+    #   - /resource_providers/{uuid}/traits (1.6)
+    #   - /resource_providers/{uuid}/aggregates (1.1)
+    #   - /allocation_candidates with required= filter (1.17, full at 1.31)
+    #   - /allocations/{consumer_uuid} (1.0)
+    # The default (1.0) silently drops several of these fields, so the header
+    # is load-bearing — without it, parent_provider_uuid is missing from
+    # resource_providers responses and traits/aggregates 404.
+    MICROVERSION = "1.36"
 
     def __init__(self, session: keystone_session.Session):
         self.session = session
@@ -200,6 +209,7 @@ class PlacementClient:
         # Some clouds register Placement only on the internal interface, so
         # try public first and fall back. Re-raise as OpenStackBackendError on
         # full failure so callers can decide whether to abort or skip.
+        headers = {"OpenStack-API-Version": f"placement {self.MICROVERSION}"}
         last_error = None
         for interface in ("public", "internal"):
             try:
@@ -210,6 +220,7 @@ class PlacementClient:
                         "interface": interface,
                     },
                     params=params or None,
+                    headers=headers,
                 )
                 response.raise_for_status()
                 return response.json()

@@ -381,6 +381,54 @@ class Hypervisor(structure_models.ServiceProperty):
         )
 
 
+class HypervisorInventory(core_models.UuidMixin, models.Model):
+    """One Placement inventory line per (hypervisor, resource_class).
+
+    Stores the *raw* Placement values (total, reserved, allocation_ratio, used)
+    so admins can explain quota math and so non-classic resource classes
+    (VGPU, IPV4_ADDRESS, NUMA_CORE, CUSTOM_*, …) are surfaced — the parent
+    Hypervisor still keeps the legacy `vcpus`/`memory_mb`/`local_gb` columns
+    populated with the effective totals for backward compat.
+    """
+
+    class Permissions:
+        # Visible to staff/support and to service-provider owners.
+        customer_path = "hypervisor__settings__customer"
+
+    hypervisor = models.ForeignKey(
+        Hypervisor,
+        on_delete=models.CASCADE,
+        related_name="inventories",
+    )
+    resource_class = models.CharField(
+        max_length=255,
+        help_text=_(
+            "Placement resource class, e.g. VCPU, MEMORY_MB, DISK_GB, VGPU, "
+            "PCI_DEVICE, NUMA_CORE, CUSTOM_*."
+        ),
+    )
+    total = models.PositiveBigIntegerField(default=0)
+    reserved = models.PositiveBigIntegerField(default=0)
+    allocation_ratio = models.FloatField(default=1.0)
+    used = models.PositiveBigIntegerField(default=0)
+
+    class Meta:
+        unique_together = ("hypervisor", "resource_class")
+        ordering = ("hypervisor", "resource_class")
+
+    @classmethod
+    def get_url_name(cls):
+        return "openstack-hypervisor-inventory"
+
+    def __str__(self):
+        return f"{self.hypervisor.name}:{self.resource_class}"
+
+    @property
+    def effective_total(self) -> int:
+        """Capacity the Nova scheduler treats as available."""
+        return int(max(self.total - self.reserved, 0) * (self.allocation_ratio or 1.0))
+
+
 class ExternalSubnet(
     core_models.DescribableMixin,
     core_models.UuidMixin,
