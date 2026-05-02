@@ -562,6 +562,56 @@ class PullInstanceTest(BaseBackendTest):
         self.assertEqual(instance.hypervisor_hostname, "aio1.openstack.local")
 
 
+class BackendInstanceToInstancePartialCellTest(BaseBackendTest):
+    """Microversion 2.69 may return partial server entries when a cell is
+    down: `created` becomes None and `status` becomes "UNKNOWN". The pull must
+    not crash on these — produce a sane Instance instead so the rest of the
+    sync continues."""
+
+    def test_partial_cell_server_does_not_crash(self):
+        partial_server = Server(
+            manager=None,
+            info={
+                "id": "partial-id",
+                "name": "partial",
+                "status": "UNKNOWN",
+                "key_name": "",
+                "created": None,
+                "OS-SRV-USG:launched_at": None,
+                "flavor": None,
+                "image": "",
+                "networks": {},
+            },
+        )
+
+        instance = self.backend._backend_instance_to_instance(
+            self.tenant, partial_server
+        )
+
+        self.assertEqual(instance.backend_id, "partial-id")
+        self.assertEqual(instance.runtime_state, "UNKNOWN")
+        self.assertIsNone(instance.created)
+
+    def test_partial_cell_server_with_missing_networks(self):
+        partial_server = Server(
+            manager=None,
+            info={
+                "id": "partial-id-2",
+                "name": "partial-2",
+                "status": "UNKNOWN",
+                "key_name": "",
+                "created": None,
+                "image": "",
+            },
+        )
+
+        instance = self.backend._backend_instance_to_instance(
+            self.tenant, partial_server
+        )
+
+        self.assertEqual(instance.directly_connected_ips, "")
+
+
 class PullInstancePortsTest(BaseBackendTest):
     def setup_neutron(self, port_id, device_id, subnet_id):
         self.mocked_neutron.list_ports.return_value = {
