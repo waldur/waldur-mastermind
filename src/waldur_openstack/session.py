@@ -183,9 +183,12 @@ def get_keystone_client(session):
 
 
 def get_nova_client(session: keystone_session.Session) -> "nova2_client.Client":
+    # 2.87 is required for volume-backed instance rescue; pinned exactly because
+    # 2.88 removes capacity fields from /os-hypervisors/* (consumed by
+    # pull_hypervisors and pull_service_settings_quotas).
     try:
         return nova_client.Client(
-            version="2.47",
+            version="2.87",
             session=session,
             endpoint_type="publicURL",
         )

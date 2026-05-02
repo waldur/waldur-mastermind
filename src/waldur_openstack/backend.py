@@ -4957,7 +4957,7 @@ class OpenStackBackend(ServiceBackend):
             pass
         if connected_internal_network_names is None:
             connected_internal_network_names = set()
-        backend_networks = backend_instance.networks
+        backend_networks = getattr(backend_instance, "networks", None) or {}
         external_backend_networks = (
             set(backend_networks.keys()) - connected_internal_network_names
         )
@@ -4965,13 +4965,21 @@ class OpenStackBackend(ServiceBackend):
             ",".join(backend_networks[ext_net]) for ext_net in external_backend_networks
         ]
 
+        # Microversion 2.69 partial-cells responses can return `created=None`,
+        # so guard against TypeError from dateparse.parse_datetime(None).
+        created_raw = getattr(backend_instance, "created", None)
+        try:
+            created = dateparse.parse_datetime(created_raw) if created_raw else None
+        except (ValueError, TypeError):
+            created = None
+
         instance = models.Instance(
             name=backend_instance.name or backend_instance.id,
             key_name=backend_instance.key_name or "",
             start_time=launch_time,
             state=CoreStates.OK,
             runtime_state=backend_instance.status,
-            created=dateparse.parse_datetime(backend_instance.created),
+            created=created,
             backend_id=backend_instance.id,
             availability_zone=availability_zone,
             hypervisor_hostname=hypervisor_hostname,

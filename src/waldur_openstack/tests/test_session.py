@@ -4,7 +4,7 @@ import pytest
 from keystoneauth1.identity import v3
 
 from waldur_openstack.exceptions import OpenStackBackendError
-from waldur_openstack.session import create_session
+from waldur_openstack.session import create_session, get_nova_client
 
 
 @pytest.fixture
@@ -97,3 +97,14 @@ class TestCreateSessionAuthType:
 
         auth_arg = mock_session_class.call_args[1]["auth"]
         assert isinstance(auth_arg, v3.Password)
+
+
+@mock.patch("waldur_openstack.session.nova_client.Client")
+def test_get_nova_client_pins_microversion_2_87(mock_nova_client_class):
+    # Pinning is load-bearing: 2.87 enables volume-backed rescue, while 2.88
+    # removes capacity fields from /os-hypervisors/* that pull_hypervisors and
+    # pull_service_settings_quotas consume. Negotiating "latest" would silently
+    # zero hypervisor capacity on any cloud advertising 2.88+.
+    session = mock.MagicMock()
+    get_nova_client(session)
+    assert mock_nova_client_class.call_args.kwargs["version"] == "2.87"
