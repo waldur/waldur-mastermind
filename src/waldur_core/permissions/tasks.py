@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.core.models import User
+from waldur_core.core.utils import chunked_queryset
 
 from . import models
 from .handlers import (
@@ -54,10 +55,12 @@ def sync_user_deactivation_status():
     deactivated_count = 0
     reactivated_count = 0
 
-    # Process all non-staff/non-support users with iterator for memory efficiency
-    # Use all_objects to include inactive users (needed for reactivation checks)
-    for user in User.all_objects.filter(is_staff=False, is_support=False).iterator(
-        chunk_size=100
+    # Process all non-staff/non-support users in client-side chunks.
+    # Use all_objects to include inactive users (needed for reactivation checks).
+    for user in chunked_queryset(
+        User.all_objects.filter(is_staff=False, is_support=False),
+        chunk_size=100,
+        max_records=200_000,
     ):
         reason = get_deactivation_reason(user)
         if reason:
@@ -83,7 +86,9 @@ def _revoke_user_roles_outside_availability(role) -> int:
 
     revoked = 0
     active_user_roles = models.UserRole.objects.filter(role=role, is_active=True)
-    for user_role in active_user_roles.iterator(chunk_size=200):
+    for user_role in chunked_queryset(
+        active_user_roles, chunk_size=200, max_records=500_000
+    ):
         scope = user_role.scope
         if scope is None:
             continue
@@ -129,7 +134,11 @@ def reconcile_user_roles_against_availability() -> None:
         models.RoleAvailability.objects.values_list("role_id", flat=True).distinct()
     )
     total_revoked = 0
-    for role in models.Role.objects.filter(id__in=role_ids).iterator(chunk_size=50):
+    for role in chunked_queryset(
+        models.Role.objects.filter(id__in=role_ids),
+        chunk_size=50,
+        max_records=10_000,
+    ):
         total_revoked += _revoke_user_roles_outside_availability(role)
     logger.info(
         "Periodic UserRole reconciliation: %d role(s) checked, %d revocation(s).",

@@ -76,6 +76,7 @@ from waldur_core.core.client import ClientValidationError, get_waldur_client
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.utils import (
     broadcast_mail,
+    chunked_queryset,
     deserialize_instance,
     format_homeport_link,
     month_start,
@@ -1243,10 +1244,11 @@ def update_remote_customer_permissions(
         else expiration_time
     )
 
-    # Use iterator for memory efficiency with customers having many projects
-    for project in structure_models.Project.available_objects.filter(
-        customer=customer
-    ).iterator(chunk_size=50):
+    for project in chunked_queryset(
+        structure_models.Project.available_objects.filter(customer=customer),
+        chunk_size=50,
+        max_records=10_000,
+    ):
         sync_project_permission(grant, project, role_name, user, new_expiration_time)
 
 

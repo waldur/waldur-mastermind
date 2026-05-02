@@ -3,7 +3,6 @@ import logging
 from datetime import timedelta
 
 from celery import shared_task
-from django.db import transaction
 from django.db.models import Q
 from django.db.utils import DatabaseError
 from django.utils import timezone
@@ -105,14 +104,13 @@ class BackgroundListPullTask(core_tasks.BackgroundTask):
         ).exclude(backend_id="")
 
     def run(self):
-        # Use iterator() with chunk_size to prevent loading all instances into memory.
-        # Wrap in transaction.atomic() because server-side cursors (used by
-        # psycopg3 for .iterator(chunk_size=...)) require an open transaction
-        # to stay valid for the duration of the iteration.
-        with transaction.atomic():
-            for instance in self.get_pulled_objects().iterator(chunk_size=50):
-                serialized = core_utils.serialize_instance(instance)
-                self.pull_task().apply_async(args=(serialized,), kwargs={})
+        # Client-side chunked iteration: avoids server-side cursors which
+        # break with PgBouncer transaction pooling / load-balanced PG.
+        for instance in core_utils.chunked_queryset(
+            self.get_pulled_objects(), chunk_size=50, max_records=50_000
+        ):
+            serialized = core_utils.serialize_instance(instance)
+            self.pull_task().apply_async(args=(serialized,), kwargs={})
 
 
 class ServiceListPullTask(BackgroundListPullTask):

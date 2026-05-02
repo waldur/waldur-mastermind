@@ -2,6 +2,7 @@ from celery import shared_task
 from django.conf import settings as django_settings
 from django.utils import timezone
 
+from waldur_core.core.utils import chunked_queryset
 from waldur_core.structure import models as structure_models
 
 from . import models
@@ -11,8 +12,9 @@ from . import models
 def sync_daily_quotas():
     date = timezone.now().date()
     for model in (structure_models.Project, structure_models.Customer):
-        # Use iterator() with chunk_size to prevent loading all instances into memory
-        for scope in model.objects.all().iterator(chunk_size=100):
+        for scope in chunked_queryset(
+            model.objects.all(), chunk_size=100, max_records=100_000
+        ):
             for name, value in scope.quota_usages.items():
                 models.DailyQuotaHistory.objects.update_or_create_quota(
                     scope, name, date, value
