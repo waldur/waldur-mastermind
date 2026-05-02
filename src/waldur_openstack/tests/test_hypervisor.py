@@ -192,41 +192,92 @@ class HypervisorApiTest(test.APITestCase):
 
 
 class PullHypervisorsTest(test.APITestCase):
+    """pull_hypervisors now sources capacity from Placement (the legacy
+    /os-hypervisors capacity fields are removed at Nova microversion 2.88, and
+    the values were also documented as misleading regarding CPU pinning, shared
+    storage, and overcommit). Host metadata (hostname, type, state, status,
+    running_vms) still comes from Nova for the time being.
+    """
+
     def setUp(self):
         self.fixture = OpenStackFixture()
         self.nova_patcher = mock.patch("waldur_openstack.backend.get_nova_client")
+        self.placement_patcher = mock.patch(
+            "waldur_openstack.backend.get_placement_client"
+        )
         self.mock_nova = self.nova_patcher.start()
+        self.mock_placement = self.placement_patcher.start()
+        # Default: empty placement (resource provider list returns nothing).
+        self.mock_placement.return_value.list_resource_providers.return_value = []
         mock_session()
 
     def tearDown(self):
         mock.patch.stopall()
+
+    def _set_placement(self, hostname_to_capacity):
+        """Convenience: set up Placement mock to return one resource provider
+        per hostname with the given (vcpus, memory_mb, local_gb) capacity and
+        usage tuples. Format:
+        {
+          "oscompute01": {
+            "VCPU": (total, reserved, allocation_ratio, used),
+            "MEMORY_MB": (...),
+            "DISK_GB": (...),
+          },
+          ...
+        }
+        """
+        rps = []
+        inventories_by_uuid = {}
+        usages_by_uuid = {}
+        for idx, (hostname, classes) in enumerate(hostname_to_capacity.items()):
+            uuid_str = f"rp-uuid-{idx}"
+            rps.append({"uuid": uuid_str, "name": hostname})
+            inventories_by_uuid[uuid_str] = {
+                cls: {
+                    "total": total,
+                    "reserved": reserved,
+                    "allocation_ratio": allocation_ratio,
+                }
+                for cls, (total, reserved, allocation_ratio, _) in classes.items()
+            }
+            usages_by_uuid[uuid_str] = {
+                cls: used for cls, (_, _, _, used) in classes.items()
+            }
+        self.mock_placement.return_value.list_resource_providers.return_value = rps
+        self.mock_placement.return_value.get_inventories.side_effect = (
+            lambda u: inventories_by_uuid.get(u, {})
+        )
+        self.mock_placement.return_value.get_usages.side_effect = (
+            lambda u: usages_by_uuid.get(u, {})
+        )
 
     def _make_remote_hypervisor(self, id, hostname, hypervisor_type="KVM", **kwargs):
         h = mock.MagicMock()
         h.id = id
         h.hypervisor_hostname = hostname
         h.hypervisor_type = hypervisor_type
-        h.vcpus = kwargs.get("vcpus", 40)
-        h.vcpus_used = kwargs.get("vcpus_used", 2)
-        h.memory_mb = kwargs.get("memory_mb", 131072)
-        h.memory_mb_used = kwargs.get("memory_mb_used", 3072)
-        h.local_gb = kwargs.get("local_gb", 3000)
-        h.local_gb_used = kwargs.get("local_gb_used", 11)
         h.running_vms = kwargs.get("running_vms", 3)
         h.state = kwargs.get("state", "up")
         h.status = kwargs.get("status", "enabled")
         return h
 
-    def test_new_hypervisor_is_created(self):
+    def test_new_hypervisor_is_created_with_placement_capacity(self):
         remote = self._make_remote_hypervisor(1, "oscompute01", "KVM")
         self.mock_nova.return_value.hypervisors.list.return_value = [remote]
+        self._set_placement(
+            {
+                "oscompute01": {
+                    "VCPU": (40, 0, 1.0, 2),
+                    "MEMORY_MB": (131072, 0, 1.0, 3072),
+                    "DISK_GB": (3000, 0, 1.0, 11),
+                }
+            }
+        )
 
         backend = OpenStackBackend(self.fixture.settings)
         backend.pull_hypervisors()
 
-        self.assertEqual(
-            models.Hypervisor.objects.filter(settings=self.fixture.settings).count(), 1
-        )
         hypervisor = models.Hypervisor.objects.get(
             settings=self.fixture.settings, backend_id="1"
         )
@@ -236,8 +287,32 @@ class PullHypervisorsTest(test.APITestCase):
         self.assertEqual(hypervisor.vcpus_used, 2)
         self.assertEqual(hypervisor.memory_mb, 131072)
         self.assertEqual(hypervisor.memory_mb_used, 3072)
+        self.assertEqual(hypervisor.local_gb, 3000)
+        self.assertEqual(hypervisor.local_gb_used, 11)
+        self.assertEqual(hypervisor.running_vms, 3)
         self.assertEqual(hypervisor.state, "up")
         self.assertEqual(hypervisor.status, "enabled")
+
+    def test_allocation_ratio_is_honored(self):
+        # Memory at 1.5x overcommit: 131072 total, 16384 reserved → effective
+        # (131072 - 16384) * 1.5 = 172032
+        remote = self._make_remote_hypervisor(1, "oscompute01")
+        self.mock_nova.return_value.hypervisors.list.return_value = [remote]
+        self._set_placement(
+            {
+                "oscompute01": {
+                    "MEMORY_MB": (131072, 16384, 1.5, 0),
+                }
+            }
+        )
+
+        backend = OpenStackBackend(self.fixture.settings)
+        backend.pull_hypervisors()
+
+        hypervisor = models.Hypervisor.objects.get(
+            settings=self.fixture.settings, backend_id="1"
+        )
+        self.assertEqual(hypervisor.memory_mb, 172032)
 
     def test_existing_hypervisor_is_updated(self):
         factories.HypervisorFactory(
@@ -246,15 +321,13 @@ class PullHypervisorsTest(test.APITestCase):
             name="old-name",
             vcpus=20,
         )
-        remote = self._make_remote_hypervisor(1, "oscompute01", vcpus=40)
+        remote = self._make_remote_hypervisor(1, "oscompute01")
         self.mock_nova.return_value.hypervisors.list.return_value = [remote]
+        self._set_placement({"oscompute01": {"VCPU": (40, 0, 1.0, 0)}})
 
         backend = OpenStackBackend(self.fixture.settings)
         backend.pull_hypervisors()
 
-        self.assertEqual(
-            models.Hypervisor.objects.filter(settings=self.fixture.settings).count(), 1
-        )
         hypervisor = models.Hypervisor.objects.get(
             settings=self.fixture.settings, backend_id="1"
         )
@@ -296,3 +369,81 @@ class PullHypervisorsTest(test.APITestCase):
         self.assertEqual(
             models.Hypervisor.objects.filter(settings=self.fixture.settings).count(), 3
         )
+
+    def test_hypervisor_without_matching_placement_provider_gets_zero_capacity(
+        self,
+    ):
+        # An ironic node or compute host whose Placement RP hasn't reported
+        # yet should not crash the pull; capacity stays at zero until the next
+        # cycle picks it up.
+        remote = self._make_remote_hypervisor(1, "oscompute01")
+        self.mock_nova.return_value.hypervisors.list.return_value = [remote]
+        # Placement returns no resource providers
+        self._set_placement({})
+
+        backend = OpenStackBackend(self.fixture.settings)
+        backend.pull_hypervisors()
+
+        hypervisor = models.Hypervisor.objects.get(
+            settings=self.fixture.settings, backend_id="1"
+        )
+        self.assertEqual(hypervisor.vcpus, 0)
+        self.assertEqual(hypervisor.memory_mb, 0)
+
+
+class PullServiceSettingsQuotasTest(test.APITestCase):
+    """openstack_vcpu and openstack_ram quotas are now aggregated from
+    Placement totals across all resource providers, replacing the removed
+    nova.hypervisor_stats.statistics() endpoint."""
+
+    def setUp(self):
+        self.fixture = OpenStackFixture()
+        self.placement_patcher = mock.patch(
+            "waldur_openstack.backend.get_placement_client"
+        )
+        self.cinder_patcher = mock.patch("waldur_openstack.backend.get_cinder_client")
+        self.mock_placement = self.placement_patcher.start()
+        self.mock_cinder = self.cinder_patcher.start()
+        self.mock_cinder.return_value.volumes.list.return_value = []
+        self.mock_cinder.return_value.volume_snapshots.list.return_value = []
+        mock_session()
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    def test_vcpu_and_ram_aggregated_across_resource_providers(self):
+        rps = [
+            {"uuid": "rp-1", "name": "oscompute01"},
+            {"uuid": "rp-2", "name": "oscompute02"},
+        ]
+        self.mock_placement.return_value.list_resource_providers.return_value = rps
+        self.mock_placement.return_value.get_inventories.side_effect = lambda u: {
+            "rp-1": {
+                "VCPU": {"total": 40, "reserved": 0, "allocation_ratio": 1.0},
+                "MEMORY_MB": {
+                    "total": 131072,
+                    "reserved": 0,
+                    "allocation_ratio": 1.0,
+                },
+            },
+            "rp-2": {
+                "VCPU": {"total": 60, "reserved": 0, "allocation_ratio": 1.0},
+                "MEMORY_MB": {
+                    "total": 262144,
+                    "reserved": 0,
+                    "allocation_ratio": 1.0,
+                },
+            },
+        }[u]
+        self.mock_placement.return_value.get_usages.side_effect = lambda u: {
+            "rp-1": {"VCPU": 5, "MEMORY_MB": 8192},
+            "rp-2": {"VCPU": 12, "MEMORY_MB": 16384},
+        }[u]
+
+        backend = OpenStackBackend(self.fixture.settings)
+        backend.pull_service_settings_quotas()
+
+        self.assertEqual(self.fixture.settings.get_quota_limit("openstack_vcpu"), 100)
+        self.assertEqual(self.fixture.settings.get_quota_usage("openstack_vcpu"), 17)
+        self.assertEqual(self.fixture.settings.get_quota_limit("openstack_ram"), 393216)
+        self.assertEqual(self.fixture.settings.get_quota_usage("openstack_ram"), 24576)

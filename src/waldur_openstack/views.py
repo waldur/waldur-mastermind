@@ -300,15 +300,10 @@ class HypervisorViewSet(structure_views.BaseServicePropertyViewSet):
             used_local_gb=Sum("local_gb_used"),
             total_running_vms=Sum("running_vms"),
         )
-        # Replace None with 0 when queryset is empty
+        # total_vcpus already contains the effective (overcommit-applied)
+        # number per host, sourced from Placement's per-RP allocation_ratio.
+        # See pull_hypervisors / _collect_placement_capacity in backend.py.
         result = {k: v or 0 for k, v in result.items()}
-        settings_uuid = request.query_params["settings_uuid"]
-        settings = structure_models.ServiceSettings.objects.get(uuid=settings_uuid)
-        cpu_allocation_ratio = (settings.options or {}).get(
-            "cpu_allocation_ratio", 16.0
-        )
-        result["cpu_allocation_ratio"] = cpu_allocation_ratio
-        result["effective_vcpus"] = int(result["total_vcpus"] * cpu_allocation_ratio)
         serializer = serializers.HypervisorSummarySerializer(result)
         return response.Response(serializer.data)
 

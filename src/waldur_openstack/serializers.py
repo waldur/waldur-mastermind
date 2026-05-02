@@ -174,17 +174,6 @@ class OpenStackServiceSerializer(structure_serializers.ServiceOptionsSerializer)
         required=False,
     )
 
-    cpu_allocation_ratio = serializers.FloatField(
-        source="options.cpu_allocation_ratio",
-        help_text=_(
-            "CPU overcommitment ratio used by Nova (cpu_allocation_ratio in nova.conf). "
-            "Defaults to 16.0."
-        ),
-        default=16.0,
-        required=False,
-        min_value=0.1,
-    )
-
     external_network_id = serializers.CharField(
         source="options.external_network_id",
         help_text=_(
@@ -375,8 +364,6 @@ class HypervisorSummarySerializer(serializers.Serializer):
     total_local_gb = serializers.IntegerField()
     used_local_gb = serializers.IntegerField()
     total_running_vms = serializers.IntegerField()
-    cpu_allocation_ratio = serializers.FloatField()
-    effective_vcpus = serializers.IntegerField()
 
 
 class HypervisorSerializer(structure_serializers.BasePropertySerializer):
