@@ -522,6 +522,15 @@ class RequestTypeAdminSerializer(
         return obj.backend_id is not None
 
 
+class RequestTypeReorderItemSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    order = serializers.IntegerField()
+
+
+class RequestTypeReorderSerializer(serializers.Serializer):
+    items = RequestTypeReorderItemSerializer(many=True)
+
+
 class CommentSerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):

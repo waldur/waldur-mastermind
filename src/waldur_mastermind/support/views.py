@@ -226,11 +226,13 @@ class RequestTypeAdminViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     deactivate_permissions = [structure_permissions.is_staff]
 
-    @extend_schema(request=None)
+    @extend_schema(request=serializers.RequestTypeReorderSerializer)
     @decorators.action(detail=False, methods=["post"])
     def reorder(self, request):
         """Bulk update order for multiple request types."""
-        items = request.data.get("items", [])
+        serializer = serializers.RequestTypeReorderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        items = serializer.validated_data["items"]
         for item in items:
             models.RequestType.objects.filter(uuid=item["uuid"]).update(
                 order=item["order"]
