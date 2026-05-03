@@ -428,6 +428,20 @@ class AllocationCandidatesResponseSerializer(serializers.Serializer):
     )
 
 
+class InstancePlacementAllocationSerializer(serializers.Serializer):
+    """One Placement allocation record for an instance, scoped to a single
+    resource provider. Returned as a list (one entry per RP the instance
+    consumes from). Audience is restricted at the view layer
+    (``can_diagnose_openstack_instance``) — staff, support and service-
+    provider owners only — so all fields including the resource provider
+    UUID and name are unconditionally exposed here.
+    """
+
+    resource_provider_uuid = serializers.CharField()
+    resource_provider_name = serializers.CharField()
+    resources = serializers.DictField(child=serializers.IntegerField())
+
+
 class HypervisorSerializer(structure_serializers.BasePropertySerializer):
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Hypervisor

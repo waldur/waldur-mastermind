@@ -272,6 +272,23 @@ class PlacementClient:
             params["limit"] = str(limit)
         return self._get("/allocation_candidates", **params)
 
+    def get_allocations(self, consumer_uuid):
+        """Return Placement's allocation record for a consumer (e.g. a Nova
+        server UUID). Returns the raw `allocations` dict shape from Placement::
+
+            {
+              "<rp_uuid>": {
+                "resources": {"VCPU": 1, "MEMORY_MB": 1024, "DISK_GB": 10},
+                "generation": 23,
+              },
+              ...
+            }
+
+        Empty dict for unknown consumers — Placement returns 200 with empty
+        `allocations` rather than 404.
+        """
+        return self._get(f"/allocations/{consumer_uuid}").get("allocations", {})
+
 
 def get_placement_client(session: keystone_session.Session) -> PlacementClient:
     return PlacementClient(session)
