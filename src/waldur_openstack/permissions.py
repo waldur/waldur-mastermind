@@ -66,6 +66,30 @@ def has_permissions_for_console(request, view, instance=None):
     raise exceptions.PermissionDenied()
 
 
+def can_diagnose_openstack_instance(request, view, instance=None):
+    """Gate provider-side diagnostic endpoints on an instance.
+
+    Allows staff, support, and service-provider owners (CUSTOMER.OWNER or
+    SERVICE_PROVIDER.MANAGER on the OpenStack ServiceSettings' customer).
+    Project-level roles (admin/manager/member) are rejected: the data
+    these endpoints expose (Placement resource_provider UUIDs/names,
+    fleet topology) is sysadmin-scope, not end-user-scope.
+    """
+    if not instance:
+        return
+    user = request.user
+    if user.is_staff or user.is_support:
+        return
+    service_settings = getattr(instance.tenant, "service_settings", None)
+    customer = getattr(service_settings, "customer", None) if service_settings else None
+    if customer is not None and (
+        customer.has_user(user, CustomerRole.OWNER)
+        or customer.has_user(user, ServiceProviderRole.MANAGER)
+    ):
+        return
+    raise exceptions.PermissionDenied()
+
+
 def can_update_tenant_quotas_as_service_provider(request, view, tenant=None):
     if not tenant:
         return

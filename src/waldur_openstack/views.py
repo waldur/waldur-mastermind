@@ -3056,6 +3056,39 @@ class InstanceViewSet(
     console_log_serializer_class = serializers.OpenStackConsoleLogSerializer
     console_log_permissions = [openstack_permissions.has_permissions_for_console]
 
+    @extend_schema(
+        summary="Get Placement allocations for the instance",
+        description=(
+            "Return what the OpenStack Placement service records as currently "
+            "allocated to this instance, broken down by resource provider. "
+            "Useful for diagnostics — especially for non-classic resources "
+            "(VGPU, PCI_DEVICE, custom classes) that the flavor alone does "
+            "not describe. Returns an empty list when Placement has no record "
+            "(e.g. transient state right after create, or pre-Placement clouds)."
+        ),
+        request=None,
+        responses={200: serializers.InstancePlacementAllocationSerializer(many=True)},
+        filters=False,
+    )
+    @decorators.action(detail=True, methods=["get"])
+    def placement_allocations(self, request, uuid=None):
+        instance: models.Instance = self.get_object()
+        backend = instance.get_backend()
+        try:
+            data = backend.get_instance_placement_allocations(instance)
+        except OpenStackBackendError as e:
+            raise exceptions.ValidationError(str(e))
+        serializer = serializers.InstancePlacementAllocationSerializer(data, many=True)
+        return response.Response(serializer.data, status=status.HTTP_200_OK)
+
+    placement_allocations_validators = [core_validators.StateValidator(CoreStates.OK)]
+    # Sysadmin-scope diagnostic — Placement RP UUIDs/names are fleet-topology
+    # data, not end-user info. Restrict to staff, support and service-provider
+    # owners (mirrors Hypervisor's `Permissions.customer_path = "settings__customer"`).
+    placement_allocations_permissions = [
+        openstack_permissions.can_diagnose_openstack_instance
+    ]
+
 
 @extend_schema_view(
     list=extend_schema(

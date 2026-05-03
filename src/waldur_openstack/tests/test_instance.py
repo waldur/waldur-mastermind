@@ -1252,6 +1252,81 @@ class InstanceConsoleLogTest(InstanceActionsTest):
 
 
 @ddt
+class InstancePlacementAllocationsTest(InstanceActionsTest):
+    """The diagnostic endpoint that surfaces what Placement allocated to an
+    instance. Audience is sysadmin-scope (staff, support, service-provider
+    owner of the OpenStack ServiceSettings' customer) — the response carries
+    fleet-topology data (resource provider UUIDs and names) that project
+    members must not see, even in opaque form."""
+
+    action = "placement_allocations"
+    backend_method = "get_instance_placement_allocations"
+    backend_return_value = [
+        {
+            "resource_provider_uuid": "rp-uuid-1",
+            "resource_provider_name": "compute01",
+            "resources": {"VCPU": 1, "MEMORY_MB": 1024, "DISK_GB": 10},
+        }
+    ]
+
+    # ---- allowed audiences (sysadmin-scope only) ----
+
+    @data("staff", "global_support", "owner")
+    def test_action_allowed_for_sysadmin_audiences(self, user):
+        # `owner` in OpenStackFixture holds CUSTOMER.OWNER on the customer
+        # that owns the ServiceSettings — i.e. the service-provider owner
+        # in production setups. Should see the full payload.
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        row = response.data[0]
+        self.assertEqual(row["resource_provider_uuid"], "rp-uuid-1")
+        self.assertEqual(row["resource_provider_name"], "compute01")
+        self.assertEqual(
+            row["resources"], {"VCPU": 1, "MEMORY_MB": 1024, "DISK_GB": 10}
+        )
+
+    # ---- denied audiences ----
+
+    @data("admin", "manager", "member")
+    def test_action_denied_for_project_roles(self, user):
+        # Project-level roles must NOT see Placement topology — neither
+        # the compute hostname nor the opaque resource_provider_uuid.
+        # The data is sysadmin-scope.
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.mock_console.assert_not_called()
+
+    @data("user")
+    def test_action_denied_for_unrelated_user(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.get(self.url)
+        # Unrelated users are filtered out by the queryset before the
+        # permission check, so they get 404 (not 403).
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.mock_console.assert_not_called()
+
+    # ---- backend behaviors (verified via staff caller) ----
+
+    def test_empty_allocations_returns_empty_list(self):
+        # Placement returns 200 with empty allocations dict for unknown
+        # consumers — should surface as an empty list, not a 404 or 500.
+        self.mock_console.return_value = []
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, [])
+
+    def test_backend_error_is_propagated(self):
+        self.mock_console.side_effect = OpenStackBackendError("Placement down.")
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Placement down.", response.data)
+
+
+@ddt
 class InstanceRetrieveTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()

@@ -3602,6 +3602,43 @@ class OpenStackBackend(ServiceBackend):
             resources=resources, required=required, limit=limit
         )
 
+    def get_instance_placement_allocations(self, instance):
+        """Return Placement allocations for a specific instance, broken down
+        by resource provider with names resolved.
+
+        Each Nova server's UUID is its Placement consumer UUID, so the join
+        is trivial. Useful for "what is this instance actually consuming?" —
+        especially for VGPU/PCI/specialty resources that the flavor alone
+        does not describe.
+
+        Returns a list shaped like::
+
+            [{
+              "resource_provider_uuid": "...",
+              "resource_provider_name": "compute01",
+              "resources": {"VCPU": 1, "MEMORY_MB": 1024, "DISK_GB": 10},
+            }, ...]
+
+        Empty list when Placement has no record (transient state right after
+        create, or instance never scheduled).
+        """
+        placement = get_placement_client(self.admin_session)
+        allocations = placement.get_allocations(instance.backend_id)
+        if not allocations:
+            return []
+        rp_names = {
+            rp.get("uuid"): rp.get("name", "")
+            for rp in placement.list_resource_providers()
+        }
+        return [
+            {
+                "resource_provider_uuid": rp_uuid,
+                "resource_provider_name": rp_names.get(rp_uuid, ""),
+                "resources": (record or {}).get("resources", {}),
+            }
+            for rp_uuid, record in allocations.items()
+        ]
+
     def pull_service_settings_quotas(self):
         # Aggregate cluster-wide capacity from Placement, summing the same
         # effective totals (allocation_ratio applied, reserved subtracted) used
