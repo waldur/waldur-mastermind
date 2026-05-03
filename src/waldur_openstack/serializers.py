@@ -281,6 +281,8 @@ class OpenStackFlavorSerializer(
 
 
 class OpenStackImageSerializer(structure_serializers.BasePropertySerializer):
+    is_rescue_image = serializers.ReadOnlyField()
+
     class Meta:
         model = models.Image
         fields = (
@@ -292,6 +294,9 @@ class OpenStackImageSerializer(structure_serializers.BasePropertySerializer):
             "settings",
             "backend_id",
             "backend_created_at",
+            "hw_rescue_device",
+            "hw_rescue_bus",
+            "is_rescue_image",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},
@@ -4616,6 +4621,71 @@ class OpenStackInstanceCreateSerializer(OpenStackInstanceSerializer):
 
         instance.volumes.add(*volumes)
         return instance
+
+
+class InstanceRescueSerializer(serializers.Serializer):
+    """Input serializer for the rescue action.
+
+    For volume-backed instances, both an explicit `rescue_image` and the
+    "stable device rescue" Glance properties are required — Nova will leave
+    a BFV instance in an unrecoverable ERROR state otherwise (per
+    https://specs.openstack.org/openstack/nova-specs/specs/ussuri/implemented/virt-bfv-instance-rescue.html).
+    """
+
+    rescue_image = serializers.HyperlinkedRelatedField(
+        view_name="openstack-image-detail",
+        lookup_field="uuid",
+        queryset=models.Image.objects.all(),
+        required=False,
+        allow_null=True,
+        help_text=_(
+            "Optional rescue image. Required for volume-backed instances; "
+            "must be a Glance image with hw_rescue_device or hw_rescue_bus "
+            "set (a 'stable device rescue' image)."
+        ),
+    )
+
+    def validate(self, attrs):
+        instance: models.Instance = self.instance
+        rescue_image: models.Image | None = attrs.get("rescue_image")
+
+        # Cross-tenant: rescue image must be visible to the instance's tenant.
+        if rescue_image is not None:
+            tenant: models.Tenant = instance.tenant
+            if not rescue_image.tenants.filter(pk=tenant.pk).exists():
+                raise serializers.ValidationError(
+                    {
+                        "rescue_image": _(
+                            "Rescue image is not visible to the instance's tenant."
+                        )
+                    }
+                )
+
+        # Volume-backed instance safety: BFV rescue requires an explicit
+        # stable-device rescue image.
+        is_volume_backed = instance.volumes.filter(bootable=True).exists()
+        if is_volume_backed:
+            if rescue_image is None:
+                raise serializers.ValidationError(
+                    {
+                        "rescue_image": _(
+                            "Volume-backed instances require an explicit rescue image."
+                        )
+                    }
+                )
+            if not rescue_image.is_rescue_image:
+                raise serializers.ValidationError(
+                    {
+                        "rescue_image": _(
+                            "Selected image is not a stable-device rescue image. "
+                            "Volume-backed instances require an image tagged with "
+                            "hw_rescue_device or hw_rescue_bus, otherwise the rescue "
+                            "will fail and leave the instance in an unrecoverable state."
+                        )
+                    }
+                )
+
+        return attrs
 
 
 class InstanceFlavorChangeSerializer(serializers.Serializer):

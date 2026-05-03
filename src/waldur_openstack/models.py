@@ -268,16 +268,41 @@ class Image(structure_models.ServiceProperty):
     backend_created_at = models.DateTimeField(null=True, blank=True)
     tenants = models.ManyToManyField(to=Tenant, related_name="images")
 
+    # Glance custom properties used to identify "stable device rescue" images.
+    # An image with either property set may be used as a Nova rescue image;
+    # volume-backed instances *require* such a tagged image — the legacy
+    # rescue path does not support BFV instances and Nova will leave the
+    # instance in unrecoverable ERROR state without one.
+    hw_rescue_device = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text=_("Glance hw_rescue_device property (cdrom/disk/floppy)."),
+    )
+    hw_rescue_bus = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text=_("Glance hw_rescue_bus property (scsi/virtio/ide/usb)."),
+    )
+
     class Permissions:
         build_query = build_tenants_query
 
     @classmethod
     def get_backend_fields(cls):
-        return super().get_backend_fields() + ("min_disk", "min_ram")
+        return super().get_backend_fields() + (
+            "min_disk",
+            "min_ram",
+            "hw_rescue_device",
+            "hw_rescue_bus",
+        )
 
     @classmethod
     def get_url_name(cls):
         return "openstack-image"
+
+    @property
+    def is_rescue_image(self) -> bool:
+        return bool(self.hw_rescue_device or self.hw_rescue_bus)
 
 
 class VolumeType(core_models.DescribableMixin, structure_models.ServiceProperty):
@@ -1742,7 +1767,11 @@ class Instance(
         REBUILD = "REBUILD"
         PASSWORD = "PASSWORD"
         PAUSED = "PAUSED"
-        RESCUED = "RESCUED"
+        # Nova returns "RESCUE" as the top-level server status when an
+        # instance is in rescue mode (vm_state="rescued" is a separate
+        # internal field). instance.runtime_state is set verbatim from
+        # backend_instance.status, so we match Nova's casing here.
+        RESCUE = "RESCUE"
         RESIZED = "RESIZED"
         REVERT_RESIZE = "REVERT_RESIZE"
         SHUTOFF = "SHUTOFF"

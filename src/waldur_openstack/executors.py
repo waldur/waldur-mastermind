@@ -1795,6 +1795,48 @@ class InstanceRestartExecutor(core_executors.ActionExecutor):
         )
 
 
+class InstanceRescueExecutor(core_executors.ActionExecutor):
+    action = "Rescue"
+
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        rescue_image_ref = kwargs.get("rescue_image_ref")
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                "rescue_instance",
+                state_transition="begin_updating",
+                rescue_image_ref=rescue_image_ref,
+            ),
+            core_tasks.PollRuntimeStateTask().si(
+                serialized_instance,
+                backend_pull_method="pull_instance_runtime_state",
+                success_state="RESCUE",
+                erred_state="ERRED",
+            ),
+        )
+
+
+class InstanceUnrescueExecutor(core_executors.ActionExecutor):
+    action = "Unrescue"
+
+    @classmethod
+    def get_task_signature(cls, instance, serialized_instance, **kwargs):
+        return chain(
+            core_tasks.BackendMethodTask().si(
+                serialized_instance,
+                "unrescue_instance",
+                state_transition="begin_updating",
+            ),
+            core_tasks.PollRuntimeStateTask().si(
+                serialized_instance,
+                backend_pull_method="pull_instance_runtime_state",
+                success_state="ACTIVE",
+                erred_state="ERRED",
+            ),
+        )
+
+
 class InstanceAllowedAddressPairsUpdateExecutor(core_executors.ActionExecutor):
     action = "Update allowed address pairs"
 
