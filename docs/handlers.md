@@ -106,6 +106,10 @@ td:nth-child(4) {
 | `delete_error_message` | `Custom Signal (post_transition)` | `support.Comment` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `support.Attachment` | Delete error message if instance state changed from erred |
 | `delete_error_message` | `Custom Signal (post_transition)` | `support.Feedback` | Delete error message if instance state changed from erred |
+| `delete_error_message` | `Custom Signal (post_transition)` | `structure_tests.TestNewInstance` | Delete error message if instance state changed from erred |
+| `delete_error_message` | `Custom Signal (post_transition)` | `structure_tests.TestSubResource` | Delete error message if instance state changed from erred |
+| `delete_error_message` | `Custom Signal (post_transition)` | `structure_tests.TestVolume` | Delete error message if instance state changed from erred |
+| `delete_error_message` | `Custom Signal (post_transition)` | `structure_tests.TestSnapshot` | Delete error message if instance state changed from erred |
 | `delete_project_metadata_completions` | `Django Signal (post_save)` | `structure.Customer` | Delete ChecklistCompletions when customer's project metadata checklist is removed. |
 | `delete_quotas_when_model_is_deleted` | `Django Signal (pre_delete)` | `structure.Customer` | Delete all quotas related to a model when it is deleted. |
 | `delete_quotas_when_model_is_deleted` | `Django Signal (pre_delete)` | `structure.Project` | Delete all quotas related to a model when it is deleted. |
@@ -115,6 +119,11 @@ td:nth-child(4) {
 | `delete_quotas_when_model_is_deleted` | `Django Signal (pre_delete)` | `openstack.Tenant` | Delete all quotas related to a model when it is deleted. |
 | `delete_quotas_when_model_is_deleted` | `Django Signal (pre_delete)` | `marketplace.Category` | Delete all quotas related to a model when it is deleted. |
 | `delete_quotas_when_model_is_deleted` | `Django Signal (pre_delete)` | `marketplace.Offering` | Delete all quotas related to a model when it is deleted. |
+| `delete_quotas_when_model_is_deleted` | `Django Signal (pre_delete)` | `tests.GrandparentModel` | Delete all quotas related to a model when it is deleted. |
+| `delete_quotas_when_model_is_deleted` | `Django Signal (pre_delete)` | `tests.ParentModel` | Delete all quotas related to a model when it is deleted. |
+| `delete_quotas_when_model_is_deleted` | `Django Signal (pre_delete)` | `tests.ChildModel` | Delete all quotas related to a model when it is deleted. |
+| `delete_quotas_when_model_is_deleted` | `Django Signal (pre_delete)` | `tests.SecondChildModel` | Delete all quotas related to a model when it is deleted. |
+| `delete_quotas_when_model_is_deleted` | `Django Signal (pre_delete)` | `structure_tests.TestNewInstance` | Delete all quotas related to a model when it is deleted. |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `waldur_aws.Instance` | If VM that contains service settings were deleted - all settings |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `waldur_aws.Volume` | If VM that contains service settings were deleted - all settings |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `waldur_azure.ResourceGroup` | If VM that contains service settings were deleted - all settings |
@@ -156,6 +165,10 @@ td:nth-child(4) {
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `waldur_vmware.Port` | If VM that contains service settings were deleted - all settings |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `waldur_vmware.Disk` | If VM that contains service settings were deleted - all settings |
 | `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `waldur_firecrest.Job` | If VM that contains service settings were deleted - all settings |
+| `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `structure_tests.TestNewInstance` | If VM that contains service settings were deleted - all settings |
+| `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `structure_tests.TestSubResource` | If VM that contains service settings were deleted - all settings |
+| `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `structure_tests.TestVolume` | If VM that contains service settings were deleted - all settings |
+| `delete_service_settings_on_scope_delete` | `Django Signal (pre_delete)` | `structure_tests.TestSnapshot` | If VM that contains service settings were deleted - all settings |
 | `delete_stale_event_subscriptions` | `Django Signal (post_delete)` | `authtoken.Token` | Delete stale event subscriptions for a user when their token is deleted. |
 | `handle_aggregated_quotas` | `Django Signal (post_save)` | `quotas.QuotaUsage` | Call aggregated quotas fields update methods |
 | `handle_aggregated_quotas` | `Django Signal (pre_delete)` | `quotas.QuotaUsage` | Call aggregated quotas fields update methods |
@@ -207,6 +220,10 @@ td:nth-child(4) {
 | `log_resource_action` | `Custom Signal (post_transition)` | `waldur_vmware.Port` | Log resource state transitions. |
 | `log_resource_action` | `Custom Signal (post_transition)` | `waldur_vmware.Disk` | Log resource state transitions. |
 | `log_resource_action` | `Custom Signal (post_transition)` | `waldur_firecrest.Job` | Log resource state transitions. |
+| `log_resource_action` | `Custom Signal (post_transition)` | `structure_tests.TestNewInstance` | Log resource state transitions. |
+| `log_resource_action` | `Custom Signal (post_transition)` | `structure_tests.TestSubResource` | Log resource state transitions. |
+| `log_resource_action` | `Custom Signal (post_transition)` | `structure_tests.TestVolume` | Log resource state transitions. |
+| `log_resource_action` | `Custom Signal (post_transition)` | `structure_tests.TestSnapshot` | Log resource state transitions. |
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `waldur_aws.Instance` | Log scheduled resource creation. |
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `waldur_aws.Volume` | Log scheduled resource creation. |
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `waldur_azure.ResourceGroup` | Log scheduled resource creation. |
@@ -248,6 +265,10 @@ td:nth-child(4) {
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `waldur_vmware.Port` | Log scheduled resource creation. |
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `waldur_vmware.Disk` | Log scheduled resource creation. |
 | `log_resource_creation_scheduled` | `Django Signal (post_save)` | `waldur_firecrest.Job` | Log scheduled resource creation. |
+| `log_resource_creation_scheduled` | `Django Signal (post_save)` | `structure_tests.TestNewInstance` | Log scheduled resource creation. |
+| `log_resource_creation_scheduled` | `Django Signal (post_save)` | `structure_tests.TestSubResource` | Log scheduled resource creation. |
+| `log_resource_creation_scheduled` | `Django Signal (post_save)` | `structure_tests.TestVolume` | Log scheduled resource creation. |
+| `log_resource_creation_scheduled` | `Django Signal (post_save)` | `structure_tests.TestSnapshot` | Log scheduled resource creation. |
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `waldur_aws.Instance` | Log resource deletion. |
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `waldur_aws.Volume` | Log resource deletion. |
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `waldur_azure.ResourceGroup` | Log resource deletion. |
@@ -289,6 +310,10 @@ td:nth-child(4) {
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `waldur_vmware.Port` | Log resource deletion. |
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `waldur_vmware.Disk` | Log resource deletion. |
 | `log_resource_deleted` | `Django Signal (pre_delete)` | `waldur_firecrest.Job` | Log resource deletion. |
+| `log_resource_deleted` | `Django Signal (pre_delete)` | `structure_tests.TestNewInstance` | Log resource deletion. |
+| `log_resource_deleted` | `Django Signal (pre_delete)` | `structure_tests.TestSubResource` | Log resource deletion. |
+| `log_resource_deleted` | `Django Signal (pre_delete)` | `structure_tests.TestVolume` | Log resource deletion. |
+| `log_resource_deleted` | `Django Signal (pre_delete)` | `structure_tests.TestSnapshot` | Log resource deletion. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `waldur_aws.Instance` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `waldur_aws.Volume` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `waldur_azure.ResourceGroup` | Log resource import. |
@@ -330,6 +355,10 @@ td:nth-child(4) {
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `waldur_vmware.Port` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `waldur_vmware.Disk` | Log resource import. |
 | `log_resource_imported` | `Custom Signal (resource_imported)` | `waldur_firecrest.Job` | Log resource import. |
+| `log_resource_imported` | `Custom Signal (resource_imported)` | `structure_tests.TestNewInstance` | Log resource import. |
+| `log_resource_imported` | `Custom Signal (resource_imported)` | `structure_tests.TestSubResource` | Log resource import. |
+| `log_resource_imported` | `Custom Signal (resource_imported)` | `structure_tests.TestVolume` | Log resource import. |
+| `log_resource_imported` | `Custom Signal (resource_imported)` | `structure_tests.TestSnapshot` | Log resource import. |
 | `log_role_granted` | `Custom Signal (role_granted)` | `—` | Log the event of a user being granted a role. |
 | `log_role_revoked` | `Custom Signal (role_revoked)` | `—` | Log the event of a user having a role revoked. |
 | `log_role_updated` | `Custom Signal (role_updated)` | `—` | Log the event of a user's role being updated. |
@@ -386,7 +415,13 @@ td:nth-child(4) {
 | `recalculate_count_quota` | `Django Signal (post_save)` | `waldur_vmware.Port` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `waldur_vmware.Disk` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `waldur_firecrest.Job` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_save)` | `structure_tests.TestNewInstance` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_save)` | `structure_tests.TestSubResource` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_save)` | `structure_tests.TestVolume` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_save)` | `structure_tests.TestSnapshot` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_save)` | `marketplace.Order` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_save)` | `tests.ChildModel` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_save)` | `tests.SecondChildModel` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `structure.Project` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_aws.Instance` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_aws.Volume` | Recalculate count quota when an instance is created or deleted. |
@@ -429,7 +464,13 @@ td:nth-child(4) {
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_vmware.Port` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_vmware.Disk` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `waldur_firecrest.Job` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_delete)` | `structure_tests.TestNewInstance` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_delete)` | `structure_tests.TestSubResource` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_delete)` | `structure_tests.TestVolume` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_delete)` | `structure_tests.TestSnapshot` | Recalculate count quota when an instance is created or deleted. |
 | `recalculate_count_quota` | `Django Signal (post_delete)` | `marketplace.Order` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_delete)` | `tests.ChildModel` | Recalculate count quota when an instance is created or deleted. |
+| `recalculate_count_quota` | `Django Signal (post_delete)` | `tests.SecondChildModel` | Recalculate count quota when an instance is created or deleted. |
 | `revoke_roles_on_project_deletion` | `Django Signal (pre_delete)` | `structure.Project` | When project is deleted, capture user role snapshots before revoking them. |
 | `revoke_user_pats_on_deactivation` | `Django Signal (pre_save)` | `core.User` | Revoke all active PATs when a user is deactivated. |
 | `revoke_user_roles_on_availability_removal` | `Django Signal (post_delete)` | `permissions.RoleAvailability` | Schedule async revocation when a RoleAvailability row is removed. |
@@ -445,6 +486,7 @@ td:nth-child(4) {
 | `update_resource_start_time` | `Django Signal (post_save)` | `waldur_azure.VirtualMachine` | Update the start time of a resource when its runtime state changes. |
 | `update_resource_start_time` | `Django Signal (post_save)` | `waldur_digitalocean.Droplet` | Update the start time of a resource when its runtime state changes. |
 | `update_resource_start_time` | `Django Signal (post_save)` | `openstack.Instance` | Update the start time of a resource when its runtime state changes. |
+| `update_resource_start_time` | `Django Signal (post_save)` | `structure_tests.TestNewInstance` | Update the start time of a resource when its runtime state changes. |
 
 ## Application: `waldur_freeipa`
 
@@ -462,18 +504,6 @@ td:nth-child(4) {
 | `schedule_sync` | `Custom Signal (role_revoked)` | `—` | Schedule a synchronization task. |
 | `schedule_sync_on_quota_change` | `Django Signal (post_save)` | `quotas.QuotaLimit` | Schedule a synchronization task when a quota is changed. |
 | `update_user` | `Django Signal (post_save)` | `core.User` | Update a user's FreeIPA profile when their user account is updated. |
-
-## Application: `waldur_keycloak`
-
-| Handler Name | Signal Type | Sender | Description |
-|--------------|-------------|--------|-------------|
-| `cleanup_keycloak_groups_on_offering_delete` | `Django Signal (pre_delete)` | `marketplace.Offering` | When a marketplace Offering is deleted, delete all its Keycloak groups. |
-| `cleanup_keycloak_groups_on_resource_delete` | `Django Signal (pre_delete)` | `marketplace.Resource` | When a marketplace Resource is deleted, delete all its Keycloak groups. |
-| `cleanup_keycloak_on_role_revoked` | `Custom Signal (role_revoked)` | `permissions.UserRole` | When a project role is revoked, schedule cleanup of Keycloak memberships |
-| `cleanup_keycloak_on_user_deactivation` | `Django Signal (post_save)` | `core.User` | When a user is deactivated, schedule cleanup of all their Keycloak memberships. |
-| `delete_keycloak_group_from_backend` | `Django Signal (post_delete)` | `waldur_keycloak.OfferingKeycloakGroup` | Delete a Keycloak group from the backend when the local model is deleted. |
-| `delete_keycloak_membership_from_backend` | `Django Signal (post_delete)` | `waldur_keycloak.OfferingKeycloakMembership` | Remove a user from a Keycloak group when membership is deleted. |
-| `mark_keycloak_group_deleting` | `Django Signal (pre_delete)` | `waldur_keycloak.OfferingKeycloakGroup` | Mark a group as being deleted so cascade membership handlers skip re-deletion. |
 
 ## Application: `waldur_lexis`
 
@@ -872,13 +902,12 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 788
+Total unique handlers found: 823
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
-- **waldur_core**: 412 handlers
+- **waldur_core**: 454 handlers
 - **waldur_freeipa**: 12 handlers
-- **waldur_keycloak**: 7 handlers
 - **waldur_lexis**: 1 handlers
 - **waldur_mastermind**: 311 handlers
 - **waldur_openportal**: 10 handlers
