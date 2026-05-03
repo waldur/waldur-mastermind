@@ -1126,6 +1126,7 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/49/e8/58c7f85958bda41dafea50497cbd59738c5c43dbbea5ee83d651234398f4/greenlet-3.2.4-cp313-cp313-macosx_11_0_universal2.whl", hash = "sha256:1a921e542453fe531144e91e1feedf12e07351b1cf6c9e8a3325ea600a715a31", size = 272814, upload-time = "2025-08-07T13:15:50.011Z" },
     { url = "https://files.pythonhosted.org/packages/62/dd/b9f59862e9e257a16e4e610480cfffd29e3fae018a68c2332090b53aac3d/greenlet-3.2.4-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:cd3c8e693bff0fff6ba55f140bf390fa92c994083f838fece0f63be121334945", size = 641073, upload-time = "2025-08-07T13:42:57.23Z" },
     { url = "https://files.pythonhosted.org/packages/f7/0b/bc13f787394920b23073ca3b6c4a7a21396301ed75a655bcb47196b50e6e/greenlet-3.2.4-cp313-cp313-manylinux2014_ppc64le.manylinux_2_17_ppc64le.whl", hash = "sha256:710638eb93b1fa52823aa91bf75326f9ecdfd5e0466f00789246a5280f4ba0fc", size = 655191, upload-time = "2025-08-07T13:45:29.752Z" },
+    { url = "https://files.pythonhosted.org/packages/f2/d6/6adde57d1345a8d0f14d31e4ab9c23cfe8e2cd39c3baf7674b4b0338d266/greenlet-3.2.4-cp313-cp313-manylinux2014_s390x.manylinux_2_17_s390x.whl", hash = "sha256:c5111ccdc9c88f423426df3fd1811bfc40ed66264d35aa373420a34377efc98a", size = 649516, upload-time = "2025-08-07T13:53:16.314Z" },
     { url = "https://files.pythonhosted.org/packages/7f/3b/3a3328a788d4a473889a2d403199932be55b1b0060f4ddd96ee7cdfcad10/greenlet-3.2.4-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:d76383238584e9711e20ebe14db6c88ddcedc1829a9ad31a584389463b5aa504", size = 652169, upload-time = "2025-08-07T13:18:32.861Z" },
     { url = "https://files.pythonhosted.org/packages/ee/43/3cecdc0349359e1a527cbf2e3e28e5f8f06d3343aaf82ca13437a9aa290f/greenlet-3.2.4-cp313-cp313-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:23768528f2911bcd7e475210822ffb5254ed10d71f4028387e5a99b4c6699671", size = 610497, upload-time = "2025-08-07T13:18:31.636Z" },
     { url = "https://files.pythonhosted.org/packages/b8/19/06b6cf5d604e2c382a6f31cafafd6f33d5dea706f4db7bdab184bad2b21d/greenlet-3.2.4-cp313-cp313-musllinux_1_1_aarch64.whl", hash = "sha256:00fadb3fedccc447f517ee0d3fd8fe49eae949e1cd0f6a611818f4f6fb7dc83b", size = 1121662, upload-time = "2025-08-07T13:42:41.117Z" },
@@ -1627,15 +1628,14 @@ wheels = [
 
 [[package]]
 name = "openportal"
-version = "0.26.0"
+version = "0.28.0"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/75/b2/c8fb19dd8c6a05c262f918f815bca836d35ef53a49c3fec358f135956c8b/openportal-0.26.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:725973795446dbe7b561f083b0b7d70e17faff0d8d1cfab683d18532a18f518b", size = 2792784, upload-time = "2026-03-25T12:25:20.049Z" },
-    { url = "https://files.pythonhosted.org/packages/ad/b4/0559e0acc2c51531a0da927ed66bc753a6902fe93f65f017ac350faa235a/openportal-0.26.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:420b0546dcf0045615d6d594d2b00a82a23498f4fbc35c2101de424717143649", size = 2891445, upload-time = "2026-03-25T12:24:53.502Z" },
-    { url = "https://files.pythonhosted.org/packages/e6/ee/443a4515e46251c017b4d57c5a1c282d53e73b19710d579213f83930dd0d/openportal-0.26.0-cp313-cp313-musllinux_1_1_aarch64.whl", hash = "sha256:110641e3ed71315905dd781f276abd1adc36aa9e2dd5e6cc0a92c7be7f8ad6fb", size = 2972261, upload-time = "2026-03-25T12:24:37.6Z" },
-    { url = "https://files.pythonhosted.org/packages/3b/0a/65ae2f3588c48a16647bb5b87fb0cae6880fd1966a806a2cf2797c276d23/openportal-0.26.0-cp313-cp313-musllinux_1_1_x86_64.whl", hash = "sha256:1c2e27308ded2403842d7fe7094274a61cde9e1ab622cfe299c7fa36eadf2274", size = 3147414, upload-time = "2026-03-25T12:25:04.974Z" },
-    { url = "https://files.pythonhosted.org/packages/c1/f8/a1e294183160b37f47dd86834a4cdbb17c9856c2e04ba88eb4b1e8ae2fb2/openportal-0.26.0-cp313-cp313t-musllinux_1_1_aarch64.whl", hash = "sha256:3a8f6c741a989065e6de7d5b18ad6cb3e3de4d1479ffe17563280c072f3a688d", size = 2968917, upload-time = "2026-03-25T12:24:38.893Z" },
-    { url = "https://files.pythonhosted.org/packages/d9/a1/64c13238ae0e89b002e4273180744ba3f6fbf705592101d9a6c7b07a54d9/openportal-0.26.0-cp313-cp313t-musllinux_1_1_x86_64.whl", hash = "sha256:014ec1905e57a99e760df27258e04583d31b56ed05147de832224970373829ce", size = 3145616, upload-time = "2026-03-25T12:25:06.483Z" },
+    { url = "https://files.pythonhosted.org/packages/c1/e2/9434d8fb376d29615530d8e5113661c794d049ff6602638928411970fbcd/openportal-0.28.0-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:ce47826847c9650ea66318732d86dac40b859accbf53ed35494a28aacb7a8b20", size = 2873892, upload-time = "2026-05-01T10:47:58.177Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/e2/d6b6d0dcc5edcca3761391d16f2053965daee20eb35826c7afddee054c5e/openportal-0.28.0-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:bc5732a29d40ac88783c033628ffeafd4000c2078d6e2797743d81e24b48c5cd", size = 2887768, upload-time = "2026-05-01T10:47:50.941Z" },
+    { url = "https://files.pythonhosted.org/packages/62/85/8925ef9fe0693c93aa049961c4a0a134073a575bdf417eac59234ca46c4b/openportal-0.28.0-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5a8729e89e4f5eab99bd9686b4efbf7948cca96b926b444b534b423acb039b08", size = 2970594, upload-time = "2026-05-01T10:47:54.904Z" },
+    { url = "https://files.pythonhosted.org/packages/2c/bf/01b460fe3499796953ecd5fdfa806d11cad3d9dfe4a351334e720417aaa7/openportal-0.28.0-cp310-abi3-musllinux_1_1_aarch64.whl", hash = "sha256:71fbf75298064b67ea4aaa28a922569c0bb9a0f008729e151bab54e1a12a5b8c", size = 3059623, upload-time = "2026-05-01T10:47:52.962Z" },
+    { url = "https://files.pythonhosted.org/packages/00/58/8742a45507bf9b10313ba79f1475cbb60bd6f9d1f815497b61ce48d8d087/openportal-0.28.0-cp310-abi3-musllinux_1_1_x86_64.whl", hash = "sha256:1459c0e8d1cc8ca7d9be6d69c5cc1f038f7a7b2856e187532d4ace124d541bbe", size = 3232448, upload-time = "2026-05-01T10:47:56.521Z" },
 ]
 
 [[package]]
@@ -3159,7 +3159,7 @@ requires-dist = [
     { name = "lxml", specifier = ">=6.1.0" },
     { name = "nh3", specifier = ">=0.2.18,<1.0.0" },
     { name = "openai", specifier = ">=2.26.0" },
-    { name = "openportal", specifier = ">=0.20.2" },
+    { name = "openportal", specifier = ">=0.28.0" },
     { name = "openstacksdk", specifier = ">=4.7.1" },
     { name = "pbr", specifier = ">=6.0.0,<7.0.0" },
     { name = "pillow", specifier = ">=12.2.0,<13.0.0" },
