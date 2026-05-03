@@ -99,6 +99,47 @@ def build_domain_context() -> str:
     return f"You help users discover {description_part}."
 
 
+_FORMAT_HINT_WITHOUT_COUNTRY = """\
+  **Offering Name** (Provider)
+  Why it matches: [specific reason tied to the user's stated need]
+  Key details: [what matters for the user's stated need]
+  Access: [link to offering page or next step]"""
+
+_FORMAT_HINT_WITH_COUNTRY = """\
+  **Offering Name** (Provider, Country)
+  Why it matches: [specific reason tied to the user's stated need]
+  Key details: [what matters for the user's stated need]
+  Access: [link to offering page or next step]"""
+
+
+def build_offering_format_hint() -> str:
+    """Recommendation format the persona instructs the LLM to use.
+
+    Includes "Country" only when the visible catalog actually spans
+    ≥2 distinct customer countries — otherwise it's noise (every line
+    repeats the same country). HPC-Euro deployments with offerings
+    from 20+ NCCs get the country line; a single-country government
+    cloud deployment doesn't.
+    """
+    try:
+        visible = offerings_queryset_for(AnonymousUser())
+        country_count = (
+            marketplace_models.Offering.objects.filter(pk__in=visible)
+            .exclude(customer__country="")
+            .values("customer__country")
+            .distinct()
+            .count()
+        )
+    except Exception:
+        # Schema-generation / no-DB: default to without-country (smaller prompt).
+        country_count = 0
+    return (
+        _FORMAT_HINT_WITH_COUNTRY
+        if country_count >= 2
+        else _FORMAT_HINT_WITHOUT_COUNTRY
+    )
+
+
 def _interaction_to_llm_messages(interaction) -> list[dict]:
     """Anon stores one DB row per turn (user input + assistant blocks). Auth's ``blocks_to_llm_messages``
     expects a row-per-message shape, so wrap the assistant half in a duck-typed shim.

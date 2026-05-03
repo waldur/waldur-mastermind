@@ -242,14 +242,6 @@ class AnonymousChatFeedback(models.Model):
     LLM review is per-session and written to the last interaction's row — earlier rows may have no feedback row unless human-thumbed.
     """
 
-    INTENT_CATEGORIES = [
-        ("compute", _("Compute")),
-        ("storage", _("Storage")),
-        ("software", _("Software / applications")),
-        ("consultancy", _("Consultancy / training")),
-        ("unclear", _("Unclear or off-topic")),
-    ]
-
     interaction = models.OneToOneField(
         AnonymousChatInteraction,
         on_delete=models.CASCADE,
@@ -269,8 +261,18 @@ class AnonymousChatFeedback(models.Model):
     submitted_at = models.DateTimeField(null=True, blank=True)
 
     llm_resolution_score = models.SmallIntegerField(null=True, blank=True)  # 1–5
+    # Free-form lowercase slug. The judge derives the allowed set from
+    # marketplace.Category at runtime (see judge.build_intent_rubric),
+    # so the column intentionally has no choices= constraint —
+    # different deployments produce different slugs (e.g. an HPC site
+    # has 'gpu_compute' while a gov-cloud site has 'iam'). Pre-existing
+    # rows from the WAL-9688 launch use the legacy fixed set
+    # ('compute', 'storage', 'software', 'consultancy', 'unclear') and
+    # stay valid.
     llm_intent_category = models.CharField(
-        max_length=32, blank=True, default="", choices=INTENT_CATEGORIES
+        max_length=32,
+        blank=True,
+        default="",
     )
     llm_hallucination_detected = models.BooleanField(default=False)
     llm_hallucination_details = models.TextField(blank=True, default="")
