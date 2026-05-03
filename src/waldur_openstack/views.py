@@ -2834,6 +2834,58 @@ class InstanceViewSet(
     restart_serializer_class = EmptySerializer
 
     @extend_schema(
+        summary="Rescue instance",
+        description=(
+            "Boot the instance from a separate rescue image while keeping "
+            "the original disk attached. Volume-backed instances require an "
+            "explicit rescue_image with hw_rescue_device or hw_rescue_bus set."
+        ),
+        request=serializers.InstanceRescueSerializer,
+        responses=None,
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def rescue(self, request, uuid=None):
+        instance: models.Instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        rescue_image = serializer.validated_data.get("rescue_image")
+        executors.InstanceRescueExecutor().execute(
+            instance,
+            rescue_image_ref=rescue_image.backend_id if rescue_image else None,
+        )
+        return response.Response(
+            {"status": _("rescue was scheduled")}, status=status.HTTP_202_ACCEPTED
+        )
+
+    rescue_validators = [
+        core_validators.StateValidator(CoreStates.OK),
+        core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE),
+    ]
+    rescue_permissions = [openstack_permissions.can_manage_openstack_instance_power]
+    rescue_serializer_class = serializers.InstanceRescueSerializer
+
+    @extend_schema(
+        summary="Unrescue instance",
+        description="Restore the instance from rescue mode.",
+        request=None,
+        responses=None,
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def unrescue(self, request, uuid=None):
+        instance: models.Instance = self.get_object()
+        executors.InstanceUnrescueExecutor().execute(instance)
+        return response.Response(
+            {"status": _("unrescue was scheduled")}, status=status.HTTP_202_ACCEPTED
+        )
+
+    unrescue_validators = [
+        core_validators.StateValidator(CoreStates.OK),
+        core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.RESCUE),
+    ]
+    unrescue_permissions = [openstack_permissions.can_manage_openstack_instance_power]
+    unrescue_serializer_class = EmptySerializer
+
+    @extend_schema(
         summary="Update instance security groups",
         description="Update security groups of the instance",
         request=serializers.OpenStackInstanceSecurityGroupsUpdateSerializer,

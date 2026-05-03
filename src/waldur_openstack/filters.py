@@ -125,6 +125,11 @@ class ImageFilter(
         label="Show duplicate image names",
         widget=BooleanWidget,
     )
+    is_rescue_image = django_filters.BooleanFilter(
+        method="filter_is_rescue_image",
+        label="Filter to images usable as Nova rescue images.",
+        widget=BooleanWidget,
+    )
 
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Image
@@ -133,6 +138,13 @@ class ImageFilter(
         if value:
             return queryset.model.all_objects.all()  # type: ignore[attr-defined]
         return queryset
+
+    def filter_is_rescue_image(self, queryset, name, value):
+        if value is None:
+            return queryset
+        # Either property is sufficient to mark an image as a rescue image.
+        rescue_q = ~Q(hw_rescue_device="") | ~Q(hw_rescue_bus="")
+        return queryset.filter(rescue_q) if value else queryset.exclude(rescue_q)
 
 
 class VolumeTypeFilter(

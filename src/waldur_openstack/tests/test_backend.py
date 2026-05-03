@@ -7,6 +7,7 @@ from cinderclient.v2.volumes import Volume
 from ddt import data, ddt
 from django.test import TestCase
 from django.utils import timezone
+from novaclient import exceptions as nova_exceptions
 from novaclient.v2.flavors import Flavor
 from novaclient.v2.servers import Server
 
@@ -1602,3 +1603,47 @@ class GetConsoleUrlDomainOverrideTest(BaseBackendTest):
         }
         url = self.backend.get_console_url(self.instance)
         self.assertEqual(url, self.original_url)
+
+
+class RescueBackendTest(BaseBackendTest):
+    """Lock in the novaclient calling convention for rescue / unrescue.
+
+    Lab validation caught a real bug where backend was passing image_ref=
+    instead of image= — novaclient's servers.rescue() takes image=
+    (and maps it to rescue_image_ref in the wire request body).
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.instance = self.fixture.instance
+
+    def test_rescue_uses_image_kwarg_not_image_ref(self):
+        # Regression guard: novaclient's servers.rescue() takes `image=`,
+        # NOT `image_ref=`. Calling with image_ref= raises TypeError at
+        # runtime — verified against the lab cloud.
+        self.backend.rescue_instance(
+            self.instance, rescue_image_ref="rescue-image-uuid"
+        )
+        call_kwargs = self.mocked_nova.servers.rescue.call_args.kwargs
+        self.assertIn("image", call_kwargs)
+        self.assertNotIn("image_ref", call_kwargs)
+        self.assertEqual(call_kwargs["image"], "rescue-image-uuid")
+
+    def test_rescue_passes_none_when_no_image_provided(self):
+        self.backend.rescue_instance(self.instance)
+        call_kwargs = self.mocked_nova.servers.rescue.call_args.kwargs
+        self.assertIsNone(call_kwargs["image"])
+
+    def test_rescue_409_already_rescued_is_idempotent(self):
+        self.mocked_nova.servers.rescue.side_effect = nova_exceptions.ClientException(
+            code=409, message="Cannot rescue while in vm_state rescued"
+        )
+        # Should NOT raise.
+        self.backend.rescue_instance(self.instance, rescue_image_ref="x")
+
+    def test_unrescue_409_already_active_is_idempotent(self):
+        self.mocked_nova.servers.unrescue.side_effect = nova_exceptions.ClientException(
+            code=409, message="Cannot unrescue while in vm_state active"
+        )
+        # Should NOT raise.
+        self.backend.unrescue_instance(self.instance)

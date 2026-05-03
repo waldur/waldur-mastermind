@@ -1327,6 +1327,204 @@ class InstancePlacementAllocationsTest(InstanceActionsTest):
 
 
 @ddt
+class InstanceRescueActionTest(test.APITestCase):
+    """Rescue / unrescue actions on InstanceViewSet [WAL-8603]."""
+
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.instance = self.fixture.instance
+        self.instance.state = CoreStates.OK
+        self.instance.runtime_state = models.Instance.RuntimeStates.ACTIVE
+        self.instance.save()
+        self.rescue_url = factories.InstanceFactory.get_url(
+            self.instance, action="rescue"
+        )
+        self.unrescue_url = factories.InstanceFactory.get_url(
+            self.instance, action="unrescue"
+        )
+
+        # Stub out the executors so we don't actually push tasks.
+        self.rescue_exec = mock.patch(
+            "waldur_openstack.executors.InstanceRescueExecutor.execute"
+        ).start()
+        self.unrescue_exec = mock.patch(
+            "waldur_openstack.executors.InstanceUnrescueExecutor.execute"
+        ).start()
+
+    def tearDown(self):
+        super().tearDown()
+        mock.patch.stopall()
+
+    # ---- helpers ----------------------------------------------------------
+
+    def _make_rescue_image(self, hw_rescue_device="cdrom", hw_rescue_bus="ide"):
+        image = factories.ImageFactory(settings=self.fixture.settings)
+        image.hw_rescue_device = hw_rescue_device
+        image.hw_rescue_bus = hw_rescue_bus
+        image.save()
+        image.tenants.add(self.fixture.tenant)
+        return image
+
+    def _make_volume_backed(self):
+        # Bootable volume on the instance flips the BFV-detection check.
+        factories.VolumeFactory(instance=self.instance, bootable=True)
+
+    # ---- rescue happy path ------------------------------------------------
+
+    def test_rescue_without_image_for_image_backed_instance(self):
+        # Image-backed (no bootable volume): rescue without explicit image
+        # is allowed; Nova will use the boot image. The fixture's instance
+        # comes with a system volume by default, so drop it here to model
+        # an image-backed instance.
+        self.instance.volumes.update(bootable=False)
+        self.client.force_authenticate(user=self.fixture.admin)
+        response = self.client.post(self.rescue_url, data={})
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.rescue_exec.assert_called_once()
+
+    def test_rescue_with_valid_rescue_image(self):
+        image = self._make_rescue_image()
+        self.client.force_authenticate(user=self.fixture.admin)
+        response = self.client.post(
+            self.rescue_url,
+            data={"rescue_image": factories.ImageFactory.get_url(image)},
+        )
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        call_kwargs = self.rescue_exec.call_args.kwargs
+        self.assertEqual(call_kwargs["rescue_image_ref"], image.backend_id)
+
+    # ---- BFV safety -------------------------------------------------------
+
+    def test_volume_backed_rescue_requires_explicit_image(self):
+        self._make_volume_backed()
+        self.client.force_authenticate(user=self.fixture.admin)
+        response = self.client.post(self.rescue_url, data={})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.rescue_exec.assert_not_called()
+
+    def test_volume_backed_rescue_rejects_non_tagged_image(self):
+        self._make_volume_backed()
+        # Plain image, no hw_rescue_* properties set.
+        plain_image = factories.ImageFactory(settings=self.fixture.settings)
+        plain_image.tenants.add(self.fixture.tenant)
+        self.client.force_authenticate(user=self.fixture.admin)
+        response = self.client.post(
+            self.rescue_url,
+            data={"rescue_image": factories.ImageFactory.get_url(plain_image)},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.rescue_exec.assert_not_called()
+
+    def test_volume_backed_rescue_accepts_tagged_image(self):
+        self._make_volume_backed()
+        image = self._make_rescue_image()
+        self.client.force_authenticate(user=self.fixture.admin)
+        response = self.client.post(
+            self.rescue_url,
+            data={"rescue_image": factories.ImageFactory.get_url(image)},
+        )
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+
+    # ---- cross-tenant -----------------------------------------------------
+
+    def test_cross_tenant_rescue_image_rejected(self):
+        # Image not associated with the instance's tenant.
+        other_image = factories.ImageFactory(settings=self.fixture.settings)
+        other_image.hw_rescue_device = "cdrom"
+        other_image.save()
+        # No tenants.add — so it's not visible to the instance's tenant.
+        self.client.force_authenticate(user=self.fixture.admin)
+        response = self.client.post(
+            self.rescue_url,
+            data={"rescue_image": factories.ImageFactory.get_url(other_image)},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.rescue_exec.assert_not_called()
+
+    # ---- runtime-state preconditions --------------------------------------
+
+    def test_rescue_rejected_from_shutoff(self):
+        self.instance.runtime_state = models.Instance.RuntimeStates.SHUTOFF
+        self.instance.save()
+        self.client.force_authenticate(user=self.fixture.admin)
+        response = self.client.post(self.rescue_url, data={})
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.rescue_exec.assert_not_called()
+
+    def test_unrescue_rejected_from_active(self):
+        self.client.force_authenticate(user=self.fixture.admin)
+        response = self.client.post(self.unrescue_url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.unrescue_exec.assert_not_called()
+
+    def test_unrescue_succeeds_from_rescue(self):
+        self.instance.runtime_state = models.Instance.RuntimeStates.RESCUE
+        self.instance.save()
+        self.client.force_authenticate(user=self.fixture.admin)
+        response = self.client.post(self.unrescue_url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        self.unrescue_exec.assert_called_once()
+
+    # ---- permissions ------------------------------------------------------
+
+    @data("user")
+    def test_unrelated_user_cannot_rescue(self, user):
+        self.client.force_authenticate(user=getattr(self.fixture, user))
+        response = self.client.post(self.rescue_url, data={})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.rescue_exec.assert_not_called()
+
+
+class ImageRescueFilterTest(test.APITestCase):
+    """is_rescue_image filter on the openstack-images list."""
+
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.client.force_authenticate(user=self.fixture.staff)
+        # Pre-existing fixture image is tied to the tenant via the fixture; we
+        # only need to assert filtering, not permission scoping here.
+        self.tenant = self.fixture.tenant
+        self.url = factories.ImageFactory.get_list_url()
+
+        self.tagged_with_device = factories.ImageFactory(settings=self.fixture.settings)
+        self.tagged_with_device.hw_rescue_device = "cdrom"
+        self.tagged_with_device.save()
+        self.tagged_with_device.tenants.add(self.tenant)
+
+        self.tagged_with_bus = factories.ImageFactory(settings=self.fixture.settings)
+        self.tagged_with_bus.hw_rescue_bus = "usb"
+        self.tagged_with_bus.save()
+        self.tagged_with_bus.tenants.add(self.tenant)
+
+        self.plain = factories.ImageFactory(settings=self.fixture.settings)
+        self.plain.tenants.add(self.tenant)
+
+    def _list_uuids(self, **params):
+        params.setdefault("tenant_uuid", self.tenant.uuid.hex)
+        response = self.client.get(self.url, params)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {row["uuid"] for row in response.data}
+
+    def test_no_filter_returns_all(self):
+        uuids = self._list_uuids()
+        self.assertIn(self.tagged_with_device.uuid.hex, uuids)
+        self.assertIn(self.tagged_with_bus.uuid.hex, uuids)
+        self.assertIn(self.plain.uuid.hex, uuids)
+
+    def test_is_rescue_image_true_returns_only_tagged(self):
+        uuids = self._list_uuids(is_rescue_image="true")
+        self.assertIn(self.tagged_with_device.uuid.hex, uuids)
+        self.assertIn(self.tagged_with_bus.uuid.hex, uuids)
+        self.assertNotIn(self.plain.uuid.hex, uuids)
+
+    def test_is_rescue_image_false_excludes_tagged(self):
+        uuids = self._list_uuids(is_rescue_image="false")
+        self.assertNotIn(self.tagged_with_device.uuid.hex, uuids)
+        self.assertNotIn(self.tagged_with_bus.uuid.hex, uuids)
+        self.assertIn(self.plain.uuid.hex, uuids)
+
+
+@ddt
 class InstanceRetrieveTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.OpenStackFixture()

@@ -471,6 +471,10 @@ class OpenStackBackend(ServiceBackend):
                     "min_ram": remote_image["min_ram"],
                     "min_disk": self.gb2mb(remote_image["min_disk"]),
                     "backend_created_at": get_backend_created_at(remote_image),
+                    # Glance v2 returns custom properties as flat top-level
+                    # keys (verified empirically against the lab cloud).
+                    "hw_rescue_device": remote_image.get("hw_rescue_device") or "",
+                    "hw_rescue_bus": remote_image.get("hw_rescue_bus") or "",
                 },
             )
             tenant.images.add(local_image)
@@ -488,6 +492,8 @@ class OpenStackBackend(ServiceBackend):
                     "min_ram": remote_image["min_ram"],
                     "min_disk": self.gb2mb(remote_image["min_disk"]),
                     "backend_created_at": get_backend_created_at(remote_image),
+                    "hw_rescue_device": remote_image.get("hw_rescue_device") or "",
+                    "hw_rescue_bus": remote_image.get("hw_rescue_bus") or "",
                 },
             )
 
@@ -6112,6 +6118,50 @@ class OpenStackBackend(ServiceBackend):
         try:
             nova.servers.reboot(instance.backend_id)
         except nova_exceptions.ClientException as e:
+            raise OpenStackBackendError(e)
+
+    @log_backend_action()
+    def rescue_instance(self, instance: models.Instance, rescue_image_ref: str = None):
+        """Put instance into Nova rescue mode.
+
+        Volume-backed instances require a "stable device rescue" image
+        (Glance hw_rescue_device or hw_rescue_bus property set) and an
+        explicit rescue_image_ref — the legacy rescue path does not support
+        BFV instances and Nova will leave the instance in unrecoverable
+        ERROR state without one. Validation lives in the serializer; this
+        method just calls the API.
+
+        Note: novaclient's ``servers.rescue()`` takes ``image=`` (mapped to
+        ``rescue_image_ref`` in the wire request body), not ``image_ref=``.
+        Lab-validated.
+        """
+        session = get_tenant_session(instance.tenant)
+        nova = get_nova_client(session)
+        try:
+            nova.servers.rescue(instance.backend_id, image=rescue_image_ref)
+        except nova_exceptions.ClientException as e:
+            if e.code == 409 and "vm_state rescued" in e.message:
+                logger.info(
+                    "OpenStack instance %s is already in rescue mode",
+                    instance.backend_id,
+                )
+                return
+            raise OpenStackBackendError(e)
+
+    @log_backend_action()
+    def unrescue_instance(self, instance: models.Instance):
+        """Restore an instance from rescue mode."""
+        session = get_tenant_session(instance.tenant)
+        nova = get_nova_client(session)
+        try:
+            nova.servers.unrescue(instance.backend_id)
+        except nova_exceptions.ClientException as e:
+            if e.code == 409 and "vm_state active" in e.message:
+                logger.info(
+                    "OpenStack instance %s is already out of rescue mode",
+                    instance.backend_id,
+                )
+                return
             raise OpenStackBackendError(e)
 
     @log_backend_action()
