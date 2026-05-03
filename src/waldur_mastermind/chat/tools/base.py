@@ -4,6 +4,13 @@ from pydantic import BaseModel, Field
 
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 
+# Hard cap on rows returned by listing tools. The LLM produces a markdown
+# table per result; ~15 rows fits one viewport without overwhelming the
+# response. Capped tools must also surface `_truncated` + `_total_count` in
+# their result `data` dict so the LLM can tell the user to narrow filters
+# when the cap is hit.
+MAX_LIST_RESULTS = 15
+
 
 class ToolDefinition(BaseModel):
     """MCP-compatible tool definition with prompt instructions."""

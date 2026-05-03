@@ -44,5 +44,9 @@ ALLOWED_COMPLETION_KEYS = frozenset(
         "reasoning_effort",
         "extra_body",
         "parallel_tool_calls",
+        # tool_choice: "auto" (default) | "required" | "none"
+        # vLLM ≥0.8.3 supports "required" with schema enforcement;
+        # useful when the model declines to call tools despite directives.
+        "tool_choice",
     }
 )

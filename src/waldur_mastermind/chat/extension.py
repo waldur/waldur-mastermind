@@ -41,4 +41,15 @@ class MarketplaceChatExtension(WaldurExtension):
                 "schedule": crontab(minute=0, hour=2),  # 2 AM daily
                 "args": (),
             },
+            "waldur-chat-cleanup-anonymous-chat-artifacts": {
+                "task": "waldur_mastermind.chat.cleanup_anonymous_chat_artifacts",
+                "schedule": crontab(minute=30, hour=2),  # 2:30 AM daily
+                "args": (),
+            },
+            # LLM-as-judge nightly review.
+            "waldur-chat-anonymous-review-sessions": {
+                "task": "waldur_mastermind.chat.review_completed_sessions",
+                "schedule": crontab(minute=0, hour=5),  # 5 AM UTC daily
+                "args": (),
+            },
         }

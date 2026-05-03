@@ -8,13 +8,15 @@ from waldur_mastermind.chat.tools.account.helpers import (
     user_role_on_customer,
     validate_uuid,
 )
-from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
+from waldur_mastermind.chat.tools.base import (
+    MAX_LIST_RESULTS,
+    BaseTool,
+    ToolDefinition,
+)
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
-
-_MAX_RESULTS = 50
 
 
 class ListOrganizationsTool(BaseTool):
@@ -103,7 +105,8 @@ Sibling tools that are NOT part of the drill:
             ).distinct()
         qs = qs.order_by("name")
         total = qs.count()
-        rows = list(qs[:_MAX_RESULTS])
+        rows = list(qs[:MAX_LIST_RESULTS])
+        truncated = total > MAX_LIST_RESULTS
 
         organizations = [
             {
@@ -116,13 +119,20 @@ Sibling tools that are NOT part of the drill:
         ]
 
         summary = f"Found {total} organization{'s' if total != 1 else ''}"
-        if total > _MAX_RESULTS:
-            summary += f" (showing first {_MAX_RESULTS})"
+        if truncated:
+            summary += (
+                f" (showing first {MAX_LIST_RESULTS} — narrow filters to see more)"
+            )
         summary += "."
 
         return {
             "type": "success",
-            "data": {"organizations": organizations, "total": total},
+            "data": {
+                "organizations": organizations,
+                "total": total,
+                "_total_count": total,
+                "_truncated": truncated,
+            },
             "summary": summary,
         }
 

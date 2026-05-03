@@ -7,8 +7,8 @@ from django.db.models import Count
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.marketplace.helpers import (
-    is_public_marketplace_enabled,
-    public_offerings_queryset,
+    is_anonymous_caller_blocked,
+    offerings_queryset_for,
 )
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace import models as marketplace_models
@@ -105,16 +105,16 @@ The funnel is a shape, not a script.\
         )
 
     def execute(self, user, arguments: dict) -> dict:
-        if not is_public_marketplace_enabled():
+        if is_anonymous_caller_blocked(user):
             return {
                 "type": "error",
                 "summary": "Marketplace browsing is currently disabled.",
             }
 
-        public_offering_ids = public_offerings_queryset().values_list("id", flat=True)
+        visible_offering_ids = offerings_queryset_for(user).values_list("id", flat=True)
         categories = (
             marketplace_models.Category.objects.filter(
-                offerings__id__in=public_offering_ids
+                offerings__id__in=visible_offering_ids
             )
             .annotate(public_offering_count=Count("offerings", distinct=True))
             .order_by("-public_offering_count", "title")

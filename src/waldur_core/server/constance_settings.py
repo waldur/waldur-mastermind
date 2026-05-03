@@ -107,6 +107,7 @@ AI_ASSISTANT_ENABLED_ROLES_CHOICES = [
     ("staff", "Staff users"),
     ("staff_and_support", "Staff and support users"),
     ("all", "All users"),
+    ("anonymous", "All users including anonymous"),
 ]
 
 NOTIFY_SYSTEM_CHOICES = [
@@ -1089,7 +1090,8 @@ CONSTANCE_CONFIG = {
         "'disabled': No role-based access. "
         "'staff': Staff users only. "
         "'staff_and_support': Staff and support users. "
-        "'all': All authenticated users.",
+        "'all': All authenticated users. "
+        "'anonymous': All users including anonymous (enables the public anonymous chat endpoint).",
         "choice_field",
     ),
     "AI_ASSISTANT_BACKEND_TYPE": (
@@ -1121,15 +1123,24 @@ CONSTANCE_CONFIG = {
     ),
     "AI_ASSISTANT_TOKEN_LIMIT_DAILY": (
         -1,
-        "Default daily token limit (integer). -1 means unlimited.",
+        "Per-actor daily token cap (authenticated OR anonymous). -1 means unlimited.",
     ),
     "AI_ASSISTANT_TOKEN_LIMIT_WEEKLY": (
         -1,
-        "Default weekly token limit (integer). -1 means unlimited.",
+        "Per-actor (authenticated OR anonymous) weekly token cap. -1 means unlimited.",
     ),
     "AI_ASSISTANT_TOKEN_LIMIT_MONTHLY": (
         -1,
-        "Default monthly token limit (integer). -1 means unlimited.",
+        "Per-actor (authenticated OR anonymous) monthly token cap. -1 means unlimited.",
+    ),
+    "AI_ASSISTANT_GLOBAL_DAILY_TOKEN_BUDGET": (
+        5000000,
+        "Site-wide daily token cap across all assistant traffic (auth + "
+        "anonymous). -1 means unlimited.",
+    ),
+    "AI_ASSISTANT_GLOBAL_REQUESTS_PER_MINUTE": (
+        60,
+        "Site-wide burst cap across all assistant traffic.",
     ),
     "AI_ASSISTANT_SESSION_RETENTION_DAYS": (
         90,
@@ -1138,6 +1149,10 @@ CONSTANCE_CONFIG = {
     "AI_ASSISTANT_HISTORY_LIMIT": (
         50,
         "Maximum number of past messages included in the AI Assistant context window.",
+    ),
+    "AI_ASSISTANT_STREAM_TIMEOUT_SECONDS": (
+        120,
+        "Hard timeout in seconds for a full streaming request including LLM completion.",
     ),
     "AI_ASSISTANT_INJECTION_ALLOWLIST": (
         "",
@@ -1154,6 +1169,41 @@ CONSTANCE_CONFIG = {
         "or behavioural guidelines. Supports {assistant_name} and {organization} "
         "placeholders. Overridden by the active SystemPrompt record when set.",
         "text_field",
+    ),
+    # Anonymous AI assistant settings
+    "ANONYMOUS_CHAT_USER_SLUG_SALT": (
+        "",
+        "Scrypt salt for per-IP user_slug derivation. Empty disables slug "
+        "computation (interactions are written without it).",
+        "secret_field",
+    ),
+    "ANONYMOUS_CHAT_FEEDBACK_TOKEN_SECRET": (
+        "",
+        "HMAC-SHA256 secret for /feedback/ anti-replay tokens. Loss of "
+        "secrecy invalidates all in-flight feedback submissions.",
+        "secret_field",
+    ),
+    "ANONYMOUS_CHAT_CATALOG_MAX_ENTRIES": (
+        50,
+        "Hard cap on the number of offerings injected into the anonymous "
+        "assistant's system prompt catalog summary. Past this, drop the tail.",
+    ),
+    "ANONYMOUS_CHAT_REVIEW_ENABLED": (
+        True,
+        "Master toggle for the nightly LLM-as-judge review of completed "
+        "anonymous sessions. On by default — cost is bounded by "
+        "ANONYMOUS_CHAT_REVIEW_DAILY_TOKEN_BUDGET.",
+    ),
+    "ANONYMOUS_CHAT_REVIEW_DAILY_TOKEN_BUDGET": (
+        2000000,
+        "Independent budget for the LLM judge so review can't starve "
+        "user-facing traffic. Reuses AI_ASSISTANT_API_URL/TOKEN/MODEL.",
+    ),
+    "ANONYMOUS_CHAT_ARTIFACT_RETENTION_DAYS": (
+        30,
+        "Days of inactivity after which pseudonymous bookkeeping rows "
+        "(SessionBinding, AnonymousChatBudget) are purged. Active blocks "
+        "are always retained until they expire. Set to -1 to disable.",
     ),
     # Software catalog settings
     "SOFTWARE_CATALOG_EESSI_UPDATE_ENABLED": (
@@ -1620,12 +1670,21 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "AI_ASSISTANT_MODEL",
         "AI_ASSISTANT_SYSTEM_PROMPT_CUSTOM_INSTRUCTIONS",
         "AI_ASSISTANT_COMPLETION_KWARGS",
+        "AI_ASSISTANT_STREAM_TIMEOUT_SECONDS",
         "AI_ASSISTANT_TOKEN_LIMIT_DAILY",
         "AI_ASSISTANT_TOKEN_LIMIT_WEEKLY",
         "AI_ASSISTANT_TOKEN_LIMIT_MONTHLY",
+        "AI_ASSISTANT_GLOBAL_DAILY_TOKEN_BUDGET",
+        "AI_ASSISTANT_GLOBAL_REQUESTS_PER_MINUTE",
         "AI_ASSISTANT_SESSION_RETENTION_DAYS",
         "AI_ASSISTANT_HISTORY_LIMIT",
         "AI_ASSISTANT_INJECTION_ALLOWLIST",
+        "ANONYMOUS_CHAT_USER_SLUG_SALT",
+        "ANONYMOUS_CHAT_FEEDBACK_TOKEN_SECRET",
+        "ANONYMOUS_CHAT_CATALOG_MAX_ENTRIES",
+        "ANONYMOUS_CHAT_REVIEW_ENABLED",
+        "ANONYMOUS_CHAT_REVIEW_DAILY_TOKEN_BUDGET",
+        "ANONYMOUS_CHAT_ARTIFACT_RETENTION_DAYS",
     ),
     "Software catalog general": (
         "SOFTWARE_CATALOG_UPDATE_EXISTING_PACKAGES",
@@ -1738,6 +1797,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT",
     "AI_ASSISTANT_ENABLED",
     "AI_ASSISTANT_ENABLED_ROLES",
+    "AI_ASSISTANT_NAME",
     # Support plugin
     "WALDUR_SUPPORT_ENABLED",
     "WALDUR_SUPPORT_DISPLAY_REQUEST_TYPE",

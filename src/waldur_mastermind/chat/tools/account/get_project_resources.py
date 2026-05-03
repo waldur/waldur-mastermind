@@ -7,15 +7,17 @@ from waldur_mastermind.chat.tools.account.helpers import (
     user_accessible_projects,
     validate_uuid,
 )
-from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
+from waldur_mastermind.chat.tools.base import (
+    MAX_LIST_RESULTS,
+    BaseTool,
+    ToolDefinition,
+)
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.models import Resource
 
 logger = logging.getLogger(__name__)
-
-_MAX_RESULTS = 50
 
 
 class GetProjectResourcesTool(BaseTool):
@@ -125,7 +127,8 @@ class GetProjectResourcesTool(BaseTool):
         qs = qs.order_by("-created")
 
         total = qs.count()
-        rows = list(qs[:_MAX_RESULTS])
+        rows = list(qs[:MAX_LIST_RESULTS])
+        truncated = total > MAX_LIST_RESULTS
         state_labels = dict(ResourceStates.CHOICES)
 
         resources = [
@@ -149,13 +152,20 @@ class GetProjectResourcesTool(BaseTool):
         ]
 
         summary = f"Found {total} resource{'s' if total != 1 else ''}"
-        if total > _MAX_RESULTS:
-            summary += f" (showing first {_MAX_RESULTS})"
+        if truncated:
+            summary += (
+                f" (showing first {MAX_LIST_RESULTS} — narrow filters to see more)"
+            )
         summary += "."
 
         return {
             "type": "success",
-            "data": {"resources": resources, "total": total},
+            "data": {
+                "resources": resources,
+                "total": total,
+                "_total_count": total,
+                "_truncated": truncated,
+            },
             "summary": summary,
         }
 

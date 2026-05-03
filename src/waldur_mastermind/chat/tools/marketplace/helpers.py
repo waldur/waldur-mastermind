@@ -1,9 +1,16 @@
 """Shared helpers for marketplace discovery tools used by the AI Assistant.
 
-All accessors here assume anonymous-capped visibility: tools built on these
-helpers return publicly viewable offerings only, regardless of caller
-identity. That invariant is the core safety guarantee of the marketplace
-tool set.
+Visibility model: callers see exactly what
+``marketplace.filter_by_ordering_availability_for_user`` returns for their
+``User`` — i.e. the same scope the marketplace UI shows that user.
+
+  - ``AnonymousUser`` (or ``None``)  → only ``shared=True``,
+    ``state ∈ {ACTIVE, PAUSED}`` offerings (subject to
+    ``ANONYMOUS_USER_CAN_VIEW_OFFERINGS``)
+  - Authenticated end user            → shared offerings + offerings tied
+    to their organisation groups + offerings on their connected
+    projects/customers
+  - Staff / support                  → all offerings
 """
 
 from constance import config
@@ -13,18 +20,35 @@ from waldur_mastermind.marketplace import models as marketplace_models
 
 
 def is_public_marketplace_enabled() -> bool:
-    """True when anonymous users may view marketplace offerings."""
+    """True when anonymous users may view marketplace offerings.
+
+    Used by the anonymous chat endpoint as a master switch. Authenticated
+    callers are not gated by this flag — they see what their User permits.
+    """
     return bool(config.ANONYMOUS_USER_CAN_VIEW_OFFERINGS)
 
 
-def public_offerings_queryset():
-    """Anonymous-capped queryset of publicly viewable offerings.
+def is_anonymous_caller_blocked(user) -> bool:
+    """True when an anon caller hits a public marketplace tool while the gate is off.
 
-    Delegates to the model-layer manager so the Constance flag and the
-    state/shared gates remain in one place.
+    Authenticated callers always bypass — they see what their User permits, gated
+    by ``offerings_queryset_for(user)``. Only the no-login flow is governed by
+    ``ANONYMOUS_USER_CAN_VIEW_OFFERINGS``.
+    """
+    is_anon = user is None or user.is_anonymous
+    return is_anon and not is_public_marketplace_enabled()
+
+
+def offerings_queryset_for(user=None):
+    """User-aware queryset of marketplace offerings.
+
+    Delegates to ``filter_by_ordering_availability_for_user`` so the
+    state/shared/organisation-group gates live in one place. Falls back to
+    ``AnonymousUser`` when ``user`` is ``None`` — preserves the old anon-only
+    behaviour for callers that haven't been updated yet.
     """
     return marketplace_models.Offering.objects.all().filter_by_ordering_availability_for_user(
-        AnonymousUser()
+        user or AnonymousUser()
     )
 
 

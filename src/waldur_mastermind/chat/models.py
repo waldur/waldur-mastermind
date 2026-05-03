@@ -527,3 +527,113 @@ class SystemPrompt(UuidMixin, NameMixin, DescribableMixin, TimeStampedModel):
     @classmethod
     def get_active(cls):
         return cls.objects.filter(is_active=True).first()
+
+
+class GlobalAssistantBudget(TimeStampedModel):
+    """Singleton site-wide budget covering both auth and anon traffic.
+
+    The per-minute counter is spoofing-resistant: XFF rotation can bypass per-IP rows,
+    but the global sum survives any IP fidelity issues. Fetch via ``GlobalAssistantBudget.get()``.
+    """
+
+    pk_singleton = models.PositiveSmallIntegerField(primary_key=True, default=1)
+
+    daily_token_usage = models.PositiveBigIntegerField(default=0)
+    daily_reset_last_at = models.DateTimeField(default=timezone.now)
+
+    minute_request_usage = models.PositiveBigIntegerField(default=0)
+    minute_reset_last_at = models.DateTimeField(default=timezone.now)
+
+    PERIOD_MAP = {
+        "daily": ("daily_token_usage", "AI_ASSISTANT_GLOBAL_DAILY_TOKEN_BUDGET"),
+    }
+
+    class Meta:
+        verbose_name = _("Global Assistant Budget")
+        verbose_name_plural = _("Global Assistant Budgets")
+
+    def __str__(self):
+        return "GlobalAssistantBudget(singleton)"
+
+    @classmethod
+    def get(cls, lock: bool = False) -> "GlobalAssistantBudget":
+        if lock and not connection.in_atomic_block:
+            raise RuntimeError(
+                "Locking the global budget requires transaction.atomic()."
+            )
+        if lock:
+            try:
+                return cls.objects.select_for_update().get(pk=1)
+            except cls.DoesNotExist:
+                row, _created = cls.objects.get_or_create(pk_singleton=1)
+                return cls.objects.select_for_update().get(pk=row.pk)
+        else:
+            row, _created = cls.objects.get_or_create(pk_singleton=1)
+            return row
+
+    def ensure_period_reset(self) -> None:
+        if not connection.in_atomic_block:
+            raise RuntimeError("ensure_period_reset requires transaction.atomic().")
+
+        now = timezone.now()
+        update_fields: list[str] = []
+
+        minute_start = now.replace(second=0, microsecond=0)
+        if self.minute_reset_last_at < minute_start:
+            self.minute_request_usage = 0
+            self.minute_reset_last_at = minute_start
+            update_fields.extend(["minute_request_usage", "minute_reset_last_at"])
+
+        day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        if self.daily_reset_last_at < day_start:
+            self.daily_token_usage = 0
+            self.daily_reset_last_at = day_start
+            update_fields.extend(["daily_token_usage", "daily_reset_last_at"])
+
+        if update_fields:
+            self.save(update_fields=update_fields)
+
+    def add_usage(self, tokens: int = 0) -> None:
+        if not connection.in_atomic_block:
+            raise RuntimeError("add_usage requires transaction.atomic().")
+        if tokens < 0:
+            raise ValueError(f"Token count must be non-negative, got tokens={tokens}")
+
+        # Reset before incrementing so usage that crosses a period boundary
+        # lands in the new bucket rather than a stale row the next gate read
+        # would zero.
+        self.ensure_period_reset()
+
+        # ``minute_request_usage`` is incremented by ``enforce_global_budget``
+        # at admission time — see budget_gate.py for the rationale (the burst
+        # cap has to count attempts, not completions, to actually limit a flood).
+        GlobalAssistantBudget.objects.filter(pk=self.pk).update(
+            daily_token_usage=models.F("daily_token_usage") + tokens,
+        )
+        self.refresh_from_db(fields=["daily_token_usage"])
+
+    def get_effective_limit(self, period: str) -> int:
+        if period not in self.PERIOD_MAP:
+            raise ValueError(f"Invalid period: {period}")
+        _, constance_attr = self.PERIOD_MAP[period]
+        cap = int(getattr(config, constance_attr))
+        return cap if cap > 0 else TokenLimit.UNLIMITED
+
+    def is_period_exhausted(self, period: str) -> bool:
+        cap = self.get_effective_limit(period)
+        if cap == TokenLimit.UNLIMITED:
+            return False
+        usage_attr, _ = self.PERIOD_MAP[period]
+        return getattr(self, usage_attr) >= cap
+
+
+# Anonymous-marketplace-assistant models. Imported here so Django's app
+# registry picks them up; the source-of-truth definitions live in
+# chat/anonymous/models.py to keep this monolithic file from sprawling.
+from waldur_mastermind.chat.anonymous.models import (  # noqa: E402,F401
+    AnonymousChatBudget,
+    AnonymousChatClick,
+    AnonymousChatFeedback,
+    AnonymousChatInteraction,
+    SessionBinding,
+)

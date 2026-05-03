@@ -13,13 +13,15 @@ from waldur_mastermind.chat.tools.account.helpers import (
     user_role_on_project,
     validate_uuid,
 )
-from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
+from waldur_mastermind.chat.tools.base import (
+    MAX_LIST_RESULTS,
+    BaseTool,
+    ToolDefinition,
+)
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
-
-_MAX_RESULTS = 50
 
 
 class ListProjectsTool(BaseTool):
@@ -115,7 +117,8 @@ class ListProjectsTool(BaseTool):
         qs = qs.order_by("name")
 
         total = qs.count()
-        rows = list(qs[:_MAX_RESULTS])
+        rows = list(qs[:MAX_LIST_RESULTS])
+        truncated = total > MAX_LIST_RESULTS
         projects = [
             {
                 "uuid": str(p.uuid),
@@ -128,13 +131,20 @@ class ListProjectsTool(BaseTool):
         ]
 
         summary = f"Found {total} project{'s' if total != 1 else ''}"
-        if total > _MAX_RESULTS:
-            summary += f" (showing first {_MAX_RESULTS})"
+        if truncated:
+            summary += (
+                f" (showing first {MAX_LIST_RESULTS} — narrow filters to see more)"
+            )
         summary += "."
 
         return {
             "type": "success",
-            "data": {"projects": projects, "total": total},
+            "data": {
+                "projects": projects,
+                "total": total,
+                "_total_count": total,
+                "_truncated": truncated,
+            },
             "summary": summary,
         }
 

@@ -36,7 +36,7 @@ class _VmOrderBlockSerializer(_BaseBlockSerializer):
     """vm_order surfaces three terminal states emitted by plan_vm/create_vm:
     `preview` (config card before commit), `success` (post-create), and
     `error` (validation_error rendering). Selection-style states moved to
-    ``ask_user_form`` when WAL-9884 collapsed list/preview/form into plan_vm.
+    ``ask_user_form`` when list/preview/form were collapsed into plan_vm.
     """
 
     order_id = serializers.CharField(required=False, allow_blank=True)
@@ -66,6 +66,15 @@ class _ResourceListBlockSerializer(_BaseBlockSerializer):
 class _HomeportNavBlockSerializer(_BaseBlockSerializer):
     """Navigation links with optional intro caption."""
 
+    # TODO(WAL-9688 follow-up): tighten the link child schema to an
+    # explicit serializer with fields {label, url, variant, subtitle,
+    # description_excerpt}. Currently DictField accepts arbitrary keys
+    # — if a future tool emits the same block kind with extra fields
+    # (e.g. internal scoring/debug data), they'd pass straight through
+    # to the persisted Message.blocks and to the judge audit. Not a
+    # leak today (search_offerings is the only emitter and constructs
+    # the dict explicitly) but a typed serializer would prevent
+    # future-tool data leakage.
     links = serializers.ListField(child=serializers.DictField())
     content = serializers.CharField(required=False, allow_blank=True)
 

@@ -325,6 +325,95 @@ class StreamQuotaIntegrationTest(ChatBaseTest):
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
 
+@mock.patch(SYNC_THREAD_PATCH, _SynchronousThread)
+class StreamGlobalBudgetTest(ChatBaseTest):
+    """Auth chat path increments + checks the same singleton GlobalAssistantBudget
+    as the anonymous chat path.
+
+    Catches the abuse case where an authenticated user with a generous
+    per-user cap could otherwise burn through site-wide budget in a way
+    the per-user gate alone wouldn't notice.
+    """
+
+    @override_constance_config(
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_GLOBAL_DAILY_TOKEN_BUDGET=100,
+    )
+    def test_429_when_global_daily_token_exhausted(self):
+        from django.db import transaction
+
+        from waldur_mastermind.chat.models import GlobalAssistantBudget
+
+        with transaction.atomic():
+            budget = GlobalAssistantBudget.get(lock=True)
+            budget.daily_token_usage = 1_000
+            budget.save(update_fields=["daily_token_usage"])
+
+        response = self.client.post(self.stream_url, data={"input": "hi"})
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(response.data["code"], "global_daily_token")
+        self.assertIn("Retry-After", response.headers)
+
+    @override_constance_config(
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_GLOBAL_REQUESTS_PER_MINUTE=1,
+    )
+    def test_429_when_global_minute_burst_exhausted(self):
+        from django.db import transaction
+
+        from waldur_mastermind.chat.models import GlobalAssistantBudget
+
+        with transaction.atomic():
+            budget = GlobalAssistantBudget.get(lock=True)
+            budget.minute_request_usage = 5
+            budget.save(update_fields=["minute_request_usage"])
+
+        response = self.client.post(self.stream_url, data={"input": "hi"})
+
+        self.assertEqual(response.status_code, status.HTTP_429_TOO_MANY_REQUESTS)
+        self.assertEqual(response.data["code"], "global_minute_burst")
+        self.assertIn("Retry-After", response.headers)
+
+    @override_constance_config(
+        AI_ASSISTANT_ENABLED=True,
+        AI_ASSISTANT_ENABLED_ROLES="all",
+        AI_ASSISTANT_API_URL="https://example.com/stream",
+        AI_ASSISTANT_API_TOKEN="dummy-token",
+        AI_ASSISTANT_TOKEN_LIMIT_MONTHLY=10000,
+    )
+    @mock.patch("waldur_mastermind.chat.llm_streamer.openai.OpenAI")
+    def test_global_budget_incremented_after_auth_stream(self, mock_openai_cls):
+        """Auth-path streaming bumps the same singleton anon increments."""
+        from waldur_mastermind.chat.models import GlobalAssistantBudget
+
+        TokenQuota.for_user(self.user)
+        mock_openai_cls.return_value = _mock_openai_client(
+            [_make_content_chunk("hi"), _make_usage_chunk(10, 20)]
+        )
+
+        # Use an existing thread to avoid title-generation usage noise.
+        session, _ = ChatSession.objects.get_or_create(user=self.user)
+        thread = ThreadSession.objects.create(chat_session=session)
+
+        response = self.client.post(
+            self.stream_url,
+            data={"input": "test", "thread_uuid": str(thread.uuid)},
+        )
+        # Drain the stream so post-stream accounting runs.
+        b"".join(response.streaming_content)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        budget = GlobalAssistantBudget.get()
+        self.assertEqual(budget.daily_token_usage, 30)
+
+
 @override_constance_config(
     AI_ASSISTANT_ENABLED=True,
     AI_ASSISTANT_ENABLED_ROLES="all",

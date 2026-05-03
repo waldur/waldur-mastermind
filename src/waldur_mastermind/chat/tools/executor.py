@@ -28,17 +28,22 @@ class ToolExecutor:
     def __init__(self, user):
         self.user = user
 
+    @property
+    def _is_anonymous(self) -> bool:
+        return self.user is None or getattr(self.user, "is_anonymous", False)
+
+    def _user_log_extra(self) -> dict:
+        if self._is_anonymous:
+            return {"user_id": None, "username": "anonymous"}
+        return {"user_id": self.user.id, "username": self.user.username}
+
     def execute_tool(self, tool_name: str, arguments: dict) -> dict:
         """Route a tool call to its registered handler."""
+        log_extra = self._user_log_extra()
         logger.debug(
             "Tool execution: %s",
             tool_name,
-            extra={
-                "user_id": self.user.id,
-                "username": self.user.username,
-                "tool_name": tool_name,
-                "arguments": arguments,
-            },
+            extra={**log_extra, "tool_name": tool_name, "arguments": arguments},
         )
 
         injection_block = self._check_injection(tool_name, arguments)
@@ -63,7 +68,7 @@ class ToolExecutor:
             logger.warning(
                 "Permission denied for tool: %s",
                 tool_name,
-                extra={"user_id": self.user.id},
+                extra=log_extra,
             )
             return {
                 "type": "error",
@@ -75,7 +80,7 @@ class ToolExecutor:
             logger.exception(
                 "Tool execution failed: %s",
                 tool_name,
-                extra={"user_id": self.user.id},
+                extra=log_extra,
             )
             return {
                 "type": "error",
@@ -103,7 +108,10 @@ class ToolExecutor:
                     tool_name,
                     detection.score,
                 )
-                if detection.severity >= SeverityLevel.HIGH:
+                if detection.severity >= SeverityLevel.HIGH and not self._is_anonymous:
+                    # Audit emit requires a real authenticated user for the
+                    # scope hookup; anonymous detections are tracked in the
+                    # AnonymousChatBudget strike counter, not the audit log.
                     event_logger.emit(
                         f"{label} detected in tool arguments from {{user_username}}: severity={{severity}}, score={{score}}, tool={{tool_name}}.",
                         event_type=event_type,
