@@ -8282,7 +8282,7 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         description="Partially updates the name or description of a resource. Requires provider permissions.",
     ),
 )
-class ProviderResourceViewSet(BaseResourceViewSet):
+class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     def get_queryset(self):
         # Avoid N+1 queries when serializing offering fields (image, thumbnail, etc.)
         return self.queryset.filter_for_service_provider(

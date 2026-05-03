@@ -38,7 +38,7 @@ from waldur_core.permissions.utils import (
 from waldur_core.structure import models as structure_models
 from waldur_core.structure.permissions import _get_customer
 
-from . import filters, models, serializers
+from . import enums, filters, models, serializers
 
 logger = logging.getLogger(__name__)
 
@@ -274,27 +274,35 @@ class RoleAvailabilityViewSet(ActionsViewSet):
 
 
 def _user_can_view_scope_team(user, scope) -> bool:
-    """Gate for ``UserRoleMixin.list_users``.
+    """Authorise ``UserRoleMixin.list_users`` against a single scope.
 
-    Pre-existing assumption (relied on by ProjectViewSet and CustomerViewSet)
-    was that a caller could only resolve ``get_object()`` on a scope they
-    were a member of. Once Resource / ResourceProject UserRoles started
-    granting read visibility of the parent project / customer (so that
-    role-only invitees could render the UI), that implicit gate stopped
-    working — an RP-only invitee could enumerate the parent organisation's
-    membership PII via ``list_users``.
+    Returns True iff ``user`` is allowed to enumerate the membership and PII
+    of users with roles on ``scope``. The check has two independent paths;
+    either is sufficient.
 
-    Restore the pre-existing semantic explicitly: only staff/support, or
-    callers with a real consumer-side role on the scope tree (the scope
-    itself, its enclosing customer, or any project under that customer),
-    may list team members. The whole check is folded into one SQL EXISTS
-    so it costs at most one extra query on the request.
+    Consumer-side (any scope type)
+        Staff / support, or a caller holding any active ``UserRole`` on the
+        scope tree: the scope itself, its enclosing customer, or any project
+        under that customer. Resolved in a single SQL EXISTS.
+
+    Provider-side (only Resource / ResourceProject)
+        A caller holding ``UPDATE_OFFERING`` on the offering selling this
+        scope, or on the offering's customer. This covers
+        ``OFFERING.MANAGER`` (offering-scoped), ``CUSTOMER.OWNER`` and
+        ``SERVICE_PROVIDER.MANAGER`` (customer-scoped) on the provider side.
+        Resolved in a single SQL EXISTS that mirrors the consumer-side query.
+
+    Returns False for ``Project`` / ``Customer`` scopes that fail the
+    consumer-side check (the provider-side branch is short-circuited via
+    ``_get_offering_for_scope`` returning ``None``).
     """
     if not user or user.is_anonymous:
         return False
     if user.is_staff or user.is_support:
         return True
 
+    # Consumer-side: UserRole on the scope, its customer, or any project
+    # under that customer.
     scope_meta = scope._meta
     q = Q(
         content_type__app_label=scope_meta.app_label,
@@ -315,7 +323,55 @@ def _user_can_view_scope_team(user, scope) -> bool:
                 customer_id=customer.id
             ).values_list("id", flat=True),
         )
-    return models.UserRole.objects.filter(user=user, is_active=True).filter(q).exists()
+    if models.UserRole.objects.filter(user=user, is_active=True).filter(q).exists():
+        return True
+
+    # Provider-side: caller manages the offering selling this scope.
+    # Only Resource and ResourceProject scopes have an offering — Project
+    # and Customer scopes fall through and the function returns False.
+    # Accept UPDATE_OFFERING on EITHER the offering itself (OFFERING.MANAGER
+    # role) OR the offering's customer (CUSTOMER.OWNER /
+    # SERVICE_PROVIDER.MANAGER roles). Folded into a single SQL EXISTS to
+    # mirror the consumer-side query above.
+    offering = _get_offering_for_scope(scope)
+    if offering is None:
+        return False
+    offering_ct = ContentType.objects.get_for_model(type(offering))
+    provider_q = Q(content_type=offering_ct, object_id=offering.id)
+    if offering.customer_id:
+        customer_ct = ContentType.objects.get_for_model(type(offering.customer))
+        provider_q |= Q(content_type=customer_ct, object_id=offering.customer_id)
+    return (
+        models.UserRole.objects.filter(
+            user=user,
+            is_active=True,
+            role__permissions__permission=enums.PermissionEnum.UPDATE_OFFERING.value,
+        )
+        .filter(provider_q)
+        .exists()
+    )
+
+
+def _get_offering_for_scope(scope):
+    """Return the marketplace.Offering that sells this scope, or None.
+
+    For ``Resource`` the offering is direct; for ``ResourceProject`` it's
+    one hop through ``resource``. Other scope types have no provider-side
+    offering in the marketplace sense.
+
+    Duck-typed on purpose — ``waldur_core.permissions`` cannot import from
+    ``waldur_mastermind.marketplace`` without violating the core/mastermind
+    layering. The assumption "any scope with a `.offering` attribute is a
+    marketplace Resource (or with `.resource.offering`, a ResourceProject)"
+    holds today; if a future scope type adds an unrelated `.offering`
+    attribute, this gate would falsely accept its callers.
+    """
+    offering = getattr(scope, "offering", None)
+    if offering is None:
+        resource = getattr(scope, "resource", None)
+        if resource is not None:
+            offering = getattr(resource, "offering", None)
+    return offering
 
 
 class UserRoleMixin:
