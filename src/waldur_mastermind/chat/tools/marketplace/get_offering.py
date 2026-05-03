@@ -5,8 +5,8 @@ import logging
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.marketplace.helpers import (
-    is_public_marketplace_enabled,
-    public_offerings_queryset,
+    is_anonymous_caller_blocked,
+    offerings_queryset_for,
     serialize_offering_detailed,
 )
 from waldur_mastermind.chat.tools.registry import tool_registry
@@ -84,7 +84,7 @@ class GetOfferingTool(BaseTool):
         )
 
     def execute(self, user, arguments: dict) -> dict:
-        if not is_public_marketplace_enabled():
+        if is_anonymous_caller_blocked(user):
             return {
                 "type": "error",
                 "summary": "Marketplace browsing is currently disabled.",
@@ -99,7 +99,7 @@ class GetOfferingTool(BaseTool):
             }
 
         qs = (
-            public_offerings_queryset()
+            offerings_queryset_for(user)
             .select_related("category", "customer")
             .prefetch_related("plans", "components", "tags")
         )

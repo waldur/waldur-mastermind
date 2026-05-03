@@ -5,7 +5,11 @@ from django.utils import timezone
 
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_mastermind.chat.tools.account.helpers import validate_uuid
-from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
+from waldur_mastermind.chat.tools.base import (
+    MAX_LIST_RESULTS,
+    BaseTool,
+    ToolDefinition,
+)
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.proposal_helpers import proposal_detail_url
 from waldur_mastermind.chat.tools.registry import tool_registry
@@ -14,7 +18,6 @@ from waldur_mastermind.proposal.models import Proposal
 
 logger = logging.getLogger(__name__)
 
-_MAX_PROPOSALS = 30
 _VALID_PROPOSAL_STATES = {s for s, _ in ProposalStates.CHOICES}
 
 
@@ -139,7 +142,10 @@ class ListProposalsTool(BaseTool):
                 Q(name__icontains=search) | Q(project_summary__icontains=search)
             )
 
-        proposals = list(qs.order_by("-created")[:_MAX_PROPOSALS])
+        ordered_qs = qs.order_by("-created")
+        total_count = ordered_qs.count()
+        proposals = list(ordered_qs[:MAX_LIST_RESULTS])
+        truncated = total_count > MAX_LIST_RESULTS
 
         now = timezone.now()
         data = []
@@ -166,9 +172,19 @@ class ListProposalsTool(BaseTool):
         summary = (
             f"{len(data)} proposal{'s' if len(data) != 1 else ''} matching your filter."
         )
+        if truncated:
+            summary += (
+                f" Showing first {MAX_LIST_RESULTS} of {total_count} — "
+                "narrow filters to see more."
+            )
         return {
             "type": "success",
-            "data": {"proposals": data, "total": len(data)},
+            "data": {
+                "proposals": data,
+                "total": len(data),
+                "_total_count": total_count,
+                "_truncated": truncated,
+            },
             "summary": summary,
         }
 

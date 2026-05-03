@@ -1913,7 +1913,21 @@ class StreamerAgenticLoopTest(_LLMStreamerTestBase, unittest.TestCase):
 
 
 class RehydrateFromCategoriesTest(_LLMStreamerTestBase, unittest.TestCase):
-    """_rehydrate_enabled_tools must expand past-turn search_tools(categories=...) calls."""
+    """_rehydrate_enabled_tools must expand past-turn search_tools(categories=...) calls.
+
+    All tests here exercise the AUTHENTICATED path — rehydration is skipped on
+    the anonymous path. The helper user fixture below ensures
+    _make_streamer takes the auth branch in __init__.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Fake authenticated user — not anonymous, not staff/support.
+        # Ensures __init__ takes the auth init branch (lazy seed +
+        # rehydration), not the anon branch (fixed ANONYMOUS_TOOLS).
+        self._auth_user = MagicMock(
+            is_anonymous=False, is_staff=False, is_support=False
+        )
 
     def _search_tools_call(self, categories):
         return {
@@ -1972,7 +1986,9 @@ class RehydrateFromCategoriesTest(_LLMStreamerTestBase, unittest.TestCase):
 
     def test_unknown_category_skipped(self):
         streamer = self._make_streamer(
-            [], messages=[self._search_tools_call(["not_a_real_category"])]
+            [],
+            messages=[self._search_tools_call(["not_a_real_category"])],
+            user=self._auth_user,
         )
         # Rehydration already ran in __init__ via _make_streamer; call it
         # again explicitly as a regression guard for idempotency.
@@ -1986,6 +2002,136 @@ class RehydrateFromCategoriesTest(_LLMStreamerTestBase, unittest.TestCase):
         # after __init__, with no prior tool activity in the history.
         # ``ask_user`` is universal — the LLM needs to be able to clarify
         # before any search_tools round.
-        streamer = self._make_streamer([], messages=[])
+        streamer = self._make_streamer([], messages=[], user=self._auth_user)
         self.assertIn("search_tools", streamer._enabled_tool_names)
         self.assertIn("ask_user", streamer._enabled_tool_names)
+
+
+class LLMStreamerAnonymousPathTest(_LLMStreamerTestBase, unittest.TestCase):
+    """Anonymous-path init.
+
+    user=None is the public anonymous chat flow. The streamer must seed the tool
+    surface with ANONYMOUS_TOOLS (marketplace + ask_user, NO search_tools)
+    and skip rehydration entirely.
+    """
+
+    def test_anon_init_uses_anonymous_tools(self):
+        from waldur_mastermind.chat.tools.tool_sets import ANONYMOUS_TOOLS
+
+        streamer = self._make_streamer([], messages=[], user=None)
+        expected = {t.value for t in ANONYMOUS_TOOLS}
+        self.assertEqual(streamer._enabled_tool_names, expected)
+
+    def test_anon_init_excludes_search_tools(self):
+        # Anonymous path uses a fixed up-front surface; search_tools
+        # (the lazy-load meta-tool) is intentionally hidden so the system
+        # prompt doesn't even need to mention it exists.
+        streamer = self._make_streamer([], messages=[], user=None)
+        self.assertNotIn("search_tools", streamer._enabled_tool_names)
+
+    def test_anon_init_includes_ask_user(self):
+        # ask_user stays in the anon surface — clarification is universal.
+        streamer = self._make_streamer([], messages=[], user=None)
+        self.assertIn("ask_user", streamer._enabled_tool_names)
+
+    def test_anon_init_skips_rehydration(self):
+        # Even when the messages contain prior search_tools calls (e.g. a
+        # client replays history that the streamer is told to ignore for
+        # the anon path), rehydration must be skipped — anon's surface is
+        # fixed.
+        prior_with_search_call = [
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {
+                            "name": "search_tools",
+                            "arguments": '{"categories":["vm"]}',
+                        },
+                    }
+                ],
+            }
+        ]
+        streamer = self._make_streamer([], messages=prior_with_search_call, user=None)
+        # Without skip-rehydration, this would have grown to include
+        # vm tools (create_vm, plan_vm). With the skip, it stays exactly
+        # at the anonymous baseline.
+        self.assertNotIn("create_vm", streamer._enabled_tool_names)
+        self.assertNotIn("plan_vm", streamer._enabled_tool_names)
+        self.assertNotIn("search_tools", streamer._enabled_tool_names)
+
+
+class LLMStreamerAnonymousToolExecutionTest(_LLMStreamerTestBase, unittest.TestCase):
+    """Anonymous (user=None) chats must actually execute tool calls.
+
+    Regression for the early-exit bug where ``_run_llm_workflow`` returned
+    after round 0 whenever ``self.user`` was None — leaving advertised
+    tool calls (search_offerings, get_offering) silently dropped before
+    ``_execute_tool_calls_worker`` could run.
+    """
+
+    def _tool_chunks(self, tool_name, call_id, arguments="{}"):
+        tc = _make_tool_call_delta(
+            0, name=tool_name, call_id=call_id, arguments=arguments
+        )
+        return [_make_chunk(tool_calls=[tc])]
+
+    def _text_chunks(self, text):
+        return [_make_chunk(content=text)]
+
+    def test_anon_executes_tool_then_continues_to_text(self):
+        """Round 0 emits a tool call → executor runs → round 1 narrates.
+
+        The streamer must NOT short-circuit after round 0 just because
+        the caller is anonymous.
+        """
+        round0 = self._tool_chunks("search_offerings", "call_1")
+        round1 = self._text_chunks("Here are some offerings.")
+
+        tool_result = {
+            "type": "success",
+            "summary": "ok",
+            "ui_component": "resource_list",
+            "ui_data": {},
+        }
+
+        with patch(
+            "waldur_mastermind.chat.llm_streamer.ToolExecutor.execute_tool",
+            return_value=tool_result,
+        ) as mock_execute:
+            streamer = LLMStreamer(
+                _messages(),
+                "https://example.com/v1",
+                "dummy-token",
+                user=None,
+            )
+            streamer.client = _mock_openai_client_multi([round0, round1])
+            streamer._run_llm_workflow()
+
+        # Two LLM rounds — the anon caller must not exit before round 1.
+        self.assertEqual(streamer.client.chat.completions.create.call_count, 2)
+        # The advertised tool call must actually have been executed.
+        mock_execute.assert_called_once()
+        executed_tool_name = mock_execute.call_args.args[0]
+        self.assertEqual(executed_tool_name, "search_offerings")
+
+    def test_anon_cancellation_still_exits(self):
+        """``self._stopped`` (cancel/disconnect) must still abort the loop —
+        anonymous-fix must not regress the cancellation path.
+        """
+        streamer = LLMStreamer(
+            _messages(),
+            "https://example.com/v1",
+            "dummy-token",
+            user=None,
+        )
+        streamer._cancel_requested.set()
+        streamer.client = _mock_openai_client_multi(
+            [self._text_chunks("should not appear")]
+        )
+        streamer._run_llm_workflow()
+
+        # Round 0 runs (one create call); cancellation aborts before round 1.
+        self.assertEqual(streamer.client.chat.completions.create.call_count, 1)

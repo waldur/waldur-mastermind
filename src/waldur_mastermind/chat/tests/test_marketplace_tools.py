@@ -8,20 +8,21 @@ from waldur_mastermind.chat.tools.marketplace.compare_offerings import (
     CompareOfferingsTool,
 )
 from waldur_mastermind.chat.tools.marketplace.get_offering import GetOfferingTool
-from waldur_mastermind.chat.tools.marketplace.list_categories import ListCategoriesTool
 from waldur_mastermind.chat.tools.marketplace.helpers import (
     is_public_marketplace_enabled,
     offering_homeport_url,
-    public_offerings_queryset,
+    offerings_queryset_for,
     serialize_offering_detailed,
     serialize_offering_minimal,
 )
+from waldur_mastermind.chat.tools.marketplace.list_categories import ListCategoriesTool
 from waldur_mastermind.chat.tools.marketplace.search_offerings import (
     SearchOfferingsTool,
 )
 from waldur_mastermind.chat.tools.registry import tool_registry
 from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.tests import factories as mp_factories
+from waldur_mastermind.marketplace.tests import fixtures as mp_fixtures
 
 
 class MarketplaceToolEnumTest(TestCase):
@@ -48,7 +49,9 @@ class PublicMarketplaceFlagTest(TestCase):
         self.assertFalse(is_public_marketplace_enabled())
 
 
-class PublicOfferingsQuerysetTest(TestCase):
+class OfferingsQuerysetForAnonymousTest(TestCase):
+    """Anonymous (or None) caller path — must stay locked to the public surface."""
+
     def setUp(self):
         self.shared_active = mp_factories.OfferingFactory(
             shared=True, state=OfferingStates.ACTIVE
@@ -65,20 +68,129 @@ class PublicOfferingsQuerysetTest(TestCase):
 
     @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_returns_shared_active_and_paused(self):
-        uuids = set(public_offerings_queryset().values_list("uuid", flat=True))
+        uuids = set(offerings_queryset_for().values_list("uuid", flat=True))
         self.assertEqual(uuids, {self.shared_active.uuid, self.shared_paused.uuid})
 
     @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_excludes_private_offerings(self):
-        self.assertNotIn(self.private_active, public_offerings_queryset())
+        self.assertNotIn(self.private_active, offerings_queryset_for())
 
     @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_excludes_draft_offerings(self):
-        self.assertNotIn(self.shared_draft, public_offerings_queryset())
+        self.assertNotIn(self.shared_draft, offerings_queryset_for())
 
     @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
     def test_empty_when_flag_disabled(self):
-        self.assertEqual(public_offerings_queryset().count(), 0)
+        self.assertEqual(offerings_queryset_for().count(), 0)
+
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_explicit_anonymous_user_matches_none(self):
+        none_uuids = set(offerings_queryset_for(None).values_list("uuid", flat=True))
+        anon_uuids = set(
+            offerings_queryset_for(AnonymousUser()).values_list("uuid", flat=True)
+        )
+        self.assertEqual(none_uuids, anon_uuids)
+
+
+class MarketplaceToolFlagBypassForAuthenticatedTest(TestCase):
+    """Authenticated callers must bypass the ANONYMOUS_USER_CAN_VIEW_OFFERINGS gate."""
+
+    def setUp(self):
+        self.fixture = mp_fixtures.MarketplaceFixture()
+        self.user = self.fixture.staff
+        mp_factories.OfferingFactory(
+            name="GPU", shared=True, state=OfferingStates.ACTIVE
+        )
+
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
+    def test_search_offerings_succeeds_when_flag_disabled(self):
+        result = SearchOfferingsTool().execute(self.user, {"keyword": "GPU"})
+        self.assertEqual(result["type"], "success")
+
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
+    def test_get_offering_succeeds_when_flag_disabled(self):
+        offering = mp_factories.OfferingFactory(
+            name="X", shared=True, state=OfferingStates.ACTIVE
+        )
+        result = GetOfferingTool().execute(self.user, {"uuid": str(offering.uuid)})
+        self.assertEqual(result["type"], "success")
+
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
+    def test_list_categories_succeeds_when_flag_disabled(self):
+        result = ListCategoriesTool().execute(self.user, {})
+        self.assertEqual(result["type"], "success")
+
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
+    def test_compare_offerings_succeeds_when_flag_disabled(self):
+        a = mp_factories.OfferingFactory(
+            name="A", shared=True, state=OfferingStates.ACTIVE
+        )
+        b = mp_factories.OfferingFactory(
+            name="B", shared=True, state=OfferingStates.ACTIVE
+        )
+        result = CompareOfferingsTool().execute(
+            self.user, {"uuids": [str(a.uuid), str(b.uuid)]}
+        )
+        self.assertEqual(result["type"], "success")
+
+
+class OfferingsQuerysetForAuthenticatedTest(TestCase):
+    """Authenticated callers see what marketplace.filter_by_ordering_availability_for_user
+    returns for them — staff/support see shared offerings PLUS offerings that
+    have at least one non-archived plan; regular users see the public surface
+    plus their org-group-restricted offerings.
+    """
+
+    def setUp(self):
+        self.shared_active = mp_factories.OfferingFactory(
+            shared=True, state=OfferingStates.ACTIVE
+        )
+        self.shared_draft = mp_factories.OfferingFactory(
+            shared=True, state=OfferingStates.DRAFT
+        )
+        # Private offering without a plan: invisible even to staff.
+        self.private_no_plan = mp_factories.OfferingFactory(
+            shared=False, state=OfferingStates.ACTIVE
+        )
+        # Private offering WITH a non-archived plan: visible to staff/support.
+        self.private_with_plan = mp_factories.OfferingFactory(
+            shared=False, state=OfferingStates.ACTIVE
+        )
+        mp_factories.PlanFactory(offering=self.private_with_plan, archived=False)
+
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_staff_sees_private_offerings_with_plans(self):
+        # Staff see public offerings AND private offerings that have plans —
+        # this is the broader visibility that distinguishes staff from anon.
+        staff = structure_factories.UserFactory(is_staff=True)
+        uuids = set(offerings_queryset_for(staff).values_list("uuid", flat=True))
+        self.assertIn(self.shared_active.uuid, uuids)
+        self.assertIn(self.private_with_plan.uuid, uuids)
+        # Anonymous would NOT see this private one — confirms the user-aware
+        # path is actually doing more than the anon path.
+        anon_uuids = set(offerings_queryset_for().values_list("uuid", flat=True))
+        self.assertNotIn(self.private_with_plan.uuid, anon_uuids)
+
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=False)
+    def test_staff_unaffected_by_anon_flag(self):
+        # The anon flag gates anonymous viewers only — staff still see their
+        # full scope (shared + plan-bearing offerings) regardless.
+        staff = structure_factories.UserFactory(is_staff=True)
+        uuids = set(offerings_queryset_for(staff).values_list("uuid", flat=True))
+        self.assertIn(self.shared_active.uuid, uuids)
+        self.assertIn(self.private_with_plan.uuid, uuids)
+        # And anon, with the flag off, sees nothing.
+        self.assertEqual(offerings_queryset_for().count(), 0)
+
+    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_regular_user_sees_at_least_shared_active(self):
+        # Regular user without org-group membership sees the public surface
+        # at minimum (same as anon's lower bound) — they may also see more
+        # via project/org-group connections, but never less.
+        user = structure_factories.UserFactory()
+        uuids = set(offerings_queryset_for(user).values_list("uuid", flat=True))
+        self.assertIn(self.shared_active.uuid, uuids)
+        self.assertNotIn(self.shared_draft.uuid, uuids)
 
 
 class OfferingHomeportUrlTest(TestCase):
@@ -569,46 +681,6 @@ class CompareOfferingsExecuteTest(TestCase):
             self.user, {"uuids": [str(o.uuid) for o in offerings]}
         )
         self.assertFalse(result["data"]["render_as_table"])
-
-    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
-    def test_resolves_offerings_by_name(self):
-        """Cross-turn recall: LLM passes names when UUIDs aren't in its context."""
-        mp_factories.OfferingFactory(
-            name="GPU Training Cluster", shared=True, state=OfferingStates.ACTIVE
-        )
-        mp_factories.OfferingFactory(
-            name="SLURM Batch Computing", shared=True, state=OfferingStates.ACTIVE
-        )
-        result = self.tool.execute(
-            self.user,
-            {"names": ["GPU Training Cluster", "SLURM Batch Computing"]},
-        )
-        self.assertEqual(result["type"], "success")
-        self.assertEqual(len(result["data"]["offerings"]), 2)
-
-    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
-    def test_resolves_mix_of_uuids_and_names(self):
-        a = mp_factories.OfferingFactory(
-            name="GPU A", shared=True, state=OfferingStates.ACTIVE
-        )
-        mp_factories.OfferingFactory(
-            name="GPU B", shared=True, state=OfferingStates.ACTIVE
-        )
-        result = self.tool.execute(
-            self.user,
-            {"uuids": [str(a.uuid)], "names": ["GPU B"]},
-        )
-        self.assertEqual(result["type"], "success")
-        names = {o["name"] for o in result["data"]["offerings"]}
-        self.assertEqual(names, {"GPU A", "GPU B"})
-
-    @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
-    def test_returns_error_when_total_below_two(self):
-        offering = mp_factories.OfferingFactory(
-            name="Solo", shared=True, state=OfferingStates.ACTIVE
-        )
-        result = self.tool.execute(self.user, {"uuids": [str(offering.uuid)]})
-        self.assertEqual(result["type"], "error")
 
     @override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
     def test_resolves_offerings_by_name(self):

@@ -40,15 +40,13 @@ def _join_phrases(phrases: list[str]) -> str:
 def _enabled_categories(user) -> set[ToolCategory]:
     """Collect tool categories from the user's actually-permitted tool set.
 
-    ``get_tool_set_for_user`` returns ``None`` for internal callers without
-    user context — treat that as "all categories" so the rejection isn't
-    silently emptied for that path.
+    ``get_tool_set_for_user`` always returns a non-empty list — None and
+    AnonymousUser map to ``ANONYMOUS_TOOLS`` (marketplace + ask_user),
+    so the rejection's capability list narrows to the marketplace surface
+    for unauthenticated callers.
     """
-    tool_set = get_tool_set_for_user(user)
-    if tool_set is None:
-        return set(ToolCategory)
     categories: set[ToolCategory] = set()
-    for tool_name in tool_set:
+    for tool_name in get_tool_set_for_user(user):
         tool = tool_registry.get(tool_name)
         if tool is not None and tool.definition.category is not None:
             categories.add(tool.definition.category)

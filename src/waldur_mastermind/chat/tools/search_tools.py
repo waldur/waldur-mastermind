@@ -92,10 +92,7 @@ class SearchToolsTool(BaseTool):
             except ValueError:
                 missing.append(raw)
 
-        permitted_set = get_tool_set_for_user(user)
-        permitted = (
-            set(permitted_set) if permitted_set is not None else None
-        )  # None means "all tools permitted"
+        permitted = set(get_tool_set_for_user(user))
 
         specs: list[dict] = []
         seen_names: set[ToolName] = set()
@@ -103,7 +100,7 @@ class SearchToolsTool(BaseTool):
         for cat in resolved:
             category_specs: list[dict] = []
             for tool in tool_registry.tools_by_category(cat):
-                if permitted is not None and tool.definition.name not in permitted:
+                if tool.definition.name not in permitted:
                     continue
                 if tool.definition.name in seen_names:
                     continue

@@ -28,12 +28,20 @@ class BuildCannedRejectionTest(TestCase):
             build_canned_rejection(end_user, "MyOrg"),
         )
 
-    def test_none_user_lists_all_capabilities(self):
-        # Internal callers without a user context fall through to the
-        # full capability list so the rejection isn't silently empty.
+    def test_none_user_lists_only_anonymous_capabilities(self):
+        # None / anonymous users see the marketplace surface only — not the
+        # full authenticated-user capability list. This is the anon endpoint's
+        # rejection path: it must not advertise tools the caller cannot use.
         message = build_canned_rejection(None, "MyOrg")
-        for phrase in CATEGORY_PHRASES.values():
-            self.assertIn(phrase, message)
+        self.assertIn(CATEGORY_PHRASES[ToolCategory.MARKETPLACE], message)
+        # Authenticated-only categories must NOT appear in an anon rejection.
+        for category in (
+            ToolCategory.VM,
+            ToolCategory.ACCOUNT,
+            ToolCategory.PROPOSALS_RESEARCHER,
+            ToolCategory.PROPOSALS_REVIEWER,
+        ):
+            self.assertNotIn(CATEGORY_PHRASES[category], message)
 
     def test_phrases_joined_with_oxford_and(self):
         user = structure_factories.UserFactory()

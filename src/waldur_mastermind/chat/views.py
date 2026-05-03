@@ -28,6 +28,10 @@ from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure import permissions
 from waldur_mastermind.chat import models, serializers
+from waldur_mastermind.chat.budget_gate import (
+    capacity_exception_handler,
+    enforce_global_budget,
+)
 from waldur_mastermind.chat.context_assembler import (
     build_context,
     build_rejection_input,
@@ -80,7 +84,7 @@ class LLMConfigurationMixin(ConstanceCheckExtensionMixin):
                         "AI Assistant is currently available to staff and support users only."
                     )
                 )
-        elif enabled_roles != "all":
+        elif enabled_roles not in ("all", "anonymous"):
             raise rf_exceptions.PermissionDenied(
                 _("AI Assistant access is not configured correctly.")
             )
@@ -114,6 +118,11 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
     """
 
     permission_classes = [IsAuthenticated]
+
+    def get_exception_handler(self):
+        # Lets ``CapacityException.headers`` (Retry-After) flow onto the
+        # response when a site-wide cap fires.
+        return capacity_exception_handler
 
     def _check_input(self, user, input_text) -> InputGuardResult:
         """Check user input for threats (injection + PII). Returns InputGuardResult.
@@ -396,6 +405,11 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
 
         user = request.user
         self._validate_quota(user)
+        # Site-wide gate covering auth + anon traffic (per-minute burst,
+        # daily/weekly/monthly token caps). Raises CapacityException
+        # 429/503 with Retry-After when any cap is hit.
+        with transaction.atomic():
+            enforce_global_budget()
 
         mode = serializer.validated_data.get("mode")
         edit_message_uuid = serializer.validated_data.get("edit_message_uuid")
@@ -429,6 +443,7 @@ class ChatViewSet(LLMConfigurationMixin, viewsets.ViewSet):
             assistant_msg=assistant_placeholder,
             canned_response=canned_response,
             pii_warning=pii_warning,
+            worker_timeout=config.AI_ASSISTANT_STREAM_TIMEOUT_SECONDS,
         )
 
         return StreamingHttpResponse(

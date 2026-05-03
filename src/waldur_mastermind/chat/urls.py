@@ -1,4 +1,5 @@
 from waldur_mastermind.chat import views
+from waldur_mastermind.chat.anonymous import views as anonymous_views
 
 
 def register_in(router):
@@ -6,6 +7,21 @@ def register_in(router):
         r"chat",
         views.ChatViewSet,
         basename="chat",
+    )
+    router.register(
+        r"marketplace-chat",
+        anonymous_views.MarketplaceChatViewSet,
+        basename="marketplace-chat",
+    )
+    router.register(
+        r"anonymous-chat-interactions",
+        anonymous_views.AnonymousChatInteractionViewSet,
+        basename="anonymous-chat-interaction",
+    )
+    router.register(
+        r"anonymous-chat-feedbacks",
+        anonymous_views.AnonymousChatFeedbackViewSet,
+        basename="anonymous-chat-feedback",
     )
     router.register(
         r"chat-quota",

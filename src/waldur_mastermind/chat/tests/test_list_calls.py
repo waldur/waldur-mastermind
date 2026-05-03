@@ -1,9 +1,12 @@
 from django.test import TestCase
 
 from waldur_core.structure.tests.factories import UserFactory
+from waldur_mastermind.chat.tools.base import MAX_LIST_RESULTS
 from waldur_mastermind.chat.tools.proposals_researcher.list_calls import (
     ListCallsTool,
 )
+from waldur_mastermind.proposal.enums import CallStates
+from waldur_mastermind.proposal.tests import factories as proposal_factories
 from waldur_mastermind.proposal.tests import fixtures as proposal_fixtures
 
 
@@ -68,3 +71,38 @@ class ListCallsToolExecuteTest(TestCase):
         self.assertEqual(result["type"], "success")
         names = [c["name"] for c in result["data"]["calls"]]
         self.assertIn(self.active_call.name, names)
+
+
+class ListCallsCapTest(TestCase):
+    """Results capped at MAX_LIST_RESULTS with truncation markers.
+
+    The fixture's `active_call` already exists; we add (MAX_LIST_RESULTS + 1)
+    extra active calls so the total exceeds the cap and the truncation
+    behaviour is exercised.
+    """
+
+    def setUp(self):
+        self.tool = ListCallsTool()
+        self.fixture = proposal_fixtures.ProposalFixture()
+        self.fixture.call  # ensure the existing active_call is materialised
+        for _ in range(MAX_LIST_RESULTS + 1):
+            proposal_factories.CallFactory(state=CallStates.ACTIVE)
+
+    def test_returns_at_most_max_list_results(self):
+        result = self.tool.execute(self.fixture.staff, {})
+        self.assertEqual(result["type"], "success")
+        self.assertLessEqual(len(result["data"]["calls"]), MAX_LIST_RESULTS)
+
+    def test_truncated_flag_set_when_total_exceeds_cap(self):
+        result = self.tool.execute(self.fixture.staff, {})
+        self.assertTrue(result["data"]["_truncated"])
+
+    def test_total_count_reflects_full_match_count(self):
+        result = self.tool.execute(self.fixture.staff, {})
+        self.assertGreater(result["data"]["_total_count"], MAX_LIST_RESULTS)
+
+    def test_not_truncated_when_under_cap(self):
+        # Filter to a state with only the 1 default draft call.
+        result = self.tool.execute(self.fixture.staff, {"state": "draft"})
+        self.assertFalse(result["data"]["_truncated"])
+        self.assertEqual(result["data"]["_total_count"], len(result["data"]["calls"]))

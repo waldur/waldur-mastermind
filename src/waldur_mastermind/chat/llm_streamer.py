@@ -25,7 +25,10 @@ from waldur_mastermind.chat.providers import (
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.executor import ToolExecutor
 from waldur_mastermind.chat.tools.registry import tool_registry
-from waldur_mastermind.chat.tools.tool_sets import get_tool_set_for_user
+from waldur_mastermind.chat.tools.tool_sets import (
+    ANONYMOUS_TOOLS,
+    get_tool_set_for_user,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -95,16 +98,15 @@ def validate_tool_call(tool_name, user):
         )
 
     permitted = get_tool_set_for_user(user)
-    if permitted is not None:
-        try:
-            tool_enum = ToolName(tool_name)
-        except ValueError:
-            tool_enum = None
-        if tool_enum is None or tool_enum not in permitted:
-            raise rf_exceptions.PermissionDenied(
-                _("Tool '%(tool_name)s' is not available for your role.")
-                % {"tool_name": tool_name}
-            )
+    try:
+        tool_enum = ToolName(tool_name)
+    except ValueError:
+        tool_enum = None
+    if tool_enum is None or tool_enum not in permitted:
+        raise rf_exceptions.PermissionDenied(
+            _("Tool '%(tool_name)s' is not available for your role.")
+            % {"tool_name": tool_name}
+        )
 
 
 class LLMStreamer:
@@ -139,6 +141,8 @@ class LLMStreamer:
         canned_response=None,
         pii_warning=None,
         preload_all_tools=False,
+        worker_timeout: int | None = None,
+        tool_choice_override: str | None = None,
     ):
         self.messages = messages
         self.client = openai.OpenAI(
@@ -170,6 +174,17 @@ class LLMStreamer:
         self._persisted_message_meta = None
         self.canned_response = canned_response
         self.pii_warning = pii_warning
+        self._worker_timeout = (
+            worker_timeout if worker_timeout and worker_timeout > 0 else _WORKER_TIMEOUT
+        )
+        # Per-call tool_choice override, applied AFTER any admin override
+        # from AI_ASSISTANT_COMPLETION_KWARGS. Used by the anonymous
+        # marketplace path to pin tool_choice="required" — every anon
+        # query is about catalog browsing, so a tool call is always the
+        # right action and the model's "auto" decisions waste a round on
+        # text-only fabrications. Authenticated paths leave this None
+        # so admin Constance / "auto" continues to govern.
+        self._tool_choice_override = tool_choice_override
 
         # Thread-based streaming infrastructure
         self._queue: queue.Queue = queue.Queue(maxsize=_QUEUE_MAXSIZE)
@@ -186,15 +201,25 @@ class LLMStreamer:
         # 10+ individual log lines.
         self._turn_report: list[str] = []
 
-        # Lazy tool loading. Both meta-tools are seeded so they ship on
-        # turn 0 without a search_tools round: ``search_tools`` is the
-        # lazy-load mechanism itself, and ``ask_user`` is universal —
-        # always available so the LLM can clarify before any data tool.
-        self._enabled_tool_names: set[str] = {
-            ToolName.SEARCH_TOOLS.value,
-            ToolName.ASK_USER.value,
-        }
-        self._rehydrate_enabled_tools_from_history()
+        # Initial tool surface depends on whether this is the authenticated
+        # path (lazy load via search_tools, grow as the LLM asks for tools)
+        # or the anonymous path (fixed, narrow surface known up-front).
+        if self.user is None:
+            # Anonymous chat endpoint: ship the marketplace tools +
+            # ask_user up-front. NO search_tools — the anon system prompt
+            # doesn't even mention it, and rehydration is meaningless
+            # because there's no thread history to walk.
+            self._enabled_tool_names = {t.value for t in ANONYMOUS_TOOLS}
+        else:
+            # Authenticated path. Both meta-tools are seeded so they ship on
+            # turn 0 without a search_tools round: ``search_tools`` is the
+            # lazy-load mechanism itself, and ``ask_user`` is universal —
+            # always available so the LLM can clarify before any data tool.
+            self._enabled_tool_names = {
+                ToolName.SEARCH_TOOLS.value,
+                ToolName.ASK_USER.value,
+            }
+            self._rehydrate_enabled_tools_from_history()
 
         if preload_all_tools:
             # Pre-load account tools for validation scenarios
@@ -279,7 +304,7 @@ class LLMStreamer:
         """Helper to format a dict as a Newline Delimited JSON line."""
         return f"{json.dumps(data, separators=(',', ':'))}\n"
 
-    def _stream_completion(self, messages, include_tools=True):
+    def _stream_completion(self, messages, include_tools=True, round_num: int = 0):
         """Open a streaming chat completion and yield SDK chunk objects."""
         model = config.AI_ASSISTANT_MODEL
         backend_type = config.AI_ASSISTANT_BACKEND_TYPE
@@ -294,11 +319,7 @@ class LLMStreamer:
         # ``self._enabled_tool_names`` starts as {"search_tools"} and grows
         # as search_tools calls return. User-permission intersection is
         # enforced: we never offer a tool outside the user's tool_set.
-        permitted = (
-            {t.value for t in user_tools}
-            if user_tools is not None
-            else {name.value for name in tool_registry.definitions}
-        )
+        permitted = {t.value for t in user_tools}
         exposed_names = self._enabled_tool_names & permitted
         exposed_enums = []
         for raw in exposed_names:
@@ -342,14 +363,36 @@ class LLMStreamer:
 
         if include_tools and tools:
             kwargs["tools"] = tools
-            # parallel_tool_calls flows from PROVIDER_DEFAULTS / admin override,
-            # not hardcoded here.
-            # tool_choice left to default "auto" — the LLM decides whether
-            # to call search_tools or emit text. Text-only queries
-            # (clarifications, greetings) save a round compared to forcing
-            # search_tools. Hallucinated direct calls to unloaded tools are
-            # caught by the runtime guard in _execute_tool_calls_worker and
-            # returned as an actionable error so the LLM self-corrects.
+            # parallel_tool_calls + tool_choice flow from PROVIDER_DEFAULTS /
+            # admin override (AI_ASSISTANT_COMPLETION_KWARGS). Default
+            # tool_choice is "auto" — admins can set "required" when the
+            # model declines to call tools despite directives. The runtime
+            # guard in _execute_tool_calls_worker catches hallucinated
+            # calls to unloaded tools and returns an actionable error so
+            # the LLM self-corrects.
+
+            # Per-call override (anon path passes "required") wins over
+            # the admin Constance setting, which wins over the provider
+            # default — BUT only on round 0. Subsequent rounds use
+            # whatever was set by Constance (default "auto"). LLM-traffic
+            # tracing showed tool_choice="required" applied on every
+            # round causes the model to loop on the same tool indefinitely
+            # (re-calling with identical args, never narrating), then
+            # emit raw <tool_call> markup as text in the forced
+            # narration round. Forcing required only on round 0 prevents
+            # day-1 fabrication from training-data priors while letting
+            # the model narrate naturally once it has tool results.
+            if self._tool_choice_override is not None and round_num == 0:
+                kwargs["tool_choice"] = self._tool_choice_override
+            elif self._tool_choice_override is not None and round_num > 0:
+                # Don't let an admin-Constance "required" leak into
+                # follow-up rounds either when an override is set on the
+                # streamer (anon path semantics).
+                kwargs.pop("tool_choice", None)
+        else:
+            # No tools available — strip tool_choice (vLLM rejects
+            # required/named tool_choice without a tools array).
+            kwargs.pop("tool_choice", None)
 
         return self.client.chat.completions.create(**kwargs)
 
@@ -659,9 +702,10 @@ class LLMStreamer:
                 try:
                     item = self._queue.get(timeout=1.0)
                 except queue.Empty:
-                    if time.monotonic() - start > _WORKER_TIMEOUT:
+                    if time.monotonic() - start > self._worker_timeout:
                         logger.error(
-                            "LLM worker thread exceeded %ds timeout", _WORKER_TIMEOUT
+                            "LLM worker thread exceeded %ds timeout",
+                            self._worker_timeout,
                         )
                         yield self._format_ndjson(
                             {"e": "Request timed out. Please try again."}
@@ -772,7 +816,7 @@ class LLMStreamer:
             self.tool_calls = {}
             self._flushed = False
 
-            self._stream_and_collect(messages)
+            self._stream_and_collect(messages, round_num=round_num)
 
             self._turn_report.append(
                 f"round {round_num}: tool_calls={len(self.tool_calls)}"
@@ -789,11 +833,11 @@ class LLMStreamer:
                     f"tools_loaded_this_turn={fetched}"
                 )
                 return  # LLM produced text — done.
-            if not self.user or self._stopped:
+            if self._stopped:
                 self._turn_report.append(
-                    f"exit: anon/cancelled after {round_num + 1} round(s)"
+                    f"exit: cancelled after {round_num + 1} round(s)"
                 )
-                return  # Anonymous path or cancelled.
+                return  # Client disconnected or stream cancelled.
 
             self._execute_tool_calls_worker(self.tool_calls)
             # After execution, enrich the enabled-tools set with anything
@@ -805,8 +849,7 @@ class LLMStreamer:
             # success/error confirmation), the next move is the user's —
             # not the LLM's. Exit the loop so the model doesn't (a) fire a
             # duplicate ask_user form, or (b) duplicate the rendered data
-            # as redundant bullet lists below the card. Observed in
-            # WAL-9884 with qwen3.5.
+            # as redundant bullet lists below the card.
             terminal_blocks = {"ask_user_form"}
             terminal_vm_statuses = {"preview", "success", "error"}
 
@@ -909,9 +952,11 @@ class LLMStreamer:
             )
         return followup
 
-    def _stream_and_collect(self, messages, include_tools=True):
+    def _stream_and_collect(self, messages, include_tools=True, round_num: int = 0):
         """Stream one LLM completion, accumulating content and tool calls."""
-        with self._stream_completion(messages, include_tools=include_tools) as stream:
+        with self._stream_completion(
+            messages, include_tools=include_tools, round_num=round_num
+        ) as stream:
             for chunk in stream:
                 if chunk.usage:
                     prompt_tokens = chunk.usage.prompt_tokens or 0
@@ -1028,7 +1073,12 @@ class LLMStreamer:
 
             logger.debug(
                 "Executing tool call",
-                extra={"tool_name": tool_name, "user_id": self.user.id},
+                extra={
+                    "tool_name": tool_name,
+                    # Anonymous path has no user — emit a sentinel so log
+                    # parsers that expect the field still get a value.
+                    "user_id": self.user.id if self.user else "anon",
+                },
             )
             result = tool_executor.execute_tool(tool_name, arguments)
             tool_block = self.parser.parse_tool_result(result)
@@ -1329,6 +1379,11 @@ class LLMStreamer:
 
                 total_tokens = (self.input_tokens or 0) + (self.output_tokens or 0)
                 quota.add_usage(total_tokens)
+
+                # Same singleton the anon path increments; mirrors the
+                # pre-stream gate in ChatViewSet.stream / anonymous view.
+                global_budget = models.GlobalAssistantBudget.get(lock=True)
+                global_budget.add_usage(tokens=total_tokens)
 
                 logger.info(
                     "Recorded AI usage for %s: input=%d, output=%d, daily usage=%d",

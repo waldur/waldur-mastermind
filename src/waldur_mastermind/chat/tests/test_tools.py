@@ -10,9 +10,12 @@ from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.registry import ToolRegistry, tool_registry
 from waldur_mastermind.chat.tools.tool_sets import (
+    _MARKETPLACE_TOOLS,
+    ANONYMOUS_TOOLS,
     END_USER_TOOLS,
     STAFF_TOOLS,
     SUPPORT_TOOLS,
+    get_tool_set_for_user,
 )
 
 
@@ -202,24 +205,68 @@ class SystemPromptTest(TestCase):
 
 class ToolSetsTest(TestCase):
     def test_tool_sets_hierarchy(self):
+        # Anonymous ⊆ end-user ⊆ support ⊆ staff: each tier sees a strict
+        # superset of the prior. Anonymous baseline is the public marketplace
+        # surface; everyone above sees that plus more.
+        self.assertTrue(set(ANONYMOUS_TOOLS) <= set(END_USER_TOOLS))
         self.assertTrue(set(END_USER_TOOLS) <= set(SUPPORT_TOOLS))
         self.assertTrue(set(SUPPORT_TOOLS) <= set(STAFF_TOOLS))
 
     def test_tool_sets_all_exist_in_registry(self):
-        all_names = set(STAFF_TOOLS) | set(SUPPORT_TOOLS) | set(END_USER_TOOLS)
+        all_names = (
+            set(STAFF_TOOLS)
+            | set(SUPPORT_TOOLS)
+            | set(END_USER_TOOLS)
+            | set(ANONYMOUS_TOOLS)
+        )
         for name in all_names:
             self.assertIn(name, tool_registry, f"Tool {name!r} not found in registry")
 
     def test_tool_sets_contain_enum_members(self):
-        for tool_set in (STAFF_TOOLS, SUPPORT_TOOLS, END_USER_TOOLS):
+        for tool_set in (STAFF_TOOLS, SUPPORT_TOOLS, END_USER_TOOLS, ANONYMOUS_TOOLS):
             self.assertTrue(all(isinstance(t, ToolName) for t in tool_set))
 
-    def test_meta_tools_in_every_role_set(self):
-        # Both meta-tools (search_tools, ask_user) must reach every role,
-        # otherwise lazy-loading or clarification breaks for that tier.
+    def test_meta_tools_in_every_authenticated_role_set(self):
+        # search_tools is the lazy-loading meta-tool used by authenticated
+        # paths. Anonymous deliberately does NOT include it — the anon
+        # endpoint exposes a fixed tool set up-front instead.
         for tool_set in (STAFF_TOOLS, SUPPORT_TOOLS, END_USER_TOOLS):
             self.assertIn(ToolName.SEARCH_TOOLS, tool_set)
             self.assertIn(ToolName.ASK_USER, tool_set)
+        self.assertNotIn(ToolName.SEARCH_TOOLS, ANONYMOUS_TOOLS)
+        self.assertIn(ToolName.ASK_USER, ANONYMOUS_TOOLS)
+
+    def test_anonymous_tools_is_marketplace_plus_ask_user(self):
+        # Anonymous surface is intentionally narrow: marketplace browsing
+        # tools + ask_user, nothing else. Adding tools here is a security
+        # decision — every entry exposes more surface to unauthenticated
+        # callers.
+        self.assertEqual(
+            set(ANONYMOUS_TOOLS),
+            set(_MARKETPLACE_TOOLS) | {ToolName.ASK_USER},
+        )
+
+
+class GetToolSetForUserTest(TestCase):
+    def test_none_returns_anonymous_tools(self):
+        self.assertEqual(get_tool_set_for_user(None), ANONYMOUS_TOOLS)
+
+    def test_anonymous_user_returns_anonymous_tools(self):
+        from django.contrib.auth.models import AnonymousUser
+
+        self.assertEqual(get_tool_set_for_user(AnonymousUser()), ANONYMOUS_TOOLS)
+
+    def test_staff_returns_staff_tools(self):
+        user = MagicMock(is_staff=True, is_support=False, is_anonymous=False)
+        self.assertEqual(get_tool_set_for_user(user), STAFF_TOOLS)
+
+    def test_support_returns_support_tools(self):
+        user = MagicMock(is_staff=False, is_support=True, is_anonymous=False)
+        self.assertEqual(get_tool_set_for_user(user), SUPPORT_TOOLS)
+
+    def test_end_user_returns_end_user_tools(self):
+        user = MagicMock(is_staff=False, is_support=False, is_anonymous=False)
+        self.assertEqual(get_tool_set_for_user(user), END_USER_TOOLS)
 
 
 class ToolCategoryEnumTest(TestCase):
@@ -481,8 +528,12 @@ class SearchToolsCategoriesTest(TestCase):
         )
 
     def test_execute_multiple_categories_deduped(self):
+        # Use a staff user — vm tools aren't in ANONYMOUS_TOOLS, so passing
+        # user=None would correctly filter them out and break this test's
+        # premise (which is dedup, not permission filtering).
+        staff = MagicMock(is_staff=True, is_support=False, is_anonymous=False)
         result = self.tool.execute(
-            user=None,
+            user=staff,
             arguments={"categories": ["marketplace", "marketplace", "vm"]},
         )
         self.assertEqual(result["type"], "success")
@@ -521,6 +572,9 @@ class SearchToolsPermissionFilterTest(TestCase):
         u = MagicMock()
         u.is_staff = False
         u.is_support = False
+        # Explicit: must NOT be anonymous, otherwise get_tool_set_for_user
+        # returns ANONYMOUS_TOOLS instead of END_USER_TOOLS.
+        u.is_anonymous = False
         return u
 
     def test_end_user_still_gets_permitted_reviewer_tools(self):

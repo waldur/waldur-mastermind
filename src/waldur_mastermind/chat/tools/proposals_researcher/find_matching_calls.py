@@ -2,7 +2,11 @@ import logging
 
 from django.utils import timezone
 
-from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
+from waldur_mastermind.chat.tools.base import (
+    MAX_LIST_RESULTS,
+    BaseTool,
+    ToolDefinition,
+)
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.proposal_helpers import call_detail_url
 from waldur_mastermind.chat.tools.registry import tool_registry
@@ -13,8 +17,6 @@ from waldur_mastermind.proposal.models import (
 )
 
 logger = logging.getLogger(__name__)
-
-_MAX_CALLS = 20
 
 
 class FindMatchingCallsTool(BaseTool):
@@ -86,16 +88,25 @@ class FindMatchingCallsTool(BaseTool):
         keywords = [k for k in (kw.strip() for kw in raw_keywords if kw) if k]
         now = timezone.now()
 
-        active_calls = (
+        active_qs = (
             Call.objects.filter(state=Call.States.ACTIVE)
             .select_related("manager__customer")
-            .prefetch_related("round_set")[:_MAX_CALLS]
+            .prefetch_related("round_set")
         )
+        total_count = active_qs.count()
+        active_calls = list(active_qs[:MAX_LIST_RESULTS])
+        truncated = total_count > MAX_LIST_RESULTS
 
         if not active_calls:
             return {
                 "type": "success",
-                "data": {"calls": [], "total": 0, "keywords": keywords},
+                "data": {
+                    "calls": [],
+                    "total": 0,
+                    "_total_count": 0,
+                    "_truncated": False,
+                    "keywords": keywords,
+                },
                 "summary": "No active calls found at this time.",
             }
 
@@ -165,6 +176,11 @@ class FindMatchingCallsTool(BaseTool):
             f"{'s' if len(calls_data) != 1 else ''} for proposals. "
             f"Keywords: {keywords_label}."
         )
+        if truncated:
+            summary += (
+                f" Showing first {MAX_LIST_RESULTS} of {total_count} active "
+                "calls — narrow keywords to see more."
+            )
 
         return {
             "type": "success",
@@ -172,6 +188,8 @@ class FindMatchingCallsTool(BaseTool):
                 "calls": calls_data,
                 "keywords": keywords,
                 "total": len(calls_data),
+                "_total_count": total_count,
+                "_truncated": truncated,
             },
             "summary": summary,
         }

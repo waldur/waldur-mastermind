@@ -1,6 +1,7 @@
 from unittest import mock
 
 from constance.test.unittest import override_config as override_constance_config
+from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import PermissionDenied
 from django.urls import reverse
 from rest_framework import status, test
@@ -362,6 +363,43 @@ class ToolExecutorErrorHandlingTest(ToolExecutorBaseTest):
         self.assertEqual(result["type"], "error")
         self.assertEqual(result["error"], "Internal error")
         self.assertIn("error occurred", result["summary"].lower())
+
+
+class ToolExecutorAnonymousUserTest(test.APITestCase):
+    """ToolExecutor must not crash when called with AnonymousUser or None.
+
+    The anonymous chat path constructs ``ToolExecutor(None)`` because the
+    request has no authenticated user. Prior to the fix, ``self.user.id``
+    in logger.extra dereferences raised AttributeError on the worker
+    thread, killing the SSE stream silently.
+    """
+
+    def _execute_anon(self, user):
+        executor = ToolExecutor(user)
+
+        # Wrap a real tool call (search_offerings is in ANONYMOUS_TOOLS) and
+        # also force the three logger.extra paths: success, PermissionDenied,
+        # and generic Exception. None of these may raise AttributeError.
+        executor.execute_tool("search_offerings", {})
+
+        with mock.patch(
+            "waldur_mastermind.chat.tools.registry.tool_registry.get"
+        ) as mock_get:
+            tool = mock.Mock()
+            tool.execute.side_effect = PermissionDenied("denied")
+            mock_get.return_value = tool
+            result = executor.execute_tool("search_offerings", {})
+            self.assertEqual(result["type"], "error")
+
+            tool.execute.side_effect = Exception("boom")
+            result = executor.execute_tool("search_offerings", {})
+            self.assertEqual(result["type"], "error")
+
+    def test_anonymous_user_does_not_crash_executor(self):
+        self._execute_anon(AnonymousUser())
+
+    def test_none_user_does_not_crash_executor(self):
+        self._execute_anon(None)
 
 
 @override_constance_config(

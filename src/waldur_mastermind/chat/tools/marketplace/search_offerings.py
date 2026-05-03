@@ -1,23 +1,43 @@
 """AI Assistant tool: keyword search over publicly viewable marketplace offerings."""
 
 import logging
+import re
 
+import nh3
 from django.db.models import Q
 
-from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
+from waldur_mastermind.chat.tools.base import (
+    MAX_LIST_RESULTS,
+    BaseTool,
+    ToolDefinition,
+)
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.marketplace.helpers import (
-    is_public_marketplace_enabled,
+    is_anonymous_caller_blocked,
     offering_homeport_url,
-    public_offerings_queryset,
+    offerings_queryset_for,
     serialize_offering_minimal,
 )
 from waldur_mastermind.chat.tools.registry import tool_registry
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_LIMIT = 20
-_MAX_LIMIT = 50
+
+# hpcservicehub.eu and similar Waldur instances ship offering
+# descriptions as HTML fragments (<p>, <strong>, …). Strip everything
+# to plain text via nh3 (Rust-based sanitiser already used by
+# waldur_core.core.clean_html) so script/style bodies and HTML
+# entities are handled correctly — the regex-only stripper missed
+# both. Resulting plain text is then collapsed to single-spaces
+# before the 200-char excerpt cut.
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def _strip_html(text: str) -> str:
+    if not text:
+        return ""
+    plain = nh3.clean(text, tags=set(), attributes={})
+    return _WHITESPACE_RE.sub(" ", plain).strip()
 
 
 def _keyword_query(keyword: str) -> Q:
@@ -93,9 +113,13 @@ class SearchOfferingsTool(BaseTool):
                     "limit": {
                         "type": "integer",
                         "minimum": 1,
-                        "maximum": _MAX_LIMIT,
-                        "default": _DEFAULT_LIMIT,
-                        "description": "Maximum number of offerings to return.",
+                        "maximum": MAX_LIST_RESULTS,
+                        "default": MAX_LIST_RESULTS,
+                        "description": (
+                            "Maximum number of offerings to return. Hard "
+                            f"capped at {MAX_LIST_RESULTS} regardless of "
+                            "value passed."
+                        ),
                     },
                 },
                 "required": ["keyword"],
@@ -125,7 +149,7 @@ class SearchOfferingsTool(BaseTool):
         )
 
     def execute(self, user, arguments: dict) -> dict:
-        if not is_public_marketplace_enabled():
+        if is_anonymous_caller_blocked(user):
             return {
                 "type": "error",
                 "summary": "Marketplace browsing is currently disabled.",
@@ -135,9 +159,12 @@ class SearchOfferingsTool(BaseTool):
         category_uuid = arguments.get("category_uuid")
         category_name = arguments.get("category_name")
         offering_type = arguments.get("type")
-        limit = min(int(arguments.get("limit") or _DEFAULT_LIMIT), _MAX_LIMIT)
+        # The LLM may pass any limit; we hard-cap it to MAX_LIST_RESULTS so a
+        # vague query that matches 50+ offerings doesn't dump them all into the
+        # response.
+        limit = min(int(arguments.get("limit") or MAX_LIST_RESULTS), MAX_LIST_RESULTS)
 
-        qs = public_offerings_queryset()
+        qs = offerings_queryset_for(user)
         if keyword:
             qs = qs.filter(_keyword_query(keyword)).distinct()
         if category_uuid:
@@ -147,8 +174,10 @@ class SearchOfferingsTool(BaseTool):
         if offering_type:
             qs = qs.filter(type=offering_type)
 
-        qs = qs.select_related("category", "customer").prefetch_related("plans")[:limit]
-        offerings = [serialize_offering_minimal(o) for o in qs]
+        qs = qs.select_related("category", "customer").prefetch_related("plans")
+        total_count = qs.count()
+        offerings = [serialize_offering_minimal(o) for o in qs[:limit]]
+        truncated = total_count > limit
 
         if not offerings:
             summary = (
@@ -157,12 +186,19 @@ class SearchOfferingsTool(BaseTool):
             )
         else:
             summary = f"Found {len(offerings)} offering(s) matching '{keyword}'."
+            if truncated:
+                summary += (
+                    f" Showing first {limit} of {total_count} — "
+                    "narrow keyword/category to see more."
+                )
 
         return {
             "type": "success",
             "data": {
                 "offerings": offerings,
                 "total": len(offerings),
+                "_total_count": total_count,
+                "_truncated": truncated,
                 "keyword": keyword,
                 "category_uuid": category_uuid,
                 "offering_type": offering_type,
@@ -175,6 +211,23 @@ class SearchOfferingsTool(BaseTool):
                         "label": o["name"],
                         "url": offering_homeport_url(o["uuid"]),
                         "variant": "primary",
+                        # Provider/customer name shown in the link card
+                        # AND persisted to the audit trail so the judge
+                        # can verify the LLM's provider attributions.
+                        # Without this the model often invents the
+                        # provider when filtering by NCC/country.
+                        "subtitle": o.get("customer_name") or "",
+                        # Short description excerpt — gives the judge
+                        # enough signal to verify technical-term claims
+                        # (GPU types, partitions, software names) the
+                        # LLM cites from real offering descriptions.
+                        # Capped at 200 chars to bound audit growth
+                        # (max 30 links * 200 = +6 KB per chunk, fits
+                        # within TOOL_RESULTS_CHAR_CAP=12000 in
+                        # chat/anonymous/judge.py).
+                        "description_excerpt": _strip_html(o.get("description") or "")[
+                            :200
+                        ],
                     }
                     for o in offerings
                 ],

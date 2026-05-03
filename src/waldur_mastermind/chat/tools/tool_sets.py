@@ -80,11 +80,31 @@ END_USER_TOOLS: list[ToolName] = [
     *_META_TOOLS,
 ]
 
+# Anonymous users (the public marketplace-discovery endpoint) get a fixed,
+# read-only surface: marketplace browsing tools plus ``ask_user`` for
+# clarifying questions. NO ``search_tools`` — anonymous flow uses a fixed
+# tool set surfaced up-front rather than the lazy meta-tool loading the
+# authenticated path uses, so the system prompt doesn't even need to
+# mention ``search_tools`` exists.
+ANONYMOUS_TOOLS: list[ToolName] = [
+    *_MARKETPLACE_TOOLS,
+    ToolName.ASK_USER,
+]
 
-def get_tool_set_for_user(user) -> list[ToolName] | None:
-    """Return tool list based on user role. None means all tools."""
-    if user is None:
-        return None
+
+def get_tool_set_for_user(user) -> list[ToolName]:
+    """Return the tool list permitted for ``user``'s role.
+
+    ``None`` and AnonymousUser both map to ``ANONYMOUS_TOOLS`` — the
+    marketplace-discovery surface. Authenticated callers split by role:
+    staff / support / end-user.
+
+    Always returns a non-empty list — never ``None`` — so callers can
+    treat the result as "the authoritative permitted set" without
+    None-guards.
+    """
+    if user is None or getattr(user, "is_anonymous", False):
+        return ANONYMOUS_TOOLS
     if user.is_staff:
         return STAFF_TOOLS
     if user.is_support:

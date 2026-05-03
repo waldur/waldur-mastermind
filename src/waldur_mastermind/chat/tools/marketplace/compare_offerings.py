@@ -7,8 +7,8 @@ from django.db.models import Q
 from waldur_mastermind.chat.tools.base import BaseTool, ToolDefinition
 from waldur_mastermind.chat.tools.enums import ToolCategory, ToolName
 from waldur_mastermind.chat.tools.marketplace.helpers import (
-    is_public_marketplace_enabled,
-    public_offerings_queryset,
+    is_anonymous_caller_blocked,
+    offerings_queryset_for,
     serialize_offering_minimal,
 )
 from waldur_mastermind.chat.tools.registry import tool_registry
@@ -100,7 +100,7 @@ class CompareOfferingsTool(BaseTool):
         )
 
     def execute(self, user, arguments: dict) -> dict:
-        if not is_public_marketplace_enabled():
+        if is_anonymous_caller_blocked(user):
             return {
                 "type": "error",
                 "summary": "Marketplace browsing is currently disabled.",
@@ -124,7 +124,7 @@ class CompareOfferingsTool(BaseTool):
             filter_q |= Q(name__in=names)
 
         offerings = list(
-            public_offerings_queryset()
+            offerings_queryset_for(user)
             .select_related("category", "customer")
             .prefetch_related("plans")
             .filter(filter_q)
