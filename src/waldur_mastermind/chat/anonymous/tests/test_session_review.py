@@ -67,10 +67,33 @@ class ParseJudgeJsonTest(SimpleTestCase):
             judge.parse_judge_json(json.dumps(_verdict_dict(resolution_score=7)))
         )
 
-    def test_returns_none_on_unknown_intent(self):
-        self.assertIsNone(
-            judge.parse_judge_json(json.dumps(_verdict_dict(intent_category="lasagna")))
+    def test_unknown_intent_accepted_when_no_rubric_passed(self):
+        # parse_judge_json without valid_intents accepts any non-empty
+        # short slug — the deployment-derived rubric is the source of
+        # truth, and it's checked separately by passing valid_intents.
+        v = judge.parse_judge_json(json.dumps(_verdict_dict(intent_category="lasagna")))
+        self.assertIsNotNone(v)
+        self.assertEqual(v.intent_category, "lasagna")
+
+    def test_unknown_intent_coerced_to_unclear_when_rubric_provided(self):
+        # When the caller passes the deployment rubric, off-rubric
+        # intents are coerced to 'unclear' rather than dropped — losing
+        # the whole verdict to one off-rubric string would burn the
+        # judge budget for nothing.
+        v = judge.parse_judge_json(
+            json.dumps(_verdict_dict(intent_category="lasagna")),
+            valid_intents={"compute", "storage", "unclear"},
         )
+        self.assertIsNotNone(v)
+        self.assertEqual(v.intent_category, "unclear")
+
+    def test_known_intent_passes_rubric_check(self):
+        v = judge.parse_judge_json(
+            json.dumps(_verdict_dict(intent_category="compute")),
+            valid_intents={"compute", "storage", "unclear"},
+        )
+        self.assertIsNotNone(v)
+        self.assertEqual(v.intent_category, "compute")
 
     def test_returns_none_on_missing_summary(self):
         d = _verdict_dict()
@@ -87,6 +110,104 @@ class ParseJudgeJsonTest(SimpleTestCase):
     def test_returns_none_on_empty(self):
         self.assertIsNone(judge.parse_judge_json(""))
         self.assertIsNone(judge.parse_judge_json("not even close to JSON"))
+
+
+class IntentRubricTest(TestCase):
+    """build_intent_rubric derives slugs from visible marketplace.Category rows.
+
+    Three deployment shapes:
+      * empty catalog → generic fallback
+      * HPC-style (GPU Compute, HPC Storage, Consultancy) → those slugs
+      * gov-cloud-style (IAM, Compliance, Managed Database) → those slugs
+    """
+
+    @override_constance_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_empty_catalog_falls_back_to_generic(self):
+        rubric = judge.build_intent_rubric()
+        slugs = [s for s, _ in rubric]
+        self.assertIn("compute", slugs)
+        self.assertIn("storage", slugs)
+        self.assertIn("unclear", slugs)
+
+    @override_constance_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_hpc_catalog_yields_hpc_slugs(self):
+        from waldur_mastermind.marketplace.enums import OfferingStates
+        from waldur_mastermind.marketplace.tests import factories as mp_factories
+
+        gpu = mp_factories.CategoryFactory(
+            title="GPU Compute", description="NVIDIA accelerators for ML training."
+        )
+        storage = mp_factories.CategoryFactory(
+            title="HPC Storage", description="Lustre, BeeGFS, scratch volumes."
+        )
+        consult = mp_factories.CategoryFactory(
+            title="Consultancy and Expertise",
+            description="Code porting, performance tuning.",
+        )
+        for cat in (gpu, storage, consult):
+            mp_factories.OfferingFactory(
+                category=cat, shared=True, state=OfferingStates.ACTIVE
+            )
+
+        rubric = judge.build_intent_rubric()
+        slugs = {s for s, _ in rubric}
+        self.assertIn("gpu_compute", slugs)
+        self.assertIn("hpc_storage", slugs)
+        self.assertIn("consultancy_and_expertis", slugs)  # 24-char cap
+        self.assertIn("unclear", slugs)
+
+    @override_constance_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+    def test_gov_cloud_catalog_yields_different_slugs(self):
+        from waldur_mastermind.marketplace.enums import OfferingStates
+        from waldur_mastermind.marketplace.tests import factories as mp_factories
+
+        for title, desc in [
+            ("IAM", "Identity and access management."),
+            ("Managed Database", "Postgres / MySQL with backups."),
+            ("Compliance", "GDPR, ISO 27001 audit support."),
+        ]:
+            cat = mp_factories.CategoryFactory(title=title, description=desc)
+            mp_factories.OfferingFactory(
+                category=cat, shared=True, state=OfferingStates.ACTIVE
+            )
+
+        rubric = judge.build_intent_rubric()
+        slugs = {s for s, _ in rubric}
+        self.assertIn("iam", slugs)
+        self.assertIn("managed_database", slugs)
+        self.assertIn("compliance", slugs)
+        # No HPC-flavored slugs leaked.
+        self.assertNotIn("gpu_compute", slugs)
+        self.assertNotIn("compute", slugs)
+
+
+class JudgeSystemPromptTest(TestCase):
+    """The system prompt template renders cleanly with the deployment-derived rubric.
+
+    TestCase (not SimpleTestCase) because override_constance_config writes
+    to the constance backend which Django flags as a DB write.
+    """
+
+    def test_prompt_includes_each_rubric_slug(self):
+        rubric = [
+            ("compute", "user wants computing resources"),
+            ("storage", "user wants storage"),
+            ("unclear", "user's intent is genuinely ambiguous"),
+        ]
+        prompt = judge.render_judge_system_prompt(rubric)
+        for slug, hint in rubric:
+            self.assertIn(slug, prompt)
+            self.assertIn(hint, prompt)
+
+    @override_constance_config(SITE_DESCRIPTION="EuroHPC service hub")
+    def test_prompt_uses_site_description_when_set(self):
+        prompt = judge.render_judge_system_prompt([("unclear", "ambiguous")])
+        self.assertIn("EuroHPC service hub", prompt)
+
+    @override_constance_config(SITE_DESCRIPTION="")
+    def test_prompt_falls_back_when_site_description_blank(self):
+        prompt = judge.render_judge_system_prompt([("unclear", "ambiguous")])
+        self.assertIn("a marketplace catalog", prompt)
 
 
 class _StubInteraction:

@@ -34,6 +34,7 @@ from waldur_mastermind.chat.anonymous import serializers as anonymous_serializer
 from waldur_mastermind.chat.anonymous.catalog import build_catalog_summary
 from waldur_mastermind.chat.anonymous.helpers import (
     build_domain_context,
+    build_offering_format_hint,
     build_session_history,
     compute_feedback_token,
     compute_user_slug,
@@ -151,6 +152,7 @@ def _build_anonymous_messages(
         domain_context=build_domain_context(),
         tools=tool_registry.get_tools_prompt(ANONYMOUS_TOOLS),
         catalog=build_catalog_summary(),
+        offering_format_hint=build_offering_format_hint(),
     )
     return [
         {"role": "system", "content": system_prompt},

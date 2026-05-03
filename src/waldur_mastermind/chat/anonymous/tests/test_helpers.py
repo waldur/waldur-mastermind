@@ -10,6 +10,7 @@ from waldur_mastermind.chat.anonymous.helpers import (
     compute_user_slug,
     verify_feedback_token,
 )
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.tests import factories as mp_factories
 
@@ -127,3 +128,42 @@ def test_build_domain_context_uses_site_description_and_visible_categories():
     assert "Estonian research compute services" in ctx
     assert "Compute" in ctx
     assert "Storage" not in ctx
+
+
+@pytest.mark.django_db
+@override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+def test_offering_format_hint_omits_country_when_single_country():
+    cat = mp_factories.CategoryFactory(title="Compute")
+    cust = structure_factories.CustomerFactory(country="EE")
+    mp_factories.OfferingFactory(
+        category=cat, customer=cust, shared=True, state=OfferingStates.ACTIVE
+    )
+    mp_factories.OfferingFactory(
+        category=cat, customer=cust, shared=True, state=OfferingStates.ACTIVE
+    )
+
+    hint = helpers.build_offering_format_hint()
+    assert "(Provider)" in hint
+    assert "Country" not in hint
+
+
+@pytest.mark.django_db
+@override_config(ANONYMOUS_USER_CAN_VIEW_OFFERINGS=True)
+def test_offering_format_hint_includes_country_when_multi_country():
+    cat = mp_factories.CategoryFactory(title="Compute")
+    for cc in ("EE", "FI", "DE"):
+        cust = structure_factories.CustomerFactory(country=cc)
+        mp_factories.OfferingFactory(
+            category=cat, customer=cust, shared=True, state=OfferingStates.ACTIVE
+        )
+
+    hint = helpers.build_offering_format_hint()
+    assert "(Provider, Country)" in hint
+
+
+@pytest.mark.django_db
+def test_offering_format_hint_defaults_to_no_country_when_catalog_empty():
+    # Anonymous can't see anything → without-country (smaller prompt).
+    hint = helpers.build_offering_format_hint()
+    assert "(Provider)" in hint
+    assert "Country" not in hint

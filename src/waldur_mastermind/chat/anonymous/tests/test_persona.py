@@ -32,7 +32,7 @@ class AnonymousPromptShapeTest(SimpleTestCase):
         self.assertEqual(seen, ANONYMOUS_PROMPT_PLACEHOLDERS)
 
     def test_format_with_placeholders_succeeds(self):
-        # Smoke-test: the template formats cleanly when given all five
+        # Smoke-test: the template formats cleanly when given all
         # placeholders. Catches stray "{" that aren't valid format keys.
         rendered = ANONYMOUS_SYSTEM_PROMPT.format(
             assistant_name="Test Assistant",
@@ -40,9 +40,11 @@ class AnonymousPromptShapeTest(SimpleTestCase):
             domain_context="You help users discover test services.",
             tools="(tool docs)",
             catalog="(catalog text)",
+            offering_format_hint="  **Offering Name** (Provider)",
         )
         self.assertIn("Test Assistant", rendered)
         self.assertIn("(catalog text)", rendered)
+        self.assertIn("**Offering Name** (Provider)", rendered)
 
 
 class AnonymousPromptContentTest(SimpleTestCase):
@@ -79,10 +81,14 @@ class AnonymousPromptContentTest(SimpleTestCase):
         self.assertIn("politely\n  redirect", ANONYMOUS_SYSTEM_PROMPT)
 
     def test_recommendation_format_components_present(self):
-        # The structured-recommendation block — losing any of these
-        # silently degrades response quality across all turns.
-        self.assertIn("Why it matches", ANONYMOUS_SYSTEM_PROMPT)
-        self.assertIn("Key specs", ANONYMOUS_SYSTEM_PROMPT)
+        # The format itself is injected via {offering_format_hint},
+        # but the "WHY this offering matches" + "Access" labels are
+        # still hard-coded in the bullet list above the format block.
+        # "Key details" replaced "Key specs" so the persona reads
+        # naturally for non-HPC deployments where "specs" is jargon.
+        self.assertIn("WHY this offering matches", ANONYMOUS_SYSTEM_PROMPT)
+        self.assertIn("Key details", ANONYMOUS_SYSTEM_PROMPT)
+        self.assertIn("{offering_format_hint}", ANONYMOUS_SYSTEM_PROMPT)
         self.assertIn("Access", ANONYMOUS_SYSTEM_PROMPT)
 
     def test_no_filler_communication_style(self):

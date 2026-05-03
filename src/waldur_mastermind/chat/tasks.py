@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from waldur_mastermind.chat.anonymous import models as anonymous_models
 from waldur_mastermind.chat.anonymous.judge import (
+    build_intent_rubric,
     build_judge_messages,
     build_transcript,
     call_judge_llm,
@@ -244,6 +245,13 @@ def review_completed_sessions():
         session_max.values_list("session_id", flat=True)[:batch_size]
     )
 
+    # Build the deployment-derived intent rubric ONCE per batch — the
+    # category set is stable across a nightly run and the lookup hits
+    # the marketplace catalog. Reusing it across all sessions in this
+    # task drops the per-session DB cost.
+    rubric = build_intent_rubric()
+    valid_intents = {slug for slug, _ in rubric}
+
     reviewed = 0
     skipped_already_judged = 0
     skipped_parse_error = 0
@@ -280,7 +288,7 @@ def review_completed_sessions():
 
         transcript = build_transcript(interactions)
         tool_results = collect_tool_results_from_blocks(interactions)
-        messages = build_judge_messages(transcript, tool_results)
+        messages = build_judge_messages(transcript, tool_results, rubric=rubric)
 
         try:
             response = call_judge_llm(messages)
@@ -292,7 +300,7 @@ def review_completed_sessions():
             skipped_llm_error += 1
             continue
 
-        verdict = parse_judge_json(response.content)
+        verdict = parse_judge_json(response.content, valid_intents=valid_intents)
         if verdict is None:
             logger.warning(
                 "Anonymous chat judge returned unparseable verdict for session %s",

@@ -2,13 +2,19 @@
 
 import json
 import logging
+import re
 from collections import deque
 from collections.abc import Iterable
 from dataclasses import dataclass
 
 import httpx
+import nh3
 import openai
 from constance import config
+from django.contrib.auth.models import AnonymousUser
+
+from waldur_mastermind.chat.tools.marketplace.helpers import offerings_queryset_for
+from waldur_mastermind.marketplace import models as marketplace_models
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +30,138 @@ TOOL_RESULTS_CHAR_CAP = 12_000
 # Schema is six short fields — anything beyond 300 tokens is the model rambling.
 JUDGE_MAX_TOKENS = 300
 
-JUDGE_SYSTEM_PROMPT = """\
-You are an automated quality reviewer for a service-discovery chatbot. Your
-job is to evaluate one conversation and output a structured JSON verdict.
+
+# Generic deployment-neutral fallback rubric, used when the catalog has
+# zero categories (e.g. fresh install) or `marketplace.Category` lookup
+# fails. Each entry is (slug, hint).  These slugs are intentionally
+# broad so any offering surface — HPC, government cloud, training —
+# can be classified without inventing intents at LLM time.
+_GENERIC_INTENT_RUBRIC: list[tuple[str, str]] = [
+    ("compute", "user wants computing resources (CPU, GPU, instances, clusters)"),
+    ("storage", "user wants storage (object, file, archival)"),
+    ("software", "user wants specific software, applications or platforms"),
+    ("service", "user wants a managed service or operational capability"),
+    ("consultation", "user wants help, training, expertise or advice"),
+    ("unclear", "user's intent is genuinely ambiguous OR off-topic"),
+]
+
+# Slugs that are always allowed alongside the deployment-derived ones
+# so the model can fall back when no specific category fits.
+_RESERVED_INTENTS: set[str] = {"unclear"}
+
+# Per-category intent hint truncation — keeps the rubric block short
+# even when category descriptions are long, preventing the system
+# prompt from blowing past the judge LLM's context.
+_INTENT_HINT_CHAR_CAP = 160
+
+# Soft cap on the number of deployment-derived intents in the rubric.
+# Beyond this we keep the most-populated categories first (alphabetical
+# tiebreak) so KPI distributions remain meaningful.
+_MAX_INTENT_ROWS = 12
+
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_NON_SLUG_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _slugify_category(title: str) -> str:
+    """Stable, short, lowercase slug used as the JSON ``intent_category`` value.
+
+    Mirrors what a frontend chart would key on. We deliberately don't
+    use Django's slugify (which can produce 50-char monstrosities) —
+    we want a 16-char-max key that keeps KPI dashboards readable.
+    """
+    base = _NON_SLUG_RE.sub("_", (title or "").lower()).strip("_")
+    if not base:
+        return ""
+    return base[:24]
+
+
+def _strip_html(text: str) -> str:
+    """nh3-based plaintext extraction; same approach as
+    chat/tools/marketplace/search_offerings._strip_html."""
+    if not text:
+        return ""
+    plain = nh3.clean(text, tags=set(), attributes={})
+    return re.sub(r"\s+", " ", plain).strip()
+
+
+def build_intent_rubric() -> list[tuple[str, str]]:
+    """Return the (slug, hint) list rendered into the judge system prompt.
+
+    Auto-derives from publicly-visible ``marketplace.Category`` rows so
+    every deployment gets an intent space matching its actual catalog.
+    A government-cloud deployment with categories like 'IAM' /
+    'Compliance' / 'Managed Database' produces a different rubric than
+    an HPC marketplace with 'GPU Compute' / 'HPC Storage' /
+    'Consultancy and Expertise'.
+
+    Falls back to the generic rubric when no categories are visible
+    (fresh install, anonymous viewing disabled, etc).
+    """
+    try:
+        visible = offerings_queryset_for(AnonymousUser())
+        rows = (
+            marketplace_models.Category.objects.filter(offerings__in=visible)
+            .order_by("title")
+            .values_list("title", "description")
+            .distinct()
+        )[:_MAX_INTENT_ROWS]
+    except Exception:
+        # Schema-generation / no-DB / migration paths must not crash.
+        return list(_GENERIC_INTENT_RUBRIC)
+
+    seen: set[str] = set()
+    rubric: list[tuple[str, str]] = []
+    for title, description in rows:
+        slug = _slugify_category(title)
+        if not slug or slug in seen:
+            continue
+        seen.add(slug)
+        hint_source = _strip_html(description) or title
+        hint = (
+            f"user wants {hint_source[:_INTENT_HINT_CHAR_CAP]}"
+            if len(hint_source) <= _INTENT_HINT_CHAR_CAP
+            else f"user wants {hint_source[: _INTENT_HINT_CHAR_CAP - 1]}…"
+        )
+        rubric.append((slug, hint))
+
+    if not rubric:
+        return list(_GENERIC_INTENT_RUBRIC)
+
+    # Always include "unclear" as a tail — the judge needs a default
+    # for ambiguous / off-topic queries even on rich catalogs.
+    if "unclear" not in seen:
+        rubric.append(("unclear", "user's intent is genuinely ambiguous OR off-topic"))
+    return rubric
+
+
+def render_judge_system_prompt(rubric: list[tuple[str, str]] | None = None) -> str:
+    """Build the system prompt with deployment-specific framing + intent rubric.
+
+    The framing line is seeded from ``SITE_DESCRIPTION`` so the judge
+    knows what kind of catalog it's reviewing (HPC, government cloud,
+    operational services, etc.); falls back to a neutral phrasing.
+    """
+    if rubric is None:
+        rubric = build_intent_rubric()
+
+    site_description = (config.SITE_DESCRIPTION or "").strip()
+    framing = (
+        f"a service-discovery chatbot for {site_description}"
+        if site_description
+        else "a service-discovery chatbot for a marketplace catalog"
+    )
+
+    schema_intent_choices = " | ".join(f'"{slug}"' for slug, _ in rubric)
+    rubric_lines = "\n".join(f"  {slug:<14s} — {hint}" for slug, hint in rubric)
+
+    return f"""\
+You are an automated quality reviewer for {framing}. Your job is to
+evaluate one conversation and output a structured JSON verdict.
 
 The chatbot you are reviewing has access to four tools — list_categories,
-search_offerings, get_offering, compare_offerings — over a public marketplace
-catalog of marketplace offerings.
+search_offerings, get_offering, compare_offerings — over the public
+marketplace catalog.
 
 CRITICAL RULES:
 
@@ -59,13 +190,13 @@ CRITICAL RULES:
 
 OUTPUT SCHEMA (all fields required):
 
-{
+{{
   "resolution_score": 1 | 2 | 3 | 4 | 5,
-  "intent_category": "compute" | "storage" | "software" | "consultancy" | "unclear",
+  "intent_category": {schema_intent_choices},
   "hallucination_detected": true | false,
   "hallucination_details": "<one short line if detected, else empty string>",
   "summary": "<single English sentence describing what the user wanted>"
-}
+}}
 
 RESOLUTION SCORE RUBRIC:
   5 — chatbot fully answered the user's question with concrete recommendations
@@ -78,11 +209,7 @@ RESOLUTION SCORE RUBRIC:
   1 — chatbot failed to answer, errored out, or refused without good reason
 
 INTENT CATEGORY:
-  compute      — user wants compute (CPU, GPU, cluster time)
-  storage      — user wants storage (object, parallel filesystem, archival)
-  software     — user wants specific scientific software / applications
-  consultancy  — user wants help, training, code porting, expertise
-  unclear      — user's intent is genuinely ambiguous OR off-topic (not service discovery)
+{rubric_lines}
 """
 
 
@@ -101,9 +228,6 @@ Output the JSON verdict.
 """
 
 
-VALID_INTENTS = {"compute", "storage", "software", "consultancy", "unclear"}
-
-
 @dataclass
 class JudgeVerdict:
     resolution_score: int
@@ -113,11 +237,18 @@ class JudgeVerdict:
     summary: str
 
 
-def parse_judge_json(raw: str) -> JudgeVerdict | None:
+def parse_judge_json(
+    raw: str, valid_intents: set[str] | None = None
+) -> JudgeVerdict | None:
     """Parse + schema-validate the judge output. ``None`` on any failure — caller retries next pass.
 
     Slice from first ``{`` to last ``}`` tolerates models that wrap JSON in
     code fences or commentary despite the prompt's "JSON only" rule.
+
+    ``valid_intents`` is the set of slugs the judge was instructed to
+    pick from in this turn. When omitted (e.g. tests, ad-hoc parsing)
+    we accept any non-empty short slug — the caller then decides
+    whether to coerce / drop unfamiliar values.
     """
     text = (raw or "").strip()
     start, end = text.find("{"), text.rfind("}")
@@ -140,15 +271,25 @@ def parse_judge_json(raw: str) -> JudgeVerdict | None:
 
     if (
         score not in (1, 2, 3, 4, 5)
-        or intent not in VALID_INTENTS
         or not isinstance(hallucinated, bool)
         or not summary
     ):
         return None
 
+    if valid_intents is not None and intent not in valid_intents:
+        # Coerce to the universal "unclear" slug rather than dropping the
+        # whole verdict — losing an entire judgement to a single
+        # off-rubric intent string would mean the budget was burned for
+        # nothing. "unclear" is always in the rubric (see
+        # render_judge_system_prompt).
+        intent = "unclear"
+
+    if not intent:
+        return None
+
     return JudgeVerdict(
         resolution_score=score,
-        intent_category=intent,
+        intent_category=intent[:32],
         hallucination_detected=hallucinated,
         hallucination_details=str(data.get("hallucination_details") or "").strip(),
         summary=summary,
@@ -316,9 +457,19 @@ class JudgeResponse:
     output_tokens: int
 
 
-def build_judge_messages(transcript: str, tool_results: str) -> list[dict]:
+def build_judge_messages(
+    transcript: str,
+    tool_results: str,
+    rubric: list[tuple[str, str]] | None = None,
+) -> list[dict]:
+    """Render the system prompt with the deployment-derived intent rubric.
+
+    Pass ``rubric`` when the caller wants to reuse a pre-built rubric
+    across many sessions in one batch (avoids re-querying the catalog
+    per session); omit to derive on each call.
+    """
     return [
-        {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
+        {"role": "system", "content": render_judge_system_prompt(rubric)},
         {
             "role": "user",
             "content": JUDGE_USER_TEMPLATE.format(
