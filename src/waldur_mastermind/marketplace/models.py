@@ -3682,10 +3682,15 @@ class ResourceProject(
 
     @transition(
         field=state,
-        source=[States.CREATING, States.UPDATING],
+        source=[States.CREATING, States.UPDATING, States.ERRED],
         target=States.OK,
     )
     def set_state_ok(self):
+        # ERRED is a valid source so a downstream operator (e.g.
+        # waldur-site-agent's rancher-kc-crd plugin) can flip the RP
+        # back to OK once a transient failure clears, without manual
+        # intervention. Mirrors the Resource FSM (line ~1762) which
+        # already allows the same recovery path.
         pass
 
     @transition(field=state, source="*", target=States.ERRED)

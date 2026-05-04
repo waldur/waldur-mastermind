@@ -7660,6 +7660,7 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
             "description",
             "backend_id",
             "state",
+            "error_message",
             "limits",
             "current_usages",
             "resource_uuid",
@@ -7671,6 +7672,7 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
             "uuid",
             "backend_id",
             "state",
+            "error_message",
             "current_usages",
             "created",
             "modified",
@@ -7754,6 +7756,23 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
 
 class ResourceProjectBackendIdSerializer(serializers.Serializer):
     backend_id = serializers.CharField()
+
+
+class ResourceProjectErrorMessageSerializer(serializers.Serializer):
+    """Body for ``ResourceProjectViewSet.set_state_erred``.
+
+    Mirrors how site agents (e.g. waldur-site-agent's rancher-kc-crd
+    plugin) report a downstream-operator failure back to Waldur. The
+    field is optional so callers that just want to flip the FSM
+    without an explanation can post an empty body.
+    """
+
+    error_message = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text="Free-form description of why the project transitioned to Erred.",
+    )
 
 
 class NestedResourceProjectPermissionSerializer(serializers.ModelSerializer):
