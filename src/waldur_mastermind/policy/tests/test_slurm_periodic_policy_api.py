@@ -602,6 +602,26 @@ class SlurmPolicyGetCurrentPeriodFromComponentTest(test.APITransactionTestCase):
         result = policy._get_current_period()
         self.assertEqual(result, "2026-03")
 
+    def test_falls_back_to_db_when_limit_period_is_empty(self):
+        """WAL-9907 regression: when the component has been left as empty
+        ``limit_period`` (the legacy "policy-driven" config), the policy must
+        fall back to its own ``period`` field rather than treating the empty
+        component as a hard "month" assertion.
+
+        This test pins the fallback behavior that migration 0226 broke before
+        it was patched. ``_create_limit_component`` would normally be coerced
+        to "month" by ``OfferingComponent.save()``, so we bypass save with an
+        UPDATE.
+        """
+        component = self._create_limit_component(LimitPeriods.MONTH)
+        type(component).objects.filter(pk=component.pk).update(limit_period="")
+        policy = SlurmPeriodicUsagePolicyFactory(
+            scope=self.offering,
+            period=PeriodMixin.Periods.MONTH_3,
+        )
+        result = policy._get_current_period()
+        self.assertEqual(result, "2026-Q1")
+
 
 class SlurmPeriodicUsagePolicyPreviewPeriodTest(test.APITestCase):
     """Test that preview_impact respects the policy's period setting."""
