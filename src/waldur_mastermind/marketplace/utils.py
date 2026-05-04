@@ -1257,6 +1257,130 @@ def get_components_usage_data(resources, for_current_month=False):
     return list(components_data.values())
 
 
+def _resolve_period_bounds(limit_period, today=None):
+    """Return (start_date, end_date, label) for the given limit period.
+
+    `start`/`end` are inclusive `date` objects suitable for filtering
+    `ComponentUsage.billing_period` (which is always the first day of the
+    month). `TOTAL` returns (None, None, "Total") to mean "no time bound".
+    """
+    today = today or datetime.date.today()
+
+    if limit_period == LimitPeriods.QUARTERLY:
+        start = core_utils.get_current_quarter_start().date()
+        end = core_utils.get_current_quarter_end().date()
+        quarter = (today.month - 1) // 3 + 1
+        return start, end, f"Q{quarter} {today.year}"
+
+    if limit_period == LimitPeriods.ANNUAL:
+        return (
+            datetime.date(today.year, 1, 1),
+            datetime.date(today.year, 12, 31),
+            str(today.year),
+        )
+
+    if limit_period == LimitPeriods.TOTAL:
+        return None, None, "Total"
+
+    # MONTH or unspecified — current month. ComponentUsage.billing_period is
+    # always month-start, so equality on the start date is the natural filter.
+    start = core_utils.month_start(today).date()
+    return start, start, today.strftime("%b %Y")
+
+
+def get_components_usage_data_per_offering(resources):
+    """Aggregate per-component usage and limit stats per offering.
+
+    One row per (offering, component_type, billing_type). Each row's
+    `usage` / `limit_usage` is computed using the offering's own
+    `limit_period` — quarterly offerings report quarter-to-date,
+    yearly report year-to-date, total report lifetime, monthly report
+    current month. The current period bounds are returned alongside
+    each row so callers can render period-correct labels.
+    """
+    today = datetime.date.today()
+
+    resources_by_offering = defaultdict(list)
+    for resource in resources:
+        resources_by_offering[resource.offering_id].append(resource)
+
+    if not resources_by_offering:
+        return []
+
+    components = (
+        models.OfferingComponent.objects.filter(
+            offering_id__in=list(resources_by_offering.keys())
+        )
+        .select_related("offering")
+        .distinct()
+    )
+
+    rows = []
+    for component in components:
+        offering = component.offering
+        offering_resources = resources_by_offering.get(offering.id, [])
+        if not offering_resources:
+            continue
+
+        period_start, period_end, period_label = _resolve_period_bounds(
+            component.limit_period or LimitPeriods.MONTH, today
+        )
+
+        usage_qs = models.ComponentUsage.objects.filter(
+            resource__in=offering_resources, component=component
+        )
+        if period_start is not None:
+            usage_qs = usage_qs.filter(billing_period__gte=period_start)
+        if period_end is not None:
+            usage_qs = usage_qs.filter(billing_period__lte=period_end)
+        period_usage = float(usage_qs.aggregate(total=Sum("usage"))["total"] or 0)
+
+        # Sum resource.limits[component.type] across the offering's resources.
+        # Track presence so we emit None when no limit is set anywhere.
+        total_limit = 0.0
+        any_limit = False
+        for resource in offering_resources:
+            limit_val = (resource.limits or {}).get(component.type)
+            if limit_val is None:
+                continue
+            try:
+                total_limit += float(limit_val)
+                any_limit = True
+            except (TypeError, ValueError):
+                continue
+
+        if component.billing_type == BillingTypes.USAGE:
+            usage = period_usage
+            limit_usage = 0.0
+        elif component.billing_type == BillingTypes.LIMIT:
+            usage = 0.0
+            limit_usage = period_usage
+        else:
+            usage = 0.0
+            limit_usage = 0.0
+
+        rows.append(
+            {
+                "type": component.type,
+                "name": component.name,
+                "description": component.description,
+                "measured_unit": component.measured_unit,
+                "billing_type": component.billing_type,
+                "usage": usage,
+                "limit_usage": limit_usage,
+                "limit": total_limit if any_limit else None,
+                "offering_name": offering.name,
+                "offering_uuid": offering.uuid.hex,
+                "limit_period": component.limit_period,
+                "current_period_label": period_label,
+                "current_period_start": period_start,
+                "current_period_end": period_end,
+            }
+        )
+
+    return rows
+
+
 def format_limits_list(components_map, limits):
     return ", ".join(
         f"{components_map[key].name or components_map[key].type}: {value}"
