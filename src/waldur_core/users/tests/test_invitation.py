@@ -842,6 +842,111 @@ class InvitationCreateTest(BaseInvitationTest):
         }
 
 
+class InvitationReminderTest(BaseInvitationTest):
+    @override_config(HOMEPORT_URL="TEST")
+    def test_send_reminder_for_pending_invitations(self):
+        waldur_section = settings.WALDUR_CORE.copy()
+        waldur_section["INVITATION_LIFETIME"] = timedelta(weeks=1)
+        waldur_section["TRANSLATION_DOMAIN"] = "TEST"
+        event_type = "invitation_created"
+        structure_factories.NotificationFactory(key=f"users.{event_type}")
+
+        with self.settings(WALDUR_CORE=waldur_section):
+            factories.ProjectInvitationFactory(
+                created=timezone.now()
+                - waldur_section["INVITATION_LIFETIME"]
+                + timedelta(days=1),
+                created_by=self.project_admin,
+            )
+            tasks.send_reminder_for_pending_invitations()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertTrue("REMINDER" in mail.outbox[0].subject)
+        expected_sender = self.project_admin.full_name
+        self.assertIn(expected_sender, mail.outbox[0].body)
+        self.assertNotIn(self.project_admin.email, mail.outbox[0].body)
+
+    @override_config(HOMEPORT_URL="TEST")
+    def test_send_reminder_uses_username_when_inviter_has_no_full_name(self):
+        waldur_section = settings.WALDUR_CORE.copy()
+        waldur_section["INVITATION_LIFETIME"] = timedelta(weeks=1)
+        waldur_section["TRANSLATION_DOMAIN"] = "TEST"
+        event_type = "invitation_created"
+        structure_factories.NotificationFactory(key=f"users.{event_type}")
+
+        inviter = structure_factories.UserFactory(
+            first_name="",
+            last_name="",
+            username="svc_inviter_01",
+            email="",
+        )
+
+        with self.settings(WALDUR_CORE=waldur_section):
+            factories.ProjectInvitationFactory(
+                created=timezone.now()
+                - waldur_section["INVITATION_LIFETIME"]
+                + timedelta(days=1),
+                created_by=inviter,
+            )
+            tasks.send_reminder_for_pending_invitations()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn("svc_inviter_01", mail.outbox[0].body)
+        self.assertNotIn("inviter-not-in-body@example.com", mail.outbox[0].body)
+
+    @override_config(HOMEPORT_URL="TEST")
+    def test_send_reminder_uses_email_when_inviter_has_no_full_name(self):
+        waldur_section = settings.WALDUR_CORE.copy()
+        waldur_section["INVITATION_LIFETIME"] = timedelta(weeks=1)
+        waldur_section["TRANSLATION_DOMAIN"] = "TEST"
+        event_type = "invitation_created"
+        structure_factories.NotificationFactory(key=f"users.{event_type}")
+
+        inviter = structure_factories.UserFactory(
+            first_name="",
+            last_name="",
+            username="svc_inviter_01",
+            email="inviter-in-body@example.com",
+        )
+
+        with self.settings(WALDUR_CORE=waldur_section):
+            factories.ProjectInvitationFactory(
+                created=timezone.now()
+                - waldur_section["INVITATION_LIFETIME"]
+                + timedelta(days=1),
+                created_by=inviter,
+            )
+            tasks.send_reminder_for_pending_invitations()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertNotIn("svc_inviter_01", mail.outbox[0].body)
+        self.assertIn("inviter-in-body@example.com", mail.outbox[0].body)
+
+    @freeze_time("2025-02-07")
+    @override_config(HOMEPORT_URL="TEST")
+    def test_send_reminder_uses_project_start_date(self):
+        waldur_section = settings.WALDUR_CORE.copy()
+        waldur_section["INVITATION_LIFETIME"] = timedelta(days=7)
+        waldur_section["TRANSLATION_DOMAIN"] = "TEST"
+        event_type = "invitation_created"
+        structure_factories.NotificationFactory(key=f"users.{event_type}")
+
+        self.project.start_date = datetime.date(2025, 2, 1)
+        self.project.save()
+
+        with self.settings(WALDUR_CORE=waldur_section):
+            factories.ProjectInvitationFactory(
+                scope=self.project,
+                state=InvitationState.PENDING,
+                created=timezone.now() - timedelta(days=40),
+                created_by=self.project_admin,
+            )
+            tasks.send_reminder_for_pending_invitations()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertTrue("REMINDER" in mail.outbox[0].subject)
+
+
 class InvitationEmailRestrictionTest(test.APITestCase):
     def setUp(self):
         CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
@@ -1024,57 +1129,6 @@ class InvitationCancelTest(BaseInvitationTest):
 
         invitation.refresh_from_db()
         self.assertEqual(invitation.state, InvitationState.EXPIRED)
-
-    @override_settings(
-        WALDUR_CORE={
-            "INVITATION_LIFETIME": timedelta(weeks=1),
-            "TRANSLATION_DOMAIN": "TEST",
-        }
-    )
-    @override_config(HOMEPORT_URL="TEST")
-    def test_send_reminder_for_pending_invitations(self):
-        waldur_section = settings.WALDUR_CORE.copy()
-        waldur_section["INVITATION_LIFETIME"] = timedelta(weeks=1)
-        event_type = "invitation_created"
-        structure_factories.NotificationFactory(key=f"users.{event_type}")
-
-        with self.settings(WALDUR_CORE=waldur_section):
-            factories.ProjectInvitationFactory(
-                created=timezone.now()
-                - settings.WALDUR_CORE["INVITATION_LIFETIME"]
-                + timedelta(days=1),
-                created_by=self.project_admin,
-            )
-            tasks.send_reminder_for_pending_invitations()
-
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertTrue("REMINDER" in mail.outbox[0].subject)
-
-    @freeze_time("2025-02-07")
-    @override_settings(
-        WALDUR_CORE={
-            "INVITATION_LIFETIME": timedelta(days=7),
-            "TRANSLATION_DOMAIN": "TEST",
-        }
-    )
-    @override_config(HOMEPORT_URL="TEST")
-    def test_send_reminder_uses_project_start_date(self):
-        event_type = "invitation_created"
-        structure_factories.NotificationFactory(key=f"users.{event_type}")
-
-        self.project.start_date = datetime.date(2025, 2, 1)
-        self.project.save()
-
-        factories.ProjectInvitationFactory(
-            scope=self.project,
-            state=InvitationState.PENDING,
-            created=timezone.now() - timedelta(days=40),
-            created_by=self.project_admin,
-        )
-        tasks.send_reminder_for_pending_invitations()
-
-        self.assertEqual(len(mail.outbox), 1)
-        self.assertTrue("REMINDER" in mail.outbox[0].subject)
 
 
 @ddt

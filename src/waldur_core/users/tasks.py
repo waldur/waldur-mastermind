@@ -245,7 +245,12 @@ def send_reminder_for_pending_invitations():
             )
             continue
 
-        context = utils.get_invitation_context(invitation, invitation.created_by.email)
+        sender = (
+            invitation.created_by.full_name
+            or invitation.created_by.email
+            or invitation.created_by.username
+        )
+        context = utils.get_invitation_context(invitation, sender)
         context["link"] = utils.get_invitation_link(invitation.uuid)
         site_link = format_homeport_link()
         context["site_host"] = urlparse(site_link).hostname
