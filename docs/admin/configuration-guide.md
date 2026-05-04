@@ -2568,7 +2568,7 @@ Enable AI Assistant feature and calls to the inference service.
 
 **Default value:** disabled
 
-Controls which user roles can access the AI Assistant. 'disabled': No role-based access. 'staff': Staff users only. 'staff_and_support': Staff and support users. 'all': All authenticated users.
+Controls which user roles can access the AI Assistant. 'disabled': No role-based access. 'staff': Staff users only. 'staff_and_support': Staff and support users. 'all': All authenticated users. 'anonymous': All users including anonymous (enables the public anonymous chat endpoint).
 
 #### AI_ASSISTANT_BACKEND_TYPE
 
@@ -2610,13 +2610,21 @@ Additional instructions injected into the AI Assistant system prompt. Use this f
 
 Override keyword arguments merged on top of provider defaults for AI Assistant chat completion. Supported keys: temperature, top_p, top_k, max_tokens, max_completion_tokens, presence_penalty, frequency_penalty, repetition_penalty, stop, seed, reasoning_effort, extra_body. Leave empty to use provider defaults.
 
+#### AI_ASSISTANT_STREAM_TIMEOUT_SECONDS
+
+**Type:** int
+
+**Default value:** 120
+
+Hard timeout in seconds for a full streaming request including LLM completion.
+
 #### AI_ASSISTANT_TOKEN_LIMIT_DAILY
 
 **Type:** int
 
 **Default value:** -1
 
-Default daily token limit (integer). -1 means unlimited.
+Per-actor daily token cap (authenticated OR anonymous). -1 means unlimited.
 
 #### AI_ASSISTANT_TOKEN_LIMIT_WEEKLY
 
@@ -2624,7 +2632,7 @@ Default daily token limit (integer). -1 means unlimited.
 
 **Default value:** -1
 
-Default weekly token limit (integer). -1 means unlimited.
+Per-actor (authenticated OR anonymous) weekly token cap. -1 means unlimited.
 
 #### AI_ASSISTANT_TOKEN_LIMIT_MONTHLY
 
@@ -2632,7 +2640,23 @@ Default weekly token limit (integer). -1 means unlimited.
 
 **Default value:** -1
 
-Default monthly token limit (integer). -1 means unlimited.
+Per-actor (authenticated OR anonymous) monthly token cap. -1 means unlimited.
+
+#### AI_ASSISTANT_GLOBAL_DAILY_TOKEN_BUDGET
+
+**Type:** int
+
+**Default value:** 5000000
+
+Site-wide daily token cap across all assistant traffic (auth + anonymous). -1 means unlimited.
+
+#### AI_ASSISTANT_GLOBAL_REQUESTS_PER_MINUTE
+
+**Type:** int
+
+**Default value:** 60
+
+Site-wide burst cap across all assistant traffic.
 
 #### AI_ASSISTANT_SESSION_RETENTION_DAYS
 
@@ -2655,6 +2679,50 @@ Maximum number of past messages included in the AI Assistant context window.
 **Type:** str
 
 Comma-separated allowlist phrases that bypass injection detection.
+
+#### ANONYMOUS_CHAT_USER_SLUG_SALT
+
+**Type:** secret_field
+
+Scrypt salt for per-IP user_slug derivation. Empty disables slug computation (interactions are written without it).
+
+#### ANONYMOUS_CHAT_FEEDBACK_TOKEN_SECRET
+
+**Type:** secret_field
+
+HMAC-SHA256 secret for /feedback/ anti-replay tokens. Loss of secrecy invalidates all in-flight feedback submissions.
+
+#### ANONYMOUS_CHAT_CATALOG_MAX_ENTRIES
+
+**Type:** int
+
+**Default value:** 50
+
+Hard cap on the number of offerings injected into the anonymous assistant's system prompt catalog summary. Past this, drop the tail.
+
+#### ANONYMOUS_CHAT_REVIEW_ENABLED
+
+**Type:** bool
+
+**Default value:** True
+
+Master toggle for the nightly LLM-as-judge review of completed anonymous sessions. On by default — cost is bounded by ANONYMOUS_CHAT_REVIEW_DAILY_TOKEN_BUDGET.
+
+#### ANONYMOUS_CHAT_REVIEW_DAILY_TOKEN_BUDGET
+
+**Type:** int
+
+**Default value:** 2000000
+
+Independent budget for the LLM judge so review can't starve user-facing traffic. Reuses AI_ASSISTANT_API_URL/TOKEN/MODEL.
+
+#### ANONYMOUS_CHAT_ARTIFACT_RETENTION_DAYS
+
+**Type:** int
+
+**Default value:** 30
+
+Days of inactivity after which pseudonymous bookkeeping rows (SessionBinding, AnonymousChatBudget) are purged. Active blocks are always retained until they expire. Set to -1 to disable.
 
 ### Software catalog general
 
