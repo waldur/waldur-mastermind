@@ -381,6 +381,48 @@ class OfferingComponentPrepaidValidationTest(BaseOfferingUpdateTest):
         self.assertTrue(component_to_update.is_prepaid)
         self.assertEqual(component_to_update.overage_component, overage_component)
 
+    def test_update_non_prepaid_component_with_null_prepaid_fields_succeeds(self):
+        # Regression for WAL-9908: frontend sends null for prepaid/renewal duration
+        # fields on non-prepaid components; null means "no constraint" and must be
+        # accepted instead of rejected as a "set" field.
+        component_to_update = factories.OfferingComponentFactory(
+            offering=self.offering, is_prepaid=False, type="to-update", name="old"
+        )
+
+        payload = {
+            "uuid": component_to_update.uuid.hex,
+            "name": "updated",
+            "is_prepaid": False,
+            "min_prepaid_duration": None,
+            "max_prepaid_duration": None,
+            "prepaid_duration_step": None,
+            "min_renewal_duration": None,
+            "max_renewal_duration": None,
+            "renewal_duration_step": None,
+        }
+
+        response = self.client.post(self.update_url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        component_to_update.refresh_from_db()
+        self.assertEqual(component_to_update.name, "updated")
+
+    def test_update_non_prepaid_component_with_set_prepaid_field_fails(self):
+        component_to_update = factories.OfferingComponentFactory(
+            offering=self.offering, is_prepaid=False, type="to-update"
+        )
+
+        payload = {
+            "uuid": component_to_update.uuid.hex,
+            "is_prepaid": False,
+            "min_prepaid_duration": 3,
+        }
+
+        response = self.client.post(self.update_url, payload)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("min_prepaid_duration", response.data)
+
 
 class OfferingComponentMigrationTest(BaseOfferingUpdateTest):
     """Test automatic migration of connected objects when component type changes."""

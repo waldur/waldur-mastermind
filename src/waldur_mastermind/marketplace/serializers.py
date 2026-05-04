@@ -2325,7 +2325,8 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
         )
 
         if not is_prepaid:
-            # Clear renewal/prepaid duration constraints if the component is not prepaid.
+            # Reject renewal/prepaid duration constraints if the component is not prepaid.
+            # A null value means "no constraint" and is allowed even for non-prepaid components.
             for field in (
                 "min_prepaid_duration",
                 "max_prepaid_duration",
@@ -2334,7 +2335,7 @@ class OfferingComponentSerializer(serializers.ModelSerializer):
                 "max_renewal_duration",
                 "renewal_duration_step",
             ):
-                if field in attrs:
+                if attrs.get(field) is not None:
                     raise serializers.ValidationError(
                         {field: _("This field can only be set on prepaid components.")}
                     )
