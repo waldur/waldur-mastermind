@@ -210,6 +210,16 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
         required=False,
         help_text="Enable sub-project management within resources.",
     )
+    resource_projects_limits_required = serializers.BooleanField(
+        required=False,
+        help_text=(
+            "If set to True, every limit-billing component declared by the "
+            "offering must have a value when creating or updating a "
+            "resource project. Use this for backends that reject projects "
+            "without resource quotas (e.g. the rancher-keycloak-operator's "
+            "project-level resourceQuota.limit cap)."
+        ),
+    )
     create_orders_on_resource_project_change = serializers.BooleanField(
         required=False,
         help_text="If set to True, create orders when resource projects are created, updated or deleted.",
@@ -7691,6 +7701,33 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
             raise ValidationError(
                 "Resource projects are not enabled for this offering."
             )
+
+        # When the offering requires limits, every limit-billing component
+        # must have a value. Enforced on create, and on update only when
+        # the user actually touches `limits` (otherwise a partial update
+        # that doesn't change limits would spuriously trip this check).
+        # Use case: backends that reject projects without quotas, e.g. the
+        # rancher-keycloak-operator's project-level resourceQuota.limit.
+        is_create = self.instance is None
+        if plugin_options.get("resource_projects_limits_required") and (
+            is_create or "limits" in attrs
+        ):
+            required_types = list(
+                offering.components.filter(billing_type=BillingTypes.LIMIT)
+                .values_list("type", flat=True)
+                .order_by("type")
+            )
+            provided = attrs.get("limits") or {}
+            missing = [t for t in required_types if not provided.get(t)]
+            if missing:
+                raise rf_exceptions.ValidationError(
+                    {
+                        "limits": (
+                            "This offering requires limits for all "
+                            f"components. Missing or empty: {missing}."
+                        )
+                    }
+                )
 
         # Limits validation. On partial updates `limits` may be omitted —
         # in that case we skip enforcement (no change requested).
