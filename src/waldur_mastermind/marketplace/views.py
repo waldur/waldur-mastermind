@@ -5399,23 +5399,48 @@ class ProviderResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
         project.save(update_fields=["backend_id"])
         return Response({"status": "backend_id updated"}, status=status.HTTP_200_OK)
 
+    @extend_schema(request=None, responses={200: OpenApiTypes.OBJECT})
     @action(detail=True, methods=["post"])
     def set_state_ok(self, request, uuid=None):
         project = self.get_object()
-        project.set_state_ok()
-        project.save(update_fields=["state"])
+        try:
+            project.set_state_ok()
+        except TransitionNotAllowed as exc:
+            raise ValidationError(
+                f"Cannot transition resource project from {project.get_state_display()} to OK."
+            ) from exc
+        # Clear any prior error_message so a stale failure doesn't
+        # linger after recovery.
+        project.error_message = ""
+        project.save(update_fields=["state", "error_message"])
         return Response({"status": "state set to OK"}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"])
     def set_state_erred(self, request, uuid=None):
         project = self.get_object()
-        error_message = request.data.get("error_message", "")
-        project.error_message = error_message
-        project.set_state_erred()
+        # Validate via the per-action serializer so the OpenAPI schema
+        # advertises the optional ``error_message`` field (the SDK
+        # generator wires it into a typed body model). Reading
+        # request.data.get(...) directly works at runtime but produces
+        # an SDK with the unrelated ResourceProjectRequest as the body
+        # type, forcing callers to smuggle the field via additional
+        # properties.
+        serializer = serializers.ResourceProjectErrorMessageSerializer(
+            data=request.data
+        )
+        serializer.is_valid(raise_exception=True)
+        project.error_message = serializer.validated_data["error_message"]
+        try:
+            project.set_state_erred()
+        except TransitionNotAllowed as exc:
+            raise ValidationError(
+                f"Cannot transition resource project from {project.get_state_display()} to Erred."
+            ) from exc
         project.save(update_fields=["state", "error_message"])
         return Response({"status": "state set to Erred"}, status=status.HTTP_200_OK)
 
     set_backend_id_serializer_class = serializers.ResourceProjectBackendIdSerializer
+    set_state_erred_serializer_class = serializers.ResourceProjectErrorMessageSerializer
 
 
 class OfferingRoleViewSet(core_views.ActionsViewSet):
