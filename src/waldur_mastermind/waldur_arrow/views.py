@@ -11,7 +11,6 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, response, status
 
 from waldur_core.core import views as core_views
-from waldur_core.core.serializers import EmptySerializer
 from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 
@@ -1443,7 +1442,7 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
 
     @extend_schema(
         request=serializers.TriggerSyncRequestSerializer,
-        responses={202: EmptySerializer},
+        responses={202: None},
         description="Trigger billing sync for a specific period.",
     )
     @decorators.action(detail=False, methods=["post"])
@@ -1471,7 +1470,7 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
 
     @extend_schema(
         request=serializers.ReconcileRequestSerializer,
-        responses={202: EmptySerializer},
+        responses={202: None},
         description="Trigger reconciliation for a specific period.",
     )
     @decorators.action(detail=False, methods=["post"])
@@ -1543,7 +1542,7 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
 
     @extend_schema(
         request=serializers.TriggerConsumptionSyncRequestSerializer,
-        responses={202: EmptySerializer},
+        responses={202: None},
         description="Trigger consumption sync for a specific period.",
     )
     @decorators.action(detail=False, methods=["post"])
@@ -1748,7 +1747,7 @@ class ArrowBillingSyncViewSet(core_views.ActionsViewSet):
 
     @extend_schema(
         request=serializers.ReconcileRequestSerializer,
-        responses={202: EmptySerializer},
+        responses={202: None},
         description="Trigger reconciliation (check billing export and apply adjustments).",
     )
     @decorators.action(detail=False, methods=["post"])

@@ -5210,6 +5210,7 @@ class ProviderOfferingViewSet(
     update_user_attribute_config_validators = update_validators
 
     @extend_schema(
+        request=None,
         summary="Delete user attribute config",
         description="Deletes the user attribute configuration for this offering. "
         "The offering will fall back to system defaults.",
@@ -15061,6 +15062,7 @@ class SoftwareCatalogViewSet(
     import_catalog_serializer_class = serializers.SoftwareCatalogImportSerializer
 
     @extend_schema(
+        request=None,
         summary="Trigger async update for an existing catalog",
         description=(
             "Triggers a Celery task to update the given catalog from its upstream source. "

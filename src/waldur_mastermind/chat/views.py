@@ -825,6 +825,7 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
         return Response(serializer.data)
 
     @extend_schema(
+        request=None,
         summary="Archive thread",
         description="Archive a thread (soft delete).",
         responses={204: None},
@@ -838,6 +839,7 @@ class ThreadSessionViewSet(LLMConfigurationMixin, ActionsViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     @extend_schema(
+        request=None,
         summary="Unarchive thread",
         description="Restore an archived thread.",
         responses={204: None},

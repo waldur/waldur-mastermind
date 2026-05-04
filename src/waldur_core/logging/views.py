@@ -890,6 +890,7 @@ Requires staff permissions.""",
         return response.Response(stomp_circuit_breaker.get_status())
 
     @extend_schema(
+        request=None,
         summary="Reset circuit breaker",
         description="""Manually reset the STOMP circuit breaker to CLOSED state.
 
@@ -935,6 +936,7 @@ Requires staff permissions.""",
         return response.Response(PublishingMetrics.get_metrics())
 
     @extend_schema(
+        request=None,
         summary="Reset publishing metrics",
         description="""Reset all publishing metrics counters to zero.
 

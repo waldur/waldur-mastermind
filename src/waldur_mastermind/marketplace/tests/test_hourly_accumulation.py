@@ -6,7 +6,6 @@ from django.utils import timezone
 from freezegun import freeze_time
 from rest_framework import test
 
-from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import BillingTypes

@@ -4,13 +4,13 @@ import pytest
 from constance.test import override_config
 from django.test import TestCase
 
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.chat.anonymous import helpers
 from waldur_mastermind.chat.anonymous.helpers import (
     compute_feedback_token,
     compute_user_slug,
     verify_feedback_token,
 )
-from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.enums import OfferingStates
 from waldur_mastermind.marketplace.tests import factories as mp_factories
 

@@ -18,7 +18,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.permissions import IsAdminOrReadOnly
-from waldur_core.core.serializers import EmptySerializer, ReviewCommentSerializer
+from waldur_core.core.serializers import ReviewCommentSerializer
 from waldur_core.core.validators import StateValidator
 from waldur_core.permissions.fixtures import ServiceProviderRole
 from waldur_core.structure import filters as structure_filters
@@ -783,7 +783,6 @@ class ManagedProjectViewSet(core_views.ActionsViewSet):
 
     serializer_class = serializers.ManagedProjectSerializer
     attach_serializer_class = serializers.ProjectAttachSerializer
-    detach_serializer_class = EmptySerializer
     approve_serializer_class = reject_serializer_class = ReviewCommentSerializer
 
     approve_validators = reject_validators = [
@@ -1099,6 +1098,7 @@ class ManagedProjectViewSet(core_views.ActionsViewSet):
             )
 
     @extend_schema(
+        request=None,
         parameters=[
             OpenApiParameter(
                 name="identifier",

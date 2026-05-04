@@ -1614,6 +1614,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     ]
 
     @extend_schema(
+        request=None,
         description="Compute affinity scores for all reviewer-proposal pairs.",
         responses={200: serializers.ComputeAffinitiesResponseSerializer},
     )

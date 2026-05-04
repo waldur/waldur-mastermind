@@ -11,7 +11,6 @@ from rest_framework.response import Response
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
-from waldur_core.core.serializers import EmptySerializer
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import permission_factory
 from waldur_mastermind.booking.utils import get_offering_bookings_and_busy_slots
@@ -37,8 +36,8 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     filterset_class = filters.BookingResourceFilter
     lookup_field = "uuid"
     serializer_class = serializers.BookingResourceSerializer
-    accept_serializer_class = reject_serializer_class = EmptySerializer
 
+    @extend_schema(request=None)
     @action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
         resource: models.Resource = self.get_object()
@@ -48,6 +47,7 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
         return Response({"order_uuid": order.uuid.hex}, status=status.HTTP_200_OK)
 
+    @extend_schema(request=None)
     @action(detail=True, methods=["post"])
     def accept(self, request, uuid=None):
         resource: models.Resource = self.get_object()

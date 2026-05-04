@@ -128,7 +128,6 @@ class TestPlacementClient:
 
     def test_falls_back_from_public_to_internal_interface(self):
         """Some clouds register Placement only on the internal interface."""
-        public_response = mock.MagicMock()
         internal_response = mock.MagicMock()
         internal_response.json.return_value = {"resource_providers": [{"uuid": "x"}]}
         session = mock.MagicMock()

@@ -8,10 +8,10 @@ from rest_framework import status, test
 
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
-from waldur_mastermind.chat.tools.executor import ToolExecutor
 from waldur_mastermind.chat.tools.account.display_user_resources import (
     DisplayUserResourcesTool,
 )
+from waldur_mastermind.chat.tools.executor import ToolExecutor
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_INSTANCE_OFFERING,
     OfferingStates,

@@ -1,6 +1,5 @@
 from django.db import migrations
 
-
 LEGACY_EXPOSE_FIELDS = (
     "expose_full_name",
     "expose_email",
