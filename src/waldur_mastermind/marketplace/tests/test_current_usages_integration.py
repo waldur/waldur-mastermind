@@ -28,6 +28,7 @@ from waldur_mastermind.marketplace.serializers import ResourceSerializer
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.utils import (
     get_components_usage_data,
+    get_components_usage_data_per_offering,
     get_current_period_usage,
 )
 
@@ -475,3 +476,257 @@ class NullPlanPeriodTest(test.APITestCase):
 
         result = get_current_period_usage(self.resource)
         self.assertEqual(result["node"], 25.0)  # 10 + 15
+
+
+# ---------------------------------------------------------------------------
+# 8. Per-offering stats (HPCMP-472 fix)
+# ---------------------------------------------------------------------------
+
+
+@freeze_time("2026-05-15")
+class PerOfferingStatsTest(test.APITestCase):
+    """Verify get_components_usage_data_per_offering emits one row per
+    (offering, component_type, billing_type) and that each row reports
+    period-correct usage using the offering's own limit_period."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+
+    def _create_offering_with_component(
+        self, billing_type, limit_period, component_type="node", limits=None
+    ):
+        offering = factories.OfferingFactory(customer=self.fixture.customer)
+        plan = factories.PlanFactory(offering=offering)
+        component = factories.OfferingComponentFactory(
+            offering=offering,
+            billing_type=billing_type,
+            type=component_type,
+            name="Compute",
+            measured_unit="node hours",
+            limit_period=limit_period,
+        )
+        factories.PlanComponentFactory(plan=plan, component=component)
+        # Distinguish "no limits at all" (empty dict) from "no override"
+        # (None). An empty dict must be preserved so we can test the
+        # "limit is None when no resource sets it" path.
+        effective_limits = {component_type: 1000} if limits is None else limits
+        resource = models.Resource.objects.create(
+            offering=offering,
+            plan=plan,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+            limits=effective_limits,
+        )
+        factories.OrderFactory(
+            resource=resource,
+            type=OrderTypes.CREATE,
+            state=OrderStates.EXECUTING,
+            plan=plan,
+        )
+        callbacks.resource_creation_succeeded(resource)
+        return offering, component, resource
+
+    def test_emits_one_row_per_offering(self):
+        offering1, component1, resource1 = self._create_offering_with_component(
+            BillingTypes.LIMIT, LimitPeriods.MONTH
+        )
+        offering2, component2, resource2 = self._create_offering_with_component(
+            BillingTypes.LIMIT, LimitPeriods.QUARTERLY
+        )
+
+        _create_usage(resource1, component1, 100)
+        _create_usage(resource2, component2, 500)
+
+        rows = get_components_usage_data_per_offering(
+            models.Resource.objects.filter(pk__in=[resource1.pk, resource2.pk])
+        )
+
+        self.assertEqual(len(rows), 2)
+        offering_uuids = {row["offering_uuid"] for row in rows}
+        self.assertEqual(offering_uuids, {offering1.uuid.hex, offering2.uuid.hex})
+
+    def test_quarterly_offering_reports_quarter_to_date(self):
+        # May 15 → Q2 starts Apr 1
+        offering, component, resource = self._create_offering_with_component(
+            BillingTypes.LIMIT, LimitPeriods.QUARTERLY
+        )
+        # April (in-quarter), May (in-quarter, current month), March (out-of-quarter)
+        _create_usage(
+            resource, component, 100, billing_period=datetime.date(2026, 3, 1)
+        )
+        _create_usage(
+            resource, component, 200, billing_period=datetime.date(2026, 4, 1)
+        )
+        _create_usage(
+            resource, component, 300, billing_period=datetime.date(2026, 5, 1)
+        )
+
+        rows = get_components_usage_data_per_offering(
+            models.Resource.objects.filter(pk=resource.pk)
+        )
+
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertEqual(row["limit_usage"], 500.0)  # April + May only
+        self.assertEqual(row["limit_period"], LimitPeriods.QUARTERLY)
+        self.assertEqual(row["current_period_label"], "Q2 2026")
+        self.assertEqual(row["current_period_start"], datetime.date(2026, 4, 1))
+        # Quarter end is last day of June
+        self.assertEqual(row["current_period_end"], datetime.date(2026, 6, 30))
+
+    def test_annual_offering_reports_year_to_date(self):
+        offering, component, resource = self._create_offering_with_component(
+            BillingTypes.LIMIT, LimitPeriods.ANNUAL
+        )
+        _create_usage(
+            resource, component, 100, billing_period=datetime.date(2025, 12, 1)
+        )
+        _create_usage(
+            resource, component, 200, billing_period=datetime.date(2026, 1, 1)
+        )
+        _create_usage(
+            resource, component, 300, billing_period=datetime.date(2026, 5, 1)
+        )
+
+        rows = get_components_usage_data_per_offering(
+            models.Resource.objects.filter(pk=resource.pk)
+        )
+
+        row = rows[0]
+        self.assertEqual(row["limit_usage"], 500.0)  # Jan + May only (2026)
+        self.assertEqual(row["current_period_label"], "2026")
+        self.assertEqual(row["current_period_start"], datetime.date(2026, 1, 1))
+        self.assertEqual(row["current_period_end"], datetime.date(2026, 12, 31))
+
+    def test_total_offering_reports_lifetime(self):
+        offering, component, resource = self._create_offering_with_component(
+            BillingTypes.LIMIT, LimitPeriods.TOTAL
+        )
+        _create_usage(
+            resource, component, 100, billing_period=datetime.date(2024, 1, 1)
+        )
+        _create_usage(
+            resource, component, 200, billing_period=datetime.date(2025, 6, 1)
+        )
+        _create_usage(
+            resource, component, 300, billing_period=datetime.date(2026, 5, 1)
+        )
+
+        rows = get_components_usage_data_per_offering(
+            models.Resource.objects.filter(pk=resource.pk)
+        )
+
+        row = rows[0]
+        self.assertEqual(row["limit_usage"], 600.0)
+        self.assertEqual(row["current_period_label"], "Total")
+        self.assertIsNone(row["current_period_start"])
+        self.assertIsNone(row["current_period_end"])
+
+    def test_monthly_offering_reports_current_month(self):
+        offering, component, resource = self._create_offering_with_component(
+            BillingTypes.LIMIT, LimitPeriods.MONTH
+        )
+        _create_usage(
+            resource, component, 100, billing_period=datetime.date(2026, 4, 1)
+        )
+        _create_usage(
+            resource, component, 200, billing_period=datetime.date(2026, 5, 1)
+        )
+
+        rows = get_components_usage_data_per_offering(
+            models.Resource.objects.filter(pk=resource.pk)
+        )
+
+        row = rows[0]
+        self.assertEqual(row["limit_usage"], 200.0)
+        self.assertEqual(row["current_period_label"], "May 2026")
+        self.assertEqual(row["current_period_start"], datetime.date(2026, 5, 1))
+        self.assertEqual(row["current_period_end"], datetime.date(2026, 5, 1))
+
+    def test_usage_billing_separates_from_limit_billing(self):
+        """A USAGE-billing row reports period_usage in `usage`; a
+        LIMIT-billing row reports it in `limit_usage`."""
+        offering1, comp1, res1 = self._create_offering_with_component(
+            BillingTypes.USAGE, LimitPeriods.MONTH, component_type="cpu"
+        )
+        offering2, comp2, res2 = self._create_offering_with_component(
+            BillingTypes.LIMIT, LimitPeriods.MONTH, component_type="ram"
+        )
+        _create_usage(res1, comp1, 10)
+        _create_usage(res2, comp2, 20)
+
+        rows = get_components_usage_data_per_offering(
+            models.Resource.objects.filter(pk__in=[res1.pk, res2.pk])
+        )
+
+        usage_row = next(r for r in rows if r["billing_type"] == BillingTypes.USAGE)
+        limit_row = next(r for r in rows if r["billing_type"] == BillingTypes.LIMIT)
+        self.assertEqual(usage_row["usage"], 10.0)
+        self.assertEqual(usage_row["limit_usage"], 0.0)
+        self.assertEqual(limit_row["usage"], 0.0)
+        self.assertEqual(limit_row["limit_usage"], 20.0)
+
+    def test_offering_uuids_are_distinct_when_component_types_collide(self):
+        """Two offerings exposing the same component type must each get
+        their own row with the correct offering_uuid."""
+        off1, comp1, res1 = self._create_offering_with_component(
+            BillingTypes.LIMIT, LimitPeriods.MONTH, component_type="node"
+        )
+        off2, comp2, res2 = self._create_offering_with_component(
+            BillingTypes.LIMIT, LimitPeriods.QUARTERLY, component_type="node"
+        )
+        _create_usage(res1, comp1, 100)
+        _create_usage(res2, comp2, 500)
+
+        rows = get_components_usage_data_per_offering(
+            models.Resource.objects.filter(pk__in=[res1.pk, res2.pk])
+        )
+
+        node_rows = [r for r in rows if r["type"] == "node"]
+        self.assertEqual(len(node_rows), 2)
+        by_uuid = {r["offering_uuid"]: r for r in node_rows}
+        self.assertEqual(by_uuid[off1.uuid.hex]["limit_usage"], 100.0)
+        self.assertEqual(by_uuid[off2.uuid.hex]["limit_usage"], 500.0)
+        self.assertEqual(by_uuid[off1.uuid.hex]["limit_period"], LimitPeriods.MONTH)
+        self.assertEqual(by_uuid[off2.uuid.hex]["limit_period"], LimitPeriods.QUARTERLY)
+
+    def test_returns_empty_list_for_no_resources(self):
+        rows = get_components_usage_data_per_offering(models.Resource.objects.none())
+        self.assertEqual(rows, [])
+
+    def test_limit_is_summed_across_resources_of_same_offering(self):
+        offering, component, resource1 = self._create_offering_with_component(
+            BillingTypes.LIMIT, LimitPeriods.MONTH, limits={"node": 1000}
+        )
+        # second resource on the same offering, different limit
+        plan = resource1.plan
+        resource2 = models.Resource.objects.create(
+            offering=offering,
+            plan=plan,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+            limits={"node": 500},
+        )
+        factories.OrderFactory(
+            resource=resource2,
+            type=OrderTypes.CREATE,
+            state=OrderStates.EXECUTING,
+            plan=plan,
+        )
+        callbacks.resource_creation_succeeded(resource2)
+
+        rows = get_components_usage_data_per_offering(
+            models.Resource.objects.filter(pk__in=[resource1.pk, resource2.pk])
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["limit"], 1500.0)
+
+    def test_limit_is_none_when_no_resource_sets_it(self):
+        offering, component, resource = self._create_offering_with_component(
+            BillingTypes.USAGE, LimitPeriods.MONTH, limits={}
+        )
+        rows = get_components_usage_data_per_offering(
+            models.Resource.objects.filter(pk=resource.pk)
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertIsNone(rows[0]["limit"])
