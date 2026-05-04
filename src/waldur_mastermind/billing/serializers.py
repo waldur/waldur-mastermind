@@ -1,6 +1,6 @@
-from django.contrib.contenttypes.models import ContentType
 import decimal
 
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import F, Sum
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers

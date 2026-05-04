@@ -6,7 +6,6 @@ from rest_framework import decorators, response, status
 from waldur_core.core import executors as core_executors
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import CoreStates
-from waldur_core.core.serializers import EmptySerializer
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure import views as structure_views
@@ -75,6 +74,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
             )
         )
 
+    @extend_schema(request=None)
     @decorators.action(detail=True, methods=["post"])
     def start(self, request, uuid=None):
         instance: models.Droplet = self.get_object()
@@ -87,8 +87,8 @@ class DropletViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.OFFLINE),
     ]
-    start_serializer_class = EmptySerializer
 
+    @extend_schema(request=None)
     @decorators.action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
         instance: models.Droplet = self.get_object()
@@ -101,8 +101,8 @@ class DropletViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.ONLINE),
     ]
-    stop_serializer_class = EmptySerializer
 
+    @extend_schema(request=None)
     @decorators.action(detail=True, methods=["post"])
     def restart(self, request, uuid=None):
         instance: models.Droplet = self.get_object()
@@ -115,7 +115,6 @@ class DropletViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.ONLINE),
     ]
-    restart_serializer_class = EmptySerializer
 
     @extend_schema(
         examples=[

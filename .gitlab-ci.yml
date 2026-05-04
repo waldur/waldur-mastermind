@@ -89,6 +89,15 @@ Check TransactionTestCase usage:
   script:
     - python scripts/analyze_transaction_test_cases.py --ci --baseline 80
 
+Check Action decorators:
+  image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
+  stage: test
+  interruptible: true
+  <<: *unit_test_rules
+  script:
+    - pip install libcst
+    - python scripts/check_action_request_none.py src/
+
 Validate documentation:
   image: registry.hpc.ut.ee/mirror/library/python:3.13-bookworm
   stage: test

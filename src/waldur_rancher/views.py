@@ -369,6 +369,7 @@ class CatalogViewSet(OptionalReadonlyViewset, core_views.ActionsViewSet):
             [Q(content_type=content_type, object_id=object_id) for object_id in ids],
         )
 
+    @extend_schema(request=None)
     @decorators.action(detail=True, methods=["post"])
     def refresh(self, request, uuid=None):
         catalog: models.Catalog = self.get_object()

@@ -15,7 +15,6 @@ from rest_framework.response import Response
 
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
-from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
@@ -128,6 +127,7 @@ class InvoiceViewSet(core_views.HistoryViewSetMixin, core_views.ReadOnlyActionsV
         return Response(serializer.data)
 
     @extend_schema(
+        request=None,
         summary="Send invoice notification",
         description="Schedule sending of a notification for the specified invoice.",
     )
@@ -147,7 +147,6 @@ class InvoiceViewSet(core_views.HistoryViewSetMixin, core_views.ReadOnlyActionsV
 
     send_notification_permissions = [structure_permissions.is_staff]
     send_notification_validators = [_is_invoice_created]
-    send_notification_serializer_class = EmptySerializer
 
     @extend_schema(
         description="Mark invoice as paid and optionally create payment record with proof of payment.",
@@ -913,8 +912,8 @@ class PaymentProfileViewSet(core_views.ActionsViewSet):
     ) = enable_permissions = [structure_permissions.is_staff]
     queryset = models.PaymentProfile.objects.all().order_by("name")
     serializer_class = serializers.PaymentProfileSerializer
-    enable_serializer_class = EmptySerializer
 
+    @extend_schema(request=None)
     @action(detail=True, methods=["post"])
     def enable(self, request, uuid=None):
         profile: models.PaymentProfile = self.get_object()
@@ -983,14 +982,14 @@ class PaymentViewSet(core_views.ActionsViewSet):
 
     link_to_invoice_validators = [_link_to_invoice_exists]
     link_to_invoice_serializer_class = serializers.LinkToInvoiceSerializer
-    unlink_from_invoice_serializer_class = EmptySerializer
 
     def _link_to_invoice_does_not_exist(payment):
         if not payment.invoice:
             raise exceptions.ValidationError(_("Link to an invoice does not exist."))
 
     @extend_schema(
-        description="Unlink a payment from an invoice. Remove connection between payment and existing linked invoice."
+        request=None,
+        description="Unlink a payment from an invoice. Remove connection between payment and existing linked invoice.",
     )
     @action(detail=True, methods=["post"])
     def unlink_from_invoice(self, request, uuid=None):
@@ -1084,6 +1083,7 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
         partial_update_serializer_class
     ) = serializers.CreateCustomerCreditSerializer
 
+    @extend_schema(request=None)
     @transaction.atomic
     @action(detail=True, methods=["post"])
     def apply_compensations(self, request, uuid=None):
@@ -1092,6 +1092,7 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
             customer_credit.customer
         ).apply_compensations()
 
+    @extend_schema(request=None)
     @transaction.atomic
     @action(detail=True, methods=["post"])
     def clear_compensations(self, request, uuid=None):

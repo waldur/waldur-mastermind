@@ -25,7 +25,6 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
-from waldur_core.core.serializers import EmptySerializer
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
@@ -827,7 +826,6 @@ On successful completion the task will synchronize quotas with the backend.
         return response.Response(status=status.HTTP_202_ACCEPTED)
 
     pull_floating_ips_validators = [core_validators.StateValidator(CoreStates.OK)]
-    pull_floating_ips_serializer_class = EmptySerializer
 
     @extend_schema(
         summary="Create security group",
@@ -1322,7 +1320,6 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     remove_external_gateway_validators = [
         core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED)
     ]
-    remove_external_gateway_serializer_class = EmptySerializer
 
     @extend_schema(
         summary="List available external networks",
@@ -1423,8 +1420,6 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
 
     set_erred_permissions = [structure_permissions.is_staff]
 
-    set_ok_serializer_class = EmptySerializer
-
     @extend_schema(
         summary="Mark router as OK",
         description=(
@@ -1498,8 +1493,6 @@ class LoadBalancerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     delete_executor = executors.LoadBalancerDeleteExecutor
     create_executor = executors.LoadBalancerCreateExecutor
     update_executor = executors.LoadBalancerUpdateExecutor
-
-    unlink_serializer_class = EmptySerializer
 
     @extend_schema(
         summary="Unlink load balancer",
@@ -1656,7 +1649,6 @@ class LoadBalancerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     pull_validators = [
         core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED),
     ]
-    pull_serializer_class = EmptySerializer
 
 
 @extend_schema_view(
@@ -1717,7 +1709,6 @@ class PoolViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     pull_validators = [
         core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED),
     ]
-    pull_serializer_class = EmptySerializer
 
 
 @extend_schema_view(
@@ -1785,7 +1776,6 @@ class ListenerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     pull_validators = [
         core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED),
     ]
-    pull_serializer_class = EmptySerializer
 
 
 @extend_schema_view(
@@ -1851,7 +1841,6 @@ class PoolMemberViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     pull_validators = [
         core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED),
     ]
-    pull_serializer_class = EmptySerializer
 
 
 @extend_schema_view(
@@ -1917,7 +1906,6 @@ class HealthMonitorViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet)
     pull_validators = [
         core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED),
     ]
-    pull_serializer_class = EmptySerializer
 
 
 @extend_schema_view(
@@ -2352,6 +2340,7 @@ class SubNetViewSet(structure_views.ResourceViewSet):
         return queryset.filter(network__in=all_networks)
 
     @extend_schema(
+        request=None,
         summary="Connect subnet to router",
         description="Connect the subnet to the default tenant router.",
     )
@@ -2361,9 +2350,9 @@ class SubNetViewSet(structure_views.ResourceViewSet):
         return response.Response(status=status.HTTP_202_ACCEPTED)
 
     connect_validators = [core_validators.StateValidator(CoreStates.OK)]
-    connect_serializer_class = EmptySerializer
 
     @extend_schema(
+        request=None,
         summary="Disconnect subnet from router",
         description="Disconnect the subnet from the default tenant router.",
     )
@@ -2373,7 +2362,6 @@ class SubNetViewSet(structure_views.ResourceViewSet):
         return response.Response(status=status.HTTP_202_ACCEPTED)
 
     disconnect_validators = [core_validators.StateValidator(CoreStates.OK)]
-    disconnect_serializer_class = EmptySerializer
 
 
 @extend_schema_view(
@@ -2769,7 +2757,6 @@ class InstanceViewSet(
         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF),
     ]
     start_permissions = [openstack_permissions.can_manage_openstack_instance_power]
-    start_serializer_class = EmptySerializer
 
     @extend_schema(
         summary="Stop instance",
@@ -2800,7 +2787,6 @@ class InstanceViewSet(
         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE),
     ]
     stop_permissions = [openstack_permissions.can_manage_openstack_instance_power]
-    stop_serializer_class = EmptySerializer
 
     @extend_schema(
         summary="Restart instance",
@@ -2831,7 +2817,6 @@ class InstanceViewSet(
         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.ACTIVE),
     ]
     restart_permissions = [openstack_permissions.can_manage_openstack_instance_power]
-    restart_serializer_class = EmptySerializer
 
     @extend_schema(
         summary="Rescue instance",
@@ -2883,7 +2868,6 @@ class InstanceViewSet(
         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.RESCUE),
     ]
     unrescue_permissions = [openstack_permissions.can_manage_openstack_instance_power]
-    unrescue_serializer_class = EmptySerializer
 
     @extend_schema(
         summary="Update instance security groups",

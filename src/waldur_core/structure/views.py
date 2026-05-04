@@ -10,8 +10,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core import exceptions as django_exceptions
 from django.db import transaction
 from django.db.models import Count, Prefetch, Q, QuerySet, Sum
-from django.db.models.functions import Length
-from django.db.models.functions import TruncMonth
+from django.db.models.functions import Length, TruncMonth
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -47,7 +46,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.permissions import PATScopeAwareIsAdminUser
-from waldur_core.core.serializers import EmptySerializer, ReviewCommentSerializer
+from waldur_core.core.serializers import ReviewCommentSerializer
 from waldur_core.core.user_attributes import get_profile_completeness_details
 from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.core.views import ActionsViewSet
@@ -97,7 +96,6 @@ from waldur_core.users import tasks as user_tasks
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.models import Invitation
 from waldur_core.users.scim import tasks as scim_tasks
-from waldur_mastermind.billing import models as billing_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace.enums import ResourceStates
@@ -486,7 +484,7 @@ class CustomerViewSet(
         summary="Send a test digest email",
         description="Send a test digest email to the requesting user.",
         request=None,
-        responses={200: EmptySerializer},
+        responses={200: None},
     )
     @action(
         detail=True,
@@ -1759,7 +1757,7 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
     @extend_schema(
-        request=serializers.UserAuthTokenSerializer,
+        request=None,
         responses=serializers.UserAuthTokenSerializer,
         summary="Refresh user auth token",
     )
@@ -2196,8 +2194,6 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED)
     ]
 
-    pull_serializer_class = EmptySerializer
-
     @extend_schema(
         summary="Synchronize resource state",
         description=(
@@ -2235,8 +2231,6 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED),
         check_resource_backend_id,
     ]
-
-    unlink_serializer_class = EmptySerializer
 
     @extend_schema(
         summary="Unlink resource",
@@ -2286,8 +2280,6 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         )
 
     set_erred_permissions = [permissions.is_staff]
-
-    set_ok_serializer_class = EmptySerializer
 
     @extend_schema(
         summary="Mark resource as OK",

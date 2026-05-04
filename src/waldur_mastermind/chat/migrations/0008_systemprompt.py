@@ -2,9 +2,10 @@
 
 import django.utils.timezone
 import model_utils.fields
+from django.db import migrations, models
+
 import waldur_core.core.fields
 import waldur_core.core.validators
-from django.db import migrations, models
 
 
 class Migration(migrations.Migration):

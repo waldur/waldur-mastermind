@@ -1,11 +1,11 @@
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, response, status, viewsets
 
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import CoreStates
-from waldur_core.core.serializers import EmptySerializer
 from waldur_core.structure import views as structure_views
 
 from . import executors, filters, models, serializers
@@ -60,6 +60,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
             )
         )
 
+    @extend_schema(request=None)
     @decorators.action(detail=True, methods=["post"])
     def start(self, request, uuid=None):
         instance: models.Instance = self.get_object()
@@ -72,8 +73,8 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator("stopped"),
     ]
-    start_serializer_class = EmptySerializer
 
+    @extend_schema(request=None)
     @decorators.action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
         instance: models.Instance = self.get_object()
@@ -86,8 +87,8 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator("running"),
     ]
-    stop_serializer_class = EmptySerializer
 
+    @extend_schema(request=None)
     @decorators.action(detail=True, methods=["post"])
     def restart(self, request, uuid=None):
         instance: models.Instance = self.get_object()
@@ -100,7 +101,6 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator("running"),
     ]
-    restart_serializer_class = EmptySerializer
 
     @decorators.action(detail=True, methods=["post"])
     def resize(self, request, uuid=None):
@@ -131,6 +131,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
                 _("Volume is already detached.")
             )
 
+    @extend_schema(request=None)
     @decorators.action(detail=True, methods=["post"])
     def detach(self, request, uuid=None):
         executors.VolumeDetachExecutor.execute(self.get_object())
@@ -139,7 +140,6 @@ class VolumeViewSet(structure_views.ResourceViewSet):
         core_validators.StateValidator(CoreStates.OK),
         _has_instance,
     ]
-    detach_serializer_class = EmptySerializer
 
     @decorators.action(detail=True, methods=["post"])
     def attach(self, request, volume, uuid=None):
