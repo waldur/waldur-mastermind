@@ -153,6 +153,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     comment_permissions = [_comment_permission]
     comment_validators = [_comment_create_is_available_validator]
 
+    @extend_schema(request=None)
     @decorators.action(detail=True, methods=["post"])
     def sync(self, request, uuid=None):
         issue: models.Issue = self.get_object()
