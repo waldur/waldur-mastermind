@@ -1,0 +1,1170 @@
+{
+  "_metadata": {
+    "title": "Usage periods demo",
+    "description": "Minimal demo preset that exercises every OfferingComponent.limit_period (MONTH, QUARTERLY, ANNUAL, TOTAL) and both billing_types (limit, usage) so the per-offering /components-usage/ endpoint and the Customer/Project dashboard usage widget can be verified end-to-end. Includes six months of historic ComponentUsage so quarterly/annual/total aggregations differ from the current-month value, plus a 10-project distribution to support the by-project decomposition and crosses-limit projection demos.",
+    "version": "1.4.0",
+    "scenarios": [
+      "Per-offering current-period usage stats endpoint",
+      "Quarterly limit_period reports quarter-to-date",
+      "Annual limit_period reports year-to-date",
+      "Total limit_period reports lifetime",
+      "Mixed limit and usage billing on same dashboard",
+      "SLURM compute offerings with slurm_periodic_policy_enabled",
+      "Both 'lean' and 'full' SLURM plugin_options flavors",
+      "By-project decomposition (10 projects share one offering) \u2014 supports the by-project chart and 'View all' modal",
+      "Crosses-limit projection \u2014 quarterly compute offering at 87% of limit at end of May with linear forward rate that crosses cap in mid-June"
+    ]
+  },
+  "users": [
+    {
+      "uuid": "00000000000000000000000000000001",
+      "username": "staff",
+      "email": "staff@demo.waldur.com",
+      "first_name": "Staff",
+      "last_name": "User",
+      "is_staff": true,
+      "is_active": true,
+      "password": "demo",
+      "agreement_date": "2025-01-01T00:00:00Z",
+      "registration_method": "default",
+      "identity_source": "local"
+    }
+  ],
+  "customers": [
+    {
+      "uuid": "a3000000000000000000000000004720",
+      "name": "Demo organization",
+      "abbreviation": "DEMO",
+      "description": "Customer used to validate per-offering usage aggregation across mixed limit_periods.",
+      "email": "demo@example.com",
+      "country": "EE"
+    }
+  ],
+  "projects": [
+    {
+      "uuid": "c3000000000000000000000000004720",
+      "name": "Demo project",
+      "description": "Demo project hosting compute and storage resources.",
+      "customer_uuid": "a3000000000000000000000000004720"
+    },
+    {
+      "uuid": "c3000000000000000000000000004801",
+      "name": "climate-modeling",
+      "description": "Climate modeling and simulation workloads.",
+      "customer_uuid": "a3000000000000000000000000004720"
+    },
+    {
+      "uuid": "c3000000000000000000000000004802",
+      "name": "quantum-sim",
+      "description": "Quantum chemistry simulations.",
+      "customer_uuid": "a3000000000000000000000000004720"
+    },
+    {
+      "uuid": "c3000000000000000000000000004803",
+      "name": "ml-training",
+      "description": "Large language model and CV training pipelines.",
+      "customer_uuid": "a3000000000000000000000000004720"
+    },
+    {
+      "uuid": "c3000000000000000000000000004804",
+      "name": "bio-genome",
+      "description": "Genome sequencing and bioinformatics.",
+      "customer_uuid": "a3000000000000000000000000004720"
+    },
+    {
+      "uuid": "c3000000000000000000000000004805",
+      "name": "physics-lhc",
+      "description": "LHC analysis workloads.",
+      "customer_uuid": "a3000000000000000000000000004720"
+    },
+    {
+      "uuid": "c3000000000000000000000000004806",
+      "name": "neuro-img",
+      "description": "Neuroimaging analysis.",
+      "customer_uuid": "a3000000000000000000000000004720"
+    },
+    {
+      "uuid": "c3000000000000000000000000004807",
+      "name": "chem-dft",
+      "description": "Density functional theory studies.",
+      "customer_uuid": "a3000000000000000000000000004720"
+    },
+    {
+      "uuid": "c3000000000000000000000000004808",
+      "name": "fluid-dyn",
+      "description": "Computational fluid dynamics.",
+      "customer_uuid": "a3000000000000000000000000004720"
+    },
+    {
+      "uuid": "c3000000000000000000000000004809",
+      "name": "materials-md",
+      "description": "Molecular dynamics for materials science.",
+      "customer_uuid": "a3000000000000000000000000004720"
+    },
+    {
+      "uuid": "c300000000000000000000000000480a",
+      "name": "astro-sim",
+      "description": "Astrophysics simulations.",
+      "customer_uuid": "a3000000000000000000000000004720"
+    }
+  ],
+  "category_groups": [
+    {
+      "uuid": "c1000000000000000000000000004720",
+      "title": "HPC",
+      "description": "High-performance computing demo group."
+    }
+  ],
+  "categories": [
+    {
+      "uuid": "e3000000000000000000000000004720",
+      "title": "HPC compute & storage",
+      "description": "Compute and storage offerings used in the verification preset.",
+      "group_uuid": "c1000000000000000000000000004720"
+    }
+  ],
+  "service_providers": [
+    {
+      "uuid": "e4720000000000000000000000000001",
+      "customer_uuid": "a3000000000000000000000000004720",
+      "description": "Self-providing customer for the verification preset."
+    }
+  ],
+  "offerings": [
+    {
+      "uuid": "f3000000000000000000000000004721",
+      "name": "compute-m",
+      "type": "Marketplace.Slurm",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "e3000000000000000000000000004720",
+      "customer_uuid": "a3000000000000000000000000004720",
+      "description": "Monthly limit_period \u2014 control case (current month equals reported value). Plugin options match the 'full' flavor seen  alps-dora-m / alps-besso-u, including periodic policy enabled and the marketplace-script auto-approval.",
+      "plugin_options": {
+        "homedir_prefix": "/home/",
+        "supports_pausing": true,
+        "supports_downscaling": true,
+        "username_generation_policy": "waldur_username",
+        "account_name_generation_policy": "project_slug",
+        "slurm_periodic_policy_enabled": true,
+        "service_provider_can_create_offering_user": true,
+        "restrict_deletion_with_active_resources": true,
+        "keycloak_username_label": "",
+        "backend_id_display_label": "Backend ID",
+        "initial_usergroup_number": 6000,
+        "username_anonymized_prefix": "waldur_",
+        "offering_user_auto_deletion": false,
+        "highlight_backend_id_display": false,
+        "resource_expiration_threshold": 30,
+        "auto_approve_marketplace_script": true,
+        "enable_display_of_order_actions_for_service_provider": true
+      }
+    },
+    {
+      "uuid": "f3000000000000000000000000004722",
+      "name": "compute-q",
+      "type": "Marketplace.Slurm",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "e3000000000000000000000000004720",
+      "customer_uuid": "a3000000000000000000000000004720",
+      "description": "Quarterly limit_period \u2014 surfaces when the legacy endpoint forces MONTH.",
+      "plugin_options": {
+        "homedir_prefix": "/home/",
+        "supports_pausing": true,
+        "supports_downscaling": true,
+        "username_generation_policy": "waldur_username",
+        "account_name_generation_policy": "project_slug",
+        "slurm_periodic_policy_enabled": true,
+        "service_provider_can_create_offering_user": true
+      }
+    },
+    {
+      "uuid": "f3000000000000000000000000004723",
+      "name": "compute-y",
+      "type": "Marketplace.Slurm",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "e3000000000000000000000000004720",
+      "customer_uuid": "a3000000000000000000000000004720",
+      "description": "Annual limit_period \u2014 year-to-date aggregation.",
+      "plugin_options": {
+        "homedir_prefix": "/home/",
+        "supports_pausing": true,
+        "supports_downscaling": true,
+        "username_generation_policy": "waldur_username",
+        "account_name_generation_policy": "project_slug",
+        "slurm_periodic_policy_enabled": true,
+        "service_provider_can_create_offering_user": true
+      }
+    },
+    {
+      "uuid": "f3000000000000000000000000004724",
+      "name": "compute-s",
+      "type": "Marketplace.Slurm",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "e3000000000000000000000000004720",
+      "customer_uuid": "a3000000000000000000000000004720",
+      "description": "Total (lifetime) limit_period \u2014 sums every reported usage row.",
+      "plugin_options": {
+        "homedir_prefix": "/home/",
+        "supports_pausing": true,
+        "supports_downscaling": true,
+        "username_generation_policy": "waldur_username",
+        "account_name_generation_policy": "project_slug",
+        "slurm_periodic_policy_enabled": true,
+        "service_provider_can_create_offering_user": true
+      }
+    },
+    {
+      "uuid": "f3000000000000000000000000004725",
+      "name": "storage",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "e3000000000000000000000000004720",
+      "customer_uuid": "a3000000000000000000000000004720",
+      "description": "Usage-based parallel filesystem storage \u2014 verifies the USAGE branch of the new endpoint."
+    },
+    {
+      "uuid": "f3000000000000000000000000004726",
+      "name": "inodes",
+      "type": "Marketplace.Basic",
+      "state": 2,
+      "shared": true,
+      "billable": true,
+      "category_uuid": "e3000000000000000000000000004720",
+      "customer_uuid": "a3000000000000000000000000004720",
+      "description": "Usage-based filesystem inode counter \u2014 exercises the per-offering separation when component types repeat."
+    }
+  ],
+  "offering_components": [
+    {
+      "uuid": "ce000000000000000000000000004721",
+      "offering_uuid": "f3000000000000000000000000004721",
+      "type": "node",
+      "name": "Compute",
+      "description": "",
+      "billing_type": "limit",
+      "measured_unit": "node hours",
+      "limit_period": "month"
+    },
+    {
+      "uuid": "ce000000000000000000000000004722",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "type": "node",
+      "name": "Compute",
+      "description": "",
+      "billing_type": "limit",
+      "measured_unit": "node hours",
+      "limit_period": "quarterly"
+    },
+    {
+      "uuid": "ce000000000000000000000000004723",
+      "offering_uuid": "f3000000000000000000000000004723",
+      "type": "node",
+      "name": "Compute",
+      "description": "",
+      "billing_type": "limit",
+      "measured_unit": "node hours",
+      "limit_period": "annual"
+    },
+    {
+      "uuid": "ce000000000000000000000000004724",
+      "offering_uuid": "f3000000000000000000000000004724",
+      "type": "node",
+      "name": "Compute",
+      "description": "",
+      "billing_type": "limit",
+      "measured_unit": "node hours",
+      "limit_period": "total"
+    },
+    {
+      "uuid": "ce000000000000000000000000004725",
+      "offering_uuid": "f3000000000000000000000000004725",
+      "type": "storage",
+      "name": "Storage",
+      "description": "Storage consumption.",
+      "billing_type": "usage",
+      "measured_unit": "GB",
+      "limit_period": "month"
+    },
+    {
+      "uuid": "ce000000000000000000000000004726",
+      "offering_uuid": "f3000000000000000000000000004726",
+      "type": "inodes",
+      "name": "Inodes",
+      "description": "Filesystem inode consumption.",
+      "billing_type": "usage",
+      "measured_unit": "inodes",
+      "limit_period": "month"
+    }
+  ],
+  "plans": [
+    {
+      "uuid": "b3000000000000000000000000004721",
+      "name": "Default",
+      "offering_uuid": "f3000000000000000000000000004721",
+      "unit": "month",
+      "unit_price": "0.00"
+    },
+    {
+      "uuid": "b3000000000000000000000000004722",
+      "name": "Default",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "unit": "month",
+      "unit_price": "0.00"
+    },
+    {
+      "uuid": "b3000000000000000000000000004723",
+      "name": "Default",
+      "offering_uuid": "f3000000000000000000000000004723",
+      "unit": "month",
+      "unit_price": "0.00"
+    },
+    {
+      "uuid": "b3000000000000000000000000004724",
+      "name": "Default",
+      "offering_uuid": "f3000000000000000000000000004724",
+      "unit": "month",
+      "unit_price": "0.00"
+    },
+    {
+      "uuid": "b3000000000000000000000000004725",
+      "name": "Default",
+      "offering_uuid": "f3000000000000000000000000004725",
+      "unit": "month",
+      "unit_price": "0.00"
+    },
+    {
+      "uuid": "b3000000000000000000000000004726",
+      "name": "Default",
+      "offering_uuid": "f3000000000000000000000000004726",
+      "unit": "month",
+      "unit_price": "0.00"
+    }
+  ],
+  "plan_components": [
+    {
+      "plan_uuid": "b3000000000000000000000000004721",
+      "component_uuid": "ce000000000000000000000000004721",
+      "price": "0.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "b3000000000000000000000000004722",
+      "component_uuid": "ce000000000000000000000000004722",
+      "price": "0.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "b3000000000000000000000000004723",
+      "component_uuid": "ce000000000000000000000000004723",
+      "price": "0.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "b3000000000000000000000000004724",
+      "component_uuid": "ce000000000000000000000000004724",
+      "price": "0.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "b3000000000000000000000000004725",
+      "component_uuid": "ce000000000000000000000000004725",
+      "price": "0.00",
+      "amount": 0
+    },
+    {
+      "plan_uuid": "b3000000000000000000000000004726",
+      "component_uuid": "ce000000000000000000000000004726",
+      "price": "0.00",
+      "amount": 0
+    }
+  ],
+  "resources": [
+    {
+      "uuid": "d3000000000000000000000000004721",
+      "name": "compute-m",
+      "offering_uuid": "f3000000000000000000000000004721",
+      "project_uuid": "c3000000000000000000000000004720",
+      "plan_uuid": "b3000000000000000000000000004721",
+      "state": 2,
+      "limits": {
+        "node": 1000
+      },
+      "created": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "d3000000000000000000000000004722",
+      "name": "compute-q",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "project_uuid": "c3000000000000000000000000004720",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "state": 2,
+      "limits": {
+        "node": 3000
+      },
+      "created": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "d3000000000000000000000000004723",
+      "name": "compute-y",
+      "offering_uuid": "f3000000000000000000000000004723",
+      "project_uuid": "c3000000000000000000000000004720",
+      "plan_uuid": "b3000000000000000000000000004723",
+      "state": 2,
+      "limits": {
+        "node": 12000
+      },
+      "created": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "d3000000000000000000000000004724",
+      "name": "compute-s",
+      "offering_uuid": "f3000000000000000000000000004724",
+      "project_uuid": "c3000000000000000000000000004720",
+      "plan_uuid": "b3000000000000000000000000004724",
+      "state": 2,
+      "limits": {
+        "node": 20000
+      },
+      "created": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "d3000000000000000000000000004725",
+      "name": "storage",
+      "offering_uuid": "f3000000000000000000000000004725",
+      "project_uuid": "c3000000000000000000000000004720",
+      "plan_uuid": "b3000000000000000000000000004725",
+      "state": 2,
+      "limits": {},
+      "created": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "d3000000000000000000000000004726",
+      "name": "inodes",
+      "offering_uuid": "f3000000000000000000000000004726",
+      "project_uuid": "c3000000000000000000000000004720",
+      "plan_uuid": "b3000000000000000000000000004726",
+      "state": 2,
+      "limits": {},
+      "created": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "d3000000000000000000000000004801",
+      "name": "compute-q (climate-modeling)",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "project_uuid": "c3000000000000000000000000004801",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "state": 2,
+      "limits": {},
+      "created": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "d3000000000000000000000000004802",
+      "name": "compute-q (quantum-sim)",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "project_uuid": "c3000000000000000000000000004802",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "state": 2,
+      "limits": {},
+      "created": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "d3000000000000000000000000004803",
+      "name": "compute-q (ml-training)",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "project_uuid": "c3000000000000000000000000004803",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "state": 2,
+      "limits": {},
+      "created": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "d3000000000000000000000000004804",
+      "name": "compute-q (bio-genome)",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "project_uuid": "c3000000000000000000000000004804",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "state": 2,
+      "limits": {},
+      "created": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "d3000000000000000000000000004805",
+      "name": "compute-q (physics-lhc)",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "project_uuid": "c3000000000000000000000000004805",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "state": 2,
+      "limits": {},
+      "created": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "d3000000000000000000000000004806",
+      "name": "compute-q (neuro-img)",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "project_uuid": "c3000000000000000000000000004806",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "state": 2,
+      "limits": {},
+      "created": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "d3000000000000000000000000004807",
+      "name": "compute-q (chem-dft)",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "project_uuid": "c3000000000000000000000000004807",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "state": 2,
+      "limits": {},
+      "created": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "d3000000000000000000000000004808",
+      "name": "compute-q (fluid-dyn)",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "project_uuid": "c3000000000000000000000000004808",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "state": 2,
+      "limits": {},
+      "created": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "d3000000000000000000000000004809",
+      "name": "compute-q (materials-md)",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "project_uuid": "c3000000000000000000000000004809",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "state": 2,
+      "limits": {},
+      "created": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "d300000000000000000000000000480a",
+      "name": "compute-q (astro-sim)",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "project_uuid": "c300000000000000000000000000480a",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "state": 2,
+      "limits": {},
+      "created": "2025-12-01T00:00:00Z"
+    }
+  ],
+  "orders": [
+    {
+      "uuid": "73000000000000000000000000004721",
+      "project_uuid": "c3000000000000000000000000004720",
+      "resource_uuid": "d3000000000000000000000000004721",
+      "offering_uuid": "f3000000000000000000000000004721",
+      "plan_uuid": "b3000000000000000000000000004721",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "compute-m"
+      },
+      "limits": {
+        "node": 1000
+      },
+      "completed_at": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "73000000000000000000000000004722",
+      "project_uuid": "c3000000000000000000000000004720",
+      "resource_uuid": "d3000000000000000000000000004722",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "compute-q"
+      },
+      "limits": {
+        "node": 3000
+      },
+      "completed_at": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "73000000000000000000000000004723",
+      "project_uuid": "c3000000000000000000000000004720",
+      "resource_uuid": "d3000000000000000000000000004723",
+      "offering_uuid": "f3000000000000000000000000004723",
+      "plan_uuid": "b3000000000000000000000000004723",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "compute-y"
+      },
+      "limits": {
+        "node": 12000
+      },
+      "completed_at": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "73000000000000000000000000004724",
+      "project_uuid": "c3000000000000000000000000004720",
+      "resource_uuid": "d3000000000000000000000000004724",
+      "offering_uuid": "f3000000000000000000000000004724",
+      "plan_uuid": "b3000000000000000000000000004724",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "compute-s"
+      },
+      "limits": {
+        "node": 20000
+      },
+      "completed_at": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "73000000000000000000000000004725",
+      "project_uuid": "c3000000000000000000000000004720",
+      "resource_uuid": "d3000000000000000000000000004725",
+      "offering_uuid": "f3000000000000000000000000004725",
+      "plan_uuid": "b3000000000000000000000000004725",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "storage"
+      },
+      "limits": {},
+      "completed_at": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "73000000000000000000000000004726",
+      "project_uuid": "c3000000000000000000000000004720",
+      "resource_uuid": "d3000000000000000000000000004726",
+      "offering_uuid": "f3000000000000000000000000004726",
+      "plan_uuid": "b3000000000000000000000000004726",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "inodes"
+      },
+      "limits": {},
+      "completed_at": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "73000000000000000000000000004801",
+      "project_uuid": "c3000000000000000000000000004801",
+      "resource_uuid": "d3000000000000000000000000004801",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "compute-q (climate-modeling)"
+      },
+      "limits": {},
+      "completed_at": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "73000000000000000000000000004802",
+      "project_uuid": "c3000000000000000000000000004802",
+      "resource_uuid": "d3000000000000000000000000004802",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "compute-q (quantum-sim)"
+      },
+      "limits": {},
+      "completed_at": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "73000000000000000000000000004803",
+      "project_uuid": "c3000000000000000000000000004803",
+      "resource_uuid": "d3000000000000000000000000004803",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "compute-q (ml-training)"
+      },
+      "limits": {},
+      "completed_at": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "73000000000000000000000000004804",
+      "project_uuid": "c3000000000000000000000000004804",
+      "resource_uuid": "d3000000000000000000000000004804",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "compute-q (bio-genome)"
+      },
+      "limits": {},
+      "completed_at": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "73000000000000000000000000004805",
+      "project_uuid": "c3000000000000000000000000004805",
+      "resource_uuid": "d3000000000000000000000000004805",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "compute-q (physics-lhc)"
+      },
+      "limits": {},
+      "completed_at": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "73000000000000000000000000004806",
+      "project_uuid": "c3000000000000000000000000004806",
+      "resource_uuid": "d3000000000000000000000000004806",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "compute-q (neuro-img)"
+      },
+      "limits": {},
+      "completed_at": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "73000000000000000000000000004807",
+      "project_uuid": "c3000000000000000000000000004807",
+      "resource_uuid": "d3000000000000000000000000004807",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "compute-q (chem-dft)"
+      },
+      "limits": {},
+      "completed_at": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "73000000000000000000000000004808",
+      "project_uuid": "c3000000000000000000000000004808",
+      "resource_uuid": "d3000000000000000000000000004808",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "compute-q (fluid-dyn)"
+      },
+      "limits": {},
+      "completed_at": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "73000000000000000000000000004809",
+      "project_uuid": "c3000000000000000000000000004809",
+      "resource_uuid": "d3000000000000000000000000004809",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "compute-q (materials-md)"
+      },
+      "limits": {},
+      "completed_at": "2025-12-01T00:00:00Z"
+    },
+    {
+      "uuid": "73000000000000000000000000004810",
+      "project_uuid": "c300000000000000000000000000480a",
+      "resource_uuid": "d300000000000000000000000000480a",
+      "offering_uuid": "f3000000000000000000000000004722",
+      "plan_uuid": "b3000000000000000000000000004722",
+      "created_by_uuid": "00000000000000000000000000000001",
+      "type": 1,
+      "state": 3,
+      "attributes": {
+        "name": "compute-q (astro-sim)"
+      },
+      "limits": {},
+      "completed_at": "2025-12-01T00:00:00Z"
+    }
+  ],
+  "user_roles": [
+    {
+      "uuid": "03000000000000000000000000004720",
+      "user_uuid": "00000000000000000000000000000001",
+      "user_username": "staff",
+      "role_name": "CUSTOMER.OWNER",
+      "scope_type": "structure.customer",
+      "scope_uuid": "a3000000000000000000000000004720",
+      "is_active": true
+    }
+  ],
+  "component_usages": [
+    {
+      "uuid": "ca000000000000000000000000004701",
+      "resource_uuid": "d3000000000000000000000000004721",
+      "component_uuid": "ce000000000000000000000000004721",
+      "usage": "100",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "compute-m / May 2026 (current month)"
+    },
+    {
+      "uuid": "ca000000000000000000000000004702",
+      "resource_uuid": "d3000000000000000000000000004722",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "100",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "compute-q / May 2026 (in Q2)"
+    },
+    {
+      "uuid": "ca000000000000000000000000004703",
+      "resource_uuid": "d3000000000000000000000000004722",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "100",
+      "billing_period": "2026-04-01",
+      "date": "2026-04-15T00:00:00",
+      "description": "compute-q / Apr 2026 (in Q2)"
+    },
+    {
+      "uuid": "ca000000000000000000000000004704",
+      "resource_uuid": "d3000000000000000000000000004722",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "100",
+      "billing_period": "2026-03-01",
+      "date": "2026-03-15T00:00:00",
+      "description": "compute-q / Mar 2026 (out of Q2 \u2014 must be excluded)"
+    },
+    {
+      "uuid": "ca000000000000000000000000004705",
+      "resource_uuid": "d3000000000000000000000000004723",
+      "component_uuid": "ce000000000000000000000000004723",
+      "usage": "100",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "compute-y / May 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004706",
+      "resource_uuid": "d3000000000000000000000000004723",
+      "component_uuid": "ce000000000000000000000000004723",
+      "usage": "100",
+      "billing_period": "2026-04-01",
+      "date": "2026-04-15T00:00:00",
+      "description": "compute-y / Apr 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004707",
+      "resource_uuid": "d3000000000000000000000000004723",
+      "component_uuid": "ce000000000000000000000000004723",
+      "usage": "100",
+      "billing_period": "2026-03-01",
+      "date": "2026-03-15T00:00:00",
+      "description": "compute-y / Mar 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004708",
+      "resource_uuid": "d3000000000000000000000000004723",
+      "component_uuid": "ce000000000000000000000000004723",
+      "usage": "100",
+      "billing_period": "2026-02-01",
+      "date": "2026-02-15T00:00:00",
+      "description": "compute-y / Feb 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004709",
+      "resource_uuid": "d3000000000000000000000000004723",
+      "component_uuid": "ce000000000000000000000000004723",
+      "usage": "100",
+      "billing_period": "2026-01-01",
+      "date": "2026-01-15T00:00:00",
+      "description": "compute-y / Jan 2026"
+    },
+    {
+      "uuid": "ca00000000000000000000000000470a",
+      "resource_uuid": "d3000000000000000000000000004723",
+      "component_uuid": "ce000000000000000000000000004723",
+      "usage": "100",
+      "billing_period": "2025-12-01",
+      "date": "2025-12-15T00:00:00",
+      "description": "compute-y / Dec 2025 (out of year \u2014 must be excluded)"
+    },
+    {
+      "uuid": "ca00000000000000000000000000470b",
+      "resource_uuid": "d3000000000000000000000000004724",
+      "component_uuid": "ce000000000000000000000000004724",
+      "usage": "100",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "compute-s / May 2026"
+    },
+    {
+      "uuid": "ca00000000000000000000000000470c",
+      "resource_uuid": "d3000000000000000000000000004724",
+      "component_uuid": "ce000000000000000000000000004724",
+      "usage": "100",
+      "billing_period": "2026-04-01",
+      "date": "2026-04-15T00:00:00",
+      "description": "compute-s / Apr 2026"
+    },
+    {
+      "uuid": "ca00000000000000000000000000470d",
+      "resource_uuid": "d3000000000000000000000000004724",
+      "component_uuid": "ce000000000000000000000000004724",
+      "usage": "100",
+      "billing_period": "2026-03-01",
+      "date": "2026-03-15T00:00:00",
+      "description": "compute-s / Mar 2026"
+    },
+    {
+      "uuid": "ca00000000000000000000000000470e",
+      "resource_uuid": "d3000000000000000000000000004724",
+      "component_uuid": "ce000000000000000000000000004724",
+      "usage": "100",
+      "billing_period": "2026-02-01",
+      "date": "2026-02-15T00:00:00",
+      "description": "compute-s / Feb 2026"
+    },
+    {
+      "uuid": "ca00000000000000000000000000470f",
+      "resource_uuid": "d3000000000000000000000000004724",
+      "component_uuid": "ce000000000000000000000000004724",
+      "usage": "100",
+      "billing_period": "2026-01-01",
+      "date": "2026-01-15T00:00:00",
+      "description": "compute-s / Jan 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004710",
+      "resource_uuid": "d3000000000000000000000000004724",
+      "component_uuid": "ce000000000000000000000000004724",
+      "usage": "100",
+      "billing_period": "2025-12-01",
+      "date": "2025-12-15T00:00:00",
+      "description": "compute-s / Dec 2025"
+    },
+    {
+      "uuid": "ca000000000000000000000000004711",
+      "resource_uuid": "d3000000000000000000000000004725",
+      "component_uuid": "ce000000000000000000000000004725",
+      "usage": "5000",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "storage / May 2026 (5 TB)"
+    },
+    {
+      "uuid": "ca000000000000000000000000004712",
+      "resource_uuid": "d3000000000000000000000000004726",
+      "component_uuid": "ce000000000000000000000000004726",
+      "usage": "100000",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "inodes / May 2026 (100k)"
+    },
+    {
+      "uuid": "ca000000000000000000000000004801",
+      "resource_uuid": "d3000000000000000000000000004801",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "350",
+      "billing_period": "2026-04-01",
+      "date": "2026-04-15T00:00:00",
+      "description": "compute-q / climate-modeling / Apr 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004811",
+      "resource_uuid": "d3000000000000000000000000004801",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "350",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "compute-q / climate-modeling / May 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004802",
+      "resource_uuid": "d3000000000000000000000000004802",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "240",
+      "billing_period": "2026-04-01",
+      "date": "2026-04-15T00:00:00",
+      "description": "compute-q / quantum-sim / Apr 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004812",
+      "resource_uuid": "d3000000000000000000000000004802",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "240",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "compute-q / quantum-sim / May 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004803",
+      "resource_uuid": "d3000000000000000000000000004803",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "175",
+      "billing_period": "2026-04-01",
+      "date": "2026-04-15T00:00:00",
+      "description": "compute-q / ml-training / Apr 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004813",
+      "resource_uuid": "d3000000000000000000000000004803",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "175",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "compute-q / ml-training / May 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004804",
+      "resource_uuid": "d3000000000000000000000000004804",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "125",
+      "billing_period": "2026-04-01",
+      "date": "2026-04-15T00:00:00",
+      "description": "compute-q / bio-genome / Apr 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004814",
+      "resource_uuid": "d3000000000000000000000000004804",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "125",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "compute-q / bio-genome / May 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004805",
+      "resource_uuid": "d3000000000000000000000000004805",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "95",
+      "billing_period": "2026-04-01",
+      "date": "2026-04-15T00:00:00",
+      "description": "compute-q / physics-lhc / Apr 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004815",
+      "resource_uuid": "d3000000000000000000000000004805",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "95",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "compute-q / physics-lhc / May 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004806",
+      "resource_uuid": "d3000000000000000000000000004806",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "75",
+      "billing_period": "2026-04-01",
+      "date": "2026-04-15T00:00:00",
+      "description": "compute-q / neuro-img / Apr 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004816",
+      "resource_uuid": "d3000000000000000000000000004806",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "75",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "compute-q / neuro-img / May 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004807",
+      "resource_uuid": "d3000000000000000000000000004807",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "50",
+      "billing_period": "2026-04-01",
+      "date": "2026-04-15T00:00:00",
+      "description": "compute-q / chem-dft / Apr 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004817",
+      "resource_uuid": "d3000000000000000000000000004807",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "50",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "compute-q / chem-dft / May 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004808",
+      "resource_uuid": "d3000000000000000000000000004808",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "40",
+      "billing_period": "2026-04-01",
+      "date": "2026-04-15T00:00:00",
+      "description": "compute-q / fluid-dyn / Apr 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004818",
+      "resource_uuid": "d3000000000000000000000000004808",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "40",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "compute-q / fluid-dyn / May 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004809",
+      "resource_uuid": "d3000000000000000000000000004809",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "30",
+      "billing_period": "2026-04-01",
+      "date": "2026-04-15T00:00:00",
+      "description": "compute-q / materials-md / Apr 2026"
+    },
+    {
+      "uuid": "ca000000000000000000000000004819",
+      "resource_uuid": "d3000000000000000000000000004809",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "30",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "compute-q / materials-md / May 2026"
+    },
+    {
+      "uuid": "ca00000000000000000000000000480a",
+      "resource_uuid": "d300000000000000000000000000480a",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "20",
+      "billing_period": "2026-04-01",
+      "date": "2026-04-15T00:00:00",
+      "description": "compute-q / astro-sim / Apr 2026"
+    },
+    {
+      "uuid": "ca00000000000000000000000000481a",
+      "resource_uuid": "d300000000000000000000000000480a",
+      "component_uuid": "ce000000000000000000000000004722",
+      "usage": "20",
+      "billing_period": "2026-05-01",
+      "date": "2026-05-15T00:00:00",
+      "description": "compute-q / astro-sim / May 2026"
+    }
+  ],
+  "constance_settings": {
+    "SITE_NAME": "Usage Periods Demo",
+    "SITE_DESCRIPTION": "Demo preset that exercises every limit_period combination so the per-offering usage endpoint can be verified end-to-end."
+  }
+}
