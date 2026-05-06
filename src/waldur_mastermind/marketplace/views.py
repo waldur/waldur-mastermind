@@ -14,6 +14,7 @@ from constance import config
 from dateutil.relativedelta import relativedelta
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.prefetch import GenericPrefetch
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.base import ContentFile
 from django.db import connection, transaction
 from django.db.models import (
@@ -160,7 +161,10 @@ from waldur_mastermind.marketplace.managers import (
     get_user_resource_project_ids,
 )
 from waldur_mastermind.marketplace.utils import (
+    get_components_usage_data_per_offering,
     get_model_serializer,
+    get_offering_usage_by_project,
+    get_offering_usage_timeseries,
     validate_attributes,
 )
 from waldur_mastermind.policy.models import SlurmPeriodicUsagePolicy
@@ -15423,3 +15427,173 @@ class ArticleCodeUpdateViewSet(rf_viewsets.GenericViewSet):
             models.OfferingComponent.objects.bulk_update(components, ["article_code"])
 
         return Response({"updated_count": len(components)})
+
+
+# ---------------------------------------------------------------------------
+# Per-offering usage stats — flat top-level ViewSets in marketplace, lookup
+# by customer/project uuid. Registered on the marketplace router via
+# marketplace.urls.register_in.
+# ---------------------------------------------------------------------------
+
+
+_OFFERING_UUID_PARAM = OpenApiParameter(
+    "offering_uuid",
+    OpenApiTypes.UUID,
+    location=OpenApiParameter.QUERY,
+    required=True,
+    extensions={"x-waldur-operation-id": "marketplace_provider_offerings_retrieve"},
+)
+_COMPONENT_TYPE_PARAM = OpenApiParameter(
+    "component_type",
+    OpenApiTypes.STR,
+    location=OpenApiParameter.QUERY,
+    required=False,
+)
+_PERIOD_OFFSET_PARAM = OpenApiParameter(
+    "period_offset",
+    OpenApiTypes.INT,
+    location=OpenApiParameter.QUERY,
+    required=False,
+)
+
+
+def _resolve_offering(request):
+    offering_uuid = request.query_params.get("offering_uuid")
+    if not offering_uuid:
+        raise rf_exceptions.ValidationError(
+            {"offering_uuid": _("This query parameter is required.")}
+        )
+    try:
+        return models.Offering.objects.get(uuid=offering_uuid)
+    except (models.Offering.DoesNotExist, ValueError, DjangoValidationError):
+        raise rf_exceptions.NotFound(_("Offering not found."))
+
+
+def _resolve_period_offset(request) -> int:
+    try:
+        return int(request.query_params.get("period_offset") or 0)
+    except (TypeError, ValueError):
+        raise rf_exceptions.ValidationError({"period_offset": _("Must be an integer.")})
+
+
+class OfferingUsageMixin:
+    """Shared logic for customer/project per-offering usage ViewSets.
+
+    Subclasses provide:
+    - `queryset` — Customer or Project queryset (the route lookup target)
+    - `_scope_resources(scope, offering=None)` — returns the non-terminated
+      resources visible at this scope, optionally filtered to one offering
+    """
+
+    lookup_field = "uuid"
+    filter_backends = (structure_filters.GenericRoleFilter,)
+    serializer_class = EmptySerializer
+
+    def _scope_resources(self, scope, offering=None):
+        raise NotImplementedError
+
+    @extend_schema(
+        summary="Get resource usage statistics broken down per offering",
+        description=(
+            "Returns one row per (offering, component type, billing type) for "
+            "all non-terminated resources within the scope. Each row's "
+            "`usage` and `limit_usage` are aggregated using the offering's "
+            "own `limit_period`."
+        ),
+        responses=serializers.ComponentsUsageStatsPerOfferingSerializer,
+    )
+    @action(detail=True, url_path="components-usage")
+    def components_usage(self, request, uuid=None):
+        scope = self.get_object()
+        resources = filter_queryset_for_user(self._scope_resources(scope), request.user)
+        components = get_components_usage_data_per_offering(resources)
+        return Response({"components": components}, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Get monthly usage buckets for a single offering",
+        description=(
+            "Returns a per-month timeseries of `ComponentUsage` for one "
+            "offering, restricted to that offering's current `limit_period`. "
+            "Buckets are keyed by `billing_period` (always month-start). "
+            "`period_offset` shifts the window backward by N periods."
+        ),
+        parameters=[_OFFERING_UUID_PARAM, _COMPONENT_TYPE_PARAM, _PERIOD_OFFSET_PARAM],
+        responses=serializers.OfferingUsageTimeseriesSerializer,
+    )
+    @action(detail=True, url_path="components-usage-timeseries")
+    def components_usage_timeseries(self, request, uuid=None):
+        scope = self.get_object()
+        offering = _resolve_offering(request)
+        period_offset = _resolve_period_offset(request)
+        resources = filter_queryset_for_user(
+            self._scope_resources(scope, offering=offering), request.user
+        )
+        data = get_offering_usage_timeseries(
+            resources,
+            offering,
+            request.query_params.get("component_type"),
+            period_offset,
+        )
+        if data is None:
+            raise rf_exceptions.NotFound(_("No matching component on this offering."))
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class MarketplaceCustomerUsageViewSet(OfferingUsageMixin, rf_viewsets.GenericViewSet):
+    """Customer-scoped usage stats. URL: /api/marketplace-customer-usage/<uuid>/..."""
+
+    queryset = structure_models.Customer.objects.all()
+
+    def _scope_resources(self, customer, offering=None):
+        qs = models.Resource.objects.filter(project__customer=customer).exclude(
+            state=ResourceStates.TERMINATED
+        )
+        if offering is not None:
+            qs = qs.filter(offering=offering)
+        return qs
+
+    @extend_schema(
+        summary="Get per-project usage breakdown for a single offering",
+        description=(
+            "Returns the customer's usage of one offering broken down by "
+            "project. Each project entry includes an in-period total `usage` "
+            "and a monthly `buckets` array. Projects are sorted by usage "
+            "descending."
+        ),
+        parameters=[_OFFERING_UUID_PARAM, _COMPONENT_TYPE_PARAM, _PERIOD_OFFSET_PARAM],
+        responses=serializers.OfferingUsageByProjectSerializer,
+    )
+    @action(detail=True, url_path="components-usage-by-project")
+    def components_usage_by_project(self, request, uuid=None):
+        customer = self.get_object()
+        offering = _resolve_offering(request)
+        period_offset = _resolve_period_offset(request)
+        resources = filter_queryset_for_user(
+            self._scope_resources(customer, offering=offering).select_related(
+                "project"
+            ),
+            request.user,
+        )
+        data = get_offering_usage_by_project(
+            resources,
+            offering,
+            request.query_params.get("component_type"),
+            period_offset,
+        )
+        if data is None:
+            raise rf_exceptions.NotFound(_("No matching component on this offering."))
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class MarketplaceProjectUsageViewSet(OfferingUsageMixin, rf_viewsets.GenericViewSet):
+    """Project-scoped usage stats. URL: /api/marketplace-project-usage/<uuid>/..."""
+
+    queryset = structure_models.Project.objects.all()
+
+    def _scope_resources(self, project, offering=None):
+        qs = models.Resource.objects.filter(project=project).exclude(
+            state=ResourceStates.TERMINATED
+        )
+        if offering is not None:
+            qs = qs.filter(offering=offering)
+        return qs

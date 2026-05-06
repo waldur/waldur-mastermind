@@ -242,13 +242,3 @@ def get_components_usage_data_from_resources(
     )
 
     return get_components_usage_data(resources, for_current_month)
-
-
-def get_components_usage_per_offering_from_resources(
-    resources: QuerySet[marketplace_models.Resource],
-) -> list[dict[str, Any]]:
-    from waldur_mastermind.marketplace.utils import (
-        get_components_usage_data_per_offering,
-    )
-
-    return get_components_usage_data_per_offering(resources)

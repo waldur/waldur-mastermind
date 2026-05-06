@@ -12152,3 +12152,76 @@ class ArticleCodeUpdatePreviewItemSerializer(serializers.Serializer):
 
 class ArticleCodeUpdateApplyResponseSerializer(serializers.Serializer):
     updated_count = serializers.IntegerField()
+
+
+# ---------------------------------------------------------------------------
+# Per-offering usage stats — backs the components-usage / -timeseries /
+# -by-project nested viewsets registered under customers/<uuid>/ and
+# projects/<uuid>/.
+# ---------------------------------------------------------------------------
+
+
+class ComponentStatsPerOfferingSerializer(serializers.Serializer):
+    type = serializers.CharField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    description = serializers.CharField(read_only=True)
+    measured_unit = serializers.CharField(read_only=True)
+    billing_type = serializers.CharField(read_only=True)
+    usage = serializers.FloatField(read_only=True)
+    limit_usage = serializers.FloatField(read_only=True)
+    limit = serializers.FloatField(read_only=True, allow_null=True)
+    offering_name = serializers.CharField(read_only=True)
+    offering_uuid = serializers.UUIDField(read_only=True)
+    limit_period = serializers.CharField(read_only=True, allow_null=True)
+    current_period_label = serializers.CharField(read_only=True)
+    current_period_start = serializers.DateField(read_only=True, allow_null=True)
+    current_period_end = serializers.DateField(read_only=True, allow_null=True)
+
+
+class ComponentsUsageStatsPerOfferingSerializer(serializers.Serializer):
+    components = ComponentStatsPerOfferingSerializer(many=True, read_only=True)
+
+
+class UsageTimeseriesBucketSerializer(serializers.Serializer):
+    billing_period = serializers.DateField(read_only=True)
+    usage = serializers.FloatField(read_only=True)
+
+
+class OfferingUsageTimeseriesSerializer(serializers.Serializer):
+    offering_uuid = serializers.UUIDField(read_only=True)
+    offering_name = serializers.CharField(read_only=True)
+    type = serializers.CharField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    measured_unit = serializers.CharField(read_only=True)
+    billing_type = serializers.CharField(read_only=True)
+    limit_period = serializers.CharField(read_only=True, allow_null=True)
+    limit = serializers.FloatField(read_only=True, allow_null=True)
+    current_period_label = serializers.CharField(read_only=True)
+    current_period_start = serializers.DateField(read_only=True, allow_null=True)
+    current_period_end = serializers.DateField(read_only=True, allow_null=True)
+    today = serializers.DateField(read_only=True)
+    buckets = UsageTimeseriesBucketSerializer(many=True, read_only=True)
+
+
+class ProjectUsageEntrySerializer(serializers.Serializer):
+    project_uuid = serializers.UUIDField(read_only=True)
+    project_name = serializers.CharField(read_only=True)
+    usage = serializers.FloatField(read_only=True)
+    buckets = UsageTimeseriesBucketSerializer(many=True, read_only=True)
+
+
+class OfferingUsageByProjectSerializer(serializers.Serializer):
+    offering_uuid = serializers.UUIDField(read_only=True)
+    offering_name = serializers.CharField(read_only=True)
+    type = serializers.CharField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    measured_unit = serializers.CharField(read_only=True)
+    billing_type = serializers.CharField(read_only=True)
+    limit_period = serializers.CharField(read_only=True, allow_null=True)
+    limit = serializers.FloatField(read_only=True, allow_null=True)
+    current_period_label = serializers.CharField(read_only=True)
+    current_period_start = serializers.DateField(read_only=True, allow_null=True)
+    current_period_end = serializers.DateField(read_only=True, allow_null=True)
+    today = serializers.DateField(read_only=True)
+    total_usage = serializers.FloatField(read_only=True)
+    projects = ProjectUsageEntrySerializer(many=True, read_only=True)

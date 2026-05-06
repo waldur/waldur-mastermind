@@ -15,6 +15,7 @@ from decimal import Decimal
 from freezegun import freeze_time
 from rest_framework import test
 
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.marketplace import callbacks, models
 from waldur_mastermind.marketplace.enums import (
@@ -27,9 +28,12 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.serializers import ResourceSerializer
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.utils import (
+    _resolve_period_bounds,
     get_components_usage_data,
     get_components_usage_data_per_offering,
     get_current_period_usage,
+    get_offering_usage_by_project,
+    get_offering_usage_timeseries,
 )
 
 
@@ -730,3 +734,386 @@ class PerOfferingStatsTest(test.APITestCase):
         )
         self.assertEqual(len(rows), 1)
         self.assertIsNone(rows[0]["limit"])
+
+
+# ---------------------------------------------------------------------------
+# 9. Per-offering usage timeseries (HPCMP-472 Stage 2)
+# ---------------------------------------------------------------------------
+
+
+@freeze_time("2026-05-15")
+class OfferingUsageTimeSeriesTest(test.APITestCase):
+    """Verify get_offering_usage_timeseries returns monthly buckets within
+    the offering's current limit_period."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.ProjectFixture()
+
+    def _create_offering_with_component(
+        self, billing_type, limit_period, component_type="node", limits=None
+    ):
+        offering = factories.OfferingFactory(customer=self.fixture.customer)
+        plan = factories.PlanFactory(offering=offering)
+        component = factories.OfferingComponentFactory(
+            offering=offering,
+            billing_type=billing_type,
+            type=component_type,
+            name="Compute",
+            measured_unit="node hours",
+            limit_period=limit_period,
+        )
+        factories.PlanComponentFactory(plan=plan, component=component)
+        resource = models.Resource.objects.create(
+            offering=offering,
+            plan=plan,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+            limits=limits or {component_type: 1000},
+        )
+        factories.OrderFactory(
+            resource=resource,
+            type=OrderTypes.CREATE,
+            state=OrderStates.EXECUTING,
+            plan=plan,
+        )
+        callbacks.resource_creation_succeeded(resource)
+        return offering, component, resource
+
+    def test_quarterly_returns_in_period_monthly_buckets(self):
+        offering, component, resource = self._create_offering_with_component(
+            BillingTypes.LIMIT, LimitPeriods.QUARTERLY
+        )
+        # March (out of Q2) + April + May (in Q2)
+        _create_usage(
+            resource, component, 100, billing_period=datetime.date(2026, 3, 1)
+        )
+        _create_usage(
+            resource, component, 200, billing_period=datetime.date(2026, 4, 1)
+        )
+        _create_usage(
+            resource, component, 300, billing_period=datetime.date(2026, 5, 1)
+        )
+
+        data = get_offering_usage_timeseries(
+            models.Resource.objects.filter(pk=resource.pk), offering
+        )
+        self.assertEqual(data["current_period_label"], "Q2 2026")
+        self.assertEqual(len(data["buckets"]), 2)
+        self.assertEqual(
+            data["buckets"][0]["billing_period"], datetime.date(2026, 4, 1)
+        )
+        self.assertEqual(data["buckets"][0]["usage"], 200.0)
+        self.assertEqual(
+            data["buckets"][1]["billing_period"], datetime.date(2026, 5, 1)
+        )
+        self.assertEqual(data["buckets"][1]["usage"], 300.0)
+
+    def test_annual_returns_year_to_date_buckets(self):
+        offering, component, resource = self._create_offering_with_component(
+            BillingTypes.LIMIT, LimitPeriods.ANNUAL
+        )
+        # Dec 2025 (out of year) + Jan-May 2026 (in year)
+        for m, day in enumerate([12, 1, 2, 3, 4, 5]):
+            year = 2025 if m == 0 else 2026
+            _create_usage(
+                resource, component, 50, billing_period=datetime.date(year, day, 1)
+            )
+
+        data = get_offering_usage_timeseries(
+            models.Resource.objects.filter(pk=resource.pk), offering
+        )
+        self.assertEqual(data["current_period_label"], "2026")
+        self.assertEqual(len(data["buckets"]), 5)
+        # First bucket is Jan 2026, not Dec 2025
+        self.assertEqual(
+            data["buckets"][0]["billing_period"], datetime.date(2026, 1, 1)
+        )
+
+    def test_total_returns_all_buckets(self):
+        offering, component, resource = self._create_offering_with_component(
+            BillingTypes.LIMIT, LimitPeriods.TOTAL
+        )
+        _create_usage(
+            resource, component, 50, billing_period=datetime.date(2025, 12, 1)
+        )
+        _create_usage(resource, component, 50, billing_period=datetime.date(2026, 5, 1))
+
+        data = get_offering_usage_timeseries(
+            models.Resource.objects.filter(pk=resource.pk), offering
+        )
+        self.assertEqual(data["current_period_label"], "Total")
+        self.assertEqual(data["current_period_start"], None)
+        self.assertEqual(len(data["buckets"]), 2)
+
+    def test_aggregates_across_multiple_resources(self):
+        # Two resources of the same offering, both in the same project
+        offering, component, resource1 = self._create_offering_with_component(
+            BillingTypes.LIMIT, LimitPeriods.QUARTERLY
+        )
+        plan = resource1.plan
+        resource2 = models.Resource.objects.create(
+            offering=offering,
+            plan=plan,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+            limits={"node": 500},
+        )
+        factories.OrderFactory(
+            resource=resource2,
+            type=OrderTypes.CREATE,
+            state=OrderStates.EXECUTING,
+            plan=plan,
+        )
+        callbacks.resource_creation_succeeded(resource2)
+
+        _create_usage(
+            resource1, component, 200, billing_period=datetime.date(2026, 5, 1)
+        )
+        _create_usage(
+            resource2, component, 300, billing_period=datetime.date(2026, 5, 1)
+        )
+
+        data = get_offering_usage_timeseries(
+            models.Resource.objects.filter(offering=offering), offering
+        )
+        self.assertEqual(len(data["buckets"]), 1)
+        self.assertEqual(data["buckets"][0]["usage"], 500.0)
+        # Limits sum across resources (1000 + 500)
+        self.assertEqual(data["limit"], 1500.0)
+
+    def test_returns_none_when_offering_has_no_components(self):
+        offering = factories.OfferingFactory(customer=self.fixture.customer)
+        data = get_offering_usage_timeseries(models.Resource.objects.none(), offering)
+        self.assertIsNone(data)
+
+    def test_monthly_returns_rolling_six_months(self):
+        offering, component, resource = self._create_offering_with_component(
+            BillingTypes.LIMIT, LimitPeriods.MONTH
+        )
+        # Eight months of usage; only the last 6 (Dec 2025 - May 2026) should
+        # appear because the monthly cap resets each month.
+        for year, month in [
+            (2025, 10),
+            (2025, 11),
+            (2025, 12),
+            (2026, 1),
+            (2026, 2),
+            (2026, 3),
+            (2026, 4),
+            (2026, 5),
+        ]:
+            _create_usage(
+                resource, component, 50, billing_period=datetime.date(year, month, 1)
+            )
+
+        data = get_offering_usage_timeseries(
+            models.Resource.objects.filter(pk=resource.pk), offering
+        )
+        self.assertEqual(data["current_period_label"], "Last 6 months")
+        self.assertEqual(len(data["buckets"]), 6)
+        # First bucket is Dec 2025 (today=2026-05-15 minus 5 months).
+        self.assertEqual(
+            data["buckets"][0]["billing_period"], datetime.date(2025, 12, 1)
+        )
+        self.assertEqual(
+            data["buckets"][-1]["billing_period"], datetime.date(2026, 5, 1)
+        )
+
+
+# ---------------------------------------------------------------------------
+# 10. Period offset (shifting the timeseries window backward)
+# ---------------------------------------------------------------------------
+
+
+@freeze_time("2026-05-15")
+class PeriodOffsetTest(test.APITestCase):
+    """Verify _resolve_period_bounds correctly shifts the window for negative
+    period_offset across quarter / year / month rollovers."""
+
+    def test_quarterly_offset_minus_one_returns_q1(self):
+        start, end, label = _resolve_period_bounds(
+            LimitPeriods.QUARTERLY, datetime.date(2026, 5, 15), period_offset=-1
+        )
+        self.assertEqual(start, datetime.date(2026, 1, 1))
+        self.assertEqual(end, datetime.date(2026, 3, 31))
+        self.assertEqual(label, "Q1 2026")
+
+    def test_quarterly_offset_minus_two_rolls_year(self):
+        start, end, label = _resolve_period_bounds(
+            LimitPeriods.QUARTERLY, datetime.date(2026, 5, 15), period_offset=-2
+        )
+        self.assertEqual(start, datetime.date(2025, 10, 1))
+        self.assertEqual(end, datetime.date(2025, 12, 31))
+        self.assertEqual(label, "Q4 2025")
+
+    def test_month_offset_minus_one_returns_april(self):
+        start, end, label = _resolve_period_bounds(
+            LimitPeriods.MONTH, datetime.date(2026, 5, 15), period_offset=-1
+        )
+        self.assertEqual(start, datetime.date(2026, 4, 1))
+        self.assertEqual(end, datetime.date(2026, 4, 1))
+        self.assertEqual(label, "Apr 2026")
+
+    def test_month_offset_minus_five_rolls_year(self):
+        start, _end, label = _resolve_period_bounds(
+            LimitPeriods.MONTH, datetime.date(2026, 5, 15), period_offset=-5
+        )
+        self.assertEqual(start, datetime.date(2025, 12, 1))
+        self.assertEqual(label, "Dec 2025")
+
+    def test_annual_offset_minus_one_returns_previous_year(self):
+        start, end, label = _resolve_period_bounds(
+            LimitPeriods.ANNUAL, datetime.date(2026, 5, 15), period_offset=-1
+        )
+        self.assertEqual(start, datetime.date(2025, 1, 1))
+        self.assertEqual(end, datetime.date(2025, 12, 31))
+        self.assertEqual(label, "2025")
+
+    def test_total_ignores_offset(self):
+        start, end, label = _resolve_period_bounds(
+            LimitPeriods.TOTAL, datetime.date(2026, 5, 15), period_offset=-3
+        )
+        self.assertIsNone(start)
+        self.assertIsNone(end)
+        self.assertEqual(label, "Total")
+
+
+# ---------------------------------------------------------------------------
+# 11. Per-project usage breakdown
+# ---------------------------------------------------------------------------
+
+
+@freeze_time("2026-05-15")
+class OfferingUsageByProjectTest(test.APITestCase):
+    """Verify get_offering_usage_by_project groups, sorts, and bounds usage
+    correctly for the customer-scope decomposition view."""
+
+    def setUp(self):
+        self.fixture = structure_fixtures.CustomerFixture()
+        self.customer = self.fixture.customer
+        self.offering = factories.OfferingFactory(customer=self.customer)
+        self.plan = factories.PlanFactory(offering=self.offering)
+        self.component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            billing_type=BillingTypes.LIMIT,
+            type="node",
+            name="Compute",
+            measured_unit="node hours",
+            limit_period=LimitPeriods.QUARTERLY,
+        )
+        factories.PlanComponentFactory(plan=self.plan, component=self.component)
+
+    def _create_resource(self, project, limit=1000):
+        resource = models.Resource.objects.create(
+            offering=self.offering,
+            plan=self.plan,
+            project=project,
+            state=ResourceStates.OK,
+            limits={"node": limit},
+        )
+        factories.OrderFactory(
+            resource=resource,
+            type=OrderTypes.CREATE,
+            state=OrderStates.EXECUTING,
+            plan=self.plan,
+        )
+        callbacks.resource_creation_succeeded(resource)
+        return resource
+
+    def test_groups_and_sorts_projects_by_usage_desc(self):
+        project_a = structure_factories.ProjectFactory(
+            customer=self.customer, name="alpha"
+        )
+        project_b = structure_factories.ProjectFactory(
+            customer=self.customer, name="beta"
+        )
+        resource_a = self._create_resource(project_a)
+        resource_b = self._create_resource(project_b)
+        # alpha has 100 + 200 = 300; beta has 500
+        _create_usage(
+            resource_a, self.component, 100, billing_period=datetime.date(2026, 4, 1)
+        )
+        _create_usage(
+            resource_a, self.component, 200, billing_period=datetime.date(2026, 5, 1)
+        )
+        _create_usage(
+            resource_b, self.component, 500, billing_period=datetime.date(2026, 5, 1)
+        )
+
+        data = get_offering_usage_by_project(
+            models.Resource.objects.filter(offering=self.offering), self.offering
+        )
+        self.assertEqual(data["total_usage"], 800.0)
+        self.assertEqual(len(data["projects"]), 2)
+        self.assertEqual(data["projects"][0]["project_name"], "beta")
+        self.assertEqual(data["projects"][0]["usage"], 500.0)
+        self.assertEqual(data["projects"][1]["project_name"], "alpha")
+        self.assertEqual(data["projects"][1]["usage"], 300.0)
+        # alpha has two monthly buckets, beta has one
+        self.assertEqual(len(data["projects"][1]["buckets"]), 2)
+        self.assertEqual(len(data["projects"][0]["buckets"]), 1)
+        # Limits sum across resources
+        self.assertEqual(data["limit"], 2000.0)
+
+    def test_excludes_usage_outside_period(self):
+        project = structure_factories.ProjectFactory(customer=self.customer)
+        resource = self._create_resource(project)
+        # March is Q1, May is Q2
+        _create_usage(
+            resource, self.component, 100, billing_period=datetime.date(2026, 3, 1)
+        )
+        _create_usage(
+            resource, self.component, 50, billing_period=datetime.date(2026, 5, 1)
+        )
+
+        data = get_offering_usage_by_project(
+            models.Resource.objects.filter(offering=self.offering), self.offering
+        )
+        self.assertEqual(data["total_usage"], 50.0)
+        self.assertEqual(data["projects"][0]["usage"], 50.0)
+        self.assertEqual(len(data["projects"][0]["buckets"]), 1)
+
+    def test_omits_projects_without_in_period_usage(self):
+        project_a = structure_factories.ProjectFactory(
+            customer=self.customer, name="alpha"
+        )
+        project_b = structure_factories.ProjectFactory(
+            customer=self.customer, name="beta"
+        )
+        resource_a = self._create_resource(project_a)
+        self._create_resource(project_b)  # no usage at all
+        _create_usage(
+            resource_a, self.component, 100, billing_period=datetime.date(2026, 5, 1)
+        )
+
+        data = get_offering_usage_by_project(
+            models.Resource.objects.filter(offering=self.offering), self.offering
+        )
+        # Only alpha appears; beta has no ComponentUsage rows
+        self.assertEqual(len(data["projects"]), 1)
+        self.assertEqual(data["projects"][0]["project_name"], "alpha")
+
+    def test_period_offset_returns_previous_quarter(self):
+        project = structure_factories.ProjectFactory(customer=self.customer)
+        resource = self._create_resource(project)
+        # Q1: Feb usage; Q2: May usage
+        _create_usage(
+            resource, self.component, 80, billing_period=datetime.date(2026, 2, 1)
+        )
+        _create_usage(
+            resource, self.component, 50, billing_period=datetime.date(2026, 5, 1)
+        )
+
+        data = get_offering_usage_by_project(
+            models.Resource.objects.filter(offering=self.offering),
+            self.offering,
+            period_offset=-1,
+        )
+        self.assertEqual(data["current_period_label"], "Q1 2026")
+        self.assertEqual(data["total_usage"], 80.0)
+        self.assertEqual(data["projects"][0]["usage"], 80.0)
+
+    def test_returns_none_when_offering_has_no_matching_component(self):
+        offering = factories.OfferingFactory(customer=self.customer)
+        data = get_offering_usage_by_project(models.Resource.objects.none(), offering)
+        self.assertIsNone(data)

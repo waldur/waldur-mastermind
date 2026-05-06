@@ -1,3 +1,4 @@
+import calendar
 import datetime
 import decimal
 import hashlib
@@ -1257,35 +1258,61 @@ def get_components_usage_data(resources, for_current_month=False):
     return list(components_data.values())
 
 
-def _resolve_period_bounds(limit_period, today=None):
+def _resolve_period_bounds(limit_period, today=None, period_offset=0):
     """Return (start_date, end_date, label) for the given limit period.
 
     `start`/`end` are inclusive `date` objects suitable for filtering
     `ComponentUsage.billing_period` (which is always the first day of the
     month). `TOTAL` returns (None, None, "Total") to mean "no time bound".
+
+    `period_offset` shifts the window backward by N periods — 0 is the
+    current period, -1 the previous, etc. TOTAL ignores the offset since
+    there is no concept of a "previous lifetime".
     """
     today = today or datetime.date.today()
 
     if limit_period == LimitPeriods.QUARTERLY:
-        start = core_utils.get_current_quarter_start().date()
-        end = core_utils.get_current_quarter_end().date()
-        quarter = (today.month - 1) // 3 + 1
-        return start, end, f"Q{quarter} {today.year}"
+        # Build the current quarter from today, then rewind by `offset` quarters.
+        current_q = (today.month - 1) // 3 + 1
+        target_q = current_q + period_offset
+        target_year = today.year
+        # Normalize quarter into [1, 4], rolling year as needed.
+        while target_q < 1:
+            target_q += 4
+            target_year -= 1
+        while target_q > 4:
+            target_q -= 4
+            target_year += 1
+        start_month = (target_q - 1) * 3 + 1
+        start = datetime.date(target_year, start_month, 1)
+        end_month = start_month + 2
+        last_day = calendar.monthrange(target_year, end_month)[1]
+        end = datetime.date(target_year, end_month, last_day)
+        return start, end, f"Q{target_q} {target_year}"
 
     if limit_period == LimitPeriods.ANNUAL:
+        target_year = today.year + period_offset
         return (
-            datetime.date(today.year, 1, 1),
-            datetime.date(today.year, 12, 31),
-            str(today.year),
+            datetime.date(target_year, 1, 1),
+            datetime.date(target_year, 12, 31),
+            str(target_year),
         )
 
     if limit_period == LimitPeriods.TOTAL:
         return None, None, "Total"
 
-    # MONTH or unspecified — current month. ComponentUsage.billing_period is
-    # always month-start, so equality on the start date is the natural filter.
-    start = core_utils.month_start(today).date()
-    return start, start, today.strftime("%b %Y")
+    # MONTH or unspecified — shift the month back by `offset` months.
+    target_year = today.year
+    target_month = today.month + period_offset
+    while target_month < 1:
+        target_month += 12
+        target_year -= 1
+    while target_month > 12:
+        target_month -= 12
+        target_year += 1
+    start = datetime.date(target_year, target_month, 1)
+    label = start.strftime("%b %Y")
+    return start, start, label
 
 
 def get_components_usage_data_per_offering(resources):
@@ -1379,6 +1406,214 @@ def get_components_usage_data_per_offering(resources):
         )
 
     return rows
+
+
+def _select_offering_component(offering, component_type=None):
+    """Pick the component the chart should track.
+
+    LIMIT-billed components are preferred since they're the ones a cap is
+    meaningful against. If `component_type` is given, narrow to that type
+    first. Returns None if the offering has no matching component.
+    """
+    components = list(offering.components.all())
+    if component_type:
+        components = [c for c in components if c.type == component_type]
+    if not components:
+        return None
+    return next(
+        (c for c in components if c.billing_type == BillingTypes.LIMIT),
+        components[0],
+    )
+
+
+def _sum_offering_limits(resources, component_type):
+    """Sum per-resource limits for one component type across the queryset.
+
+    Returns the float total, or None if no resource declared a limit for
+    that component type (so the caller can render "no cap" rather than 0).
+    """
+    total = 0.0
+    any_limit = False
+    for resource in resources:
+        limit_val = (resource.limits or {}).get(component_type)
+        if limit_val is None:
+            continue
+        try:
+            total += float(limit_val)
+            any_limit = True
+        except (TypeError, ValueError):
+            continue
+    return total if any_limit else None
+
+
+def _offering_usage_envelope(
+    offering, component, period_start, period_end, period_label, today, limit
+):
+    """Common metadata block shared by the timeseries and by-project payloads."""
+    return {
+        "offering_uuid": offering.uuid.hex,
+        "offering_name": offering.name,
+        "type": component.type,
+        "name": component.name,
+        "measured_unit": component.measured_unit,
+        "billing_type": component.billing_type,
+        "limit_period": component.limit_period,
+        "limit": limit,
+        "current_period_label": period_label,
+        "current_period_start": period_start,
+        "current_period_end": period_end,
+        "today": today,
+    }
+
+
+def get_offering_usage_timeseries(
+    resources, offering, component_type=None, period_offset=0
+):
+    """Return monthly usage buckets for an offering's component.
+
+    `resources` should already be scoped to a customer/project and to
+    the given offering. Buckets cover the component's current
+    `limit_period` (quarter / year / lifetime / current month) and are
+    keyed by `ComponentUsage.billing_period` (always month-start).
+
+    When `component_type` is given, that type is selected; otherwise
+    the offering's first LIMIT-billed component is preferred (it is
+    the one whose cap the chart is most useful against), falling back
+    to the first defined component.
+
+    `period_offset` shifts the window backward by N periods so callers
+    can request a prior quarter / year / month.
+    """
+    today = datetime.date.today()
+
+    component = _select_offering_component(offering, component_type)
+    if component is None:
+        return None
+
+    effective_period = component.limit_period or LimitPeriods.MONTH
+
+    if effective_period == LimitPeriods.MONTH:
+        # A monthly cap resets every month, so cumulating across months
+        # has no meaning. Widen the window to a rolling 6 months ending
+        # at today's month so the chart shows a usable trend.
+        end = datetime.date(
+            today.year, today.month, calendar.monthrange(today.year, today.month)[1]
+        )
+        start_month = today.month - 5
+        start_year = today.year
+        while start_month < 1:
+            start_month += 12
+            start_year -= 1
+        period_start = datetime.date(start_year, start_month, 1)
+        period_end = end
+        period_label = "Last 6 months"
+    else:
+        period_start, period_end, period_label = _resolve_period_bounds(
+            effective_period, today, period_offset
+        )
+
+    usage_qs = models.ComponentUsage.objects.filter(
+        resource__in=resources, component=component
+    )
+    if period_start is not None:
+        usage_qs = usage_qs.filter(billing_period__gte=period_start)
+    if period_end is not None:
+        usage_qs = usage_qs.filter(billing_period__lte=period_end)
+
+    bucketed = (
+        usage_qs.values("billing_period")
+        .annotate(total=Sum("usage"))
+        .order_by("billing_period")
+    )
+    buckets = [
+        {"billing_period": b["billing_period"], "usage": float(b["total"] or 0)}
+        for b in bucketed
+    ]
+
+    return {
+        **_offering_usage_envelope(
+            offering,
+            component,
+            period_start,
+            period_end,
+            period_label,
+            today,
+            _sum_offering_limits(resources, component.type),
+        ),
+        "buckets": buckets,
+    }
+
+
+def get_offering_usage_by_project(
+    resources, offering, component_type=None, period_offset=0
+):
+    """Return per-project usage breakdown for an offering's component.
+
+    Same period semantics as `get_offering_usage_timeseries`. Each project
+    that has at least one resource of the offering gets an entry with its
+    in-period total `usage` and a `buckets` list of monthly contributions.
+    Projects are ordered by `usage` descending so the caller can paginate
+    or top-N from the front. `period_offset` shifts the window backward
+    by N periods (same semantics as the timeseries endpoint).
+    """
+    today = datetime.date.today()
+
+    component = _select_offering_component(offering, component_type)
+    if component is None:
+        return None
+
+    period_start, period_end, period_label = _resolve_period_bounds(
+        component.limit_period or LimitPeriods.MONTH, today, period_offset
+    )
+
+    usage_qs = models.ComponentUsage.objects.filter(
+        resource__in=resources, component=component
+    ).select_related("resource__project")
+    if period_start is not None:
+        usage_qs = usage_qs.filter(billing_period__gte=period_start)
+    if period_end is not None:
+        usage_qs = usage_qs.filter(billing_period__lte=period_end)
+
+    by_project: dict[int, dict] = {}
+    total_usage = 0.0
+    for cu in usage_qs:
+        project = cu.resource.project
+        usage_val = float(cu.usage or 0)
+        total_usage += usage_val
+        entry = by_project.setdefault(
+            project.id,
+            {
+                "project_uuid": project.uuid.hex,
+                "project_name": project.name,
+                "usage": 0.0,
+                "_buckets": defaultdict(float),
+            },
+        )
+        entry["usage"] += usage_val
+        entry["_buckets"][cu.billing_period] += usage_val
+
+    projects = []
+    for entry in by_project.values():
+        bucket_dict = entry.pop("_buckets")
+        entry["buckets"] = [
+            {"billing_period": k, "usage": v} for k, v in sorted(bucket_dict.items())
+        ]
+        projects.append(entry)
+    projects.sort(key=lambda p: p["usage"], reverse=True)
+
+    return {
+        **_offering_usage_envelope(
+            offering,
+            component,
+            period_start,
+            period_end,
+            period_label,
+            today,
+            _sum_offering_limits(resources, component.type),
+        ),
+        "total_usage": total_usage,
+        "projects": projects,
+    }
 
 
 def format_limits_list(components_map, limits):
