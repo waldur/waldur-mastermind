@@ -80,19 +80,23 @@ class ProjectTemplateFilter(django_filters.FilterSet):
 def _identifiers_for_project_uuid(value):
     """Return the set of OpenPortal project_identifier strings for a project UUID.
 
-    Always combines two sources:
+    Combines two sources:
     1. Allocation.backend_id — covers active projects with existing allocations.
+       Available without OpenPortal config.
     2. {projectinfo.shortname}.{portal} — covers cases where the allocation
        has been deleted (e.g. soft-deleted projects, or allocations removed).
+       Requires OpenPortal config to resolve the portal name; skipped when
+       the plugin is enabled but config is unavailable.
     """
     from . import op as openportal
 
-    openportal.ensure_config_loaded()
     allocation_identifiers = set(
         models.Allocation.objects.filter(project__uuid=value)
         .exclude(backend_id="")
         .values_list("backend_id", flat=True)
     )
+    if not openportal.ensure_config_loaded():
+        return allocation_identifiers
     portal = str(openportal.get_portal())
     shortnames = (
         models.ProjectInfo.objects.filter(
