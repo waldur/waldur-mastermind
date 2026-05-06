@@ -30,7 +30,7 @@ from rest_framework import permissions as rf_permissions
 from rest_framework import serializers as rf_serializers
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
 
@@ -87,7 +87,6 @@ from waldur_core.structure.serializers_data_access import (
 )
 from waldur_core.structure.utils import (
     get_components_usage_data_from_resources,
-    get_components_usage_per_offering_from_resources,
 )
 from waldur_core.structure.utils_data_access import bulk_log_user_data_access
 from waldur_core.user_actions import serializers as user_action_serializers
@@ -353,40 +352,6 @@ class CustomerViewSet(
 
         components_data_list = get_components_usage_data_from_resources(
             resources, for_current_month
-        )
-
-        return Response(
-            {
-                "components": components_data_list,
-            },
-            status=status.HTTP_200_OK,
-        )
-
-    @extend_schema(
-        summary="Get customer resource usage statistics broken down per offering",
-        description=(
-            "Returns one row per (offering, component type, billing type) for "
-            "all non-terminated resources within the customer. Each row's "
-            "`usage` and `limit_usage` are aggregated using the offering's own "
-            "`limit_period`, so quarterly offerings report quarter-to-date, "
-            "yearly report year-to-date, total report lifetime, and monthly "
-            "report current month. Each row also includes the resolved current "
-            "period bounds (`current_period_label`, `current_period_start`, "
-            "`current_period_end`)."
-        ),
-        responses=serializers.ComponentsUsageStatsPerOfferingSerializer,
-    )
-    @action(detail=True, url_path="components-usage")
-    def components_usage(self, request, *args, **kwargs):
-        customer: models.Customer = self.get_object()
-
-        resources = marketplace_models.Resource.objects.filter(
-            project__customer=customer
-        ).exclude(state=ResourceStates.TERMINATED)
-        resources = filter_queryset_for_user(resources, request.user)
-
-        components_data_list = get_components_usage_per_offering_from_resources(
-            resources
         )
 
         return Response(
@@ -927,40 +892,6 @@ class ProjectViewSet(
 
         components_data_list = get_components_usage_data_from_resources(
             resources, for_current_month
-        )
-
-        return Response(
-            {
-                "components": components_data_list,
-            },
-            status=status.HTTP_200_OK,
-        )
-
-    @extend_schema(
-        summary="Get project resource usage statistics broken down per offering",
-        description=(
-            "Returns one row per (offering, component type, billing type) for "
-            "all non-terminated resources within the project. Each row's "
-            "`usage` and `limit_usage` are aggregated using the offering's own "
-            "`limit_period`, so quarterly offerings report quarter-to-date, "
-            "yearly report year-to-date, total report lifetime, and monthly "
-            "report current month. Each row also includes the resolved current "
-            "period bounds (`current_period_label`, `current_period_start`, "
-            "`current_period_end`)."
-        ),
-        responses=serializers.ComponentsUsageStatsPerOfferingSerializer,
-    )
-    @action(detail=True, url_path="components-usage")
-    def components_usage(self, request, *args, **kwargs):
-        project = self.get_object()
-
-        resources = marketplace_models.Resource.objects.filter(project=project).exclude(
-            state=ResourceStates.TERMINATED
-        )
-        resources = filter_queryset_for_user(resources, request.user)
-
-        components_data_list = get_components_usage_per_offering_from_resources(
-            resources
         )
 
         return Response(

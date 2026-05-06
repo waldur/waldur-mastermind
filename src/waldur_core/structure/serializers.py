@@ -3061,27 +3061,6 @@ class ComponentsUsageStatsSerializer(serializers.Serializer):
     components = ComponentStatsSerializer(many=True, read_only=True)
 
 
-class ComponentStatsPerOfferingSerializer(serializers.Serializer):
-    type = serializers.CharField(read_only=True)
-    name = serializers.CharField(read_only=True)
-    description = serializers.CharField(read_only=True)
-    measured_unit = serializers.CharField(read_only=True)
-    billing_type = serializers.CharField(read_only=True)
-    usage = serializers.FloatField(read_only=True)
-    limit_usage = serializers.FloatField(read_only=True)
-    limit = serializers.FloatField(read_only=True, allow_null=True)
-    offering_name = serializers.CharField(read_only=True)
-    offering_uuid = serializers.UUIDField(read_only=True)
-    limit_period = serializers.CharField(read_only=True, allow_null=True)
-    current_period_label = serializers.CharField(read_only=True)
-    current_period_start = serializers.DateField(read_only=True, allow_null=True)
-    current_period_end = serializers.DateField(read_only=True, allow_null=True)
-
-
-class ComponentsUsageStatsPerOfferingSerializer(serializers.Serializer):
-    components = ComponentStatsPerOfferingSerializer(many=True, read_only=True)
-
-
 class ConfirmEmailRequestSerializer(serializers.Serializer):
     code = serializers.CharField()
 

@@ -123,6 +123,16 @@ def register_in(router):
         basename="marketplace-stats",
     )
     router.register(
+        r"marketplace-customer-usage",
+        views.MarketplaceCustomerUsageViewSet,
+        basename="marketplace-customer-usage",
+    )
+    router.register(
+        r"marketplace-project-usage",
+        views.MarketplaceProjectUsageViewSet,
+        basename="marketplace-project-usage",
+    )
+    router.register(
         r"provider-invoice-items",
         views.ProviderInvoiceItemsViewSet,
         basename="provider-invoice-items",
