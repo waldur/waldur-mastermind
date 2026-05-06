@@ -95,6 +95,7 @@ This document lists all mixin classes found in the Waldur codebase.
 | [`SafeAttributesMixin`](#safeattributesmixin) | `waldur_mastermind.marketplace.models` | Mixin for safe attribute handling |
 | [`ConnectedOfferingDetailsMixin`](#connectedofferingdetailsmixin) | `waldur_mastermind.marketplace.views` | Mixin to provide offering details action for connected resources |
 | [`ConnectedResourceDetailsMixin`](#connectedresourcedetailsmixin) | `waldur_mastermind.marketplace.views` | Mixin to provide resource details action for connected resources |
+| [`OfferingUsageMixin`](#offeringusagemixin) | `waldur_mastermind.marketplace.views` | Shared logic for customer/project per-offering usage ViewSets |
 | [`PublicViewsetMixin`](#publicviewsetmixin) | `waldur_mastermind.marketplace.views` | Mixin to allow anonymous access to offerings when configured |
 | [`TenantMixin`](#tenantmixin) | `waldur_mastermind.marketplace_openstack.processors` | No description available |
 | [`SelectiveDNSMockMixin`](#selectivednsmockmixin) | `waldur_mastermind.marketplace_remote.tests.dns_utils` | Mixin class that provides selective DNS mocking for test classes |
@@ -1303,6 +1304,21 @@ Mixin to provide offering details action for connected resources.
 **Description:**
 
 Mixin to provide resource details action for connected resources.
+
+### OfferingUsageMixin
+
+**Module:** `waldur_mastermind.marketplace.views`
+
+**Description:**
+
+Shared logic for customer/project per-offering usage ViewSets.
+
+Subclasses provide:
+
+- `queryset` — Customer or Project queryset (the route lookup target)
+- `_scope_resources(scope, offering=None)` — returns the non-terminated
+
+  resources visible at this scope, optionally filtered to one offering
 
 ### PublicViewsetMixin
 
