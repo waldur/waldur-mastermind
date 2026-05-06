@@ -33,6 +33,8 @@ RUN apt-get update && \
     gcc \
     python3-dev \
     procps \
+    # Used by saml2-metadata-sync to fetch federation metadata.
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 # Set up locales
