@@ -1202,6 +1202,47 @@ class CreateInstanceTest(VolumesBaseTest):
         kwargs = self.mocked_nova.servers.create.mock_calls[0][2]
         self.assertEqual(kwargs["availability_zone"], "default_availability_zone")
 
+    def test_scheduler_hints_use_server_group_when_backend_id_present(self):
+        # Act
+        self.backend.create_instance(
+            self.fixture.instance, self.flavor_id, server_group="sg-backend-id"
+        )
+
+        # Assert
+        kwargs = self.mocked_nova.servers.create.mock_calls[0][2]
+        self.assertEqual(kwargs["scheduler_hints"], {"group": "sg-backend-id"})
+
+    def test_scheduler_hints_omitted_when_server_group_backend_id_is_empty(self):
+        # Regression: an empty server_group string used to forward
+        # scheduler_hints={"group": ""} to Nova, which rejects it
+        # with "'' is not a 'uuid'".
+        self.backend.create_instance(
+            self.fixture.instance, self.flavor_id, server_group=""
+        )
+
+        kwargs = self.mocked_nova.servers.create.mock_calls[0][2]
+        self.assertNotIn("scheduler_hints", kwargs)
+
+
+class CreateServerGroupTest(BaseBackendTest):
+    def test_server_group_is_created_with_policy_kwarg(self):
+        # Regression: novaclient microversion 2.64+ replaced the list-typed
+        # `policies` kwarg with a single-string `policy`. Passing `policies`
+        # raises TypeError("ServerGroupsManager.create() got an unexpected
+        # keyword argument 'policies'").
+        server_group = self.fixture.server_group
+        server_group.backend_id = ""
+        server_group.save()
+        self.mocked_nova.server_groups.create.return_value.id = "sg-backend-id"
+
+        self.backend.create_server_group(server_group)
+
+        self.mocked_nova.server_groups.create.assert_called_once_with(
+            name=server_group.name, policy=server_group.policy
+        )
+        server_group.refresh_from_db()
+        self.assertEqual(server_group.backend_id, "sg-backend-id")
+
 
 class EnhancedImageDetectionTest(BaseBackendTest):
     def setUp(self):

@@ -2757,7 +2757,7 @@ class OpenStackBackend(ServiceBackend):
         nova = get_nova_client(session)
         try:
             backend_server_group = nova.server_groups.create(
-                name=server_group.name, policies=server_group.policy
+                name=server_group.name, policy=server_group.policy
             )
             server_group.backend_id = backend_server_group.id
             server_group.save(update_fields=["backend_id"])
@@ -4688,7 +4688,7 @@ class OpenStackBackend(ServiceBackend):
             ):
                 server_create_parameters["config_drive"] = True
 
-            if server_group is not None:
+            if server_group:
                 server_create_parameters["scheduler_hints"] = {"group": server_group}
 
             logger.info(
