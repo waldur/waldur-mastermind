@@ -4279,7 +4279,13 @@ class OpenStackInstanceCreateSerializer(OpenStackInstanceSerializer):
     image = serializers.HyperlinkedRelatedField(
         view_name="openstack-image-detail",
         lookup_field="uuid",
-        queryset=models.Image.objects.all().select_related("settings"),
+        # Exclude rescue-tagged images: an image with hw_rescue_device or
+        # hw_rescue_bus is meant for Nova rescue mode and is typically an
+        # ISO that won't boot a usable system disk. The HyperlinkedRelatedField
+        # will report it as not-found if a client tries to pass one.
+        queryset=models.Image.objects.filter(
+            hw_rescue_device="", hw_rescue_bus=""
+        ).select_related("settings"),
         write_only=True,
         help_text=_("The OS image to use for the instance"),
     )
