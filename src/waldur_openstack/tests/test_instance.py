@@ -174,6 +174,27 @@ class InstanceCreateTest(test.APITestCase):
         response = self.create_instance(self.get_valid_data())
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
 
+    def test_rescue_tagged_image_cannot_be_used_as_boot_image(self):
+        # Either hw_rescue property is enough to mark an image as a rescue
+        # image (matches Image.is_rescue_image). Such images are typically
+        # ISO-only and won't boot a usable system disk.
+        for field in ("hw_rescue_device", "hw_rescue_bus"):
+            with self.subTest(field=field):
+                rescue_image = factories.ImageFactory(
+                    settings=self.openstack_settings,
+                    **{field: "cdrom"},
+                )
+                rescue_image.tenants.add(self.tenant)
+                response = self.create_instance(
+                    self.get_valid_data(
+                        image=factories.ImageFactory.get_url(rescue_image),
+                    )
+                )
+                self.assertEqual(
+                    response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+                )
+                self.assertIn("image", response.data)
+
     def test_user_can_define_fixed_ips(self):
         post_data = self.get_valid_data()
         fixed_ips = [{"ip_address": "192.168.0.1", "subnet_id": self.subnet.backend_id}]
