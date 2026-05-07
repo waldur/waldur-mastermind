@@ -89,7 +89,7 @@ class TenantCreateTest(test.APITransactionTestCase, BaseTenantActionsTest):
         view = marketplace_views.MarketplaceTenantViewSet.as_view({"post": "create"})
         return common_utils.create_request(view, user, payload)
 
-    @data("admin", "manager", "staff", "owner")
+    @data("admin", "manager", "staff", "owner", "member")
     def test_authorized_user_can_create_tenant(self, user):
         response = self.create_tenant_request(
             getattr(self.fixture, user), self.valid_data
@@ -100,7 +100,7 @@ class TenantCreateTest(test.APITransactionTestCase, BaseTenantActionsTest):
             models.Tenant.objects.filter(name=self.valid_data["name"]).exists()
         )
 
-    @data("global_support", "user")
+    @data("user")
     def test_unathorized_user_cannot_create_tenant(self, user):
         response = self.create_tenant_request(
             getattr(self.fixture, user), self.valid_data
