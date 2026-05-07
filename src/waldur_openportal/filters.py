@@ -88,14 +88,16 @@ def _identifiers_for_project_uuid(value):
        Requires OpenPortal config to resolve the portal name; skipped when
        the plugin is enabled but config is unavailable.
     """
-    from . import op as openportal
+    import openportal
+
+    from . import config
 
     allocation_identifiers = set(
         models.Allocation.objects.filter(project__uuid=value)
         .exclude(backend_id="")
         .values_list("backend_id", flat=True)
     )
-    if not openportal.ensure_config_loaded():
+    if not config.ensure_config_loaded():
         return allocation_identifiers
     portal = str(openportal.get_portal())
     shortnames = (

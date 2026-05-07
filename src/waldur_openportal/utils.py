@@ -639,10 +639,10 @@ def _resolve_useridentifier_from_slugs(identifier: str):
     by their slugs and confirm the user is still a member of that project.
     Returns a user info dict or None.
     """
+    import openportal
+
     from waldur_core.permissions.models import UserRole
     from waldur_core.structure import models as structure_models
-
-    from . import op as openportal
 
     try:
         portal = str(openportal.get_portal())

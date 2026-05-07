@@ -4,6 +4,7 @@ import logging
 import random
 import time
 
+import openportal
 from celery import shared_task
 from constance import config
 
@@ -17,7 +18,7 @@ from waldur_mastermind.invoices import models as invoice_models
 from waldur_mastermind.marketplace import models as marketplace_models
 
 from . import backend, models, utils
-from . import op as openportal
+from . import config as openportal_config
 from .board import OpenPortalBoard
 
 logger = logging.getLogger(__name__)
@@ -416,7 +417,7 @@ def sync_remote_usage():
     """
     This task is called to synchronise the usage for all remote allocations
     """
-    if not openportal.ensure_config_loaded():
+    if not openportal_config.ensure_config_loaded():
         logger.debug(
             "OpenPortal not enabled or config not available, skipping sync_remote_usage"
         )
@@ -489,7 +490,7 @@ def sync_usage():
     The sync_allocation_limits task should be scheduled separately (e.g., via cron)
     to run after this task typically completes to update resource limits.
     """
-    if not openportal.ensure_config_loaded():
+    if not openportal_config.ensure_config_loaded():
         logger.debug(
             "OpenPortal not enabled or config not available, skipping sync_usage"
         )
@@ -546,7 +547,7 @@ def sync_storage():
     Runs every 8 hours so each project gets at least one storage report per day
     without hammering the filesystems.
     """
-    if not openportal.ensure_config_loaded():
+    if not openportal_config.ensure_config_loaded():
         logger.debug(
             "OpenPortal not enabled or config not available, skipping sync_storage"
         )
@@ -609,7 +610,7 @@ def sync_remote_storage():
     Fetch and store accumulated storage reports from remote portals for all
     active RemoteAllocations.
     """
-    if not openportal.ensure_config_loaded():
+    if not openportal_config.ensure_config_loaded():
         logger.debug(
             "OpenPortal not enabled or config not available, skipping sync_remote_storage"
         )
@@ -649,7 +650,7 @@ def sync_local_users():
     users associated with those allocations are properly synced (e.g.
     added or removed)
     """
-    if not openportal.ensure_config_loaded():
+    if not openportal_config.ensure_config_loaded():
         logger.debug(
             "OpenPortal not enabled or config not available, skipping sync_local_users"
         )
@@ -683,7 +684,7 @@ def sync_remote_users():
     users associated with those allocations are properly synced (e.g.
     added or removed)
     """
-    if not openportal.ensure_config_loaded():
+    if not openportal_config.ensure_config_loaded():
         logger.debug(
             "OpenPortal not enabled or config not available, skipping sync_remote_users"
         )
@@ -716,7 +717,7 @@ def sync_allocation_limits():
     This task updates the resource limits for all allocations based on project credits
     and current usage. This should be run after sync_usage to ensure all usage data is current.
     """
-    if not openportal.ensure_config_loaded():
+    if not openportal_config.ensure_config_loaded():
         logger.debug(
             "OpenPortal not enabled or config not available, skipping sync_allocation_limits"
         )
@@ -1459,7 +1460,7 @@ def create_default_resources(serialized_managed_project):
 def update_project(
     board: OpenPortalBoard,
     project: openportal.ProjectIdentifier,
-    details: openportal.ProjectDetails,
+    details: openportal.AwardDetails,
     force_approve: bool = False,
 ) -> openportal.ProjectMapping:
     """
@@ -1490,7 +1491,7 @@ def update_project(
 def create_project(
     board: OpenPortalBoard,
     identifier: openportal.ProjectIdentifier,
-    details: openportal.ProjectDetails,
+    details: openportal.AwardDetails,
 ) -> openportal.ProjectMapping:
     """
     Create a project in the OpenPortal board with the given identifier and details.
@@ -1600,14 +1601,14 @@ def run_job(serialized_job):
 
         if command == "create_project":
             identifier = openportal.ProjectIdentifier(args[0])
-            details = openportal.ProjectDetails(args[1])
+            details = openportal.AwardDetails(args[1])
             result = create_project(board, identifier, details)
         elif command == "remove_project":
             identifier = openportal.ProjectIdentifier(args[0])
             result = board.remove_project(identifier)
         elif command == "update_project":
             identifier = openportal.ProjectIdentifier(args[0])
-            details = openportal.ProjectDetails(args[1])
+            details = openportal.AwardDetails(args[1])
             result = update_project(board, identifier, details)
         elif command == "get_project":
             identifier = openportal.ProjectIdentifier(args[0])
@@ -1716,7 +1717,7 @@ def sync_offering_agents():
     This task is called to sync the agents for all offerings
     that are associated with remote OpenPortal backends.
     """
-    if not openportal.ensure_config_loaded():
+    if not openportal_config.ensure_config_loaded():
         logger.info(
             "OpenPortal not enabled or config not available, skipping sync_offering_agents"
         )
@@ -1752,7 +1753,7 @@ def sync_board():
     has received any jobs. If it has, then it pulls the job from the
     board and then spawns a new task to process the job.
     """
-    if not openportal.ensure_config_loaded():
+    if not openportal_config.ensure_config_loaded():
         logger.info(
             "OpenPortal not enabled or config not available, skipping sync_board"
         )

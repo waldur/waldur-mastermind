@@ -1,9 +1,11 @@
 import datetime
 import logging
 
+import openportal
+
 from waldur_slurm.structures import Account
 
-from . import op as openportal
+from . import config, exceptions
 
 logger = logging.getLogger(__name__)
 
@@ -15,8 +17,8 @@ class OpenPortalRunner:
 
     def __init__(self):
         # make sure that the OpenPortal config is loaded
-        if not openportal.ensure_config_loaded():
-            raise openportal.OpenPortalError(
+        if not config.ensure_config_loaded():
+            raise exceptions.OpenPortalError(
                 "OpenPortal is not enabled or configuration is not available"
             )
 
@@ -27,36 +29,36 @@ class OpenPortalRunner:
         OpenPortalException if the environment variable is not set
         or if the config file cannot be loaded
         """
-        openportal.ensure_config_loaded()
+        config.ensure_config_loaded()
 
     def health(self):
-        if not openportal.is_config_available():
-            raise openportal.OpenPortalError(
+        if not config.is_config_available():
+            raise exceptions.OpenPortalError(
                 "OpenPortal is not enabled or configuration is not available"
             )
 
         try:
             health = openportal.health()
         except Exception as e:
-            raise openportal.OpenPortalError(f"Failed to get OpenPortal health: {e}")
+            raise exceptions.OpenPortalError(f"Failed to get OpenPortal health: {e}")
 
         if not health.is_healthy():
             logger.error(f"OpenPortal is not healthy: {health}")
-            raise openportal.OpenPortalError(f"OpenPortal is not healthy: {health}")
+            raise exceptions.OpenPortalError(f"OpenPortal is not healthy: {health}")
 
     def get(self, uid: str) -> openportal.Job:
         """
         Return the OpenPortal job with the specified UID
         """
-        if not openportal.is_config_available():
-            raise openportal.OpenPortalError(
+        if not config.is_config_available():
+            raise exceptions.OpenPortalError(
                 f"OpenPortal is not enabled or configuration is not available - cannot get job with UID '{uid}'"
             )
 
         try:
             job = openportal.get(str(uid))
         except Exception as e:
-            raise openportal.OpenPortalError(f"Failed to get job with UID '{uid}': {e}")
+            raise exceptions.OpenPortalError(f"Failed to get job with UID '{uid}': {e}")
 
         return job
 
@@ -66,15 +68,15 @@ class OpenPortalRunner:
         job that was created. Raises an OpenPortalError if anything
         goes wrong
         """
-        if not openportal.is_config_available():
-            raise openportal.OpenPortalError(
+        if not config.is_config_available():
+            raise exceptions.OpenPortalError(
                 f"OpenPortal is not enabled or configuration is not available - cannot run '{command}'"
             )
 
         try:
             job = openportal.run(command, 100)
         except Exception as e:
-            raise openportal.OpenPortalError(f"Failed to run '{command}': {e}")
+            raise exceptions.OpenPortalError(f"Failed to run '{command}': {e}")
 
         return job
 
@@ -87,7 +89,7 @@ class OpenPortalClient:
 
     def __init__(self, instance_name):
         if instance_name is None:
-            raise openportal.OpenPortalError("Instance name cannot be None")
+            raise exceptions.OpenPortalError("Instance name cannot be None")
 
         self._runner = OpenPortalRunner()
         self._destination = openportal.Destination(instance_name)
@@ -149,7 +151,7 @@ class OpenPortalClient:
             logger.error(
                 f"Failed to get portal name from destination {self._destination}: {e}"
             )
-            raise openportal.OpenPortalError(
+            raise exceptions.OpenPortalError(
                 f"Failed to get portal name from destination {self._destination}: {e}"
             )
 
@@ -166,7 +168,7 @@ class OpenPortalClient:
         project = self._to_project_identifier(project)
 
         if (not shortname) or (not shortname.strip()):
-            raise openportal.OpenPortalError(f"Invalid empty username '{shortname}'")
+            raise exceptions.OpenPortalError(f"Invalid empty username '{shortname}'")
 
         user = openportal.UserIdentifier(f"{shortname}.{project}")
 
@@ -296,11 +298,11 @@ class OpenPortalClient:
         # Give the job another 100ms to finish...
         if not op_job.wait(100):
             logger.error(f"Job {command} timed out - skipping!")
-            raise openportal.OpenPortalError(f"Job '{command}' timed out - skipping!")
+            raise exceptions.OpenPortalError(f"Job '{command}' timed out - skipping!")
 
         if op_job.is_error:
             logger.error(f"Job {command} has failed: {op_job.error_message}")
-            raise openportal.OpenPortalError(
+            raise exceptions.OpenPortalError(
                 f"Job '{command}' failed: {op_job.error_message}"
             )
         else:

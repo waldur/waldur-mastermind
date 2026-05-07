@@ -10,7 +10,7 @@ from unittest import mock
 
 from django.test import TestCase, override_settings
 
-from waldur_openportal import op, tasks
+from waldur_openportal import config, exceptions, tasks
 from waldur_openportal.board import OpenPortalBoard
 from waldur_openportal.client import OpenPortalRunner
 
@@ -29,15 +29,15 @@ class OpenPortalIntegrationTest(TestCase):
     def test_disabled_plugin_blocks_all_operations(self):
         """Test that when ENABLED=False, all OpenPortal operations are blocked"""
         # Configuration functions return False
-        self.assertFalse(op.is_config_available())
-        self.assertFalse(op.ensure_config_loaded())
+        self.assertFalse(config.is_config_available())
+        self.assertFalse(config.ensure_config_loaded())
 
         # Client and board raise appropriate errors
-        with self.assertRaises(op.OpenPortalError) as cm:
+        with self.assertRaises(exceptions.OpenPortalError) as cm:
             OpenPortalRunner()
         self.assertIn("not enabled", str(cm.exception))
 
-        with self.assertRaises(op.OpenPortalError) as cm:
+        with self.assertRaises(exceptions.OpenPortalError) as cm:
             OpenPortalBoard()
         self.assertIn("not enabled", str(cm.exception))
 
@@ -45,21 +45,21 @@ class OpenPortalIntegrationTest(TestCase):
     def test_enabled_plugin_without_config_fails_gracefully(self):
         """Test that when ENABLED=True but no config file, operations fail gracefully"""
         # Configuration functions detect missing config
-        self.assertFalse(op.is_config_available())
-        self.assertFalse(op.ensure_config_loaded())
+        self.assertFalse(config.is_config_available())
+        self.assertFalse(config.ensure_config_loaded())
 
         # Client and board fail with clear messages
-        with self.assertRaises(op.OpenPortalError) as cm:
+        with self.assertRaises(exceptions.OpenPortalError) as cm:
             OpenPortalRunner()
         self.assertIn("not available", str(cm.exception))
 
-        with self.assertRaises(op.OpenPortalError) as cm:
+        with self.assertRaises(exceptions.OpenPortalError) as cm:
             OpenPortalBoard()
         self.assertIn("not available", str(cm.exception))
 
     @override_settings(WALDUR_OPENPORTAL={"ENABLED": True})
-    @mock.patch("waldur_openportal.op.load_config")
-    @mock.patch("waldur_openportal.op.is_config_loaded")
+    @mock.patch("waldur_openportal.config.load_config")
+    @mock.patch("waldur_openportal.config.is_config_loaded")
     def test_enabled_plugin_with_config_succeeds(self, mock_is_loaded, mock_load):
         """Test that when ENABLED=True and config available, operations succeed"""
         mock_is_loaded.return_value = False  # Need to load
@@ -68,8 +68,8 @@ class OpenPortalIntegrationTest(TestCase):
         os.environ["OPENPORTAL_CONFIG"] = "/path/to/config.json"
 
         # Configuration functions work
-        self.assertTrue(op.is_config_available())
-        self.assertTrue(op.ensure_config_loaded())
+        self.assertTrue(config.is_config_available())
+        self.assertTrue(config.ensure_config_loaded())
 
         # Client and board can be created
         runner = OpenPortalRunner()
@@ -82,19 +82,19 @@ class OpenPortalIntegrationTest(TestCase):
         mock_load.assert_called_with("/path/to/config.json")
 
     @override_settings(WALDUR_OPENPORTAL={"ENABLED": True})
-    @mock.patch("waldur_openportal.op.is_config_loaded")
+    @mock.patch("waldur_openportal.config.is_config_loaded")
     def test_already_loaded_config_skips_reload(self, mock_is_loaded):
         """Test that already loaded config doesn't trigger reload"""
         mock_is_loaded.return_value = True  # Already loaded
 
         os.environ["OPENPORTAL_CONFIG"] = "/path/to/config.json"
 
-        self.assertTrue(op.is_config_available())
-        self.assertTrue(op.ensure_config_loaded())
+        self.assertTrue(config.is_config_available())
+        self.assertTrue(config.ensure_config_loaded())
 
         # No load_config should be called since already loaded
-        with mock.patch("waldur_openportal.op.load_config") as mock_load:
-            op.ensure_config_loaded()
+        with mock.patch("waldur_openportal.config.load_config") as mock_load:
+            config.ensure_config_loaded()
             mock_load.assert_not_called()
 
 
@@ -118,8 +118,8 @@ class TaskIntegrationTest(TestCase):
     @mock.patch("waldur_openportal.tasks.openportal.sync_offerings")
     @mock.patch("waldur_openportal.tasks.openportal.get_portal")
     @mock.patch("waldur_openportal.tasks.models.ProjectTemplate.objects.all")
-    @mock.patch("waldur_openportal.tasks.openportal.is_config_loaded")
-    @mock.patch("waldur_openportal.tasks.openportal.load_config")
+    @mock.patch("waldur_openportal.tasks.openportal_config.is_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.load_config")
     def test_tasks_proceed_when_enabled_with_config(
         self, mock_load, mock_is_loaded, mock_templates, mock_portal, mock_sync
     ):
@@ -143,8 +143,8 @@ class ErrorHandlingTest(TestCase):
     """Test error handling improvements"""
 
     @override_settings(WALDUR_OPENPORTAL={"ENABLED": True})
-    @mock.patch("waldur_openportal.op.load_config")
-    @mock.patch("waldur_openportal.op.is_config_loaded")
+    @mock.patch("waldur_openportal.config.load_config")
+    @mock.patch("waldur_openportal.config.is_config_loaded")
     def test_config_load_failure_handled_gracefully(self, mock_is_loaded, mock_load):
         """Test that config load failures are handled gracefully"""
         mock_is_loaded.return_value = False
@@ -153,20 +153,20 @@ class ErrorHandlingTest(TestCase):
         os.environ["OPENPORTAL_CONFIG"] = "/bad/config.json"
 
         # Should not crash, just return False
-        self.assertFalse(op.ensure_config_loaded())
+        self.assertFalse(config.ensure_config_loaded())
 
         # Operations should fail with clear messages
-        with self.assertRaises(op.OpenPortalError) as cm:
+        with self.assertRaises(exceptions.OpenPortalError) as cm:
             OpenPortalRunner()
         self.assertIn("not available", str(cm.exception))
 
     def test_missing_enabled_setting_defaults_to_false(self):
         """Test that missing ENABLED setting defaults to False"""
         with override_settings(WALDUR_OPENPORTAL={}):
-            self.assertFalse(op.is_config_available())
-            self.assertFalse(op.ensure_config_loaded())
+            self.assertFalse(config.is_config_available())
+            self.assertFalse(config.ensure_config_loaded())
 
         # Should behave as disabled
         with override_settings(WALDUR_OPENPORTAL={}):
-            with self.assertRaises(op.OpenPortalError):
+            with self.assertRaises(exceptions.OpenPortalError):
                 OpenPortalRunner()
