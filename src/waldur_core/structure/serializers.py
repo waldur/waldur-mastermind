@@ -214,7 +214,10 @@ class ProjectTypeSerializer(serializers.HyperlinkedModelSerializer):
         }
 
 
-class AffiliatedOrganizationSerializer(serializers.HyperlinkedModelSerializer):
+class AffiliatedOrganizationSerializer(
+    core_serializers.RestrictedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
     projects_count = serializers.SerializerMethodField(
         help_text="Number of active projects affiliated with this organization"
     )
