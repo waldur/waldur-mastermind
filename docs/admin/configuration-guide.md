@@ -1346,6 +1346,12 @@ Enable mock returns for the course account service
 
 If true, project end date field becomes mandatory when creating or updating projects.
 
+#### AFFILIATION_REQUIRED_AT_PROJECT_CREATION
+
+**Type:** bool
+
+If true, the affiliation field is required when creating or updating projects.
+
 ### Telemetry
 
 #### TELEMETRY_URL

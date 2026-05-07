@@ -61,6 +61,7 @@ classDiagram
         +int grace_period_days
         +string project_slug_template
         +OrganizationGroup organization_groups
+        +AffiliatedOrganization default_affiliations
     }
     class ProjectType {
         +int id [PK]
@@ -98,8 +99,8 @@ classDiagram
         +JSONField termination_metadata
         +string staff_notes
         +int grace_period_days
+        +AffiliatedOrganization affiliation [FK]
         +ScienceSubDomain science_sub_domain [FK]
-        +AffiliatedOrganization affiliated_organizations
     }
     Customer "*" -- "*" OrganizationGroup : organization_groups
     OrganizationGroup "*" -- "1" OrganizationGroup : parent
