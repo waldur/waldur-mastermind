@@ -3850,9 +3850,12 @@ class OpenStackBackend(ServiceBackend):
         )
 
     def _backend_server_group_to_server_group(self, backend_server_group, **kwargs):
+        # Nova microversion 2.64 replaced the `policies` list with a single
+        # `policy` string on server-group responses; we pin to 2.87 in
+        # get_nova_client, so only `policy` is present.
         server_group = models.ServerGroup(
             name=backend_server_group.name,
-            policy=backend_server_group.policies[0],
+            policy=backend_server_group.policy,
             backend_id=backend_server_group.id,
             state=CoreStates.OK,
         )

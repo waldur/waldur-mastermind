@@ -913,9 +913,9 @@ class PullServerGroupsTest(BaseBackendTestCase):
         return self.backend.pull_tenant_server_groups(self.fixture.tenant)
 
     def test_missing_server_groups_are_created(self):
-        mock_server_group = mock.Mock()
+        mock_server_group = mock.Mock(spec=["name", "policy", "id", "project_id"])
         mock_server_group.name = "mock_server_group"
-        mock_server_group.policies = ["affinity"]
+        mock_server_group.policy = "affinity"
         mock_server_group.id = self.tenant.backend_id
         mock_server_group.project_id = self.tenant.backend_id
 
@@ -946,9 +946,11 @@ class PullServerGroupsTest(BaseBackendTestCase):
         models.ServerGroup.SOFT_ANTI_AFFINITY,
     )
     def test_server_group_policy_is_imported_correctly(self, policy):
-        mock_server_group = mock.Mock()
+        # Regression: Nova microversion 2.64+ returns `policy` (singular string)
+        # instead of `policies` (list). Reading `policies` raises AttributeError.
+        mock_server_group = mock.Mock(spec=["name", "policy", "id", "project_id"])
         mock_server_group.name = f"sg-{policy}"
-        mock_server_group.policies = [policy]
+        mock_server_group.policy = policy
         mock_server_group.id = "backend-sg-id"
         mock_server_group.project_id = self.tenant.backend_id
 
