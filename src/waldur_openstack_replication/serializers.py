@@ -31,7 +31,6 @@ from waldur_openstack.models import (
 )
 from waldur_openstack.serializers import (
     _generate_subnet_allocation_pool,
-    can_create_tenant,
     validate_private_subnet_cidr,
 )
 from waldur_openstack.utils import (
@@ -182,7 +181,6 @@ class MigrationCreateSerializer(serializers.ModelSerializer):
             validate_plan(dst_plan)
 
         user = self.context["request"].user
-        can_create_tenant(user, dst_project)
         order = Order(
             project=dst_project,
             offering=dst_offering,

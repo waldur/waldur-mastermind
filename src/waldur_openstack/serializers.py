@@ -1211,16 +1211,6 @@ def validate_private_subnet_cidr(value):
     return validate_private_cidr(value, 24)
 
 
-def can_create_tenant(
-    user: core_models.User,
-    project: structure_models.Project,
-):
-    if not structure_permissions._has_admin_access(user, project):
-        raise serializers.ValidationError(
-            _("You do not have permissions to create tenant.")
-        )
-
-
 class OpenStackTenantSecurityGroupSerializer(serializers.Serializer):
     name = serializers.CharField()
     description = serializers.CharField(required=False, allow_blank=True)
@@ -1412,11 +1402,6 @@ class OpenStackTenantSerializer(structure_serializers.BaseResourceSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
-
-        if not self.instance:
-            user = self.context["request"].user
-            project = attrs["project"]
-            can_create_tenant(user, project)
 
         self.validate_security_groups_configuration(attrs)
 

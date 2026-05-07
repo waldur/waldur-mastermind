@@ -25,7 +25,7 @@ class MarketplaceTenantCreateTest(test.APITestCase):
             "name": "test_tenant",
         }
 
-    @data("staff", "owner", "admin")
+    @data("staff", "owner", "admin", "manager", "member")
     def test_user_can_create_tenant(self, user):
         response = common_utils.create_request(
             self.view, getattr(self.fixture, user), self.get_valid_payload()
