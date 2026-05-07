@@ -5139,9 +5139,8 @@ class ProviderOfferingViewSet(
             models.OfferingTermsOfService.objects.create(
                 offering=offering,
                 terms_of_service=terms_config_data.get("terms_of_service", ""),
-                terms_of_service_link=terms_config_data.get(
-                    "terms_of_service_link", ""
-                ),
+                terms_of_service_link=terms_config_data.get("terms_of_service_link", "")
+                or "",
                 version=terms_config_data.get("version", ""),
                 is_active=terms_config_data.get("is_active", False),
                 requires_reconsent=terms_config_data.get("requires_reconsent", False),

@@ -384,6 +384,43 @@ class OfferingExportImportTestCase(test.APITestCase):
         # Always DRAFT state regardless of input data
         self.assertEqual(offering.state, models.Offering.States.DRAFT)
 
+    def test_import_offering_terms_of_service_link_null_is_coerced_to_blank(self):
+        """Handle case where `terms_of_service_link:` is null in YAML data."""
+        self.client.force_authenticate(self.user)
+
+        import_data = {
+            "offering": {"name": "ToS Link Null Test"},
+            "terms_of_service": [
+                {
+                    "terms_of_service": "# Sample Terms\n\nThis is the sample ...",
+                    "terms_of_service_link": None,
+                    "version": "1.0",
+                    "is_active": True,
+                    "requires_reconsent": False,
+                    "grace_period_days": 60,
+                }
+            ],
+        }
+
+        yaml_data = yaml.safe_dump(import_data)
+
+        url = reverse("marketplace-provider-offering-import-offering")
+        response = self.client.post(
+            url,
+            {
+                "customer": self.customer.uuid.hex,
+                "category": self.category.title,
+                "import_terms_of_service": True,
+                "offering_data": yaml_data,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        offering = models.Offering.objects.get(name="ToS Link Null Test")
+        tos = offering.terms_of_service_configs.get()
+        self.assertEqual(tos.terms_of_service_link, "")
+
     def test_import_offering_with_invalid_yaml(self):
         """Test import fails with invalid YAML data."""
         self.client.force_authenticate(self.user)
