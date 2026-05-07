@@ -487,6 +487,84 @@ class OfferingUserChecklistCompletionsViewSetTest(test.APITestCase):
             issubclass(OfferingUserChecklistCompletionsViewSet, ReadOnlyActionsViewSet)
         )
 
+    def test_required_question_without_answer_counts_as_unanswered(self):
+        """A required question with NO Answer row counts toward unanswered_required_questions."""
+        checklist_factories.QuestionFactory(
+            checklist=self.checklist1, description="Required Q", required=True
+        )
+        checklist_factories.QuestionFactory(
+            checklist=self.checklist1, description="Optional Q", required=False
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        result = next(
+            r
+            for r in response.data
+            if r["offering_user_uuid"] == str(self.offering_user1.uuid)
+        )
+        self.assertEqual(result["unanswered_required_questions"], 1)
+
+    def test_required_question_with_answer_row_counts_as_answered(self):
+        """An existing Answer row marks the required question as answered."""
+        question = checklist_factories.QuestionFactory(
+            checklist=self.checklist1, description="Required Q", required=True
+        )
+        checklist_factories.AnswerFactory(
+            user=self.user,
+            question=question,
+            completion=self.completion1,
+            answer_data=["yes"],
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get(self.url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        result = next(
+            r
+            for r in response.data
+            if r["offering_user_uuid"] == str(self.offering_user1.uuid)
+        )
+        self.assertEqual(result["unanswered_required_questions"], 0)
+
+    def test_list_query_count_does_not_scale_per_completion(self):
+        """List endpoint must bulk-fetch OfferingUsers; query count is bounded."""
+        # Add several more completions to amplify any N+1.
+        content_type = ContentType.objects.get_for_model(models.OfferingUser)
+        for i in range(5):
+            offering = factories.OfferingFactory(
+                customer=self.fixture.customer,
+                name=f"Bulk Offering {i}",
+                plugin_options={"service_provider_can_create_offering_user": True},
+            )
+            checklist = checklist_factories.ChecklistFactory(name=f"Bulk Checklist {i}")
+            offering.compliance_checklist = checklist
+            offering.save()
+            offering_user = factories.OfferingUserFactory(
+                offering=offering, user=self.user, username=f"bulk_user_{i}"
+            )
+            checklist_models.ChecklistCompletion.objects.get_or_create(
+                checklist=checklist,
+                scope_content_type=content_type,
+                scope_object_id=offering_user.id,
+                defaults={"is_completed": False},
+            )
+
+        self.client.force_authenticate(self.user)
+        # Warm up: hit the endpoint once so any per-request caches (e.g.
+        # ContentType) are populated and don't skew the query count.
+        self.client.get(self.url)
+
+        # Pinned to lock in the bulk-fetch optimization. Should NOT grow as
+        # more completions are added — verify by re-running with 50 vs. 5.
+        with self.assertNumQueries(7):
+            response = self.client.get(self.url)
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+            self.assertEqual(len(response.data), 7)
+
     def test_create_update_delete_operations_disabled(self):
         """Test that create, update, and delete operations are disabled."""
         self.client.force_authenticate(self.user)

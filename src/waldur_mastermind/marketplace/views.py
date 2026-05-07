@@ -10081,56 +10081,41 @@ class OfferingUserChecklistCompletionsViewSet(core_views.ReadOnlyActionsViewSet)
             self.request.user, include_consent_filtering=True, action="list"
         )
 
-        # Optimize queryset with proper joins and prefetching
+        # Use SubqueryCount per metric to avoid the Cartesian product that
+        # plain Count(distinct=True) over multiple multi-valued joins
+        # (answers + checklist__questions) produces.
+        answers_qs = checklist_models.Answer.objects.filter(completion=OuterRef("pk"))
+        required_questions_qs = checklist_models.Question.objects.filter(
+            checklist=OuterRef("checklist_id"), required=True
+        )
+
         queryset = (
             checklist_models.ChecklistCompletion.objects.filter(
                 scope_content_type=content_type,
-                # Use subquery instead of values_list to avoid evaluation
                 scope_object_id__in=Subquery(allowed_offering_users.values("id")),
             )
             .select_related("checklist")
-            .prefetch_related("answers", "answers__question")
+            .annotate(
+                total_answers=SubqueryCount(answers_qs),
+                answered_answers=SubqueryCount(
+                    answers_qs.filter(answer_data__isnull=False)
+                ),
+                total_required_questions=SubqueryCount(required_questions_qs),
+                total_required_answers=SubqueryCount(
+                    answers_qs.filter(
+                        question__required=True, answer_data__isnull=False
+                    )
+                ),
+            )
+            .annotate(
+                unanswered_required_questions=ExpressionWrapper(
+                    F("total_required_questions") - F("total_required_answers"),
+                    output_field=IntegerField(),
+                )
+            )
         )
 
-        return queryset
-
-    def list(self, request, *args, **kwargs):
-        """Override list to add OfferingUser data optimization."""
-        queryset = self.filter_queryset(self.get_queryset())
-
-        # Optimize by prefetching OfferingUser data in bulk
-        self._attach_offering_user_data(queryset)
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-
-    def _attach_offering_user_data(self, queryset):
-        """Attach OfferingUser data to completion instances to avoid N+1 queries."""
-        # Get all scope_object_ids from the queryset
-        completion_list = list(queryset)
-        scope_object_ids = [c.scope_object_id for c in completion_list]
-
-        if not scope_object_ids:
-            return
-
-        # Fetch all OfferingUsers with their offerings in one optimized query
-        offering_users_map = {
-            ou.id: ou
-            for ou in models.OfferingUser.objects.filter(
-                id__in=scope_object_ids
-            ).select_related("offering", "user")
-        }
-
-        # Attach the OfferingUser data to each completion instance
-        for completion in completion_list:
-            completion._offering_user_cache = offering_users_map.get(
-                completion.scope_object_id
-            )
+        return queryset.order_by("-modified")
 
 
 class OfferingUserGroupViewSet(core_views.ActionsViewSet):
