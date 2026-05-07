@@ -455,24 +455,24 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
         label="Filter projects where the given user has a role.",
     )
 
-    affiliated_organization_uuid = core_filters.ModelMultipleChoiceFilter(
-        field_name="affiliated_organizations__uuid",
-        label="Affiliated organization UUID",
+    affiliation_uuid = core_filters.ModelMultipleChoiceFilter(
+        field_name="affiliation__uuid",
+        label="Affiliation UUID",
         to_field_name="uuid",
         queryset=models.AffiliatedOrganization.objects.all(),
         view_name="affiliated-organization-detail",
     )
 
-    affiliated_organization_name = django_filters.CharFilter(
-        field_name="affiliated_organizations__name",
+    affiliation_name = django_filters.CharFilter(
+        field_name="affiliation__name",
         lookup_expr="icontains",
-        label="Affiliated organization name",
+        label="Affiliation name",
     )
 
-    has_affiliated_organization = django_filters.BooleanFilter(
+    has_affiliation = django_filters.BooleanFilter(
         widget=BooleanWidget,
-        method="filter_has_affiliated_organization",
-        label="Filter projects that have at least one affiliated organization.",
+        method="filter_has_affiliation",
+        label="Filter projects that have an affiliation.",
     )
 
     science_domain_uuid = core_filters.RelatedUUIDFilter(
@@ -571,10 +571,10 @@ class ProjectFilter(core_filters.CreatedModifiedFilter, NameFilterSet):
             return queryset.exclude(end_date__lt=timezone.now())
         return queryset
 
-    def filter_has_affiliated_organization(self, queryset, name, value):
+    def filter_has_affiliation(self, queryset, name, value):
         if value:
-            return queryset.filter(affiliated_organizations__isnull=False).distinct()
-        return queryset.filter(affiliated_organizations__isnull=True)
+            return queryset.filter(affiliation__isnull=False)
+        return queryset.filter(affiliation__isnull=True)
 
 
 def filter_visible_users(queryset, user, extra=None):
@@ -1124,6 +1124,11 @@ class AffiliatedOrganizationFilter(NameFilterSet):
         lookup_expr="icontains", label="Abbreviation"
     )
     country = django_filters.CharFilter(lookup_expr="exact", label="Country")
+    default_for_customer = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        field_name="default_for_customers__uuid",
+        label="Limit to a customer's default affiliation list",
+    )
 
     class Meta:
         model = models.AffiliatedOrganization
@@ -1133,6 +1138,7 @@ class AffiliatedOrganizationFilter(NameFilterSet):
             "code",
             "abbreviation",
             "country",
+            "default_for_customer",
         ]
 
     def filter_query(self, queryset, name, value):

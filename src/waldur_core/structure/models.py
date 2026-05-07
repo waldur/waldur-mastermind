@@ -294,11 +294,11 @@ class AffiliatedOrganization(
     TimeStampedModel,
 ):
     """
-    External organization that projects can be affiliated with.
+    External organization (affiliation) that a project can be tied to.
 
-    Provides a flat registry of organizations (separate from Customer)
-    for cross-project reporting and filtering by organizational affiliation.
-    Staff-managed; any authenticated user can read.
+    Flat registry separate from Customer. Each project can be affiliated with
+    at most one entry. Staff manages the registry; per-Customer staff selects
+    which affiliations are surfaced as defaults to project creators.
     """
 
     code = models.CharField(
@@ -313,7 +313,8 @@ class AffiliatedOrganization(
     address = models.CharField(max_length=300, blank=True)
 
     class Meta:
-        verbose_name = _("affiliated organization")
+        verbose_name = _("affiliation")
+        verbose_name_plural = _("affiliations")
         ordering = ("name",)
 
     @classmethod
@@ -696,6 +697,15 @@ class Customer(
             "Default: slugified project name"
         ),
     )
+    default_affiliations = models.ManyToManyField(
+        to=AffiliatedOrganization,
+        related_name="default_for_customers",
+        blank=True,
+        help_text=_(
+            "Affiliations offered to project creators of this organization. "
+            "Staff users can select any affiliation; non-staff are limited to this list."
+        ),
+    )
     tracker = cast(
         FieldInstanceTracker, FieldTracker(fields=["project_metadata_checklist"])
     )
@@ -1010,10 +1020,12 @@ class Project(
             "Number of extra days after project end date before resources are terminated. Overrides customer-level setting."
         ),
     )
-    affiliated_organizations = models.ManyToManyField(
-        to=AffiliatedOrganization,
+    affiliation = models.ForeignKey(
+        AffiliatedOrganization,
         related_name="projects",
+        null=True,
         blank=True,
+        on_delete=models.PROTECT,
     )
     science_sub_domain = models.ForeignKey(
         ScienceSubDomain,
