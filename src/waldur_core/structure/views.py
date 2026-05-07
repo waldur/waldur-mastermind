@@ -508,6 +508,32 @@ class CustomerViewSet(
         result = render_project_preview(project, customer)
         return Response(result)
 
+    @extend_schema(
+        summary="Update default affiliations for an organization",
+        description=(
+            "Replaces the organization's default affiliation list. "
+            "Project creators in the organization will be limited to choosing "
+            "from this list when affiliating a project. Staff-only."
+        ),
+        request=serializers.CustomerDefaultAffiliationsUpdateSerializer,
+        responses={200: None},
+    )
+    @action(detail=True, methods=["post"])
+    def update_default_affiliations(self, request, uuid=None):
+        if not request.user.is_staff:
+            raise PermissionDenied()
+        customer = self.get_object()
+        serializer = serializers.CustomerDefaultAffiliationsUpdateSerializer(
+            instance=customer, data=request.data, context={"request": request}
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(status=status.HTTP_200_OK)
+
+    update_default_affiliations_serializer_class = (
+        serializers.CustomerDefaultAffiliationsUpdateSerializer
+    )
+
 
 @extend_schema(
     summary="List users of a customer",
@@ -842,25 +868,35 @@ class ProjectViewSet(
     move_project_permissions = [permissions.can_move_project]
 
     @extend_schema(
-        summary="Update affiliated organizations for a project",
-        description="Assigns a project to one or more affiliated organizations. Replaces the current set.",
-        request=serializers.ProjectAffiliatedOrganizationsUpdateSerializer,
+        summary="Update affiliation for a project",
+        description="Assigns the project to a single affiliation (or clears it when null).",
+        request=serializers.ProjectAffiliationUpdateSerializer,
         responses={200: None},
     )
     @action(detail=True, methods=["post"])
-    def update_affiliated_organizations(self, request, uuid=None):
+    def update_affiliation(self, request, uuid=None):
         project = self.get_object()
-        serializer = serializers.ProjectAffiliatedOrganizationsUpdateSerializer(
+        serializer = serializers.ProjectAffiliationUpdateSerializer(
             instance=project, data=request.data, context={"request": request}
         )
         serializer.is_valid(raise_exception=True)
+        affiliation = serializer.validated_data.get("affiliation")
+        if affiliation is not None and not request.user.is_staff:
+            if not project.customer.default_affiliations.filter(
+                pk=affiliation.pk
+            ).exists():
+                raise rf_serializers.ValidationError(
+                    {
+                        "affiliation": _(
+                            "Selected affiliation is not in this organization's default list."
+                        )
+                    }
+                )
         serializer.save()
         return Response(status=status.HTTP_200_OK)
 
-    update_affiliated_organizations_serializer_class = (
-        serializers.ProjectAffiliatedOrganizationsUpdateSerializer
-    )
-    update_affiliated_organizations_permissions = [
+    update_affiliation_serializer_class = serializers.ProjectAffiliationUpdateSerializer
+    update_affiliation_permissions = [
         permission_factory(PermissionEnum.UPDATE_PROJECT, ["*", "customer"])
     ]
 
@@ -2290,6 +2326,19 @@ class AffiliatedOrganizationViewSet(core_views.ActionsViewSet):
     permission_classes = (core_permissions.IsAdminOrReadOnly,)
     ordering_fields = ("name", "projects_count", "created")
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if not user.is_authenticated:
+            return qs.none()
+        if user.is_staff or user.is_support:
+            return qs
+        # Non-staff: only affiliations approved for at least one customer the
+        # user has a role in. The optional ?default_for_customer filter
+        # narrows further within this scope.
+        user_customers = get_connected_customers(user=user)
+        return qs.filter(default_for_customers__in=user_customers).distinct()
+
     @extend_schema(
         summary="Get affiliated organization statistics",
         responses={200: AffiliatedOrganizationStatsSerializer},
@@ -2357,7 +2406,7 @@ class AffiliatedOrganizationViewSet(core_views.ActionsViewSet):
 
         # Unaffiliated row
         unaffiliated_projects = models.Project.available_objects.filter(
-            affiliated_organizations__isnull=True
+            affiliation__isnull=True
         )
         unaffiliated_resources = marketplace_models.Resource.objects.filter(
             project__in=unaffiliated_projects,

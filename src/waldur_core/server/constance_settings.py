@@ -447,6 +447,10 @@ CONSTANCE_CONFIG = {
         False,
         "If true, project end date field becomes mandatory when creating or updating projects.",
     ),
+    "AFFILIATION_REQUIRED_AT_PROJECT_CREATION": (
+        False,
+        "If true, the affiliation field is required when creating or updating projects.",
+    ),
     "ENABLE_ORDER_START_DATE": (
         False,
         "Allow setting start date to control when resource creation order is processed.",
@@ -1448,7 +1452,10 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ENABLE_MOCK_SERVICE_ACCOUNT_BACKEND",
         "ENABLE_MOCK_COURSE_ACCOUNT_BACKEND",
     ),
-    "Project": ("PROJECT_END_DATE_MANDATORY",),
+    "Project": (
+        "PROJECT_END_DATE_MANDATORY",
+        "AFFILIATION_REQUIRED_AT_PROJECT_CREATION",
+    ),
     "Telemetry": (
         "TELEMETRY_URL",
         "TELEMETRY_VERSION",

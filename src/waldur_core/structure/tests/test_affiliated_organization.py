@@ -1,3 +1,4 @@
+from constance.test import override_config
 from ddt import data, ddt
 from rest_framework import status, test
 
@@ -19,14 +20,33 @@ class AffiliatedOrganizationListTest(test.APITestCase):
         )
         self.url = factories.AffiliatedOrganizationFactory.get_list_url()
 
-    @data("staff", "user", None)
-    def test_user_can_list_affiliated_organizations(self, user):
-        if user:
-            self.client.force_authenticate(user=getattr(self.fixture, user))
-
+    def test_staff_sees_full_registry(self):
+        self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.get(self.url)
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(len(response.data), 2)
+
+    def test_non_staff_sees_only_affiliations_approved_for_their_customers(self):
+        # User with a role in a customer that has org1 (but not org2) in its
+        # default_affiliations should see only org1.
+        project_fixture = fixtures.ProjectFixture()
+        project_fixture.customer.default_affiliations.add(self.org1)
+        self.client.force_authenticate(user=project_fixture.owner)
+        response = self.client.get(self.url)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        uuids = {item["uuid"] for item in response.data}
+        self.assertEqual(uuids, {self.org1.uuid.hex})
+
+    def test_non_staff_without_customer_role_sees_nothing(self):
+        self.client.force_authenticate(user=self.fixture.user)
+        response = self.client.get(self.url)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(len(response.data), 0)
+
+    def test_anonymous_sees_nothing(self):
+        response = self.client.get(self.url)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(len(response.data), 0)
 
     def test_filter_by_name(self):
         self.client.force_authenticate(user=self.fixture.staff)
@@ -49,10 +69,23 @@ class AffiliatedOrganizationListTest(test.APITestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], self.org1.uuid.hex)
 
+    def test_filter_default_for_customer(self):
+        customer_fixture = fixtures.CustomerFixture()
+        customer_fixture.customer.default_affiliations.add(self.org1)
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(
+            self.url,
+            data={"default_for_customer": customer_fixture.customer.uuid.hex},
+        )
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["uuid"], self.org1.uuid.hex)
+
     def test_projects_count_is_returned(self):
         self.client.force_authenticate(user=self.fixture.staff)
         project_fixture = fixtures.ProjectFixture()
-        project_fixture.project.affiliated_organizations.add(self.org1)
+        project_fixture.project.affiliation = self.org1
+        project_fixture.project.save()
         response = self.client.get(self.url)
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         org1_data = next(
@@ -115,85 +148,193 @@ class AffiliatedOrganizationCRUDTest(test.APITestCase):
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
 
 
-class AffiliatedOrganizationAssignmentTest(test.APITestCase):
+class ProjectAffiliationAssignmentTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_PROJECT)
         self.org1 = factories.AffiliatedOrganizationFactory()
         self.org2 = factories.AffiliatedOrganizationFactory()
+        self.fixture.customer.default_affiliations.add(self.org1, self.org2)
         self.url = factories.ProjectFactory.get_url(
-            self.fixture.project, action="update_affiliated_organizations"
+            self.fixture.project, action="update_affiliation"
         )
 
-    def test_owner_can_assign_affiliated_organizations(self):
+    def test_owner_can_assign_affiliation_from_default_list(self):
         self.client.force_authenticate(user=self.fixture.owner)
-        response = self.client.post(
-            self.url,
-            {"affiliated_organizations": [self.org1.uuid.hex, self.org2.uuid.hex]},
-        )
+        response = self.client.post(self.url, {"affiliation": self.org1.uuid.hex})
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.fixture.project.refresh_from_db()
-        self.assertIn(self.org1, self.fixture.project.affiliated_organizations.all())
-        self.assertIn(self.org2, self.fixture.project.affiliated_organizations.all())
+        self.assertEqual(self.fixture.project.affiliation, self.org1)
 
-    def test_assignment_clears_previous(self):
+    def test_owner_cannot_assign_affiliation_outside_default_list(self):
+        outside_org = factories.AffiliatedOrganizationFactory()
         self.client.force_authenticate(user=self.fixture.owner)
-        self.fixture.project.affiliated_organizations.add(self.org1)
-        response = self.client.post(
-            self.url,
-            {"affiliated_organizations": [self.org2.uuid.hex]},
-        )
+        response = self.client.post(self.url, {"affiliation": outside_org.uuid.hex})
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+
+    def test_staff_can_assign_any_affiliation(self):
+        outside_org = factories.AffiliatedOrganizationFactory()
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.post(self.url, {"affiliation": outside_org.uuid.hex})
         self.assertEqual(status.HTTP_200_OK, response.status_code)
-        orgs = list(self.fixture.project.affiliated_organizations.all())
-        self.assertEqual(orgs, [self.org2])
+        self.fixture.project.refresh_from_db()
+        self.assertEqual(self.fixture.project.affiliation, outside_org)
+
+    def test_assignment_replaces_previous(self):
+        self.client.force_authenticate(user=self.fixture.owner)
+        self.fixture.project.affiliation = self.org1
+        self.fixture.project.save()
+        response = self.client.post(self.url, {"affiliation": self.org2.uuid.hex})
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.fixture.project.refresh_from_db()
+        self.assertEqual(self.fixture.project.affiliation, self.org2)
+
+    def test_owner_can_clear_affiliation(self):
+        self.client.force_authenticate(user=self.fixture.owner)
+        self.fixture.project.affiliation = self.org1
+        self.fixture.project.save()
+        response = self.client.post(self.url, {"affiliation": None})
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.fixture.project.refresh_from_db()
+        self.assertIsNone(self.fixture.project.affiliation)
 
     def test_member_cannot_assign(self):
         self.client.force_authenticate(user=self.fixture.member)
+        response = self.client.post(self.url, {"affiliation": self.org1.uuid.hex})
+        self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
+
+
+class CustomerDefaultAffiliationsTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.org1 = factories.AffiliatedOrganizationFactory()
+        self.org2 = factories.AffiliatedOrganizationFactory()
+        self.url = factories.CustomerFactory.get_url(
+            self.fixture.customer, action="update_default_affiliations"
+        )
+
+    def test_staff_can_set_default_affiliations(self):
+        self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.post(
             self.url,
-            {"affiliated_organizations": [self.org1.uuid.hex]},
+            {"default_affiliations": [self.org1.uuid.hex, self.org2.uuid.hex]},
+        )
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.fixture.customer.refresh_from_db()
+        self.assertEqual(
+            set(self.fixture.customer.default_affiliations.all()),
+            {self.org1, self.org2},
+        )
+
+    def test_set_replaces_existing(self):
+        self.fixture.customer.default_affiliations.add(self.org1)
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.post(
+            self.url, {"default_affiliations": [self.org2.uuid.hex]}
+        )
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(
+            list(self.fixture.customer.default_affiliations.all()), [self.org2]
+        )
+
+    def test_owner_cannot_set_default_affiliations(self):
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(
+            self.url, {"default_affiliations": [self.org1.uuid.hex]}
         )
         self.assertEqual(status.HTTP_403_FORBIDDEN, response.status_code)
 
 
-class ProjectAffiliatedOrganizationFilterTest(test.APITestCase):
+class ProjectAffiliationOnCreateTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.CustomerFixture()
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_PROJECT)
+        self.org_in = factories.AffiliatedOrganizationFactory()
+        self.org_out = factories.AffiliatedOrganizationFactory()
+        self.fixture.customer.default_affiliations.add(self.org_in)
+        self.url = factories.ProjectFactory.get_list_url()
+
+    def _payload(self, affiliation_uuid=None):
+        payload = {
+            "name": "Project Foo",
+            "customer": factories.CustomerFactory.get_url(self.fixture.customer),
+        }
+        if affiliation_uuid is not None:
+            payload["affiliation_uuid"] = affiliation_uuid
+        return payload
+
+    def test_owner_can_create_with_affiliation_in_default_list(self):
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(self.url, self._payload(self.org_in.uuid.hex))
+        self.assertEqual(status.HTTP_201_CREATED, response.status_code, response.data)
+        project = models.Project.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(project.affiliation, self.org_in)
+
+    def test_owner_cannot_create_with_affiliation_outside_default_list(self):
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(self.url, self._payload(self.org_out.uuid.hex))
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+
+    def test_staff_can_create_with_any_affiliation(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.post(self.url, self._payload(self.org_out.uuid.hex))
+        self.assertEqual(status.HTTP_201_CREATED, response.status_code, response.data)
+
+    @override_config(AFFILIATION_REQUIRED_AT_PROJECT_CREATION=True)
+    def test_create_fails_when_required_and_missing(self):
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(self.url, self._payload(None))
+        self.assertEqual(status.HTTP_400_BAD_REQUEST, response.status_code)
+        self.assertIn("affiliation_uuid", response.data)
+
+    @override_config(AFFILIATION_REQUIRED_AT_PROJECT_CREATION=True)
+    def test_create_succeeds_when_required_and_provided(self):
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(self.url, self._payload(self.org_in.uuid.hex))
+        self.assertEqual(status.HTTP_201_CREATED, response.status_code, response.data)
+
+    @override_config(AFFILIATION_REQUIRED_AT_PROJECT_CREATION=False)
+    def test_create_succeeds_without_affiliation_when_not_required(self):
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.post(self.url, self._payload(None))
+        self.assertEqual(status.HTTP_201_CREATED, response.status_code, response.data)
+
+
+class ProjectAffiliationFilterTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.org = factories.AffiliatedOrganizationFactory(name="Test Org")
-        self.fixture.project.affiliated_organizations.add(self.org)
+        self.fixture.project.affiliation = self.org
+        self.fixture.project.save()
         self.project2 = factories.ProjectFactory(customer=self.fixture.customer)
         self.url = factories.ProjectFactory.get_list_url()
 
-    def test_filter_by_affiliated_organization_uuid(self):
+    def test_filter_by_affiliation_uuid(self):
         self.client.force_authenticate(user=self.fixture.staff)
         response = self.client.get(
-            self.url, data={"affiliated_organization_uuid": self.org.uuid.hex}
+            self.url, data={"affiliation_uuid": self.org.uuid.hex}
         )
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], self.fixture.project.uuid.hex)
 
-    def test_filter_by_affiliated_organization_name(self):
+    def test_filter_by_affiliation_name(self):
         self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.get(
-            self.url, data={"affiliated_organization_name": "Test"}
-        )
+        response = self.client.get(self.url, data={"affiliation_name": "Test"})
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], self.fixture.project.uuid.hex)
 
-    def test_filter_has_affiliated_organization_true(self):
+    def test_filter_has_affiliation_true(self):
         self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.get(self.url, data={"has_affiliated_organization": True})
+        response = self.client.get(self.url, data={"has_affiliation": True})
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], self.fixture.project.uuid.hex)
 
-    def test_filter_has_affiliated_organization_false(self):
+    def test_filter_has_affiliation_false(self):
         self.client.force_authenticate(user=self.fixture.staff)
-        response = self.client.get(
-            self.url, data={"has_affiliated_organization": False}
-        )
+        response = self.client.get(self.url, data={"has_affiliation": False})
         self.assertEqual(status.HTTP_200_OK, response.status_code)
         uuids = [item["uuid"] for item in response.data]
         self.assertIn(self.project2.uuid.hex, uuids)
@@ -204,7 +345,8 @@ class AffiliatedOrganizationStatsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.org = factories.AffiliatedOrganizationFactory()
-        self.fixture.project.affiliated_organizations.add(self.org)
+        self.fixture.project.affiliation = self.org
+        self.fixture.project.save()
         self.url = factories.AffiliatedOrganizationFactory.get_url(
             self.org, action="stats"
         )
@@ -223,7 +365,8 @@ class AffiliatedOrganizationReportTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.org = factories.AffiliatedOrganizationFactory()
-        self.fixture.project.affiliated_organizations.add(self.org)
+        self.fixture.project.affiliation = self.org
+        self.fixture.project.save()
         self.url = factories.AffiliatedOrganizationFactory.get_list_url() + "report/"
 
     def test_staff_can_access_report(self):

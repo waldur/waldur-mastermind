@@ -250,8 +250,22 @@ class AffiliatedOrganizationSerializer(serializers.HyperlinkedModelSerializer):
             return 0
 
 
-class ProjectAffiliatedOrganizationsUpdateSerializer(serializers.Serializer):
-    affiliated_organizations = serializers.SlugRelatedField(
+class ProjectAffiliationUpdateSerializer(serializers.Serializer):
+    affiliation = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.AffiliatedOrganization.objects.all(),
+        allow_null=True,
+        required=False,
+    )
+
+    def save(self, **kwargs):
+        project = self.instance
+        project.affiliation = self.validated_data.get("affiliation")
+        project.save(update_fields=["affiliation"])
+
+
+class CustomerDefaultAffiliationsUpdateSerializer(serializers.Serializer):
+    default_affiliations = serializers.SlugRelatedField(
         slug_field="uuid",
         queryset=models.AffiliatedOrganization.objects.all(),
         many=True,
@@ -259,11 +273,9 @@ class ProjectAffiliatedOrganizationsUpdateSerializer(serializers.Serializer):
     )
 
     def save(self, **kwargs):
-        project = self.instance
-        orgs = self.validated_data.get("affiliated_organizations", [])
-        project.affiliated_organizations.clear()
-        if orgs:
-            project.affiliated_organizations.add(*orgs)
+        customer = self.instance
+        orgs = self.validated_data.get("default_affiliations", [])
+        customer.default_affiliations.set(orgs)
 
 
 class ScienceDomainSerializer(serializers.HyperlinkedModelSerializer):
@@ -518,9 +530,14 @@ class ProjectSerializer(
         source="customer.grace_period_days",
         help_text="Grace period days set at the customer (organization) level. Used as default when project-level is not set.",
     )
-    affiliated_organizations = AffiliatedOrganizationSerializer(
-        many=True,
-        read_only=True,
+    affiliation = AffiliatedOrganizationSerializer(read_only=True)
+    affiliation_uuid = serializers.SlugRelatedField(
+        slug_field="uuid",
+        source="affiliation",
+        queryset=models.AffiliatedOrganization.objects.all(),
+        allow_null=True,
+        required=False,
+        write_only=True,
     )
     science_sub_domain = serializers.SlugRelatedField(
         slug_field="uuid",
@@ -586,7 +603,8 @@ class ProjectSerializer(
             "user_email_patterns",
             "user_affiliations",
             "user_identity_sources",
-            "affiliated_organizations",
+            "affiliation",
+            "affiliation_uuid",
             "science_sub_domain",
             "science_sub_domain_name",
             "science_sub_domain_code",
@@ -739,7 +757,8 @@ class ProjectSerializer(
             "end_date_requested_by",
             "science_sub_domain",
             "science_sub_domain__domain",
-        ).prefetch_related("affiliated_organizations")
+            "affiliation",
+        )
 
     def get_filtered_field_names(self):
         return ("customer",)
@@ -776,6 +795,32 @@ class ProjectSerializer(
                 raise serializers.ValidationError(
                     {"end_date": _("This field is required.")}
                 )
+
+        if config.AFFILIATION_REQUIRED_AT_PROJECT_CREATION:
+            affiliation_provided = "affiliation" in attrs
+            if (not self.instance and not attrs.get("affiliation")) or (
+                self.instance
+                and not self.instance.affiliation
+                and not attrs.get("affiliation")
+                and not affiliation_provided
+            ):
+                raise serializers.ValidationError(
+                    {"affiliation_uuid": _("This field is required.")}
+                )
+
+        affiliation = attrs.get("affiliation")
+        if affiliation is not None:
+            request = self.context.get("request")
+            user = request.user if request else None
+            if user is not None and not user.is_staff:
+                if not customer.default_affiliations.filter(pk=affiliation.pk).exists():
+                    raise serializers.ValidationError(
+                        {
+                            "affiliation_uuid": _(
+                                "Selected affiliation is not in this organization's default list."
+                            )
+                        }
+                    )
 
         if attrs.get("kind") == ProjectKind.COURSE.value:
             if not settings.WALDUR_CORE.get("ENABLE_PROJECT_KIND_COURSE", False):
@@ -1187,6 +1232,11 @@ class CustomerSerializer(
         allow_null=True,
         help_text="Checklist to be used for project metadata validation in this organization",
     )
+    default_affiliations = AffiliatedOrganizationSerializer(
+        many=True,
+        read_only=True,
+        help_text="Affiliations offered to project creators of this organization.",
+    )
 
     class Meta:
         model = models.Customer
@@ -1214,6 +1264,7 @@ class CustomerSerializer(
             "user_email_patterns",
             "user_affiliations",
             "user_identity_sources",
+            "default_affiliations",
         ) + CUSTOMER_DETAILS_FIELDS
         staff_only_fields = (
             "access_subnets",
