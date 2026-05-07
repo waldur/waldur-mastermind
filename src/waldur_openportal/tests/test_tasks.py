@@ -7,7 +7,7 @@ from waldur_openportal import tasks
 
 
 class TaskConfigurationTest(TestCase):
-    @mock.patch("waldur_openportal.tasks.openportal.ensure_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.ensure_config_loaded")
     @mock.patch("waldur_openportal.tasks.openportal.get_portal")
     @mock.patch("waldur_openportal.tasks.openportal.sync_offerings")
     @mock.patch("waldur_openportal.tasks.models.ProjectTemplate.objects.all")
@@ -23,7 +23,7 @@ class TaskConfigurationTest(TestCase):
         mock_portal.assert_not_called()
         mock_sync.assert_not_called()
 
-    @mock.patch("waldur_openportal.tasks.openportal.ensure_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.ensure_config_loaded")
     @mock.patch("waldur_openportal.tasks.openportal.get_portal")
     @mock.patch("waldur_openportal.tasks.openportal.sync_offerings")
     @mock.patch("waldur_openportal.tasks.models.ProjectTemplate.objects.all")
@@ -41,7 +41,7 @@ class TaskConfigurationTest(TestCase):
         mock_portal.assert_called_once()
         mock_sync.assert_called_once_with([])
 
-    @mock.patch("waldur_openportal.tasks.openportal.ensure_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.ensure_config_loaded")
     @mock.patch("waldur_openportal.tasks.openportal.fetch_jobs")
     def test_sync_board_skips_when_config_unavailable(self, mock_fetch, mock_config):
         mock_config.return_value = False
@@ -51,7 +51,7 @@ class TaskConfigurationTest(TestCase):
         mock_config.assert_called_once()
         mock_fetch.assert_not_called()
 
-    @mock.patch("waldur_openportal.tasks.openportal.ensure_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.ensure_config_loaded")
     @mock.patch("waldur_openportal.tasks.openportal.fetch_jobs")
     def test_sync_board_proceeds_when_config_available(self, mock_fetch, mock_config):
         mock_config.return_value = True
@@ -63,7 +63,7 @@ class TaskConfigurationTest(TestCase):
         mock_fetch.assert_called_once()
 
     @mock.patch("waldur_openportal.tasks.logger")
-    @mock.patch("waldur_openportal.tasks.openportal.ensure_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.ensure_config_loaded")
     def test_sync_offering_agents_logs_appropriate_message(
         self, mock_config, mock_logger
     ):
@@ -76,7 +76,7 @@ class TaskConfigurationTest(TestCase):
         )
 
     @mock.patch("waldur_openportal.tasks.logger")
-    @mock.patch("waldur_openportal.tasks.openportal.ensure_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.ensure_config_loaded")
     def test_sync_board_logs_appropriate_message(self, mock_config, mock_logger):
         mock_config.return_value = False
 
@@ -112,7 +112,7 @@ class SyncAllocationLimitsTest(TestCase):
         # Create test project and customer
         self.project = structure_factories.ProjectFactory()
 
-    @mock.patch("waldur_openportal.tasks.openportal.ensure_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.ensure_config_loaded")
     @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
     @mock.patch("waldur_openportal.tasks.invoice_models.ProjectCredit.objects")
     def test_sync_allocation_limits_eagerly_evaluates_queryset(
@@ -138,7 +138,7 @@ class SyncAllocationLimitsTest(TestCase):
         # Verify iterator() was NOT called (no server-side cursor)
         mock_qs.iterator.assert_not_called()
 
-    @mock.patch("waldur_openportal.tasks.openportal.ensure_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.ensure_config_loaded")
     @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
     @mock.patch("waldur_openportal.tasks.models.Allocation.objects.filter")
     @mock.patch("waldur_openportal.tasks.invoice_models.ProjectCredit.objects")
@@ -176,7 +176,7 @@ class SyncAllocationLimitsTest(TestCase):
             project=mock_project, is_active=True
         )
 
-    @mock.patch("waldur_openportal.tasks.openportal.ensure_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.ensure_config_loaded")
     @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
     @mock.patch("waldur_openportal.tasks.invoice_models.ProjectCredit.objects")
     def test_sync_allocation_limits_skips_removed_projects(
@@ -206,7 +206,7 @@ class SyncAllocationLimitsTest(TestCase):
             # Should not query allocations for removed project
             mock_filter.assert_not_called()
 
-    @mock.patch("waldur_openportal.tasks.openportal.ensure_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.ensure_config_loaded")
     @mock.patch("waldur_openportal.tasks.logger")
     @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
     @mock.patch("waldur_openportal.tasks.invoice_models.ProjectCredit.objects")
@@ -242,7 +242,7 @@ class SyncAllocationLimitsCursorTest(TestCase):
     API calls and DB writes.
     """
 
-    @mock.patch("waldur_openportal.tasks.openportal.ensure_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.ensure_config_loaded")
     @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get")
     @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
     @mock.patch("waldur_openportal.tasks.models.Allocation.objects.filter")
@@ -302,7 +302,7 @@ class SyncAllocationLimitsCursorTest(TestCase):
 class SyncRemoteUsageTest(TestCase):
     """Tests for sync_remote_usage task with memory optimization."""
 
-    @mock.patch("waldur_openportal.tasks.openportal.ensure_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.ensure_config_loaded")
     @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
     @mock.patch("waldur_openportal.tasks.models.RemoteAllocation.objects.filter")
     def test_sync_remote_usage_eagerly_evaluates_queryset(
@@ -326,7 +326,7 @@ class SyncRemoteUsageTest(TestCase):
         # Verify iterator() was NOT called (no server-side cursor)
         mock_qs.iterator.assert_not_called()
 
-    @mock.patch("waldur_openportal.tasks.openportal.ensure_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.ensure_config_loaded")
     @mock.patch("waldur_openportal.tasks.sync_remote_allocation_usage")
     @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
     @mock.patch("waldur_openportal.tasks.models.RemoteAllocation.objects.filter")
@@ -353,7 +353,7 @@ class SyncRemoteUsageTest(TestCase):
         mock_sync_usage.assert_any_call(allocation1)
         mock_sync_usage.assert_any_call(allocation2)
 
-    @mock.patch("waldur_openportal.tasks.openportal.ensure_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.ensure_config_loaded")
     @mock.patch("waldur_openportal.tasks.logger")
     @mock.patch("waldur_openportal.tasks.sync_remote_allocation_usage")
     @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
@@ -383,7 +383,7 @@ class SyncRemoteUsageTest(TestCase):
         # Error should be logged
         mock_logger.error.assert_called()
 
-    @mock.patch("waldur_openportal.tasks.openportal.ensure_config_loaded")
+    @mock.patch("waldur_openportal.tasks.openportal_config.ensure_config_loaded")
     @mock.patch("waldur_openportal.tasks.logger")
     @mock.patch("waldur_openportal.tasks.models.OnceTask.objects.get_or_create")
     @mock.patch("waldur_openportal.tasks.models.RemoteAllocation.objects.filter")

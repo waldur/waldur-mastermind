@@ -4,6 +4,7 @@ import json
 import logging
 import re
 
+import openportal
 from django.conf import settings as django_settings
 from django.core.exceptions import ObjectDoesNotExist
 
@@ -16,8 +17,7 @@ from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_openportal import signals
 from waldur_openportal.remoteclient import RemoteOpenPortalClient
 
-from . import models
-from . import op as openportal
+from . import exceptions, models
 from . import utils as openportal_utils
 
 logger = logging.getLogger(__name__)
@@ -87,7 +87,7 @@ class RemoteOpenPortalBackend(ServiceBackend):
         logger.debug("Pinging OpenPortal")
         try:
             self.client.health()
-        except openportal.OpenPortalError as e:
+        except exceptions.OpenPortalError as e:
             logger.error(f"OpenPortal is not available: {e}")
             if raise_exception:
                 raise ServiceBackendError(e)
@@ -311,7 +311,7 @@ class RemoteOpenPortalBackend(ServiceBackend):
             # add it again just to be sure
             try:
                 mapping = self.client.add_project(project, details)
-            except openportal.ManagedProjectRejectedError as e:
+            except exceptions.ManagedProjectRejectedError as e:
                 logger.warning(f"OpenPortal project {project} is rejected: {e}. ")
                 allocation.error_message = str(e)
                 allocation.set_erred()
@@ -328,7 +328,7 @@ class RemoteOpenPortalBackend(ServiceBackend):
 
             try:
                 mapping = self.client.add_project(project, details)
-            except openportal.ManagedProjectRejectedError as e:
+            except exceptions.ManagedProjectRejectedError as e:
                 logger.warning(f"OpenPortal project {project} is rejected: {e}. ")
                 allocation.error_message = str(e)
                 allocation.set_erred()
@@ -415,7 +415,7 @@ class RemoteOpenPortalBackend(ServiceBackend):
             allocation.update_mapping(mapping)
             allocation.state = CoreStates.OK
             allocation.save()
-        except openportal.ManagedProjectRejectedError as e:
+        except exceptions.ManagedProjectRejectedError as e:
             logger.warning(
                 f"OpenPortal project {project_identifier} is rejected: {e}. "
             )
@@ -1013,7 +1013,7 @@ class RemoteOpenPortalBackend(ServiceBackend):
 
             try:
                 report = self.client.get_storage_report(project, month)
-            except openportal.OpenPortalError as e:
+            except exceptions.OpenPortalError as e:
                 logger.warning(
                     f"Failed to get storage report for {allocation} in {month}: {e}"
                 )

@@ -126,11 +126,13 @@ class CachedProjectUsageReportViewSet(viewsets.ReadOnlyModelViewSet):
         # Restrict to project_identifiers reachable via allocations on projects
         # the user has any role in, including projects in customers where the user
         # is an organisation viewer.
+        import openportal
+
         from waldur_core.structure.managers import get_visible_projects
 
-        from . import op as openportal
+        from . import config
 
-        openportal.ensure_config_loaded()
+        config.ensure_config_loaded()
         accessible_project_ids = list(get_visible_projects(user))
         portal = str(openportal.get_portal())
         # Identifiers from allocations (covers active projects with existing allocations)
@@ -185,11 +187,13 @@ class CachedProjectStorageReportViewSet(viewsets.ReadOnlyModelViewSet):
         )
         if user.is_staff or user.is_support:
             return qs
+        import openportal
+
         from waldur_core.structure.managers import get_visible_projects
 
-        from . import op as openportal
+        from . import config
 
-        openportal.ensure_config_loaded()
+        config.ensure_config_loaded()
         accessible_project_ids = list(get_visible_projects(user))
         portal = str(openportal.get_portal())
         # Identifiers from allocations (covers active projects with existing allocations)

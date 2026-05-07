@@ -3,6 +3,7 @@ import hashlib
 import logging
 
 import httpx
+import openportal
 from django.contrib import auth
 from django.core.cache import cache
 from django.http import JsonResponse
@@ -32,7 +33,6 @@ from waldur_core.users.enums import InvitationState
 from waldur_mastermind.invoices import models as invoice_models
 
 from . import models, serializers, tasks, utils
-from . import op as openportal
 from .board import OpenPortalBoard
 
 logger = logging.getLogger(__name__)
@@ -78,13 +78,13 @@ def _get_project_spend_info_by_username(request, user, username):
     except Exception as e:
         logger.error(f"Error looking up username {username}: {e}")
         response = JsonResponse({"error": "Username not found."})
-        response.status_code = status.NOT_FOUND
+        response.status_code = status.HTTP_404_NOT_FOUND
         return response
 
     if project is None:
         logger.error(f"Username {username} not found.")
         response = JsonResponse({"error": "Username not found."})
-        response.status_code = status.NOT_FOUND
+        response.status_code = status.HTTP_404_NOT_FOUND
         return response
 
     # get the total credit available for this project
@@ -187,7 +187,7 @@ def project_spend_info(request):
 
     if not (user.is_authenticated or user.is_active):
         response = JsonResponse({})
-        response.status_code = status.UNAUTHORIZED
+        response.status_code = status.HTTP_401_UNAUTHORIZED
         return response
 
     username = request.query_params.get("username")
@@ -235,26 +235,26 @@ def customer_spend_info(request):
 
     if not (user.is_authenticated or user.is_active):
         response = JsonResponse({})
-        response.status_code = status.UNAUTHORIZED
+        response.status_code = status.HTTP_401_UNAUTHORIZED
         return response
 
     if not (user.is_staff or user.is_support):
         response = JsonResponse({})
-        response.status_code = status.UNAUTHORIZED
+        response.status_code = status.HTTP_401_UNAUTHORIZED
         return response
 
     customer = request.query_params.get("customer")
 
     if not customer:
         response = JsonResponse({"error": "A customer must be provided."})
-        response.status_code = status.BAD_REQUEST
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return response
 
     customer = str(customer).lstrip().rstrip()
 
     if len(customer) == 0:
         response = JsonResponse({"error": "A customer must be provided."})
-        response.status_code = status.BAD_REQUEST
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return response
 
     # get an optional "use_project_ids" query parameter
@@ -264,7 +264,7 @@ def customer_spend_info(request):
         response = JsonResponse(
             {"error": "The 'use_project_ids' parameter must be 'true' or 'false'."}
         )
-        response.status_code = status.BAD_REQUEST
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return response
 
     use_project_ids = use_project_ids == "true"
@@ -285,7 +285,7 @@ def customer_spend_info(request):
 
         except Exception as e:
             response = JsonResponse({"error": str(e)})
-            response.status_code = status.BAD_REQUEST
+            response.status_code = status.HTTP_400_BAD_REQUEST
             return response
 
     # get an optional "end_date" query parameter which is the end month-year
@@ -305,19 +305,19 @@ def customer_spend_info(request):
 
             if start_date is not None and end_date < start_date:
                 response = JsonResponse({"error": "End date must be after start date."})
-                response.status_code = status.BAD_REQUEST
+                response.status_code = status.HTTP_400_BAD_REQUEST
                 return response
 
         except Exception as e:
             response = JsonResponse({"error": str(e)})
-            response.status_code = status.BAD_REQUEST
+            response.status_code = status.HTTP_400_BAD_REQUEST
             return response
 
     orgs = structure_models.Customer.objects.filter(name=customer)
 
     if len(orgs) != 1:
         response = JsonResponse({})
-        response.status_code = status.BAD_REQUEST
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return response
 
     org = orgs[0]
@@ -326,7 +326,7 @@ def customer_spend_info(request):
     projs = structure_models.Project.objects.filter(customer=org)
 
     response = {}
-    response["customer"] = str(org.name)
+    response["customer"] = org.name
 
     if start_date is not None:
         response["start_date"] = start_date.strftime("%Y-%m-%d")
@@ -530,7 +530,7 @@ def fetch_job(request):
 
     if not job_id:
         response = JsonResponse({})
-        response.status_code = status.UNAUTHORIZED
+        response.status_code = status.HTTP_401_UNAUTHORIZED
         return response
 
     # move to serlialiser django
@@ -538,7 +538,7 @@ def fetch_job(request):
 
     if len(job_id) == 0:
         response = JsonResponse({})
-        response.status_code = status.UNAUTHORIZED
+        response.status_code = status.HTTP_401_UNAUTHORIZED
         return response
 
     # fetch this job from the OpenPortal bridge queue
@@ -546,12 +546,12 @@ def fetch_job(request):
         job = board.fetch_job(job_id)
         if job is None:
             response = JsonResponse({})
-            response.status_code = status.UNAUTHORIZED
+            response.status_code = status.HTTP_401_UNAUTHORIZED
             return response
     except Exception as e:
         logger.error(f"Error fetching job {job_id}: {e}")
         response = JsonResponse({})
-        response.status_code = status.UNAUTHORIZED
+        response.status_code = status.HTTP_401_UNAUTHORIZED
         return response
 
     job_id = str(job.id).lstrip().rstrip()
@@ -559,13 +559,13 @@ def fetch_job(request):
     if len(job_id) == 0:
         logger.error(f"Job {job} has no job_id")
         response = JsonResponse({})
-        response.status_code = status.UNAUTHORIZED
+        response.status_code = status.HTTP_401_UNAUTHORIZED
         return response
 
     if job.state != openportal.Status.pending():
         logger.error(f"Job {job_id} is not in PENDING state, but in {job.state}")
         response = JsonResponse({})
-        response.status_code = status.UNAUTHORIZED
+        response.status_code = status.HTTP_401_UNAUTHORIZED
         return response
 
     # create a Job model object for this job
@@ -583,7 +583,7 @@ def fetch_job(request):
     if job_model.state != models.Job.State.PENDING:
         logger.error(f"Job {job_id} is not in PENDING state, but in {job_model.state}")
         response = JsonResponse({})
-        response.status_code = status.UNAUTHORIZED
+        response.status_code = status.HTTP_401_UNAUTHORIZED
         return response
 
     # submit the job for processing
@@ -591,7 +591,7 @@ def fetch_job(request):
     tasks.run_job.delay(core_utils.serialize_instance(job_model))
 
     response = JsonResponse({})
-    response.status_code = status.OK
+    response.status_code = status.HTTP_200_OK
     return response
 
 
@@ -693,7 +693,7 @@ def access_for_email(request):
 
     if not (user.is_authenticated or user.is_active):
         response = JsonResponse({})
-        response.status_code = status.UNAUTHORIZED
+        response.status_code = status.HTTP_401_UNAUTHORIZED
         return response
 
     # Get the free text search query
@@ -722,7 +722,7 @@ def access_for_email(request):
                 "error": "Search query parameter 'q' is required. You can search by email, short_name, project_name, or project_id."
             }
         )
-        response.status_code = status.BAD_REQUEST
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return response
 
     # Clean and normalize the query
@@ -730,7 +730,7 @@ def access_for_email(request):
 
     if len(query) == 0:
         response = JsonResponse({"error": "Search query cannot be empty."})
-        response.status_code = status.BAD_REQUEST
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return response
 
     can_query_all = user.is_staff or user.is_support
@@ -752,7 +752,7 @@ def whoami(request):
 
     if not (user.is_authenticated or user.is_active):
         response = JsonResponse({})
-        response.status_code = status.UNAUTHORIZED
+        response.status_code = status.HTTP_401_UNAUTHORIZED
         return response
 
     response = JsonResponse(
@@ -782,14 +782,14 @@ def get_api_token(request):
     if not auth_header.lower().startswith("bearer "):
         return JsonResponse(
             {"error": "Authorisation header missing or invalid"},
-            status=status.BAD_REQUEST,
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
     raw_oidc_token = auth_header.split(" ", 1)[1].strip()
 
     if not raw_oidc_token:
         return JsonResponse(
-            {"error": "Bearer token not provided"}, status=status.BAD_REQUEST
+            {"error": "Bearer token not provided"}, status=status.HTTP_400_BAD_REQUEST
         )
 
     provider = IdentityProvider.objects.filter(is_active=True).first()
@@ -801,8 +801,8 @@ def get_api_token(request):
     cache_timeout = 300.0  # default 5 min
 
     if not (discovery_url):
-        raise JsonResponse(
-            {"error": "No discovery url found"}, status=status.BAD_REQUEST
+        return JsonResponse(
+            {"error": "No discovery url found"}, status=status.HTTP_400_BAD_REQUEST
         )
 
     data_discovery_url = response = httpx.get(
@@ -812,8 +812,8 @@ def get_api_token(request):
     introspection_url = data_discovery_url.json()["introspection_endpoint"]
 
     if not (introspection_url and client_id and client_secret):
-        raise JsonResponse(
-            {"error": "OIDC config incomplete"}, status=status.BAD_REQUEST
+        return JsonResponse(
+            {"error": "OIDC config incomplete"}, status=status.HTTP_400_BAD_REQUEST
         )
     # Use SHA-256 to hash token to avoid very long keys
     cache_key = f"oidc_token:{hashlib.sha256(raw_oidc_token.encode()).hexdigest()}"
@@ -831,7 +831,7 @@ def get_api_token(request):
 
         except Exception:
             return JsonResponse(
-                {"error": "Introspection failed"}, status=status.BAD_REQUEST
+                {"error": "Introspection failed"}, status=status.HTTP_400_BAD_REQUEST
             )
 
         if response.status_code != 200:
@@ -847,7 +847,8 @@ def get_api_token(request):
 
     if not user_identifier:
         return JsonResponse(
-            {"error": f"Token missing '{user_field}' field"}, status=status.UNAUTHORIZED
+            {"error": f"Token missing '{user_field}' field"},
+            status=status.HTTP_401_UNAUTHORIZED,
         )
 
     # GET Waldur user
@@ -1191,7 +1192,7 @@ def user_mapping(request):
                 "error": "Search query parameter 'q' is required. You can search by email, short_name, project_name, or project_id."
             }
         )
-        response.status_code = status.BAD_REQUEST
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return response
 
     # Clean and normalize the query
@@ -1199,7 +1200,7 @@ def user_mapping(request):
 
     if len(query) == 0:
         response = JsonResponse({"error": "Search query cannot be empty."})
-        response.status_code = status.BAD_REQUEST
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return response
 
     can_query_all = user.is_staff or user.is_support
@@ -1232,14 +1233,14 @@ def _intelligent_search(requesting_user, query, can_query_all):
                     "error": "You can only search by your own email address. Staff users can search for any user."
                 }
             )
-            response.status_code = status.FORBIDDEN
+            response.status_code = status.HTTP_401_UNAUTHORIZED
             return response
 
         # Try email search
         try:
             result = _search_by_email(requesting_user, query.lower(), can_query_all)
             # If we got a successful response, return it
-            if result.status_code == status.OK:
+            if result.status_code == status.HTTP_200_OK:
                 return result
         except Exception as e:
             logger.warning(f"Email search failed: {e}")
@@ -1258,7 +1259,7 @@ def _intelligent_search(requesting_user, query, can_query_all):
         else:
             try:
                 result = _search_by_project_id(requesting_user, query, can_query_all)
-                if result.status_code == status.OK:
+                if result.status_code == status.HTTP_200_OK:
                     # Check if we got actual results (not an error response)
                     import json
 
@@ -1277,7 +1278,7 @@ def _intelligent_search(requesting_user, query, can_query_all):
         logger.info(f"Attempting short_name search for query: '{query}'")
         try:
             result = _search_by_short_name(requesting_user, query, can_query_all)
-            if result.status_code == status.OK:
+            if result.status_code == status.HTTP_200_OK:
                 import json
 
                 data = json.loads(result.content)
@@ -1297,7 +1298,7 @@ def _intelligent_search(requesting_user, query, can_query_all):
                                         "error": "You can only search by your own short name. Staff users can search for any user."
                                     }
                                 )
-                                response.status_code = status.FORBIDDEN
+                                response.status_code = status.HTTP_401_UNAUTHORIZED
                                 return response
                         except models.UserInfo.DoesNotExist:
                             # User doesn't have a short_name, so they can't search by short_name
@@ -1306,7 +1307,7 @@ def _intelligent_search(requesting_user, query, can_query_all):
                                     "error": "You don't have a short name configured, so you can only search by your email address."
                                 }
                             )
-                            response.status_code = status.FORBIDDEN
+                            response.status_code = status.HTTP_401_UNAUTHORIZED
                             return response
                     return result
         except Exception as e:
@@ -1322,13 +1323,13 @@ def _intelligent_search(requesting_user, query, can_query_all):
                 "allowed_searches": ["your_email", "your_short_name"],
             }
         )
-        response.status_code = status.FORBIDDEN
+        response.status_code = status.HTTP_401_UNAUTHORIZED
         return response
 
     logger.info(f"Attempting project name search for query: '{query}'")
     try:
         result = _search_by_project_name(requesting_user, query, can_query_all)
-        if result.status_code == status.OK:
+        if result.status_code == status.HTTP_200_OK:
             return result
         # If not found, that's okay - we'll return a generic not found
     except Exception as e:
@@ -1351,7 +1352,7 @@ def _intelligent_search(requesting_user, query, can_query_all):
                 "allowed_searches": ["your_email", "your_short_name"],
             }
         )
-    response.status_code = status.NOT_FOUND
+    response.status_code = status.HTTP_404_NOT_FOUND
     return response
 
 
@@ -1412,7 +1413,7 @@ def _search_by_email(requesting_user, email, can_query_all):
             }
         )
         logger.info(f"access_for_email({email}, {requesting_user}) {response.content}")
-        response.status_code = status.OK
+        response.status_code = status.HTTP_200_OK
         return response
 
     # Check invitations
@@ -1443,7 +1444,7 @@ def _search_by_email(requesting_user, email, can_query_all):
             }
         )
         logger.info(f"access_for_email({email}, {requesting_user}) {response.content}")
-        response.status_code = status.OK
+        response.status_code = status.HTTP_200_OK
         return response
 
     if reason is None:
@@ -1460,7 +1461,7 @@ def _search_by_email(requesting_user, email, can_query_all):
         }
     )
     logger.info(f"access_for_email({email}, {requesting_user}) {response.content}")
-    response.status_code = status.OK
+    response.status_code = status.HTTP_200_OK
     return response
 
 
@@ -1480,14 +1481,14 @@ def _search_by_short_name(requesting_user, short_name, can_query_all):
                 "reason": "Short name not found",
             }
         )
-        response.status_code = status.OK
+        response.status_code = status.HTTP_200_OK
         return response
 
     # Check permissions
     if not can_query_all:
         if user != requesting_user:
             response = JsonResponse({"error": "You can only query your own short_name"})
-            response.status_code = status.FORBIDDEN
+            response.status_code = status.HTTP_401_UNAUTHORIZED
             return response
 
     if not user.is_active:
@@ -1501,7 +1502,7 @@ def _search_by_short_name(requesting_user, short_name, can_query_all):
                 "reason": "User account is not active",
             }
         )
-        response.status_code = status.OK
+        response.status_code = status.HTTP_200_OK
         return response
 
     member_of_projects = structure_models.Project.available_objects.filter(
@@ -1519,7 +1520,7 @@ def _search_by_short_name(requesting_user, short_name, can_query_all):
                 "reason": "User account is not a member of any projects.",
             }
         )
-        response.status_code = status.OK
+        response.status_code = status.HTTP_200_OK
         return response
 
     projects = _get_user_projects(user)
@@ -1537,7 +1538,7 @@ def _search_by_short_name(requesting_user, short_name, can_query_all):
     logger.info(
         f"access_for_short_name({short_name}, {requesting_user}) {response.content}"
     )
-    response.status_code = status.OK
+    response.status_code = status.HTTP_200_OK
     return response
 
 
@@ -1562,7 +1563,7 @@ def _search_by_project_name(requesting_user, project_name, can_query_all):
             response = JsonResponse(
                 {"error": f"Project with name '{project_name}' not found"}
             )
-            response.status_code = status.NOT_FOUND
+            response.status_code = status.HTTP_404_NOT_FOUND
             return response
 
     project = projects_qs.first()
@@ -1577,7 +1578,7 @@ def _search_by_project_name(requesting_user, project_name, can_query_all):
             response = JsonResponse(
                 {"error": "You can only query projects you are a member of"}
             )
-            response.status_code = status.FORBIDDEN
+            response.status_code = status.HTTP_401_UNAUTHORIZED
             return response
 
     # Get all active users in this project using the project's get_users method
@@ -1607,7 +1608,7 @@ def _search_by_project_name(requesting_user, project_name, can_query_all):
                 "reason": "No active users found in this project",
             }
         )
-        response.status_code = status.OK
+        response.status_code = status.HTTP_200_OK
         return response
 
     # Build response with all users
@@ -1635,7 +1636,7 @@ def _search_by_project_name(requesting_user, project_name, can_query_all):
     logger.info(
         f"access_for_project_name({project_name}, {requesting_user}) found {len(users_data)} users"
     )
-    response.status_code = status.OK
+    response.status_code = status.HTTP_200_OK
     return response
 
 
@@ -1659,7 +1660,7 @@ def _search_by_project_id(requesting_user, project_id, can_query_all):
             response = JsonResponse(
                 {"error": f"Project with ID '{project_id}' not found"}
             )
-            response.status_code = status.NOT_FOUND
+            response.status_code = status.HTTP_404_NOT_FOUND
             return response
 
         project = project_info.project
@@ -1667,7 +1668,7 @@ def _search_by_project_id(requesting_user, project_id, can_query_all):
     except Exception as e:
         logger.error(f"Error finding project with ID {project_id}: {e}")
         response = JsonResponse({"error": f"Project with ID '{project_id}' not found"})
-        response.status_code = status.NOT_FOUND
+        response.status_code = status.HTTP_404_NOT_FOUND
         return response
 
     # Check permissions
@@ -1679,7 +1680,7 @@ def _search_by_project_id(requesting_user, project_id, can_query_all):
             response = JsonResponse(
                 {"error": "You can only query projects you are a member of"}
             )
-            response.status_code = status.FORBIDDEN
+            response.status_code = status.HTTP_401_UNAUTHORIZED
             return response
 
     # Get all active users in this project using the project's get_users method
@@ -1709,7 +1710,7 @@ def _search_by_project_id(requesting_user, project_id, can_query_all):
                 "reason": "No active users found in this project",
             }
         )
-        response.status_code = status.OK
+        response.status_code = status.HTTP_200_OK
         return response
 
     # Build response with all users
@@ -1736,7 +1737,7 @@ def _search_by_project_id(requesting_user, project_id, can_query_all):
     logger.info(
         f"access_for_project_id({project_id}, {requesting_user}) found {len(users_data)} users"
     )
-    response.status_code = status.OK
+    response.status_code = status.HTTP_200_OK
     return response
 
 

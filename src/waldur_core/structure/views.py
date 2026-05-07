@@ -30,7 +30,7 @@ from rest_framework import permissions as rf_permissions
 from rest_framework import serializers as rf_serializers
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.response import Response
 

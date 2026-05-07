@@ -3,6 +3,7 @@ import json
 import logging
 import re
 
+import openportal
 from django.conf import settings as django_settings
 from django.db import transaction
 
@@ -13,8 +14,7 @@ from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_openportal import signals
 from waldur_openportal.client import OpenPortalClient
 
-from . import models
-from . import op as openportal
+from . import exceptions, models
 from . import utils as openportal_utils
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ class OpenPortalBackend(ServiceBackend):
         logger.debug("Pinging OpenPortal")
         try:
             self.client.health()
-        except openportal.OpenPortalError as e:
+        except exceptions.OpenPortalError as e:
             logger.error(f"OpenPortal is not available: {e}")
             if raise_exception:
                 raise ServiceBackendError(e)

@@ -17,7 +17,7 @@ class IdentifiersForProjectUuidTest(TestCase):
         self.env_patcher.stop()
 
     @override_settings(WALDUR_OPENPORTAL={"ENABLED": True})
-    @mock.patch("waldur_openportal.op.get_portal")
+    @mock.patch("openportal.get_portal")
     def test_does_not_call_get_portal_when_config_unavailable(self, mock_get_portal):
         identifiers = _identifiers_for_project_uuid(self.project_uuid)
 
@@ -25,8 +25,8 @@ class IdentifiersForProjectUuidTest(TestCase):
         mock_get_portal.assert_not_called()
 
     @override_settings(WALDUR_OPENPORTAL={"ENABLED": True})
-    @mock.patch("waldur_openportal.op.get_portal", return_value="example.portal")
-    @mock.patch("waldur_openportal.op.ensure_config_loaded", return_value=True)
+    @mock.patch("openportal.get_portal", return_value="example.portal")
+    @mock.patch("waldur_openportal.config.ensure_config_loaded", return_value=True)
     def test_calls_get_portal_when_config_loaded(
         self, mock_ensure_loaded, mock_get_portal
     ):
@@ -36,7 +36,7 @@ class IdentifiersForProjectUuidTest(TestCase):
         mock_get_portal.assert_called_once()
 
     @override_settings(WALDUR_OPENPORTAL={"ENABLED": False})
-    @mock.patch("waldur_openportal.op.get_portal")
+    @mock.patch("openportal.get_portal")
     def test_does_not_call_get_portal_when_plugin_disabled(self, mock_get_portal):
         identifiers = _identifiers_for_project_uuid(self.project_uuid)
 

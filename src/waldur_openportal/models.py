@@ -1,6 +1,7 @@
 import json
 import logging
 
+import openportal
 from django.conf import settings
 from django.core import validators
 from django.core.validators import MaxValueValidator, MinValueValidator
@@ -17,8 +18,6 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure.managers import get_project_users
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_openportal import utils
-
-from . import op as openportal
 
 logger = logging.getLogger(__name__)
 
@@ -371,13 +370,13 @@ class RemoteAllocation(
 
         return (allocation, allocation_unit)
 
-    def get_project_details(self) -> openportal.ProjectDetails:
+    def get_project_details(self) -> openportal.AwardDetails:
         if self.project is None:
             raise ValueError("Project is not set!")
 
         project = self.project
 
-        details = openportal.ProjectDetails("{}")
+        details = openportal.AwardDetails("{}")
 
         if project.name is not None:
             details.name = str(project.name)
@@ -2244,16 +2243,16 @@ class ManagedProject(ReviewMixin, models.Model):
             f"{self.get_remote_identifier()}:{self.get_local_identifier()}"
         )
 
-    def set_details(self, details: openportal.ProjectDetails):
+    def set_details(self, details: openportal.AwardDetails):
         """
         Set the ProjectDetails object for this project.
         If the details are not an instance of ProjectDetails, convert it.
         """
-        if not isinstance(details, openportal.ProjectDetails):
+        if not isinstance(details, openportal.AwardDetails):
             if not isinstance(details, str):
-                details = openportal.ProjectDetails(json.dumps(details))
+                details = openportal.AwardDetails(json.dumps(details))
             else:
-                details = openportal.ProjectDetails(details)
+                details = openportal.AwardDetails(details)
 
         new_details = json.loads(str(details))
 
@@ -2266,12 +2265,12 @@ class ManagedProject(ReviewMixin, models.Model):
             self.details = new_details
             self.save(update_fields=["details"])
 
-    def get_details(self) -> openportal.ProjectDetails:
+    def get_details(self) -> openportal.AwardDetails:
         """
         Get the ProjectDetails object from the project data.
         If the project data is not set, return None.
         """
-        return openportal.ProjectDetails(json.dumps(self.details))
+        return openportal.AwardDetails(json.dumps(self.details))
 
     def get_default_offerings(self) -> list[marketplace_models.Offering]:
         """
