@@ -1,3 +1,145 @@
+from .structures import WorkflowStepDefinition
+
+# =============================================================================
+# Workflow Step Definitions
+# =============================================================================
+
+WORKFLOW_STEPS = [
+    WorkflowStepDefinition(
+        id="administrative_check",
+        name="Administrative check",
+        description="Eligibility and completeness validation before evaluation.",
+        default_responsible_role="call_manager",
+    ),
+    WorkflowStepDefinition(
+        id="technical_assessment",
+        name="Technical assessment",
+        description="Service provider verifies technical feasibility of the proposal.",
+        default_responsible_role="offering_manager",
+    ),
+    WorkflowStepDefinition(
+        id="expert_review",
+        name="Expert review",
+        description="Independent peer review by domain experts with scoring.",
+        default_responsible_role="reviewer",
+    ),
+    WorkflowStepDefinition(
+        id="panel_review",
+        name="Panel review",
+        description="Collective panel evaluation consolidating expert reviews.",
+        dependencies=["expert_review"],
+        default_responsible_role="panel_member",
+    ),
+    WorkflowStepDefinition(
+        id="allocation_decision",
+        name="Allocation decision",
+        description="Final decision to approve or reject the proposal and allocate resources.",
+        is_mandatory=True,
+        default_responsible_role="call_manager",
+    ),
+    WorkflowStepDefinition(
+        id="award_response",
+        name="Award response",
+        description="Applicant explicitly accepts or declines the award before provisioning.",
+        default_responsible_role="applicant",
+    ),
+]
+
+WORKFLOW_STEPS_MAP = {s.id: s for s in WORKFLOW_STEPS}
+WORKFLOW_STEPS_CHOICES = [(s.id, s.name) for s in WORKFLOW_STEPS]
+MANDATORY_STEPS = [s.id for s in WORKFLOW_STEPS if s.is_mandatory]
+STEP_DEPENDENCIES = {s.id: s.dependencies for s in WORKFLOW_STEPS if s.dependencies}
+
+
+class WorkflowStepInstanceStatuses:
+    PENDING = "pending"
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    EXPIRED = "expired"
+    SKIPPED = "skipped"
+
+    CHOICES = (
+        (PENDING, "Pending"),
+        (ACTIVE, "Active"),
+        (COMPLETED, "Completed"),
+        (EXPIRED, "Expired"),
+        (SKIPPED, "Skipped"),
+    )
+
+
+class ResponsibleRoles:
+    CALL_MANAGER = "call_manager"
+    OFFERING_MANAGER = "offering_manager"
+    REVIEWER = "reviewer"
+    PANEL_MEMBER = "panel_member"
+    APPLICANT = "applicant"
+
+    CHOICES = (
+        (CALL_MANAGER, "Call manager"),
+        (OFFERING_MANAGER, "Offering manager"),
+        (REVIEWER, "Reviewer"),
+        (PANEL_MEMBER, "Panel member"),
+        (APPLICANT, "Applicant"),
+    )
+
+
+class TransitionModes:
+    AUTOMATIC_ON_COMPLETION = "automatic_on_completion"
+
+    CHOICES = ((AUTOMATIC_ON_COMPLETION, "Advance automatically when step completes"),)
+
+
+class WorkflowStepOutcomes:
+    """Allowed outcome values for completed workflow steps.
+
+    Outcomes are validated per-step against ``STEP_ALLOW_LIST``. ``REJECTED``
+    and ``EXPIRED`` are reserved for system-driven transitions (reject endpoint,
+    expiry task) and cannot be supplied via complete_workflow_step.
+    """
+
+    ELIGIBLE = "eligible"
+    INELIGIBLE = "ineligible"
+    FEASIBLE = "feasible"
+    INFEASIBLE = "infeasible"
+    REVIEWED = "reviewed"
+    APPROVED = "approved"
+    DECLINED = "declined"
+    ACCEPTED = "accepted"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
+
+    CHOICES = (
+        (ELIGIBLE, "Eligible"),
+        (INELIGIBLE, "Ineligible"),
+        (FEASIBLE, "Feasible"),
+        (INFEASIBLE, "Infeasible"),
+        (REVIEWED, "Reviewed"),
+        (APPROVED, "Approved"),
+        (DECLINED, "Declined"),
+        (ACCEPTED, "Accepted"),
+        (REJECTED, "Rejected"),
+        (EXPIRED, "Expired"),
+    )
+
+    # System-only outcomes; complete_workflow_step rejects them.
+    SYSTEM_RESERVED = frozenset({REJECTED, EXPIRED})
+
+    # Outcomes a user may submit when completing each step.
+    STEP_ALLOW_LIST = {
+        "administrative_check": frozenset({ELIGIBLE, INELIGIBLE}),
+        "technical_assessment": frozenset({FEASIBLE, INFEASIBLE}),
+        "expert_review": frozenset({REVIEWED}),
+        "panel_review": frozenset({APPROVED, DECLINED}),
+        "allocation_decision": frozenset({APPROVED, DECLINED}),
+        "award_response": frozenset({ACCEPTED, DECLINED}),
+    }
+
+
+# =============================================================================
+# Call and Proposal States
+# =============================================================================
+
+
 class CallStates:
     DRAFT = "draft"
     ACTIVE = "active"

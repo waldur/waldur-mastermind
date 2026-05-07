@@ -3,6 +3,7 @@ import re
 from datetime import datetime
 
 from constance import config
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db.models import Q
 from django.db.models.query import QuerySet
 from django.utils import timezone
@@ -32,6 +33,7 @@ from waldur_mastermind.marketplace.serializers import (
     UserAttributeConfigBaseSerializer,
 )
 from waldur_mastermind.proposal.enums import (
+    WORKFLOW_STEPS_MAP,
     CallStates,
     COISeverityLevels,
     COITypes,
@@ -39,6 +41,7 @@ from waldur_mastermind.proposal.enums import (
     RequestedOfferingStates,
     ReviewerPoolInvitationStatuses,
     RoundStatuses,
+    WorkflowStepOutcomes,
 )
 
 from . import models
@@ -4069,3 +4072,255 @@ class CreateManualAssignmentResponseSerializer(serializers.Serializer):
         child=serializers.DictField(),
         help_text="Proposals that were skipped with reasons",
     )
+
+
+# =============================================================================
+# Workflow Step Serializers
+# =============================================================================
+
+
+class WorkflowCriterionSerializer(serializers.ModelSerializer):
+    uuid = serializers.UUIDField(read_only=True)
+
+    class Meta:
+        model = models.WorkflowCriterion
+        fields = ["uuid", "name", "order"]
+
+
+CRITERIA_ALLOWED_STEPS = {"expert_review"}
+AWARD_RESPONSE_ALLOWED_STEPS = {"allocation_decision"}
+
+
+class CallWorkflowStepSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    call_uuid = serializers.ReadOnlyField(source="call.uuid")
+    call_name = serializers.ReadOnlyField(source="call.name")
+
+    checklist = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=checklist_models.Checklist.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    checklist_name = serializers.SerializerMethodField()
+    criteria = WorkflowCriterionSerializer(many=True, required=False)
+
+    class Meta:
+        model = models.CallWorkflowStep
+        fields = [
+            "uuid",
+            "created",
+            "modified",
+            "step",
+            "call_uuid",
+            "call_name",
+            "is_enabled",
+            "duration_in_days",
+            "checklist",
+            "checklist_name",
+            "blind_review",
+            "requires_coi_confirmation",
+            "min_reviewers",
+            "min_score_threshold",
+            "applicant_visible",
+            "responsible_role",
+            "transition_mode",
+            "include_award_response",
+            "display_order",
+            "criteria",
+        ]
+        read_only_fields = ("uuid", "created", "modified")
+        protected_fields = ("call", "step")
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_checklist_name(self, obj):
+        return obj.checklist.name if obj.checklist else None
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        step = attrs.get("step") or (self.instance.step if self.instance else None)
+
+        if (
+            attrs.get("include_award_response")
+            and step not in AWARD_RESPONSE_ALLOWED_STEPS
+        ):
+            raise serializers.ValidationError(
+                {
+                    "include_award_response": (
+                        "include_award_response can only be set on the "
+                        "allocation_decision step."
+                    )
+                }
+            )
+
+        criteria = attrs.get("criteria")
+        if criteria and step not in CRITERIA_ALLOWED_STEPS:
+            raise serializers.ValidationError(
+                {
+                    "criteria": (
+                        "Criteria can only be configured on the expert_review step."
+                    )
+                }
+            )
+
+        candidate = models.CallWorkflowStep()
+        candidate.pk = getattr(self.instance, "pk", None)
+        candidate.call = attrs.get("call", getattr(self.instance, "call", None))
+        candidate.step = step
+        candidate.is_enabled = attrs.get(
+            "is_enabled", getattr(self.instance, "is_enabled", True)
+        )
+        try:
+            candidate.clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.messages)
+
+        return attrs
+
+    def create(self, validated_data):
+        criteria = validated_data.pop("criteria", None)
+        instance = super().create(validated_data)
+        if criteria is not None:
+            self._sync_criteria(instance, criteria)
+        return instance
+
+    def update(self, instance, validated_data):
+        criteria = validated_data.pop("criteria", None)
+        instance = super().update(instance, validated_data)
+        if criteria is not None:
+            self._sync_criteria(instance, criteria)
+        return instance
+
+    def _sync_criteria(self, instance, criteria):
+        names = [c["name"] for c in criteria]
+        instance.criteria.exclude(name__in=names).delete()
+        for entry in criteria:
+            models.WorkflowCriterion.objects.update_or_create(
+                workflow_step=instance,
+                name=entry["name"],
+                defaults={"order": entry.get("order", 0)},
+            )
+
+
+class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
+    step_name = serializers.SerializerMethodField()
+    step_description = serializers.SerializerMethodField()
+    responsible_role = serializers.SerializerMethodField()
+    completed_by = serializers.SlugRelatedField(
+        slug_field="uuid", read_only=True, allow_null=True
+    )
+
+    class Meta:
+        model = models.ProposalWorkflowStepInstance
+        fields = [
+            "uuid",
+            "step",
+            "step_name",
+            "step_description",
+            "responsible_role",
+            "status",
+            "outcome",
+            "outcome_reason",
+            "started_at",
+            "completed_at",
+            "completed_by",
+            "deadline",
+        ]
+        read_only_fields = fields
+
+    @extend_schema_field(serializers.CharField())
+    def get_step_name(self, obj):
+        step_def = WORKFLOW_STEPS_MAP.get(obj.step)
+        return step_def.name if step_def else obj.step
+
+    @extend_schema_field(serializers.CharField())
+    def get_step_description(self, obj):
+        step_def = WORKFLOW_STEPS_MAP.get(obj.step)
+        return step_def.description if step_def else ""
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_responsible_role(self, obj):
+        # Per-call configuration takes precedence over the catalog default.
+        config = (
+            models.CallWorkflowStep.objects.filter(
+                call=obj.proposal.round.call, step=obj.step
+            )
+            .only("responsible_role")
+            .first()
+        )
+        if config and config.responsible_role:
+            return config.responsible_role
+        step_def = WORKFLOW_STEPS_MAP.get(obj.step)
+        return step_def.default_responsible_role if step_def else None
+
+
+class CompleteWorkflowStepSerializer(serializers.Serializer):
+    step_uuid = serializers.UUIDField(
+        required=True,
+        help_text=(
+            "UUID of the workflow step instance the client believes is active. "
+            "Used to detect concurrent step transitions."
+        ),
+    )
+    outcome = serializers.ChoiceField(
+        choices=WorkflowStepOutcomes.CHOICES,
+        required=True,
+        help_text=(
+            "Step outcome. Must be in the active step's allow-list. "
+            "'rejected' and 'expired' are reserved for system transitions."
+        ),
+    )
+    outcome_reason = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text="Explanation for the outcome.",
+    )
+
+    def validate_outcome(self, value):
+        if value in WorkflowStepOutcomes.SYSTEM_RESERVED:
+            raise serializers.ValidationError(
+                f"'{value}' is system-reserved and cannot be supplied here."
+            )
+        active_step = self.context.get("active_step")
+        if active_step:
+            allowed = WorkflowStepOutcomes.STEP_ALLOW_LIST.get(active_step, frozenset())
+            if value not in allowed:
+                raise serializers.ValidationError(
+                    f"'{value}' is not a valid outcome for step '{active_step}'. "
+                    f"Allowed: {sorted(allowed)}."
+                )
+        return value
+
+
+class RejectWorkflowStepSerializer(serializers.Serializer):
+    step_uuid = serializers.UUIDField(
+        required=True,
+        help_text=(
+            "UUID of the workflow step instance the client believes is active. "
+            "Used to detect concurrent step transitions."
+        ),
+    )
+    reason = serializers.CharField(
+        required=True,
+        help_text="Reason for rejecting the proposal at this step.",
+    )
+
+
+class CompleteWorkflowStepResponseSerializer(serializers.Serializer):
+    detail = serializers.CharField()
+    proposal_state = serializers.CharField(
+        required=False,
+        help_text="New proposal state when the workflow terminates.",
+    )
+    next_step = serializers.CharField(
+        required=False,
+        help_text="Identifier of the step that just became active.",
+    )
+
+
+class RejectWorkflowStepResponseSerializer(serializers.Serializer):
+    detail = serializers.CharField()
+    proposal_state = serializers.CharField()

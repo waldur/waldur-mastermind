@@ -689,3 +689,34 @@ class AssignmentItemFactory(
     def get_list_url(cls, action=None):
         url = "http://testserver" + reverse("assignment-item-list")
         return url if action is None else url + action + "/"
+
+
+# =============================================================================
+# Workflow Step Factories
+# =============================================================================
+
+
+class CallWorkflowStepFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.CallWorkflowStep],
+):
+    class Meta:
+        model = models.CallWorkflowStep
+
+    call = factory.SubFactory(CallFactory)
+    step = "administrative_check"
+    is_enabled = True
+
+    @classmethod
+    def get_list_url(cls, call):
+        return CallFactory.get_protected_url(call, action="workflow_steps")
+
+    @classmethod
+    def get_url(cls, call=None, workflow_step=None):
+        if workflow_step is None:
+            workflow_step = CallWorkflowStepFactory()
+        return (
+            CallFactory.get_protected_url(call, action="workflow_steps")
+            + workflow_step.uuid.hex
+            + "/"
+        )

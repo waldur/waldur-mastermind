@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from typing import cast
 
 from django.contrib.auth import get_user_model
+from django.db import transaction
 from django.db.models import (
     Avg,
     Count,
@@ -63,9 +64,12 @@ from waldur_mastermind.proposal import (
     serializers,
     tasks,
     utils,
+    workflow_service,
 )
+from waldur_mastermind.proposal import enums as proposal_enums
 from waldur_mastermind.proposal import permissions as proposal_permissions
 from waldur_mastermind.proposal.enums import (
+    WORKFLOW_STEPS,
     AffinityMatrixScopes,
     CallStates,
     COIDetectionJobStates,
@@ -78,6 +82,7 @@ from waldur_mastermind.proposal.enums import (
     RequestedOfferingStates,
     ReviewerPoolInvitationStatuses,
     ReviewerSuggestionStatuses,
+    WorkflowStepInstanceStatuses,
 )
 
 from .managers import get_connected_call_organizers, get_connected_calls
@@ -786,6 +791,58 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     resource_template_detail_serializer_class = (
         serializers.CallResourceTemplateSerializer
     )
+
+    # Workflow Step Configuration Endpoints
+
+    @extend_schema(
+        methods=["get"],
+        operation_id="proposal_protected_calls_workflow_steps_list",
+        request=None,
+        responses=serializers.CallWorkflowStepSerializer(many=True),
+        description="List workflow steps for a call.",
+        filters=False,
+    )
+    @extend_schema(
+        methods=["post"],
+        operation_id="proposal_protected_calls_workflow_steps_set",
+        request=serializers.CallWorkflowStepSerializer,
+        responses=serializers.CallWorkflowStepSerializer,
+        description="Create or update a workflow step for a call.",
+    )
+    @decorators.action(detail=True, methods=["get", "post"])
+    def workflow_steps(self, request, uuid=None):
+        """GET returns the call's steps sorted by display_order then catalog
+        order; POST delegates to action_list_method for the standard
+        create/update path."""
+        if request.method == "GET":
+            call = self.get_object()
+            catalog_index = {
+                step.id: index
+                for index, step in enumerate(proposal_enums.WORKFLOW_STEPS)
+            }
+            steps = sorted(
+                call.workflow_steps.all(),
+                key=lambda s: (
+                    s.display_order
+                    if s.display_order is not None
+                    else catalog_index.get(s.step, len(catalog_index)),
+                    s.created,
+                ),
+            )
+            serializer = self.get_serializer(
+                steps, context=self.get_serializer_context(), many=True
+            )
+            return response.Response(serializer.data, status=status.HTTP_200_OK)
+        return self.action_list_method("workflow_steps")(self, request, uuid)
+
+    workflow_steps_serializer_class = serializers.CallWorkflowStepSerializer
+
+    def workflow_step_detail(self, request, uuid=None, obj_uuid=None):
+        return self.action_detail_method(
+            "workflow_steps", delete_validators=[], update_validators=[]
+        )(self, request, uuid, obj_uuid)
+
+    workflow_step_detail_serializer_class = serializers.CallWorkflowStepSerializer
 
     # Call Manager Compliance Endpoints
     compliance_overview_permissions = [permission_factory(PermissionEnum.UPDATE_CALL)]
@@ -2293,9 +2350,66 @@ class ProposalViewSet(
     @decorators.action(detail=True, methods=["post"])
     def submit(self, request, uuid=None):
         proposal = self.get_object()
-        previous_state = proposal.state
-        proposal.state = ProposalStates.SUBMITTED
-        proposal.save()
+
+        # The whole block (step instances + proposal state) must be atomic —
+        # a partial failure would leave orphan instances and wedge the
+        # (proposal, step) unique constraint on retry. The row lock + state
+        # re-check serialises concurrent submits that both passed the outer
+        # StateValidator before either had committed.
+        with transaction.atomic():
+            locked = models.Proposal.objects.select_for_update().get(pk=proposal.pk)
+            if locked.state != ProposalStates.DRAFT:
+                return response.Response(
+                    {"detail": "Proposal has already been submitted."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            proposal = locked
+            previous_state = proposal.state
+
+            call = proposal.round.call
+            enabled_steps = list(
+                models.CallWorkflowStep.objects.filter(call=call, is_enabled=True)
+            )
+            enabled_step_ids = {s.step for s in enabled_steps}
+            first_step_id = next(
+                (s.id for s in WORKFLOW_STEPS if s.id in enabled_step_ids), None
+            )
+
+            instances_to_create = [
+                models.ProposalWorkflowStepInstance(
+                    proposal=proposal,
+                    step=step_def.id,
+                    status=(
+                        WorkflowStepInstanceStatuses.PENDING
+                        if step_def.id in enabled_step_ids
+                        else WorkflowStepInstanceStatuses.SKIPPED
+                    ),
+                )
+                for step_def in WORKFLOW_STEPS
+            ]
+            models.ProposalWorkflowStepInstance.objects.bulk_create(instances_to_create)
+
+            if first_step_id:
+                first_step = models.ProposalWorkflowStepInstance.objects.get(
+                    proposal=proposal, step=first_step_id
+                )
+                first_step.status = WorkflowStepInstanceStatuses.ACTIVE
+                first_step.started_at = timezone.now()
+                call_step = next(
+                    (s for s in enabled_steps if s.step == first_step_id), None
+                )
+                if call_step and call_step.duration_in_days:
+                    first_step.deadline = first_step.started_at + timedelta(
+                        days=call_step.duration_in_days
+                    )
+                first_step.save(update_fields=["status", "started_at", "deadline"])
+                proposal.state = ProposalStates.IN_REVIEW
+                proposal.workflow_step = first_step_id
+            else:
+                proposal.state = ProposalStates.SUBMITTED
+
+            proposal.save()
+
         tasks.notify_user_about_proposal_state_update.delay(
             proposal.uuid, previous_state, proposal.state
         )
@@ -2383,6 +2497,175 @@ class ProposalViewSet(
         return response.Response(status=status.HTTP_200_OK)
 
     attach_document_serializer_class = serializers.ProposalDocumentationSerializer
+
+    # Workflow Step Endpoints
+
+    @extend_schema(
+        description="List all workflow step instances for this proposal.",
+        request=None,
+        responses={
+            status.HTTP_200_OK: serializers.ProposalWorkflowStepInstanceSerializer(
+                many=True
+            )
+        },
+    )
+    @decorators.action(detail=True, methods=["get"])
+    def workflow_states(self, request, uuid=None):
+        proposal = self.get_object()
+        instances = proposal.workflow_step_instances.all()
+        serializer = serializers.ProposalWorkflowStepInstanceSerializer(
+            instances, many=True
+        )
+        return response.Response(serializer.data, status=status.HTTP_200_OK)
+
+    workflow_states_serializer_class = (
+        serializers.ProposalWorkflowStepInstanceSerializer
+    )
+
+    @extend_schema(
+        description="Complete the current workflow step with an outcome.",
+        request=serializers.CompleteWorkflowStepSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.CompleteWorkflowStepResponseSerializer
+        },
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def complete_workflow_step(self, request, uuid=None):
+        proposal = self.get_object()
+
+        if proposal.state != ProposalStates.IN_REVIEW:
+            return response.Response(
+                {"detail": "Proposal must be in review state."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        if not proposal.workflow_step:
+            return response.Response(
+                {"detail": "Proposal has no active workflow step."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Pass active_step in context so the serializer can validate the
+        # outcome against the per-step allow-list.
+        input_serializer = serializers.CompleteWorkflowStepSerializer(
+            data=request.data,
+            context={"active_step": proposal.workflow_step},
+        )
+        input_serializer.is_valid(raise_exception=True)
+
+        outcome = input_serializer.validated_data["outcome"]
+        client_step_uuid = input_serializer.validated_data["step_uuid"]
+        outcome_reason = input_serializer.validated_data.get("outcome_reason", "")
+
+        with transaction.atomic():
+            # Lock the active step row to serialise concurrent completions.
+            current_instance = (
+                proposal.workflow_step_instances.select_for_update()
+                .filter(
+                    step=proposal.workflow_step,
+                    status=WorkflowStepInstanceStatuses.ACTIVE,
+                    uuid=client_step_uuid,
+                )
+                .first()
+            )
+            if current_instance is None:
+                return response.Response(
+                    {"detail": "Workflow step has changed; refresh and retry."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            next_instance = workflow_service.complete_step(
+                proposal=proposal,
+                current_instance=current_instance,
+                outcome=outcome,
+                outcome_reason=outcome_reason,
+                completed_by=request.user,
+            )
+            # Step-activation notifications were intentionally removed; see
+            # commit d2d5fb77c "Drop step-activation notifications [WAL-9346]".
+            # Re-introducing them requires a debounce/digest policy first.
+
+        if next_instance is None:
+            response_serializer = serializers.CompleteWorkflowStepResponseSerializer(
+                {
+                    "detail": "Workflow completed. Proposal accepted.",
+                    "proposal_state": ProposalStates.ACCEPTED,
+                }
+            )
+            return response.Response(
+                response_serializer.data, status=status.HTTP_200_OK
+            )
+
+        next_step_def = next(
+            (s for s in WORKFLOW_STEPS if s.id == next_instance.step), None
+        )
+        response_serializer = serializers.CompleteWorkflowStepResponseSerializer(
+            {
+                "detail": f"Step completed. Advanced to: {next_step_def.name if next_step_def else next_instance.step}",
+                "next_step": next_instance.step,
+            }
+        )
+        return response.Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    complete_workflow_step_serializer_class = serializers.CompleteWorkflowStepSerializer
+    complete_workflow_step_permissions = [
+        proposal_permissions.can_act_on_active_workflow_step
+    ]
+
+    @extend_schema(
+        description="Reject the proposal at the current workflow step.",
+        request=serializers.RejectWorkflowStepSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.RejectWorkflowStepResponseSerializer
+        },
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def reject_workflow_step(self, request, uuid=None):
+        proposal = self.get_object()
+        input_serializer = serializers.RejectWorkflowStepSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+
+        if proposal.state != ProposalStates.IN_REVIEW:
+            return response.Response(
+                {"detail": "Proposal must be in review state."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        client_step_uuid = input_serializer.validated_data["step_uuid"]
+        reason = input_serializer.validated_data["reason"]
+
+        with transaction.atomic():
+            current_instance = (
+                proposal.workflow_step_instances.select_for_update()
+                .filter(
+                    step=proposal.workflow_step,
+                    status=WorkflowStepInstanceStatuses.ACTIVE,
+                    uuid=client_step_uuid,
+                )
+                .first()
+            )
+            if current_instance is None:
+                return response.Response(
+                    {"detail": "Workflow step has changed; refresh and retry."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
+            workflow_service.reject_at_step(
+                proposal=proposal,
+                current_instance=current_instance,
+                reason=reason,
+                completed_by=request.user,
+            )
+
+        response_serializer = serializers.RejectWorkflowStepResponseSerializer(
+            {"detail": "Proposal rejected.", "proposal_state": ProposalStates.REJECTED}
+        )
+        return response.Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    reject_workflow_step_serializer_class = serializers.RejectWorkflowStepSerializer
+    reject_workflow_step_permissions = [
+        proposal_permissions.can_act_on_active_workflow_step
+    ]
 
     @extend_schema(
         request=serializers.ProposalDetachDocumentsSerializer,
