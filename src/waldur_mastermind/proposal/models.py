@@ -5,6 +5,7 @@ from typing import Literal, cast
 
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q
@@ -29,6 +30,7 @@ from waldur_mastermind.marketplace.models import (
     SafeAttributesMixin,
     UserAttributeConfigBase,
 )
+from waldur_mastermind.proposal import enums
 from waldur_mastermind.proposal.enums import (
     AssignmentBatchStatuses,
     AssignmentItemStatuses,
@@ -249,6 +251,173 @@ class CallApplicantVisibilityConfig(UserAttributeConfigBase):
     @classmethod
     def get_exposed_fields_for_call(cls, call, default_attributes=None) -> list[str]:
         return cls.get_exposed_fields_for_scope(call, default_attributes)
+
+
+class CallWorkflowStep(
+    TimeStampedModel,
+    core_models.UuidMixin,
+):
+    """Per-call configuration of a workflow step.
+
+    Defines which evaluation steps are enabled for a call, their durations,
+    and evaluation checklists. Authorisation for acting on a step is resolved
+    through the parent Call's role assignments — see
+    ``permissions._user_can_act_on_active_step``.
+    """
+
+    class Permissions:
+        customer_path = "call__manager__customer"
+
+    call = models.ForeignKey(
+        Call,
+        on_delete=models.CASCADE,
+        related_name="workflow_steps",
+    )
+    step = models.CharField(
+        max_length=64,
+        choices=enums.WORKFLOW_STEPS_CHOICES,
+    )
+    is_enabled = models.BooleanField(
+        default=True,
+        help_text="Whether this step is enabled. Disabled steps are skipped.",
+    )
+    duration_in_days = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Duration in days. Used to calculate deadlines.",
+    )
+
+    # Evaluation form (reuses Checklist system)
+    checklist = models.ForeignKey(
+        "checklist.Checklist",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        help_text="Evaluation form for this step.",
+    )
+
+    # Review behavior
+    blind_review = models.BooleanField(
+        default=False,
+        help_text="Evaluators cannot see each other's assessments.",
+    )
+    requires_coi_confirmation = models.BooleanField(
+        default=False,
+        help_text="Evaluator must confirm absence of conflict of interest.",
+    )
+    min_reviewers = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Minimum reviews required before step can complete.",
+    )
+    min_score_threshold = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Minimum average score to pass this step.",
+    )
+
+    # Visibility
+    applicant_visible = models.BooleanField(
+        default=False,
+        help_text="Whether the applicant can see step details (not just status).",
+    )
+
+    # Responsibility and transition behavior
+    responsible_role = models.CharField(
+        max_length=32,
+        choices=enums.ResponsibleRoles.CHOICES,
+        null=True,
+        blank=True,
+        help_text="Role expected to act on this step.",
+    )
+    transition_mode = models.CharField(
+        max_length=32,
+        choices=enums.TransitionModes.CHOICES,
+        default=enums.TransitionModes.AUTOMATIC_ON_COMPLETION,
+        help_text="How this step advances to the next.",
+    )
+
+    # Per-step extras
+    include_award_response = models.BooleanField(
+        default=False,
+        help_text=(
+            "Allocation decision: require applicant award response after decision."
+        ),
+    )
+    display_order = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        help_text="Optional override of catalog ordering.",
+    )
+
+    class Meta:
+        unique_together = ("call", "step")
+        ordering = ["created"]
+        verbose_name = _("Workflow step")
+        verbose_name_plural = _("Workflow steps")
+
+    def __str__(self):
+        return f"{self.call.name} — {self.get_step_display()}"
+
+    def save(self, *args, **kwargs):
+        # Apply the catalog default for the responsible role on first save so
+        # callers can omit it. Done in save() rather than __init__ to avoid
+        # mutating instances hydrated from the database.
+        if not self.responsible_role and self.step:
+            step_def = enums.WORKFLOW_STEPS_MAP.get(self.step)
+            if step_def and step_def.default_responsible_role:
+                self.responsible_role = step_def.default_responsible_role
+        super().save(*args, **kwargs)
+
+    def clean(self):
+        """Validate step dependencies and mandatory rules."""
+        step_def = enums.WORKFLOW_STEPS_MAP.get(self.step)
+        if not step_def:
+            return
+
+        if not self.is_enabled and step_def.is_mandatory:
+            raise DjangoValidationError(
+                f"Step '{step_def.name}' is mandatory and cannot be disabled."
+            )
+
+        if self.is_enabled and step_def.dependencies:
+            enabled_steps = set(
+                CallWorkflowStep.objects.filter(call=self.call, is_enabled=True)
+                .exclude(pk=self.pk)
+                .values_list("step", flat=True)
+            )
+            for dep in step_def.dependencies:
+                if dep not in enabled_steps:
+                    dep_name = enums.WORKFLOW_STEPS_MAP.get(dep, dep)
+                    raise DjangoValidationError(
+                        f"Step '{step_def.name}' requires '{dep_name}' to be enabled."
+                    )
+
+
+class WorkflowCriterion(
+    TimeStampedModel,
+    core_models.UuidMixin,
+):
+    """Named evaluation criterion attached to a workflow step (e.g. expert review)."""
+
+    workflow_step = models.ForeignKey(
+        CallWorkflowStep,
+        on_delete=models.CASCADE,
+        related_name="criteria",
+    )
+    name = models.CharField(max_length=255)
+    order = models.PositiveSmallIntegerField(default=0)
+
+    class Meta:
+        ordering = ["order", "id"]
+        unique_together = [("workflow_step", "name")]
+        verbose_name = _("Workflow criterion")
+        verbose_name_plural = _("Workflow criteria")
+
+    def __str__(self):
+        return f"{self.workflow_step} — {self.name}"
 
 
 def filter_call_proposal_project_role_mappings(user):
@@ -590,6 +759,15 @@ class Proposal(
         related_name="proposals",
     )
 
+    # Workflow tracking
+    workflow_step = models.CharField(
+        max_length=64,
+        choices=enums.WORKFLOW_STEPS_CHOICES,
+        null=True,
+        default=None,
+        help_text="Current active workflow step for this proposal.",
+    )
+
     # Note: checklist_completions relationship is automatically available via ChecklistCompletion.scope
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
@@ -749,6 +927,78 @@ class RequestedResource(
         null=True,
     )
     proposal = models.ForeignKey(Proposal, on_delete=models.CASCADE)
+
+
+class ProposalWorkflowStepInstance(
+    TimeStampedModel,
+    core_models.UuidMixin,
+):
+    """Tracks the status and outcome of each workflow step for a specific proposal.
+
+    One instance per proposal per enabled step. Created when a proposal is submitted.
+    """
+
+    proposal = models.ForeignKey(
+        Proposal,
+        on_delete=models.CASCADE,
+        related_name="workflow_step_instances",
+    )
+    step = models.CharField(
+        max_length=64,
+        choices=enums.WORKFLOW_STEPS_CHOICES,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=enums.WorkflowStepInstanceStatuses.CHOICES,
+        default=enums.WorkflowStepInstanceStatuses.PENDING,
+    )
+    outcome = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        help_text="Step-specific outcome (e.g., eligible, feasible, approved).",
+    )
+    outcome_reason = models.TextField(
+        blank=True,
+        help_text="Explanation for the outcome (e.g., rejection reason).",
+    )
+    started_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this step became active.",
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+    completed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    deadline = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Computed from started_at + step duration_in_days.",
+    )
+
+    class Meta:
+        unique_together = ("proposal", "step")
+        ordering = ["created"]
+        verbose_name = _("Proposal workflow step")
+        verbose_name_plural = _("Proposal workflow steps")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["proposal"],
+                condition=Q(status=enums.WorkflowStepInstanceStatuses.ACTIVE),
+                name="unique_active_workflow_step_per_proposal",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.proposal.slug} — {self.get_step_display()} [{self.status}]"
 
 
 class Review(

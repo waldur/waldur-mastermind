@@ -8,6 +8,7 @@ class ChecklistTypes:
     PROJECT_METADATA = "project_metadata"
     ONBOARDING_CUSTOMER_DATA = "onboarding_customer"
     ONBOARDING_INTENT_DATA = "onboarding_intent"
+    WORKFLOW_STEP = "workflow_step"
 
     CHOICES = [
         (PROJECT_COMPLIANCE, _("Project compliance")),
@@ -16,6 +17,7 @@ class ChecklistTypes:
         (PROJECT_METADATA, _("Project metadata")),
         (ONBOARDING_CUSTOMER_DATA, _("Onboarding customer data")),
         (ONBOARDING_INTENT_DATA, _("Onboarding intent/purpose data")),
+        (WORKFLOW_STEP, _("Workflow step evaluation")),
     ]
 
 

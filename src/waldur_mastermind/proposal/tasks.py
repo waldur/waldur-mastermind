@@ -4,6 +4,7 @@ from typing import Any, cast
 
 from celery import shared_task
 from constance import config
+from django.db import transaction
 from django.db.models import Avg, Count, Q
 from django.utils import timezone
 
@@ -13,8 +14,12 @@ from waldur_core.logging.enums import EventType
 from waldur_core.structure.permissions import _get_customer
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
-from waldur_mastermind.proposal import utils
-from waldur_mastermind.proposal.enums import CallStates, ProposalStates
+from waldur_mastermind.proposal import utils, workflow_service
+from waldur_mastermind.proposal.enums import (
+    CallStates,
+    ProposalStates,
+    WorkflowStepInstanceStatuses,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -720,6 +725,51 @@ def notify_manager_when_reviews_are_completed(proposal_uuid):
         context,
         manager_emails,
     )
+
+
+@shared_task(name="waldur_mastermind.proposal.mark_expired_workflow_steps")
+def mark_expired_workflow_steps():
+    """Expire ACTIVE workflow step instances past their deadline and advance the workflow.
+
+    For each overdue active step, marks it EXPIRED and either activates the
+    next enabled step or rejects the proposal when no further step exists.
+    Each transition runs in its own transaction so a single failure does not
+    block other expiries.
+    """
+    overdue_ids = list(
+        proposal_models.ProposalWorkflowStepInstance.objects.filter(
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+            deadline__lt=timezone.now(),
+        ).values_list("id", flat=True)
+    )
+
+    expired_count = 0
+    for instance_id in overdue_ids:
+        try:
+            with transaction.atomic():
+                instance = (
+                    proposal_models.ProposalWorkflowStepInstance.objects.select_for_update()
+                    .filter(
+                        id=instance_id,
+                        status=WorkflowStepInstanceStatuses.ACTIVE,
+                        deadline__lt=timezone.now(),
+                    )
+                    .first()
+                )
+                if instance is None:
+                    continue
+                workflow_service.expire_step(instance)
+        except Exception:
+            logger.exception(
+                "Failed to expire workflow step instance id=%s", instance_id
+            )
+            continue
+
+        expired_count += 1
+
+    if expired_count:
+        logger.info("Expired %d workflow step instance(s)", expired_count)
+    return expired_count
 
 
 @shared_task(name="waldur_mastermind.proposal.mark_expired_assignment_batches")

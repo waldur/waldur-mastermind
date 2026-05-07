@@ -62,6 +62,11 @@ class ProposalExtension(WaldurExtension):
                 "schedule": timedelta(minutes=15),
                 "args": (),
             },
+            "mark-expired-workflow-steps": {
+                "task": "waldur_mastermind.proposal.mark_expired_workflow_steps",
+                "schedule": timedelta(hours=1),
+                "args": (),
+            },
             "send-assignment-expiry-reminders": {
                 "task": "waldur_mastermind.proposal.send_assignment_expiry_reminders",
                 "schedule": timedelta(hours=24),
