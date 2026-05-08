@@ -870,20 +870,26 @@ class StateMixin(ErrorMessageMixin, ConcurrentTransitionMixin):
     )
 
     @transition(
-        field=state, source=CoreStates.CREATION_SCHEDULED, target=CoreStates.CREATING
+        field=state,
+        source=[CoreStates.CREATION_SCHEDULED, CoreStates.CREATING],
+        target=CoreStates.CREATING,
     )
     def begin_creating(self):
         pass
 
     @transition(
-        field=state, source=CoreStates.UPDATE_SCHEDULED, target=CoreStates.UPDATING
+        field=state,
+        source=[CoreStates.UPDATE_SCHEDULED, CoreStates.UPDATING],
+        target=CoreStates.UPDATING,
     )
     def begin_updating(self):
         if hasattr(self, "update_triggered"):
             self.update_triggered = django_timezone.now()
 
     @transition(
-        field=state, source=CoreStates.DELETION_SCHEDULED, target=CoreStates.DELETING
+        field=state,
+        source=[CoreStates.DELETION_SCHEDULED, CoreStates.DELETING],
+        target=CoreStates.DELETING,
     )
     def begin_deleting(self):
         pass
