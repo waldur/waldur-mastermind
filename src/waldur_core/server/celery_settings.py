@@ -219,6 +219,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(minutes=15),
         "args": (),
     },
+    # Cleanup site agent logs - enforce row count limit per agent identity
+    "cleanup-site-agent-logs": {
+        "task": "waldur_mastermind.marketplace_site_agent.cleanup_site_agent_logs",
+        "schedule": timedelta(minutes=15),
+        "args": (),
+    },
     # Table growth monitoring - sample sizes daily at 1 AM
     "sample-table-sizes": {
         "task": "waldur_core.sample_table_sizes",

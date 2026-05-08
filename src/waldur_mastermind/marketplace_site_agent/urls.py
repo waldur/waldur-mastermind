@@ -19,6 +19,11 @@ def register_in(router):
         views.AgentProcessorViewSet,
         basename="marketplace-site-agent-processor",
     )
+    router.register(
+        r"marketplace-site-agent-logs",
+        views.SiteAgentLogViewSet,
+        basename="marketplace-site-agent-log",
+    )
 
 
 urlpatterns = [

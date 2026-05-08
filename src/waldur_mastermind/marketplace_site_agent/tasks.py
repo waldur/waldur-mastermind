@@ -2,6 +2,8 @@ import datetime
 import logging
 
 from celery import shared_task
+from constance import config
+from django.db.models import Count
 from django.utils import timezone
 
 from waldur_core.core import utils as core_utils
@@ -181,4 +183,38 @@ def mark_agent_services_as_inactive():
             logger.info(
                 "Agent service %s has been marked as inactive because its processors have not ran for more than 10 minutes.",
                 agent_service.name,
+            )
+
+
+@shared_task(name="waldur_mastermind.marketplace_site_agent.cleanup_site_agent_logs")
+def cleanup_site_agent_logs():
+    """
+    Enforce row count limit per agent identity.
+
+    Keeps newest logs, deletes oldest when count exceeds the configured limit.
+    Runs periodically to maintain log volume within limits.
+    """
+    max_rows = config.SITE_AGENT_LOG_MAX_ROWS_PER_IDENTITY
+
+    identities = models.AgentIdentity.objects.annotate(
+        log_count=Count("siteagentlog")
+    ).filter(log_count__gt=max_rows)
+
+    for identity in identities:
+        total_count = identity.log_count
+        cutoff_row = (
+            models.SiteAgentLog.objects.filter(agent_identity=identity)
+            .order_by("-timestamp")
+            .values_list("timestamp", flat=True)[max_rows : max_rows + 1]
+        )
+        if cutoff_row:
+            deleted, _ = models.SiteAgentLog.objects.filter(
+                agent_identity=identity, timestamp__lte=cutoff_row[0]
+            ).delete()
+            logger.info(
+                "Cleaned up %d site agent log entries for identity %s (had %d rows, limit %d)",
+                deleted,
+                identity.uuid,
+                total_count,
+                max_rows,
             )

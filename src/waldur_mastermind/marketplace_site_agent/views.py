@@ -866,3 +866,54 @@ Requires support user permissions.""",
             instance=output
         )
         return Response(output_serializer.data, status=status.HTTP_200_OK)
+
+
+class SiteAgentLogViewSet(ActionsViewSet):
+    """Endpoint for site agents to push diagnostic logs to Waldur Mastermind."""
+
+    queryset = models.SiteAgentLog.objects.all()
+    serializer_class = serializers.SiteAgentLogSerializer
+    filterset_class = filters.SiteAgentLogFilter
+    filter_backends = (DjangoFilterBackend,)
+    lookup_field = "uuid"
+    disabled_actions = ["update", "partial_update", "destroy", "retrieve"]
+
+    def get_queryset(self):
+        qs = super().get_queryset().select_related("agent_identity__offering")
+        offerings = marketplace_models.Offering.objects.filter(
+            type__in=[
+                marketplace_enums.SITE_AGENT_OFFERING,
+                marketplace_enums.SCRIPT_OFFERING,
+                marketplace_enums.OPENSTACK_TENANT_OFFERING,
+                marketplace_enums.BASIC_OFFERING,
+            ]
+        ).filter_for_user(self.request.user)
+        return qs.filter(agent_identity__offering__in=offerings)
+
+    @extend_schema(
+        summary="Push site agent logs",
+        description="Receive a batch of log entries from a site agent. Send a list where each entry includes agent_identity_uuid.",
+        request=serializers.SiteAgentLogCreateSerializer(many=True),
+        responses={201: serializers.SiteAgentLogSerializer(many=True)},
+    )
+    def create(self, request, *args, **kwargs):
+        input_serializer = serializers.SiteAgentLogCreateSerializer(
+            data=request.data, many=True, context={"request": request}
+        )
+        input_serializer.is_valid(raise_exception=True)
+
+        logs = models.SiteAgentLog.objects.bulk_create(
+            [
+                models.SiteAgentLog(
+                    agent_identity=entry["agent_identity_uuid"],
+                    timestamp=entry["timestamp"],
+                    level=entry["level"],
+                    message=entry["message"],
+                    module=entry["module"],
+                )
+                for entry in input_serializer.validated_data
+            ],
+            batch_size=500,
+        )
+        output_serializer = self.get_serializer(logs, many=True)
+        return Response(output_serializer.data, status=status.HTTP_201_CREATED)
