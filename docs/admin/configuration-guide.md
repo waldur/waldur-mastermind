@@ -3061,3 +3061,13 @@ Maximum PAT lifetime in days.
 **Default value:** 20
 
 Maximum number of active PATs per user.
+
+### Site Agent Logs
+
+#### SITE_AGENT_LOG_MAX_ROWS_PER_IDENTITY
+
+**Type:** int
+
+**Default value:** 10000
+
+Maximum number of log rows to keep per agent identity. Oldest rows are deleted when exceeded.

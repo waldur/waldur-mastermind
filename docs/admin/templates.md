@@ -2768,6 +2768,7 @@ Thank you!
 ```txt
 
 User: {{user.first_name}} {{user.last_name}} (e-mail: {{user.email}}, username: {{user.username}}).
+Role: {{role}}.
 Project: {{project}} ({{ project_url }}).
 
 Service offerings:
@@ -2851,6 +2852,23 @@ No active support resources found for this user.
 Marketplace resource UUID: {{order.resource.uuid.hex}}
 Old limits: {{ old_limits }}.
 New limits: {{ new_limits }}.
+
+```
+
+### create_resource_membership_update_issue.txt (waldur_mastermind.marketplace_support)
+
+```txt
+
+User: {{user.first_name}} {{user.last_name}} (e-mail: {{user.email}}, username: {{user.username}}).
+Role: {{role}}.
+Resource: {{resource.name}} ({{ resource_url }}).
+{% if resource_project %}Sub-project: {{resource_project.name}}.
+{% endif %}Project: {{project}} ({{ project_url }}).
+
+Service offering: {{offering}}
+{% if offering_user %}Offering user: {{offering_user.username}}
+{% else %}Username not available.
+{% endif %}
 
 ```
 
