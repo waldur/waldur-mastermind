@@ -376,19 +376,8 @@ def notify_about_request_based_item_creation(
     )
 
 
-def _create_issue_if_membership_changed(instance, summary):
+def _create_issue_for_project_membership_changed(instance, summary):
     user_role = instance
-    logger.info(
-        "Processing membership change for user %s (id: %s) in scope %s",
-        user_role.user.username,
-        user_role.user.id,
-        user_role.scope,
-    )
-
-    if not isinstance(user_role.scope, structure_models.Project):
-        logger.debug("Skipping membership change processing - scope is not a project")
-        return
-
     project = user_role.scope
     logger.info(
         "Checking resources for project %s (id: %s) with PLUGIN_NAME %s",
@@ -433,6 +422,7 @@ def _create_issue_if_membership_changed(instance, summary):
                     "offerings": offerings,
                     "project": project,
                     "user": user_role.user,
+                    "role": user_role.role.name,
                     "project_url": core_utils.format_homeport_link(
                         "projects/{project_uuid}/", project_uuid=project.uuid.hex
                     ),
@@ -453,6 +443,7 @@ def _create_issue_if_membership_changed(instance, summary):
                 summary=summary.format(
                     user=user_role.user.full_name,
                     project=project.name,
+                    role=user_role.role.name,
                     organization=project.customer.get_display_name(),
                 ),
                 description=description,
@@ -467,6 +458,99 @@ def _create_issue_if_membership_changed(instance, summary):
             raise
     else:
         logger.debug("No eligible resources found for membership change notification")
+
+
+def _create_issue_for_resource_membership_changed(
+    instance, summary, *, resource, resource_project=None
+):
+    user_role = instance
+    if resource.state == ResourceStates.TERMINATED:
+        logger.debug("Skipping - resource is terminated")
+        return
+
+    offering = resource.offering
+    if offering.type != SUPPORT_OFFERING:
+        logger.debug("Skipping - resource offering is not a support offering")
+        return
+
+    if not offering.plugin_options.get("enable_issues_for_membership_changes"):
+        logger.debug("Skipping - enable_issues_for_membership_changes is not set")
+        return
+
+    project = resource.project
+    offering_user = offering.offeringuser_set.filter(user=user_role.user).first()
+    resource_url = core_utils.format_homeport_link(
+        "resource-details/{resource_uuid}/",
+        project_uuid=project.uuid.hex,
+        resource_uuid=resource.uuid.hex,
+    )
+    project_url = core_utils.format_homeport_link(
+        "projects/{project_uuid}/", project_uuid=project.uuid.hex
+    )
+
+    template = get_template(
+        "marketplace_support/create_resource_membership_update_issue.txt"
+    ).template
+    description = template.render(
+        Context(
+            {
+                "resource": resource,
+                "resource_project": resource_project,
+                "project": project,
+                "user": user_role.user,
+                "role": user_role.role.name,
+                "offering": offering,
+                "offering_user": offering_user,
+                "resource_url": resource_url,
+                "project_url": project_url,
+            },
+            autoescape=False,
+        )
+    )
+
+    try:
+        logger.info(
+            "Creating issue for resource membership change. User: %s, Resource: %s, Organization: %s",
+            user_role.user.full_name,
+            resource.name,
+            project.customer.get_display_name(),
+        )
+        marketplace_support_utils.create_issue_about_project_team_changes(
+            project,
+            created_by=user_role.user,
+            summary=summary.format(
+                user=user_role.user.full_name,
+                resource=resource.name,
+                project=project.name,
+                role=user_role.role.name,
+                organization=project.customer.get_display_name(),
+            ),
+            description=description,
+        )
+    except Exception as e:
+        logger.exception(
+            "Failed to create issue for resource membership change. User: %s, Resource: %s. Error: %s",
+            user_role.user.full_name,
+            resource.name,
+            str(e),
+        )
+        raise
+
+
+PROJECT_MEMBERSHIP_SUMMARIES = {
+    True: "{organization}: User {user} has been added to project '{project}' with role '{role}'.",
+    False: "{organization}: User {user} has been removed from project '{project}' with role '{role}'.",
+}
+
+RESOURCE_MEMBERSHIP_SUMMARIES = {
+    True: "{organization}: User {user} has been added to resource '{resource}' with role '{role}'.",
+    False: "{organization}: User {user} has been removed from resource '{resource}' with role '{role}'.",
+}
+
+RESOURCE_PROJECT_MEMBERSHIP_SUMMARIES = {
+    True: "{organization}: User {user} has been added to resource '{resource}' (project '{project}') with role '{role}'.",
+    False: "{organization}: User {user} has been removed from resource '{resource}' (project '{project}') with role '{role}'.",
+}
 
 
 def create_issue_if_membership_changed(
@@ -484,30 +568,33 @@ def create_issue_if_membership_changed(
         logger.debug("Skipping - newly created inactive instance")
         return
 
-    if not isinstance(instance.scope, structure_models.Project):
-        logger.debug("Skipping - scope is not a project")
-        return
-
     if not instance.tracker.has_changed("is_active"):
         logger.debug("Skipping - is_active status hasn't changed")
         return
 
-    logger.info(
-        "Processing membership change. User: %s, Project: %s, New status: %s",
-        instance.user.username if hasattr(instance, "user") else "unknown",
-        instance.scope,
-        "active" if instance.is_active else "inactive",
-    )
+    scope = instance.scope
+    is_active = bool(instance.is_active)
 
-    if instance.is_active:
-        _create_issue_if_membership_changed(
-            instance, "{organization}: User {user} has been added to project {project}."
+    if isinstance(scope, structure_models.Project):
+        _create_issue_for_project_membership_changed(
+            instance, PROJECT_MEMBERSHIP_SUMMARIES[is_active]
+        )
+    elif isinstance(scope, marketplace_models.Resource):
+        _create_issue_for_resource_membership_changed(
+            instance,
+            RESOURCE_MEMBERSHIP_SUMMARIES[is_active],
+            resource=scope,
+        )
+    elif isinstance(scope, marketplace_models.ResourceProject):
+        _create_issue_for_resource_membership_changed(
+            instance,
+            RESOURCE_PROJECT_MEMBERSHIP_SUMMARIES[is_active],
+            resource=scope.resource,
+            resource_project=scope,
         )
     else:
-        _create_issue_if_membership_changed(
-            instance,
-            "{organization}: User {user} has been removed from project {project}.",
-        )
+        logger.debug("Skipping - unsupported scope type %s", type(scope).__name__)
+        return
 
 
 def _create_issue_for_ssh_key_change(ssh_key, summary):
