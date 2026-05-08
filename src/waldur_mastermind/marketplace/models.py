@@ -130,8 +130,10 @@ class ServiceProvider(
 
     @property
     def has_active_offerings(self) -> bool:
+        # Exclude auto-created infrastructure child offerings (e.g. OpenStack.Instance/Volume)
+        # which have a parent set and are not part of the provider's marketplace catalogue.
         return (
-            Offering.objects.filter(customer=self.customer)
+            Offering.objects.filter(customer=self.customer, parent__isnull=True)
             .exclude(state=OfferingStates.ARCHIVED)
             .exists()
         )
