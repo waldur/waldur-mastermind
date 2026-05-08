@@ -14,6 +14,7 @@ from novaclient.v2.servers import Server
 from waldur_core.core.models import CoreStates
 from waldur_openstack import models
 from waldur_openstack.backend import OpenStackBackend
+from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.models import Port
 from waldur_openstack.tests.factories import (
     FloatingIPFactory,
@@ -795,6 +796,51 @@ class PullPortsTest(BaseBackendTest):
         # Assert
         self.assertEqual(instance.ports.count(), 0)
 
+    @data(
+        CoreStates.CREATION_SCHEDULED,
+        CoreStates.CREATING,
+        CoreStates.UPDATE_SCHEDULED,
+        CoreStates.UPDATING,
+        CoreStates.DELETION_SCHEDULED,
+        CoreStates.DELETING,
+    )
+    def test_in_flight_ports_are_not_deleted(self, port_state):
+        # Regression: OpenStackInstanceSerializer.create() saves Port rows in
+        # CREATION_SCHEDULED state with backend_id=None, then create_instance_-
+        # ports pushes them to Neutron and transitions them to OK. The
+        # 2-hour periodic pull_tenant_ports must NOT delete these in-flight
+        # ports — same goes for ports being updated or torn down.
+        #
+        # Original bug: pull_tenant_ports filtered only on tenant + backend_id,
+        # so any in-flight port (state != OK/ERRED) whose backend_id wasn't yet
+        # in Neutron's response — including the un-pushed NULL-backend_id port
+        # from the create() flow — was wrongly deleted as "stale". Fixed by
+        # adding state__in=[OK, ERRED] to the filter, matching every other
+        # stale-detection site in this module.
+        instance = self.fixture.instance
+        in_flight_port = PortFactory(
+            tenant=self.tenant,
+            service_settings=self.openstack_settings,
+            project=self.fixture.project,
+            subnet=self.fixture.subnet,
+            network=self.fixture.network,
+            instance=instance,
+            state=port_state,
+            backend_id=None,
+        )
+
+        # Neutron returns no ports for this tenant — the in-flight Waldur
+        # port has not yet been pushed, so Neutron doesn't know about it.
+        self.mocked_neutron.list_ports.return_value = {"ports": []}
+
+        self.backend.pull_tenant_ports(self.tenant)
+
+        self.assertTrue(
+            Port.objects.filter(pk=in_flight_port.pk).exists(),
+            f"pull_tenant_ports must not delete ports in state {port_state} "
+            "(only ports in OK or ERRED state should be considered stale)",
+        )
+
     def test_existing_ports_are_updated(self):
         # Arrange
         instance = self.fixture.instance
@@ -1174,6 +1220,9 @@ class CreateInstanceTest(VolumesBaseTest):
         backend_flavor = self._get_valid_flavor(self.flavor_id)
         self.mocked_nova.flavors.get.return_value = backend_flavor
         self.mocked_nova.servers.create.return_value.id = uuid.uuid4()
+        # Nova microversion >= 2.36 requires at least one nic; the backend
+        # builds nics from instance.ports, so each test needs a port.
+        self.fixture.port
 
     def test_zone_name_is_passed_to_nova_client(self):
         # Arrange
@@ -1222,6 +1271,34 @@ class CreateInstanceTest(VolumesBaseTest):
 
         kwargs = self.mocked_nova.servers.create.mock_calls[0][2]
         self.assertNotIn("scheduler_hints", kwargs)
+
+    def test_empty_nics_raises_clear_backend_error(self):
+        # Regression: Nova microversion 2.36+ rejects an empty `nics` list with
+        # a bare ValueError that escapes the ClientException handler. The
+        # backend should raise OpenStackBackendError with an actionable message.
+        instance = self.fixture.instance
+        instance.ports.all().delete()
+
+        with self.assertRaises(OpenStackBackendError) as ctx:
+            self.backend.create_instance(instance, self.flavor_id)
+
+        self.assertIn("at least one network port is required", str(ctx.exception))
+        self.mocked_nova.servers.create.assert_not_called()
+
+    def test_ports_without_backend_id_raise_clear_backend_error(self):
+        # Regression: if port creation failed earlier and ports have empty
+        # backend_id, nics ends up empty and Nova rejects the call. Surface a
+        # clearer error pointing to the offending ports.
+        instance = self.fixture.instance
+        port = self.fixture.port
+        port.backend_id = ""
+        port.save()
+
+        with self.assertRaises(OpenStackBackendError) as ctx:
+            self.backend.create_instance(instance, self.flavor_id)
+
+        self.assertIn("port creation likely failed earlier", str(ctx.exception))
+        self.mocked_nova.servers.create.assert_not_called()
 
 
 class CreateServerGroupTest(BaseBackendTest):
