@@ -1,4 +1,5 @@
 User: {{user.first_name}} {{user.last_name}} (e-mail: {{user.email}}, username: {{user.username}}).
+Role: {{role}}.
 Project: {{project}} ({{ project_url }}).
 
 Service offerings:

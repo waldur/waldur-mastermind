@@ -1,0 +1,10 @@
+User: {{user.first_name}} {{user.last_name}} (e-mail: {{user.email}}, username: {{user.username}}).
+Role: {{role}}.
+Resource: {{resource.name}} ({{ resource_url }}).
+{% if resource_project %}Sub-project: {{resource_project.name}}.
+{% endif %}Project: {{project}} ({{ project_url }}).
+
+Service offering: {{offering}}
+{% if offering_user %}Offering user: {{offering_user.username}}
+{% else %}Username not available.
+{% endif %}
