@@ -540,8 +540,9 @@ class ProjectSerializer(
         queryset=models.AffiliatedOrganization.objects.all(),
         allow_null=True,
         required=False,
-        write_only=True,
     )
+    affiliation_name = serializers.ReadOnlyField(source="affiliation.name")
+    affiliation_code = serializers.ReadOnlyField(source="affiliation.code")
     science_sub_domain = serializers.SlugRelatedField(
         slug_field="uuid",
         queryset=models.ScienceSubDomain.objects.all(),
@@ -608,6 +609,8 @@ class ProjectSerializer(
             "user_identity_sources",
             "affiliation",
             "affiliation_uuid",
+            "affiliation_name",
+            "affiliation_code",
             "science_sub_domain",
             "science_sub_domain_name",
             "science_sub_domain_code",
