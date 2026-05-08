@@ -341,6 +341,38 @@ class ProjectAffiliationFilterTest(test.APITestCase):
         self.assertNotIn(self.fixture.project.uuid.hex, uuids)
 
 
+class ProjectAffiliationFlatFieldsTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.org = factories.AffiliatedOrganizationFactory(
+            name="ETH Zurich", code="ETHZ"
+        )
+
+    def test_flat_fields_present_when_affiliation_set(self):
+        self.fixture.project.affiliation = self.org
+        self.fixture.project.save()
+        self.client.force_authenticate(user=self.fixture.staff)
+        url = factories.ProjectFactory.get_url(self.fixture.project)
+        response = self.client.get(url)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertEqual(str(response.data["affiliation_uuid"]), self.org.uuid.hex)
+        self.assertEqual(response.data["affiliation_name"], "ETH Zurich")
+        self.assertEqual(response.data["affiliation_code"], "ETHZ")
+
+    def test_flat_fields_absent_when_affiliation_unset(self):
+        # Mirrors the science_sub_domain pattern: when source-traversal hits None,
+        # the flat read-only fields are omitted from the response. The nested
+        # `affiliation` field stays present (as None) so consumers can detect.
+        self.client.force_authenticate(user=self.fixture.staff)
+        url = factories.ProjectFactory.get_url(self.fixture.project)
+        response = self.client.get(url)
+        self.assertEqual(status.HTTP_200_OK, response.status_code)
+        self.assertIsNone(response.data["affiliation"])
+        self.assertIsNone(response.data["affiliation_uuid"])
+        self.assertNotIn("affiliation_name", response.data)
+        self.assertNotIn("affiliation_code", response.data)
+
+
 class AffiliatedOrganizationStatsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
