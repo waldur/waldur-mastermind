@@ -389,7 +389,11 @@ def send_mail_notification_about_permission_request_has_been_submitted(
     permission_request_id,
 ):
     permission_request = models.PermissionRequest.objects.get(id=permission_request_id)
-    requests_link = format_homeport_link("profile/permission-requests/")
+    customer_uuid = permission_request.invitation.customer.uuid.hex
+    requests_link = format_homeport_link(
+        "organizations/{customer_uuid}/group-invitations/",
+        customer_uuid=customer_uuid,
+    )
     users = utils.get_users_for_notification_about_request_has_been_submitted(
         permission_request
     )
