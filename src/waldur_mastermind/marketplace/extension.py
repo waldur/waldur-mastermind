@@ -29,6 +29,17 @@ class MarketplaceExtension(WaldurExtension):
         from celery.schedules import crontab
 
         return {
+            "pull-service-properties": {
+                "task": "waldur_mastermind.marketplace.ServicePropertiesListPullTask",
+                "schedule": timedelta(hours=24),
+                "args": (),
+            },
+            "pull-service-resources": {
+                "task": "waldur_mastermind.marketplace.ServiceResourcesListPullTask",
+                # Pull resources strictly at the beginning of an hour
+                "schedule": crontab(minute=0),
+                "args": (),
+            },
             "waldur-marketplace-calculate-usage": {
                 "task": "waldur_mastermind.marketplace.calculate_usage_for_current_month",
                 "schedule": timedelta(hours=1),

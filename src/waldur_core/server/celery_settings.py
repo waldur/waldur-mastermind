@@ -63,17 +63,6 @@ DEFAULT_SCIM_RECONCILIATION_SCHEDULE_HOURS = 1
 
 # Regular tasks
 CELERY_BEAT_SCHEDULE = {
-    "pull-service-properties": {
-        "task": "waldur_core.structure.ServicePropertiesListPullTask",
-        "schedule": timedelta(hours=24),
-        "args": (),
-    },
-    "pull-service-resources": {
-        "task": "waldur_core.structure.ServiceResourcesListPullTask",
-        # Pull resources strictly at the beginning of an hour
-        "schedule": crontab(minute=0),
-        "args": (),
-    },
     "check-expired-permissions": {
         "task": "waldur_core.permissions.check_expired_permissions",
         "schedule": timedelta(hours=24),

@@ -11,6 +11,7 @@ from rest_framework import test
 from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.structure.registry import SupportedServices
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.enums import Units
@@ -797,3 +798,32 @@ class ResetStuckUpdatingResourcesTest(test.APITestCase):
         # Verify the resource state is still UPDATING
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.state, ResourceStates.UPDATING)
+
+
+class MarketplaceAwareServiceListPullTaskTest(test.APITestCase):
+    """The marketplace-aware ServiceListPullTask must skip ServiceSettings
+    that no live offering references — otherwise stale settings (e.g. an
+    old DigitalOcean credential left after the offering was deleted) keep
+    generating periodic remote-API errors."""
+
+    def setUp(self):
+        registered_type = next(iter(SupportedServices.get_choices()))[0]
+        common = dict(state=CoreStates.OK, is_active=True, type=registered_type)
+        self.referenced = structure_factories.ServiceSettingsFactory(**common)
+        self.orphan = structure_factories.ServiceSettingsFactory(**common)
+        self.archived_only = structure_factories.ServiceSettingsFactory(**common)
+        factories.OfferingFactory(scope=self.referenced, state=OfferingStates.ACTIVE)
+        factories.OfferingFactory(
+            scope=self.archived_only, state=OfferingStates.ARCHIVED
+        )
+
+    def test_only_settings_with_live_offering_are_pulled(self):
+        result = list(tasks.ServiceResourcesListPullTask().get_pulled_objects())
+        self.assertIn(self.referenced, result)
+        self.assertNotIn(self.orphan, result)
+        self.assertNotIn(self.archived_only, result)
+
+    def test_paused_offering_keeps_settings_in_queryset(self):
+        factories.OfferingFactory(scope=self.orphan, state=OfferingStates.PAUSED)
+        result = list(tasks.ServicePropertiesListPullTask().get_pulled_objects())
+        self.assertIn(self.orphan, result)

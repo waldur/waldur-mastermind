@@ -144,20 +144,6 @@ class ServiceResourcesPullTask(BackgroundPullTask):
             backend.pull_resources()
 
 
-class ServicePropertiesListPullTask(ServiceListPullTask):
-    """Pull service properties from all active service backends."""
-
-    name = "waldur_core.structure.ServicePropertiesListPullTask"
-    pull_task = ServicePropertiesPullTask
-
-
-class ServiceResourcesListPullTask(ServiceListPullTask):
-    """Pull resources from all active service backends."""
-
-    name = "waldur_core.structure.ServiceResourcesListPullTask"
-    pull_task = ServiceResourcesPullTask
-
-
 class RetryUntilAvailableTask(core_tasks.Task):
     max_retries = 300
     default_retry_delay = 5
