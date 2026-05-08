@@ -30,6 +30,7 @@ from waldur_core.logging.enums import EventType, ObservableObjectType
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_core.permissions.models import RoleAvailability, UserRole
 from waldur_core.structure import models as structure_models
+from waldur_core.structure import tasks as structure_tasks
 from waldur_core.structure.managers import get_connected_projects
 from waldur_core.structure.models import Project
 from waldur_mastermind.analytics import models as analytics_models
@@ -3118,3 +3119,32 @@ def reconcile_offering_availabilities(offering_id):
         _revoke_user_roles_for_role_on_offering(role_id, offering)
     if stale_role_ids:
         existing.filter(role_id__in=stale_role_ids).delete()
+
+
+class _MarketplaceAwareServiceListPullTask(structure_tasks.ServiceListPullTask):
+    """ServiceListPullTask narrowed to ServiceSettings that are the scope of
+    at least one non-archived marketplace Offering."""
+
+    def get_pulled_objects(self):
+        qs = super().get_pulled_objects()
+        settings_ct = ContentType.objects.get_for_model(self.model)
+        referenced_ids = (
+            models.Offering.objects.filter(content_type=settings_ct)
+            .exclude(state=OfferingStates.ARCHIVED)
+            .values_list("object_id", flat=True)
+        )
+        return qs.filter(id__in=referenced_ids)
+
+
+class ServicePropertiesListPullTask(_MarketplaceAwareServiceListPullTask):
+    """Pull service properties from settings tied to live marketplace offerings."""
+
+    name = "waldur_mastermind.marketplace.ServicePropertiesListPullTask"
+    pull_task = structure_tasks.ServicePropertiesPullTask
+
+
+class ServiceResourcesListPullTask(_MarketplaceAwareServiceListPullTask):
+    """Pull resources from settings tied to live marketplace offerings."""
+
+    name = "waldur_mastermind.marketplace.ServiceResourcesListPullTask"
+    pull_task = structure_tasks.ServiceResourcesPullTask
