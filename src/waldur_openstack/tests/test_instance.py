@@ -204,15 +204,58 @@ class InstanceCreateTest(test.APITestCase):
         instance = models.Instance.objects.get(uuid=response.data["uuid"])
         self.assertEqual(instance.ports.first().fixed_ips, fixed_ips)
 
+    def _create_unattached_port(self, status_value="DOWN"):
+        return factories.PortFactory(
+            tenant=self.tenant,
+            network=self.subnet.network,
+            subnet=self.subnet,
+            service_settings=self.openstack_settings,
+            project=self.project,
+            status=status_value,
+        )
+
     def test_can_create_instance_with_existing_port_in_down_state(self):
+        existing_port = self._create_unattached_port(status_value="DOWN")
         post_data = self.get_valid_data()
-        self.fixture.port.status = "DOWN"
-        self.fixture.port.save()
-        post_data["ports"][0]["port"] = factories.PortFactory.get_url(self.fixture.port)
+        post_data["ports"][0]["port"] = factories.PortFactory.get_url(existing_port)
         response = self.create_instance(post_data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
         instance = models.Instance.objects.get(uuid=response.data["uuid"])
-        self.assertEqual(instance.ports.first(), self.fixture.port)
+        self.assertEqual(instance.ports.first(), existing_port)
+
+    def test_can_create_instance_with_existing_port_without_status(self):
+        existing_port = self._create_unattached_port(status_value=None)
+        post_data = self.get_valid_data()
+        post_data["ports"][0]["port"] = factories.PortFactory.get_url(existing_port)
+        response = self.create_instance(post_data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        instance = models.Instance.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(instance.ports.first(), existing_port)
+
+    def test_cannot_create_instance_with_port_already_attached_to_another_instance(
+        self,
+    ):
+        other_instance = factories.InstanceFactory(
+            service_settings=self.openstack_settings,
+            project=self.project,
+            tenant=self.tenant,
+        )
+        existing_port = factories.PortFactory(
+            instance=other_instance,
+            tenant=self.tenant,
+            network=self.subnet.network,
+            subnet=self.subnet,
+            service_settings=self.openstack_settings,
+            project=self.project,
+            status="ACTIVE",
+        )
+        post_data = self.get_valid_data()
+        post_data["ports"][0]["port"] = factories.PortFactory.get_url(existing_port)
+        response = self.create_instance(post_data)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertIn("ports", response.data)
 
     def test_user_can_define_instance_subnets(self):
         subnet = self.fixture.subnet
@@ -984,6 +1027,119 @@ class InstanceUpdatePortsTest(test.APITestCase):
             self.instance.ports.filter(subnet=self.fixture.subnet).first().pk,
             existing_port.pk,
         )
+
+    def test_existing_active_port_attached_to_same_instance_is_accepted(self):
+        existing_port = factories.PortFactory(
+            instance=self.instance,
+            tenant=self.fixture.tenant,
+            network=self.fixture.subnet.network,
+            subnet=self.fixture.subnet,
+            service_settings=self.fixture.tenant.service_settings,
+            project=self.fixture.tenant.project,
+            status="ACTIVE",
+            device_owner="compute:nova",
+        )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "ports": [
+                    {
+                        "port": factories.PortFactory.get_url(existing_port),
+                        "subnet": factories.SubNetFactory.get_url(self.fixture.subnet),
+                    },
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        existing_port.refresh_from_db()
+        self.assertEqual(existing_port.instance, self.instance)
+
+    def test_port_without_status_can_be_referenced(self):
+        existing_port = factories.PortFactory(
+            tenant=self.fixture.tenant,
+            network=self.fixture.subnet.network,
+            subnet=self.fixture.subnet,
+            service_settings=self.fixture.tenant.service_settings,
+            project=self.fixture.tenant.project,
+            status=None,
+        )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "ports": [
+                    {
+                        "port": factories.PortFactory.get_url(existing_port),
+                        "subnet": factories.SubNetFactory.get_url(self.fixture.subnet),
+                    },
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        existing_port.refresh_from_db()
+        self.assertEqual(existing_port.instance, self.instance)
+
+    def test_port_with_infrastructure_device_owner_is_rejected(self):
+        existing_port = factories.PortFactory(
+            tenant=self.fixture.tenant,
+            network=self.fixture.subnet.network,
+            subnet=self.fixture.subnet,
+            service_settings=self.fixture.tenant.service_settings,
+            project=self.fixture.tenant.project,
+            status="ACTIVE",
+            device_owner="network:router_interface",
+        )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "ports": [
+                    {
+                        "port": factories.PortFactory.get_url(existing_port),
+                        "subnet": factories.SubNetFactory.get_url(self.fixture.subnet),
+                    },
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("ports", response.data)
+
+    def test_port_attached_to_other_instance_is_rejected(self):
+        other_instance = factories.InstanceFactory(
+            service_settings=self.fixture.tenant.service_settings,
+            project=self.fixture.project,
+            tenant=self.fixture.tenant,
+        )
+        existing_port = factories.PortFactory(
+            instance=other_instance,
+            tenant=self.fixture.tenant,
+            network=self.fixture.subnet.network,
+            subnet=self.fixture.subnet,
+            service_settings=self.fixture.tenant.service_settings,
+            project=self.fixture.tenant.project,
+            status="ACTIVE",
+        )
+
+        response = self.client.post(
+            self.url,
+            data={
+                "ports": [
+                    {
+                        "port": factories.PortFactory.get_url(existing_port),
+                        "subnet": factories.SubNetFactory.get_url(self.fixture.subnet),
+                    },
+                ]
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("ports", response.data)
+        existing_port.refresh_from_db()
+        self.assertEqual(existing_port.instance, other_instance)
 
 
 class InstanceUpdateFloatingIPsTest(test.APITestCase):

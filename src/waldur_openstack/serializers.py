@@ -2353,7 +2353,7 @@ class OpenStackCreatePortSerializer(serializers.HyperlinkedModelSerializer):
     port = serializers.HyperlinkedRelatedField(
         view_name="openstack-port-detail",
         lookup_field="uuid",
-        queryset=models.Port.objects.filter(status="DOWN"),
+        queryset=models.Port.objects.all(),
         required=False,
     )
     tenant = serializers.HyperlinkedRelatedField(
@@ -2428,7 +2428,7 @@ class OpenStackCreateInstancePortSerializer(serializers.HyperlinkedModelSerializ
     port = serializers.HyperlinkedRelatedField(
         view_name="openstack-port-detail",
         lookup_field="uuid",
-        queryset=models.Port.objects.filter(status="DOWN"),
+        queryset=models.Port.objects.all(),
         required=False,
     )
 
@@ -3913,9 +3913,10 @@ class OpenStackNestedServerGroupSerializer(
         extra_kwargs = {"url": {"lookup_field": "uuid"}}
 
 
-def _validate_instance_ports(ports, tenant):
+def _validate_instance_ports(ports, tenant, instance=None):
     """- make sure that ports belong to specified setting;
     - make sure that ports does not connect to the same subnet twice;
+    - make sure that referenced existing ports are attachable to the instance.
     """
     if not ports:
         return
@@ -3933,6 +3934,38 @@ def _validate_instance_ports(ports, tenant):
                 _("Subnet %s does not belong to the same tenant as instance.") % subnet
             )
             raise serializers.ValidationError({"ports": message})
+
+    instance_pk = instance.pk if instance is not None else None
+    for port in ports:
+        if not port.pk:
+            continue
+        if port.tenant_id not in tenants_ids:
+            raise serializers.ValidationError(
+                {
+                    "ports": _(
+                        "Port %s does not belong to the same tenant as instance."
+                    )
+                    % port
+                }
+            )
+        same_instance = instance_pk is not None and port.instance_id == instance_pk
+        if port.instance_id and not same_instance:
+            raise serializers.ValidationError(
+                {"ports": _("Port %s is already attached to another instance.") % port}
+            )
+        # Skip device_owner check for ports already attached to the same instance —
+        # OpenStack assigns device_owner="compute:nova" to attached VM ports, and we
+        # want to allow re-referencing them in update_ports.
+        if port.device_owner and not same_instance:
+            raise serializers.ValidationError(
+                {
+                    "ports": _(
+                        "Port %(port)s cannot be attached because it is owned by %(owner)s."
+                    )
+                    % {"port": port, "owner": port.device_owner}
+                }
+            )
+
     pairs = [(port.subnet, port.backend_id) for port in ports]
     duplicates = [
         subnet for subnet, count in collections.Counter(pairs).items() if count > 1
@@ -4792,7 +4825,7 @@ class OpenStackInstancePortsUpdateSerializer(serializers.Serializer):
     ports = OpenStackCreatePortSerializer(many=True)
 
     def validate_ports(self, ports):
-        _validate_instance_ports(ports, self.instance.tenant)
+        _validate_instance_ports(ports, self.instance.tenant, instance=self.instance)
         return ports
 
     @transaction.atomic
