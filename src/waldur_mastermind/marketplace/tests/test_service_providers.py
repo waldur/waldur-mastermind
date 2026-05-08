@@ -250,6 +250,21 @@ class ServiceProviderDeleteTest(test.APITestCase):
             models.ServiceProvider.objects.filter(customer=self.customer).exists()
         )
 
+    def test_service_provider_is_deleted_if_it_has_only_child_offerings(self):
+        parent = factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        factories.OfferingFactory(
+            customer=self.customer,
+            state=OfferingStates.ACTIVE,
+            parent=parent,
+        )
+        response = self.delete_service_provider("staff")
+        self.assertEqual(
+            response.status_code, status.HTTP_204_NO_CONTENT, response.data
+        )
+        self.assertFalse(
+            models.ServiceProvider.objects.filter(customer=self.customer).exists()
+        )
+
     @data("user", "customer_support", "admin", "manager")
     def test_unauthorized_user_can_not_delete_service_provider(self, user):
         response = self.delete_service_provider(user)
