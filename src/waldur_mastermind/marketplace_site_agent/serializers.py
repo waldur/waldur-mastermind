@@ -1,7 +1,10 @@
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 
 from waldur_core.logging import enums as logging_enums
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.utils import has_permission
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.enums import (
     BASIC_OFFERING,
@@ -431,3 +434,67 @@ class AgentConnectionStatsResponseSerializer(serializers.Serializer):
         read_only=True,
         help_text="Summary statistics",
     )
+
+
+class SiteAgentLogCreateSerializer(serializers.Serializer):
+    """Input: one log entry. The agent sends a list of these."""
+
+    agent_identity_uuid = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.AgentIdentity.objects.filter(
+            offering__type__in=[
+                SITE_AGENT_OFFERING,
+                SCRIPT_OFFERING,
+                OPENSTACK_TENANT_OFFERING,
+                BASIC_OFFERING,
+            ]
+        ),
+    )
+    timestamp = serializers.FloatField()
+    level = serializers.ChoiceField(choices=enums.LogLevel.CHOICES)
+    message = serializers.CharField()
+    module = serializers.CharField(max_length=255)
+
+    def validate_agent_identity_uuid(self, agent_identity):
+        request = self.context.get("request")
+        if request:
+            checked = self.context.setdefault("_checked_identity_pks", set())
+            if agent_identity.pk not in checked:
+                offering = agent_identity.offering
+                can_push = has_permission(
+                    request, PermissionEnum.CREATE_OFFERING, offering.customer
+                ) or has_permission(request, PermissionEnum.UPDATE_OFFERING, offering)
+                if not can_push:
+                    raise PermissionDenied()
+                checked.add(agent_identity.pk)
+        return agent_identity
+
+
+class SiteAgentLogSerializer(serializers.ModelSerializer):
+    offering_uuid = serializers.UUIDField(
+        source="agent_identity.offering.uuid", read_only=True
+    )
+    offering = serializers.HyperlinkedRelatedField(
+        source="agent_identity.offering",
+        view_name="marketplace-provider-offering-detail",
+        read_only=True,
+        lookup_field="uuid",
+    )
+    agent_identity_uuid = serializers.UUIDField(
+        source="agent_identity.uuid",
+        read_only=True,
+    )
+
+    class Meta:
+        model = models.SiteAgentLog
+        fields = (
+            "uuid",
+            "offering",
+            "offering_uuid",
+            "agent_identity_uuid",
+            "timestamp",
+            "level",
+            "message",
+            "module",
+            "created",
+        )

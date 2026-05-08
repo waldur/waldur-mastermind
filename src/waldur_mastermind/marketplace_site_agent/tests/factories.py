@@ -62,3 +62,18 @@ class AgentProcessorFactory(factory.django.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = "http://testserver" + reverse("marketplace-site-agent-processor-list")
         return url if action is None else url + action + "/"
+
+
+class SiteAgentLogFactory(factory.django.DjangoModelFactory):
+    agent_identity = factory.SubFactory(AgentIdentityFactory)
+    timestamp = factory.LazyFunction(lambda: 1_746_355_200.0)
+    level = "INFO"
+    message = factory.Sequence(lambda n: f"Log message {n}")
+    module = "waldur_site_agent.test"
+
+    class Meta:
+        model = models.SiteAgentLog
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse("marketplace-site-agent-log-list")

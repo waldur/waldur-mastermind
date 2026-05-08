@@ -90,3 +90,31 @@ class AgentProcessor(core_models.UuidMixin, TimeStampedModel, core_models.NameMi
 
     def __str__(self) -> str:
         return f"{self.service.name} - {self.name}"
+
+
+class SiteAgentLog(core_models.UuidMixin, TimeStampedModel):
+    """Log entry shipped from a Waldur Site Agent."""
+
+    agent_identity = models.ForeignKey(
+        AgentIdentity,
+        on_delete=models.CASCADE,
+        related_name="logs",
+    )
+    timestamp = models.FloatField(
+        help_text=_("Unix timestamp of the log entry"),
+        db_index=True,
+    )
+    level = models.CharField(
+        max_length=20,
+        choices=enums.LogLevel.CHOICES,
+        db_index=True,
+    )
+    message = models.TextField()
+    module = models.CharField(max_length=255)
+
+    class Permissions:
+        customer_path = "agent_identity__offering__customer"
+
+    class Meta:
+        verbose_name = _("Site agent log")
+        ordering = ["-timestamp"]

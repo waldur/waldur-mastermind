@@ -1393,6 +1393,11 @@ CONSTANCE_CONFIG = {
         "Select which reporting screens should be visible to users. Uncheck to disable specific reports.",
         "multiple_choice_field",
     ),
+    # Site Agent Logs
+    "SITE_AGENT_LOG_MAX_ROWS_PER_IDENTITY": (
+        10000,
+        "Maximum number of log rows to keep per agent identity. Oldest rows are deleted when exceeded.",
+    ),
     # Personal Access Tokens
     "PAT_ENABLED": (
         False,
@@ -1754,6 +1759,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "PAT_MAX_LIFETIME_DAYS",
         "PAT_MAX_TOKENS_PER_USER",
     ),
+    "Site Agent Logs": ("SITE_AGENT_LOG_MAX_ROWS_PER_IDENTITY",),
 }
 
 PUBLIC_CONSTANCE_SETTINGS = (

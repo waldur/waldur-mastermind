@@ -101,3 +101,31 @@ class AgentProcessorFilter(django_filters.FilterSet):
         if value:
             return queryset.filter(last_run__lt=threshold)
         return queryset.exclude(last_run__lt=threshold)
+
+
+class SiteAgentLogFilter(django_filters.FilterSet):
+    offering_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-provider-offering-detail",
+        field_name="agent_identity__offering__uuid",
+    )
+    agent_identity_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-site-agent-identity-detail",
+        field_name="agent_identity__uuid",
+    )
+    level = django_filters.CharFilter(field_name="level", lookup_expr="exact")
+    timestamp_from = django_filters.NumberFilter(
+        field_name="timestamp", lookup_expr="gte"
+    )
+    timestamp_to = django_filters.NumberFilter(
+        field_name="timestamp", lookup_expr="lte"
+    )
+
+    class Meta:
+        model = models.SiteAgentLog
+        fields = (
+            "offering_uuid",
+            "agent_identity_uuid",
+            "level",
+            "timestamp_from",
+            "timestamp_to",
+        )
