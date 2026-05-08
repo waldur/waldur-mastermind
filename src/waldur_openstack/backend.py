@@ -1509,8 +1509,19 @@ class OpenStackBackend(ServiceBackend):
             self._upsert_port_from_neutron_dict(tenant, backend_port, *mappings)
 
         remote_ids = {ip["id"] for ip in backend_ports}
+        # Only consider ports in a stable state. Ports in CREATION_SCHEDULED /
+        # CREATING (saved by OpenStackInstanceSerializer and waiting for
+        # create_instance_ports to push them to Neutron) and ports being torn
+        # down (DELETION_SCHEDULED / DELETING) must survive this sweep —
+        # otherwise the periodic pull races with the executor chain and
+        # silently deletes in-flight rows. Same idiom as
+        # _remove_stale_floating_ips / _remove_stale_security_groups /
+        # stale_networks / stale_subnets / _remove_stale_server_groups.
         stale_ports = (
-            models.Port.objects.filter(tenant=tenant)
+            models.Port.objects.filter(
+                tenant=tenant,
+                state__in=[CoreStates.OK, CoreStates.ERRED],
+            )
             .exclude(backend_id="")
             .exclude(backend_id__in=remote_ids)
         )
@@ -4632,7 +4643,11 @@ class OpenStackBackend(ServiceBackend):
                 instance.name,
             )
 
+            ports_without_backend_id = []
             for port in instance.ports.all():
+                if not port.backend_id:
+                    ports_without_backend_id.append(port)
+                    continue
                 nics.append({"port-id": port.backend_id})
 
             if (
@@ -4646,6 +4661,26 @@ class OpenStackBackend(ServiceBackend):
                     instance.tenant, security_groups
                 )
                 nics.append({"port-id": external_port_id["id"]})
+
+            # Nova microversion >= 2.36 rejects an empty nics list with a bare
+            # ValueError that escapes the nova_exceptions.ClientException handler
+            # below. Surface a clear backend error instead so the task is marked
+            # as ERRED with an actionable message.
+            if not nics:
+                if ports_without_backend_id:
+                    raise OpenStackBackendError(
+                        "Cannot create instance %s: %d port(s) have no backend_id "
+                        "(port creation likely failed earlier). Port UUIDs: %s"
+                        % (
+                            instance.name,
+                            len(ports_without_backend_id),
+                            [str(p.uuid) for p in ports_without_backend_id],
+                        )
+                    )
+                raise OpenStackBackendError(
+                    "Cannot create instance %s: at least one network port is required."
+                    % instance.name
+                )
 
             block_device_mapping_v2 = []
             for volume in instance.volumes.all():
