@@ -142,5 +142,13 @@ for extension_name in extensions:
                 f"Error loading extension config '{extension_conf_file_path}': {e}"
             ) from e
 
+# Re-apply SAML2 extension settings so that values mutated by override.conf.py /
+# saml2.conf.py (e.g. WALDUR_AUTH_SAML2 or WALDUR_CORE['MASTERMIND_URL']) propagate
+# into the derived SAML_CONFIG. SAML2Extension.update_settings() is idempotent.
+# See gh-83.
+from waldur_auth_saml2.extension import SAML2Extension as _SAML2Extension  # noqa: E402
+
+_SAML2Extension.update_settings(globals())
+
 if not SECRET_KEY:
     raise Exception("GLOBAL_SECRET_KEY is not set")
