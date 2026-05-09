@@ -7448,6 +7448,87 @@ class BaseResourceViewSet(
         serializers.ResourceRestrictMemberAccessSerializer
     )
 
+    @extend_schema(
+        summary="Adjust resource start and end dates (staff only)",
+        description=(
+            "Updates both the originating order's start_date and the resource's "
+            "end_date in one atomic operation. Intended for helpdesk-style prepaid "
+            "offerings where staff need to shift the service window forward. "
+            "Does not regenerate invoices, issue credits, or send notifications."
+        ),
+        request=serializers.AdjustResourceDatesSerializer,
+        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def adjust_dates(self, request, uuid=None):
+        resource: models.Resource = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        start_date = serializer.validated_data["start_date"]
+        end_date = serializer.validated_data["end_date"]
+        comment = serializer.validated_data.get("comment", "")
+
+        allowed_states = (
+            ResourceStates.CREATING,
+            ResourceStates.UPDATING,
+            ResourceStates.OK,
+            ResourceStates.ERRED,
+        )
+        if resource.state not in allowed_states:
+            raise rf_exceptions.ValidationError(
+                _(
+                    "Dates can only be adjusted on resources in OK, ERRED, "
+                    "CREATING, or UPDATING state."
+                )
+            )
+
+        if not resource.offering.components.filter(is_prepaid=True).exists():
+            raise rf_exceptions.ValidationError(
+                _("Action is only available for prepaid resources.")
+            )
+
+        with transaction.atomic():
+            resource = models.Resource.objects.select_for_update().get(pk=resource.pk)
+            creation_order = (
+                models.Order.objects.select_for_update()
+                .filter(resource=resource, type=OrderTypes.CREATE)
+                .order_by("created")
+                .first()
+            )
+            with reversion.create_revision():
+                if creation_order is not None:
+                    creation_order.start_date = start_date
+                    creation_order.save(update_fields=["start_date"])
+                resource.end_date = end_date
+                resource.end_date_requested_by = request.user
+                resource.save(update_fields=["end_date", "end_date_requested_by"])
+                reversion.set_user(request.user)
+                reversion.set_comment(
+                    comment
+                    or f"Staff adjusted dates: start_date={start_date}, end_date={end_date}"
+                )
+
+        template = (
+            "End date of marketplace resource %(resource_name)s has been"
+            " adjusted by staff. End date: %(end_date)s. User: %(user)s."
+        )
+        log.log_resource_end_date_has_been_updated(resource, request.user, template)
+        logger.info(
+            "%s adjusted dates of resource %s to start=%s end=%s",
+            request.user.full_name,
+            resource.uuid,
+            start_date,
+            end_date,
+        )
+        return Response(
+            {"status": _("Resource dates have been adjusted.")},
+            status=status.HTTP_200_OK,
+        )
+
+    adjust_dates_permissions = [structure_permissions.is_staff]
+
+    adjust_dates_serializer_class = serializers.AdjustResourceDatesSerializer
+
     def _set_end_date(self, request, is_staff_action):
         resource: models.Resource = self.get_object()
         if not is_staff_action:

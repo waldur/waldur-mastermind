@@ -6026,6 +6026,32 @@ class ResourceRestrictMemberAccessSerializer(serializers.ModelSerializer):
         fields = ("restrict_member_access",)
 
 
+class AdjustResourceDatesSerializer(serializers.Serializer):
+    start_date = serializers.DateField(
+        help_text=_("New start date of the originating order."),
+    )
+    end_date = serializers.DateField(
+        help_text=_("New end date of the resource."),
+    )
+    comment = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=500,
+        help_text=_("Optional reason captured in the audit trail."),
+    )
+
+    def validate(self, attrs):
+        if attrs["start_date"] >= attrs["end_date"]:
+            raise serializers.ValidationError(
+                {"end_date": _("End date must be after start date.")}
+            )
+        if attrs["end_date"] < timezone.now().date():
+            raise serializers.ValidationError(
+                {"end_date": _("End date must not be in the past.")}
+            )
+        return attrs
+
+
 class ResourceVersionUserSerializer(serializers.Serializer):
     """Serializer for user information in resource version history."""
 
