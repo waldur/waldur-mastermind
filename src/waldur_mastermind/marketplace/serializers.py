@@ -15,6 +15,7 @@ from django.db import transaction
 from django.db.models import Count, Q, QuerySet, Sum
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from django_fsm import TransitionNotAllowed
 from drf_spectacular.drainage import set_override
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import exceptions as rf_exceptions
@@ -209,6 +210,15 @@ class LifecyclePluginOptionsSerializer(serializers.Serializer):
     enable_resource_projects = serializers.BooleanField(
         required=False,
         help_text="Enable sub-project management within resources.",
+    )
+    auto_ok_resource_projects = serializers.BooleanField(
+        required=False,
+        help_text=(
+            "If set to True, newly-created resource projects are immediately "
+            "transitioned from CREATING to OK on save, bypassing the "
+            "provider/site-agent reconciliation callback. Use for offerings "
+            "that have no external backend to reconcile against."
+        ),
     )
     resource_projects_limits_required = serializers.BooleanField(
         required=False,
@@ -7815,7 +7825,9 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
                 raise rf_exceptions.ValidationError({"limits": errors})
 
         elif policy == "aggregate":
-            sibling_qs = models.ResourceProject.objects.filter(resource=resource)
+            sibling_qs = models.ResourceProject.available_objects.filter(
+                resource=resource
+            )
             if self.instance is not None:
                 sibling_qs = sibling_qs.exclude(pk=self.instance.pk)
             sibling_totals: dict[str, int] = {}
@@ -7838,9 +7850,54 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
 
         return attrs
 
+    def create(self, validated_data):
+        instance = super().create(validated_data)
+        plugin_options = instance.resource.offering.plugin_options or {}
+        if plugin_options.get("auto_ok_resource_projects"):
+            try:
+                instance.set_state_ok()
+                instance.save(update_fields=["state"])
+            except TransitionNotAllowed:
+                # Defensive: a fresh CREATING row should always be eligible.
+                logger.warning(
+                    "auto_ok_resource_projects is enabled but transition to OK "
+                    "failed for ResourceProject %s (state=%s).",
+                    instance.uuid,
+                    instance.get_state_display(),
+                )
+        return instance
+
 
 class ResourceProjectBackendIdSerializer(serializers.Serializer):
     backend_id = serializers.CharField()
+
+
+class ResourceProjectRecoverySerializer(serializers.Serializer):
+    restore_team_members = serializers.BooleanField(
+        default=False,
+        help_text=_(
+            "Recreate the UserRole rows captured at soft-delete time. "
+            "Requires termination_metadata to be present (set on soft-deletes "
+            "performed after the recovery feature shipped)."
+        ),
+    )
+    send_invitations_to_previous_members = serializers.BooleanField(
+        default=False,
+        help_text=_(
+            "Send invitations to users who had access before soft-delete. "
+            "Mutually exclusive with restore_team_members."
+        ),
+    )
+
+    def validate(self, attrs):
+        if attrs.get("restore_team_members") and attrs.get(
+            "send_invitations_to_previous_members"
+        ):
+            raise serializers.ValidationError(
+                "restore_team_members and send_invitations_to_previous_members "
+                "are mutually exclusive."
+            )
+        return attrs
 
 
 class ResourceProjectErrorMessageSerializer(serializers.Serializer):
@@ -7944,9 +8001,9 @@ class ResourceTeamMemberSerializer(
     @extend_schema_field(NestedResourceProjectPermissionSerializer(many=True))
     def get_resource_projects(self, user):
         resource = self.context["resource"]
-        rp_ids = models.ResourceProject.objects.filter(resource=resource).values_list(
-            "id", flat=True
-        )
+        rp_ids = models.ResourceProject.available_objects.filter(
+            resource=resource
+        ).values_list("id", flat=True)
         grants = permission_models.UserRole.objects.filter(
             content_type=ContentType.objects.get_for_model(models.ResourceProject),
             object_id__in=rp_ids,

@@ -4159,9 +4159,9 @@ def is_resource_project_only_viewer(user, resource) -> bool:
         return False
     if has_user(resource, user):
         return False
-    rp_ids = models.ResourceProject.objects.filter(resource=resource).values_list(
-        "id", flat=True
-    )
+    rp_ids = models.ResourceProject.available_objects.filter(
+        resource=resource
+    ).values_list("id", flat=True)
     if not rp_ids:
         return False
     rp_ct = ContentType.objects.get_for_model(models.ResourceProject)

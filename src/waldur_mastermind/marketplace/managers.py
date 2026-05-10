@@ -242,7 +242,7 @@ def get_user_resource_project_ids(user):
 
 def get_user_resource_project_resource_ids(user):
     """IDs of Resources whose ResourceProjects the user has a UserRole on."""
-    return models.ResourceProject.objects.filter(
+    return models.ResourceProject.available_objects.filter(
         id__in=get_user_resource_project_ids(user)
     ).values_list("resource_id", flat=True)
 
@@ -264,7 +264,7 @@ def _user_resource_descended_resource_ids_qs(user):
         content_type__app_label="marketplace",
         content_type__model="resourceproject",
     ).values_list("object_id", flat=True)
-    rp_resource_ids = models.ResourceProject.objects.filter(
+    rp_resource_ids = models.ResourceProject.available_objects.filter(
         id__in=rp_role_ids
     ).values_list("resource_id", flat=True)
     return models.Resource.objects.filter(
