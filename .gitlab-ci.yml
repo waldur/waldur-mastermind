@@ -637,9 +637,9 @@ Generate OpenAPI schema:
       - .uv-cache/
   before_script:
     # System deps needed by some Python packages — mirrors tests/Dockerfile so
-    # uv sync can build python-ldap / load python-magic / parse xmlsec etc.
+    # uv sync can load python-magic / parse xmlsec etc.
     - apt-get update && apt-get install -y --no-install-recommends
-      libldap2-dev libsasl2-dev ldap-utils xmlsec1 libmagic1 python3-dev
+      xmlsec1 libmagic1 python3-dev
       && rm -rf /var/lib/apt/lists/*
     # Ensure the CI runner has all tags from the remote repository
     - git fetch --tags

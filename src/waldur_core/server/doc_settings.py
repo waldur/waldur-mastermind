@@ -9,8 +9,6 @@ DEBUG = True
 
 MEDIA_ROOT = "/tmp/"  # noqa: S108
 
-INSTALLED_APPS += ("django_extensions",)  # noqa: F405
-
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
