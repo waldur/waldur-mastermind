@@ -3626,6 +3626,7 @@ class ResourceProject(
     core_models.ErrorMessageMixin,
     TimeStampedModel,
     SoftDeletableModel,
+    structure_models.StructureLoggableMixin,
 ):
     """
     Sub-project within a resource.
