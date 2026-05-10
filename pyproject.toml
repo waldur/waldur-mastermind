@@ -22,6 +22,7 @@ dependencies = [
   "azure-mgmt-storage>=24.0.0,<25.0.0",
   "azure-identity>=1.25.1,<2.0.0",
   "celery==5.5.3",
+  "django-auth-ldap>=5.2.0,<6.0.0",
   "django-filter==24.3",
   "django-fsm==2.8.1",
   "django-jsoneditor==0.2.3",

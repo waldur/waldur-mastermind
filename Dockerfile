@@ -13,6 +13,9 @@ RUN apt-get update && \
     bash \
     # file provides libmagic package. "import magic" in files like "storage.py" or "utils.py".
     file \
+    # The ldap-related package used with django-auth-ldap.
+    libldap2-dev \
+    libsasl2-dev \
     libssl-dev \
     libffi-dev \
     libjpeg-dev \
