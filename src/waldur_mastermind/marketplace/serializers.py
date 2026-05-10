@@ -7718,6 +7718,7 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
     resource_uuid = serializers.UUIDField(read_only=True, source="resource.uuid")
     resource_name = serializers.ReadOnlyField(source="resource.name")
     state = serializers.CharField(source="get_state_display", read_only=True)
+    removed_by_username = serializers.ReadOnlyField(source="removed_by.username")
 
     class Meta:
         model = models.ResourceProject
@@ -7735,6 +7736,10 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
             "resource_name",
             "created",
             "modified",
+            "is_removed",
+            "removed_date",
+            "removed_by",
+            "removed_by_username",
         )
         read_only_fields = (
             "uuid",
@@ -7744,7 +7749,17 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
             "current_usages",
             "created",
             "modified",
+            "is_removed",
+            "removed_date",
+            "removed_by",
+            "removed_by_username",
         )
+        # Disable DRF auto-validators. The model has a partial UniqueConstraint
+        # (Q(is_removed=False)) that DRF tries to validate with is_removed read
+        # from attrs, but is_removed is read-only here so the auto-validator
+        # crashes with KeyError on PATCH. We re-implement the check explicitly
+        # below in validate() so create/update still get a clean 400.
+        validators: list = []
 
     def validate(self, attrs):
         # Resolve the resource: provided on create, taken from the instance on update.
@@ -7759,6 +7774,26 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
             raise ValidationError(
                 "Resource projects are not enabled for this offering."
             )
+
+        # Active-name uniqueness: the model has a partial UniqueConstraint
+        # over is_removed=False, but DRF's auto-validator can't be used
+        # (see Meta.validators above), so check explicitly here.
+        name = attrs.get("name")
+        if name:
+            sibling_qs = models.ResourceProject.available_objects.filter(
+                resource=resource, name=name
+            )
+            if self.instance is not None:
+                sibling_qs = sibling_qs.exclude(pk=self.instance.pk)
+            if sibling_qs.exists():
+                raise rf_exceptions.ValidationError(
+                    {
+                        "name": _(
+                            "A resource project with this name already exists "
+                            "on this resource."
+                        )
+                    }
+                )
 
         # When the offering requires limits, every limit-billing component
         # must have a value. Enforced on create, and on update only when

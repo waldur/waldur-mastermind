@@ -76,6 +76,22 @@ class SoftDeleteTest(_Base):
         uuids = [item["uuid"] for item in response.data]
         self.assertNotIn(rp.uuid.hex, uuids)
 
+    def test_list_with_include_removed_surfaces_soft_delete_fields(self):
+        rp = self._create_rp()
+        self.client.delete(_detail_url(rp))
+
+        response = self.client.get(
+            _list_url(),
+            {"resource_uuid": self.resource.uuid.hex, "include_removed": "true"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        rows = [item for item in response.data if item["uuid"] == rp.uuid.hex]
+        self.assertEqual(len(rows), 1)
+        row = rows[0]
+        self.assertTrue(row["is_removed"])
+        self.assertIsNotNone(row["removed_date"])
+        self.assertEqual(row["removed_by_username"], self.staff.username)
+
     def test_managers_partition_removed_vs_active(self):
         rp = self._create_rp()
         self.client.delete(_detail_url(rp))
