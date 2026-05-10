@@ -7,14 +7,16 @@ from django.db import transaction
 from django.db.models import QuerySet
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
-from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
-from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
 from rest_framework import exceptions, serializers
 
 from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core.enums import CoreStates
-from waldur_core.core.validators import BackendURLValidator
+from waldur_core.core.validators import (
+    BackendURLValidator,
+    is_valid_ipv4_cidr,
+    is_valid_ipv6_cidr,
+)
 from waldur_core.structure import serializers as structure_serializers
 from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.models import Project, ServiceSettings, VirtualMachine

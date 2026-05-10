@@ -1,3 +1,4 @@
+import ipaddress
 import logging
 import re
 
@@ -10,8 +11,6 @@ from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.utils.deconstruct import deconstructible
 from django.utils.translation import gettext_lazy as _
-from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
-from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
 
 from waldur_core.core import exceptions
 from waldur_core.core.enums import GENDER_CHOICES, CoreStates
@@ -67,6 +66,27 @@ class RuntimeStateValidator(StateValidator):
 
 class BackendURLValidator(URLValidator):
     schemes = ["ldap", "ldaps", "http", "https", "ssh", "rdp"]
+
+
+def is_valid_ipv4_cidr(value: str) -> bool:
+    # Mirrors iptools.ipv4.validate_cidr: bare addresses without /prefix are rejected.
+    if not isinstance(value, str) or "/" not in value:
+        return False
+    try:
+        ipaddress.IPv4Network(value, strict=False)
+    except ValueError:
+        return False
+    return True
+
+
+def is_valid_ipv6_cidr(value: str) -> bool:
+    if not isinstance(value, str) or "/" not in value:
+        return False
+    try:
+        ipaddress.IPv6Network(value, strict=False)
+    except ValueError:
+        return False
+    return True
 
 
 def is_valid_ipv46_cidr(value):

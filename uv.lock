@@ -1200,15 +1200,6 @@ wheels = [
 ]
 
 [[package]]
-name = "iptools"
-version = "0.7.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/26/f8/c0aed5193cf9e3f38bf5e7505f5581fd0718e2529896e0c0ada9d038b92f/iptools-0.7.0.tar.gz", hash = "sha256:118a4f638bb5fa0123df56fe3be703b112a689167539bcc194f8698ccdd9e2ea", size = 17741, upload-time = "2019-01-07T05:00:24.363Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7c/0b/b8d60db9ba18b386ee95e48bd04f51fccba28680c6e2b49b68b1af4a1c6d/iptools-0.7.0-py2.py3-none-any.whl", hash = "sha256:a91fc7478fd795ac6b2d47c869fb46db7666ffec817bcb0560ef119e204237f0", size = 16189, upload-time = "2019-01-07T05:00:22.617Z" },
-]
-
-[[package]]
 name = "iso8601"
 version = "2.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2993,7 +2984,6 @@ dependencies = [
     { name = "html2text" },
     { name = "httpx", extra = ["socks"] },
     { name = "hvac" },
-    { name = "iptools" },
     { name = "kubernetes" },
     { name = "lxml" },
     { name = "nh3" },
@@ -3090,7 +3080,6 @@ requires-dist = [
     { name = "html2text", specifier = ">=2024.2.26,<2025.0.0" },
     { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
     { name = "hvac", specifier = ">=2.3.0,<3.0.0" },
-    { name = "iptools", specifier = "==0.7.0" },
     { name = "kubernetes", specifier = ">=31.0.0" },
     { name = "lxml", specifier = ">=6.1.0" },
     { name = "nh3", specifier = ">=0.2.18,<1.0.0" },
