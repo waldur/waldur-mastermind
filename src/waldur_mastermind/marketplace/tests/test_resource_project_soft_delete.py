@@ -78,6 +78,13 @@ class SoftDeleteTest(_Base):
 
     def test_list_with_include_removed_surfaces_soft_delete_fields(self):
         rp = self._create_rp()
+        rp_ct = ContentType.objects.get_for_model(rp)
+        role, _ = Role.objects.get_or_create(
+            name="rp-member-list",
+            content_type=rp_ct,
+            defaults={"is_system_role": False},
+        )
+        rp.add_user(self.fixture.manager, role)
         self.client.delete(_detail_url(rp))
 
         response = self.client.get(
@@ -91,6 +98,11 @@ class SoftDeleteTest(_Base):
         self.assertTrue(row["is_removed"])
         self.assertIsNotNone(row["removed_date"])
         self.assertEqual(row["removed_by_username"], self.staff.username)
+        self.assertIsNotNone(row["termination_metadata"])
+        self.assertEqual(
+            row["termination_metadata"]["user_roles"][0]["user_username"],
+            self.fixture.manager.username,
+        )
 
     def test_managers_partition_removed_vs_active(self):
         rp = self._create_rp()
