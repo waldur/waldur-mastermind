@@ -686,6 +686,7 @@ td:nth-child(4) {
 | `set_project_name_on_invoice_item_creation` | `Django Signal (post_save)` | `invoices.InvoiceItem` | No description |
 | `set_tax_percent_on_invoice_creation` | `Django Signal (pre_save)` | `invoices.Invoice` | No description |
 | `slurm_periodic_usage_policy_trigger_handler` | `Django Signal (post_save)` | `marketplace.ComponentUsage` | Lightweight signal handler that queues background policy evaluation. |
+| `soft_delete_resource_projects_when_resource_is_terminated` | `Django Signal (post_save)` | `marketplace.Resource` | Cascade Resource → TERMINATED into a soft-delete of its child ResourceProjects. |
 | `switch_resource_plan_period_when_plan_is_updated` | `Django Signal (post_save)` | `marketplace.Resource` | Switch the resource plan period when a resource's plan is updated. |
 | `sync_component_user_usage_when_allocation_user_usage_is_submitted` | `Django Signal (post_save)` | `waldur_openportal.AllocationUserUsage` | No description |
 | `sync_component_user_usage_when_allocation_user_usage_is_submitted` | `Django Signal (post_save)` | `waldur_slurm.AllocationUserUsage` | No description |
@@ -860,14 +861,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 781
+Total unique handlers found: 782
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 412 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 311 handlers
+- **waldur_mastermind**: 312 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
