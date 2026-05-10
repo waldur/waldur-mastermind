@@ -37,7 +37,7 @@ Once the container is built and running, you'll have a fully configured developm
 #### Package installation by OS
 
 - Debian or Ubuntu:
-    `sudo apt install git python3-pip python3-venv python3-dev gcc libffi-dev libssl-dev libpq-dev libjpeg8-dev zlib1g-dev xmlsec1 liblzma-dev libxslt1-dev libxml2-dev libbz2-dev libreadline-dev libsqlite3-dev`
+    `sudo apt install git python3-pip python3-venv python3-dev gcc libffi-dev libsasl2-dev libssl-dev libpq-dev libjpeg8-dev zlib1g-dev xmlsec1 libldap2-dev liblzma-dev libxslt1-dev libxml2-dev libbz2-dev libreadline-dev libsqlite3-dev`
 
 - OS X:
     `brew install openssl; export CFLAGS="-I$(brew --prefix openssl)/include $CFLAGS"; export LDFLAGS="-L$(brew --prefix openssl)/lib $LDFLAGS"`

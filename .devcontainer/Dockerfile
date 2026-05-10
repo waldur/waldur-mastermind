@@ -5,6 +5,9 @@ ENV PYTHONUNBUFFERED=1
 RUN apt-get update && \
     apt-get install -y \
         git \
+        libldap2-dev \
+        libsasl2-dev \
+        ldap-utils \
         locales \
         gettext \
         openssl \

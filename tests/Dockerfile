@@ -5,6 +5,9 @@ FROM ${DOCKER_REGISTRY}library/python:3.13-bookworm
 # Install necessary packages
 RUN apt-get update    &&\
     apt-get install -y  \
+    libldap2-dev        \
+    libsasl2-dev        \
+    ldap-utils          \
     xmlsec1             \
     git                 \
     lcov                \
