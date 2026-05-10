@@ -10,14 +10,16 @@ from dateutil.relativedelta import relativedelta
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
-from django.db.models import Index, Sum
+from django.db.models import Index, Q, Sum
+from django.db.models import signals as django_signals
 from django.db.models.constraints import UniqueConstraint
 from django.utils import timezone
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 from django_fsm import FSMField, FSMIntegerField, transition
 from model_utils import FieldTracker
-from model_utils.models import TimeFramedModel, TimeStampedModel
+from model_utils.managers import SoftDeletableManager
+from model_utils.models import SoftDeletableModel, TimeFramedModel, TimeStampedModel
 from model_utils.tracker import FieldInstanceTracker
 from rest_framework import exceptions as rf_exceptions
 from reversion import revisions as reversion
@@ -34,7 +36,7 @@ from waldur_core.media.mixins import get_upload_path
 from waldur_core.media.validators import FileTypeValidator, ImageValidator
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.mixins import PermissionMixin
-from waldur_core.permissions.utils import get_users
+from waldur_core.permissions.utils import get_permissions, get_users
 from waldur_core.quotas import fields as quotas_fields
 from waldur_core.quotas import models as quotas_models
 from waldur_core.structure import models as structure_models
@@ -3623,6 +3625,7 @@ class ResourceProject(
     core_models.NameMixin,
     core_models.ErrorMessageMixin,
     TimeStampedModel,
+    SoftDeletableModel,
 ):
     """
     Sub-project within a resource.
@@ -3662,10 +3665,40 @@ class ResourceProject(
             "Populated by backend synchronization."
         ),
     )
+    removed_date = models.DateTimeField(null=True, blank=True)
+    removed_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="removed_resource_projects",
+    )
+    # Snapshot of the active UserRoles at soft-delete time. Used by the
+    # recover action to optionally recreate roles or send invitations.
+    # Mirrors structure.Project.termination_metadata.
+    termination_metadata = models.JSONField(null=True, blank=True)
+
+    # Mirrors classic Project (waldur_core/structure/models.py): objects returns
+    # all rows (including soft-removed) so audit/admin code can resolve them;
+    # available_objects is the active-only manager that viewsets use.
+    objects = models.Manager()
+    available_objects = SoftDeletableManager()
 
     class Meta:
         ordering = ["created"]
-        unique_together = ("resource", "name")
+        # Partial unique constraint: only enforce uniqueness for active rows so
+        # a soft-deleted project can be recreated with the same name.
+        constraints = [
+            UniqueConstraint(
+                fields=["resource", "name"],
+                condition=Q(is_removed=False),
+                name="uniq_active_resource_project_name_per_resource",
+            ),
+        ]
+        # Default related-manager (e.g. resource.projects) returns all rows;
+        # callers that want the active-only set should use
+        # resource.projects(manager="available_objects").
+        base_manager_name = "objects"
 
     class Permissions:
         customer_path = "resource__project__customer"
@@ -3722,6 +3755,72 @@ class ResourceProject(
     )
     def set_state_terminated(self):
         pass
+
+    def _soft_delete(self, using=None, terminated_by=None):
+        """Soft-delete: capture+revoke roles, flag as removed, fire delete signals.
+
+        Mirrors the classic Project soft-delete pattern (active roles snapshotted
+        into termination_metadata then revoked, so the membership-changed signal
+        fires and the helpdesk integration sees a clean turnover).
+        """
+        django_signals.pre_delete.send(
+            sender=self.__class__, instance=self, using=using
+        )
+
+        active_roles = list(get_permissions(self))
+        user_roles_data = [
+            {
+                "user_username": role.user.username,
+                "user_first_name": role.user.first_name,
+                "user_last_name": role.user.last_name,
+                "user_email": role.user.email,
+                "role_name": role.role.name,
+                "created_by_username": role.created_by.username
+                if role.created_by
+                else None,
+                "original_created": role.created.isoformat(),
+                "original_expiration_time": role.expiration_time.isoformat()
+                if role.expiration_time
+                else None,
+                "is_restored": False,
+                "restored_at": None,
+                "restored_by": None,
+            }
+            for role in active_roles
+        ]
+        if user_roles_data:
+            self.termination_metadata = {
+                "terminated_at": timezone.now().isoformat(),
+                "terminated_by": terminated_by.username if terminated_by else None,
+                "user_roles": user_roles_data,
+            }
+        for role in active_roles:
+            role.revoke(
+                current_user=terminated_by, reason="Resource project soft-delete"
+            )
+
+        self.is_removed = True
+        self.removed_date = timezone.now()
+        self.removed_by = terminated_by
+        self.save(
+            using=using,
+            update_fields=[
+                "is_removed",
+                "removed_date",
+                "removed_by",
+                "termination_metadata",
+            ],
+        )
+        django_signals.post_delete.send(
+            sender=self.__class__, instance=self, using=using
+        )
+
+    def delete(self, using=None, soft=True, terminated_by=None, *args, **kwargs):
+        """Soft delete by default; soft=False triggers a real DB delete."""
+        if soft:
+            self._soft_delete(using=using, terminated_by=terminated_by)
+        else:
+            return super(SoftDeletableModel, self).delete(using=using, *args, **kwargs)
 
 
 class IntegrationStatus(core_models.UuidMixin):

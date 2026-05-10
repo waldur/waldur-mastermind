@@ -16,7 +16,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.contenttypes.prefetch import GenericPrefetch
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.files.base import ContentFile
-from django.db import connection, transaction
+from django.db import IntegrityError, connection, transaction
 from django.db.models import (
     CharField,
     Count,
@@ -94,8 +94,9 @@ from waldur_core.permissions.fixtures import (
     OfferingRole,
     ServiceProviderRole,
 )
-from waldur_core.permissions.models import UserRole
+from waldur_core.permissions.models import Role, UserRole
 from waldur_core.permissions.utils import (
+    add_user,
     get_user_ids,
     has_permission,
     permission_factory,
@@ -110,6 +111,8 @@ from waldur_core.structure import utils as structure_utils
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.executors import ServiceSettingsPullExecutor
+from waldur_core.users.enums import InvitationState
+from waldur_core.users.models import Invitation
 from waldur_core.structure.managers import (
     filter_queryset_by_user_ip,
     filter_queryset_for_user,
@@ -5322,14 +5325,27 @@ class ConsumerResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
     Filter by resource using ``?resource_uuid={uuid}`` query parameter.
     """
 
-    queryset = models.ResourceProject.objects.all().select_related("resource")
+    queryset = models.ResourceProject.available_objects.all().select_related("resource")
     serializer_class = serializers.ResourceProjectSerializer
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.ResourceProjectFilter
 
+    def _include_removed(self):
+        return self.request.query_params.get("include_removed", "").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
+
     def get_queryset(self):
-        qs = super().get_queryset()
+        # The recover action operates on soft-deleted rows by definition, and
+        # `?include_removed=true` lets a "show removed" UI list them. In both
+        # cases we switch from available_objects to the all-rows manager.
+        if self.action == "recover" or self._include_removed():
+            qs = models.ResourceProject.objects.all().select_related("resource")
+        else:
+            qs = super().get_queryset()
         user = self.request.user
         if user.is_staff or user.is_support:
             return qs
@@ -5362,6 +5378,194 @@ class ConsumerResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
             raise PermissionDenied()
         serializer.save()
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="force",
+                type=bool,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description=(
+                    "Staff-only: when true, hard-delete the resource project "
+                    "instead of soft-deleting it."
+                ),
+            ),
+        ],
+    )
+    def destroy(self, request, *args, **kwargs):
+        return super().destroy(request, *args, **kwargs)
+
+    def perform_destroy(self, instance: models.ResourceProject):
+        force = self.request.query_params.get("force", "").lower() in (
+            "true",
+            "1",
+            "yes",
+        )
+        if force:
+            if not self.request.user.is_staff:
+                raise PermissionDenied(
+                    "Force-delete (?force=true) requires staff permissions."
+                )
+            instance.delete(soft=False)
+        else:
+            instance.delete(soft=True, terminated_by=self.request.user)
+
+    @extend_schema(
+        request=serializers.ResourceProjectRecoverySerializer,
+        responses=serializers.ResourceProjectSerializer,
+        summary="Recover a soft-deleted resource project",
+        description=(
+            "Flips is_removed back to False on a previously soft-deleted "
+            "resource project. Optionally restores the team members captured "
+            "at soft-delete time, or sends them new invitations. "
+            "Pass ?include_removed=true on the lookup so the soft-deleted "
+            "row can be resolved."
+        ),
+    )
+    @action(detail=True, methods=["post"])
+    def recover(self, request, uuid=None):
+        # get_queryset() returns the all-rows manager for `recover`, so the
+        # standard DRF lookup correctly resolves the soft-deleted row.
+        rp: models.ResourceProject = self.get_object()
+        rp_ct = ContentType.objects.get_for_model(rp)
+        if not rp.is_removed:
+            raise rf_exceptions.ValidationError(
+                "Resource project is not soft-deleted; nothing to recover."
+            )
+        if rp.resource.state in (
+            ResourceStates.TERMINATING,
+            ResourceStates.TERMINATED,
+        ):
+            raise rf_exceptions.ValidationError(
+                "Cannot recover: the parent resource is being or has been terminated."
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        restore_team_members = serializer.validated_data["restore_team_members"]
+        send_invitations = serializer.validated_data[
+            "send_invitations_to_previous_members"
+        ]
+        if (restore_team_members or send_invitations) and not rp.termination_metadata:
+            raise rf_exceptions.ValidationError(
+                "This resource project was soft-deleted before metadata was "
+                "captured. Only bare recovery is available; team-member "
+                "restoration and invitations require a soft-delete performed "
+                "after the recovery feature shipped."
+            )
+
+        with transaction.atomic():
+            try:
+                rp.is_removed = False
+                rp.removed_date = None
+                rp.removed_by = None
+                rp.save(update_fields=["is_removed", "removed_date", "removed_by"])
+            except IntegrityError:
+                raise rf_exceptions.ValidationError(
+                    "Cannot recover: another resource project with the same "
+                    "name already exists on this resource."
+                )
+
+            restored_user_roles: list[UserRole] = []
+            sent_invitations: list[Invitation] = []
+            user_roles_data = (rp.termination_metadata or {}).get("user_roles", [])
+
+            if restore_team_members:
+                for role_data in user_roles_data:
+                    if role_data.get("is_restored"):
+                        continue
+                    user = User.objects.filter(
+                        username=role_data["user_username"]
+                    ).first()
+                    if not user or not user.is_active:
+                        continue
+                    role = Role.objects.filter(
+                        name=role_data["role_name"], content_type=rp_ct
+                    ).first()
+                    if role is None:
+                        continue
+                    expiration_time = (
+                        datetime.datetime.fromisoformat(
+                            role_data["original_expiration_time"]
+                        )
+                        if role_data.get("original_expiration_time")
+                        else None
+                    )
+                    if expiration_time and expiration_time < timezone.now():
+                        continue
+                    if UserRole.objects.filter(
+                        user=user,
+                        role=role,
+                        content_type=rp_ct,
+                        object_id=rp.id,
+                        is_active=True,
+                    ).exists():
+                        continue
+                    user_role = add_user(
+                        scope=rp,
+                        user=user,
+                        role=role,
+                        created_by=request.user,
+                        expiration_time=expiration_time,
+                    )
+                    restored_user_roles.append(user_role)
+                    role_data["is_restored"] = True
+                    role_data["restored_at"] = timezone.now().isoformat()
+                    role_data["restored_by"] = request.user.username
+            elif send_invitations:
+                for role_data in user_roles_data:
+                    if role_data.get("invitation_sent"):
+                        continue
+                    role = Role.objects.filter(
+                        name=role_data["role_name"], content_type=rp_ct
+                    ).first()
+                    if role is None:
+                        continue
+                    email = role_data.get("user_email")
+                    if not email:
+                        continue
+                    invitation = Invitation.objects.create(
+                        email=email,
+                        role=role,
+                        scope=rp,
+                        customer=rp.customer,
+                        created_by=request.user,
+                        state=InvitationState.PENDING,
+                    )
+                    sent_invitations.append(invitation)
+                    role_data["invitation_sent"] = True
+                    role_data["invitation_sent_at"] = timezone.now().isoformat()
+                    role_data["invitation_sent_by"] = request.user.username
+                    role_data["invitation_uuid"] = str(invitation.uuid)
+
+            if restore_team_members or send_invitations:
+                rp.save(update_fields=["termination_metadata"])
+
+        logger.info(
+            "%s recovered resource project %s (restored=%d, invited=%d)",
+            request.user.full_name,
+            rp.uuid,
+            len(restored_user_roles),
+            len(sent_invitations),
+        )
+
+        body = serializers.ResourceProjectSerializer(
+            rp, context={"request": request}
+        ).data
+        body["recovery_info"] = {
+            "restored_users_count": len(restored_user_roles),
+            "sent_invitations_count": len(sent_invitations),
+        }
+        return Response(body, status=status.HTTP_200_OK)
+
+    recover_serializer_class = serializers.ResourceProjectRecoverySerializer
+    recover_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_RESOURCE,
+            ["resource.project", "resource.project.customer"],
+        )
+    ]
+
 
 class ProviderResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
     """
@@ -5371,7 +5575,7 @@ class ProviderResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
     Filter by resource using ``?resource={uuid}`` query parameter.
     """
 
-    queryset = models.ResourceProject.objects.all().select_related("resource")
+    queryset = models.ResourceProject.available_objects.all().select_related("resource")
     serializer_class = serializers.ResourceProjectSerializer
     lookup_field = "uuid"
     filter_backends = (DjangoFilterBackend,)
@@ -7944,9 +8148,9 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         resource_ct = ContentType.objects.get_for_model(models.Resource)
         rp_ct = ContentType.objects.get_for_model(models.ResourceProject)
         rp_ids = list(
-            models.ResourceProject.objects.filter(resource=resource).values_list(
-                "id", flat=True
-            )
+            models.ResourceProject.available_objects.filter(
+                resource=resource
+            ).values_list("id", flat=True)
         )
         users = (
             User.objects.filter(

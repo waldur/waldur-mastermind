@@ -515,6 +515,24 @@ def close_resource_plan_period_when_resource_is_terminated(
     callbacks.close_resource_plan_period(instance)
 
 
+def soft_delete_resource_projects_when_resource_is_terminated(
+    sender, instance: Resource, created=False, **kwargs
+):
+    """Cascade Resource → TERMINATED into a soft-delete of its child ResourceProjects.
+
+    System-driven, so removed_by stays None to distinguish from user-initiated
+    deletions in the audit trail.
+    """
+    if created:
+        return
+    if not instance.tracker.has_changed("state"):
+        return
+    if instance.state != ResourceStates.TERMINATED:
+        return
+    for resource_project in instance.projects.filter(is_removed=False):
+        resource_project.delete(soft=True, terminated_by=None)
+
+
 def switch_resource_plan_period_when_plan_is_updated(
     sender, instance: Resource, created=False, **kwargs
 ):

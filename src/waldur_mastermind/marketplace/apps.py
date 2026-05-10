@@ -188,6 +188,13 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.soft_delete_resource_projects_when_resource_is_terminated,
+            sender=models.Resource,
+            dispatch_uid="waldur_mastermind.marketplace."
+            "soft_delete_resource_projects_when_resource_is_terminated",
+        )
+
+        signals.post_save.connect(
             handlers.switch_resource_plan_period_when_plan_is_updated,
             sender=models.Resource,
             dispatch_uid="waldur_mastermind.marketplace."
