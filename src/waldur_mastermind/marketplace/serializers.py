@@ -7808,8 +7808,18 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
         if plugin_options.get("resource_projects_limits_required") and (
             is_create or "limits" in attrs
         ):
+            # Mirror utils.get_components_map: any component that's
+            # sub-allocatable to a project is also required when this
+            # flag is on. That's LIMIT-billed plus prepaid ONE_TIME
+            # (e.g. helpdesk-style up-front allocations).
             required_types = list(
-                offering.components.filter(billing_type=BillingTypes.LIMIT)
+                offering.components.filter(
+                    Q(billing_type=BillingTypes.LIMIT)
+                    | Q(
+                        billing_type=BillingTypes.ONE_TIME,
+                        is_prepaid=True,
+                    )
+                )
                 .values_list("type", flat=True)
                 .order_by("type")
             )

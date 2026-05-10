@@ -152,3 +152,46 @@ class LimitsRequiredOffTest(_Base):
     def test_create_with_empty_limits_succeeds(self):
         resp = self._create(name="rp1", limits={})
         assert resp.status_code == status.HTTP_201_CREATED, resp.data
+
+
+class PrepaidComponentRequiredTest(_Base):
+    """Prepaid ONE_TIME components are also required when the flag is on.
+
+    Mirrors utils.get_components_map: any component eligible for
+    sub-allocation (LIMIT or prepaid ONE_TIME) must have a value.
+    """
+
+    LIMITS_REQUIRED = True
+
+    def setUp(self):
+        super().setUp()
+        # Add a prepaid one-time component on top of the base LIMIT
+        # components. is_prepaid=True is what makes it sub-allocatable.
+        models.OfferingComponent.objects.create(
+            offering=self.offering,
+            type="seats",
+            name="Seats",
+            measured_unit="seat",
+            billing_type=BillingTypes.ONE_TIME,
+            is_prepaid=True,
+        )
+        # And a non-prepaid one-time that must NOT become required.
+        models.OfferingComponent.objects.create(
+            offering=self.offering,
+            type="setup_fee",
+            name="Setup fee",
+            billing_type=BillingTypes.ONE_TIME,
+            is_prepaid=False,
+        )
+
+    def test_create_without_prepaid_value_is_rejected(self):
+        resp = self._create(name="rp1", limits={"cpu": 4, "ram": 8})
+        assert resp.status_code == status.HTTP_400_BAD_REQUEST, resp.data
+        assert "seats" in str(resp.data["limits"])
+        # Non-prepaid one-time stays optional.
+        assert "setup_fee" not in str(resp.data["limits"])
+
+    def test_create_with_prepaid_value_succeeds(self):
+        resp = self._create(name="rp1", limits={"cpu": 4, "ram": 8, "seats": 5})
+        assert resp.status_code == status.HTTP_201_CREATED, resp.data
+        assert resp.data["limits"]["seats"] == 5
