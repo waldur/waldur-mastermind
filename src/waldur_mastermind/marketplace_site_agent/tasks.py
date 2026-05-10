@@ -196,9 +196,9 @@ def cleanup_site_agent_logs():
     """
     max_rows = config.SITE_AGENT_LOG_MAX_ROWS_PER_IDENTITY
 
-    identities = models.AgentIdentity.objects.annotate(
-        log_count=Count("siteagentlog")
-    ).filter(log_count__gt=max_rows)
+    identities = models.AgentIdentity.objects.annotate(log_count=Count("logs")).filter(
+        log_count__gt=max_rows
+    )
 
     for identity in identities:
         total_count = identity.log_count
