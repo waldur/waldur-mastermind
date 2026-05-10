@@ -7719,6 +7719,7 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
     resource_name = serializers.ReadOnlyField(source="resource.name")
     state = serializers.CharField(source="get_state_display", read_only=True)
     removed_by_username = serializers.ReadOnlyField(source="removed_by.username")
+    termination_metadata = serializers.JSONField(read_only=True)
 
     class Meta:
         model = models.ResourceProject
@@ -7740,6 +7741,7 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
             "removed_date",
             "removed_by",
             "removed_by_username",
+            "termination_metadata",
         )
         read_only_fields = (
             "uuid",
@@ -7753,6 +7755,7 @@ class ResourceProjectSerializer(serializers.ModelSerializer):
             "removed_date",
             "removed_by",
             "removed_by_username",
+            "termination_metadata",
         )
         # Disable DRF auto-validators. The model has a partial UniqueConstraint
         # (Q(is_removed=False)) that DRF tries to validate with is_removed read
