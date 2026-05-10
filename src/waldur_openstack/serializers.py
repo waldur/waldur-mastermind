@@ -23,8 +23,6 @@ from django.template.defaultfilters import slugify
 from django.utils.translation import gettext
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema_field
-from iptools.ipv4 import validate_cidr as is_valid_ipv4_cidr
-from iptools.ipv6 import validate_cidr as is_valid_ipv6_cidr
 from netaddr import AddrFormatError, IPNetwork, all_matching_cidrs
 from rest_framework import serializers
 from rest_framework.reverse import reverse
@@ -36,6 +34,8 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.validators import (
     BackendURLValidator,
+    is_valid_ipv4_cidr,
+    is_valid_ipv6_cidr,
     validate_x509_certificate,
 )
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole

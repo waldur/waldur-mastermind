@@ -31,7 +31,6 @@ dependencies = [
   "djangorestframework>=3.16.0,<4.0.0",
   "djangosaml2>=1.11.0,<2.0.0",
   "docker==7.1.0",
-  "iptools==0.7.0",
   "lxml>=6.1.0",
   "openportal>=0.28.0",
   "Pillow>=12.2.0,<13.0.0",
