@@ -567,13 +567,11 @@ class ResourcePullTask(BackgroundPullTask):
         if local_resource.effective_id != remote_resource.backend_id:
             local_resource.effective_id = remote_resource.backend_id
             local_resource.save(update_fields=["effective_id"])
-        # When pulling resource, if remote state is different from local, import remote orders.
         utils.import_resource_orders(local_resource)
-        if (
-            utils.parse_resource_state(remote_resource.state.value)
-            != local_resource.state
-        ):
-            utils.pull_resource_state(local_resource)
+        remote_state = utils.parse_resource_state(remote_resource.state.value)
+        if remote_state != local_resource.state:
+            local_resource.state = remote_state
+            local_resource.save(update_fields=["state"])
 
 
 class ResourceListPullTask(BackgroundListPullTask):

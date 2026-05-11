@@ -769,6 +769,69 @@ class ResourceOrderImportTest(testcases.TransactionTestCase):
         self.assertEqual(self.fixture.resource.state, ResourceStates.ERRED)
 
     @respx.mock
+    def test_resource_pull_imports_orders_when_state_is_unchanged(self):
+        self.fixture.resource.state = ResourceStates.OK
+        self.fixture.resource.save()
+        resource_uuid = self.resource.backend_id
+
+        self.mock_marketplace_resource(
+            resource_uuid,
+            {
+                "report": "",
+                "backend_id": "effective_id",
+                "state": "OK",
+                "attributes": {"sample_attr": 1},
+                "options": {},
+            },
+        )
+
+        respx.post(
+            f"{self.api_url}/api/marketplace-resources/{resource_uuid}/update_options/"
+        ).respond(200, json={"status": "ok"})
+
+        with mock.patch(
+            "waldur_mastermind.marketplace_remote.tasks.utils.import_resource_orders"
+        ) as mocked_import:
+            tasks.ResourcePullTask().pull(self.resource)
+
+        mocked_import.assert_called_once_with(self.resource)
+        self.fixture.resource.refresh_from_db()
+        self.assertEqual(self.fixture.resource.effective_id, "effective_id")
+
+    @respx.mock
+    def test_resource_pull_imports_orders_once_when_state_changes(self):
+        self.fixture.resource.state = ResourceStates.OK
+        self.fixture.resource.save()
+        resource_uuid = self.resource.backend_id
+
+        resource_route = respx.get(
+            f"{self.api_url}/api/marketplace-resources/{resource_uuid}/"
+        ).respond(
+            200,
+            json={
+                "report": "",
+                "backend_id": "effective_id",
+                "state": "Erred",
+                "attributes": {"sample_attr": 1},
+                "options": {},
+            },
+        )
+
+        respx.post(
+            f"{self.api_url}/api/marketplace-resources/{resource_uuid}/update_options/"
+        ).respond(200, json={"status": "ok"})
+
+        with mock.patch(
+            "waldur_mastermind.marketplace_remote.tasks.utils.import_resource_orders"
+        ) as mocked_import:
+            tasks.ResourcePullTask().pull(self.resource)
+
+        mocked_import.assert_called_once_with(self.resource)
+        self.assertEqual(resource_route.calls.call_count, 1)
+        self.fixture.resource.refresh_from_db()
+        self.assertEqual(self.fixture.resource.state, ResourceStates.ERRED)
+
+    @respx.mock
     def test_remote_resource_backend_id_is_saved_as_local_resource_effective_id(self):
         # Arrange
         self.fixture.resource.state = ResourceStates.OK
