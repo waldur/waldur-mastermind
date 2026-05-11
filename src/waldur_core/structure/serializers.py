@@ -782,37 +782,31 @@ class ProjectSerializer(
                 raise exceptions.PermissionDenied()
             attrs["end_date_requested_by"] = self.context["request"].user
 
-        if settings.WALDUR_CORE.get("OECD_FOS_2007_CODE_MANDATORY"):
-            if (not self.instance and not attrs.get("oecd_fos_2007_code")) or (
-                self.instance
-                and not self.instance.oecd_fos_2007_code
-                and not attrs.get("oecd_fos_2007_code")
-            ):
+        # Each "field X is mandatory" flag below enforces the constraint on
+        # create, or on an update that explicitly sets the field to null. An
+        # update that simply omits the field is allowed even if the project's
+        # current value is null -- otherwise every PATCH would have to re-send
+        # the mandatory fields, which breaks unrelated partial updates (e.g.
+        # bulk-assigning affiliations or sub-domains).
+        def _require_on_create(field_name, response_key=None):
+            response_key = response_key or field_name
+            if not self.instance and not attrs.get(field_name):
                 raise serializers.ValidationError(
-                    {"oecd_fos_2007_code": _("This field is required.")}
+                    {response_key: _("This field is required.")}
                 )
+            if self.instance and field_name in attrs and not attrs[field_name]:
+                raise serializers.ValidationError(
+                    {response_key: _("This field is required.")}
+                )
+
+        if settings.WALDUR_CORE.get("OECD_FOS_2007_CODE_MANDATORY"):
+            _require_on_create("oecd_fos_2007_code")
 
         if config.PROJECT_END_DATE_MANDATORY:
-            if (not self.instance and not attrs.get("end_date")) or (
-                self.instance
-                and not self.instance.end_date
-                and not attrs.get("end_date")
-            ):
-                raise serializers.ValidationError(
-                    {"end_date": _("This field is required.")}
-                )
+            _require_on_create("end_date")
 
         if config.AFFILIATION_REQUIRED_AT_PROJECT_CREATION:
-            affiliation_provided = "affiliation" in attrs
-            if (not self.instance and not attrs.get("affiliation")) or (
-                self.instance
-                and not self.instance.affiliation
-                and not attrs.get("affiliation")
-                and not affiliation_provided
-            ):
-                raise serializers.ValidationError(
-                    {"affiliation_uuid": _("This field is required.")}
-                )
+            _require_on_create("affiliation", response_key="affiliation_uuid")
 
         affiliation = attrs.get("affiliation")
         if affiliation is not None:
