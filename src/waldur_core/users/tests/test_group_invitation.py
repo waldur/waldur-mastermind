@@ -905,6 +905,19 @@ class RequestApproveTest(BaseInvitationTest):
         self.permission_request.refresh_from_db()
         self.assertEqual(self.permission_request.state, ReviewStates.PENDING)
 
+    def test_customer_owner_can_approve_project_scoped_request(self):
+        project_invitation = factories.ProjectGroupInvitationFactory(scope=self.project)
+        permission_request = factories.PermissionRequestFactory(
+            invitation=project_invitation
+        )
+        url = factories.PermissionRequestFactory.get_url(permission_request, "approve")
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        self.client.force_authenticate(user=self.customer_owner)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        permission_request.refresh_from_db()
+        self.assertEqual(permission_request.state, ReviewStates.APPROVED)
+
     def test_approve_rejects_mismatched_role_availability(self):
         """A role limited by RoleAvailability to a different scope must not
         be granted via PermissionRequest.approve."""
@@ -953,6 +966,19 @@ class RequestRejectTest(BaseInvitationTest):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.permission_request.refresh_from_db()
         self.assertEqual(self.permission_request.state, ReviewStates.REJECTED)
+
+    def test_customer_owner_can_reject_project_scoped_request(self):
+        project_invitation = factories.ProjectGroupInvitationFactory(scope=self.project)
+        permission_request = factories.PermissionRequestFactory(
+            invitation=project_invitation
+        )
+        url = factories.PermissionRequestFactory.get_url(permission_request, "reject")
+        CustomerRole.OWNER.add_permission(PermissionEnum.CREATE_CUSTOMER_PERMISSION)
+        self.client.force_authenticate(user=self.customer_owner)
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        permission_request.refresh_from_db()
+        self.assertEqual(permission_request.state, ReviewStates.REJECTED)
 
     @override_settings(task_always_eager=True)
     def test_rejection_notifies_requester(self):

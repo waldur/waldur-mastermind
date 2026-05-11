@@ -201,6 +201,15 @@ def can_manage_invitation_with(request, scope):
     if has_permission(request, permission, customer):
         return True
 
+    # Also allow users who have authority over the customer org itself (e.g. CUSTOMER.OWNER)
+    # to manage invitations for any nested scope (project, offering, etc.).
+    if customer is not scope:
+        customer_permission = get_create_permission(customer)
+        if customer_permission and has_permission(
+            request, customer_permission, customer
+        ):
+            return True
+
     # In the call scope, to allow call_organizer role to manage invitation, we have to set permission scope to callmanagingorganisation
     if scope._meta.model_name == "call" and customer.callmanagingorganisation:
         if has_permission(request, permission, customer.callmanagingorganisation):
