@@ -113,17 +113,6 @@ class ProjectUpdateDeleteTest(test.APITestCase):
         self.assertFalse(Project.available_objects.filter(pk=pk).exists())
         self.assertTrue(Project.objects.filter(pk=pk).exists())
 
-    @override_waldur_core_settings(OECD_FOS_2007_CODE_MANDATORY=True)
-    def test_update_if_oecd_is_not_passed(self):
-        self.fixture.project.save()
-        self.client.force_authenticate(self.fixture.staff)
-
-        data = {"backend_id": "backend_id"}
-        response = self.client.patch(
-            factories.ProjectFactory.get_url(self.fixture.project), data
-        )
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
 
 @ddt
 class ProjectCreateTest(test.APITestCase):
@@ -279,6 +268,64 @@ class ProjectCreateTest(test.APITestCase):
         response = self.client.post(factories.ProjectFactory.get_list_url(), payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIsNone(response.data["end_date"])
+
+    @override_config(PROJECT_END_DATE_MANDATORY=True)
+    def test_patch_does_not_require_end_date_when_field_is_not_being_changed(self):
+        # Regression: setting PROJECT_END_DATE_MANDATORY must not block PATCH
+        # requests that don't touch end_date on projects whose end_date is null.
+        self.client.force_authenticate(self.fixture.staff)
+        project = self.fixture.project
+        project.end_date = None
+        project.save()
+        response = self.client.patch(
+            factories.ProjectFactory.get_url(project),
+            {"description": "updated"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response.data["description"], "updated")
+
+    @override_config(PROJECT_END_DATE_MANDATORY=True)
+    def test_patch_rejects_explicit_null_end_date_when_setting_enabled(self):
+        self.client.force_authenticate(self.fixture.staff)
+        project = self.fixture.project
+        project.end_date = datetime.date(2030, 1, 1)
+        project.save()
+        response = self.client.patch(
+            factories.ProjectFactory.get_url(project),
+            {"end_date": None},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("end_date", response.data)
+
+    @override_waldur_core_settings(OECD_FOS_2007_CODE_MANDATORY=True)
+    def test_patch_does_not_require_oecd_code_when_field_is_not_being_changed(self):
+        # Regression: same anti-pattern as PROJECT_END_DATE_MANDATORY -- a
+        # PATCH that doesn't touch oecd_fos_2007_code must not be rejected
+        # just because the project's current value is null.
+        self.client.force_authenticate(self.fixture.staff)
+        project = self.fixture.project
+        project.oecd_fos_2007_code = None
+        project.save()
+        response = self.client.patch(
+            factories.ProjectFactory.get_url(project),
+            {"description": "updated"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+    @override_config(AFFILIATION_REQUIRED_AT_PROJECT_CREATION=True)
+    def test_patch_does_not_require_affiliation_when_field_is_not_being_changed(self):
+        # Regression: same anti-pattern. The setting name itself implies
+        # "at creation", so PATCHes that don't include affiliation_uuid must
+        # be allowed even when the project's current affiliation is null.
+        self.client.force_authenticate(self.fixture.staff)
+        project = self.fixture.project
+        project.affiliation = None
+        project.save()
+        response = self.client.patch(
+            factories.ProjectFactory.get_url(project),
+            {"description": "updated"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_validate_start_date(self):
         self.client.force_authenticate(self.fixture.staff)
