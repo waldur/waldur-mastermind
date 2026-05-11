@@ -458,6 +458,36 @@ class ResourceEndDateTest(test.APITestCase):
             self.assertTrue(order.state, OrderStates.EXECUTING)
             self.assertEqual(order.created_by, user)
 
+    def test_each_expired_resource_is_attributed_independently(self):
+        # Regression: actor for one resource must not leak into the next
+        # iteration of the batch. The first resource has an explicit
+        # end_date_requested_by; the second one does not. The second one
+        # must be attributed to the system robot, not to the first user.
+        end_date = datetime.datetime(day=1, month=1, year=2020).date()
+        first_user = structure_factories.UserFactory(is_staff=True)
+        self.resource.end_date_requested_by = first_user
+        self.resource.save()
+
+        second_resource = factories.ResourceFactory(
+            offering=self.resource.offering,
+            project=self.resource.project,
+            end_date=end_date,
+        )
+        second_resource.set_state_ok()
+        second_resource.save()
+
+        with freeze_time("2020-01-01"):
+            tasks.terminate_expired_resources()
+
+        first_order = models.Order.objects.get(
+            resource=self.resource, type=OrderTypes.TERMINATE
+        )
+        second_order = models.Order.objects.get(
+            resource=second_resource, type=OrderTypes.TERMINATE
+        )
+        self.assertEqual(first_order.created_by, first_user)
+        self.assertEqual(second_order.created_by, self.system_robot)
+
     def test_notification_about_resource_ending(self):
         self.fixture.manager
         self.fixture.admin

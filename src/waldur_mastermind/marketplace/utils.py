@@ -875,21 +875,24 @@ def schedule_resources_termination(resources, termination_comment=None, user=Non
         return
 
     for resource in resources:
-        user = (
+        # A separate `actor` variable per iteration is required: rebinding
+        # `user` would short-circuit the fallback chain on the next iteration
+        # and attribute every later resource to the first resource's actor.
+        actor = (
             user
             or resource.end_date_requested_by
             or resource.project.end_date_requested_by
             or core_utils.get_system_robot()
         )
 
-        if not user:
+        if not actor:
             logger.error(
                 "User for terminating resources of project with due date does not exist."
             )
             return
 
         response = terminate_resource(
-            resource, user, termination_comment, scheduled=True
+            resource, actor, termination_comment, scheduled=True
         )
 
         if response and response.status_code != status.HTTP_200_OK:
