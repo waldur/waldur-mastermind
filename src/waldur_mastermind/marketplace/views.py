@@ -9269,6 +9269,23 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
     filterset_class = filters.ComponentUsageFilter
     serializer_class = serializers.ComponentUsageSerializer
 
+    @staticmethod
+    def _sync_component_usage_total(component_usage: models.ComponentUsage) -> None:
+        """If total usage is zero but linked user usages are non-zero, set total to their sum.
+
+        Guards against the case where set_user_usages creates a ComponentUsage container
+        with usage=0 before set_usage has run (or when set_usage is skipped), leaving the
+        "Total usages" display at 0 while individual user records show correct values.
+        """
+        if component_usage.usage != 0:
+            return
+        total = models.ComponentUserUsage.objects.filter(
+            component_usage=component_usage
+        ).aggregate(total=Sum("usage"))["total"]
+        if total and total > 0:
+            component_usage.usage = total
+            component_usage.save(update_fields=["usage"])
+
     @extend_schema(
         summary="Set component usage for a resource",
         description="""
@@ -9400,6 +9417,8 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
         else:
             existing_user_usage.usage = validated_data["usage"]
             existing_user_usage.save()
+
+        self._sync_component_usage_total(component_usage)
         return Response(status=status.HTTP_201_CREATED)
 
     set_user_usage_serializer_class = serializers.ComponentUserUsageCreateSerializer
@@ -9449,6 +9468,8 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        affected_component_usages: set[models.ComponentUsage] = set()
+
         for item in serializer.validated_data["usages"]:
             target_component_usage = component_usage
 
@@ -9489,6 +9510,11 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
             else:
                 existing_user_usage.usage = item["usage"]
                 existing_user_usage.save()
+
+            affected_component_usages.add(target_component_usage)
+
+        for cu in affected_component_usages:
+            self._sync_component_usage_total(cu)
 
         return Response(status=status.HTTP_201_CREATED)
 

@@ -2120,6 +2120,41 @@ class BulkSetUserUsageTest(test.APITestCase):
         )
         self.assertEqual(user_usage.user, offering_user)
 
+    def test_total_synced_to_user_sum_when_component_usage_is_zero(self):
+        """When ComponentUsage.usage == 0 and user usages are submitted, the total is updated."""
+        self.component_usage.usage = 0
+        self.component_usage.save(update_fields=["usage"])
+
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            "usages": [
+                {"username": "user1", "usage": 100.0},
+                {"username": "user2", "usage": 46.99},
+            ]
+        }
+        response = self.client.post(self.get_url(), payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        self.component_usage.refresh_from_db()
+        self.assertAlmostEqual(float(self.component_usage.usage), 146.99, places=2)
+
+    def test_total_not_changed_when_component_usage_is_nonzero(self):
+        """When ComponentUsage.usage != 0, submitting user usages must not override it."""
+        self.component_usage.usage = 300
+        self.component_usage.save(update_fields=["usage"])
+
+        self.client.force_authenticate(self.fixture.staff)
+        payload = {
+            "usages": [
+                {"username": "user1", "usage": 100.0},
+            ]
+        }
+        response = self.client.post(self.get_url(), payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        self.component_usage.refresh_from_db()
+        self.assertEqual(float(self.component_usage.usage), 300)
+
 
 @freeze_time("2024-02-15")
 class QuarterlyLimitUsageTest(test.APITestCase):
