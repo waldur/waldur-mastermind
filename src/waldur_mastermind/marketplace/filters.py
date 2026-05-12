@@ -173,6 +173,11 @@ class OfferingFilter(
         field_name="category__group__uuid",
         label="Category group UUID",
     )
+    offering_group_uuid = core_filters.RelatedUUIDFilter(
+        view_name="marketplace-offering-group-detail",
+        field_name="offering_group__uuid",
+        label="Offering group UUID",
+    )
     billable = django_filters.BooleanFilter(widget=BooleanWidget, label="Billable")
     shared = django_filters.BooleanFilter(widget=BooleanWidget, label="Shared")
     description = django_filters.CharFilter(
@@ -2221,6 +2226,19 @@ class CategoryGroupFilter(django_filters.FilterSet):
         fields = []
 
     title = django_filters.CharFilter(lookup_expr="icontains")
+
+
+class OfferingGroupFilter(django_filters.FilterSet):
+    class Meta:
+        model = models.OfferingGroup
+        fields = []
+
+    title = django_filters.CharFilter(lookup_expr="icontains")
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        field_name="customer__uuid",
+        label="Customer UUID",
+    )
 
 
 class CategoryFilter(django_filters.FilterSet):

@@ -159,6 +159,30 @@ class CategoryGroupFactory(
         return url if action is None else url + action + "/"
 
 
+class OfferingGroupFactory(
+    factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.OfferingGroup]
+):
+    class Meta:
+        model = models.OfferingGroup
+
+    title = factory.Sequence(lambda n: "offering-group-%s" % n)
+    customer = factory.SubFactory(structure_factories.CustomerFactory)
+
+    @classmethod
+    def get_url(cls, group=None, action=None):
+        if group is None:
+            group = OfferingGroupFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-offering-group-detail", kwargs={"uuid": group.uuid.hex}
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls, action=None):
+        url = "http://testserver" + reverse("marketplace-offering-group-list")
+        return url if action is None else url + action + "/"
+
+
 class TagFactory(
     factory.django.DjangoModelFactory, metaclass=BaseMetaFactory[models.Tag]
 ):

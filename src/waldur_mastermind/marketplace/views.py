@@ -1807,6 +1807,39 @@ class CategoryGroupViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
     ) = [structure_permissions.is_staff]
 
 
+class OfferingGroupViewSet(core_views.ActionsViewSet):
+    """Manage logical groups of offerings within a service provider.
+
+    Service providers manage their own groups (read/write scoped via
+    ``GenericRoleFilter`` against ``OfferingGroup.Permissions.customer_path``);
+    staff have full access. Groups are used to express that several
+    offerings (e.g. SLURM partitions) belong to the same backend entity.
+    """
+
+    queryset = models.OfferingGroup.objects.all()
+    serializer_class = serializers.OfferingGroupSerializer
+    lookup_field = "uuid"
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.OfferingGroupFilter
+
+    # Create permission check happens in the serializer (it needs access to
+    # the validated ``customer`` field). Object-bound CRUD uses
+    # permission_factory with the same paths as offering CRUD so that
+    # service-provider owners can manage their own groups.
+    update_permissions = partial_update_permissions = [
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+    destroy_permissions = [
+        permission_factory(
+            PermissionEnum.DELETE_OFFERING,
+            ["*", "customer", "customer.serviceprovider"],
+        )
+    ]
+
+
 class TagViewSet(PublicViewsetMixin, core_views.ActionsViewSet):
     """
     Manage offering tags.
@@ -2578,6 +2611,53 @@ class ProviderOfferingViewSet(
         )
 
     set_profile_serializer_class = serializers.OfferingProfileBindSerializer
+
+    @extend_schema(
+        summary="Assign or clear the offering group",
+        description=(
+            "Sets the offering's ``offering_group`` FK. Pass "
+            "``offering_group: <uuid>`` to assign a group, or "
+            "``offering_group: null`` to clear it. The group must belong to "
+            "the same customer as the offering."
+        ),
+        request=serializers.OfferingGroupAssignSerializer,
+        responses={200: None},
+    )
+    @action(detail=True, methods=["post"])
+    def set_offering_group(self, request, uuid=None):
+        offering = self.get_object()
+        ser = serializers.OfferingGroupAssignSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        offering_group = ser.validated_data["offering_group"]
+        if (
+            offering_group is not None
+            and offering_group.customer_id != offering.customer_id
+        ):
+            raise rf_exceptions.ValidationError(
+                {
+                    "offering_group": _(
+                        "Offering group must belong to the same customer as the offering."
+                    )
+                }
+            )
+        offering.offering_group = offering_group
+        offering.save(update_fields=["offering_group"])
+        return Response(
+            {
+                "offering_group_uuid": (
+                    offering.offering_group.uuid.hex
+                    if offering.offering_group
+                    else None
+                ),
+                "offering_group_title": (
+                    offering.offering_group.title if offering.offering_group else None
+                ),
+            }
+        )
+
+    set_offering_group_permissions = [can_update_offering]
+    set_offering_group_validators = [validate_offering_update]
+    set_offering_group_serializer_class = serializers.OfferingGroupAssignSerializer
 
     @extend_schema(
         summary="Update offering resource options",
