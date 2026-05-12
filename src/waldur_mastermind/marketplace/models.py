@@ -194,6 +194,48 @@ class CategoryGroup(
         return "marketplace-category-group"
 
 
+class OfferingGroup(
+    core_models.UuidMixin,
+    core_models.DescribableMixin,
+    TimeStampedModel,
+):
+    """
+    Logical grouping of related offerings within a single service provider.
+
+    Used to express that several offerings belong to the same backend
+    entity (e.g. a SLURM cluster whose partitions are exposed as separate
+    offerings). All offerings in a group must share the same customer.
+    """
+
+    title = models.CharField(blank=False, max_length=255)
+    icon = models.FileField(
+        upload_to="marketplace_offering_group_icons",
+        blank=True,
+        null=True,
+        validators=[ImageValidator],
+    )
+    customer = models.ForeignKey(
+        on_delete=models.CASCADE,
+        to=structure_models.Customer,
+        related_name="offering_groups",
+    )
+
+    class Permissions:
+        customer_path = "customer"
+
+    class Meta:
+        verbose_name = _("Offering group")
+        verbose_name_plural = _("Offering groups")
+        ordering = ("title",)
+
+    def __str__(self):
+        return str(self.title)
+
+    @classmethod
+    def get_url_name(cls):
+        return "marketplace-offering-group"
+
+
 class Category(
     core_models.BackendMixin,
     core_models.UuidMixin,
@@ -607,6 +649,16 @@ class Offering(
         related_name="offerings",
         limit_choices_to={"checklist_type": "offering_compliance"},
         help_text=_("Checklist that offering users must complete for compliance"),
+    )
+    offering_group = models.ForeignKey(
+        to=OfferingGroup,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="offerings",
+        help_text=_(
+            "Logical group this offering belongs to. Group must share the same customer."
+        ),
     )
     customer = models.ForeignKey(
         on_delete=models.CASCADE,

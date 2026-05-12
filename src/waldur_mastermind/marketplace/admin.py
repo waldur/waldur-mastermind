@@ -121,6 +121,14 @@ class CategoryGroupAdmin(modeltranslation_admin.TranslationAdmin):
     inlines = [CategoryInline]
 
 
+class OfferingGroupAdmin(admin.ModelAdmin):
+    model = models.OfferingGroup
+    list_display = ("title", "customer", "uuid")
+    list_filter = ("customer",)
+    search_fields = ("title", "description", "customer__name")
+    raw_id_fields = ("customer",)
+
+
 class ScreenshotsInline(admin.StackedInline):
     model = models.Screenshot
     classes = ["collapse"]
@@ -749,6 +757,7 @@ class CategoryHelpArticleAdmin(admin.ModelAdmin):
 admin.site.register(models.ServiceProvider, ServiceProviderAdmin)
 admin.site.register(models.Category)
 admin.site.register(models.CategoryGroup, CategoryGroupAdmin)
+admin.site.register(models.OfferingGroup, OfferingGroupAdmin)
 admin.site.register(models.Offering, OfferingAdmin)
 admin.site.register(models.Section, SectionAdmin)
 admin.site.register(models.Attribute, AttributeAdmin)

@@ -1126,6 +1126,68 @@ class CategoryGroupSerializer(
         }
 
 
+class OfferingGroupSerializer(
+    core_serializers.AugmentedSerializerMixin,
+    core_serializers.RestrictedSerializerMixin,
+    serializers.HyperlinkedModelSerializer,
+):
+    class Meta:
+        model = models.OfferingGroup
+        fields = (
+            "url",
+            "uuid",
+            "created",
+            "title",
+            "description",
+            "icon",
+            "customer",
+            "customer_uuid",
+            "customer_name",
+        )
+        related_paths = {"customer": ("uuid", "name")}
+        protected_fields = ("customer",)
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-offering-group-detail",
+            },
+            "customer": {
+                "lookup_field": "uuid",
+                "view_name": "customer-detail",
+            },
+        }
+
+    def validate(self, attrs):
+        if not self.instance:
+            customer = attrs.get("customer")
+            if not models.ServiceProvider.objects.filter(customer=customer).exists():
+                raise serializers.ValidationError(
+                    {"customer": _("Customer should be a service provider.")}
+                )
+            if not has_permission(
+                self.context["request"], PermissionEnum.CREATE_OFFERING, customer
+            ):
+                raise PermissionDenied()
+        return attrs
+
+
+class OfferingGroupAssignSerializer(serializers.Serializer):
+    """Body of the ``set_offering_group`` action.
+
+    Pass ``offering_group: <uuid>`` to assign or ``offering_group: null`` to
+    clear. Validation that the group's customer matches the offering's
+    customer is performed in the action handler.
+    """
+
+    offering_group = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.OfferingGroup.objects.all(),
+        allow_null=True,
+        required=True,
+        help_text="OfferingGroup UUID. Pass null to remove the assignment.",
+    )
+
+
 class TagSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -2889,6 +2951,12 @@ class ProviderOfferingDetailsSerializer(
     profile_name = serializers.CharField(
         read_only=True, source="profile.name", allow_null=True
     )
+    offering_group = serializers.HyperlinkedRelatedField(
+        view_name="marketplace-offering-group-detail",
+        lookup_field="uuid",
+        read_only=True,
+        allow_null=True,
+    )
 
     class Meta:
         model = models.Offering
@@ -2965,6 +3033,9 @@ class ProviderOfferingDetailsSerializer(
             "compliance_checklist",
             "profile_uuid",
             "profile_name",
+            "offering_group",
+            "offering_group_uuid",
+            "offering_group_title",
         )
         related_paths = {
             "customer": ("uuid", "name"),
@@ -2975,6 +3046,7 @@ class ProviderOfferingDetailsSerializer(
                 "description",
                 "name",
             ),
+            "offering_group": ("uuid", "title"),
         }
         protected_fields = ("customer", "type")
         read_only_fields = (
@@ -3008,6 +3080,8 @@ class ProviderOfferingDetailsSerializer(
                 "lookup_field": "uuid",
                 "view_name": "marketplace-category-detail",
             },
+            "offering_group_uuid": {"allow_null": True},
+            "offering_group_title": {"allow_null": True},
         }
         view_name = "marketplace-provider-offering-detail"
 
@@ -3282,6 +3356,12 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
     description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
     full_description = core_serializers.HTMLCleanField(required=False, allow_blank=True)
     vendor_details = core_serializers.HTMLCleanField(required=False, allow_blank=True)
+    offering_group = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.OfferingGroup.objects.all(),
+        required=False,
+        allow_null=True,
+    )
 
     def validate(self, attrs):
         if not self.instance:
@@ -3293,6 +3373,7 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
                 raise PermissionDenied()
 
         self._validate_customer(attrs)
+        self._validate_offering_group(attrs)
         self._validate_attributes(attrs)
         self._validate_plans(attrs)
 
@@ -3300,6 +3381,22 @@ class OfferingCreateSerializer(ProviderOfferingDetailsSerializer):
         attrs.setdefault("resource_options", {"options": {}, "order": []})
 
         return attrs
+
+    def _validate_offering_group(self, attrs):
+        offering_group = attrs.get("offering_group")
+        if offering_group is None:
+            return
+        customer = attrs.get("customer") or (
+            self.instance.customer if self.instance else None
+        )
+        if customer is not None and offering_group.customer_id != customer.id:
+            raise serializers.ValidationError(
+                {
+                    "offering_group": _(
+                        "Offering group must belong to the same customer as the offering."
+                    )
+                }
+            )
 
     def validate_type(self, offering_type):
         # Validate against registered and enabled offering types
@@ -9123,6 +9220,8 @@ class ProviderOfferingSerializer(
             "resource_options",
             "secret_options",
             "thumbnail",
+            "offering_group_uuid",
+            "offering_group_title",
         )
 
     category_title = serializers.ReadOnlyField(source="category.title")
@@ -9132,6 +9231,12 @@ class ProviderOfferingSerializer(
     components = OfferingComponentSerializer(required=False, many=True)
     plans = BaseProviderPlanSerializer(many=True, required=False)
     secret_options = MergedSecretOptionsField(read_only=True)
+    offering_group_uuid = serializers.UUIDField(
+        read_only=True, source="offering_group.uuid", allow_null=True
+    )
+    offering_group_title = serializers.CharField(
+        read_only=True, source="offering_group.title", allow_null=True
+    )
 
     def get_state(
         self, offering: models.Offering
