@@ -359,6 +359,8 @@ class SmaxBackend:
         return self._request(path, method="delete", **kwargs)
 
     def get_user(self, user_id):
+        if not user_id:
+            return None
         response = self.get(f"ems/Person/{user_id}?layout=Name,Email,Upn,ExternalId")
         user = self._smax_response_to_user(response)
 
@@ -431,6 +433,8 @@ class SmaxBackend:
         return backend_user
 
     def get_issue(self, issue_id):
+        if not issue_id:
+            return None
         response = self.get(f"ems/Request?layout=FULL_LAYOUT&filter=Id={issue_id}")
         issues = self._smax_response_to_issue(response)
         return issues[0] if issues else None
