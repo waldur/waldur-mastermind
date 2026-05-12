@@ -12,6 +12,7 @@ from django.core.cache import cache
 from django.db.models import QuerySet
 
 from waldur_core.logging import backend, models
+from waldur_core.logging.circuit_breaker import stomp_circuit_breaker
 from waldur_core.logging.mixins import LoggableMixin
 
 logger = logging.getLogger(__name__)
@@ -321,6 +322,44 @@ def delete_stale_subscriptions(
     return models.EventSubscription.objects.filter(id__in=removed_subscription_ids)
 
 
+# Throttle for STOMP publish-failure ERROR logs. During a sustained RabbitMQ
+# outage the same connection error fires for every message and every Celery
+# retry, burying actionable signal under thousands of duplicate tracebacks.
+# Emit at most one full traceback per minute per process; downgrade the rest
+# to a one-line WARNING.
+_STOMP_FAILURE_ERROR_LOG_INTERVAL_S = 60.0
+_stomp_failure_log_lock = threading.Lock()
+_stomp_failure_last_error_log_time: float = 0.0
+
+
+def _log_stomp_publish_failure(exc: BaseException) -> None:
+    """Log a STOMP publish failure with bounded frequency.
+
+    First failure (or one per ``_STOMP_FAILURE_ERROR_LOG_INTERVAL_S``) is
+    logged at ERROR with a traceback so on-call sees the root cause.
+    Subsequent failures within the window are logged at WARNING without a
+    traceback so a long outage doesn't drown the error stream.
+    """
+    global _stomp_failure_last_error_log_time
+    now = time.monotonic()
+    with _stomp_failure_log_lock:
+        emit_error = (
+            now - _stomp_failure_last_error_log_time
+            >= _STOMP_FAILURE_ERROR_LOG_INTERVAL_S
+        )
+        if emit_error:
+            _stomp_failure_last_error_log_time = now
+
+    if emit_error:
+        logger.exception("Failed to publish message to RabbitMQ STOMP queue: %s", exc)
+    else:
+        logger.warning(
+            "STOMP publish failed (traceback suppressed; one ERROR per %ss): %s",
+            int(_STOMP_FAILURE_ERROR_LOG_INTERVAL_S),
+            exc,
+        )
+
+
 def publish_stomp_messages(
     messages_to_send: list[dict[str, str]],
 ) -> tuple[int, int]:
@@ -334,9 +373,6 @@ def publish_stomp_messages(
     Returns:
         Tuple of (successful_count, failed_count)
     """
-    # Import here to avoid circular imports
-    from waldur_core.logging.circuit_breaker import stomp_circuit_breaker
-
     rabbitmq_settings: dict = settings.RABBITMQ
     if not rabbitmq_settings.get("STOMP_PORT"):
         logger.warning("STOMP_PORT is not defined in settings")
@@ -411,17 +447,17 @@ def publish_stomp_messages(
             duration_ms = (time.time() - start_time) * 1000
             PublishingMetrics.record_publish(success=True, duration_ms=duration_ms)
         except Exception as e:
-            logger.exception(
-                "Failed to publish message to RabbitMQ STOMP queue: %s",
-                e,
-            )
+            _log_stomp_publish_failure(e)
+            was_open = stomp_circuit_breaker.is_open()
             stomp_circuit_breaker.record_failure()
             failed += 1
             duration_ms = (time.time() - start_time) * 1000
             PublishingMetrics.record_publish(success=False, duration_ms=duration_ms)
 
-            # Check if circuit breaker tripped
-            if stomp_circuit_breaker.is_open():
+            # Check if this failure tripped the circuit breaker. The state
+            # transition itself is already logged at INFO by CircuitBreaker;
+            # only record the metric here.
+            if not was_open and stomp_circuit_breaker.is_open():
                 PublishingMetrics.record_circuit_breaker_trip()
                 logger.warning(
                     "Circuit breaker tripped after failure, remaining messages will be skipped"
