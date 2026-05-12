@@ -29,3 +29,4 @@ pytest.ini
 __pycache__/
 
 .vscode/
+pyrightconfig.json

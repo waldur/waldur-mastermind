@@ -10,7 +10,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("marketplace", "0233_repair_limit_period_after_0226"),
+        ("marketplace", "0234_resource_project_soft_delete"),
         ("structure", "0077_affiliation_redesign"),
     ]
 
