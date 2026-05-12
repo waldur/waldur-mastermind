@@ -173,7 +173,7 @@ class TestPublishStompMessagesCircuitBreakerRecovery(unittest.TestCase):
         }
 
         with (
-            patch("waldur_core.logging.circuit_breaker.stomp_circuit_breaker", cb),
+            patch("waldur_core.logging.utils.stomp_circuit_breaker", cb),
             patch("waldur_core.logging.utils.settings") as mock_settings,
             patch("waldur_core.logging.utils.stomp.Connection12") as mock_conn_cls,
         ):
@@ -189,6 +189,106 @@ class TestPublishStompMessagesCircuitBreakerRecovery(unittest.TestCase):
             successful, 1, "Message should have been sent after recovery timeout"
         )
         self.assertEqual(failed, 0)
+
+
+class TestPublishStompFailureLogging(unittest.TestCase):
+    """STOMP publish failures should not flood the error log during outages."""
+
+    def setUp(self):
+        from waldur_core.logging import utils as logging_utils
+
+        # Reset the throttle so each test starts from a fresh window.
+        logging_utils._stomp_failure_last_error_log_time = 0.0
+
+    def _run_publish_with_failure(self, breaker):
+        messages = [
+            {
+                "vhost": "test_vhost",
+                "topic": "test/topic",
+                "payload": "{}",
+            }
+        ]
+        rabbitmq_settings = {
+            "HOST": "localhost",
+            "STOMP_PORT": 61613,
+            "USER": "guest",
+            "PASSWORD": "guest",
+        }
+        with (
+            patch("waldur_core.logging.utils.stomp_circuit_breaker", breaker),
+            patch("waldur_core.logging.utils.settings") as mock_settings,
+            patch("waldur_core.logging.utils.stomp.Connection12") as mock_conn_cls,
+        ):
+            mock_settings.RABBITMQ = rabbitmq_settings
+            mock_conn = MagicMock()
+            mock_conn_cls.return_value = mock_conn
+            mock_conn.is_connected.return_value = True
+            mock_conn.connect.side_effect = OSError("boom")
+            publish_stomp_messages(messages)
+
+    def test_first_failure_logs_error_with_traceback(self):
+        """The first failure in the window logs at ERROR with traceback."""
+        cb = CircuitBreaker(failure_threshold=100, recovery_timeout=60)
+        with self.assertLogs("waldur_core.logging.utils", level="ERROR") as cm:
+            self._run_publish_with_failure(cb)
+        self.assertTrue(
+            any(
+                "Failed to publish message to RabbitMQ STOMP queue" in m
+                for m in cm.output
+            ),
+            cm.output,
+        )
+
+    def test_sustained_failures_emit_one_error_per_window(self):
+        """A sustained outage must not flood the error log: only the first
+        failure within the throttle window emits ERROR; subsequent failures
+        emit WARNING instead.
+        """
+        cb = CircuitBreaker(failure_threshold=100, recovery_timeout=60)
+        with self.assertLogs("waldur_core.logging.utils", level="WARNING") as cm:
+            for _ in range(5):
+                self._run_publish_with_failure(cb)
+        error_lines = [m for m in cm.output if m.startswith("ERROR")]
+        warning_lines = [m for m in cm.output if m.startswith("WARNING")]
+        self.assertEqual(
+            len(error_lines),
+            1,
+            f"Expected exactly one ERROR log per throttle window, got: {error_lines}",
+        )
+        # The remaining 4 should have been downgraded to WARNING.
+        suppressed_lines = [m for m in warning_lines if "traceback suppressed" in m]
+        self.assertEqual(len(suppressed_lines), 4, warning_lines)
+
+    def test_upfront_skip_when_breaker_already_open(self):
+        """When the breaker is OPEN before the call, publish_stomp_messages
+        short-circuits at WARNING — no ERROR is emitted for the skipped batch.
+        """
+        cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60)
+        cb.record_failure()  # trip the breaker
+        self.assertTrue(cb.is_open())
+
+        messages = [
+            {
+                "vhost": "test_vhost",
+                "topic": "test/topic",
+                "payload": "{}",
+            }
+        ]
+        rabbitmq_settings = {
+            "HOST": "localhost",
+            "STOMP_PORT": 61613,
+            "USER": "guest",
+            "PASSWORD": "guest",
+        }
+        with (
+            patch("waldur_core.logging.utils.stomp_circuit_breaker", cb),
+            patch("waldur_core.logging.utils.settings") as mock_settings,
+            self.assertLogs("waldur_core.logging.utils", level="WARNING") as cm,
+        ):
+            mock_settings.RABBITMQ = rabbitmq_settings
+            publish_stomp_messages(messages)
+        error_lines = [m for m in cm.output if m.startswith("ERROR")]
+        self.assertEqual(error_lines, [], cm.output)
 
 
 class TestGlobalCircuitBreaker(unittest.TestCase):

@@ -9,6 +9,7 @@ from django.utils import timezone
 
 from waldur_core.core.models import User
 from waldur_core.logging import backend, models, utils
+from waldur_core.logging.circuit_breaker import stomp_circuit_breaker
 from waldur_core.logging.event_logger import get_event_groups
 from waldur_core.logging.models import BaseHook, Event, Feed, UserDataAccessLog
 from waldur_core.permissions.enums import RoleEnum
@@ -138,23 +139,20 @@ def publish_messages(self, messages: list[dict[str, str]]) -> dict:
         "retry_count": self.request.retries,
     }
 
-    # STOMP publishing
-    try:
-        successful, failed = utils.publish_stomp_messages(messages)
-        results["stomp"]["sent"] = successful
-        results["stomp"]["failed"] = failed
+    # STOMP publishing. The underlying call already logs failures (rate-limited
+    # to keep sustained outages from flooding the error stream) and updates the
+    # circuit breaker. Don't re-log the same condition here — Celery's
+    # task_retry / task_failed log will capture the retry path on its own.
+    successful, failed = utils.publish_stomp_messages(messages)
+    results["stomp"]["sent"] = successful
+    results["stomp"]["failed"] = failed
 
-        # If all STOMP messages failed and circuit breaker is not open,
-        # raise exception to trigger retry
-        if failed > 0 and successful == 0:
-            from waldur_core.logging.circuit_breaker import stomp_circuit_breaker
-
-            if not stomp_circuit_breaker.is_open():
-                raise ConnectionError(f"All {failed} STOMP messages failed to publish")
-    except Exception as e:
-        logger.error("Error publishing STOMP messages: %s", e)
-        results["stomp"]["failed"] = len(messages)
-        raise  # Re-raise to trigger Celery retry
+    # If all STOMP messages failed and the circuit breaker hasn't already
+    # tripped, raise so Celery retries this task. Once the breaker is OPEN we
+    # accept the loss for this batch — Celery retrying would just keep hitting
+    # the same dead backend.
+    if failed > 0 and successful == 0 and not stomp_circuit_breaker.is_open():
+        raise ConnectionError(f"All {failed} STOMP messages failed to publish")
 
     return results
 
