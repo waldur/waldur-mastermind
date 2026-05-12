@@ -14,14 +14,14 @@ def get_issue_scopes(issue: Issue) -> set:
     result = set()
     project_id = None
 
-    # Try to access resource, but handle case where it's already deleted
-    try:
-        if issue.resource:
-            project_id = issue.resource.project_id
-            result.add(issue.resource)
-    except (AttributeError, ValueError):
-        # Resource may have been deleted, causing ContentType issues
-        pass
+    resource = issue.safe_resource
+    if resource is not None:
+        try:
+            project_id = resource.project_id
+            result.add(resource)
+        except (AttributeError, ValueError):
+            # Resource may have been deleted, causing ContentType issues
+            pass
 
     if not project_id:
         project_id = issue.project_id

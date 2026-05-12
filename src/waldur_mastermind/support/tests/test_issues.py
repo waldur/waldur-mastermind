@@ -798,3 +798,47 @@ class GetIssueScopesTest(base.BaseTest):
         self.assertIn(resource, scopes)
         self.assertIn(self.project, scopes)
         self.assertIn(self.customer, scopes)
+
+    def test_get_issue_scopes_with_stale_resource_content_type(self):
+        """When ``resource_content_type`` points at a model that is no longer
+        registered, ``ContentType.model_class()`` returns ``None`` and
+        accessing the GenericForeignKey raises
+        ``AttributeError("'NoneType' object has no attribute '_base_manager'")``.
+        ``get_issue_scopes`` must tolerate this and fall back to the issue's
+        project/customer.
+        """
+        from django.contrib.contenttypes.models import ContentType
+
+        resource = ResourceFactory(project=self.project)
+        self.issue.resource = resource
+        self.issue.save()
+        self.issue.refresh_from_db()
+
+        with mock.patch.object(ContentType, "model_class", return_value=None):
+            scopes = get_issue_scopes(self.issue)
+
+        self.assertIn(self.project, scopes)
+        self.assertIn(self.customer, scopes)
+
+
+class IssueSerializerSafeResourceTest(base.BaseTest):
+    """Regression test for production crash on ``GET /api/support-issues/``
+    when an issue's ``resource_content_type`` points at a model whose class
+    is no longer registered.
+    """
+
+    def test_list_does_not_crash_when_resource_content_type_is_stale(self):
+        from django.contrib.contenttypes.models import ContentType
+
+        self.client.force_authenticate(self.fixture.staff)
+        resource = ResourceFactory(project=self.fixture.project)
+        issue = factories.IssueFactory(
+            customer=self.fixture.customer, project=self.fixture.project
+        )
+        issue.resource = resource
+        issue.save()
+
+        with mock.patch.object(ContentType, "model_class", return_value=None):
+            response = self.client.get(factories.IssueFactory.get_list_url())
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
