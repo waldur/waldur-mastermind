@@ -10,6 +10,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.db.models import DateField
 from django.utils import timezone
 from requests.auth import HTTPBasicAuth
 from rest_framework.exceptions import NotFound, ParseError
@@ -60,6 +61,16 @@ def normalize_mapped_claim_value(user_field: str, value):
 
     if user_field not in LIST_USER_FIELDS and isinstance(value, str):
         field = User._meta.get_field(user_field)
+        if isinstance(field, DateField):
+            try:
+                return field.to_python(value)
+            except ValidationError:
+                logger.warning(
+                    "Skipping claim for user field %s. Value %r is not a valid date.",
+                    user_field,
+                    value,
+                )
+                return None
         max_length = getattr(field, "max_length", None)
         if max_length and len(value) > max_length:
             logger.warning(

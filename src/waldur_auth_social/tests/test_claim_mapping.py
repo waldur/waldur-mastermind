@@ -1,3 +1,5 @@
+from datetime import date
+
 from django.test import SimpleTestCase
 
 from waldur_auth_social.claim_mapping import (
@@ -7,6 +9,20 @@ from waldur_auth_social.claim_mapping import (
     get_suggested_scopes,
     get_waldur_field_suggestions,
 )
+from waldur_auth_social.utils import normalize_mapped_claim_value
+
+
+class NormalizeMappedClaimValueTest(SimpleTestCase):
+    def test_birth_date_oidc_string_parsed_to_date(self):
+        self.assertEqual(
+            normalize_mapped_claim_value("birth_date", "1983-01-21"),
+            date(1983, 1, 21),
+        )
+
+    def test_birth_date_invalid_string_returns_none(self):
+        self.assertIsNone(
+            normalize_mapped_claim_value("birth_date", "not-a-date"),
+        )
 
 
 class ClaimMappingSuggestionsTest(SimpleTestCase):
