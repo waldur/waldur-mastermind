@@ -801,11 +801,13 @@ def sync_arrow_billing(
         settings = models.ArrowSettings.get_active()
 
     if not settings:
-        logger.error("No Arrow settings found")
+        # Arrow integration not configured for this deployment — emit a warning
+        # rather than an error so it does not pollute production error logs.
+        logger.warning("No Arrow settings found")
         return
 
     if not settings.export_type_reference:
-        logger.error(
+        logger.warning(
             "Arrow settings has no export_type_reference configured. "
             "Please set it in the Arrow Integration settings."
         )

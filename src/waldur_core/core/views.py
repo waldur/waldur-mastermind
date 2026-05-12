@@ -1712,13 +1712,15 @@ def get_latest_github_tag(timeout=5):
         )
         response.raise_for_status()
     except requests.RequestException as e:
-        logger.error(f"Failed to fetch latest GitHub tag: {str(e)}")
+        # External network failures are expected and non-actionable — keep them
+        # out of the production error log.
+        logger.warning(f"Failed to fetch latest GitHub tag: {str(e)}")
         return None
 
     try:
         tags = response.json()
     except requests.JSONDecodeError:
-        logger.error("Failed to decode JSON response from GitHub")
+        logger.warning("Failed to decode JSON response from GitHub")
         return None
 
     # Filter to tags with valid PEP 440 version strings and sort them
