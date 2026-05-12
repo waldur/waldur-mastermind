@@ -1073,7 +1073,13 @@ def send_metrics():
     if installation_date_str:
         params["installation_date"] = installation_date_str
     url = config.TELEMETRY_URL + f"v{config.TELEMETRY_VERSION}/metrics/"
-    response = requests.post(url, json=params)
+    try:
+        response = requests.post(url, json=params, timeout=30)
+    except requests.RequestException as e:
+        # Telemetry is best-effort; network failures should not surface as
+        # task errors.
+        logger.warning("Failed to send telemetry metrics to %s: %s", url, e)
+        return None
 
     if response.status_code != 200:
         logger.warning(
