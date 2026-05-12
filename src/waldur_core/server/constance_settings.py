@@ -285,6 +285,7 @@ CONSTANCE_CONFIG_CHOICES = {
     "ONBOARDING_VALIDATION_METHODS": ONBOARDING_VALIDATION_CHOICES,
     "FEDERATED_IDENTITY_SYNC_ALLOWED_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
     "FEDERATED_IDENTITY_DEACTIVATION_POLICY": DEACTIVATION_POLICY_CHOICES,
+    "SCIM_INBOUND_ALLOWED_ATTRIBUTES": USER_ATTRIBUTE_CHOICES,
     "RESTRICTED_OFFERING_VISIBILITY_MODE": OFFERING_VISIBILITY_CHOICES,
     "SSH_KEY_ALLOWED_TYPES": SSH_KEY_TYPE_CHOICES,
     "ENABLED_REPORTING_SCREENS": REPORTING_SCREEN_CHOICES,
@@ -851,6 +852,34 @@ CONSTANCE_CONFIG = {
     "SCIM_API_URL": ("", "Base URL of the SCIM API service."),
     "SCIM_API_KEY": ("", "SCIM API key for X-API-Key header.", "secret_field"),
     "SCIM_URN_NAMESPACE": ("", "URN namespace for SCIM entitlements."),
+    "SCIM_INBOUND_ENABLED": (
+        False,
+        "Enable inbound SCIM 2.0 service provider at /scim/v2/. Allows external "
+        "identity providers (Okta, Entra ID, Keycloak) to provision users and groups.",
+    ),
+    "SCIM_INBOUND_SOURCE_NAME": (
+        "scim:default",
+        "Source label written to User.attribute_sources for inbound SCIM writes. "
+        "Used by the multi-source attribute merge to track ownership.",
+    ),
+    "SCIM_INBOUND_ALLOWED_ATTRIBUTES": (
+        ["first_name", "last_name", "email", "organization", "affiliations"],
+        "User attributes settable via inbound SCIM.",
+        "multiple_choice_field",
+    ),
+    "SCIM_PULL_API_URL": (
+        "",
+        "Base URL for outbound SCIM pull (fetching user attributes from an external IdP).",
+    ),
+    "SCIM_PULL_API_KEY": (
+        "",
+        "Bearer token for outbound SCIM pull.",
+        "secret_field",
+    ),
+    "SCIM_PULL_SOURCE_NAME": (
+        "scim:pull",
+        "Source label written to User.attribute_sources for attributes pulled from a remote SCIM directory.",
+    ),
     "KEYCLOAK_ICON": (
         "",
         "A custom PNG icon for Keycloak login button",
@@ -1641,11 +1670,19 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "FREEIPA_BLACKLISTED_USERNAMES",
         "FREEIPA_GROUP_SYNCHRONIZATION_ENABLED",
     ),
-    "SCIM settings": (
+    "SCIM Entitlements (outbound push)": (
         "SCIM_MEMBERSHIP_SYNC_ENABLED",
         "SCIM_API_URL",
         "SCIM_API_KEY",
         "SCIM_URN_NAMESPACE",
+    ),
+    "SCIM Identity Provider": (
+        "SCIM_INBOUND_ENABLED",
+        "SCIM_INBOUND_SOURCE_NAME",
+        "SCIM_INBOUND_ALLOWED_ATTRIBUTES",
+        "SCIM_PULL_API_URL",
+        "SCIM_PULL_API_KEY",
+        "SCIM_PULL_SOURCE_NAME",
     ),
     "API token authentication": (
         "OIDC_AUTH_URL",

@@ -55,6 +55,7 @@ checklist_urls.register_in(router)
 urlpatterns = [
     re_path(r"^admin/", admin.site.urls),
     re_path(r"^health-check/", include("health_check.urls")),
+    re_path(r"^scim/v2/", include("waldur_core.users.scim.server.urls")),
     # Stats endpoints (consolidated under /api/stats/)
     re_path(r"^api/stats/celery/", core_views.CeleryStatsViewSet.as_view()),
     re_path(r"^api/stats/database/", core_views.DatabaseStatsViewSet.as_view()),

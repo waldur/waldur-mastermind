@@ -438,7 +438,7 @@ sequenceDiagram
     end
 
     WaldurAPI->>Email: Send notification to user
-    WaldurAPI->>Admin: Return membership details
+    WaldurAPI->>Admin: Return membership info
 ```
 
 ### State Management
@@ -619,14 +619,14 @@ sequenceDiagram
         OpenStack->>VM: Provision server node
         VM->>Vault: Authenticate with AppRole
         VM->>Vault: Retrieve cluster token
-        VM->>RancherServer: Register as server node
+        VM->>RancherServer: Register the server node
         Celery->>Celery: Poll node state until Active
     and Server Node 2
         Celery->>OpenStack: Create VM with cloud-init
         OpenStack->>VM: Provision server node
         VM->>Vault: Authenticate with AppRole
         VM->>Vault: Retrieve cluster token
-        VM->>RancherServer: Register as server node
+        VM->>RancherServer: Register the server node
         Celery->>Celery: Poll node state until Active
     end
 
@@ -635,19 +635,19 @@ sequenceDiagram
     OpenStack->>VM: Provision agent node
     VM->>Vault: Authenticate with AppRole
     VM->>Vault: Retrieve cluster token
-    VM->>RancherServer: Register as agent node
+    VM->>RancherServer: Register the agent node
     Celery->>Celery: Poll node state until Active
 
     Note over Celery: Remaining Agent Nodes (Parallel)
     par Agent Node 2
         Celery->>OpenStack: Create VM with cloud-init
         OpenStack->>VM: Provision agent node
-        VM->>RancherServer: Register as agent node
+        VM->>RancherServer: Register the agent node
         Celery->>Celery: Poll node state until Active
     and Agent Node N
         Celery->>OpenStack: Create VM with cloud-init
         OpenStack->>VM: Provision agent node
-        VM->>RancherServer: Register as agent node
+        VM->>RancherServer: Register the agent node
         Celery->>Celery: Poll node state until Active
     end
 

@@ -42,10 +42,10 @@ graph TD
     H --> I[LLMStreamer<br/>StreamingHttpResponse]
     I --> J[worker thread]
     J --> K{tool_calls<br/>this round?}
-    K -- yes --> L[ToolExecutor.execute_tool<br/>+ injection check on args]
+    K -->|yes| L[ToolExecutor.execute_tool<br/>+ injection check on args]
     L --> M[_extend_with_tool_results]
     M --> J
-    K -- no / cap hit --> N[StreamParser.parse<br/>NDJSON blocks]
+    K -->|no or cap hit| N[StreamParser.parse<br/>NDJSON blocks]
     N --> O[client]
     J --> P[finally:<br/>persist + record_usage<br/>+ generate_thread_name]
 ```
@@ -281,10 +281,10 @@ Two detection layers, both enforced *before* any LLM call:
 graph LR
     A[user input] --> B[InputDetectionService.check_user_input]
     B --> C{action?}
-    C -- block --> D[canned/contextual rejection<br/>no LLM data call]
-    C -- redact --> E[replace with redacted_text]
-    C -- warn/flag --> F[add pii_warning to stream]
-    C -- allow --> G[build_context]
+    C -->|block| D[canned/contextual rejection<br/>no LLM data call]
+    C -->|redact| E[replace with redacted_text]
+    C -->|warn or flag| F[add pii_warning to stream]
+    C -->|allow| G[build_context]
     E --> G
     F --> G
     G --> H[LLM]
@@ -460,7 +460,7 @@ same shape, so reloading thread history needs no conversion.
 
 ```mermaid
 graph LR
-    A[LLM token stream] --> B[StreamParser.parse<br/>chunk -> UI block dicts]
+    A[LLM token stream] --> B[StreamParser.parse<br/>chunk to UI block dicts]
     B --> C[ui_registry.create_content<br/>schema validate]
     C --> D[NDJSON line to client]
     C --> E[_absorb_block<br/>append to accumulated_blocks]

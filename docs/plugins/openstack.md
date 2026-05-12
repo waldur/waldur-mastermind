@@ -449,8 +449,8 @@ flowchart LR
         RBAC_LABEL -.-> RBAC_NET
     end
 
-    ROUTER -->|"Gateway<br/>(SNAT enabled)"| PUB_NET
-    ROUTER -.->|"Gateway<br/>(SNAT disabled)"| RBAC_NET
+    ROUTER -->|Gateway<br/>SNAT enabled| PUB_NET
+    ROUTER -.->|Gateway<br/>SNAT disabled| RBAC_NET
 
     style global_ext fill:#e8f5e9,stroke:#4caf50
     style tenant_b fill:#e3f2fd,stroke:#2196f3

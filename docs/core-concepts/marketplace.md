@@ -325,12 +325,12 @@ graph TD
 
         SH_ResourceHandler -- calls appropriate method based on change --> MBS
 
-        MBS -- `_process_resource()` loops through plan components --> Decision_BillingType{What is component.billing_type?}
+        MBS -->|_process_resource loops through plan components| Decision_BillingType{What is component.billing_type?}
 
-        Decision_BillingType -- FIXED, ONE_TIME, ON_PLAN_SWITCH --> Logic_Simple(Handled directly by MarketplaceBillingService)
-        Decision_BillingType -- LIMIT --> Logic_Limit(LimitPeriodProcessor)
+        Decision_BillingType -->|FIXED ONE_TIME ON_PLAN_SWITCH| Logic_Simple(Handled directly by MarketplaceBillingService)
+        Decision_BillingType -->|LIMIT| Logic_Limit(LimitPeriodProcessor)
 
-        SH_UsageHandler -- Processes usage directly --> Logic_Usage(BillingUsageProcessor)
+        SH_UsageHandler -->|Processes usage directly| Logic_Usage(BillingUsageProcessor)
     end
 
     subgraph "4. Final Outcome"

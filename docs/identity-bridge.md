@@ -19,9 +19,9 @@ flowchart TB
         USER["User Model\n+ attribute_sources\n+ active_isds\n+ managed_isds"]
     end
 
-    ISD_P -- "GET userinfo/{cuid}" --> RE
-    ISD_O -- "POST /api/identity-bridge/" --> IB
-    ISD_E -- "POST /api/identity-bridge/" --> IB
+    ISD_P -->|GET userinfo/cuid| RE
+    ISD_O -->|POST /api/identity-bridge/| IB
+    ISD_E -->|POST /api/identity-bridge/| IB
 
     RE --> HELPER
     IB --> HELPER
@@ -52,7 +52,7 @@ flowchart TB
 flowchart LR
     subgraph Pull["Pull-based (existing)"]
         direction TB
-        P1["Waldur beat task\n(every 5 min)"] --> P2["GET userinfo/{cuid}"]
+        P1["Waldur beat task\n(every 5 min)"] --> P2["GET userinfo/&#123;cuid&#125;"]
         P2 --> P3["Update user attributes"]
     end
 
@@ -89,16 +89,16 @@ Legacy values from existing OIDC flows are automatically converted:
 stateDiagram-v2
     [*] --> Unset: Field has no value
 
-    Unset --> OwnedByPuhuri: Puhuri sends non-empty value
-    OwnedByPuhuri --> OwnedByEOSC: EOSC sends non-empty value\n(ownership transfers)
-    OwnedByPuhuri --> Cleared: Puhuri (owner) sends empty
-    OwnedByPuhuri --> OwnedByPuhuri: EOSC sends empty\n(preserved — EOSC is not owner)
+    Unset --> OwnedByPuhuri: Puhuri sends non empty value
+    OwnedByPuhuri --> OwnedByEOSC: EOSC sends non empty value
+    OwnedByPuhuri --> Cleared: Puhuri the owner sends empty
+    OwnedByPuhuri --> OwnedByPuhuri: EOSC sends empty so preserved
 
-    OwnedByEOSC --> OwnedByPuhuri: Puhuri sends non-empty value\n(ownership transfers back)
-    OwnedByEOSC --> Cleared: EOSC (owner) sends empty
+    OwnedByEOSC --> OwnedByPuhuri: Puhuri sends non empty value
+    OwnedByEOSC --> Cleared: EOSC the owner sends empty
 
-    Cleared --> OwnedByPuhuri: Puhuri sends non-empty value
-    Cleared --> OwnedByEOSC: EOSC sends non-empty value
+    Cleared --> OwnedByPuhuri: Puhuri sends non empty value
+    Cleared --> OwnedByEOSC: EOSC sends non empty value
 ```
 
 **Key invariant**: Only the last writer (current owner) can clear a field. Empty values from non-owners are silently ignored.
@@ -133,8 +133,8 @@ flowchart TD
     E["Keep user active\n(other ISDs still reference)"]
 
     A --> B --> C
-    C -- "Yes" --> D
-    C -- "No" --> E
+    C -->|Yes| D
+    C -->|No| E
 ```
 
 The deactivation behavior is configurable via the `FEDERATED_IDENTITY_DEACTIVATION_POLICY` setting:
@@ -301,7 +301,7 @@ Signals that a user has been removed from an ISD. Clears attributes owned by the
 
 ```mermaid
 sequenceDiagram
-    participant ISD as ISD (caller)
+    participant ISD as ISD caller
     participant API as POST /api/identity-bridge/remove/
     participant User as User Model
 
@@ -366,12 +366,12 @@ flowchart TD
     Deny["403 Forbidden"]
 
     Caller --> Check1
-    Check1 -- "Yes" --> Allow
-    Check1 -- "No" --> Check2
-    Check2 -- "No" --> Deny
-    Check2 -- "Yes" --> Check3
-    Check3 -- "Yes" --> Allow
-    Check3 -- "No" --> Deny
+    Check1 -->|Yes| Allow
+    Check1 -->|No| Check2
+    Check2 -->|No| Deny
+    Check2 -->|Yes| Check3
+    Check3 -->|Yes| Allow
+    Check3 -->|No| Deny
 ```
 
 ### Threat Mitigations
@@ -442,7 +442,7 @@ sequenceDiagram
     participant EOSC as EOSC
     participant PUHURI as Puhuri
     participant W as Waldur
-    participant U as User: alice
+    participant U as User_alice
 
     EOSC->>W: Push {email: "alice@uni.eu", org: "University"}
     Note over U: email owned by isd:eosc<br/>org owned by isd:eosc<br/>active_isds: [isd:eosc]
@@ -567,7 +567,7 @@ flowchart LR
 
     subgraph Endpoint["Which endpoint"]
         E1["GET /api/identity-bridge/stats/"]
-        E2["GET /api/users/{uuid}/identity_bridge_status/"]
+        E2["GET /api/users/&#123;uuid&#125;/identity_bridge_status/"]
     end
 
     D1 --> E1

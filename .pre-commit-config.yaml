@@ -27,3 +27,26 @@ repos:
         entry: migrations must not be with auto-generated names
         language: fail
         files: '^.*/migrations/\d{4}_auto_\d{8}_\d{4}.py$'
+
+      - id: mermaid-validate
+        name: validate mermaid diagrams
+        description: |
+          Parse mermaid code blocks in Markdown and standalone .mmd files using
+          @probelabs/maid.
+
+          Excluded:
+          - docs/*.mmd standalone files containing classDiagram (Maid
+            currently only supports flowchart, pie, sequence — its
+            classDiagram parser raises false-positive 'missing }' errors)
+          - docs/models.md uses mkdocs ``{% include-markdown %}`` directives
+            inside mermaid fences which Maid cannot resolve
+        entry: maid
+        language: node
+        files: '\.(md|markdown|mdx|mmd|mermaid)$'
+        exclude: |
+          (?x)^docs/(
+            .*\.mmd|
+            models\.md
+          )$
+        additional_dependencies:
+          - '@probelabs/maid@0.0.29'
