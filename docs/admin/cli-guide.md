@@ -1133,6 +1133,26 @@ Create or update price estimates based on invoices.
 
 Remove Django event log records with stale content types.
 
+## scim_pull_user
+
+Pull user attributes from a remote SCIM 2.0 directory.
+
+```bash
+
+usage: waldur scim_pull_user (--username USERNAME | --all) [--rate RATE]
+                             [--source SOURCE]
+
+options:
+  --username USERNAME  Pull a single user identified by their Waldur username.
+  --all                Pull every active user. Rate-limited (see --rate).
+  --rate RATE          Maximum requests per second when using --all (default:
+                       5).
+  --source SOURCE      Override the source label written to attribute_sources.
+                       Defaults to the SCIM_PULL_SOURCE_NAME Constance
+                       setting.
+
+```
+
 ## set_constance_image
 
 A custom command to set Constance image configs with CLI

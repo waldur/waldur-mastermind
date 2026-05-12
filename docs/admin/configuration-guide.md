@@ -2378,7 +2378,7 @@ List of username that users are not allowed to select
 
 Optionally disable creation of user groups in FreeIPA matching Waldur structure
 
-### SCIM settings
+### SCIM Entitlements (outbound push)
 
 #### SCIM_MEMBERSHIP_SYNC_ENABLED
 
@@ -2403,6 +2403,50 @@ SCIM API key for X-API-Key header.
 **Type:** str
 
 URN namespace for SCIM entitlements.
+
+### SCIM Identity Provider
+
+#### SCIM_INBOUND_ENABLED
+
+**Type:** bool
+
+Enable inbound SCIM 2.0 service provider at /scim/v2/. Allows external identity providers (Okta, Entra ID, Keycloak) to provision users and groups.
+
+#### SCIM_INBOUND_SOURCE_NAME
+
+**Type:** str
+
+**Default value:** scim:default
+
+Source label written to User.attribute_sources for inbound SCIM writes. Used by the multi-source attribute merge to track ownership.
+
+#### SCIM_INBOUND_ALLOWED_ATTRIBUTES
+
+**Type:** multiple_choice_field
+
+**Default value:** ['first_name', 'last_name', 'email', 'organization', 'affiliations']
+
+User attributes settable via inbound SCIM.
+
+#### SCIM_PULL_API_URL
+
+**Type:** str
+
+Base URL for outbound SCIM pull (fetching user attributes from an external IdP).
+
+#### SCIM_PULL_API_KEY
+
+**Type:** secret_field
+
+Bearer token for outbound SCIM pull.
+
+#### SCIM_PULL_SOURCE_NAME
+
+**Type:** str
+
+**Default value:** scim:pull
+
+Source label written to User.attribute_sources for attributes pulled from a remote SCIM directory.
 
 ### API token authentication
 
