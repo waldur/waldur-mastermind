@@ -271,12 +271,13 @@ class IssueSerializer(
         return issue_type
 
     def get_resource_type(self, obj: models.Issue) -> str:
+        resource = obj.safe_resource
         if (
-            isinstance(obj.resource, structure_models.BaseResource)
+            isinstance(resource, structure_models.BaseResource)
             and obj.resource_content_type
         ):
             return get_resource_type(obj.resource_content_type.model_class())
-        if isinstance(obj.resource, marketplace_models.Resource):
+        if isinstance(resource, marketplace_models.Resource):
             return "Marketplace.Resource"
         return ""
 
@@ -294,28 +295,30 @@ class IssueSerializer(
 
     def get_order_uuid(self, obj: models.Issue) -> str | None:
         """Return order UUID if the issue's resource is an Order."""
-        if isinstance(obj.resource, marketplace_models.Order):
-            return obj.resource.uuid.hex
+        resource = obj.safe_resource
+        if isinstance(resource, marketplace_models.Order):
+            return resource.uuid.hex
         return None
 
     def get_order_project_uuid(self, obj: models.Issue) -> str | None:
         """Return order's project UUID if the issue's resource is an Order."""
-        if isinstance(obj.resource, marketplace_models.Order):
-            return obj.resource.project.uuid.hex
+        resource = obj.safe_resource
+        if isinstance(resource, marketplace_models.Order):
+            return resource.project.uuid.hex
         return None
 
     def get_order_customer_uuid(self, obj: models.Issue) -> str | None:
         """Return order's customer UUID if the issue's resource is an Order."""
-        if isinstance(obj.resource, marketplace_models.Order):
-            return obj.resource.project.customer.uuid.hex
+        resource = obj.safe_resource
+        if isinstance(resource, marketplace_models.Order):
+            return resource.project.customer.uuid.hex
         return None
 
     def get_order_resource_name(self, obj: models.Issue) -> str | None:
         """Return order's resource name if the issue's resource is an Order."""
-        if isinstance(obj.resource, marketplace_models.Order):
-            order = obj.resource
-            if order.resource:
-                return order.resource.name
+        order = obj.safe_resource
+        if isinstance(order, marketplace_models.Order) and order.resource:
+            return order.resource.name
         return None
 
     def validate(self, attrs):

@@ -147,6 +147,24 @@ class Issue(
 
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
+    @property
+    def safe_resource(self):
+        """Return ``self.resource`` while tolerating stale GenericForeignKey
+        targets. When ``resource_content_type`` points to a model that is no
+        longer registered (e.g. its app was removed) ``ContentType.model_class()``
+        returns ``None`` and Django's GFK descriptor raises
+        ``AttributeError("'NoneType' object has no attribute '_base_manager'")``.
+        We treat such issues as "no resource attached".
+        """
+        if self.resource_content_type_id is None:
+            return None
+        if self.resource_content_type.model_class() is None:
+            return None
+        try:
+            return self.resource
+        except AttributeError:
+            return None
+
     def get_description(self):
         return self.description
 
