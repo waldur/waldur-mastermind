@@ -187,6 +187,25 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         token_key = parse_qs(parsed_url.query)["token"][0]
         self.assertTrue(Token.objects.filter(user=user, key=token_key).exists())
 
+    @override_config(ENABLED_USER_PROFILE_ATTRIBUTES=["birth_date"])
+    def test_new_user_oidc_iso_birthdate_string_succeeds_and_sets_birth_date(self):
+        """OIDC birthdate is an ISO string; it must become a date so reversion can serialize."""
+        user_info = {
+            "sub": "user_birthdate_ok_sub",
+            "given_name": "Test",
+            "family_name": "User",
+            "email": "birthdate_ok@example.com",
+            "birthdate": "1983-01-21",
+        }
+        self._mock_token_request()
+        self._mock_userinfo_request(user_info)
+
+        response = self.client.get(self.url, {"state": self.state, "code": self.code})
+
+        self.assertEqual(response.status_code, status.HTTP_302_FOUND)
+        user = User.objects.get(username=user_info["sub"])
+        self.assertEqual(user.birth_date.isoformat(), "1983-01-21")
+
     def test_successful_login_existing_user(self):
         user_info = {
             "sub": "existing_user",
