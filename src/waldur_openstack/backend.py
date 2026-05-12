@@ -6313,8 +6313,30 @@ class OpenStackBackend(ServiceBackend):
         incoming_policies = [
             p for p in backend_policies if p["target_tenant"] == tenant.backend_id
         ]
+        incoming_backend_ids = [p["id"] for p in incoming_policies]
 
-        processed_incoming_policy_ids = []
+        # Delete stale incoming policies BEFORE inserting fresh ones. When
+        # OpenStack recreates an RBAC policy, the new entry has a new
+        # ``backend_id`` but reuses the ``(network, target_tenant, policy_type)``
+        # trio — which is the database's unique constraint. Cleaning up first
+        # frees the trio so the subsequent insert does not violate the
+        # constraint.
+        stale_incoming_policies = models.NetworkRBACPolicy.objects.filter(
+            target_tenant=tenant
+        ).exclude(backend_id__in=incoming_backend_ids)
+        stale_incoming_count = stale_incoming_policies.count()
+        for policy in stale_incoming_policies:
+            logger.info(
+                "Deleting stale NetworkRBACPolicy: %s (network: %s, target: %s)",
+                policy.backend_id,
+                policy.network.name,
+                policy.target_tenant.name,
+            )
+        stale_incoming_policies.delete()
+        if stale_incoming_count:
+            logger.info(
+                "Deleted %d stale NetworkRBACPolicy objects", stale_incoming_count
+            )
 
         for backend_policy in incoming_policies:
             network = models.Network.objects.filter(
@@ -6343,7 +6365,10 @@ class OpenStackBackend(ServiceBackend):
                 )
                 continue
 
-            # Create or update the RBAC policy
+            # Create or update the RBAC policy by its backend_id (stable
+            # identifier for a given OpenStack policy object). Stale rows that
+            # would otherwise collide on the unique trio have already been
+            # removed above.
             policy, created = models.NetworkRBACPolicy.objects.update_or_create(
                 backend_id=backend_policy["id"],
                 defaults={
@@ -6361,31 +6386,8 @@ class OpenStackBackend(ServiceBackend):
                     network.tenant.name,
                 )
 
-            processed_incoming_policy_ids.append(backend_policy["id"])
-
-        # Clean up stale policies
-        stale_incoming_policies = models.NetworkRBACPolicy.objects.filter(
-            target_tenant=tenant
-        ).exclude(backend_id__in=processed_incoming_policy_ids)
-
-        # Log and delete stale policies
-        for policy in stale_incoming_policies:
-            logger.info(
-                "Deleting stale NetworkRBACPolicy: %s (network: %s, target: %s)",
-                policy.backend_id,
-                policy.network.name,
-                policy.target_tenant.name,
-            )
-
-        stale_count = stale_incoming_policies.count()
-        stale_incoming_policies.delete()
-
-        if stale_count:
-            logger.info("Deleted %d stale NetworkRBACPolicy objects", stale_count)
-
         # Process OUTGOING policies only if tenant has networks
         tenant_networks = tenant.networks.all()
-        processed_policy_ids = []
 
         if not tenant_networks.exists():
             return
@@ -6397,6 +6399,26 @@ class OpenStackBackend(ServiceBackend):
         outgoing_policies = [
             p for p in backend_policies if p["object_id"] in network_backend_ids
         ]
+        outgoing_backend_ids = [p["id"] for p in outgoing_policies]
+
+        # Delete stale outgoing policies BEFORE inserting fresh ones, for the
+        # same reason as the incoming branch above.
+        stale_outgoing_policies = models.NetworkRBACPolicy.objects.filter(
+            network__in=tenant_networks
+        ).exclude(backend_id__in=outgoing_backend_ids)
+        stale_outgoing_count = stale_outgoing_policies.count()
+        for policy in stale_outgoing_policies:
+            logger.info(
+                "Deleting stale NetworkRBACPolicy: %s (network: %s, target: %s)",
+                policy.backend_id,
+                policy.network.name,
+                policy.target_tenant.name,
+            )
+        stale_outgoing_policies.delete()
+        if stale_outgoing_count:
+            logger.info(
+                "Deleted %d stale NetworkRBACPolicy objects", stale_outgoing_count
+            )
 
         # Process each outgoing policy
         for backend_policy in outgoing_policies:
@@ -6421,7 +6443,8 @@ class OpenStackBackend(ServiceBackend):
                 )
                 continue
 
-            # Create or update the RBAC policy
+            # Create or update the RBAC policy (stale rows that would collide
+            # on the unique trio have already been removed above).
             policy, created = models.NetworkRBACPolicy.objects.update_or_create(
                 backend_id=backend_policy["id"],
                 defaults={
@@ -6438,28 +6461,6 @@ class OpenStackBackend(ServiceBackend):
                     network.name,
                     target_tenant.name,
                 )
-
-            processed_policy_ids.append(backend_policy["id"])
-
-        # Clean up stale outgoing policies
-        stale_policies = models.NetworkRBACPolicy.objects.filter(
-            network__in=tenant_networks
-        ).exclude(backend_id__in=processed_policy_ids)
-
-        # Log and delete stale policies
-        for policy in stale_policies:
-            logger.info(
-                "Deleting stale NetworkRBACPolicy: %s (network: %s, target: %s)",
-                policy.backend_id,
-                policy.network.name,
-                policy.target_tenant.name,
-            )
-
-        stale_count = stale_policies.count()
-        stale_policies.delete()
-
-        if stale_count:
-            logger.info("Deleted %d stale NetworkRBACPolicy objects", stale_count)
 
     @reraise_exceptions
     def create_network_rbac_policy(
