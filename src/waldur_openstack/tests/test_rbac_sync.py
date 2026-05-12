@@ -143,28 +143,43 @@ class NetworkRBACPolicySyncTest(TestCase):
         self.assertEqual(policy.target_tenant, self.tenant)
         self.assertEqual(policy.policy_type, "access_as_external")
 
-    def test_sync_updates_existing_policies(self):
-        """Test that existing policies are updated correctly."""
-        network = factories.NetworkFactory(tenant=self.tenant, backend_id="net1")
-        target_tenant = factories.TenantFactory(
-            service_settings=self.tenant.service_settings, backend_id="target_tenant"
+    def test_sync_removes_stale_policy_before_inserting_recreated_one(self):
+        """When OpenStack recreates an RBAC policy the new entry has a fresh
+        ``backend_id`` but reuses the same
+        ``(network, target_tenant, policy_type)`` trio that the database has a
+        unique constraint on.
+
+        The sync treats the new ``backend_id`` as a new object: it deletes the
+        stale Waldur row and inserts a fresh one — it does NOT rename the
+        existing row's ``backend_id``. The new row therefore has a different
+        primary key and UUID from the old one, matching how Waldur handles
+        every other recreated OpenStack subresource.
+
+        Without the upfront delete, the loop would attempt INSERT before the
+        stale-cleanup runs and crash with IntegrityError on every poll.
+        """
+        source_tenant = factories.TenantFactory(
+            service_settings=self.tenant.service_settings, backend_id="source_tenant"
+        )
+        shared_network = factories.NetworkFactory(
+            tenant=source_tenant, backend_id="shared_net"
         )
 
-        # Create existing policy
-        existing_policy = factories.NetworkRBACPolicyFactory(
-            network=network,
-            target_tenant=target_tenant,
-            backend_id="policy1",
+        old_policy = factories.NetworkRBACPolicyFactory(
+            network=shared_network,
+            target_tenant=self.tenant,
+            backend_id="old_backend_id",
             policy_type="access_as_shared",
         )
+        old_pk = old_policy.pk
+        old_uuid = old_policy.uuid
 
-        # Mock backend policies with updated type
         backend_policies = [
             {
-                "id": "policy1",
-                "object_id": "net1",
-                "target_tenant": "target_tenant",
-                "action": "access_as_external",  # Changed from shared to external
+                "id": "new_backend_id",
+                "object_id": "shared_net",
+                "target_tenant": self.tenant.backend_id,
+                "action": "access_as_shared",
             },
         ]
 
@@ -172,10 +187,62 @@ class NetworkRBACPolicySyncTest(TestCase):
             "rbac_policies": backend_policies
         }
 
-        # Execute sync
         self.backend.pull_tenant_network_rbac_policies(self.tenant)
 
-        # Verify policy was updated
+        # Old Waldur row is gone — not "renamed" by overwriting backend_id.
+        self.assertFalse(
+            models.NetworkRBACPolicy.objects.filter(pk=old_pk).exists(),
+            "Recreate semantics require the old row to be deleted, not updated.",
+        )
+
+        # Exactly one row exists for the trio, and it is a fresh object with
+        # a different PK and UUID from the one we started with.
+        policies = models.NetworkRBACPolicy.objects.filter(
+            network=shared_network,
+            target_tenant=self.tenant,
+            policy_type="access_as_shared",
+        )
+        self.assertEqual(policies.count(), 1)
+        new_policy = policies.first()
+        self.assertEqual(new_policy.backend_id, "new_backend_id")
+        self.assertNotEqual(
+            new_policy.pk, old_pk, "New row must have a different primary key."
+        )
+        self.assertNotEqual(
+            new_policy.uuid,
+            old_uuid,
+            "New row must have a different UUID (it is a new Waldur object).",
+        )
+
+    def test_sync_updates_existing_policies(self):
+        """Existing policy whose backend_id stays the same is updated in place."""
+        network = factories.NetworkFactory(tenant=self.tenant, backend_id="net1")
+        target_tenant = factories.TenantFactory(
+            service_settings=self.tenant.service_settings, backend_id="target_tenant"
+        )
+
+        existing_policy = factories.NetworkRBACPolicyFactory(
+            network=network,
+            target_tenant=target_tenant,
+            backend_id="policy1",
+            policy_type="access_as_shared",
+        )
+
+        backend_policies = [
+            {
+                "id": "policy1",
+                "object_id": "net1",
+                "target_tenant": "target_tenant",
+                "action": "access_as_external",
+            },
+        ]
+
+        self.mock_neutron.return_value.list_rbac_policies.return_value = {
+            "rbac_policies": backend_policies
+        }
+
+        self.backend.pull_tenant_network_rbac_policies(self.tenant)
+
         existing_policy.refresh_from_db()
         self.assertEqual(existing_policy.policy_type, "access_as_external")
 
