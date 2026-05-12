@@ -110,9 +110,25 @@ class SmaxServiceBackend(SupportBackend):
         return smax_issue
 
     def update_waldur_issue_from_smax(self, issue):
+        # Skip issues that have not been pushed to SMAX yet — SMAX returns
+        # HTTP 500 "Invalid entity id 'None'" when we query with a missing id.
+        if not issue.backend_id:
+            logger.debug(
+                "Skipping SMAX sync for issue %s: no backend_id assigned yet.",
+                issue.id,
+            )
+            return
+
         # update an issue
         try:
             backend_issue = self.manager.get_issue(issue.backend_id)
+            if backend_issue is None:
+                logger.warning(
+                    "SMAX returned no data for issue %s (backend_id=%s); skipping sync.",
+                    issue.id,
+                    issue.backend_id,
+                )
+                return
             issue.description = backend_issue.description
             issue.summary = backend_issue.summary
             issue.status = backend_issue.status
@@ -133,6 +149,14 @@ class SmaxServiceBackend(SupportBackend):
                     continue
 
                 backend_user = self.manager.get_user(backend_comment.backend_user_id)
+                if backend_user is None:
+                    logger.warning(
+                        "SMAX returned no user for comment %s (issue=%s, backend_user_id=%s); skipping.",
+                        backend_comment.id,
+                        issue.id,
+                        backend_comment.backend_user_id,
+                    )
+                    continue
 
                 # Check for duplicates before get_or_create
                 existing_users = models.SupportUser.objects.filter(
@@ -199,6 +223,14 @@ class SmaxServiceBackend(SupportBackend):
                     continue
 
                 backend_user = self.manager.get_user(backend_attachment.backend_user_id)
+                if backend_user is None:
+                    logger.warning(
+                        "SMAX returned no user for attachment %s (issue=%s, backend_user_id=%s); skipping.",
+                        backend_attachment.id,
+                        issue.id,
+                        backend_attachment.backend_user_id,
+                    )
+                    continue
 
                 # Check for duplicates before get_or_create
                 existing_users = models.SupportUser.objects.filter(

@@ -92,6 +92,19 @@ class SyncFromSmaxTest(smax_base.BaseTest):
         self.assertEqual(self.issue.status, self.smax_issue.status)
         self.assertEqual(self.issue.summary, self.smax_issue.summary)
 
+    def test_sync_skips_issue_without_backend_id(self):
+        """Issues that have not been pushed to SMAX yet (backend_id IS NULL)
+        must be skipped without calling the SMAX API — otherwise SMAX returns
+        HTTP 500 "Invalid entity id 'None'".
+        """
+        self.issue.backend_id = None
+        self.issue.save()
+        self.mock_smax().get_issue.reset_mock()
+
+        self.backend.sync_issues()
+
+        self.mock_smax().get_issue.assert_not_called()
+
 
 class IssueLinksTest(smax_base.BaseTest):
     def setUp(self):
