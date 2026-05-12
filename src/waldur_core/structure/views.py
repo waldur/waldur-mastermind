@@ -1409,6 +1409,43 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
         )
 
     @extend_schema(
+        summary="Pull SCIM attributes from external IdP for this user",
+        request=None,
+        responses=serializers.ScimPullAttributesResponseSerializer,
+        description=(
+            "Staff-only action that pulls the user's attributes from the "
+            "configured external SCIM 2.0 directory (SCIM_PULL_API_URL). "
+            "Pulled attributes are merged via the same source-aware policy as "
+            "inbound SCIM and the Identity Bridge."
+        ),
+    )
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[rf_permissions.IsAuthenticated, core_permissions.IsStaff],
+    )
+    def pull_scim_attributes(self, request, uuid=None):
+        from waldur_core.users.scim.pull.client import ScimError
+        from waldur_core.users.scim.pull.service import (
+            ScimPullConfigError,
+            pull_user_attributes,
+        )
+
+        user = self.get_object()
+        try:
+            changed = pull_user_attributes(user)
+        except ScimPullConfigError as exc:
+            return Response(
+                {"detail": str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except ScimError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response(
+            {"detail": _("SCIM pull complete."), "changed_fields": sorted(changed)},
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
         summary="Confirm email change",
         request=serializers.ConfirmEmailRequestSerializer,
         responses=None,

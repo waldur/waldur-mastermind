@@ -241,8 +241,8 @@ This creates a sliding target: as the end date approaches, `time_left_factor` in
 ```mermaid
 sequenceDiagram
     participant MC as MonthlyCompensation
-    participant CC as CustomerCredit (LINEAR)
-    participant PC as ProjectCredit (LINEAR)
+    participant CC as CustomerCredit LINEAR
+    participant PC as ProjectCredit LINEAR
     participant DB as Database
 
     MC->>MC: update_linear_expected_consumption()

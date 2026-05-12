@@ -32,10 +32,10 @@ flowchart LR
         ROPT["options"]
     end
 
-    OO -->|"defines form"| OA
-    OA -->|"all values"| RA
-    OA -->|"filtered by"| RO
-    RO -->|"matching keys"| ROPT
+    OO -->|defines form| OA
+    OA -->|all values| RA
+    OA -->|filtered by| RO
+    RO -->|matching keys| ROPT
 
     style RA fill:#e1f5fe
     style ROPT fill:#c8e6c9

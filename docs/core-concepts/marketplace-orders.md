@@ -221,19 +221,15 @@ classDiagram
 
     %% Group by service type
     class OpenStackServices {
-        <<namespace>>
     }
 
     class RemoteMarketplace {
-        <<namespace>>
     }
 
     class RancherServices {
-        <<namespace>>
     }
 
     class ScriptServices {
-        <<namespace>>
     }
 ```
 
@@ -316,9 +312,9 @@ For `LIMIT` billing type components, limit changes are handled by `LimitPeriodPr
 ```mermaid
 flowchart TD
     A[AbstractUpdateResourceProcessor.process_order] --> B{Check Order Type}
-    B -->|action == 'renew'| C[Renewal Processing]
-    B -->|'old_limits' exists| D[Limit Update Processing]
-    B -->|'new_options' exists| E[Options Update Processing]
+    B -->|action equals renew| C[Renewal Processing]
+    B -->|old_limits exists| D[Limit Update Processing]
+    B -->|new_options exists| E[Options Update Processing]
     B -->|Default| F[Plan Switch Processing]
 
     C --> G[_process_renewal_or_limit_update<br/>is_renewal=True]
@@ -561,9 +557,9 @@ If Waldur B is unreachable, the API call fails and the order moves to erred stat
 ```mermaid
 sequenceDiagram
     participant User
-    participant WaldurA as Waldur A (consumer)
-    participant CeleryA as Celery Worker (A)
-    participant WaldurB as Waldur B (provider)
+    participant WaldurA as Waldur A consumer
+    participant CeleryA as Celery Worker A
+    participant WaldurB as Waldur B provider
 
     User->>WaldurA: POST /marketplace-orders/ (create)
     WaldurA->>WaldurA: validate_order: query local DB<br/>No active resource with same name+offering+project
@@ -586,9 +582,9 @@ This is the scenario that duplicate prevention guards against.
 ```mermaid
 sequenceDiagram
     participant User
-    participant WaldurA as Waldur A (consumer)
-    participant CeleryA as Celery Worker (A)
-    participant WaldurB as Waldur B (provider)
+    participant WaldurA as Waldur A consumer
+    participant CeleryA as Celery Worker A
+    participant WaldurB as Waldur B provider
 
     User->>WaldurA: POST /marketplace-orders/ (create "my-vm")
     WaldurA-->>User: 201 Order created
@@ -625,7 +621,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant User
-    participant WaldurA as Waldur A (consumer)
+    participant WaldurA as Waldur A consumer
 
     Note over WaldurA: Active resource "my-vm" exists<br/>(state: OK)
     User->>WaldurA: POST /marketplace-orders/ (create "my-vm")
@@ -647,8 +643,8 @@ The warning log helps operators identify potential orphaned resources on the rem
 ```mermaid
 sequenceDiagram
     participant User
-    participant WaldurA as Waldur A (consumer)
-    participant WaldurB as Waldur B (provider)
+    participant WaldurA as Waldur A consumer
+    participant WaldurB as Waldur B provider
 
     User->>WaldurA: Terminate resource
     alt backend_id is empty

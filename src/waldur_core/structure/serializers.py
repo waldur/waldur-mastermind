@@ -2315,6 +2315,13 @@ class ScimSyncAllResponseSerializer(serializers.Serializer):
     detail = serializers.CharField()
 
 
+class ScimPullAttributesResponseSerializer(serializers.Serializer):
+    detail = serializers.CharField()
+    changed_fields = serializers.ListField(
+        child=serializers.CharField(), required=False
+    )
+
+
 class ProfileCompletenessSerializer(serializers.Serializer):
     """Serializer for profile completeness check response."""
 

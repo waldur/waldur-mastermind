@@ -589,7 +589,7 @@ sequenceDiagram
 
     alt Call has compliance checklist
         S->>PCC: Create completion tracking
-        PCC->>PCC: Initialize as incomplete
+        PCC->>PCC: Initialize incomplete state
     else No compliance checklist
         S->>S: No action needed
     end
