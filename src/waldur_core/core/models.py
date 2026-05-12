@@ -1264,6 +1264,9 @@ class PersonalAccessToken(UuidMixin, NameMixin, TimeStampedModel):
     token_prefix = models.CharField(max_length=10)
     token_hash = models.CharField(max_length=64, unique=True, db_index=True)
     scopes = models.JSONField(default=list)
+    # List of {"content_type_id": int, "object_id": int}.
+    # Empty list = no entity restriction (the permission allowlist still applies).
+    allowed_scopes = models.JSONField(default=list, blank=True)
     expires_at = models.DateTimeField()
     is_active = models.BooleanField(default=True)
     last_used_at = models.DateTimeField(null=True, blank=True)

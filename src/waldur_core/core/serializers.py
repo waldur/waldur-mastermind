@@ -8,6 +8,7 @@ from collections.abc import Iterable, Mapping
 from constance import LazyConfig, settings
 from django import forms
 from django.conf import settings as django_settings
+from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import (
     ImproperlyConfigured,
     MultipleObjectsReturned,
@@ -16,7 +17,9 @@ from django.core.exceptions import (
 from django.core.files.storage import default_storage
 from django.core.validators import RegexValidator, URLValidator
 from django.urls import Resolver404, reverse
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema_field
 from modeltranslation.manager import get_translatable_fields_for_model
 from rest_framework import serializers
 from rest_framework import serializers as rf_serializers
@@ -25,8 +28,10 @@ from rest_framework.serializers import ListSerializer
 
 from waldur_core.core import utils as core_utils
 from waldur_core.core.clean_html import clean_html
-from waldur_core.core.models import UserDetailsMatchMixin
+from waldur_core.core.models import PersonalAccessToken, UserDetailsMatchMixin
 from waldur_core.core.signals import pre_serializer_fields
+from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum
+from waldur_core.permissions.utils import get_scope_ancestors, has_any_permission
 from waldur_mastermind.common.serializers import StringListSerializer
 
 from . import fields as core_fields
@@ -1417,14 +1422,86 @@ class TableGrowthTriggerResponseSerializer(serializers.Serializer):
 # --- Personal Access Token serializers ---
 
 
+class AllowedScopeInputSerializer(serializers.Serializer):
+    """Single PAT binding entry on create.
+
+    `type` is a key of :data:`waldur_core.permissions.enums.TYPE_MAP`;
+    `uuid` is the target entity's UUID.
+    """
+
+    type = serializers.CharField()
+    uuid = serializers.UUIDField()
+
+    def validate_type(self, value):
+        if value not in TYPE_MAP:
+            raise serializers.ValidationError(
+                f"Unknown scope type '{value}'. Expected one of: {sorted(TYPE_MAP)}."
+            )
+        return value
+
+
+class AllowedScopeOutputSerializer(serializers.Serializer):
+    """Single PAT binding entry on read.
+
+    `name` falls back to ``"(deleted)"`` if the bound entity no longer exists.
+    """
+
+    type = serializers.CharField()
+    uuid = serializers.UUIDField(allow_null=True)
+    name = serializers.CharField(allow_null=True)
+
+
+def _serialize_allowed_scopes(stored):
+    """Turn the stored list of {content_type_id, object_id} into output dicts.
+
+    Resolves each binding to {type, uuid, name}; surfaces deleted entities
+    with uuid=None and name="(deleted)" rather than dropping them.
+    """
+    # Reverse TYPE_MAP: (app_label, model) -> type key
+    reverse_map = {pair: key for key, pair in TYPE_MAP.items()}
+    out = []
+    for entry in stored or []:
+        try:
+            ct = ContentType.objects.get_for_id(entry["content_type_id"])
+        except ContentType.DoesNotExist:
+            continue
+        type_key = reverse_map.get((ct.app_label, ct.model))
+        if not type_key:
+            continue
+        model = ct.model_class()
+        instance = model.objects.filter(pk=entry["object_id"]).first()
+        if instance is None:
+            out.append({"type": type_key, "uuid": None, "name": "(deleted)"})
+        else:
+            out.append(
+                {
+                    "type": type_key,
+                    "uuid": getattr(instance, "uuid", None),
+                    "name": getattr(instance, "name", None) or str(instance),
+                }
+            )
+    return out
+
+
 class PersonalAccessTokenCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=150)
     scopes = serializers.ListField(child=serializers.CharField())
+    # Use ``Serializer(many=True)`` (a ListSerializer under the hood) rather
+    # than ``ListField(child=Serializer())`` — the latter reports per-item
+    # validation errors as ``OrderedDict[int, ...]`` (index keys), which the
+    # orjson renderer rejects with ``TypeError: Dict key must be str``.
+    allowed_scopes = AllowedScopeInputSerializer(
+        many=True,
+        required=False,
+        default=list,
+        help_text=(
+            "Optional list of entity bindings restricting where this token "
+            "can act. Empty list = no entity restriction."
+        ),
+    )
     expires_at = serializers.DateTimeField()
 
     def validate_scopes(self, value):
-        from waldur_core.permissions.enums import PermissionEnum
-
         valid_values = {e.value for e in PermissionEnum}
         invalid = [s for s in value if s not in valid_values]
         if invalid:
@@ -1447,9 +1524,6 @@ class PersonalAccessTokenCreateSerializer(serializers.Serializer):
         return value
 
     def validate_expires_at(self, value):
-        from constance import config
-        from django.utils import timezone
-
         if value <= timezone.now():
             raise serializers.ValidationError("Expiration must be in the future.")
         max_days = config.PAT_MAX_LIFETIME_DAYS
@@ -1461,10 +1535,6 @@ class PersonalAccessTokenCreateSerializer(serializers.Serializer):
         return value
 
     def validate(self, attrs):
-        from constance import config
-
-        from waldur_core.core.models import PersonalAccessToken
-
         user = self.context["request"].user
 
         # Check token count limit
@@ -1476,11 +1546,74 @@ class PersonalAccessTokenCreateSerializer(serializers.Serializer):
                 f"Maximum number of active tokens ({config.PAT_MAX_TOKENS_PER_USER}) reached."
             )
 
+        bindings_input = attrs.get("allowed_scopes") or []
+        scopes = attrs.get("scopes") or []
+
+        # STAFF.ACCESS / SUPPORT.ACCESS are global by design — entity binding
+        # would be meaningless. Reject the combination.
+        global_scopes = {
+            PermissionEnum.STAFF_ACCESS.value,
+            PermissionEnum.SUPPORT_ACCESS.value,
+        }
+        if bindings_input and any(s in global_scopes for s in scopes):
+            raise serializers.ValidationError(
+                {
+                    "allowed_scopes": (
+                        "Entity bindings cannot be combined with STAFF.ACCESS "
+                        "or SUPPORT.ACCESS — those scopes are global."
+                    )
+                }
+            )
+
+        # Resolve each binding to a concrete entity and verify the caller has
+        # at least one of the requested permissions on it (or an ancestor).
+        # Storage form: list of {content_type_id, object_id}.
+        permission_enums = [PermissionEnum(s) for s in scopes if s not in global_scopes]
+        request = self.context["request"]
+        resolved = []
+        errors = []
+        for idx, entry in enumerate(bindings_input):
+            type_key = entry["type"]
+            uuid_value = entry["uuid"]
+            app_label, model_name = TYPE_MAP[type_key]
+            try:
+                ct = ContentType.objects.get_by_natural_key(app_label, model_name)
+            except ContentType.DoesNotExist:
+                errors.append(
+                    {
+                        "type": f"Unknown scope type '{type_key}'.",
+                    }
+                )
+                continue
+            model = ct.model_class()
+            instance = model.objects.filter(uuid=uuid_value).first()
+            if instance is None:
+                errors.append(f"{type_key} with uuid {uuid_value} does not exist.")
+                continue
+            # Staff already passes has_any_permission unconditionally — the
+            # PAT scope-check kicks in at request time, not here. For non-
+            # staff users we ensure they cannot bind to entities they have
+            # no relevant authority on (privilege escalation guard).
+            if not user.is_staff and permission_enums:
+                allowed_here = any(
+                    has_any_permission(request, permission_enums, ancestor)
+                    for ancestor in get_scope_ancestors(instance)
+                )
+                if not allowed_here:
+                    errors.append(
+                        f"You do not hold any of the requested permissions "
+                        f"on {type_key} {uuid_value}."
+                    )
+                    continue
+            resolved.append({"content_type_id": ct.id, "object_id": instance.id})
+
+        if errors:
+            raise serializers.ValidationError({"allowed_scopes": errors})
+
+        attrs["allowed_scopes"] = resolved
         return attrs
 
     def create(self, validated_data):
-        from waldur_core.core.models import PersonalAccessToken
-
         user = self.context["request"].user
         expires_at = validated_data["expires_at"]
         full_token, prefix, token_hash = PersonalAccessToken.generate_token(expires_at)
@@ -1491,6 +1624,7 @@ class PersonalAccessTokenCreateSerializer(serializers.Serializer):
             token_prefix=prefix,
             token_hash=token_hash,
             scopes=validated_data["scopes"],
+            allowed_scopes=validated_data.get("allowed_scopes", []),
             expires_at=expires_at,
         )
         # Attach plaintext for one-time response
@@ -1505,6 +1639,7 @@ class PersonalAccessTokenCreatedSerializer(serializers.Serializer):
     name = serializers.CharField()
     token = serializers.CharField(help_text="Plaintext token — shown only once.")
     scopes = serializers.ListField(child=serializers.CharField())
+    allowed_scopes = AllowedScopeOutputSerializer(many=True)
     expires_at = serializers.DateTimeField()
     created = serializers.DateTimeField()
 
@@ -1516,6 +1651,7 @@ class PersonalAccessTokenSerializer(serializers.Serializer):
     name = serializers.CharField()
     token_prefix = serializers.CharField()
     scopes = serializers.ListField(child=serializers.CharField())
+    allowed_scopes = serializers.SerializerMethodField()
     expires_at = serializers.DateTimeField()
     is_active = serializers.BooleanField()
     last_used_at = serializers.DateTimeField()
@@ -1523,7 +1659,18 @@ class PersonalAccessTokenSerializer(serializers.Serializer):
     use_count = serializers.IntegerField()
     created = serializers.DateTimeField()
 
+    @extend_schema_field(AllowedScopeOutputSerializer(many=True))
+    def get_allowed_scopes(self, obj):
+        return _serialize_allowed_scopes(getattr(obj, "allowed_scopes", []) or [])
+
 
 class AvailableScopeSerializer(serializers.Serializer):
     permission = serializers.CharField()
     description = serializers.CharField()
+
+
+class AvailableBindingTargetSerializer(serializers.Serializer):
+    """Which entity types the caller could bind a given permission to."""
+
+    permission = serializers.CharField()
+    types = serializers.ListField(child=serializers.CharField())

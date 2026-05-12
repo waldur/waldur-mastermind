@@ -123,3 +123,49 @@ my_action_permissions = [
 - Use `distinct()` for deduplication instead of manual logic
 - Accept 20-30 queries for complex operations rather than approximations
 - Verify permission checks use reasonable query counts (≤3 for most operations)
+
+## Personal Access Tokens — entity scoping
+
+`PersonalAccessToken` has two scope layers:
+
+1. `scopes` — the permission allowlist (subset of `PermissionEnum`). A PAT
+   can only ever exercise permissions that the user holds *and* that are
+   listed here.
+2. `allowed_scopes` — optional list of entity bindings restricting *where*
+   the PAT can act. Stored as `[{content_type_id, object_id}, …]`. Created
+   from `[{type, uuid}, …]` where `type` is a key of
+   `permissions.enums.TYPE_MAP` (e.g. `customer`, `project`, `offering`,
+   `resource`, `resource_project`, `call`, `proposal`, `service_provider`,
+   `call_organizer`).
+
+### Enforcement
+
+`_pat_scope_check` (and the `_pat_entity_check` helper in
+`waldur_core.permissions.utils`) runs ahead of the `is_staff` bypass so a
+scoped PAT narrows even staff users. The rules:
+
+- Empty `allowed_scopes` → no entity restriction (legacy behaviour).
+- `scope=None` request + non-empty bindings → denied. A scoped PAT cannot
+  perform scope-less / global actions.
+- Otherwise → allowed iff the request scope, or any of its ancestors per
+  `get_scope_ancestors`, matches one of the PAT's bindings. The walk is
+  upward-only: a PAT bound to a child entity does **not** authorise actions
+  on its parent.
+
+### Restrictions
+
+- `STAFF.ACCESS` / `SUPPORT.ACCESS` cannot be combined with `allowed_scopes` —
+  those scopes are global by design.
+- Non-staff users may only bind a PAT to entities where they hold at least
+  one of the requested permissions (directly or via an ancestor) — this
+  guard prevents privilege escalation through binding.
+- Bindings are immutable. `rotate` preserves them; there is no PATCH
+  endpoint. To change bindings, create a new PAT.
+
+### Known limitation (will land in a follow-up MR)
+
+List endpoints (e.g. `GET /api/customers/`, `GET /api/orders/`) are **not**
+yet filtered by `allowed_scopes`. A scoped PAT still sees the same list
+results as the underlying user; only write/detail/action permission checks
+are restricted. A global filter backend that intersects each list queryset
+with the PAT's bindings is planned as a separate change.
