@@ -576,3 +576,424 @@ class PersonalAccessTokenAvailableScopesTest(test.APITestCase):
         self.assertTrue(len(response.data) > 0)
         self.assertIn("permission", response.data[0])
         self.assertIn("description", response.data[0])
+
+
+# ---------------------------------------------------------------------------
+# Entity-binding tests (`allowed_scopes` on PersonalAccessToken)
+# ---------------------------------------------------------------------------
+
+
+def _binding(entity):
+    """Build a stored binding dict for a given entity."""
+    from django.contrib.contenttypes.models import ContentType
+
+    ct = ContentType.objects.get_for_model(type(entity))
+    return {"content_type_id": ct.id, "object_id": entity.id}
+
+
+def _fake_request(user, pat=None):
+    """A minimal request object suitable for permission-check helpers."""
+    from django.test import RequestFactory
+
+    request = RequestFactory().get("/")
+    request.user = user
+    request.auth = pat
+    return request
+
+
+@override_config(PAT_ENABLED=True)
+class PersonalAccessTokenBindingCreateTest(test.APITestCase):
+    """Validate the create-flow rules for `allowed_scopes`.
+
+    The positive cases authenticate as a staff user so the per-binding
+    permission check (which depends on the role-permission map loaded from
+    `permissions.yaml`, not loaded in the test settings) is bypassed —
+    we're testing the binding-shape validation in isolation. The negative
+    cases use a non-staff user so the privilege-escalation guard fires.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.staff = self.fixture.staff
+        self.client.force_authenticate(user=self.staff)
+
+    def _payload(self, **overrides):
+        payload = {
+            "name": "binding-test",
+            "scopes": [PermissionEnum.UPDATE_CUSTOMER.value],
+            "expires_at": (timezone.now() + timedelta(days=30)).isoformat(),
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_create_with_single_customer_binding(self):
+        response = self.client.post(
+            PAT_URL,
+            self._payload(
+                allowed_scopes=[
+                    {"type": "customer", "uuid": str(self.fixture.customer.uuid)}
+                ],
+            ),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        pat = PersonalAccessToken.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(len(pat.allowed_scopes), 1)
+        self.assertEqual(
+            pat.allowed_scopes[0],
+            _binding(self.fixture.customer),
+        )
+
+    def test_create_with_mixed_type_bindings(self):
+        response = self.client.post(
+            PAT_URL,
+            self._payload(
+                allowed_scopes=[
+                    {"type": "customer", "uuid": str(self.fixture.customer.uuid)},
+                    {"type": "project", "uuid": str(self.fixture.project.uuid)},
+                ],
+            ),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        pat = PersonalAccessToken.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(len(pat.allowed_scopes), 2)
+
+    def test_reject_binding_to_entity_user_lacks_permission_on(self):
+        # `member` only holds PROJECT.MEMBER → no customer-level permission.
+        self.client.force_authenticate(user=self.fixture.member)
+        response = self.client.post(
+            PAT_URL,
+            self._payload(
+                allowed_scopes=[
+                    {"type": "customer", "uuid": str(self.fixture.customer.uuid)}
+                ],
+            ),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("allowed_scopes", response.data)
+
+    def test_reject_binding_to_unknown_uuid(self):
+        import uuid as uuid_mod
+
+        response = self.client.post(
+            PAT_URL,
+            self._payload(
+                allowed_scopes=[{"type": "customer", "uuid": str(uuid_mod.uuid4())}],
+            ),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_reject_unknown_type_key(self):
+        response = self.client.post(
+            PAT_URL,
+            self._payload(
+                allowed_scopes=[
+                    {"type": "not_a_real_type", "uuid": str(self.fixture.customer.uuid)}
+                ],
+            ),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_staff_access_with_bindings_rejected(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.post(
+            PAT_URL,
+            self._payload(
+                scopes=[PermissionEnum.STAFF_ACCESS.value],
+                allowed_scopes=[
+                    {"type": "customer", "uuid": str(self.fixture.customer.uuid)}
+                ],
+            ),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("allowed_scopes", response.data)
+
+    def test_support_access_with_bindings_rejected(self):
+        self.fixture.staff.is_support = True
+        self.fixture.staff.save()
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.post(
+            PAT_URL,
+            self._payload(
+                scopes=[PermissionEnum.SUPPORT_ACCESS.value],
+                allowed_scopes=[
+                    {"type": "customer", "uuid": str(self.fixture.customer.uuid)}
+                ],
+            ),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_empty_allowed_scopes_is_legacy_behaviour(self):
+        response = self.client.post(
+            PAT_URL,
+            self._payload(allowed_scopes=[]),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        pat = PersonalAccessToken.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(pat.allowed_scopes, [])
+
+    def test_response_includes_resolved_bindings(self):
+        response = self.client.post(
+            PAT_URL,
+            self._payload(
+                allowed_scopes=[
+                    {"type": "customer", "uuid": str(self.fixture.customer.uuid)}
+                ],
+            ),
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        bindings = response.data["allowed_scopes"]
+        self.assertEqual(len(bindings), 1)
+        self.assertEqual(bindings[0]["type"], "customer")
+        # DRF UUIDField serializes to string in the response.
+        self.assertEqual(str(bindings[0]["uuid"]), str(self.fixture.customer.uuid))
+
+
+@override_config(PAT_ENABLED=True)
+class PersonalAccessTokenBindingEnforcementTest(test.APITestCase):
+    """Validate `has_permission` against PAT entity bindings.
+
+    Uses a staff user so the underlying user-role check passes
+    unconditionally — the PAT binding layer is the only thing under test.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.staff = self.fixture.staff
+
+    def test_descendant_allowed(self):
+        """PAT bound to a Customer authorises actions on Projects under it."""
+        from waldur_core.permissions.utils import has_permission
+
+        pat = _create_pat(
+            self.staff,
+            scopes=[PermissionEnum.UPDATE_PROJECT.value],
+        )
+        pat.allowed_scopes = [_binding(self.fixture.customer)]
+        pat.save(update_fields=["allowed_scopes"])
+
+        request = _fake_request(self.staff, pat)
+        self.assertTrue(
+            has_permission(request, PermissionEnum.UPDATE_PROJECT, self.fixture.project)
+        )
+
+    def test_sibling_customer_denied(self):
+        """PAT bound to Customer X denies actions on Customer Y."""
+        from waldur_core.permissions.utils import has_permission
+        from waldur_core.structure.tests import factories as structure_factories
+
+        other_customer = structure_factories.CustomerFactory()
+
+        pat = _create_pat(
+            self.staff,
+            scopes=[PermissionEnum.UPDATE_CUSTOMER.value],
+        )
+        pat.allowed_scopes = [_binding(self.fixture.customer)]
+        pat.save(update_fields=["allowed_scopes"])
+
+        request = _fake_request(self.staff, pat)
+        self.assertFalse(
+            has_permission(request, PermissionEnum.UPDATE_CUSTOMER, other_customer)
+        )
+
+    def test_inverse_denied_child_binding_does_not_authorise_parent(self):
+        """PAT bound to a Project must NOT authorise actions on its Customer."""
+        from waldur_core.permissions.utils import has_permission
+
+        pat = _create_pat(
+            self.staff,
+            scopes=[PermissionEnum.UPDATE_CUSTOMER.value],
+        )
+        pat.allowed_scopes = [_binding(self.fixture.project)]
+        pat.save(update_fields=["allowed_scopes"])
+
+        request = _fake_request(self.staff, pat)
+        self.assertFalse(
+            has_permission(
+                request, PermissionEnum.UPDATE_CUSTOMER, self.fixture.customer
+            )
+        )
+
+    def test_scope_none_denied_for_scoped_pat(self):
+        """A scoped PAT cannot perform scope-less (global) checks."""
+        from waldur_core.permissions.utils import has_permission
+
+        pat = _create_pat(
+            self.staff,
+            scopes=[PermissionEnum.UPDATE_CUSTOMER.value],
+        )
+        pat.allowed_scopes = [_binding(self.fixture.customer)]
+        pat.save(update_fields=["allowed_scopes"])
+
+        request = _fake_request(self.staff, pat)
+        self.assertFalse(has_permission(request, PermissionEnum.UPDATE_CUSTOMER, None))
+
+    def test_scope_none_allowed_for_unscoped_pat(self):
+        """Legacy (empty bindings) PAT does not short-circuit on scope=None."""
+        from waldur_core.permissions.utils import has_permission
+
+        pat = _create_pat(
+            self.staff,
+            scopes=[PermissionEnum.UPDATE_CUSTOMER.value],
+        )
+        # No bindings → legacy behaviour: PAT layer does not block; staff
+        # bypass applies normally.
+
+        request = _fake_request(self.staff, pat)
+        self.assertTrue(
+            has_permission(
+                request, PermissionEnum.UPDATE_CUSTOMER, self.fixture.customer
+            )
+        )
+
+    def test_scoped_pat_restricts_staff_bypass(self):
+        """Even a staff user's PAT is restricted to its bindings."""
+        from waldur_core.permissions.utils import has_permission
+        from waldur_core.structure.tests import factories as structure_factories
+
+        other_customer = structure_factories.CustomerFactory()
+
+        pat = _create_pat(
+            self.staff,
+            scopes=[PermissionEnum.UPDATE_CUSTOMER.value],
+        )
+        pat.allowed_scopes = [_binding(self.fixture.customer)]
+        pat.save(update_fields=["allowed_scopes"])
+
+        request = _fake_request(self.staff, pat)
+        # Bound customer — allowed.
+        self.assertTrue(
+            has_permission(
+                request, PermissionEnum.UPDATE_CUSTOMER, self.fixture.customer
+            )
+        )
+        # Other customer — denied despite is_staff.
+        self.assertFalse(
+            has_permission(request, PermissionEnum.UPDATE_CUSTOMER, other_customer)
+        )
+
+    def test_has_any_permission_applies_binding(self):
+        """has_any_permission respects entity bindings."""
+        from waldur_core.permissions.utils import has_any_permission
+        from waldur_core.structure.tests import factories as structure_factories
+
+        other_customer = structure_factories.CustomerFactory()
+
+        pat = _create_pat(
+            self.staff,
+            scopes=[
+                PermissionEnum.UPDATE_CUSTOMER.value,
+                PermissionEnum.UPDATE_CUSTOMER_PERMISSION.value,
+            ],
+        )
+        pat.allowed_scopes = [_binding(self.fixture.customer)]
+        pat.save(update_fields=["allowed_scopes"])
+
+        request = _fake_request(self.staff, pat)
+        self.assertTrue(
+            has_any_permission(
+                request,
+                [
+                    PermissionEnum.UPDATE_CUSTOMER,
+                    PermissionEnum.UPDATE_CUSTOMER_PERMISSION,
+                ],
+                self.fixture.customer,
+            )
+        )
+        self.assertFalse(
+            has_any_permission(
+                request,
+                [
+                    PermissionEnum.UPDATE_CUSTOMER,
+                    PermissionEnum.UPDATE_CUSTOMER_PERMISSION,
+                ],
+                other_customer,
+            )
+        )
+
+    def test_dead_binding_does_not_break_other_bindings(self):
+        """Deleting one bound entity leaves the other bindings working."""
+        from waldur_core.permissions.utils import has_permission
+        from waldur_core.structure.tests import factories as structure_factories
+
+        extra_customer = structure_factories.CustomerFactory()
+
+        pat = _create_pat(
+            self.staff,
+            scopes=[PermissionEnum.UPDATE_CUSTOMER.value],
+        )
+        pat.allowed_scopes = [
+            _binding(self.fixture.customer),
+            _binding(extra_customer),
+        ]
+        pat.save(update_fields=["allowed_scopes"])
+
+        extra_customer.delete()
+
+        request = _fake_request(self.staff, pat)
+        self.assertTrue(
+            has_permission(
+                request, PermissionEnum.UPDATE_CUSTOMER, self.fixture.customer
+            )
+        )
+
+
+@override_config(PAT_ENABLED=True)
+class PersonalAccessTokenRotatePreservesBindingsTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+        self.user = self.fixture.owner
+        Token.objects.get_or_create(user=self.user)
+        self.client.force_authenticate(user=self.user)
+
+    def test_rotate_preserves_allowed_scopes(self):
+        pat = _create_pat(
+            self.user,
+            scopes=[PermissionEnum.UPDATE_CUSTOMER.value],
+        )
+        pat.allowed_scopes = [_binding(self.fixture.customer)]
+        pat.save(update_fields=["allowed_scopes"])
+
+        response = self.client.post(f"{PAT_URL}{pat.uuid}/rotate/")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        new_pat = PersonalAccessToken.objects.get(uuid=response.data["uuid"])
+        self.assertEqual(new_pat.allowed_scopes, pat.allowed_scopes)
+
+
+@override_config(PAT_ENABLED=True)
+class PersonalAccessTokenAvailableBindingTargetsTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProjectFixture()
+
+    def test_owner_sees_customer_targets(self):
+        # The CustomerFixture's `owner` cached_property attaches LIST_PROJECTS
+        # (among others) to the CUSTOMER.OWNER role; UPDATE_CUSTOMER is NOT
+        # attached in the fixture, so we assert on LIST_PROJECTS instead.
+        self.client.force_authenticate(user=self.fixture.owner)
+        response = self.client.get(f"{PAT_URL}available_binding_targets/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        by_perm = {row["permission"]: row["types"] for row in response.data}
+        self.assertIn(PermissionEnum.LIST_PROJECTS.value, by_perm)
+        self.assertIn("customer", by_perm[PermissionEnum.LIST_PROJECTS.value])
+
+    def test_staff_sees_all_types(self):
+        self.client.force_authenticate(user=self.fixture.staff)
+        response = self.client.get(f"{PAT_URL}available_binding_targets/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Staff response covers all non-global permissions.
+        by_perm = {row["permission"]: row["types"] for row in response.data}
+        self.assertIn(PermissionEnum.UPDATE_CUSTOMER.value, by_perm)
+        self.assertIn("project", by_perm[PermissionEnum.UPDATE_CUSTOMER.value])
+        # STAFF/SUPPORT not advertised (they can't be bound).
+        self.assertNotIn(PermissionEnum.STAFF_ACCESS.value, by_perm)

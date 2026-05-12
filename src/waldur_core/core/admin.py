@@ -402,6 +402,7 @@ class PersonalAccessTokenAdmin(admin.ModelAdmin):
         "is_active",
         "expires_at",
         "last_used_at",
+        "bindings_summary",
     )
     list_filter = ("is_active",)
     search_fields = ("name", "user__username", "token_prefix")
@@ -412,6 +413,13 @@ class PersonalAccessTokenAdmin(admin.ModelAdmin):
         "last_used_at",
         "last_used_ip",
     )
+
+    @admin.display(description="Bindings")
+    def bindings_summary(self, obj):
+        bindings = obj.allowed_scopes or []
+        if not bindings:
+            return "—"
+        return f"{len(bindings)} entit{'y' if len(bindings) == 1 else 'ies'}"
 
 
 admin.site.register(models.PersonalAccessToken, PersonalAccessTokenAdmin)

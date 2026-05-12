@@ -1,6 +1,7 @@
 import functools
 import logging
 import mimetypes
+from collections import defaultdict
 from typing import Any
 from urllib.parse import urlencode
 
@@ -61,6 +62,7 @@ from waldur_core.core.mixins import ensure_atomic_transaction
 from waldur_core.core.models import DailyTableSizeHistory
 from waldur_core.core.permissions import PATScopeAwareIsAdminUser
 from waldur_core.core.serializers import (
+    AvailableBindingTargetSerializer,
     AvailableScopeSerializer,
     CeleryStatsResponseSerializer,
     ConstanceSettingsSerializer,
@@ -77,6 +79,7 @@ from waldur_core.core.serializers import (
     TableGrowthTriggerResponseSerializer,
     VersionHistorySerializer,
     VersionSerializer,
+    _serialize_allowed_scopes,
 )
 from waldur_core.core.tasks import sample_table_sizes
 from waldur_core.core.utils import format_homeport_link
@@ -86,9 +89,11 @@ from waldur_core.logging.event_logger import get_event_groups
 from waldur_core.permissions.enums import (
     CREATE_PERMISSIONS,
     PERMISSION_DESCRIPTION,
+    TYPE_MAP,
     PermissionEnum,
     RoleEnum,
 )
+from waldur_core.permissions.models import UserRole
 from waldur_core.structure.permissions import IsStaffOrSupportUser
 
 logger = logging.getLogger(__name__)
@@ -2097,6 +2102,7 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
                 "name": pat.name,
                 "token": pat._plaintext_token,
                 "scopes": pat.scopes,
+                "allowed_scopes": _serialize_allowed_scopes(pat.allowed_scopes),
                 "expires_at": pat.expires_at,
                 "created": pat.created,
             }
@@ -2131,7 +2137,7 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
     )
     @action(detail=True, methods=["post"])
     def rotate(self, request, uuid=None):
-        """Atomically revoke the old token and create a new one with the same scopes."""
+        """Atomically revoke the old token and create a new one with the same scopes and bindings."""
         from django.db import transaction as db_transaction
 
         old_pat = self.get_object()
@@ -2154,6 +2160,7 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
                 token_prefix=prefix,
                 token_hash=token_hash,
                 scopes=locked.scopes,
+                allowed_scopes=locked.allowed_scopes,
                 expires_at=locked.expires_at,
             )
 
@@ -2174,6 +2181,7 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
                 "name": new_pat.name,
                 "token": full_token,
                 "scopes": new_pat.scopes,
+                "allowed_scopes": _serialize_allowed_scopes(new_pat.allowed_scopes),
                 "expires_at": new_pat.expires_at,
                 "created": new_pat.created,
             }
@@ -2194,3 +2202,50 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
         for perm in PermissionEnum:
             result.append({"permission": perm.value, "description": perm.value})
         return Response(AvailableScopeSerializer(result, many=True).data)
+
+    @extend_schema(
+        summary="List entity types the caller can bind each permission to",
+        responses={200: AvailableBindingTargetSerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"])
+    def available_binding_targets(self, request):
+        """For each permission, which TYPE_MAP keys the caller could bind a PAT to.
+
+        Drives the create-PAT frontend's type picker. For staff users every
+        type is offered for every permission (they bypass UserRole checks).
+        For other users we return only types where they hold an active role
+        granting the permission directly (the binding then inherits to
+        descendants at request time).
+        """
+        user = request.user
+        reverse_map = {pair: key for key, pair in TYPE_MAP.items()}
+
+        perm_to_types: dict[str, set[str]] = defaultdict(set)
+        if user.is_staff:
+            type_keys = set(TYPE_MAP.keys())
+            for perm in PermissionEnum:
+                if perm in (PermissionEnum.STAFF_ACCESS, PermissionEnum.SUPPORT_ACCESS):
+                    continue
+                perm_to_types[perm.value] = set(type_keys)
+        else:
+            rows = (
+                UserRole.objects.filter(user=user, is_active=True)
+                .values_list(
+                    "content_type__app_label",
+                    "content_type__model",
+                    "role__permissions__permission",
+                )
+                .distinct()
+            )
+            for app_label, model_name, perm_value in rows:
+                if not perm_value:
+                    continue
+                type_key = reverse_map.get((app_label, model_name))
+                if type_key:
+                    perm_to_types[perm_value].add(type_key)
+
+        result = [
+            {"permission": perm, "types": sorted(types)}
+            for perm, types in sorted(perm_to_types.items())
+        ]
+        return Response(AvailableBindingTargetSerializer(result, many=True).data)

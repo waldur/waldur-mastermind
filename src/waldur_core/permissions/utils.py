@@ -23,17 +23,46 @@ def _is_pat_auth(auth) -> bool:
     return auth is not None and type(auth).__name__ == "PersonalAccessToken"
 
 
-def _pat_scope_check(request, permission: enums.PermissionEnum) -> bool | None:
-    """Check if PAT scopes allow the given permission.
+def _pat_entity_check(auth, scope) -> bool:
+    """Return True if the PAT's entity bindings allow acting on ``scope``.
 
-    Returns None if not a PAT request, True if allowed, False if denied.
+    - No bindings → always allow (legacy permission-allowlist-only PAT).
+    - Bindings present + scope is None → deny (scoped PAT can't do global
+      actions; this is decision A from the PAT-scoping design).
+    - Otherwise → allow iff some ancestor of ``scope`` matches a binding.
+      We walk *upwards* from the request scope only; a binding to a child
+      never authorises actions on its parents (decision B).
+    """
+    allowed = getattr(auth, "allowed_scopes", None) or []
+    if not allowed:
+        return True
+    if scope is None:
+        return False
+    allowed_pairs = {(b["content_type_id"], b["object_id"]) for b in allowed}
+    for ancestor in get_scope_ancestors(scope):
+        ct_id = ContentType.objects.get_for_model(type(ancestor)).id
+        if (ct_id, ancestor.id) in allowed_pairs:
+            return True
+    return False
+
+
+def _pat_scope_check(
+    request, permission: enums.PermissionEnum, scope=None
+) -> bool | None:
+    """Check the PAT permission allowlist and entity binding for one permission.
+
+    Returns False to short-circuit a deny, None to continue the normal flow
+    (either non-PAT request, or PAT passed both checks).
     """
     if isinstance(request, User):
         return None
     auth = getattr(request, "auth", None)
-    if _is_pat_auth(auth):
-        if permission.value not in auth.scopes:
-            return False
+    if not _is_pat_auth(auth):
+        return None
+    if permission.value not in auth.scopes:
+        return False
+    if not _pat_entity_check(auth, scope):
+        return False
     return None
 
 
@@ -74,8 +103,9 @@ def has_permission(
     else:
         user = request.user
 
-        # PAT scope ceiling — checked before is_staff bypass
-        pat_result = _pat_scope_check(request, permission)
+        # PAT ceiling — checked before is_staff bypass so a scoped PAT
+        # narrows even staff users.
+        pat_result = _pat_scope_check(request, permission, scope)
         if pat_result is False:
             return False
 
@@ -110,11 +140,14 @@ def has_any_permission(
     else:
         user = request.user
 
-        # PAT scope ceiling — filter to only scopes the PAT has
+        # PAT ceiling — narrow the permission set to what the PAT carries
+        # and reject if the scope falls outside the PAT's entity bindings.
         auth = getattr(request, "auth", None)
         if _is_pat_auth(auth):
             permissions = [p for p in permissions if p.value in auth.scopes]
             if not permissions:
+                return False
+            if not _pat_entity_check(auth, scope):
                 return False
 
     if not user.is_active:
