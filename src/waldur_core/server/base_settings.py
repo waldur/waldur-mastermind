@@ -266,6 +266,7 @@ _FOREIGN_PRE_CHAIN = [
     structlog.stdlib.add_logger_name,
     structlog.stdlib.add_log_level,
     structlog.stdlib.PositionalArgumentsFormatter(),
+    structlog.processors.format_exc_info,
 ]
 
 # Use JSON in production, readable console in development
