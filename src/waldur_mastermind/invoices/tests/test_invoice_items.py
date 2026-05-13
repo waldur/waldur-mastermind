@@ -393,7 +393,10 @@ class InvoiceItemCostsTest(test.APITestCase):
         self.url = factories.InvoiceItemFactory.get_list_url("costs")
         self.project = structure_factories.ProjectFactory()
         self.invoice = factories.InvoiceFactory()
-        self.user = structure_factories.UserFactory()
+        # Staff because these tests focus on the aggregation/filter logic
+        # of the action; access control is exercised separately in
+        # test_security_c5_idor_fix.py.
+        self.user = structure_factories.UserFactory(is_staff=True)
 
     def test_costs_requires_project_uuid(self):
         self.client.force_authenticate(self.user)
