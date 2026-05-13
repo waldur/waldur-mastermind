@@ -338,6 +338,12 @@ SCRIPT_OFFERING = "Marketplace.Script"
 SLURM_OFFERING = "SlurmInvoices.SlurmPackage"
 SITE_AGENT_OFFERING = "Marketplace.Slurm"
 
+# Offering types that can be swapped between each other in-place via the
+# `update_type` action. The site-agent processors inherit from the Basic
+# processors and only no-op the send paths (delegating to the external
+# waldur-site-agent), so the persisted data shape is interchangeable.
+SWAPPABLE_OFFERING_TYPES = frozenset({BASIC_OFFERING, SITE_AGENT_OFFERING})
+
 
 class ResourceAction:
     TERMINATE = "terminate"

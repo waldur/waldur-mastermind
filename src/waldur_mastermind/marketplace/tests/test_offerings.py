@@ -39,6 +39,9 @@ from waldur_mastermind.common.mixins import UnitPriceMixin
 from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import models, serializers, utils
 from waldur_mastermind.marketplace.enums import (
+    BASIC_OFFERING,
+    OPENSTACK_TENANT_OFFERING,
+    SITE_AGENT_OFFERING,
     SUPPORT_OFFERING,
     VMWARE_VM_OFFERING,
     BillingTypes,
@@ -1239,6 +1242,210 @@ class OfferingUpdateAttributesTest(BaseOfferingUpdateTest):
         response = self.update_attributes({"key": "value"}, role)
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+@ddt
+class OfferingUpdateTypeTest(BaseOfferingUpdateTest):
+    def setUp(self):
+        super().setUp()
+        self.offering.type = BASIC_OFFERING
+        self.offering.save()
+
+    def update_type(self, target_type, role):
+        url = factories.OfferingFactory.get_url(self.offering, "update_type")
+        self.client.force_authenticate(getattr(self.fixture, role))
+        return self.client.post(url, {"type": target_type})
+
+    @data("staff", "owner")
+    def test_authorized_user_can_swap_basic_to_site_agent(self, role):
+        response = self.update_type(SITE_AGENT_OFFERING, role)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.type, SITE_AGENT_OFFERING)
+
+    @data("staff", "owner")
+    def test_authorized_user_can_swap_site_agent_to_basic(self, role):
+        self.offering.type = SITE_AGENT_OFFERING
+        self.offering.save()
+
+        response = self.update_type(BASIC_OFFERING, role)
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.type, BASIC_OFFERING)
+
+    def test_target_type_outside_swap_set_is_rejected(self):
+        response = self.update_type(OPENSTACK_TENANT_OFFERING, "staff")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.type, BASIC_OFFERING)
+
+    def test_source_type_outside_swap_set_is_rejected(self):
+        self.offering.type = OPENSTACK_TENANT_OFFERING
+        self.offering.save()
+
+        response = self.update_type(BASIC_OFFERING, "staff")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.type, OPENSTACK_TENANT_OFFERING)
+
+    def test_setting_to_same_type_is_a_noop(self):
+        response = self.update_type(BASIC_OFFERING, "staff")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.type, BASIC_OFFERING)
+
+    @data("customer_support", "admin", "manager")
+    def test_unauthorized_user_cannot_change_type(self, role):
+        response = self.update_type(SITE_AGENT_OFFERING, role)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_unrelated_user_cannot_change_type(self):
+        response = self.update_type(SITE_AGENT_OFFERING, "user")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_owner_cannot_change_type_in_active_state(self):
+        self.offering.state = OfferingStates.ACTIVE
+        self.offering.save()
+
+        response = self.update_type(SITE_AGENT_OFFERING, "owner")
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @data(OfferingStates.ACTIVE, OfferingStates.PAUSED)
+    def test_staff_can_change_type_in_non_draft_state(self, state):
+        self.offering.state = state
+        self.offering.save()
+
+        response = self.update_type(SITE_AGENT_OFFERING, "staff")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.type, SITE_AGENT_OFFERING)
+
+    def test_archived_offering_type_cannot_be_changed(self):
+        self.offering.state = OfferingStates.ARCHIVED
+        self.offering.save()
+
+        response = self.update_type(SITE_AGENT_OFFERING, "staff")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_blocked_organization_cannot_change_type(self):
+        self.customer.blocked = True
+        self.customer.save()
+
+        response = self.update_type(SITE_AGENT_OFFERING, "owner")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_offering_users_are_preserved_across_type_change(self):
+        offering_user = factories.OfferingUserFactory(
+            offering=self.offering, username="alice"
+        )
+
+        response = self.update_type(SITE_AGENT_OFFERING, "staff")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.offering_id, self.offering.id)
+        self.assertEqual(offering_user.username, "alice")
+
+    def test_orders_are_preserved_across_type_change(self):
+        plan = factories.PlanFactory(offering=self.offering)
+        order = factories.OrderFactory(
+            offering=self.offering,
+            project=self.fixture.project,
+            plan=plan,
+            state=OrderStates.DONE,
+        )
+
+        response = self.update_type(SITE_AGENT_OFFERING, "staff")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        order.refresh_from_db()
+        self.assertEqual(order.offering_id, self.offering.id)
+        self.assertEqual(order.state, OrderStates.DONE)
+        self.assertEqual(order.plan_id, plan.id)
+
+    def test_resources_are_preserved_across_type_change(self):
+        resource = factories.ResourceFactory(
+            offering=self.offering,
+            project=self.fixture.project,
+            state=ResourceStates.OK,
+            name="my-resource",
+        )
+
+        response = self.update_type(SITE_AGENT_OFFERING, "staff")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        resource.refresh_from_db()
+        self.assertEqual(resource.offering_id, self.offering.id)
+        self.assertEqual(resource.state, ResourceStates.OK)
+        self.assertEqual(resource.name, "my-resource")
+        self.assertEqual(resource.limits, {"storage": 123})
+
+    def test_in_flight_order_and_its_graph_survive_type_change(self):
+        # An order that is still EXECUTING (and its resource being CREATED)
+        # is the worst-case scenario for a type swap: the swap is allowed by
+        # design, but the action must not mutate the connected objects in any
+        # way (state, FKs, or even trigger a save). Otherwise the in-flight
+        # work could be corrupted.
+        plan = factories.PlanFactory(offering=self.offering)
+        resource = factories.ResourceFactory(
+            offering=self.offering,
+            project=self.fixture.project,
+            plan=plan,
+            state=ResourceStates.CREATING,
+            name="in-flight",
+        )
+        order = factories.OrderFactory(
+            offering=self.offering,
+            project=self.fixture.project,
+            plan=plan,
+            resource=resource,
+            state=OrderStates.EXECUTING,
+        )
+        offering_user = factories.OfferingUserFactory(
+            offering=self.offering, username="bob"
+        )
+
+        order_modified_before = order.modified
+        resource_modified_before = resource.modified
+        offering_user_modified_before = offering_user.modified
+
+        response = self.update_type(SITE_AGENT_OFFERING, "staff")
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        # The swap actually happened.
+        self.offering.refresh_from_db()
+        self.assertEqual(self.offering.type, SITE_AGENT_OFFERING)
+
+        # In-flight order: state, FKs, and modified timestamp untouched.
+        order.refresh_from_db()
+        self.assertEqual(order.state, OrderStates.EXECUTING)
+        self.assertEqual(order.offering_id, self.offering.id)
+        self.assertEqual(order.resource_id, resource.id)
+        self.assertEqual(order.plan_id, plan.id)
+        self.assertEqual(order.modified, order_modified_before)
+
+        # Resource: state, FKs, and modified timestamp untouched.
+        resource.refresh_from_db()
+        self.assertEqual(resource.state, ResourceStates.CREATING)
+        self.assertEqual(resource.offering_id, self.offering.id)
+        self.assertEqual(resource.plan_id, plan.id)
+        self.assertEqual(resource.name, "in-flight")
+        self.assertEqual(resource.modified, resource_modified_before)
+
+        # OfferingUser: still attached, not re-saved.
+        offering_user.refresh_from_db()
+        self.assertEqual(offering_user.offering_id, self.offering.id)
+        self.assertEqual(offering_user.username, "bob")
+        self.assertEqual(offering_user.modified, offering_user_modified_before)
+
+        # Counts: no rows added or removed.
+        self.assertEqual(models.Order.objects.filter(offering=self.offering).count(), 1)
+        self.assertEqual(
+            models.Resource.objects.filter(offering=self.offering).count(), 1
+        )
+        self.assertEqual(
+            models.OfferingUser.objects.filter(offering=self.offering).count(), 1
+        )
 
 
 @ddt

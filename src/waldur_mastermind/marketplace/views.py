@@ -2552,6 +2552,27 @@ class ProviderOfferingViewSet(
     update_overview_serializer_class = serializers.OfferingOverviewUpdateSerializer
 
     @extend_schema(
+        summary="Swap offering type",
+        description=(
+            "Changes the offering's `type` between Marketplace.Basic and the "
+            "site-agent type (Marketplace.Slurm). Both plugins share the same "
+            "data shape (the site-agent processors inherit from Basic and only "
+            "delegate the send paths to the external agent), so the swap is "
+            "safe in either direction. Refused if the offering's current type "
+            "is not in the swappable set."
+        ),
+        request=serializers.OfferingTypeUpdateSerializer,
+        responses={200: None},
+    )
+    @action(detail=True, methods=["post"])
+    def update_type(self, request, uuid=None):
+        return self._update_action(request)
+
+    update_type_permissions = [can_update_offering]
+    update_type_validators = update_validators
+    update_type_serializer_class = serializers.OfferingTypeUpdateSerializer
+
+    @extend_schema(
         summary="Update offering options",
         description="Updates the order form options for an offering.",
         request=serializers.OfferingOptionsUpdateSerializer,
