@@ -207,8 +207,11 @@ class ImpersonationAuthentication(DRFTokenAuthentication):
 
 
 class SessionAuthentication(DRFSessionAuthentication):
-    def enforce_csrf(self, request):
-        return  # Skip CSRF check
+    # Note: the previous override silently skipped CSRF for cookie-session
+    # auth, which made every state-changing API endpoint vulnerable to
+    # cross-site requests from any logged-in browser. The Waldur SPA does
+    # not use cookie auth (it sends Authorization: Token/Bearer), so DRF's
+    # default CSRF enforcement here does not affect normal frontend usage.
 
     def authenticate(self, request):
         result = super().authenticate(request)
