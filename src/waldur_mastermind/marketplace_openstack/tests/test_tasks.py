@@ -32,6 +32,40 @@ class TaskTest(BaseOpenStackTest):
             marketplace_models.Resource.objects.filter(scope=self.instance).exists()
         )
 
+    @mock.patch(
+        "waldur_mastermind.marketplace_openstack.tasks.utils.import_instance_metadata"
+    )
+    def test_refresh_instance_backend_metadata_skips_instances_without_resource(
+        self, mock_import_instance_metadata
+    ):
+        # self.instance exists but no marketplace Resource has been created for it.
+        self.assertFalse(
+            marketplace_models.Resource.objects.filter(scope=self.instance).exists()
+        )
+
+        # Task must not raise and must not call import_instance_metadata.
+        tasks.refresh_instance_backend_metadata()
+
+        mock_import_instance_metadata.assert_not_called()
+
+    @mock.patch(
+        "waldur_mastermind.marketplace_openstack.tasks.utils.import_instance_metadata"
+    )
+    def test_refresh_instance_backend_metadata_calls_import_for_linked_resource(
+        self, mock_import_instance_metadata
+    ):
+        resource = marketplace_factories.ResourceFactory(
+            offering=self.offering, scope=self.instance
+        )
+        # The post_save signal handler import_resource_metadata_when_resource_is_created
+        # also invokes import_instance_metadata when the Resource is created. We're
+        # exercising the periodic task here, so reset the mock to ignore that call.
+        mock_import_instance_metadata.reset_mock()
+
+        tasks.refresh_instance_backend_metadata()
+
+        mock_import_instance_metadata.assert_called_once_with(resource)
+
 
 @unittest.skip("Mock does not work correctly for backend")
 @mock.patch("waldur_mastermind.marketplace_openstack.utils.OpenStackBackend")

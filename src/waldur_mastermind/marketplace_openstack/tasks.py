@@ -70,9 +70,12 @@ def create_resources_for_lost_instances_and_volumes():
 )
 def refresh_instance_backend_metadata():
     """Refresh metadata for OpenStack instances from backend to ensure marketplace resources have up-to-date information."""
-    instances = marketplace_models.Resource.objects.filter(
-        offering__type=OPENSTACK_INSTANCE_OFFERING
-    )
-    for instance in instances:
-        resource = marketplace_models.Resource.objects.get(scope=instance)
+    for instance in openstack_models.Instance.objects.all():
+        try:
+            resource = marketplace_models.Resource.objects.get(scope=instance)
+        except marketplace_models.Resource.DoesNotExist:
+            # Instance has not been promoted to a marketplace Resource yet
+            # (race with create_resources_for_lost_instances_and_volumes,
+            # or imported instance not yet linked). Skip silently.
+            continue
         utils.import_instance_metadata(resource)
