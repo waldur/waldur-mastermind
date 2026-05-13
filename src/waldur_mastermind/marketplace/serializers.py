@@ -73,6 +73,7 @@ from waldur_mastermind.marketplace.billing_utils import convert_slurm_usage
 from waldur_mastermind.marketplace.enums import (
     OPENSTACK_TENANT_OFFERING,
     SITE_AGENT_OFFERING,
+    SWAPPABLE_OFFERING_TYPES,
     BillingTypes,
     CourseAccountState,
     LimitPeriods,
@@ -3603,6 +3604,27 @@ class OfferingOptionsUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Offering
         fields = ("options",)
+
+
+class OfferingTypeUpdateSerializer(serializers.ModelSerializer):
+    type = serializers.ChoiceField(choices=sorted(SWAPPABLE_OFFERING_TYPES))
+
+    class Meta:
+        model = models.Offering
+        fields = ("type",)
+
+    def validate(self, attrs):
+        if (
+            self.instance is not None
+            and self.instance.type not in SWAPPABLE_OFFERING_TYPES
+        ):
+            raise serializers.ValidationError(
+                _(
+                    "Offering type can only be changed when the current type is one of: %(types)s."
+                )
+                % {"types": ", ".join(sorted(SWAPPABLE_OFFERING_TYPES))}
+            )
+        return attrs
 
 
 class OfferingResourceOptionsUpdateSerializer(serializers.ModelSerializer):
