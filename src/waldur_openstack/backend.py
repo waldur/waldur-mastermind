@@ -5834,6 +5834,35 @@ class OpenStackBackend(ServiceBackend):
 
         try:
             backend_port = neutron.create_port({"port": port_payload})["port"]
+        except neutron_exceptions.IpAddressAlreadyAllocatedClient as e:
+            # Neutron refused the requested fixed IP — already in use on the
+            # subnet. This is a recoverable user/race condition rather than an
+            # internal failure, so:
+            #   - log at WARNING (no traceback) in backend.py;
+            #   - raise OpenStackBackendError with a human-readable message so
+            #     it surfaces clearly in instance.error_message instead of the
+            #     default cryptic "An unknown exception occurred." that the
+            #     bare exception repr produces.
+            requested_ips = ", ".join(
+                f.get("ip_address")
+                for f in (port_payload.get("fixed_ips") or [])
+                if f.get("ip_address")
+            )
+            if requested_ips:
+                detail = f"requested fixed IP {requested_ips} is already allocated"
+            else:
+                detail = "the IP allocated for this port is already in use"
+            user_message = (
+                f"Failed to create port on subnet {port.subnet.backend_id}: "
+                f"{detail}. Choose a different IP address or omit fixed_ips "
+                "to let OpenStack auto-assign one."
+            )
+            logger.warning(
+                "%s Network: %s",
+                user_message,
+                port_payload.get("network_id"),
+            )
+            raise OpenStackBackendError(user_message) from e
         except neutron_exceptions.NeutronClientException as e:
             logger.error(
                 "Failed to create port. Payload was: %s. Error: %s",
