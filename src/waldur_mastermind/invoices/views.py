@@ -644,13 +644,16 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
             status=status.HTTP_200_OK,
         )
 
-    def _get_current_month_items(self, project_uuid):
+    def _get_current_month_items(self, project_uuid, user):
         now = datetime.date.today()
-        items = InvoiceItem.objects.filter(
-            project_uuid=project_uuid,
-            invoice__year=now.year,
-            invoice__month=now.month,
-            unit_price__gt=0,
+        items = filter_queryset_for_user(
+            InvoiceItem.objects.filter(
+                project_uuid=project_uuid,
+                invoice__year=now.year,
+                invoice__month=now.month,
+                unit_price__gt=0,
+            ),
+            user,
         ).values("name", "unit_price", "unit", "quantity", "measured_unit")
         return [
             {
@@ -702,10 +705,13 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         project_uuid = request.GET.get("project_uuid", "")
         if not is_uuid_like(project_uuid):
             raise exceptions.ValidationError("project_uuid is not a valid UUID.")
-        current_month_items = self._get_current_month_items(project_uuid)
+        current_month_items = self._get_current_month_items(project_uuid, request.user)
+        invoices = filter_queryset_for_user(
+            InvoiceItem.objects.filter(project_uuid=project_uuid),
+            request.user,
+        )
         invoices = (
-            InvoiceItem.objects.filter(project_uuid=project_uuid)
-            .values("invoice__year", "invoice__month")
+            invoices.values("invoice__year", "invoice__month")
             .annotate(
                 price=Sum(F("unit_price") * F("quantity")),
                 compensation=Sum(
