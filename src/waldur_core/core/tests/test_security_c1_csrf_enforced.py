@@ -12,11 +12,12 @@ traffic. This test verifies that DRF's default enforcement now triggers.
 """
 
 from django.contrib.sessions.middleware import SessionMiddleware
-from django.test import RequestFactory
+from django.test import Client, RequestFactory
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APITestCase
 
 from waldur_core.core.authentication import SessionAuthentication
+from waldur_core.structure.tests import factories as structure_factories
 
 
 class SessionAuthCsrfEnforcedTest(APITestCase):
@@ -48,4 +49,64 @@ class SessionAuthCsrfEnforcedTest(APITestCase):
             SessionAuthentication.__dict__,
             "SessionAuthentication has re-defined enforce_csrf; the CSRF "
             "bypass has returned.",
+        )
+
+
+class AdminLoginUnaffectedByCsrfChangeTest(APITestCase):
+    """
+    /admin login goes through Django's `CsrfViewMiddleware`, not DRF's
+    `SessionAuthentication`. Removing the DRF override (SEC-C1) must not
+    break the admin login flow: a normal CSRF-tokened POST must still
+    log a staff user in.
+    """
+
+    def test_csrf_tokened_admin_login_succeeds(self):
+        password = "correct-horse-battery-staple"  # noqa: S105
+        staff = structure_factories.UserFactory(is_staff=True, is_active=True)
+        staff.set_password(password)
+        staff.save()
+
+        client = Client(enforce_csrf_checks=True)
+
+        # GET the login page first so Django sets a csrftoken cookie.
+        get_response = client.get("/admin/login/")
+        self.assertEqual(get_response.status_code, 200)
+        csrf_token = client.cookies["csrftoken"].value
+
+        # POST credentials with the matching token. Django's
+        # CsrfViewMiddleware accepts either the form field or the header.
+        response = client.post(
+            "/admin/login/",
+            data={
+                "username": staff.username,
+                "password": password,
+                "csrfmiddlewaretoken": csrf_token,
+            },
+        )
+
+        # 302 means the login form was accepted by CsrfViewMiddleware
+        # AND credentials matched. (The exact redirect target depends on
+        # LOGIN_REDIRECT_URL and any `next` param; we don't care here —
+        # we only care that admin's CSRF path still works.)
+        self.assertEqual(
+            response.status_code,
+            302,
+            f"Expected admin login to succeed (302 redirect); got "
+            f"{response.status_code}: {response.content[:300]!r}. "
+            f"If this fails, the SEC-C1 change has affected Django "
+            f"admin's CsrfViewMiddleware path — investigate.",
+        )
+
+    def test_admin_login_post_without_csrf_token_is_rejected(self):
+        # Confirms the standard Django CSRF protection on admin still
+        # fires — independent of any DRF changes.
+        client = Client(enforce_csrf_checks=True)
+        response = client.post(
+            "/admin/login/",
+            data={"username": "anyone", "password": "anything"},
+        )
+        self.assertEqual(
+            response.status_code,
+            403,
+            f"Django admin should reject CSRF-less POST; got {response.status_code}.",
         )
