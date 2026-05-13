@@ -711,7 +711,10 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     def attach_documents(self, request, uuid=None):
         instance: models.Call = self.get_object()
 
-        documents = request.data.getlist("documents", [])
+        if hasattr(request.data, "getlist"):
+            documents = request.data.getlist("documents", [])
+        else:
+            documents = request.data.get("documents", [])
         description = request.data.get("description", "")
 
         for file_data in documents:
@@ -743,7 +746,10 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     @decorators.action(detail=True, methods=["post"])
     def detach_documents(self, request, uuid=None):
         instance: models.Call = self.get_object()
-        documents = request.data.getlist("documents", [])
+        if hasattr(request.data, "getlist"):
+            documents = request.data.getlist("documents", [])
+        else:
+            documents = request.data.get("documents", [])
         for file_data in documents:
             models.CallDocument.objects.get(
                 call=instance,
