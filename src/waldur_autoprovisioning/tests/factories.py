@@ -1,4 +1,5 @@
 import factory
+from rest_framework.reverse import reverse
 
 from waldur_autoprovisioning import models as autoprovisioning_models
 from waldur_core.core.tests.types import BaseMetaFactory
@@ -19,3 +20,10 @@ class RuleFactory(
     plan = factory.SubFactory(marketplace_factories.PlanFactory)
     plan_attributes = factory.LazyFunction(dict)
     plan_limits = factory.LazyFunction(dict)
+
+    @classmethod
+    def get_url(cls, rule, action=None):
+        url = "http://testserver" + reverse(
+            "autoprovisioning-rule-detail", kwargs={"uuid": rule.uuid.hex}
+        )
+        return url if action is None else url + action + "/"

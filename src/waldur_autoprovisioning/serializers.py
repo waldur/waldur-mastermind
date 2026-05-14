@@ -1,9 +1,11 @@
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
+from rest_framework.reverse import reverse
 
 from waldur_autoprovisioning import models
 from waldur_core.core import serializers as core_serializers
 from waldur_core.permissions.models import Role
+from waldur_core.structure.models import Customer
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.fields import PublicPlanField
 
@@ -172,3 +174,59 @@ class RuleSerializer(
             attrs.pop("project_role_name", None)
 
         return attrs
+
+
+class RuleTestMatchRequestSerializer(serializers.Serializer):
+    """Input for the dry-run test-match action."""
+
+    user_uuid = serializers.UUIDField(
+        help_text="UUID of the user to evaluate this rule against.",
+    )
+
+
+class FilterCheckResultSerializer(serializers.Serializer):
+    """Per-filter outcome of a rule evaluation."""
+
+    name = serializers.CharField()
+    configured = serializers.BooleanField()
+    matched = serializers.BooleanField()
+    user_value = serializers.JSONField(allow_null=True, required=False)
+    rule_value = serializers.JSONField(allow_null=True, required=False)
+    reason = serializers.CharField(allow_blank=True)
+
+
+class CustomerCandidateSerializer(serializers.ModelSerializer):
+    """Lightweight representation of a Customer that matched the user's organization."""
+
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Customer
+        fields = ("uuid", "name", "abbreviation", "url")
+
+    def get_url(self, obj: Customer) -> str | None:
+        request = self.context.get("request")
+        if request is None:
+            return None
+        return reverse(
+            "customer-detail", kwargs={"uuid": obj.uuid.hex}, request=request
+        )
+
+
+class RuleTestMatchResponseSerializer(serializers.Serializer):
+    """Structured outcome of evaluating a rule against a user (dry-run)."""
+
+    would_provision = serializers.BooleanField()
+    block_reason = serializers.CharField(allow_blank=True)
+    user_username = serializers.CharField()
+    user_email = serializers.CharField(allow_blank=True)
+    user_organization = serializers.CharField(allow_blank=True)
+    user_registration_method = serializers.CharField(allow_blank=True)
+    user_identity_source = serializers.CharField(allow_blank=True)
+    user_affiliations = serializers.ListField(child=serializers.CharField())
+    user_is_protected = serializers.BooleanField()
+    filter_results = FilterCheckResultSerializer(many=True)
+    customer_lookup_performed = serializers.BooleanField()
+    customer_candidates = CustomerCandidateSerializer(many=True)
+    customer_lookup_ambiguous = serializers.BooleanField()
+    resolved_project_name = serializers.CharField(allow_blank=True, allow_null=True)
