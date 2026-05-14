@@ -2584,6 +2584,15 @@ class UserAffiliationCountSerializer(serializers.Serializer):
     count = serializers.IntegerField(help_text="Number of users")
 
 
+class UserAffiliationDetailSerializer(serializers.Serializer):
+    affiliation = serializers.CharField(help_text="Raw affiliation URN")
+    organization = serializers.CharField(allow_null=True)
+    country = serializers.CharField(allow_null=True, help_text="ISO country code")
+    category = serializers.CharField()
+    identifier = serializers.CharField(allow_null=True)
+    count = serializers.IntegerField(help_text="Number of users")
+
+
 class UserOrganizationTypeCountSerializer(serializers.Serializer):
     organization_type = serializers.CharField(
         help_text="Organization type (SCHAC URN)", allow_null=True
