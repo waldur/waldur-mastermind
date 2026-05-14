@@ -1404,12 +1404,17 @@ Requires support user permissions.""",
 
 
 class QueryViewSet(generics.GenericAPIView):
-    permission_classes = [rf_permissions.IsAuthenticated, permissions.IsSupport]
+    # Tightened from IsSupport to IsStaff: this endpoint executes
+    # caller-supplied SQL against the read replica. Even with a true
+    # SELECT-only DB role, any reader can pull token hashes, password
+    # hashes, and PII out of the database, so it must be restricted to
+    # staff-level operators rather than the broader is_support role.
+    permission_classes = [rf_permissions.IsAuthenticated, permissions.IsStaff]
     serializer_class = QuerySerializer
 
     @extend_schema(
         summary="Execute read-only SQL query",
-        description="Execute a given SQL query against a read-only database replica. This is a powerful tool for diagnostics and reporting, but should be used with caution. Requires support user permissions.",
+        description="Execute a given SQL query against a read-only database replica. This is a powerful tool for diagnostics and reporting, but should be used with caution. Requires staff user permissions.",
         request=QuerySerializer,
         responses={
             200: list[Any],
