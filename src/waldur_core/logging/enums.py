@@ -114,18 +114,42 @@ class EventType(StrEnum):
     )
     OPENSTACK_FLOATING_IP_DETACHED = "openstack_floating_ip_detached"
     OPENSTACK_FLOATING_IP_DISCONNECTED = "openstack_floating_ip_disconnected"
+    OPENSTACK_INSTANCE_SECURITY_GROUPS_CHANGED = (
+        "openstack_instance_security_groups_changed"
+    )
     OPENSTACK_NETWORK_CLEANED = "openstack_network_cleaned"
     OPENSTACK_NETWORK_CREATED = "openstack_network_created"
     OPENSTACK_NETWORK_DELETED = "openstack_network_deleted"
     OPENSTACK_NETWORK_IMPORTED = "openstack_network_imported"
     OPENSTACK_NETWORK_PULLED = "openstack_network_pulled"
     OPENSTACK_NETWORK_UPDATED = "openstack_network_updated"
+    OPENSTACK_LOAD_BALANCER_CREATED = "openstack_load_balancer_created"
+    OPENSTACK_LOAD_BALANCER_UPDATED = "openstack_load_balancer_updated"
+    OPENSTACK_LOAD_BALANCER_DELETED = "openstack_load_balancer_deleted"
+    OPENSTACK_LOAD_BALANCER_SECURITY_GROUPS_CHANGED = (
+        "openstack_load_balancer_security_groups_changed"
+    )
+    OPENSTACK_LISTENER_CREATED = "openstack_listener_created"
+    OPENSTACK_LISTENER_UPDATED = "openstack_listener_updated"
+    OPENSTACK_LISTENER_DELETED = "openstack_listener_deleted"
+    OPENSTACK_POOL_CREATED = "openstack_pool_created"
+    OPENSTACK_POOL_UPDATED = "openstack_pool_updated"
+    OPENSTACK_POOL_DELETED = "openstack_pool_deleted"
+    OPENSTACK_POOL_MEMBER_CREATED = "openstack_pool_member_created"
+    OPENSTACK_POOL_MEMBER_UPDATED = "openstack_pool_member_updated"
+    OPENSTACK_POOL_MEMBER_DELETED = "openstack_pool_member_deleted"
     OPENSTACK_PORT_CLEANED = "openstack_port_cleaned"
     OPENSTACK_PORT_CREATED = "openstack_port_created"
     OPENSTACK_PORT_DELETED = "openstack_port_deleted"
     OPENSTACK_PORT_IMPORTED = "openstack_port_imported"
     OPENSTACK_PORT_PULLED = "openstack_port_pulled"
     OPENSTACK_PORT_UPDATED = "openstack_port_updated"
+    OPENSTACK_PORT_SECURITY_ENABLED = "openstack_port_security_enabled"
+    OPENSTACK_PORT_SECURITY_DISABLED = "openstack_port_security_disabled"
+    OPENSTACK_PORT_ALLOWED_ADDRESS_PAIRS_CHANGED = (
+        "openstack_port_allowed_address_pairs_changed"
+    )
+    OPENSTACK_PORT_SECURITY_GROUPS_CHANGED = "openstack_port_security_groups_changed"
     OPENSTACK_ROUTER_UPDATED = "openstack_router_updated"
     OPENSTACK_SECURITY_GROUP_CLEANED = "openstack_security_group_cleaned"
     OPENSTACK_SECURITY_GROUP_CREATED = "openstack_security_group_created"
@@ -137,6 +161,7 @@ class EventType(StrEnum):
     OPENSTACK_SECURITY_GROUP_RULE_DELETED = "openstack_security_group_rule_deleted"
     OPENSTACK_SECURITY_GROUP_RULE_IMPORTED = "openstack_security_group_rule_imported"
     OPENSTACK_SECURITY_GROUP_RULE_UPDATED = "openstack_security_group_rule_updated"
+    OPENSTACK_SECURITY_GROUP_RULES_CHANGED = "openstack_security_group_rules_changed"
     OPENSTACK_SECURITY_GROUP_UPDATED = "openstack_security_group_updated"
     OPENSTACK_SECURITY_GROUP_ADDED_REMOTELY = "openstack_security_group_added_remotely"
     OPENSTACK_SECURITY_GROUP_REMOVED_REMOTELY = (
@@ -534,18 +559,36 @@ EVENT_GROUP_MAPPING = {
         EventType.OPENSTACK_FLOATING_IP_DESCRIPTION_UPDATED,
         EventType.OPENSTACK_FLOATING_IP_DETACHED,
         EventType.OPENSTACK_FLOATING_IP_DISCONNECTED,
+        EventType.OPENSTACK_INSTANCE_SECURITY_GROUPS_CHANGED,
         EventType.OPENSTACK_NETWORK_CLEANED,
         EventType.OPENSTACK_NETWORK_CREATED,
         EventType.OPENSTACK_NETWORK_DELETED,
         EventType.OPENSTACK_NETWORK_IMPORTED,
         EventType.OPENSTACK_NETWORK_PULLED,
         EventType.OPENSTACK_NETWORK_UPDATED,
+        EventType.OPENSTACK_LOAD_BALANCER_CREATED,
+        EventType.OPENSTACK_LOAD_BALANCER_UPDATED,
+        EventType.OPENSTACK_LOAD_BALANCER_DELETED,
+        EventType.OPENSTACK_LOAD_BALANCER_SECURITY_GROUPS_CHANGED,
+        EventType.OPENSTACK_LISTENER_CREATED,
+        EventType.OPENSTACK_LISTENER_UPDATED,
+        EventType.OPENSTACK_LISTENER_DELETED,
+        EventType.OPENSTACK_POOL_CREATED,
+        EventType.OPENSTACK_POOL_UPDATED,
+        EventType.OPENSTACK_POOL_DELETED,
+        EventType.OPENSTACK_POOL_MEMBER_CREATED,
+        EventType.OPENSTACK_POOL_MEMBER_UPDATED,
+        EventType.OPENSTACK_POOL_MEMBER_DELETED,
         EventType.OPENSTACK_PORT_CLEANED,
         EventType.OPENSTACK_PORT_CREATED,
         EventType.OPENSTACK_PORT_DELETED,
         EventType.OPENSTACK_PORT_IMPORTED,
         EventType.OPENSTACK_PORT_PULLED,
         EventType.OPENSTACK_PORT_UPDATED,
+        EventType.OPENSTACK_PORT_SECURITY_ENABLED,
+        EventType.OPENSTACK_PORT_SECURITY_DISABLED,
+        EventType.OPENSTACK_PORT_ALLOWED_ADDRESS_PAIRS_CHANGED,
+        EventType.OPENSTACK_PORT_SECURITY_GROUPS_CHANGED,
         EventType.OPENSTACK_ROUTER_UPDATED,
         EventType.OPENSTACK_SECURITY_GROUP_CLEANED,
         EventType.OPENSTACK_SECURITY_GROUP_CREATED,
@@ -557,6 +600,7 @@ EVENT_GROUP_MAPPING = {
         EventType.OPENSTACK_SECURITY_GROUP_RULE_DELETED,
         EventType.OPENSTACK_SECURITY_GROUP_RULE_IMPORTED,
         EventType.OPENSTACK_SECURITY_GROUP_RULE_UPDATED,
+        EventType.OPENSTACK_SECURITY_GROUP_RULES_CHANGED,
         EventType.OPENSTACK_SECURITY_GROUP_UPDATED,
         EventType.OPENSTACK_SERVER_GROUP_CLEANED,
         EventType.OPENSTACK_SERVER_GROUP_CREATED,

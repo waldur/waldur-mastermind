@@ -26,6 +26,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
 from waldur_core.logging import event_logger
+from waldur_core.logging.diff import compute_collection_diff
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.permissions.models import UserRole
@@ -44,10 +45,38 @@ from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.models import Instance, Network, Volume
 
-from . import executors, filters, models, serializers, utils
+from . import audit, executors, filters, models, serializers, utils
 from . import permissions as openstack_permissions
 
 logger = logging.getLogger(__name__)
+
+
+class LBaaSAuditMixin:
+    """Emit lifecycle audit events for LBaaS resources on create/update/delete.
+
+    Designed to be mixed into ViewSets that also use ExecutorMixin. The events
+    fire from the API request thread, so they carry actor context (user, IP,
+    request id) auto-attached by CaptureEventContextMiddleware.
+    """
+
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        instance = serializer.instance
+        if instance is not None:
+            audit.emit_lbaas_lifecycle_event(instance, "created")
+
+    def perform_update(self, serializer):
+        instance = self.get_object()
+        _, serialize, _scope = audit._LBAAS_AUDIT_CONFIG[type(instance)]
+        old_payload = serialize(instance)
+        super().perform_update(serializer)
+        instance.refresh_from_db()
+        audit.emit_lbaas_lifecycle_event(instance, "updated", old_payload=old_payload)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        audit.emit_lbaas_lifecycle_event(instance, "deleted")
+        return super().destroy(request, *args, **kwargs)
 
 
 class UsageReporter:
@@ -470,25 +499,45 @@ class SecurityGroupViewSet(structure_views.ResourceViewSet):
         serializer.is_valid(raise_exception=True)
 
         security_group: models.SecurityGroup = self.get_object()
-        old_rules = serializers.DebugSecurityGroupRuleSerializer(
-            security_group.rules.all(), many=True
-        )
-
-        logger.info(
-            "About to set rules for security group with ID %s. Old rules: %s. New rules: %s",
-            security_group.id,
-            old_rules.data,
-            request.data,
-        )
+        old_snapshot = audit.snapshot_security_group_rules(security_group)
 
         serializer.save()
         security_group.refresh_from_db()
+
+        new_snapshot = audit.snapshot_security_group_rules(security_group)
+        diff = compute_collection_diff(
+            old_snapshot,
+            new_snapshot,
+            identity_key=lambda r: r["_pk"],
+            compare_fields=audit.SECURITY_GROUP_RULE_COMPARE_FIELDS,
+            serialize=lambda r: {k: v for k, v in r.items() if k != "_pk"},
+        )
+        audit.emit_security_group_rules_changed(
+            security_group, diff, trigger="user_action"
+        )
 
         executors.PushSecurityGroupRulesExecutor().execute(security_group)
         return response.Response(
             {"status": _("Rules update was successfully scheduled.")},
             status=status.HTTP_202_ACCEPTED,
         )
+
+    def destroy(self, request, *args, **kwargs):
+        security_group: models.SecurityGroup = self.get_object()
+        # Snapshot rules *before* the executor cascades them so we can record
+        # them in the aggregate event's removed_rules list.
+        old_snapshot = audit.snapshot_security_group_rules(security_group)
+        diff = compute_collection_diff(
+            old_snapshot,
+            [],
+            identity_key=lambda r: r["_pk"],
+            compare_fields=audit.SECURITY_GROUP_RULE_COMPARE_FIELDS,
+            serialize=lambda r: {k: v for k, v in r.items() if k != "_pk"},
+        )
+        audit.emit_security_group_rules_changed(
+            security_group, diff, trigger="user_action"
+        )
+        return super().destroy(request, *args, **kwargs)
 
     set_rules_validators = [core_validators.StateValidator(CoreStates.OK)]
     set_rules_serializer_class = (
@@ -862,6 +911,20 @@ On successful completion the task will synchronize quotas with the backend.
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         security_group = serializer.save()
+
+        # Emit one aggregate audit event with all initial rules, instead of
+        # leaving the backend layer to fan out N per-rule events.
+        new_snapshot = audit.snapshot_security_group_rules(security_group)
+        diff = compute_collection_diff(
+            [],
+            new_snapshot,
+            identity_key=lambda r: r["_pk"],
+            compare_fields=audit.SECURITY_GROUP_RULE_COMPARE_FIELDS,
+            serialize=lambda r: {k: v for k, v in r.items() if k != "_pk"},
+        )
+        audit.emit_security_group_rules_changed(
+            security_group, diff, trigger="user_action"
+        )
 
         executors.SecurityGroupCreateExecutor().execute(security_group)
         return response.Response(serializer.data, status=status.HTTP_201_CREATED)
@@ -1475,7 +1538,9 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         description="Delete a load balancer.",
     ),
 )
-class LoadBalancerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
+class LoadBalancerViewSet(
+    LBaaSAuditMixin, core_mixins.ExecutorMixin, core_views.ActionsViewSet
+):
     lookup_field = "uuid"
     queryset = (
         models.LoadBalancer.objects.all()
@@ -1616,6 +1681,10 @@ class LoadBalancerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
                     )
                     % {"sg": sg.name}
                 )
+        old_sgs = list(load_balancer.vip_port.security_groups.all())
+        audit.emit_load_balancer_security_groups_changed(
+            load_balancer, old_sgs=old_sgs, new_sgs=security_groups
+        )
         executors.LoadBalancerSetSecurityGroupsExecutor().execute(
             load_balancer,
             security_groups=[
@@ -1677,7 +1746,9 @@ class LoadBalancerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         description="Delete a pool.",
     ),
 )
-class PoolViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
+class PoolViewSet(
+    LBaaSAuditMixin, core_mixins.ExecutorMixin, core_views.ActionsViewSet
+):
     lookup_field = "uuid"
     queryset = models.Pool.objects.all().order_by("load_balancer__name", "name")
     filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
@@ -1737,7 +1808,9 @@ class PoolViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         description="Delete a listener.",
     ),
 )
-class ListenerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
+class ListenerViewSet(
+    LBaaSAuditMixin, core_mixins.ExecutorMixin, core_views.ActionsViewSet
+):
     lookup_field = "uuid"
     queryset = models.Listener.objects.all().order_by(
         "load_balancer__name", "protocol_port", "name"
@@ -1804,7 +1877,9 @@ class ListenerViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         description="Delete a pool member.",
     ),
 )
-class PoolMemberViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
+class PoolMemberViewSet(
+    LBaaSAuditMixin, core_mixins.ExecutorMixin, core_views.ActionsViewSet
+):
     lookup_field = "uuid"
     queryset = models.PoolMember.objects.all().order_by(
         "pool__load_balancer__name", "pool__name", "address", "protocol_port"
@@ -1956,8 +2031,12 @@ class PortViewSet(structure_views.ResourceViewSet):
         backend = port.get_backend()
         backend.enable_port_security(port)
 
+        was_enabled = port.port_security_enabled
         port.port_security_enabled = True
         port.save(update_fields=["port_security_enabled"])
+
+        if not was_enabled:
+            audit.emit_port_security_toggled(port, enabled=True)
 
         return response.Response(status=status.HTTP_200_OK)
 
@@ -1973,9 +2052,13 @@ class PortViewSet(structure_views.ResourceViewSet):
         backend = port.get_backend()
         backend.disable_port_security(port)
 
+        was_enabled = port.port_security_enabled
         port.port_security_enabled = False
         port.security_groups.clear()  # Remove all security groups
         port.save(update_fields=["port_security_enabled"])
+
+        if was_enabled:
+            audit.emit_port_security_toggled(port, enabled=False)
 
         return response.Response(status=status.HTTP_200_OK)
 
@@ -2045,7 +2128,11 @@ class PortViewSet(structure_views.ResourceViewSet):
         port: models.Port = self.get_object()
         serializer = self.get_serializer(port, data=request.data)
         serializer.is_valid(raise_exception=True)
+        old_sgs = list(port.security_groups.all())
         serializer.save()
+        audit.emit_port_security_groups_changed(
+            port, old_sgs=old_sgs, new_sgs=list(port.security_groups.all())
+        )
 
         executors.PortUpdateSecurityGroupsExecutor().execute(port)
         return response.Response(
@@ -2880,7 +2967,13 @@ class InstanceViewSet(
         instance: models.Instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
+        old_sgs = list(instance.security_groups.all())
         serializer.save()
+        audit.emit_instance_security_groups_changed(
+            instance,
+            old_sgs=old_sgs,
+            new_sgs=list(instance.security_groups.all()),
+        )
 
         executors.InstanceUpdateSecurityGroupsExecutor().execute(instance)
         return response.Response(
@@ -2926,9 +3019,7 @@ class InstanceViewSet(
         instance: models.Instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
         subnet = serializer.validated_data["subnet"]
-        allowed_address_pairs = serializer.validated_data["allowed_address_pairs"]
         try:
             port = models.Port.objects.get(instance=instance, subnet=subnet)
         except models.Port.DoesNotExist:
@@ -2941,6 +3032,13 @@ class InstanceViewSet(
                 {"status": _("Multiple ports are found.")},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        old_pairs = list(port.allowed_address_pairs or [])
+        serializer.save()
+        allowed_address_pairs = serializer.validated_data["allowed_address_pairs"]
+        audit.emit_allowed_address_pairs_changed(
+            port, old_pairs=old_pairs, new_pairs=allowed_address_pairs
+        )
 
         executors.InstanceAllowedAddressPairsUpdateExecutor().execute(
             instance,

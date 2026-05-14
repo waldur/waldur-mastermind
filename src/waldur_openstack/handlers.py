@@ -106,15 +106,12 @@ def log_security_group_cleaned(sender, instance: models.SecurityGroup, **kwargs)
 def log_security_group_rule_cleaned(
     sender, instance: models.SecurityGroupRule, **kwargs
 ):
-    """Log security group rule cleanup."""
-    event_logger.emit(
-        "Security group rule %s has been cleaned from cache." % str(instance),
-        event_type=EventType.OPENSTACK_SECURITY_GROUP_RULE_CLEANED,
-        event_context={
-            "security_group_rule": instance,
-        },
-        scopes=[instance, instance.security_group],
-    )
+    """Per-rule cleanup events are intentionally not emitted.
+
+    The aggregate openstack_security_group_rules_changed event (fired at the
+    API or pull layer) covers the underlying change.
+    """
+    pass
 
 
 def log_network_cleaned(sender, instance: models.Network, **kwargs):
