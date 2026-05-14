@@ -107,7 +107,7 @@ class CrossOrgNotificationIsolationTest(test.APITestCase):
         """WebHook must NOT fire for events the hook owner has no access to."""
         logging_models.WebHook.objects.create(
             user=self.owner_a,
-            destination_url="http://org-a.example.com/hook",
+            destination_url="http://example.com/hook",
             event_types=[self.event_type],
         )
 
@@ -121,7 +121,7 @@ class CrossOrgNotificationIsolationTest(test.APITestCase):
         """WebHook must fire for events the hook owner has access to."""
         logging_models.WebHook.objects.create(
             user=self.owner_a,
-            destination_url="http://org-a.example.com/hook",
+            destination_url="http://example.com/hook",
             event_types=[self.event_type],
         )
 

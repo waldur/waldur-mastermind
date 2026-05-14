@@ -63,11 +63,14 @@ class TestHookService(test.APITestCase):
         process_event(self.event.id)
 
         # Event is captured and POST request is triggered because event_type and user_uuid match
-        requests_post.assert_called_once_with(
-            self.web_hook.destination_url,
-            json=self.payload,
-            verify=settings.VERIFY_WEBHOOK_REQUESTS,
-        )
+        requests_post.assert_called_once()
+        args, kwargs = requests_post.call_args
+        self.assertEqual(args, (self.web_hook.destination_url,))
+        self.assertEqual(kwargs["json"], self.payload)
+        self.assertEqual(kwargs["verify"], settings.VERIFY_WEBHOOK_REQUESTS)
+        # SEC-C9: outbound webhooks must disable redirects and set a timeout.
+        self.assertEqual(kwargs["allow_redirects"], False)
+        self.assertIsNotNone(kwargs.get("timeout"))
 
     def test_email_hook_processor_can_be_called_twice(self):
         # Create email hook for customer owner

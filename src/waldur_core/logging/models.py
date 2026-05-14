@@ -7,6 +7,7 @@ from django.conf import settings
 from django.contrib.contenttypes import fields as ct_fields
 from django.contrib.contenttypes import models as ct_models
 from django.contrib.postgres.fields import ArrayField
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import models
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -17,7 +18,7 @@ from model_utils.models import TimeStampedModel
 from waldur_core.core import models as core_models
 from waldur_core.core.fields import JSONField, UUIDField
 from waldur_core.core.managers import GenericKeyMixin
-from waldur_core.core.utils import send_mail
+from waldur_core.core.utils import send_mail, validate_outbound_url
 
 logger = logging.getLogger(__name__)
 
@@ -104,15 +105,33 @@ class WebHook(BaseHook):
         FORM = 2
         CHOICES = ((JSON, "json"), (FORM, "form"))
 
-    destination_url = models.URLField()
+    destination_url = models.URLField(validators=[validate_outbound_url])
     content_type = models.SmallIntegerField(
         choices=ContentTypeChoices.CHOICES, default=ContentTypeChoices.JSON
     )
+
+    # Hard cap on outbound webhook latency. Operators can lower this via
+    # settings.WEBHOOK_REQUEST_TIMEOUT (defaults applied below).
+    _DEFAULT_TIMEOUT_SECONDS = 10
 
     def process(self, event):
         logger.debug(
             "Submitting web hook to URL %s, payload: %s", self.destination_url, event
         )
+        # Re-validate at request time to defeat DNS rebinding between
+        # validation (at save) and connect (here). Skip the call if the
+        # destination is no longer safe.
+        try:
+            validate_outbound_url(self.destination_url)
+        except DjangoValidationError as exc:
+            logger.warning(
+                "Skipping webhook %s — destination %s is no longer safe: %s",
+                self.uuid,
+                self.destination_url,
+                exc,
+            )
+            return
+
         payload = dict(
             created=event.created.isoformat(),
             message=event.message,
@@ -120,21 +139,21 @@ class WebHook(BaseHook):
             event_type=event.event_type,
         )
 
-        # encode event as JSON
-        if self.content_type == WebHook.ContentTypeChoices.JSON:
-            requests.post(
-                self.destination_url,
-                json=payload,
-                verify=settings.VERIFY_WEBHOOK_REQUESTS,
-            )
+        timeout = getattr(
+            settings, "WEBHOOK_REQUEST_TIMEOUT", self._DEFAULT_TIMEOUT_SECONDS
+        )
+        # `allow_redirects=False` prevents a public destination from
+        # redirecting (302/307) to an internal address mid-flight.
+        common_kwargs = dict(
+            verify=settings.VERIFY_WEBHOOK_REQUESTS,
+            timeout=timeout,
+            allow_redirects=False,
+        )
 
-        # encode event as form
+        if self.content_type == WebHook.ContentTypeChoices.JSON:
+            requests.post(self.destination_url, json=payload, **common_kwargs)
         elif self.content_type == WebHook.ContentTypeChoices.FORM:
-            requests.post(
-                self.destination_url,
-                data=payload,
-                verify=settings.VERIFY_WEBHOOK_REQUESTS,
-            )
+            requests.post(self.destination_url, data=payload, **common_kwargs)
 
 
 class EmailHook(BaseHook):

@@ -2,9 +2,11 @@ import calendar
 import datetime
 import functools
 import importlib
+import ipaddress
 import logging
 import os
 import re
+import socket
 import time
 import unicodedata
 import uuid
@@ -12,6 +14,7 @@ import warnings
 from itertools import chain
 from secrets import choice
 from string import ascii_letters, digits
+from urllib.parse import urlsplit
 
 import jwt
 import requests
@@ -20,6 +23,7 @@ from constance import config
 from dateutil.relativedelta import relativedelta
 from django.apps import apps
 from django.conf import settings
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.mail import EmailMultiAlternatives
 from django.core.management.base import BaseCommand
 from django.core.serializers.json import DjangoJSONEncoder
@@ -795,3 +799,49 @@ def chunked_queryset(queryset, chunk_size=100, max_records=None):
         if len(chunk) < chunk_size:
             return
         last_pk = chunk[-1].pk
+
+
+def validate_outbound_url(url: str) -> None:
+    """
+    Reject URLs that resolve to private, loopback, link-local, multicast,
+    reserved, or otherwise non-public addresses. Use as a model field
+    validator on user-supplied destination URLs (webhooks, callbacks,
+    image-import sources) to defeat SSRF.
+
+    Raises django.core.exceptions.ValidationError on rejection. The check
+    is best-effort against DNS rebinding — call this again immediately
+    before connecting (or use IP-pinned outbound HTTP) to defeat
+    time-of-check / time-of-use bypasses.
+    """
+    parsed = urlsplit(url)
+    if parsed.scheme not in ("http", "https"):
+        raise DjangoValidationError(
+            f"URL scheme must be http or https, got {parsed.scheme!r}."
+        )
+    if not parsed.hostname:
+        raise DjangoValidationError("URL must include a hostname.")
+
+    try:
+        infos = socket.getaddrinfo(parsed.hostname, None)
+    except socket.gaierror as exc:
+        raise DjangoValidationError(
+            f"Hostname {parsed.hostname!r} could not be resolved: {exc}."
+        )
+
+    for *_, sockaddr in infos:
+        try:
+            ip = ipaddress.ip_address(sockaddr[0])
+        except (ValueError, IndexError):
+            continue
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_multicast
+            or ip.is_reserved
+            or ip.is_unspecified
+        ):
+            raise DjangoValidationError(
+                f"URL host {parsed.hostname!r} resolves to a non-routable "
+                f"address ({ip}); outbound webhook destinations must be public."
+            )
