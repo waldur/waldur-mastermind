@@ -28,6 +28,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.enums import CoreStates
 from waldur_core.core.utils import create_batch_fetcher, pwgen
 from waldur_core.logging import event_logger
+from waldur_core.logging.diff import compute_collection_diff
 from waldur_core.logging.enums import EventType
 from waldur_core.structure.backend import ServiceBackend, log_backend_action
 from waldur_core.structure.models import ServiceSettings
@@ -60,7 +61,7 @@ from waldur_openstack.session import (
 )
 from waldur_openstack.utils import get_external_network_id, is_valid_volume_type_name
 
-from . import models, signals
+from . import audit, models, signals
 
 logger = logging.getLogger(__name__)
 
@@ -1209,23 +1210,15 @@ class OpenStackBackend(ServiceBackend):
         )
 
     def _log_security_group_rule_imported(self, rule: models.SecurityGroupRule):
-        event_logger.emit(
-            "Security group rule %s has been imported from backend." % str(rule),
-            event_type=EventType.OPENSTACK_SECURITY_GROUP_RULE_IMPORTED,
-            event_context={"security_group_rule": rule},
-            scopes=[rule, rule.security_group],
-        )
+        # Per-rule events are intentionally not emitted; the aggregate
+        # openstack_security_group_rules_changed event covers the whole pull.
+        logger.debug("Security group rule %s has been imported from backend.", rule)
 
     def _log_security_group_rule_pulled(self, rule):
-        logger.debug("Security group rule %s has been pulled from backend.", str(rule))
+        logger.debug("Security group rule %s has been pulled from backend.", rule)
 
     def _log_security_group_rule_cleaned(self, rule):
-        event_logger.emit(
-            "Security group rule %s has been cleaned from cache." % str(rule),
-            event_type=EventType.OPENSTACK_SECURITY_GROUP_RULE_CLEANED,
-            event_context={"security_group_rule": rule},
-            scopes=[rule, rule.security_group],
-        )
+        logger.debug("Security group rule %s has been cleaned from cache.", rule)
 
     def _update_remote_security_groups(
         self, tenant: models.Tenant, backend_security_groups
@@ -2368,6 +2361,9 @@ class OpenStackBackend(ServiceBackend):
 
     def _extract_security_group_rules(self, security_group, backend_security_group):
         backend_rules = backend_security_group["security_group_rules"]
+        # Snapshot local state before pull, for the aggregate diff event.
+        old_snapshot = audit.snapshot_security_group_rules(security_group)
+
         cur_rules = {rule.backend_id: rule for rule in security_group.rules.all()}
         for backend_rule in backend_rules:
             cur_rules.pop(backend_rule["id"], None)
@@ -2384,6 +2380,19 @@ class OpenStackBackend(ServiceBackend):
         for rule in stale_rules:
             self._log_security_group_rule_cleaned(rule)
         stale_rules.delete()
+
+        # Emit one aggregate event covering the entire pull reconciliation.
+        new_snapshot = audit.snapshot_security_group_rules(security_group)
+        diff = compute_collection_diff(
+            old_snapshot,
+            new_snapshot,
+            identity_key=lambda r: r["_pk"],
+            compare_fields=audit.SECURITY_GROUP_RULE_COMPARE_FIELDS,
+            serialize=lambda r: {k: v for k, v in r.items() if k != "_pk"},
+        )
+        audit.emit_security_group_rules_changed(
+            security_group, diff, trigger="backend_sync"
+        )
 
     def _import_security_group_rule(self, backend_rule):
         return {
@@ -2454,14 +2463,9 @@ class OpenStackBackend(ServiceBackend):
                     backend_id=backend_rule_id,
                     **self._import_security_group_rule(backend_rule),
                 )
-                event_logger.emit(
-                    "Extra security group rule %s has been deleted in "
-                    "backend because it is not defined in Waldur."
-                    % str(security_group_rule),
-                    event_type=EventType.OPENSTACK_SECURITY_GROUP_RULE_DELETED,
-                    event_context={"security_group_rule": security_group_rule},
-                    scopes=[security_group_rule, security_group_rule.security_group],
-                )
+                # Per-rule events intentionally omitted — the aggregate
+                # openstack_security_group_rules_changed event (emitted at
+                # the API or pull layer) covers the change.
 
         # deleting unsynchronized rules
         for local_rule in unsynchronized_rules:
@@ -2481,13 +2485,7 @@ class OpenStackBackend(ServiceBackend):
                     "Security group rule with id %s successfully deleted in backend",
                     local_rule.backend_id,
                 )
-                event_logger.emit(
-                    "Security group rule %s has been deleted "
-                    "from backend because it has different params." % str(local_rule),
-                    event_type=EventType.OPENSTACK_SECURITY_GROUP_RULE_DELETED,
-                    event_context={"security_group_rule": local_rule},
-                    scopes=[local_rule, local_rule.security_group],
-                )
+                # Per-rule events intentionally omitted (see above).
 
         # creating nonexistent and unsynchronized rules
         for local_rule in unsynchronized_rules + nonexistent_rules:
@@ -2540,13 +2538,7 @@ class OpenStackBackend(ServiceBackend):
                     "Security group rule with id %s successfully created in backend",
                     local_rule.id,
                 )
-                event_logger.emit(
-                    "Security group rule %s has been created in backend."
-                    % str(local_rule),
-                    event_type=EventType.OPENSTACK_SECURITY_GROUP_RULE_CREATED,
-                    event_context={"security_group_rule": local_rule},
-                    scopes=[local_rule, local_rule.security_group],
-                )
+                # Per-rule events intentionally omitted (see above).
 
     @log_backend_action()
     def create_security_group(self, security_group: models.SecurityGroup):

@@ -8,6 +8,10 @@ def pytest_configure(config):
         "markers",
         "slow: marks tests as slow / load tests (deselect with '-m \"not slow\"')",
     )
+    config.addinivalue_line(
+        "markers",
+        "lab: requires access to the OpenStack lab (skipped without .secrets/lab-tenant-creds.env)",
+    )
 
 
 @pytest.fixture(autouse=True)

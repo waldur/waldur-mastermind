@@ -3,6 +3,7 @@
 import logging
 from decimal import Decimal
 
+import structlog
 from constance import config
 from django.dispatch import Signal
 
@@ -31,6 +32,13 @@ def compile_context(**kwargs):
     event_context = get_event_context()
     if event_context:
         context.update(event_context)
+
+    # request_id is bound onto structlog contextvars by django_structlog's
+    # RequestMiddleware, which runs after CaptureEventContextMiddleware, so we
+    # have to read it at emit time rather than at request entry.
+    request_id = structlog.contextvars.get_contextvars().get("request_id")
+    if request_id and "request_id" not in context:
+        context["request_id"] = str(request_id)
 
     for entity_name, entity in kwargs.items():
         if isinstance(entity, LoggableMixin):

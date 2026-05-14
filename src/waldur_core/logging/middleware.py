@@ -33,6 +33,10 @@ class CaptureEventContextMiddleware(MiddlewareMixin):
             return
         context = {"ip_address": ip_address}
 
+        user_agent = request.META.get("HTTP_USER_AGENT")
+        if user_agent:
+            context["user_agent"] = user_agent
+
         user = getattr(request, "user", None)
         if user and not user.is_anonymous:
             context.update(user._get_log_context("user"))

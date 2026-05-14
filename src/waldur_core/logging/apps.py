@@ -31,6 +31,8 @@ class EventsConfig(AppConfig):
 
         # Patch APIView.initial so all DRF views (incl. token-authenticated) bind user_uuid
         # after perform_authentication; middleware signals fire before that for token auth
+        from waldur_core.logging.middleware import set_current_user
+
         _original_api_view_initial = APIView.initial
 
         def _patched_api_view_initial(self, request, *args, **kwargs):
@@ -38,6 +40,11 @@ class EventsConfig(AppConfig):
             if hasattr(request, "user") and request.user.is_authenticated:
                 structlog.contextvars.unbind_contextvars("user_id")
                 structlog.contextvars.bind_contextvars(user_uuid=str(request.user.uuid))
+                # Also populate the event-context thread-local so audit events
+                # emitted from viewsets and serializers carry the user fields.
+                # For token-authenticated DRF requests, request.user isn't set
+                # when CaptureEventContextMiddleware.process_request runs.
+                set_current_user(request.user)
 
         APIView.initial = _patched_api_view_initial
 

@@ -840,7 +840,7 @@ class OpenStackSecurityGroupRuleUpdateSerializer(OpenStackSecurityGroupRuleSeria
             )
         rule_id = data.pop("id")
         try:
-            rule = security_group.rules.get(id=rule_id)
+            rule = security_group.rules.select_related("remote_group").get(id=rule_id)
         except models.SecurityGroupRule.DoesNotExist:
             raise serializers.ValidationError(
                 {"id": _("Security group does not have rule with id %s.") % rule_id}
