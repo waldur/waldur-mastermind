@@ -89,6 +89,7 @@ from waldur_core.logging.event_logger import get_event_groups
 from waldur_core.permissions.enums import (
     CREATE_PERMISSIONS,
     PERMISSION_DESCRIPTION,
+    TYPE_KEY_BY_CT,
     TYPE_MAP,
     PermissionEnum,
     RoleEnum,
@@ -2218,8 +2219,6 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
         descendants at request time).
         """
         user = request.user
-        reverse_map = {pair: key for key, pair in TYPE_MAP.items()}
-
         perm_to_types: dict[str, set[str]] = defaultdict(set)
         if user.is_staff:
             type_keys = set(TYPE_MAP.keys())
@@ -2240,7 +2239,7 @@ class PersonalAccessTokenViewSet(ActionsViewSet):
             for app_label, model_name, perm_value in rows:
                 if not perm_value:
                     continue
-                type_key = reverse_map.get((app_label, model_name))
+                type_key = TYPE_KEY_BY_CT.get((app_label, model_name))
                 if type_key:
                     perm_to_types[perm_value].add(type_key)
 

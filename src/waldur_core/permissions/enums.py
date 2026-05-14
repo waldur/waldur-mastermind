@@ -45,6 +45,11 @@ TYPE_MAP = {
     "proposal": ("proposal", "proposal"),
 }
 
+# Inverse of TYPE_MAP — (app_label, model) → type key. Used by PAT
+# serialization and the list-filter backend to map a ContentType back to
+# its TYPE_KEYS string without rebuilding the dict on every call.
+TYPE_KEY_BY_CT = {pair: key for key, pair in TYPE_MAP.items()}
+
 TYPE_KEYS = Literal[
     "customer",
     "service_provider",

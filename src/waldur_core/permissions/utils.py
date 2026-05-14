@@ -23,22 +23,46 @@ def _is_pat_auth(auth) -> bool:
     return auth is not None and type(auth).__name__ == "PersonalAccessToken"
 
 
+def _pat_allowed_pairs(auth) -> frozenset:
+    """Return the frozenset of ``(content_type_id, object_id)`` bindings.
+
+    Cached on the PAT instance after the first call so subsequent
+    permission checks on the same request reuse the set. Malformed
+    entries are skipped — a bad row must not be able to break auth.
+    """
+    cached = getattr(auth, "_allowed_pairs_cache", None)
+    if cached is not None:
+        return cached
+    pairs_set = set()
+    for b in auth.allowed_scopes or []:
+        try:
+            pairs_set.add((b["content_type_id"], b["object_id"]))
+        except (KeyError, TypeError):
+            continue
+    pairs = frozenset(pairs_set)
+    try:
+        auth._allowed_pairs_cache = pairs
+    except AttributeError:
+        # ``auth`` is not a PAT instance with writable attrs (e.g. a mock).
+        pass
+    return pairs
+
+
 def _pat_entity_check(auth, scope) -> bool:
     """Return True if the PAT's entity bindings allow acting on ``scope``.
 
-    - No bindings → always allow (legacy permission-allowlist-only PAT).
-    - Bindings present + scope is None → deny (scoped PAT can't do global
-      actions; this is decision A from the PAT-scoping design).
+    - Empty bindings → always allow.
+    - Non-empty bindings + ``scope is None`` → deny (a scoped PAT cannot
+      perform scope-less actions).
     - Otherwise → allow iff some ancestor of ``scope`` matches a binding.
-      We walk *upwards* from the request scope only; a binding to a child
-      never authorises actions on its parents (decision B).
+      The walk is upward-only: a binding to a child never authorises
+      actions on its parents.
     """
-    allowed = getattr(auth, "allowed_scopes", None) or []
-    if not allowed:
+    allowed_pairs = _pat_allowed_pairs(auth)
+    if not allowed_pairs:
         return True
     if scope is None:
         return False
-    allowed_pairs = {(b["content_type_id"], b["object_id"]) for b in allowed}
     for ancestor in get_scope_ancestors(scope):
         ct_id = ContentType.objects.get_for_model(type(ancestor)).id
         if (ct_id, ancestor.id) in allowed_pairs:

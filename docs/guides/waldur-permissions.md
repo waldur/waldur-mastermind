@@ -161,11 +161,58 @@ scoped PAT narrows even staff users. The rules:
   guard prevents privilege escalation through binding.
 - Bindings are immutable. `rotate` preserves them; there is no PATCH
   endpoint. To change bindings, create a new PAT.
+- Bindings do **not** auto-revoke when the granting role is removed. The
+  stored `allowed_scopes` continue to surface entity names in the PAT
+  list/detail response, but enforcement falls through to the user's
+  current roles — the binding can only narrow access, never grant it.
+  If a user is removed from a customer, their PAT may still display the
+  customer's name (a minor info-leak about an entity they used to have
+  access to); to scrub it, revoke and recreate the PAT.
 
-### Known limitation (will land in a follow-up MR)
+### List-endpoint result filtering
 
-List endpoints (e.g. `GET /api/customers/`, `GET /api/orders/`) are **not**
-yet filtered by `allowed_scopes`. A scoped PAT still sees the same list
-results as the underlying user; only write/detail/action permission checks
-are restricted. A global filter backend that intersects each list queryset
-with the PAT's bindings is planned as a separate change.
+`PATScopeListFilter` in `waldur_core.permissions.pat_filtering` narrows
+both list and detail querysets so a scoped PAT only sees entities reachable
+from its bindings. It is installed once at app ready by
+monkey-patching `GenericAPIView.filter_queryset` — viewsets that override
+`filter_backends` are still covered, since the patch wraps the original
+implementation and applies the PAT filter after the viewset's own
+backends. Detail endpoints inherit the same narrowing because DRF's
+`get_object` calls `filter_queryset` before `get_object_or_404`.
+
+**Coverage**: the nine `TYPE_MAP` entity models are filtered:
+
+| Model | Reachable from binding type |
+|---|---|
+| `structure.Customer` | `customer` |
+| `structure.Project` | `customer`, `project` |
+| `marketplace.Offering` | `customer`, `offering` |
+| `marketplace.Resource` | `customer`, `project`, `offering`, `resource` |
+| `marketplace.ResourceProject` | `customer`, `project`, `offering`, `resource`, `resource_project` |
+| `marketplace.ServiceProvider` | `customer`, `service_provider` |
+| `proposal.CallManagingOrganisation` | `customer`, `call_organizer` |
+| `proposal.Call` | `call` (no ancestor inheritance) |
+| `proposal.Proposal` | `proposal` (no ancestor inheritance) |
+
+Endpoints whose model does not appear above (e.g. `/api/marketplace-orders/`,
+`/api/invoices/`) currently pass through unfiltered. Add a builder via
+`register_pat_filter` in `pat_filtering.py` to extend coverage.
+
+**Codepath limit**: the install only wraps `GenericAPIView.filter_queryset`.
+Views that bypass that codepath — `APIView` subclasses, custom actions
+that call `Model.objects.filter(...)` directly without going through
+`self.filter_queryset(self.get_queryset())`, or bespoke CSV/export
+endpoints — are **not** filtered. If you add such a view and it returns
+data for an entity in `TYPE_MAP`, call `PATScopeListFilter().filter_queryset(...)`
+on the queryset yourself before serialising.
+
+### Performance notes for scoped-PAT hot paths
+
+`_pat_entity_check` calls `get_scope_ancestors(scope)`, which dereferences
+foreign-key attributes on the request scope. If the view's queryset
+doesn't `select_related` those FKs, each scoped-PAT permission check
+incurs an extra DB round-trip per ancestor. Views that are hot under
+PAT auth should `select_related("customer", "project__customer",
+"offering")` (or whichever ancestors apply) — scoped PATs walk the
+ancestor chain on every permission check, so each missed `select_related`
+multiplies into one query per ancestor per check.
