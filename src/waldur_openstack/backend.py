@@ -4605,7 +4605,15 @@ class OpenStackBackend(ServiceBackend):
         nova = get_nova_client(session)
 
         try:
-            backend_flavor = nova.flavors.get(backend_flavor_id)
+            try:
+                backend_flavor = nova.flavors.get(backend_flavor_id)
+            except nova_exceptions.NotFound:
+                raise OpenStackBackendError(
+                    "Flavor with backend ID '%s' was not found in OpenStack. "
+                    "It may have been removed or recreated; refresh the "
+                    "offering's flavors to update the cached references."
+                    % backend_flavor_id
+                )
 
             # instance key name and fingerprint_md5 are optional
             # it is assumed that if public_key is specified, then
@@ -4736,7 +4744,11 @@ class OpenStackBackend(ServiceBackend):
             )
         except nova_exceptions.ClientException as e:
             logger.exception("Failed to provision instance %s", instance.uuid)
-            raise OpenStackBackendError(e)
+            message = str(e).strip() or repr(e) or type(e).__name__
+            raise OpenStackBackendError(
+                "Failed to provision instance '%s' in OpenStack: %s"
+                % (instance.name, message)
+            )
         else:
             logger.info("Successfully provisioned instance %s", instance.uuid)
 
@@ -4854,6 +4866,20 @@ class OpenStackBackend(ServiceBackend):
                         floating_ip.backend_id,
                         body={"floatingip": {"port_id": floating_ip.port.backend_id}},
                     )
+                except neutron_exceptions.NotFound:
+                    # The local floating IP record references a Neutron object
+                    # that no longer exists (deleted out-of-band). Failing the
+                    # whole instance push for a stale reference is unhelpful —
+                    # log it so the next floating IP sync can clean it up, and
+                    # continue with the remaining FIPs.
+                    logger.warning(
+                        "Floating IP %s (backend_id=%s) referenced by instance "
+                        "%s no longer exists in Neutron; skipping attachment.",
+                        floating_ip.address,
+                        floating_ip.backend_id,
+                        instance.name,
+                    )
+                    continue
                 except neutron_exceptions.NeutronClientException as e:
                     raise OpenStackBackendError(e)
                 else:
