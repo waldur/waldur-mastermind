@@ -812,7 +812,7 @@ td:nth-child(4) {
 | `log_action` | `Django Signal (post_save)` | `openstack.Snapshot` | Log any resource action. |
 | `log_network_cleaned` | `Django Signal (post_delete)` | `openstack.Network` | Log network cleanup. |
 | `log_security_group_cleaned` | `Django Signal (post_delete)` | `openstack.SecurityGroup` | Log security group cleanup. |
-| `log_security_group_rule_cleaned` | `Django Signal (post_delete)` | `openstack.SecurityGroupRule` | Log security group rule cleanup. |
+| `log_security_group_rule_cleaned` | `Django Signal (post_delete)` | `openstack.SecurityGroupRule` | Per-rule cleanup events are intentionally not emitted. |
 | `log_server_group_cleaned` | `Django Signal (post_delete)` | `openstack.ServerGroup` | Log server group cleanup. |
 | `log_subnet_cleaned` | `Django Signal (post_delete)` | `openstack.SubNet` | Log subnet cleanup. |
 | `log_tenant_quota_update` | `Django Signal (post_save)` | `quotas.QuotaLimit` | Log tenant quota updates. |
