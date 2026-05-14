@@ -111,6 +111,7 @@ from waldur_core.structure import utils as structure_utils
 from waldur_core.structure import views as structure_views
 from waldur_core.structure.exceptions import ServiceBackendError
 from waldur_core.structure.executors import ServiceSettingsPullExecutor
+from waldur_core.users.affiliations import parse_affiliation
 from waldur_core.users.enums import InvitationState
 from waldur_core.users.models import Invitation
 from waldur_core.structure.managers import (
@@ -11183,15 +11184,80 @@ class StatsViewSet(EagerLoadMixin, rf_viewsets.GenericViewSet):
     )
     @action(detail=False, methods=["get"])
     def user_affiliation_count(self, request, *args, **kwargs):
+        query_set = self._get_affiliation_count_queryset()
+        return Response(query_set, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        description=(
+            "Paginated affiliation rows with parsed organization, country, "
+            "category and identifier fields. Drives the affiliation details "
+            "table; the unparsed aggregate counts remain available via "
+            "user_affiliation_count."
+        ),
+        parameters=[
+            OpenApiParameter(
+                name="country",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="ISO country code (case-insensitive).",
+            ),
+            OpenApiParameter(
+                name="category",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description=(
+                    "One of: home-organization, personal-identifier, "
+                    "organization-type, user-status, eduperson, other."
+                ),
+            ),
+            OpenApiParameter(
+                name="organization",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Exact organization domain match.",
+            ),
+            OpenApiParameter(
+                name="search",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description="Substring match against raw URN or organization.",
+            ),
+            OpenApiParameter(
+                name="o",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                description=(
+                    "Ordering field; prefix with - for descending. "
+                    "Allowed: count, organization, country, category, affiliation. "
+                    "Defaults to -count."
+                ),
+            ),
+        ],
+        responses=serializers.UserAffiliationDetailSerializer(many=True),
+    )
+    @action(detail=False, methods=["get"])
+    def user_affiliation_details(self, request, *args, **kwargs):
+        rows = [
+            self._build_affiliation_row(item)
+            for item in self._get_affiliation_count_queryset()
+        ]
+        rows = self._filter_affiliation_rows(rows, request.query_params)
+        rows = self._order_affiliation_rows(rows, request.query_params.get("o"))
+        page = self.paginate_queryset(rows)
+        serializer = serializers.UserAffiliationDetailSerializer(page, many=True)
+        return self.get_paginated_response(serializer.data)
+
+    user_affiliation_details_permissions = [core_permissions.IsSupport]
+
+    @staticmethod
+    def _get_affiliation_count_queryset():
         class JsonbArrayElementsText(Func):
-            """
-            Custom function to call PostgreSQL jsonb_array_elements_text
-            """
+            """Custom function to call PostgreSQL jsonb_array_elements_text."""
 
             function = "jsonb_array_elements_text"
             output_field = CharField()
 
-        query_set = (
+        return (
             core_models.User.objects.annotate(
                 affiliation=JsonbArrayElementsText(
                     F("affiliations"), output_field=CharField()
@@ -11201,7 +11267,58 @@ class StatsViewSet(EagerLoadMixin, rf_viewsets.GenericViewSet):
             .annotate(count=Count("id"))
             .order_by("-count")
         )
-        return Response(query_set, status=status.HTTP_200_OK)
+
+    @staticmethod
+    def _build_affiliation_row(item: dict) -> dict:
+        parsed = parse_affiliation(item["affiliation"])
+        return {
+            "affiliation": parsed.raw,
+            "organization": parsed.organization,
+            "country": parsed.country,
+            "category": parsed.category,
+            "identifier": parsed.identifier,
+            "count": item["count"],
+        }
+
+    @staticmethod
+    def _filter_affiliation_rows(rows: list[dict], params) -> list[dict]:
+        country = (params.get("country") or "").lower() or None
+        category = (params.get("category") or "").lower() or None
+        organization = params.get("organization") or None
+        search = (params.get("search") or "").lower() or None
+
+        def keep(row: dict) -> bool:
+            if country and (row["country"] or "").lower() != country:
+                return False
+            if category and row["category"] != category:
+                return False
+            if organization and row["organization"] != organization:
+                return False
+            if search:
+                haystack = (row["affiliation"] or "").lower()
+                org = (row["organization"] or "").lower()
+                if search not in haystack and search not in org:
+                    return False
+            return True
+
+        return [row for row in rows if keep(row)]
+
+    @staticmethod
+    def _order_affiliation_rows(rows: list[dict], ordering: str | None) -> list[dict]:
+        allowed = {"count", "organization", "country", "category", "affiliation"}
+        field = (ordering or "-count").strip()
+        reverse = field.startswith("-")
+        key = field.lstrip("-")
+        if key not in allowed:
+            key, reverse = "count", True
+
+        def sort_key(row: dict):
+            value = row.get(key)
+            # Secondary key on the raw URN keeps page boundaries deterministic
+            # when many rows share the same primary value.
+            return (value is None, value or "", row["affiliation"])
+
+        return sorted(rows, key=sort_key, reverse=reverse)
 
     @extend_schema(
         description="Return user count grouped by organization type (SCHAC URN).",
