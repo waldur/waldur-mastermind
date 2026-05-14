@@ -1555,3 +1555,45 @@ class GenderFieldTest(test.APITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["gender"], "male")
+
+
+class UserShouldProtectUserDetailsFieldTest(test.APITestCase):
+    """Read-only `should_protect_user_details` field reflects the model property."""
+
+    def setUp(self):
+        self.staff = factories.UserFactory(is_staff=True, agreement_date=timezone.now())
+
+    @override_waldur_core_settings(
+        PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS=["PROTECTED"]
+    )
+    def test_field_true_for_protected_registration_method(self):
+        target = factories.UserFactory(registration_method="PROTECTED")
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(factories.UserFactory.get_url(target))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["should_protect_user_details"])
+
+    @override_waldur_core_settings(
+        PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS=["PROTECTED"]
+    )
+    def test_field_false_for_unprotected_registration_method(self):
+        target = factories.UserFactory(registration_method="LOCAL")
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(factories.UserFactory.get_url(target))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["should_protect_user_details"])
+
+    @override_waldur_core_settings(
+        PROTECT_USER_DETAILS_FOR_REGISTRATION_METHODS=["PROTECTED"]
+    )
+    def test_field_is_read_only(self):
+        target = factories.UserFactory(registration_method="LOCAL")
+        self.client.force_authenticate(self.staff)
+        # Even staff cannot toggle this field — it's computed from settings.
+        self.client.patch(
+            factories.UserFactory.get_url(target),
+            {"should_protect_user_details": True},
+            format="json",
+        )
+        target.refresh_from_db()
+        self.assertFalse(target.should_protect_user_details)

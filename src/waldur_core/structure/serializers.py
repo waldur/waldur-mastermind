@@ -1908,6 +1908,7 @@ class UserSerializer(
     has_usable_password = serializers.SerializerMethodField()
     ip_address = serializers.CharField(read_only=True, required=False, allow_null=True)
     birth_date = serializers.DateField(required=False, allow_null=True)
+    should_protect_user_details = serializers.BooleanField(read_only=True)
 
     @extend_schema_field(PermissionSerializer(many=True))
     def get_permissions(self, user: core_models.User):
@@ -2022,6 +2023,7 @@ class UserSerializer(
             "identity_provider_fields",
             "image",
             "identity_source",
+            "should_protect_user_details",
             "has_active_session",
             "has_usable_password",
             "ip_address",
@@ -2052,6 +2054,7 @@ class UserSerializer(
             "agreement_date",
             "affiliations",
             "identity_source",
+            "should_protect_user_details",
             "has_active_session",
             "has_usable_password",
             "attribute_sources",

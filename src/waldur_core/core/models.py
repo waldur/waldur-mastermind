@@ -2,8 +2,9 @@ import hashlib
 import logging
 import re
 import secrets
+from dataclasses import dataclass, field
 from functools import lru_cache
-from typing import cast
+from typing import Any, cast
 from uuid import UUID
 
 from django.apps import apps
@@ -1049,6 +1050,26 @@ class ActionMixin(StateMixin):
         return [model for model in apps.get_models() if issubclass(model, cls)]
 
 
+@dataclass
+class FilterCheckResult:
+    """Per-filter outcome for a single rule+user evaluation."""
+
+    name: str
+    configured: bool
+    matched: bool
+    user_value: Any = None
+    rule_value: Any = None
+    reason: str = ""
+
+
+@dataclass
+class RuleEvaluationResult:
+    """Structured outcome of evaluating one rule against one user."""
+
+    matched: bool
+    filter_results: list[FilterCheckResult] = field(default_factory=list)
+
+
 class UserDetailsMatchMixin(models.Model):
     class Meta:
         abstract = True
@@ -1090,73 +1111,202 @@ class UserDetailsMatchMixin(models.Model):
     )
 
     @classmethod
-    def get_objects_by_user_patterns(cls, user: User, required=True):
-        items = []
-        for item in cls.objects.all():
-            # Check if item has no restrictions
-            has_no_restrictions = (
-                not item.user_email_patterns
-                and not item.user_affiliations
-                and not item.user_identity_sources
-                and not item.user_nationalities
-                and not item.user_organization_types
-                and not item.user_assurance_levels
+    def evaluate_for_user(
+        cls, item, user: "User", required: bool = True
+    ) -> RuleEvaluationResult:
+        """Evaluate a single rule against a user and return a structured breakdown.
+
+        Mirrors the semantics of :meth:`get_objects_by_user_patterns`:
+
+        * basic filters (email patterns, affiliations, identity sources) use OR
+          logic — any configured-and-matched filter passes the group;
+        * if no basic filter is configured, the group passes by default;
+        * AAI filters (nationality OR, organization type OR, assurance level AND)
+          are additional requirements — each configured filter must pass;
+        * when ``required=False`` and the rule has no filters configured at all,
+          the rule matches regardless.
+        """
+        filter_results: list[FilterCheckResult] = []
+
+        # Basic filters (OR group) — affiliations
+        user_affiliations = set(user.affiliations or [])
+        rule_affiliations = set(item.user_affiliations or [])
+        affiliations_configured = bool(rule_affiliations)
+        affiliations_matched = bool(user_affiliations & rule_affiliations)
+        filter_results.append(
+            FilterCheckResult(
+                name="affiliations",
+                configured=affiliations_configured,
+                matched=affiliations_matched,
+                user_value=sorted(user_affiliations) if user_affiliations else [],
+                rule_value=sorted(rule_affiliations) if rule_affiliations else [],
+                reason=(
+                    "Not configured"
+                    if not affiliations_configured
+                    else (
+                        "User affiliation intersects rule"
+                        if affiliations_matched
+                        else "No user affiliation is listed by the rule"
+                    )
+                ),
             )
+        )
 
-            if not required and has_no_restrictions:
-                items.append(item)
-                continue
-
-            # Check basic matching (OR logic for email/affiliation/identity_source)
-            basic_match = (
-                set(user.affiliations or []) & set(item.user_affiliations)
-                or any(
-                    cls._is_pattern_match(pattern, user.email)
-                    for pattern in item.user_email_patterns
-                )
-                or (
-                    item.user_identity_sources
-                    and user.identity_source in item.user_identity_sources
-                )
+        # Basic filters (OR group) — email patterns
+        email_patterns = list(item.user_email_patterns or [])
+        email_configured = bool(email_patterns)
+        email_matched = email_configured and any(
+            cls._is_pattern_match(pattern, user.email) for pattern in email_patterns
+        )
+        filter_results.append(
+            FilterCheckResult(
+                name="email_patterns",
+                configured=email_configured,
+                matched=email_matched,
+                user_value=user.email or "",
+                rule_value=email_patterns,
+                reason=(
+                    "Not configured"
+                    if not email_configured
+                    else (
+                        "User email matches a configured pattern"
+                        if email_matched
+                        else "User email does not match any configured pattern"
+                    )
+                ),
             )
+        )
 
-            # If no basic filters configured, basic_match is True by default
-            if (
-                not item.user_email_patterns
-                and not item.user_affiliations
-                and not item.user_identity_sources
-            ):
-                basic_match = True
+        # Basic filters (OR group) — identity sources
+        identity_sources = list(item.user_identity_sources or [])
+        identity_configured = bool(identity_sources)
+        identity_matched = (
+            identity_configured and user.identity_source in identity_sources
+        )
+        filter_results.append(
+            FilterCheckResult(
+                name="identity_sources",
+                configured=identity_configured,
+                matched=identity_matched,
+                user_value=user.identity_source or "",
+                rule_value=identity_sources,
+                reason=(
+                    "Not configured"
+                    if not identity_configured
+                    else (
+                        "User identity source is allowed"
+                        if identity_matched
+                        else "User identity source is not in the allowed list"
+                    )
+                ),
+            )
+        )
 
-            # Check AAI filters (these are additional requirements)
-            aai_match = True
+        any_basic_configured = (
+            affiliations_configured or email_configured or identity_configured
+        )
+        basic_match = (not any_basic_configured) or (
+            affiliations_matched or email_matched or identity_matched
+        )
 
-            # Check nationality match (OR logic - user must have one of the allowed)
-            if item.user_nationalities:
-                user_nat = getattr(user, "nationality", "") or ""
-                user_nats = getattr(user, "nationalities", []) or []
-                all_user_nats = {user_nat} | set(user_nats)
-                all_user_nats.discard("")  # Remove empty string if present
-                if not (all_user_nats & set(item.user_nationalities)):
-                    aai_match = False
+        # AAI filter — nationality (OR group)
+        nationalities = list(item.user_nationalities or [])
+        nat_configured = bool(nationalities)
+        user_nat = getattr(user, "nationality", "") or ""
+        user_nats = getattr(user, "nationalities", []) or []
+        all_user_nats = ({user_nat} | set(user_nats)) - {""}
+        nat_matched = (not nat_configured) or bool(all_user_nats & set(nationalities))
+        filter_results.append(
+            FilterCheckResult(
+                name="nationalities",
+                configured=nat_configured,
+                matched=nat_matched,
+                user_value=sorted(all_user_nats) if all_user_nats else [],
+                rule_value=nationalities,
+                reason=(
+                    "Not configured"
+                    if not nat_configured
+                    else (
+                        "User nationality is in the allowed list"
+                        if nat_matched
+                        else "User has no nationality in the allowed list"
+                    )
+                ),
+            )
+        )
 
-            # Check organization type match (OR logic)
-            if aai_match and item.user_organization_types:
-                user_org_type = getattr(user, "organization_type", "") or ""
-                if user_org_type not in item.user_organization_types:
-                    aai_match = False
+        # AAI filter — organization type (OR group)
+        org_types = list(item.user_organization_types or [])
+        org_type_configured = bool(org_types)
+        user_org_type = getattr(user, "organization_type", "") or ""
+        org_type_matched = (not org_type_configured) or (user_org_type in org_types)
+        filter_results.append(
+            FilterCheckResult(
+                name="organization_types",
+                configured=org_type_configured,
+                matched=org_type_matched,
+                user_value=user_org_type,
+                rule_value=org_types,
+                reason=(
+                    "Not configured"
+                    if not org_type_configured
+                    else (
+                        "User organization type is in the allowed list"
+                        if org_type_matched
+                        else "User organization type is not in the allowed list"
+                    )
+                ),
+            )
+        )
 
-            # Check assurance level (AND logic - user must have ALL required)
-            if aai_match and item.user_assurance_levels:
-                user_assurance = set(getattr(user, "eduperson_assurance", []) or [])
-                required_assurance = set(item.user_assurance_levels)
-                if not required_assurance.issubset(user_assurance):
-                    aai_match = False
+        # AAI filter — assurance levels (AND group: user must have ALL required)
+        assurance = list(item.user_assurance_levels or [])
+        assurance_configured = bool(assurance)
+        user_assurance = set(getattr(user, "eduperson_assurance", []) or [])
+        required_assurance = set(assurance)
+        assurance_matched = (not assurance_configured) or required_assurance.issubset(
+            user_assurance
+        )
+        filter_results.append(
+            FilterCheckResult(
+                name="assurance_levels",
+                configured=assurance_configured,
+                matched=assurance_matched,
+                user_value=sorted(user_assurance) if user_assurance else [],
+                rule_value=assurance,
+                reason=(
+                    "Not configured"
+                    if not assurance_configured
+                    else (
+                        "User holds all required assurance levels"
+                        if assurance_matched
+                        else "User is missing one or more required assurance levels"
+                    )
+                ),
+            )
+        )
 
-            if basic_match and aai_match:
-                items.append(item)
+        aai_match = nat_matched and org_type_matched and assurance_matched
 
-        return items
+        any_configured = any_basic_configured or bool(
+            nationalities or org_types or assurance
+        )
+
+        if not required and not any_configured:
+            return RuleEvaluationResult(matched=True, filter_results=filter_results)
+
+        return RuleEvaluationResult(
+            matched=bool(basic_match and aai_match),
+            filter_results=filter_results,
+        )
+
+    @classmethod
+    def get_objects_by_user_patterns(cls, user: "User", required=True):
+        return [
+            item
+            for item in cls.objects.all()
+            if cls.evaluate_for_user(item, user, required=required).matched
+        ]
 
     @staticmethod
     def _is_potentially_dangerous_pattern(pattern: str) -> bool:
