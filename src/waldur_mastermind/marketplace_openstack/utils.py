@@ -6,6 +6,7 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.db import transaction
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions, serializers
 
@@ -180,7 +181,19 @@ def import_usage(resource: marketplace_models.Resource):
     has_usage_billing = resource.offering.components.filter(
         billing_type=BillingTypes.USAGE,
     ).exists()
+    # Update ComponentUsage for billing (monthly peak for LIMIT components,
+    # hourly accumulator for USAGE components).
     import_current_usages(resource, usages, hourly_accumulation=has_usage_billing)
+    # current_usages drives the UI's "right-now consumption" widget. Write
+    # the fresh values directly — the ComponentUsage mirror would otherwise
+    # latch at the monthly peak or grow with cumulative core-hours, neither
+    # of which is the at-a-glance number the user expects.
+    resource.refresh_from_db(fields=["current_usages"])
+    current = dict(resource.current_usages or {})
+    current.update({k: float(v) for k, v in usages.items()})
+    resource.current_usages = current
+    resource.last_sync = timezone.now()
+    resource.save(update_fields=["current_usages", "last_sync"])
 
 
 def import_limits(resource: marketplace_models.Resource):
