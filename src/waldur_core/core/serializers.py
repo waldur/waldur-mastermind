@@ -30,7 +30,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core.clean_html import clean_html
 from waldur_core.core.models import PersonalAccessToken, UserDetailsMatchMixin
 from waldur_core.core.signals import pre_serializer_fields
-from waldur_core.permissions.enums import TYPE_MAP, PermissionEnum
+from waldur_core.permissions.enums import TYPE_KEY_BY_CT, TYPE_MAP, PermissionEnum
 from waldur_core.permissions.utils import get_scope_ancestors, has_any_permission
 from waldur_mastermind.common.serializers import StringListSerializer
 
@@ -1454,22 +1454,42 @@ class AllowedScopeOutputSerializer(serializers.Serializer):
 def _serialize_allowed_scopes(stored):
     """Turn the stored list of {content_type_id, object_id} into output dicts.
 
-    Resolves each binding to {type, uuid, name}; surfaces deleted entities
-    with uuid=None and name="(deleted)" rather than dropping them.
+    Resolves each binding to ``{type, uuid, name}``; surfaces deleted
+    entities with ``uuid=None`` and ``name="(deleted)"`` rather than
+    dropping them. Issues one query per distinct ContentType (not per
+    binding) — important when the PAT list endpoint renders many tokens.
     """
-    # Reverse TYPE_MAP: (app_label, model) -> type key
-    reverse_map = {pair: key for key, pair in TYPE_MAP.items()}
-    out = []
-    for entry in stored or []:
+    bindings = list(stored or [])
+    if not bindings:
+        return []
+
+    # Group object_ids by content_type to do one query per type.
+    ids_by_ct: dict[int, set[int]] = {}
+    for entry in bindings:
+        ids_by_ct.setdefault(entry["content_type_id"], set()).add(entry["object_id"])
+
+    # Bulk-fetch each batch.
+    instances_by_ct: dict[int, dict[int, object]] = {}
+    type_key_by_ct: dict[int, str | None] = {}
+    for ct_id, ids in ids_by_ct.items():
         try:
-            ct = ContentType.objects.get_for_id(entry["content_type_id"])
+            ct = ContentType.objects.get_for_id(ct_id)
         except ContentType.DoesNotExist:
+            type_key_by_ct[ct_id] = None
             continue
-        type_key = reverse_map.get((ct.app_label, ct.model))
+        type_key_by_ct[ct_id] = TYPE_KEY_BY_CT.get((ct.app_label, ct.model))
+        model = ct.model_class()
+        instances_by_ct[ct_id] = {
+            obj.pk: obj for obj in model.objects.filter(pk__in=ids)
+        }
+
+    out = []
+    for entry in bindings:
+        ct_id = entry["content_type_id"]
+        type_key = type_key_by_ct.get(ct_id)
         if not type_key:
             continue
-        model = ct.model_class()
-        instance = model.objects.filter(pk=entry["object_id"]).first()
+        instance = instances_by_ct.get(ct_id, {}).get(entry["object_id"])
         if instance is None:
             out.append({"type": type_key, "uuid": None, "name": "(deleted)"})
         else:

@@ -40,3 +40,10 @@ class PermissionsConfig(AppConfig):
             sender=models.RoleAvailability,
             dispatch_uid="waldur_core.permissions.revoke_user_roles_on_availability_removal",
         )
+
+        # Register per-model rules for the scoped-PAT list filter.
+        # Deferred to ready() so cross-app model imports resolve.
+        from . import pat_filtering
+
+        pat_filtering._register_rules()
+        pat_filtering._install_global_filter()
