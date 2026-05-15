@@ -149,6 +149,24 @@ class OpenStackResourceOfferingTest(BaseOpenStackTest):
         offering = marketplace_models.Offering.objects.get(type=offering_type)
         self.assertEqual(offering.state, OfferingStates.ARCHIVED)
 
+    @data(OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING)
+    def test_recreates_offering_when_existing_one_is_archived(self, offering_type):
+        from waldur_mastermind.marketplace_openstack import utils
+
+        tenant = self.trigger_offering_creation()
+        offering = marketplace_models.Offering.objects.get(
+            type=offering_type, scope=tenant
+        )
+        offering.state = OfferingStates.ARCHIVED
+        offering.save(update_fields=["state"])
+
+        utils.create_offerings_for_volume_and_instance(tenant)
+
+        live_offerings = marketplace_models.Offering.objects.filter(
+            type=offering_type, scope=tenant
+        ).exclude(state=OfferingStates.ARCHIVED)
+        self.assertEqual(live_offerings.count(), 1)
+
     def trigger_offering_creation(self):
         fixture = OpenStackFixture()
         tenant = openstack_models.Tenant.objects.create(
