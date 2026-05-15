@@ -21,6 +21,7 @@ from waldur_mastermind.marketplace.enums import (
     OPENSTACK_TENANT_OFFERING,
     OPENSTACK_VOLUME_OFFERING,
     BillingTypes,
+    OfferingStates,
     OrderTypes,
 )
 from waldur_mastermind.marketplace.utils import (
@@ -346,6 +347,174 @@ def restore_limits(resource: marketplace_models.Resource):
     update_limits(order)
 
 
+def self_heal_tenant_offerings(tenant: openstack_models.Tenant) -> dict:
+    """Ensure per-tenant Instance/Volume offerings exist and are usable.
+
+    Returns a dict mapping offering type to the action taken: one of
+    "ok", "unarchived", "recreated", "skipped_no_parent",
+    "skipped_multiple", "skipped_disabled".
+    """
+    result: dict = {
+        OPENSTACK_INSTANCE_OFFERING: "ok",
+        OPENSTACK_VOLUME_OFFERING: "ok",
+    }
+
+    auto_create = settings.WALDUR_MARKETPLACE_OPENSTACK[
+        "AUTOMATICALLY_CREATE_PRIVATE_OFFERING"
+    ]
+
+    needs_creation = []
+    for offering_type in (OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING):
+        offerings = list(
+            marketplace_models.Offering.objects.filter(type=offering_type, scope=tenant)
+        )
+        if len(offerings) == 0:
+            if not auto_create:
+                result[offering_type] = "skipped_disabled"
+                logger.info(
+                    "Skipping per-tenant %s offering recreation: "
+                    "AUTOMATICALLY_CREATE_PRIVATE_OFFERING is False. "
+                    "OpenStack tenant ID: %s",
+                    offering_type,
+                    tenant.id,
+                )
+                continue
+            needs_creation.append(offering_type)
+        elif len(offerings) == 1:
+            offering = offerings[0]
+            if offering.state == OfferingStates.ARCHIVED:
+                offering.state = OfferingStates.ACTIVE
+                offering.save(update_fields=["state"])
+                result[offering_type] = "unarchived"
+                logger.info(
+                    "Self-heal unarchived per-tenant %s offering for tenant %s",
+                    offering_type,
+                    tenant.id,
+                )
+        else:
+            result[offering_type] = "skipped_multiple"
+            logger.error(
+                "Self-heal skipped: multiple per-tenant %s offerings exist for "
+                "tenant %s (offering IDs: %s)",
+                offering_type,
+                tenant.id,
+                [o.id for o in offerings],
+            )
+
+    if needs_creation:
+        try:
+            resource = marketplace_models.Resource.objects.get(scope=tenant)
+        except ObjectDoesNotExist:
+            for offering_type in needs_creation:
+                result[offering_type] = "skipped_no_parent"
+            logger.error(
+                "Self-heal skipped: tenant %s has no marketplace Resource — "
+                "cannot derive parent offering for per-tenant Instance/Volume "
+                "offerings. Operator action required.",
+                tenant.id,
+            )
+            return result
+
+        if resource.offering is None:
+            for offering_type in needs_creation:
+                result[offering_type] = "skipped_no_parent"
+            logger.error(
+                "Self-heal skipped: tenant %s marketplace Resource has no "
+                "parent offering. Operator action required.",
+                tenant.id,
+            )
+            return result
+
+        create_offerings_for_volume_and_instance(tenant)
+        for offering_type in needs_creation:
+            if marketplace_models.Offering.objects.filter(
+                type=offering_type, scope=tenant
+            ).exists():
+                result[offering_type] = "recreated"
+                logger.info(
+                    "Self-heal recreated per-tenant %s offering for tenant %s",
+                    offering_type,
+                    tenant.id,
+                )
+
+    return result
+
+
+def self_heal_tenant_orphan_resources(tenant: openstack_models.Tenant) -> dict:
+    """Backfill marketplace Resource rows for orphan Instance/Volume rows in tenant.
+
+    Returns counters: healed (created) and skipped_no_offering (silent-skip case
+    where create_marketplace_resource_for_imported_resources returned without
+    creating because the per-tenant offering was still missing).
+    """
+    counters = {
+        "instances_healed": 0,
+        "volumes_healed": 0,
+        "instances_skipped_no_offering": 0,
+        "volumes_skipped_no_offering": 0,
+    }
+
+    for klass, healed_key, skipped_key in (
+        (
+            openstack_models.Instance,
+            "instances_healed",
+            "instances_skipped_no_offering",
+        ),
+        (openstack_models.Volume, "volumes_healed", "volumes_skipped_no_offering"),
+    ):
+        content_type = ContentType.objects.get_for_model(klass)
+        linked_ids = set(
+            marketplace_models.Resource.objects.filter(
+                content_type=content_type
+            ).values_list("object_id", flat=True)
+        )
+        orphans = klass.objects.filter(tenant=tenant).exclude(id__in=linked_ids)
+        for orphan in orphans:
+            try:
+                create_marketplace_resource_for_imported_resources(orphan)
+            except (ObjectDoesNotExist, MultipleObjectsReturned):
+                logger.exception(
+                    "Self-heal failed to create marketplace Resource for "
+                    "%s %s in tenant %s",
+                    klass.__name__,
+                    orphan.id,
+                    tenant.id,
+                )
+                continue
+            if marketplace_models.Resource.objects.filter(scope=orphan).exists():
+                counters[healed_key] += 1
+            else:
+                counters[skipped_key] += 1
+                logger.error(
+                    "Self-heal could not link %s %s to a marketplace Resource: "
+                    "per-tenant offering missing. Tenant: %s",
+                    klass.__name__,
+                    orphan.id,
+                    tenant.id,
+                )
+
+    if counters["instances_healed"] or counters["volumes_healed"]:
+        logger.info(
+            "Self-heal created %d instance and %d volume marketplace Resource(s) "
+            "for tenant %s",
+            counters["instances_healed"],
+            counters["volumes_healed"],
+            tenant.id,
+        )
+
+    return counters
+
+
+def self_heal_tenant_marketplace_model(tenant: openstack_models.Tenant) -> dict:
+    """Top-level entrypoint: heal per-tenant offerings, then orphan resources.
+
+    Order matters: offerings must be present before orphan creation can succeed.
+    """
+    offering_actions = self_heal_tenant_offerings(tenant)
+    orphan_counters = self_heal_tenant_orphan_resources(tenant)
+    return {**offering_actions, **orphan_counters}
+
+
 def import_instances_and_volumes_of_tenant(tenant: openstack_models.Tenant):
     backend = OpenStackBackend(tenant.service_settings)
 
@@ -405,6 +574,14 @@ def create_offerings_for_volume_and_instance(tenant: openstack_models.Tenant):
         return
 
     parent_offering = resource.offering
+    if parent_offering is None:
+        logger.error(
+            "Skipping per-tenant offering creation: tenant marketplace resource "
+            "has no parent offering. OpenStack tenant ID: %s",
+            tenant.id,
+        )
+        return
+
     for offering_type in (OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING):
         category, offering_name = get_category_and_name_for_offering_type(
             offering_type, tenant
@@ -435,12 +612,16 @@ def create_offerings_for_volume_and_instance(tenant: openstack_models.Tenant):
         for field in fields:
             payload[field] = getattr(parent_offering, field)
 
-        if not marketplace_models.Offering.objects.filter(
-            type=offering_type,
-            scope=tenant,
-            customer=actual_customer,
-            project=tenant.project,
-        ).exists():
+        if (
+            not marketplace_models.Offering.objects.filter(
+                type=offering_type,
+                scope=tenant,
+                customer=actual_customer,
+                project=tenant.project,
+            )
+            .exclude(state=OfferingStates.ARCHIVED)
+            .exists()
+        ):
             marketplace_models.Offering.objects.create(**payload)
 
 

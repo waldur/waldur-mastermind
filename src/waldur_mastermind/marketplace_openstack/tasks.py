@@ -40,6 +40,13 @@ def sync_instances_and_volumes_of_tenant(serialized_resource: str):
         openstack_models.Tenant,
         core_utils.deserialize_instance(serialized_resource),
     )
+    try:
+        utils.self_heal_tenant_marketplace_model(resource)
+    except Exception:
+        logger.exception(
+            "Self-heal of marketplace model failed for tenant %s; continuing with import.",
+            resource.id,
+        )
     utils.import_instances_and_volumes_of_tenant(resource)
     utils.terminate_expired_instances_and_volumes_of_tenant(resource)
 
