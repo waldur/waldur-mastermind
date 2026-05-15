@@ -2296,6 +2296,17 @@ class Order(
     consumer_rejection_comment = models.TextField(blank=True, default="")
     provider_rejection_comment = models.TextField(blank=True, default="")
 
+    auto_approved_by_rule = models.ForeignKey(
+        "ProjectOrderAutoApproval",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_orders",
+    )
+    auto_approved_cost_limit_snapshot = models.DecimalField(
+        max_digits=22, decimal_places=10, null=True, blank=True
+    )
+
     get_type_display: Callable[[], str]
 
     class Permissions:
@@ -2499,6 +2510,37 @@ class Order(
 
     def __str__(self):
         return f"UUID: {self.uuid}, type: {self.get_type_display()}, offering: {self.offering}, created_by: {self.created_by}"
+
+
+class ProjectOrderAutoApproval(
+    core_models.UuidMixin,
+    TimeStampedModel,
+):
+    project = models.OneToOneField(
+        structure_models.Project,
+        on_delete=models.CASCADE,
+        related_name="order_auto_approval",
+    )
+    monthly_cost_limit = models.DecimalField(
+        max_digits=22, decimal_places=10, validators=[MinValueValidator(Decimal("0"))]
+    )
+    enabled = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    modified_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+
+    class Permissions:
+        customer_path = "project__customer"
+        project_path = "project"
+
+    class Meta:
+        verbose_name = _("Project order auto-approval")
+
+    def __str__(self):
+        return f"Auto-approval for {self.project} (limit={self.monthly_cost_limit}, enabled={self.enabled})"
 
 
 class ComponentQuota(TimeStampedModel):

@@ -158,6 +158,11 @@ def register_in(router):
         basename="marketplace-project-service-account",
     )
     router.register(
+        r"marketplace-project-order-auto-approvals",
+        views.ProjectOrderAutoApprovalViewSet,
+        basename="marketplace-project-order-auto-approval",
+    )
+    router.register(
         r"marketplace-customer-service-accounts",
         views.CustomerServiceAccountViewSet,
         basename="marketplace-customer-service-account",

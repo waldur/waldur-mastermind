@@ -68,7 +68,7 @@ from waldur_mastermind.marketplace.permissions import (
 )
 from waldur_mastermind.notifications.models import AdminAnnouncement
 
-from . import callbacks, log, models, tasks, utils
+from . import callbacks, log, models, order_approval, tasks, utils
 from .tasks import remove_users_from_robot_accounts_on_permission_loss
 
 logger = logging.getLogger(__name__)
@@ -260,6 +260,25 @@ def notify_approvers_when_order_is_created(
             transaction.on_commit(
                 lambda: tasks.notify_consumer_about_pending_order.delay(order.uuid)
             )
+
+
+def maybe_auto_approve_order_for_project(
+    sender, instance: Order, created=False, **kwargs
+):
+    """Auto-approve a newly created PENDING_CONSUMER order if the project has
+    an enabled ProjectOrderAutoApproval rule and the order qualifies.
+    """
+    if get_skip_side_effects():
+        return
+    if not created:
+        return
+    if instance.state != OrderStates.PENDING_CONSUMER:
+        return
+
+    order_pk = instance.pk
+    transaction.on_commit(
+        lambda: order_approval.try_apply_project_auto_approval(order_pk)
+    )
 
 
 def close_service_accounts_on_project_deletion(sender, instance: Project, **kwargs):

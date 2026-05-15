@@ -586,6 +586,54 @@ Consumer approval is **skipped** when any of these conditions are met:
 | **Same Organization Auto-Approval** | Public offering with auto-approval enabled | `offering.shared && offering.customer == project.customer && auto_approve_in_service_provider_projects == True` |
 | **Termination by Service Provider** | Service provider owner terminating resource | `order.type == TERMINATE && has_owner_access(user, offering.customer)` |
 | **Project Permission** | User has order approval permission | `has_permission(APPROVE_ORDER, project)` |
+| **Project Auto-Approval Rule** | Project has an enabled `ProjectOrderAutoApproval` whose `monthly_cost_limit` is at or above the order's estimated monthly cost (and the offering has no usage-billed components) | See *Project-Level Auto-Approval Rule* below |
+
+#### Project-Level Auto-Approval Rule
+
+Projects can carry an optional `ProjectOrderAutoApproval` record (OneToOne with
+`Project`) that delegates the project's `APPROVE_ORDER` right to a deterministic
+ceiling. When a new order is created in `PENDING_CONSUMER` state, a post-save
+handler schedules a re-checked evaluation via `transaction.on_commit`. The order
+is auto-approved when **all** of the following hold:
+
+- An enabled rule exists for the order's project.
+- The order's offering has **no** components with `billing_type=USAGE`
+  (LIMIT/FIXED/ONE_TIME/ON_PLAN_SWITCH are considered predictable).
+- The recurring monthly cost — `plan.get_estimate(order.limits)` with no
+  start/end dates, so one-time fees and switch fees are excluded — is
+  `<= rule.monthly_cost_limit` (inclusive boundary).
+- The rule's `created_by` user still holds `APPROVE_ORDER` on the project or
+  its customer, or is staff. Otherwise the rule silently no-ops and emits a
+  warning log.
+
+Special cases:
+
+- **TERMINATE orders** are auto-approved unconditionally when a rule exists
+  (recurring monthly cost is treated as `0`).
+- **UPDATE / RESTORE** use the same recurring monthly check; `switch_price` is
+  not counted.
+- The applicator (`marketplace.order_approval.try_apply_project_auto_approval`)
+  takes a `select_for_update(of=("self",))` lock on both the order and the
+  rule rows inside `transaction.atomic`, then reuses the same state-routing
+  helper as `approve_by_consumer` so the order transitions through
+  `PENDING_PROJECT` / `PENDING_PROVIDER` / `PENDING_START_DATE` / `EXECUTING`
+  identically to a manual consumer approval.
+
+Audit fields on `Order`:
+
+- `auto_approved_by_rule` — FK to the `ProjectOrderAutoApproval` that fired
+  (`SET_NULL` on rule deletion).
+- `auto_approved_cost_limit_snapshot` — limit at the moment of approval, so
+  the original decision remains explainable if the rule is later edited.
+- `consumer_reviewed_by` is set to the rule's `created_by` so existing
+  notification, audit-log and downstream consumers behave identically to a
+  manual approval.
+
+API surface: `/api/marketplace-project-order-auto-approvals/` (CRUD). Write
+actions are gated by `permission_factory(APPROVE_ORDER, ["project", "project.customer"])`
+with a staff bypass on create. The `marketplace-orders` list endpoint gains a
+`was_auto_approved` boolean filter; `OrderDetailsSerializer` exposes
+`auto_approved`, `auto_approved_by_rule_uuid`, `auto_approved_cost_limit_snapshot`.
 
 #### Provider Approval Rules
 

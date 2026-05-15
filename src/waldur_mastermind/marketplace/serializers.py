@@ -4419,11 +4419,24 @@ class OrderDetailsSerializer(BaseOrderSerializer):
             "consumer_message_attachment",
             "consumer_rejection_comment",
             "provider_rejection_comment",
+            "auto_approved",
+            "auto_approved_by_rule_uuid",
+            "auto_approved_cost_limit_snapshot",
         )
         extra_kwargs = {
             **BaseOrderSerializer.Meta.extra_kwargs,
             "url": {"lookup_field": "uuid", "view_name": "marketplace-order-detail"},
         }
+
+    auto_approved = serializers.SerializerMethodField()
+    auto_approved_by_rule_uuid = serializers.ReadOnlyField(
+        source="auto_approved_by_rule.uuid", allow_null=True
+    )
+    auto_approved_cost_limit_snapshot = serializers.ReadOnlyField(allow_null=True)
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_auto_approved(self, obj) -> bool:
+        return obj.auto_approved_by_rule_id is not None
 
     consumer_reviewed_by = serializers.ReadOnlyField(
         source="consumer_reviewed_by.username",
@@ -12513,3 +12526,79 @@ class OfferingUsageByProjectSerializer(serializers.Serializer):
     today = serializers.DateField(read_only=True)
     total_usage = serializers.FloatField(read_only=True)
     projects = ProjectUsageEntrySerializer(many=True, read_only=True)
+
+
+class ProjectOrderAutoApprovalSerializer(serializers.HyperlinkedModelSerializer):
+    project = serializers.HyperlinkedRelatedField(
+        view_name="project-detail",
+        lookup_field="uuid",
+        queryset=structure_models.Project.available_objects.all(),
+    )
+    project_name = serializers.ReadOnlyField(source="project.name")
+    project_uuid = serializers.ReadOnlyField(source="project.uuid")
+    customer_name = serializers.ReadOnlyField(source="project.customer.name")
+    customer_uuid = serializers.ReadOnlyField(source="project.customer.uuid")
+    created_by_uuid = serializers.ReadOnlyField(source="created_by.uuid")
+    created_by_username = serializers.ReadOnlyField(source="created_by.username")
+    created_by_full_name = serializers.ReadOnlyField(source="created_by.full_name")
+    modified_by_uuid = serializers.ReadOnlyField(source="modified_by.uuid")
+    modified_by_username = serializers.ReadOnlyField(source="modified_by.username")
+    modified_by_full_name = serializers.ReadOnlyField(source="modified_by.full_name")
+
+    class Meta:
+        model = models.ProjectOrderAutoApproval
+        fields = (
+            "uuid",
+            "url",
+            "project",
+            "project_name",
+            "project_uuid",
+            "customer_name",
+            "customer_uuid",
+            "monthly_cost_limit",
+            "enabled",
+            "created",
+            "modified",
+            "created_by_uuid",
+            "created_by_username",
+            "created_by_full_name",
+            "modified_by_uuid",
+            "modified_by_username",
+            "modified_by_full_name",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-project-order-auto-approval-detail",
+            },
+        }
+
+    def validate_monthly_cost_limit(self, value):
+        if value <= 0:
+            raise serializers.ValidationError(
+                _("Monthly cost limit must be greater than zero.")
+            )
+        return value
+
+    def validate_project(self, project):
+        if getattr(project, "is_removed", False):
+            raise serializers.ValidationError(_("Project is removed."))
+        if project.customer.blocked or project.customer.archived:
+            raise serializers.ValidationError(_("Organisation is blocked or archived."))
+        if (
+            self.instance is None
+            and models.ProjectOrderAutoApproval.objects.filter(project=project).exists()
+        ):
+            raise serializers.ValidationError(
+                _("An auto-approval rule already exists for this project.")
+            )
+        return project
+
+    def create(self, validated_data):
+        validated_data["created_by"] = self.context["request"].user
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        validated_data.pop("project", None)
+        validated_data["modified_by"] = self.context["request"].user
+        return super().update(instance, validated_data)

@@ -1230,6 +1230,10 @@ class OrderFilter(
         method="filter_can_approve_as_provider",
         label="Can approve as provider",
     )
+    was_auto_approved = django_filters.BooleanFilter(
+        method="filter_was_auto_approved",
+        label="Auto-approved",
+    )
 
     o = django_filters.OrderingFilter(
         fields=("created", "consumer_reviewed_at", "cost", "state")
@@ -1282,6 +1286,29 @@ class OrderFilter(
             queryset = queryset.filter(offering__customer__in=connected_customers)
 
         return queryset
+
+    def filter_was_auto_approved(self, queryset, name, value):
+        if value:
+            return queryset.filter(auto_approved_by_rule__isnull=False)
+        return queryset.filter(auto_approved_by_rule__isnull=True)
+
+
+class ProjectOrderAutoApprovalFilter(django_filters.FilterSet):
+    project_uuid = core_filters.RelatedUUIDFilter(
+        view_name="project-detail",
+        field_name="project__uuid",
+        label="Project UUID",
+    )
+    customer_uuid = core_filters.RelatedUUIDFilter(
+        view_name="customer-detail",
+        field_name="project__customer__uuid",
+        label="Customer UUID",
+    )
+    enabled = django_filters.BooleanFilter()
+
+    class Meta:
+        model = models.ProjectOrderAutoApproval
+        fields = []
 
 
 class ResourceFilter(
