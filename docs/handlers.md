@@ -641,6 +641,7 @@ td:nth-child(4) {
 | `manage_maintenance_admin_announcements` | `Django Signal (post_save)` | `marketplace.MaintenanceAnnouncement` | Manage AdminAnnouncement lifecycle based on MaintenanceAnnouncement state changes. |
 | `mark_synced_fields_as_read_only` | `Custom Signal (pre_serializer_fields)` | `OfferingOptionsUpdateSerializer` | No description |
 | `mark_synced_fields_as_read_only` | `Custom Signal (pre_serializer_fields)` | `OfferingOverviewUpdateSerializer` | No description |
+| `maybe_auto_approve_order_for_project` | `Django Signal (post_save)` | `marketplace.Order` | Auto-approve a newly created PENDING_CONSUMER order if the project has |
 | `notify_about_project_details_update` | `Django Signal (post_save)` | `marketplace_remote.ProjectUpdateRequest` | No description |
 | `notify_about_request_based_item_creation` | `Django Signal (post_save)` | `support.Issue` | No description |
 | `notify_approvers_when_order_is_created` | `Django Signal (post_save)` | `marketplace.Order` | Notify approvers when an order is created. |
@@ -861,14 +862,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 782
+Total unique handlers found: 783
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 412 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 312 handlers
+- **waldur_mastermind**: 313 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
