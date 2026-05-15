@@ -51,7 +51,14 @@ from drf_spectacular.utils import (
     extend_schema_view,
 )
 from rest_framework import exceptions as rf_exceptions
-from rest_framework import generics, mixins, response, status, views
+from rest_framework import (
+    generics,
+    mixins,
+    response,
+    serializers as drf_serializers,
+    status,
+    views,
+)
 from rest_framework import permissions as rf_permissions
 from rest_framework import viewsets as rf_viewsets
 from rest_framework.decorators import action
@@ -1199,6 +1206,23 @@ class ServiceProviderOfferingsViewSet(
             billable=True,
             shared=True,
         )
+
+    @extend_schema(
+        summary="List distinct offering types for a service provider",
+        parameters=[SERVICE_PROVIDER_UUID],
+        responses={
+            status.HTTP_200_OK: drf_serializers.ListSerializer(
+                child=drf_serializers.CharField()
+            )
+        },
+    )
+    @action(detail=False, methods=["GET"])
+    def types(self, request, **kwargs):
+        types = sorted(self.get_queryset().values_list("type", flat=True).distinct())
+        serializer = drf_serializers.ListSerializer(
+            instance=types, child=drf_serializers.CharField()
+        )
+        return Response(serializer.data)
 
 
 @extend_schema_view(
