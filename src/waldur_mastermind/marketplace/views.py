@@ -184,7 +184,17 @@ from waldur_mastermind.support import models as support_models
 from waldur_openstack import models as openstack_models
 from waldur_pid import models as pid_models
 
-from . import filters, log, models, permissions, plugins, serializers, tasks, utils
+from . import (
+    filters,
+    log,
+    models,
+    order_approval,
+    permissions,
+    plugins,
+    serializers,
+    tasks,
+    utils,
+)
 from .demo_presets.manifest import DemoPresetManager
 from .handlers import get_plan_scopes
 
@@ -6618,63 +6628,30 @@ class OrderViewSet(
             raise rf_exceptions.ValidationError(
                 _("Purchase order is required for approval.")
             )
-        order.review_by_consumer(request.user)
 
-        # 1. Check if project itself is pending activation
-        if (
-            order.project.start_date
-            and order.project.start_date > timezone.now().date()
-        ):
-            order.state = OrderStates.PENDING_PROJECT
-            order.save(update_fields=["state"])
-            response_serializer = serializers.OrderInfoResponseSerializer(
-                {"detail": "Order is pending project activation."}
+        with transaction.atomic():
+            order = (
+                models.Order.objects.select_for_update(of=("self",))
+                .select_related("project", "offering", "plan")
+                .get(pk=order.pk)
             )
-            return Response(response_serializer.data, status=status.HTTP_200_OK)
+            if order.state != OrderStates.PENDING_CONSUMER:
+                raise rf_exceptions.ValidationError(
+                    _("Order is not pending consumer review.")
+                )
+            order.review_by_consumer(request.user)
+            outcome = order_approval.transition_order_from_consumer_approval(
+                order, request.user
+            )
 
-        # 2. Check if provider review is needed
-        if not utils.order_should_not_be_reviewed_by_provider(order):
-            order.state = OrderStates.PENDING_PROVIDER
-            order.save(update_fields=["state"])
-            transaction.on_commit(
-                lambda: tasks.notify_provider_about_pending_order.delay(order.uuid)
-            )
-            response_serializer = serializers.OrderInfoResponseSerializer(
-                {"detail": "Order is pending provider approval."}
-            )
-            return Response(response_serializer.data, status=status.HTTP_200_OK)
-
-        # 3. If no provider review, check for order's own start_date
-        if (
-            config.ENABLE_ORDER_START_DATE
-            and order.start_date
-            and order.start_date > timezone.now().date()
-        ):
-            order.state = OrderStates.PENDING_START_DATE
-            order.save(update_fields=["state"])
-            logger.info(
-                "Order %s (%s) is pending start date %s.",
-                order,
-                order.id,
-                order.start_date,
-            )
-            response_serializer = serializers.OrderInfoResponseSerializer(
-                {"detail": "Order is pending start date."}
-            )
-            return Response(response_serializer.data, status=status.HTTP_200_OK)
-
-        # 4. If all checks pass, proceed to execution
-        order.set_state_executing()
-        order.save(update_fields=["state"])
-        logger.info(
-            "Processing order %s (%s) after consumer approval, resource %s",
-            order,
-            order.id,
-            order.resource,
-        )
-        tasks.process_order_on_commit(order, request.user)
+        messages = {
+            "pending_project": "Order is pending project activation.",
+            "pending_provider": "Order is pending provider approval.",
+            "pending_start_date": "Order is pending start date.",
+            "executing": "Order has been approved and is being processed.",
+        }
         response_serializer = serializers.OrderInfoResponseSerializer(
-            {"detail": "Order has been approved and is being processed."}
+            {"detail": messages[outcome]}
         )
         return Response(response_serializer.data, status=status.HTTP_200_OK)
 
@@ -16134,3 +16111,43 @@ class MarketplaceProjectUsageViewSet(OfferingUsageMixin, rf_viewsets.GenericView
         if offering is not None:
             qs = qs.filter(offering=offering)
         return qs
+
+
+class ProjectOrderAutoApprovalViewSet(core_views.ActionsViewSet):
+    """Per-project auto-approval rule for marketplace orders.
+
+    Owners and project managers with APPROVE_ORDER on the project (or its
+    customer) may CRUD the rule; staff users may also CRUD even when they
+    do not hold APPROVE_ORDER on the scope.
+    """
+
+    queryset = models.ProjectOrderAutoApproval.objects.select_related(
+        "project", "project__customer", "created_by", "modified_by"
+    ).order_by("-created")
+    serializer_class = serializers.ProjectOrderAutoApprovalSerializer
+    filter_backends = (structure_filters.GenericRoleFilter, DjangoFilterBackend)
+    filterset_class = filters.ProjectOrderAutoApprovalFilter
+    lookup_field = "uuid"
+
+    @staticmethod
+    def check_create_permissions(request, view, obj=None):
+        user = request.user
+        if user.is_staff or user.is_support:
+            return
+        serializer = view.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        project = serializer.validated_data.get("project")
+        if project is None:
+            raise rf_exceptions.PermissionDenied()
+        if has_permission(
+            request, PermissionEnum.APPROVE_ORDER, project
+        ) or has_permission(request, PermissionEnum.APPROVE_ORDER, project.customer):
+            return
+        raise rf_exceptions.PermissionDenied()
+
+    create_permissions = [check_create_permissions]
+    update_permissions = partial_update_permissions = destroy_permissions = [
+        permission_factory(
+            PermissionEnum.APPROVE_ORDER, ["project", "project.customer"]
+        )
+    ]

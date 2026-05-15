@@ -98,6 +98,12 @@ class MarketplaceConfig(AppConfig):
         )
 
         signals.post_save.connect(
+            handlers.maybe_auto_approve_order_for_project,
+            sender=models.Order,
+            dispatch_uid="waldur_mastermind.marketplace.maybe_auto_approve_order_for_project",
+        )
+
+        signals.post_save.connect(
             handlers.update_resource_state_on_order_creation,
             sender=models.Order,
             dispatch_uid="waldur_mastermind.marketplace.update_resource_state_on_order_creation",
