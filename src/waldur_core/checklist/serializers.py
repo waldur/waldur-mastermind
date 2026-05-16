@@ -379,6 +379,12 @@ class QuestionAdminSerializer(QuestionSerializer):
         rich_text_char_limit = attrs.get("rich_text_char_limit")
         rich_text_toolbar_level = attrs.get("rich_text_toolbar_level")
 
+        # For PATCH, question_type may be absent from payload — fall back to the
+        # currently-persisted value so per-type whitelists still apply.
+        effective_question_type = question_type or (
+            self.instance.question_type if self.instance else None
+        )
+
         # Validate review trigger configuration
         # Check if both operator and review_answer_value are set together or both empty
         if bool(operator) != bool(review_answer_value):
@@ -438,7 +444,7 @@ class QuestionAdminSerializer(QuestionSerializer):
 
         # Validate min/max values for NUMBER, YEAR, and RATING questions only
         numeric_types = ["number", "year", "rating"]
-        if question_type and question_type not in numeric_types:
+        if effective_question_type and effective_question_type not in numeric_types:
             if min_value is not None or max_value is not None:
                 raise serializers.ValidationError(
                     "Min and max values can only be set for NUMBER, YEAR, and RATING type questions."
@@ -460,7 +466,10 @@ class QuestionAdminSerializer(QuestionSerializer):
             )
 
         # Validate file-specific fields for FILE and MULTIPLE_FILES questions only
-        if question_type and question_type not in ["file", "multiple_files"]:
+        if effective_question_type and effective_question_type not in [
+            "file",
+            "multiple_files",
+        ]:
             if (
                 allowed_file_types
                 or allowed_mime_types
@@ -516,16 +525,10 @@ class QuestionAdminSerializer(QuestionSerializer):
                 raise serializers.ValidationError(
                     "max_files_count must be a positive number."
                 )
-            if question_type == "file":
+            if effective_question_type == "file":
                 raise serializers.ValidationError(
                     "max_files_count can only be set for MULTIPLE_FILES type questions, not FILE type."
                 )
-
-        # For PATCH, question_type may be absent from payload — fall back to the
-        # currently-persisted value so per-type whitelists still apply.
-        effective_question_type = question_type or (
-            self.instance.question_type if self.instance else None
-        )
 
         # Validate Likert-specific fields are only set for LIKERT questions
         if (
