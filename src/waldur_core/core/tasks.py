@@ -12,7 +12,7 @@ from celery.result import AsyncResult
 from celery.worker.request import Request
 from constance import config
 from django.core.cache import cache
-from django.db import IntegrityError
+from django.db import IntegrityError, OperationalError, close_old_connections
 from django.db import models as django_models
 from django.db.models import ObjectDoesNotExist
 from django.utils import timezone
@@ -431,8 +431,13 @@ class BackgroundTask(CeleryTask, metaclass=TaskType):
         # We store the task_id inside the lock for debugging purposes
         task_id = options.get("task_id") or str(uuid4())
 
-        # cache.add returns True if key was set, False if key already existed
-        if not cache.add(lock_key, task_id, timeout=self.lock_timeout):
+        # cache.add returns True if key was set, False if key already existed.
+        # celery-beat is long-lived and has no HTTP request boundary, so Django
+        # does not recycle its DB connection. If Postgres drops it (idle
+        # timeout, restart, pgbouncer recycle), DatabaseCache calls raise
+        # OperationalError forever. Recycle once and retry transparently.
+        acquired = self._cache_add_with_retry(lock_key, task_id)
+        if not acquired:
             logger.info(
                 "Skipping task %s (args=%s) - Lock exists: %s",
                 self.name,
@@ -454,6 +459,17 @@ class BackgroundTask(CeleryTask, metaclass=TaskType):
             # If connection to Broker fails, release lock immediately
             cache.delete(lock_key)
             raise
+
+    def _cache_add_with_retry(self, lock_key, task_id):
+        try:
+            return cache.add(lock_key, task_id, timeout=self.lock_timeout)
+        except OperationalError:
+            logger.warning(
+                "Stale DB connection while acquiring lock for %s; recycling and retrying",
+                self.name,
+            )
+            close_old_connections()
+            return cache.add(lock_key, task_id, timeout=self.lock_timeout)
 
     def after_return(self, status, retval, task_id, args, kwargs, einfo):
         """
