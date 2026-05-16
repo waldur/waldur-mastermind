@@ -253,6 +253,7 @@ class PermissionSerializer(serializers.ModelSerializer):
     customer_uuid = serializers.UUIDField(read_only=True, source="scope.customer.uuid")
     customer_name = serializers.CharField(read_only=True, source="scope.customer.name")
     resource_uuid = serializers.SerializerMethodField()
+    project_uuid = serializers.SerializerMethodField()
 
     class Meta:
         model = models.UserRole
@@ -273,6 +274,7 @@ class PermissionSerializer(serializers.ModelSerializer):
             "customer_uuid",
             "customer_name",
             "resource_uuid",
+            "project_uuid",
         )
 
     def get_scope_type(self, obj) -> str | None:
@@ -296,6 +298,25 @@ class PermissionSerializer(serializers.ModelSerializer):
         if scope._meta.model_name == "resourceproject":
             resource = getattr(scope, "resource", None)
             return resource.uuid.hex if resource is not None else None
+        return None
+
+    @extend_schema_field(serializers.UUIDField(allow_null=True))
+    def get_project_uuid(self, obj) -> str | None:
+        """Project uuid for resource and resource_project scopes.
+        Lets the frontend check project-scoped permissions (e.g. PROJECT.MANAGER)
+        when deciding whether to enable delete/update actions on resource roles."""
+        scope = obj.scope
+        if scope is None:
+            return None
+        model_name = scope._meta.model_name
+        if model_name == "resource":
+            project = getattr(scope, "project", None)
+            return project.uuid.hex if project is not None else None
+        if model_name == "resourceproject":
+            resource = getattr(scope, "resource", None)
+            if resource is not None:
+                project = getattr(resource, "project", None)
+                return project.uuid.hex if project is not None else None
         return None
 
 
