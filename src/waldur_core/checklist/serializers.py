@@ -171,6 +171,12 @@ class QuestionSerializer(
             "allowed_mime_types",
             "max_file_size_mb",
             "max_files_count",
+            "likert_scale_length",
+            "likert_low_label",
+            "likert_high_label",
+            "likert_allow_na",
+            "rich_text_char_limit",
+            "rich_text_toolbar_level",
             "operator",
             "review_answer_value",
             "always_requires_review",
@@ -206,6 +212,12 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
             "allowed_mime_types",
             "max_file_size_mb",
             "max_files_count",
+            "likert_scale_length",
+            "likert_low_label",
+            "likert_high_label",
+            "likert_allow_na",
+            "rich_text_char_limit",
+            "rich_text_toolbar_level",
             "dependencies_info",
         )
         read_only_fields = (
@@ -223,6 +235,12 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
             "allowed_mime_types",
             "max_file_size_mb",
             "max_files_count",
+            "likert_scale_length",
+            "likert_low_label",
+            "likert_high_label",
+            "likert_allow_na",
+            "rich_text_char_limit",
+            "rich_text_toolbar_level",
             "dependencies_info",
         )
 
@@ -354,6 +372,12 @@ class QuestionAdminSerializer(QuestionSerializer):
         allowed_mime_types = attrs.get("allowed_mime_types")
         max_file_size_mb = attrs.get("max_file_size_mb")
         max_files_count = attrs.get("max_files_count")
+        likert_scale_length = attrs.get("likert_scale_length")
+        likert_low_label = attrs.get("likert_low_label")
+        likert_high_label = attrs.get("likert_high_label")
+        likert_allow_na = attrs.get("likert_allow_na")
+        rich_text_char_limit = attrs.get("rich_text_char_limit")
+        rich_text_toolbar_level = attrs.get("rich_text_toolbar_level")
 
         # Validate review trigger configuration
         # Check if both operator and review_answer_value are set together or both empty
@@ -496,6 +520,50 @@ class QuestionAdminSerializer(QuestionSerializer):
                 raise serializers.ValidationError(
                     "max_files_count can only be set for MULTIPLE_FILES type questions, not FILE type."
                 )
+
+        # For PATCH, question_type may be absent from payload — fall back to the
+        # currently-persisted value so per-type whitelists still apply.
+        effective_question_type = question_type or (
+            self.instance.question_type if self.instance else None
+        )
+
+        # Validate Likert-specific fields are only set for LIKERT questions
+        if (
+            effective_question_type
+            and effective_question_type != enums.QuestionTypes.LIKERT
+        ):
+            if (
+                likert_scale_length is not None
+                or likert_low_label
+                or likert_high_label
+                or likert_allow_na
+            ):
+                raise serializers.ValidationError(
+                    "Likert fields (likert_scale_length, likert_low_label, likert_high_label, "
+                    "likert_allow_na) can only be set for LIKERT type questions."
+                )
+
+        # When question_type is LIKERT, scale length must be one of the allowed values
+        if question_type == enums.QuestionTypes.LIKERT and likert_scale_length is None:
+            raise serializers.ValidationError(
+                "likert_scale_length is required for LIKERT type questions."
+            )
+
+        # Validate rich-text-specific fields are only set for RICH_TEXT questions
+        if (
+            effective_question_type
+            and effective_question_type != enums.QuestionTypes.RICH_TEXT
+        ):
+            if rich_text_char_limit is not None or rich_text_toolbar_level:
+                raise serializers.ValidationError(
+                    "Rich text fields (rich_text_char_limit, rich_text_toolbar_level) "
+                    "can only be set for RICH_TEXT type questions."
+                )
+
+        if rich_text_char_limit is not None and rich_text_char_limit <= 0:
+            raise serializers.ValidationError(
+                "rich_text_char_limit must be a positive number."
+            )
 
         return attrs
 

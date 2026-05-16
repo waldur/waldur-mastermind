@@ -177,6 +177,60 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
         ),
     )
 
+    # Likert scale validation fields
+    likert_scale_length = models.PositiveSmallIntegerField(
+        null=True,
+        blank=True,
+        choices=enums.LikertScaleLengths.CHOICES,
+        help_text=_(
+            "Number of points on the Likert scale (3, 5, or 7). "
+            "Required for LIKERT type questions."
+        ),
+    )
+    likert_low_label = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text=_(
+            "Label for the lowest point on the Likert scale "
+            "(e.g. 'Strongly disagree'). Optional."
+        ),
+    )
+    likert_high_label = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text=_(
+            "Label for the highest point on the Likert scale "
+            "(e.g. 'Strongly agree'). Optional."
+        ),
+    )
+    likert_allow_na = models.BooleanField(
+        default=False,
+        help_text=_(
+            "Allow respondents to choose 'N/A' as an answer for LIKERT type questions."
+        ),
+    )
+
+    # Rich text validation fields
+    rich_text_char_limit = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=_(
+            "Maximum number of characters allowed in RICH_TEXT type answers. "
+            "If not set, no limit is enforced."
+        ),
+    )
+    rich_text_toolbar_level = models.CharField(
+        max_length=10,
+        blank=True,
+        default=enums.RichTextToolbarLevels.STANDARD,
+        choices=enums.RichTextToolbarLevels.CHOICES,
+        help_text=_(
+            "Toolbar level for the rich text editor: 'minimal', 'standard', or 'extended'."
+        ),
+    )
+
     class Meta:
         ordering = (
             "checklist",
@@ -240,6 +294,28 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
         # Additional validation for FILE and MULTIPLE_FILES type with constraints
         if self.question_type in ["file", "multiple_files"] and answer_data is not None:
             return self.is_valid_file_answer(answer_data)
+
+        # Additional validation for LIKERT type with scale length constraint
+        if self.question_type == enums.QuestionTypes.LIKERT and answer_data is not None:
+            if answer_data == "na":
+                return bool(self.likert_allow_na)
+            if not isinstance(answer_data, int) or isinstance(answer_data, bool):
+                return False
+            scale_length = self.likert_scale_length or enums.LikertScaleLengths.FIVE
+            return 0 <= answer_data < scale_length
+
+        # Additional validation for RICH_TEXT type with character limit
+        if (
+            self.question_type == enums.QuestionTypes.RICH_TEXT
+            and answer_data is not None
+        ):
+            if not isinstance(answer_data, str):
+                return False
+            if (
+                self.rich_text_char_limit is not None
+                and len(answer_data) > self.rich_text_char_limit
+            ):
+                return False
 
         return True
 
