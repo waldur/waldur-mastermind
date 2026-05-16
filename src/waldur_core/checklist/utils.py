@@ -21,6 +21,7 @@ def is_valid_operator_for_question_type(question_type, operator):
             enums.QuestionTypes.COUNTRY,
             enums.QuestionTypes.RATING,
             enums.QuestionTypes.DATETIME,
+            enums.QuestionTypes.LIKERT,
         ],
         "not_equals": [
             enums.QuestionTypes.NUMBER,
@@ -34,6 +35,7 @@ def is_valid_operator_for_question_type(question_type, operator):
             enums.QuestionTypes.COUNTRY,
             enums.QuestionTypes.RATING,
             enums.QuestionTypes.DATETIME,
+            enums.QuestionTypes.LIKERT,
         ],
         "contains": [
             enums.QuestionTypes.TEXT_INPUT,
@@ -138,6 +140,25 @@ def _is_valid_trigger_value(
     if isinstance(answer_data, list) and question_type in [
         enums.QuestionTypes.MULTIPLE_FILES,
     ]:
+        return True
+
+    # LIKERT answers are integers (scale position, 0-based) or the literal "na"
+    if question_type == enums.QuestionTypes.LIKERT:
+        if answer_data == "na":
+            return True
+        if isinstance(answer_data, bool):
+            return False
+        if isinstance(answer_data, int):
+            return True
+        if isinstance(answer_data, str):
+            try:
+                int(answer_data)
+                return True
+            except (ValueError, TypeError):
+                return False
+
+    # RICH_TEXT answers are arbitrary strings
+    if question_type == enums.QuestionTypes.RICH_TEXT and isinstance(answer_data, str):
         return True
 
     return False
