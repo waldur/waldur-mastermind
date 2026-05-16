@@ -2,6 +2,7 @@ from unittest import mock
 
 from celery.exceptions import SoftTimeLimitExceeded
 from django.core.cache import cache
+from django.db import OperationalError
 from django.test import TestCase, override_settings
 
 from waldur_core.core.tasks import BackgroundTask
@@ -224,3 +225,36 @@ class BackgroundTaskDefaultTest(TestCase):
 
         # Lock should still exist and belong to the new task
         self.assertEqual(cache.get(lock_key), "new-task-id")
+
+    def test_apply_async_recovers_from_stale_db_connection(self):
+        """
+        Scenario: celery-beat's long-lived DB connection is closed (idle
+        timeout, DB restart, etc.). The first cache.add() raises
+        OperationalError; the next call succeeds.
+
+        Expected: apply_async retries the cache operation transparently and
+        schedules the task instead of propagating the OperationalError to
+        celery-beat (which would otherwise log a SchedulingError every tick
+        until the pod is restarted).
+        """
+        arg = "instance:stale"
+        expected_key = self.task.get_unique_key((arg,), {})
+
+        cache_add = mock.Mock(
+            side_effect=[OperationalError("the connection is closed"), True]
+        )
+        with (
+            mock.patch("waldur_core.core.tasks.cache.add", cache_add),
+            mock.patch("celery.app.task.Task.apply_async") as mock_super_apply,
+        ):
+            mock_super_apply.return_value = mock.Mock(id="task-id-stale")
+
+            # Action — must not raise.
+            self.task.apply_async(args=(arg,))
+
+            # cache.add was retried after the OperationalError.
+            self.assertEqual(cache_add.call_count, 2)
+            # Task was scheduled (no OperationalError propagated to caller).
+            mock_super_apply.assert_called_once()
+            call_kwargs = mock_super_apply.call_args[1]
+            self.assertEqual(call_kwargs["headers"]["__waldur_lock_key"], expected_key)
