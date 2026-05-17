@@ -503,6 +503,12 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                 if valid_state_filter:
                     queryset = queryset.filter(state__in=valid_state_filter)
 
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(
+                    page, context=self.get_serializer_context(), many=True
+                )
+                return self.get_paginated_response(serializer.data)
             serializer = self.get_serializer(
                 queryset,
                 context=self.get_serializer_context(),
@@ -677,7 +683,12 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
                     status=status.HTTP_201_CREATED,
                 )
         queryset = call.round_set.all().order_by("-start_time")
-
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(
+                page, context=self.get_serializer_context(), many=True
+            )
+            return self.get_paginated_response(serializer.data)
         return response.Response(
             self.get_serializer(
                 queryset,

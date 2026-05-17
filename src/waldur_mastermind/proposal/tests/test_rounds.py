@@ -1056,3 +1056,68 @@ class BulkRoundCreateTest(test.APITestCase):
         self.assertEqual(duplicate.round_set.count(), source_round_count + 3)
         # Source unchanged.
         self.assertEqual(source.round_set.count(), source_round_count)
+
+
+class RoundListPaginationTest(test.APITestCase):
+    """Verify that listing endpoints honour LinkHeaderPagination.
+
+    Covers two distinct code paths:
+    - ``ProtectedCallViewSet.rounds()`` GET — inline paginate_queryset
+      added in the same change that wires the rounds tab pager.
+    - ``ProtectedCallViewSet.offerings()`` GET and the shared
+      ``ActionMethodMixin.action_list_method`` helper — also paginated.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.client.force_authenticate(self.fixture.staff)
+        # Seed 6 non-overlapping rounds spaced a year apart so we have
+        # enough rows to actually paginate.
+        base = (timezone.now() + datetime.timedelta(days=365)).replace(
+            hour=9, minute=0, second=0, microsecond=0
+        )
+        for i in range(6):
+            start = base + relativedelta(years=i)
+            factories.RoundFactory(
+                call=self.call,
+                start_time=start,
+                cutoff_time=start + datetime.timedelta(days=14),
+            )
+        # Seed 3 requested offerings on the same call.
+        for _ in range(3):
+            factories.RequestedOfferingFactory(call=self.call)
+
+    def test_rounds_list_paginates_and_sets_result_count_header(self):
+        url = factories.CallFactory.get_protected_url(self.call, "rounds")
+        response = self.client.get(url, {"page_size": 2})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        # 6 seeded + 1 from the fixture = 7 rounds on this call.
+        self.assertEqual(response["X-Result-Count"], "7")
+        self.assertEqual(len(response.data), 2)
+        self.assertIn("Link", response.headers)
+
+    def test_rounds_list_page_two(self):
+        url = factories.CallFactory.get_protected_url(self.call, "rounds")
+        page1 = self.client.get(url, {"page_size": 3, "page": 1})
+        page2 = self.client.get(url, {"page_size": 3, "page": 2})
+        self.assertEqual(len(page1.data), 3)
+        self.assertEqual(len(page2.data), 3)
+        page1_uuids = {row["uuid"] for row in page1.data}
+        page2_uuids = {row["uuid"] for row in page2.data}
+        self.assertEqual(page1_uuids & page2_uuids, set())
+
+    def test_offerings_list_paginates_via_action_list_method(self):
+        # Goes through ProtectedCallViewSet.offerings GET branch + (via
+        # the action_list_method helper for POST). The GET path was
+        # updated to use paginate_queryset; verify the X-Result-Count
+        # header is set.
+        url = factories.CallFactory.get_protected_url(self.call, "offerings")
+        total = self.call.requestedoffering_set.count()
+        # The seed setUp adds 3 — the fixture itself may contribute extras
+        # via cached_property side-effects, so assert from observed total.
+        self.assertGreaterEqual(total, 3)
+        response = self.client.get(url, {"page_size": 2})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertEqual(response["X-Result-Count"], str(total))
+        self.assertEqual(len(response.data), 2)
