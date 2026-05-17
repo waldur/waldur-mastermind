@@ -1,14 +1,17 @@
 import logging
+import uuid
 from typing import cast
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
+from waldur_core.core.fields import StringUUID
 from waldur_core.core.utils import get_system_robot
 from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
-from waldur_mastermind.proposal.enums import RequestedOfferingStates
+from waldur_mastermind.proposal.enums import CallStates, RequestedOfferingStates
 
 logger = logging.getLogger(__name__)
 
@@ -112,3 +115,137 @@ def get_proposal_review_counts(proposal: proposal_models.Proposal) -> dict:
         "rejected_reviews": rejected_reviews,
         "pending_reviews": pending_reviews,
     }
+
+
+# Fields managed by Django or set explicitly during duplication.
+_DUPLICATE_CALL_OVERRIDE_FIELDS = frozenset(
+    {"id", "uuid", "slug", "name", "state", "created_by", "created", "modified"}
+)
+
+# Sections the user can include in or exclude from a duplicate. Each key maps
+# to a default value; the API surface mirrors marketplace offering import.
+DUPLICATE_CALL_SECTION_DEFAULTS: dict[str, bool] = {
+    "copy_documents": True,
+    "copy_offerings": True,
+    "copy_rounds": True,
+    "copy_workflow_steps": True,
+    "copy_resource_templates": True,
+    "copy_role_mappings": True,
+    "copy_applicant_visibility_config": True,
+    "copy_coi_configuration": True,
+    "copy_matching_configuration": True,
+    "copy_assignment_configuration": True,
+}
+
+
+def _clone_concrete_fields(instance, exclude: frozenset[str]) -> dict:
+    return {
+        f.attname: getattr(instance, f.attname)
+        for f in instance._meta.concrete_fields
+        if f.name not in exclude and f.attname not in exclude
+    }
+
+
+def _prepare_clone(instance) -> None:
+    """Reset id/pk/uuid on an instance so the next ``save()`` inserts a new row."""
+    instance.pk = None
+    instance.id = None
+    if hasattr(instance, "uuid"):
+        instance.uuid = StringUUID(uuid.uuid4().hex)
+
+
+def _resolve_sections(overrides: dict[str, bool] | None) -> dict[str, bool]:
+    sections = dict(DUPLICATE_CALL_SECTION_DEFAULTS)
+    if overrides:
+        sections.update({k: bool(v) for k, v in overrides.items() if k in sections})
+    return sections
+
+
+@transaction.atomic
+def duplicate_call(
+    source: proposal_models.Call,
+    new_name: str,
+    created_by,
+    sections: dict[str, bool] | None = None,
+) -> proposal_models.Call:
+    """Create a draft copy of ``source`` with the chosen configuration sections.
+
+    ``sections`` is a mapping of `copy_*` flags (see
+    ``DUPLICATE_CALL_SECTION_DEFAULTS``); missing keys default to ``True``.
+    Proposals, reviews, team permissions, and reviewer-pool memberships are
+    never copied regardless of options.
+    """
+    opts = _resolve_sections(sections)
+
+    kwargs = _clone_concrete_fields(source, _DUPLICATE_CALL_OVERRIDE_FIELDS)
+    new_call = proposal_models.Call.objects.create(
+        name=new_name,
+        state=CallStates.DRAFT,
+        created_by=created_by,
+        **kwargs,
+    )
+
+    if opts["copy_documents"]:
+        new_call.documents.set(source.documents.all())
+
+    # RequestedOfferings: copy with state reset; build old→new map so dependent
+    # CallResourceTemplate rows can remap their foreign key.
+    requested_offering_map: dict[int, proposal_models.RequestedOffering] = {}
+    if opts["copy_offerings"]:
+        for src_ro in source.requestedoffering_set.all():  # type: ignore
+            src_pk = src_ro.pk
+            _prepare_clone(src_ro)
+            src_ro.call = new_call
+            src_ro.state = RequestedOfferingStates.REQUESTED
+            src_ro.approved_by = None
+            src_ro.save()
+            requested_offering_map[src_pk] = src_ro
+
+    if opts["copy_rounds"]:
+        for src_round in source.round_set.all():  # type: ignore
+            _prepare_clone(src_round)
+            src_round.slug = ""
+            src_round.call = new_call
+            src_round.save()
+
+    if opts["copy_workflow_steps"]:
+        for src_step in source.workflow_steps.all():  # type: ignore
+            _prepare_clone(src_step)
+            src_step.call = new_call
+            src_step.save()
+
+    # Resource templates depend on RequestedOffering FKs — only copy when the
+    # parent offerings were copied too.
+    if opts["copy_resource_templates"] and opts["copy_offerings"]:
+        for src_template in source.resource_templates.all():  # type: ignore
+            src_template.requested_offering = requested_offering_map.get(
+                src_template.requested_offering_id
+            )
+            _prepare_clone(src_template)
+            src_template.call = new_call
+            src_template.save()
+
+    if opts["copy_role_mappings"]:
+        for src_mapping in source.proposalprojectrolemapping_set.all():  # type: ignore
+            _prepare_clone(src_mapping)
+            src_mapping.call = new_call
+            src_mapping.save()
+
+    onetoone_targets = (
+        ("copy_applicant_visibility_config", "applicant_visibility_config"),
+        ("copy_coi_configuration", "coi_configuration"),
+        ("copy_matching_configuration", "matching_configuration"),
+        ("copy_assignment_configuration", "assignment_configuration"),
+    )
+    for flag, related_name in onetoone_targets:
+        if not opts[flag]:
+            continue
+        try:
+            src_config = getattr(source, related_name)
+        except ObjectDoesNotExist:
+            continue
+        _prepare_clone(src_config)
+        src_config.call = new_call
+        src_config.save()
+
+    return new_call
