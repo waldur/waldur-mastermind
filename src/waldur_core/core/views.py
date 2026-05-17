@@ -1856,9 +1856,22 @@ class ActionMethodMixin:
                     status=status.HTTP_201_CREATED,
                 )
 
+            queryset = getattr(obj, set_name)
+            if hasattr(queryset, "all"):
+                queryset = queryset.all()
+            # Respect ?page / ?page_size when the viewset has a pagination
+            # class configured (LinkHeaderPagination by default).
+            page = self.paginate_queryset(queryset)
+            if page is not None:
+                serializer = self.get_serializer(
+                    page,
+                    context=self.get_serializer_context(),
+                    many=True,
+                )
+                return self.get_paginated_response(serializer.data)
             return Response(
                 self.get_serializer(
-                    getattr(obj, set_name),
+                    queryset,
                     context=self.get_serializer_context(),
                     many=True,
                 ).data,
