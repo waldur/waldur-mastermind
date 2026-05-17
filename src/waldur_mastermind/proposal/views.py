@@ -689,6 +689,34 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     rounds_serializer_class = serializers.ProtectedRoundSerializer
 
+    @extend_schema(
+        operation_id="proposal_protected_calls_rounds_bulk_set",
+        description=(
+            "Create multiple rounds on a call at a fixed cadence. Spacing is "
+            "controlled by ``cadence`` (monthly/quarterly/biannual/yearly/"
+            "custom). Each round's ``cutoff_time`` is derived as "
+            "``start_time + submission_window_days``. Fixed-date allocation "
+            "is not supported in bulk mode."
+        ),
+        request=serializers.BulkRoundCreateRequestSerializer,
+        responses={201: serializers.ProtectedRoundSerializer(many=True)},
+    )
+    @decorators.action(detail=True, methods=["post"], url_path="rounds-bulk-set")
+    def rounds_bulk_set(self, request, uuid=None):
+        call: models.Call = self.get_object()
+        payload = serializers.BulkRoundCreateRequestSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        rounds = utils.bulk_create_rounds(call, payload.validated_data)
+        return response.Response(
+            serializers.ProtectedRoundSerializer(
+                rounds, many=True, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    rounds_bulk_set_permissions = [permission_factory(PermissionEnum.UPDATE_CALL)]
+    rounds_bulk_set_serializer_class = serializers.BulkRoundCreateRequestSerializer
+
     def round_detail(self, request, uuid=None, obj_uuid=None):
         def validate_call_state(call_round):
             if call_round.call.state == CallStates.ARCHIVED:
