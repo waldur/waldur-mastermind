@@ -3173,6 +3173,33 @@ class MessageResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
+class DuplicateCallRequestSerializer(serializers.Serializer):
+    """Request body for the protected-calls duplicate action."""
+
+    name = serializers.CharField(
+        max_length=models.Call._meta.get_field("name").max_length,
+        required=True,
+        allow_blank=False,
+        trim_whitespace=True,
+    )
+    # Section flags mirror marketplace offering import (`include_*`). Each
+    # defaults to True; uncheck to skip that part of the source's configuration.
+    copy_documents = serializers.BooleanField(required=False, default=True)
+    copy_offerings = serializers.BooleanField(required=False, default=True)
+    copy_rounds = serializers.BooleanField(required=False, default=True)
+    copy_workflow_steps = serializers.BooleanField(required=False, default=True)
+    copy_resource_templates = serializers.BooleanField(required=False, default=True)
+    copy_role_mappings = serializers.BooleanField(required=False, default=True)
+    copy_applicant_visibility_config = serializers.BooleanField(
+        required=False, default=True
+    )
+    copy_coi_configuration = serializers.BooleanField(required=False, default=True)
+    copy_matching_configuration = serializers.BooleanField(required=False, default=True)
+    copy_assignment_configuration = serializers.BooleanField(
+        required=False, default=True
+    )
+
+
 class ComputeAffinitiesResponseSerializer(serializers.Serializer):
     """Response for compute_affinities action."""
 

@@ -565,6 +565,43 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
             status=status.HTTP_200_OK,
         )
 
+    @extend_schema(
+        operation_id="proposal_protected_calls_duplicate",
+        description=(
+            "Duplicate a call. The new call inherits the source call's "
+            "configuration (offerings, rounds, workflow steps, resource "
+            "templates, role mappings, documents, and COI/matching/"
+            "assignment/applicant-visibility settings) and starts in draft "
+            "state. Proposals, reviews, team permissions, and reviewer-pool "
+            "memberships are not copied."
+        ),
+        request=serializers.DuplicateCallRequestSerializer,
+        responses={201: serializers.ProtectedCallSerializer},
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def duplicate(self, request, uuid=None):
+        source = self.get_object()
+        payload = serializers.DuplicateCallRequestSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        new_name = payload.validated_data.pop("name")
+        new_call = utils.duplicate_call(
+            source=source,
+            new_name=new_name,
+            created_by=request.user,
+            sections=payload.validated_data,
+        )
+        return response.Response(
+            serializers.ProtectedCallSerializer(
+                new_call, context=self.get_serializer_context()
+            ).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    duplicate_permissions = [
+        permission_factory(PermissionEnum.CREATE_CALL, ["manager"])
+    ]
+    duplicate_serializer_class = serializers.DuplicateCallRequestSerializer
+
     archive_validators = [
         core_validators.StateValidator(CallStates.DRAFT, CallStates.ACTIVE)
     ]
