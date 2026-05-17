@@ -126,6 +126,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_THROTTLE_RATES": {
         "oauth": "10/s",
+        "token_exchange": "60/min",
     },
     "DEFAULT_PAGINATION_CLASS": "waldur_core.core.pagination.LinkHeaderPagination",
     "DEFAULT_SCHEMA_CLASS": "waldur_core.core.openapi_inspector.WaldurOpenApiInspector",

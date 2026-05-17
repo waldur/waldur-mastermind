@@ -182,9 +182,16 @@ class OAuthViewCompleteTest(test.APITransactionTestCase):
         )
         self.assertIsNotNone(user.last_login)
 
-        # Check token in redirect URL
+        # Check code in redirect URL
         parsed_url = urlparse(response.url)
-        token_key = parse_qs(parsed_url.query)["token"][0]
+        exchange_code = parse_qs(parsed_url.query)["code"][0]
+
+        # Exchange code for token
+        exchange_url = reverse("auth-token-exchange")
+        exchange_response = self.client.post(exchange_url, {"code": exchange_code})
+        self.assertEqual(exchange_response.status_code, status.HTTP_200_OK)
+
+        token_key = exchange_response.data["token"]
         self.assertTrue(Token.objects.filter(user=user, key=token_key).exists())
 
     @override_config(ENABLED_USER_PROFILE_ATTRIBUTES=["birth_date"])

@@ -232,6 +232,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": timedelta(hours=6),
         "args": (),
     },
+    # Cleanup unredeemed token exchange codes every minute
+    "cleanup-stale-token-exchange-codes": {
+        "task": "waldur_core.core.cleanup_stale_token_exchange_codes",
+        "schedule": timedelta(minutes=1),
+        "args": (),
+    },
 }
 
 for ext in WaldurExtension.get_extensions():

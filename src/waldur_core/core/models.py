@@ -1446,3 +1446,30 @@ class PersonalAccessToken(UuidMixin, NameMixin, TimeStampedModel):
     @property
     def is_expired(self):
         return django_timezone.now() >= self.expires_at
+
+
+class TokenExchangeCode(UuidMixin, TimeStampedModel):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    # Either token (preferred, references the canonical Token row) or
+    # external_token (for OIDC access-token pass-through) carries the secret.
+    token = models.ForeignKey(
+        "authtoken.Token",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="exchange_codes",
+    )
+    external_token = models.CharField(max_length=500, blank=True, default="")
+
+    class Meta:
+        verbose_name = _("token exchange code")
+        verbose_name_plural = _("token exchange codes")
+
+    @classmethod
+    def generate_code(cls, user, token=None, external_token=""):
+        if token is None and not external_token:
+            raise ValueError("token or external_token is required")
+        return cls.objects.create(user=user, token=token, external_token=external_token)
+
+    def resolve_token_key(self):
+        return self.token.key if self.token_id else self.external_token
