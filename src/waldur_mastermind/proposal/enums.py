@@ -676,3 +676,36 @@ class KeywordSearchModes:
         (EXPERTISE_ONLY, "Match against reviewer expertise keywords"),
         (FULL_TEXT, "Search all reviewer content"),
     )
+
+
+class BulkRoundCadence:
+    """Cadence options for the rounds_bulk_set action.
+
+    ``CHOICES`` is fed to the request serializer's ``ChoiceField`` and
+    therefore propagates to the OpenAPI schema as ``CadenceEnum``.
+    ``INTERVAL_MONTHS`` maps each non-custom value to the number of months
+    between successive rounds. ``CUSTOM`` is intentionally absent from
+    ``INTERVAL_MONTHS`` because its interval comes from the request body's
+    ``custom_interval_months`` field.
+    """
+
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    BIANNUAL = "biannual"
+    YEARLY = "yearly"
+    CUSTOM = "custom"
+
+    CHOICES = (
+        (MONTHLY, "Monthly"),
+        (QUARTERLY, "Quarterly"),
+        (BIANNUAL, "Biannual"),
+        (YEARLY, "Yearly"),
+        (CUSTOM, "Custom interval"),
+    )
+
+    INTERVAL_MONTHS = {
+        MONTHLY: 1,
+        QUARTERLY: 3,
+        BIANNUAL: 6,
+        YEARLY: 12,
+    }

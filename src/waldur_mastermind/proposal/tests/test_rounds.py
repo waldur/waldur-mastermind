@@ -1,5 +1,6 @@
 import datetime
 
+from dateutil.relativedelta import relativedelta
 from ddt import data, ddt
 from django.core import mail
 from django.test import override_settings
@@ -913,3 +914,145 @@ class SlugUtilityTest(test.APITestCase):
             with self.subTest(input=input_slug):
                 result = clean_slug_hyphens(input_slug)
                 self.assertEqual(result, expected_output)
+
+
+@ddt
+class BulkRoundCreateTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.new_call
+        self.call.add_user(self.fixture.call_manager, CallRole.MANAGER)
+        self.url = factories.CallFactory.get_protected_url(
+            self.call, action="rounds-bulk-set"
+        )
+        # start_time chosen far enough out and aligned to day boundary so
+        # day-of-month arithmetic with relativedelta(months=N) is stable.
+        self.base_start = (timezone.now() + datetime.timedelta(days=30)).replace(
+            hour=9, minute=0, second=0, microsecond=0
+        )
+
+    def _payload(self, **overrides):
+        payload = {
+            "start_time": self.base_start.strftime("%Y-%m-%dT%H:%M:%S"),
+            "submission_window_days": 14,
+            "cadence": "monthly",
+            "number_of_rounds": 3,
+            "review_strategy": models.Round.ReviewStrategies.AFTER_ROUND,
+            "deciding_entity": models.Round.AllocationStrategies.AUTOMATIC,
+            "allocation_time": models.Round.AllocationTimes.ON_DECISION,
+            "review_duration_in_days": 7,
+            "minimum_number_of_reviewers": 2,
+            "minimal_average_scoring": 3.0,
+        }
+        payload.update(overrides)
+        return payload
+
+    def _post(self, user, **overrides):
+        user = getattr(self.fixture, user)
+        self.client.force_authenticate(user)
+        return self.client.post(self.url, self._payload(**overrides))
+
+    @data("staff", "call_manager")
+    def test_user_can_bulk_create_rounds_with_monthly_cadence(self, user):
+        response = self._post(user)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(len(response.data), 3)
+        rounds = list(self.call.round_set.all().order_by("start_time"))
+        self.assertEqual(len(rounds), 3)
+        # 1-month cadence; cutoff = start + 14 days.
+        for i, round_obj in enumerate(rounds):
+            expected_start = self.base_start + relativedelta(months=i)
+            self.assertEqual(round_obj.start_time, expected_start)
+            self.assertEqual(
+                round_obj.cutoff_time,
+                expected_start + datetime.timedelta(days=14),
+            )
+
+    def test_custom_cadence_uses_custom_interval(self):
+        response = self._post(
+            "staff",
+            cadence="custom",
+            custom_interval_months=2,
+            number_of_rounds=4,
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        rounds = list(self.call.round_set.all().order_by("start_time"))
+        self.assertEqual(len(rounds), 4)
+        for i, round_obj in enumerate(rounds):
+            self.assertEqual(
+                round_obj.start_time, self.base_start + relativedelta(months=2 * i)
+            )
+
+    def test_custom_cadence_requires_custom_interval_months(self):
+        response = self._post("staff", cadence="custom", custom_interval_months=None)
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertIn("custom_interval_months", response.data)
+        self.assertEqual(self.call.round_set.count(), 0)
+
+    def test_fixed_date_allocation_is_rejected(self):
+        response = self._post(
+            "staff",
+            allocation_time=models.Round.AllocationTimes.FIXED_DATE,
+        )
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        self.assertIn("allocation_time", response.data)
+        self.assertEqual(self.call.round_set.count(), 0)
+
+    def test_overlap_aborts_whole_batch(self):
+        # Seed a round that collides with what would be round #2.
+        collision_start = self.base_start + relativedelta(months=1)
+        models.Round.objects.create(
+            call=self.call,
+            start_time=collision_start,
+            cutoff_time=collision_start + datetime.timedelta(days=3),
+        )
+        seeded = self.call.round_set.count()
+        response = self._post("staff")
+        self.assertEqual(
+            response.status_code, status.HTTP_400_BAD_REQUEST, response.data
+        )
+        # Nothing extra persisted — only the seeded round remains.
+        self.assertEqual(self.call.round_set.count(), seeded)
+
+    @data("user", "owner", "customer_support")
+    def test_user_can_not_bulk_create_rounds(self, user):
+        response = self._post(user)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND, response.data)
+        self.assertEqual(self.call.round_set.count(), 0)
+
+    def test_bulk_create_after_duplicate_keeps_both_round_sets(self):
+        # Duplicate copies the source's existing rounds, then we bulk-add
+        # three more on a non-overlapping window; the duplicate ends up
+        # with both sets and the source is untouched.
+        source = self.fixture.call
+        # Add one more round at a known position to exercise the multi-round
+        # copy path beyond just the fixture-provided one.
+        factories.RoundFactory(
+            call=source,
+            start_time=self.base_start - datetime.timedelta(days=200),
+            cutoff_time=self.base_start - datetime.timedelta(days=190),
+        )
+        source_round_count = source.round_set.count()
+
+        from waldur_mastermind.proposal import utils as proposal_utils
+
+        duplicate = proposal_utils.duplicate_call(
+            source=source,
+            new_name="Copy",
+            created_by=self.fixture.staff,
+        )
+        self.assertEqual(duplicate.round_set.count(), source_round_count)
+
+        bulk_url = factories.CallFactory.get_protected_url(
+            duplicate, action="rounds-bulk-set"
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(bulk_url, self._payload())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(duplicate.round_set.count(), source_round_count + 3)
+        # Source unchanged.
+        self.assertEqual(source.round_set.count(), source_round_count)

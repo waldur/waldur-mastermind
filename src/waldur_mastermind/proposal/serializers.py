@@ -34,6 +34,7 @@ from waldur_mastermind.marketplace.serializers import (
 )
 from waldur_mastermind.proposal.enums import (
     WORKFLOW_STEPS_MAP,
+    BulkRoundCadence,
     CallStates,
     COISeverityLevels,
     COITypes,
@@ -3198,6 +3199,61 @@ class DuplicateCallRequestSerializer(serializers.Serializer):
     copy_assignment_configuration = serializers.BooleanField(
         required=False, default=True
     )
+
+
+class BulkRoundCreateRequestSerializer(serializers.ModelSerializer):
+    """Request body for the rounds_bulk_set action.
+
+    Combines a single round's configuration with cadence parameters so the
+    server can spawn N evenly-spaced rounds in one shot. ``cutoff_time`` and
+    ``allocation_date`` are intentionally excluded: cutoffs are derived from
+    ``submission_window_days``; per-round fixed allocation dates don't make
+    sense across a series and are explicitly disallowed in bulk mode.
+    """
+
+    cadence = serializers.ChoiceField(choices=BulkRoundCadence.CHOICES, required=True)
+    custom_interval_months = serializers.IntegerField(
+        min_value=1, required=False, allow_null=True
+    )
+    submission_window_days = serializers.IntegerField(min_value=1, required=True)
+    number_of_rounds = serializers.IntegerField(
+        min_value=1, max_value=60, required=True
+    )
+
+    class Meta:
+        model = models.Round
+        fields = [
+            "start_time",
+            "review_strategy",
+            "deciding_entity",
+            "allocation_time",
+            "review_duration_in_days",
+            "minimum_number_of_reviewers",
+            "minimal_average_scoring",
+            "cadence",
+            "custom_interval_months",
+            "submission_window_days",
+            "number_of_rounds",
+        ]
+
+    def validate(self, attrs):
+        if attrs["cadence"] == BulkRoundCadence.CUSTOM and not attrs.get(
+            "custom_interval_months"
+        ):
+            raise serializers.ValidationError(
+                {"custom_interval_months": _("Required when cadence is set to custom.")}
+            )
+        if attrs.get("allocation_time") == models.Round.AllocationTimes.FIXED_DATE:
+            raise serializers.ValidationError(
+                {
+                    "allocation_time": _(
+                        "Fixed-date allocation is not supported when creating "
+                        "multiple rounds. Pick on-decision allocation, or set "
+                        "the date individually on each round after creation."
+                    )
+                }
+            )
+        return attrs
 
 
 class ComputeAffinitiesResponseSerializer(serializers.Serializer):

@@ -1,9 +1,13 @@
+import datetime
 import logging
 import uuid
 from typing import cast
 
+from constance import config
+from dateutil.relativedelta import relativedelta
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
+from rest_framework import serializers
 
 from waldur_core.core.fields import StringUUID
 from waldur_core.core.utils import get_system_robot
@@ -11,7 +15,11 @@ from waldur_core.permissions.utils import get_users
 from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.proposal import models as proposal_models
-from waldur_mastermind.proposal.enums import CallStates, RequestedOfferingStates
+from waldur_mastermind.proposal.enums import (
+    BulkRoundCadence,
+    CallStates,
+    RequestedOfferingStates,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -249,3 +257,78 @@ def duplicate_call(
         src_config.save()
 
     return new_call
+
+
+def _bulk_round_interval_months(validated_data: dict) -> int:
+    cadence = validated_data["cadence"]
+    if cadence == BulkRoundCadence.CUSTOM:
+        return int(validated_data["custom_interval_months"])
+    return BulkRoundCadence.INTERVAL_MONTHS[cadence]
+
+
+@transaction.atomic
+def bulk_create_rounds(
+    call: proposal_models.Call, validated_data: dict
+) -> list[proposal_models.Round]:
+    """Create ``number_of_rounds`` rounds on ``call`` spaced by ``cadence``.
+
+    ``validated_data`` comes from
+    :class:`BulkRoundCreateRequestSerializer`. The whole batch is atomic:
+    a single overlap with an existing round aborts everything.
+    """
+    interval_months = _bulk_round_interval_months(validated_data)
+    start_time: datetime.datetime = validated_data["start_time"]
+    submission_window_days: int = validated_data["submission_window_days"]
+    number_of_rounds: int = validated_data["number_of_rounds"]
+    window = datetime.timedelta(days=submission_window_days)
+
+    # Per-round fields shared across the whole batch.
+    shared_kwargs = {
+        k: v
+        for k, v in validated_data.items()
+        if k
+        not in {
+            "start_time",
+            "cadence",
+            "custom_interval_months",
+            "submission_window_days",
+            "number_of_rounds",
+        }
+    }
+    # Mirror ProtectedRoundSerializer.create()'s fallback.
+    shared_kwargs.setdefault("review_duration_in_days", config.PROPOSAL_REVIEW_DURATION)
+
+    created: list[proposal_models.Round] = []
+    for i in range(number_of_rounds):
+        round_start = start_time + relativedelta(months=interval_months * i)
+        round_cutoff = round_start + window
+
+        # Overlap check against pre-existing rounds AND siblings created
+        # earlier in this loop (those don't have IDs yet, so compare
+        # against the in-memory list too).
+        if proposal_models.Round.objects.filter(
+            call=call,
+            start_time__lt=round_cutoff,
+            cutoff_time__gt=round_start,
+        ).exists() or any(
+            r.start_time < round_cutoff and r.cutoff_time > round_start for r in created
+        ):
+            raise serializers.ValidationError(
+                {
+                    "start_time": (
+                        f"Round {i + 1} ({round_start.date()} – "
+                        f"{round_cutoff.date()}) overlaps with an existing "
+                        f"round on this call."
+                    )
+                }
+            )
+
+        round_obj = proposal_models.Round.objects.create(
+            call=call,
+            start_time=round_start,
+            cutoff_time=round_cutoff,
+            **shared_kwargs,
+        )
+        created.append(round_obj)
+
+    return created
