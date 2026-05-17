@@ -34,7 +34,7 @@ from waldur_auth_social.utils import (
 )
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core.authentication import refresh_token, set_authentication_method
-from waldur_core.core.models import User
+from waldur_core.core.models import TokenExchangeCode, User
 from waldur_core.core.permissions import PATScopeAwareIsAdminUser
 from waldur_core.core.serializers import EmptySerializer
 from waldur_core.core.user_attributes import get_federated_identity_sync_allowed_fields
@@ -201,10 +201,12 @@ class OAuthViewComplete(BaseOAuthView):
             scopes=[user],
         )
         if config.OIDC_ACCESS_TOKEN_ENABLED:
-            user_token = access_token
+            exchange_code = TokenExchangeCode.generate_code(
+                user=user, external_token=access_token
+            )
         else:
-            user_token = token.key
-        params = {"token": user_token}
+            exchange_code = TokenExchangeCode.generate_code(user=user, token=token)
+        params = {"code": exchange_code.uuid.hex}
 
         # Get the stored return_url or referrer from session
         stored_return_url = request.session.get(OIDC_RETURN_URL_KEY)

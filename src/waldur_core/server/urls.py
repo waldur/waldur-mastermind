@@ -214,6 +214,11 @@ urlpatterns += [
         core_views.ObtainAuthToken.as_view(),
         name="auth-password",
     ),
+    re_path(
+        r"^api-auth/token-exchange/",
+        core_views.TokenExchangeView.as_view(),
+        name="auth-token-exchange",
+    ),
     re_path(r"^api-auth/logout/", core_views.LogoutView.as_view(), name="auth-logout"),
     re_path(
         r"^$",

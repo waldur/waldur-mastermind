@@ -249,6 +249,10 @@ class CoreAuthTokenSerializer(serializers.Serializer):
     )
 
 
+class TokenExchangeSerializer(serializers.Serializer):
+    code = serializers.UUIDField()
+
+
 class Base64Field(serializers.CharField):
     def to_internal_value(self, data):
         value = super().to_internal_value(data)

@@ -2,6 +2,7 @@ import functools
 import logging
 import mimetypes
 from collections import defaultdict
+from datetime import timedelta
 from typing import Any
 from urllib.parse import urlencode
 
@@ -18,7 +19,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files.storage import default_storage
-from django.db import connection, connections
+from django.db import connection, connections, transaction
 from django.db.models import ForeignKey, ProtectedError
 from django.http import FileResponse, HttpResponse, HttpResponseRedirect, JsonResponse
 from django.utils import timezone
@@ -30,6 +31,7 @@ from packaging import version
 from rest_framework import exceptions, generics, mixins, serializers, status, viewsets
 from rest_framework import mixins as rf_mixins
 from rest_framework import permissions as rf_permissions
+from rest_framework.authtoken.models import Token
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -59,7 +61,7 @@ from waldur_core.core.metadata_schemas import (
     SettingsMetadataResponseSerializer,
 )
 from waldur_core.core.mixins import ensure_atomic_transaction
-from waldur_core.core.models import DailyTableSizeHistory
+from waldur_core.core.models import DailyTableSizeHistory, TokenExchangeCode
 from waldur_core.core.permissions import PATScopeAwareIsAdminUser
 from waldur_core.core.serializers import (
     AvailableBindingTargetSerializer,
@@ -77,6 +79,7 @@ from waldur_core.core.serializers import (
     QuerySerializer,
     TableGrowthStatsResponseSerializer,
     TableGrowthTriggerResponseSerializer,
+    TokenExchangeSerializer,
     VersionHistorySerializer,
     VersionSerializer,
     _serialize_allowed_scopes,
@@ -241,6 +244,55 @@ class ObtainAuthToken(APIView):
         )
 
         return Response({"token": token.key})
+
+
+TOKEN_EXCHANGE_TTL = timedelta(seconds=10)
+_INVALID_CODE_RESPONSE = {"detail": _("Invalid or expired exchange code.")}
+
+
+class TokenExchangeView(APIView):
+    permission_classes = ()
+    throttle_scope = "token_exchange"
+    serializer_class = TokenExchangeSerializer
+
+    @extend_schema(
+        summary="Exchange code for token",
+        description="Exchanges a short-lived one-time code for an authentication token.",
+        request=TokenExchangeSerializer,
+        responses={
+            200: CoreAuthTokenSerializer,
+            400: OpenApiTypes.OBJECT,
+        },
+    )
+    def post(self, request):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        code = serializer.validated_data["code"]
+        # Single-use: select the row for update, validate freshness, then delete
+        # inside one transaction so concurrent requests can't both return a token.
+        with transaction.atomic():
+            exchange_code = (
+                models.TokenExchangeCode.objects.select_for_update(of=("self",))
+                .select_related("token")
+                .filter(uuid=code)
+                .first()
+            )
+            if exchange_code is None:
+                return Response(
+                    data=_INVALID_CODE_RESPONSE,
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            fresh = timezone.now() - exchange_code.created <= TOKEN_EXCHANGE_TTL
+            token_key = exchange_code.resolve_token_key() if fresh else None
+            exchange_code.delete()
+
+        if not fresh or not token_key:
+            return Response(
+                data=_INVALID_CODE_RESPONSE,
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response({"token": token_key})
 
 
 class LogoutView(generics.GenericAPIView):
@@ -728,8 +780,15 @@ def redirect_with(url_template, **kwargs):
 
 
 def login_completed(token, method="default"):
+    if isinstance(token, Token):
+        token_obj = token
+    else:
+        token_obj = Token.objects.get(key=token)
+    exchange_code = TokenExchangeCode.generate_code(
+        user=token_obj.user, token=token_obj
+    )
     url = format_homeport_link(
-        "login_completed/{token}/{method}/", token=token, method=method
+        "login_completed/{code}/{method}/", code=exchange_code.uuid.hex, method=method
     )
     return HttpResponseRedirect(url)
 

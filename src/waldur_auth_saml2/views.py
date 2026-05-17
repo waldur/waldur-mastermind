@@ -270,7 +270,7 @@ class Saml2LoginCompleteView(BaseSaml2View):
             scopes=[user],
         )
         set_authentication_method(request, AuthenticationMethod.SAML2)
-        return login_completed(token.key, "saml2")
+        return login_completed(token, "saml2")
 
 
 class Saml2LogoutView(BaseSaml2View):

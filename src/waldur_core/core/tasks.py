@@ -668,6 +668,19 @@ def cleanup_expired_personal_access_tokens():
         logger.info("Deactivated %d expired personal access tokens.", count)
 
 
+@shared_task(name="waldur_core.core.cleanup_stale_token_exchange_codes")
+def cleanup_stale_token_exchange_codes():
+    """Delete TokenExchangeCode rows that were never redeemed."""
+    from datetime import timedelta
+
+    from waldur_core.core.models import TokenExchangeCode
+
+    cutoff = timezone.now() - timedelta(minutes=5)
+    deleted, _ = TokenExchangeCode.objects.filter(created__lt=cutoff).delete()
+    if deleted:
+        logger.info("Deleted %d stale token exchange codes.", deleted)
+
+
 @shared_task(name="waldur_core.reset_updating_resources")
 def reset_updating_resources():
     """Reset resources stuck in UPDATING state when their Celery tasks are completed."""
