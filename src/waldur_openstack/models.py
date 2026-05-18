@@ -1842,6 +1842,15 @@ class Instance(
         blank=True,
         help_text=_("Comma-separated list of directly connected IP addresses"),
     )
+    config_drive = models.BooleanField(
+        null=True,
+        blank=True,
+        default=None,
+        help_text=_(
+            "Force config drive on or off for this instance. "
+            "If null, the tenant-wide default from service settings is used."
+        ),
+    )
     tracker = cast(FieldInstanceTracker, FieldTracker())
 
     class Meta:

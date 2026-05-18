@@ -1300,6 +1300,44 @@ class CreateInstanceTest(VolumesBaseTest):
         self.assertIn("port creation likely failed earlier", str(ctx.exception))
         self.mocked_nova.servers.create.assert_not_called()
 
+    def test_config_drive_per_instance_true_overrides_tenant_false(self):
+        # Per-instance True must win over tenant-wide False.
+        self.openstack_settings.options["config_drive"] = False
+        instance = self.fixture.instance
+        instance.config_drive = True
+        instance.save()
+
+        self.backend.create_instance(instance, self.flavor_id)
+
+        kwargs = self.mocked_nova.servers.create.mock_calls[0][2]
+        self.assertIs(kwargs["config_drive"], True)
+
+    def test_config_drive_per_instance_false_overrides_tenant_true(self):
+        # Per-instance False must win over tenant-wide True. Key absent from
+        # kwargs preserves the existing behaviour of only setting the flag
+        # when it is truthy.
+        self.openstack_settings.options["config_drive"] = True
+        instance = self.fixture.instance
+        instance.config_drive = False
+        instance.save()
+
+        self.backend.create_instance(instance, self.flavor_id)
+
+        kwargs = self.mocked_nova.servers.create.mock_calls[0][2]
+        self.assertNotIn("config_drive", kwargs)
+
+    def test_config_drive_falls_back_to_tenant_default_when_null(self):
+        # config_drive=None on the instance → use the tenant-wide setting.
+        self.openstack_settings.options["config_drive"] = True
+        instance = self.fixture.instance
+        instance.config_drive = None
+        instance.save()
+
+        self.backend.create_instance(instance, self.flavor_id)
+
+        kwargs = self.mocked_nova.servers.create.mock_calls[0][2]
+        self.assertIs(kwargs["config_drive"], True)
+
 
 class CreateServerGroupTest(BaseBackendTest):
     def test_server_group_is_created_with_policy_kwarg(self):
