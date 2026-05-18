@@ -1,5 +1,4 @@
 import functools
-import re
 from dataclasses import dataclass
 
 from constance import config
@@ -84,6 +83,17 @@ class ZammadBackend:
 
         self.manager = ZammadAPI(url, http_token=config.ZAMMAD_TOKEN)
 
+    @functools.cached_property
+    def waldur_zammad_user_id(self):
+        """ID of the Zammad user Waldur authenticates as.
+
+        Articles created via Waldur carry this ``created_by_id``. This is
+        used to distinguish Waldur-originated comments from natively added
+        ones without relying on a body-text marker (which travels into
+        staff replies that quote a previous Waldur comment).
+        """
+        return str(self.manager.user.me()["id"])
+
     def _zammad_response_to_issue(self, response):
         return Issue(
             id=str(response["id"]),
@@ -117,11 +127,8 @@ class ZammadBackend:
             content=clean_html(response.get("body", "")),
             is_public=not response.get("internal", False),
             user_id=response.get("created_by_id"),
-            is_waldur_comment=re.search(
-                r"^" + config.ZAMMAD_COMMENT_MARKER,
-                clean_html(response.get("body", "")),
-                re.MULTILINE,
-            ),
+            is_waldur_comment=str(response.get("created_by_id"))
+            == self.waldur_zammad_user_id,
             attachments=[
                 self._zammad_response_to_attachment(a, article_id, ticket_id)
                 for a in response.get("attachments", [])
