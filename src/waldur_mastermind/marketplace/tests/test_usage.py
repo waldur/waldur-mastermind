@@ -452,7 +452,7 @@ class SubmitUsageTest(test.APITestCase):
         self.offering_component.limit_amount = 1
         self.offering_component.save()
         response = self.submit_usage()
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_total_amount_does_not_exceed_month_limit(self):
         self.offering_component.limit_period = LimitPeriods.MONTH
@@ -476,7 +476,7 @@ class SubmitUsageTest(test.APITestCase):
         )
 
         response = self.submit_usage()
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     @freeze_time("2019-06-19")  # Q2
     def test_total_amount_does_not_exceed_quarterly_limit(self):
@@ -510,7 +510,7 @@ class SubmitUsageTest(test.APITestCase):
         )
 
         response = self.submit_usage()
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     @freeze_time("2019-06-19")
     def test_total_amount_does_not_exceed_annual_limit(self):
@@ -536,7 +536,7 @@ class SubmitUsageTest(test.APITestCase):
 
         self.submit_usage()
         response = self.submit_usage()
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
     def test_total_amount_does_not_exceed_total_limit(self):
         self.offering_component.limit_period = LimitPeriods.TOTAL

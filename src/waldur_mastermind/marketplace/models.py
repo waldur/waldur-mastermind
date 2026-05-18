@@ -1297,10 +1297,14 @@ class OfferingComponent(
         total = usages.aggregate(models.Sum("usage"))["usage__sum"] or 0
 
         if total + amount > self.limit_amount:
-            raise rf_exceptions.ValidationError(
-                _("Total amount exceeds limit. Total amount: %s, limit: %s.")
-                % (total + amount, self.limit_amount)
+            message = _("Total amount exceeds limit. Total amount: %s, limit: %s.") % (
+                total + amount,
+                self.limit_amount,
             )
+            if self.billing_type == BillingTypes.USAGE:
+                logger.warning(message)
+                return
+            raise rf_exceptions.ValidationError(message)
 
     @property
     def is_builtin(self) -> bool:
