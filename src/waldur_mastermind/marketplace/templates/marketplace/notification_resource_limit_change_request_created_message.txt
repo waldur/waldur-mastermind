@@ -1,0 +1,10 @@
+Hello!
+
+{{ resource_limit_change_request.created_by.full_name }} has requested to change limits of resource {{ resource_limit_change_request.resource.name }} in project {{ resource_limit_change_request.resource.project.name }}.
+
+Requested limits: {{ resource_limit_change_request.requested_limits }}
+
+Please review and approve or reject the request:
+{{ resource_url }}
+
+Thank you!

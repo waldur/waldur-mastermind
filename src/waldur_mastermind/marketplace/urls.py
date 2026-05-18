@@ -304,6 +304,11 @@ def register_in(router):
         views.OfferingProfileViewSet,
         basename="marketplace-offering-profile",
     )
+    router.register(
+        r"marketplace-resource-limit-change-requests",
+        views.ResourceLimitChangeRequestViewSet,
+        basename="marketplace-resource-limit-change-request",
+    )
 
 
 urlpatterns = [

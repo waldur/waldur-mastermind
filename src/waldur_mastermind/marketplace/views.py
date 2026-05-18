@@ -77,13 +77,17 @@ from waldur_core.core import permissions as core_permissions
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
-from waldur_core.core.enums import CoreStates
+from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.mixins import EagerLoadMixin
 from waldur_core.core.models import User
 from waldur_core.core.pagination import LinkHeaderPagination
 from waldur_core.core.renderers import PlainTextRenderer
-from waldur_core.core.serializers import EmptySerializer, RestrictedSerializerMixin
+from waldur_core.core.serializers import (
+    EmptySerializer,
+    RestrictedSerializerMixin,
+    ReviewCommentSerializer,
+)
 from waldur_core.core.utils import (
     SubqueryCount,
     is_uuid_like,
@@ -16111,6 +16115,147 @@ class MarketplaceProjectUsageViewSet(OfferingUsageMixin, rf_viewsets.GenericView
         if offering is not None:
             qs = qs.filter(offering=offering)
         return qs
+
+
+def user_can_approve_resource_limit_change_request(
+    request, view, obj: models.ResourceLimitChangeRequest | None = None
+):
+    """Only users with UPDATE_RESOURCE_LIMITS on customer or project can approve/reject."""
+    if not obj:
+        return
+    if has_permission(
+        request.user,
+        PermissionEnum.UPDATE_RESOURCE_LIMITS,
+        obj.resource.project.customer,
+    ) or has_permission(
+        request.user, PermissionEnum.UPDATE_RESOURCE_LIMITS, obj.resource.project
+    ):
+        return
+    raise PermissionDenied()
+
+
+class ResourceLimitChangeRequestViewSet(EagerLoadMixin, core_views.ActionsViewSet):
+    queryset = models.ResourceLimitChangeRequest.objects.all()
+    serializer_class = serializers.ResourceLimitChangeRequestSerializer
+    create_serializer_class = serializers.ResourceLimitChangeRequestCreateSerializer
+    # Visibility is fully scoped in get_queryset (privileged scopes or own
+    # requests).
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = filters.ResourceLimitChangeRequestFilter
+    disabled_actions = ["update", "partial_update", "destroy"]
+    lookup_field = "uuid"
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return qs
+        # Users with UPDATE_RESOURCE_LIMITS on any customer/project see all requests
+        # Others only see their own requests
+        privileged_customer_ids = UserRole.objects.filter(
+            user=user,
+            role__permissions__permission=PermissionEnum.UPDATE_RESOURCE_LIMITS,
+            content_type__model="customer",
+            is_active=True,
+        ).values_list("object_id", flat=True)
+        privileged_project_ids = UserRole.objects.filter(
+            user=user,
+            role__permissions__permission=PermissionEnum.UPDATE_RESOURCE_LIMITS,
+            content_type__model="project",
+            is_active=True,
+        ).values_list("object_id", flat=True)
+        return qs.filter(
+            Q(resource__project__customer_id__in=privileged_customer_ids)
+            | Q(resource__project_id__in=privileged_project_ids)
+            | Q(created_by=user)
+        )
+
+    approve_permissions = reject_permissions = [
+        user_can_approve_resource_limit_change_request
+    ]
+
+    @extend_schema(
+        request=ReviewCommentSerializer,
+        responses=serializers.OrderUUIDSerializer,
+        description="Approve resource limit change request and apply limits via marketplace order.",
+    )
+    @action(detail=True, methods=["post"])
+    def approve(self, request, **kwargs):
+        limit_change_request: models.ResourceLimitChangeRequest = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.validated_data.get("comment")
+
+        resource = limit_change_request.resource
+        requested_limits = limit_change_request.requested_limits
+
+        if resource.state != models.Resource.States.OK:
+            raise ValidationError(_("Resource is not in OK state."))
+
+        if resource.limits == requested_limits:
+            raise ValidationError(
+                _("Requested limits are identical to the current resource limits.")
+            )
+
+        utils.validate_limits(requested_limits, resource.offering, resource)
+
+        with transaction.atomic():
+            order = models.Order(
+                project=resource.project,
+                created_by=request.user,
+                resource=resource,
+                offering=resource.offering,
+                plan=resource.plan,
+                type=OrderTypes.UPDATE,
+                limits=requested_limits,
+                attributes={"old_limits": resource.limits},
+            )
+            serializers.validate_order(order, request)
+            order.init_cost()
+            order.save()
+
+            limit_change_request.approve(request.user, comment)
+
+        return Response(
+            {"order_uuid": order.uuid.hex},
+            status=status.HTTP_200_OK,
+        )
+
+    @extend_schema(
+        request=ReviewCommentSerializer,
+        responses={status.HTTP_200_OK: None},
+        description="Reject resource limit change request.",
+    )
+    @action(detail=True, methods=["post"])
+    def reject(self, request, **kwargs):
+        limit_change_request: models.ResourceLimitChangeRequest = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        comment = serializer.validated_data.get("comment")
+        limit_change_request.reject(request.user, comment)
+        return Response(status=status.HTTP_200_OK)
+
+    @extend_schema(
+        responses=serializers.OrderInfoResponseSerializer,
+        description="Cancel resource limit change request. Only the creator can cancel.",
+    )
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, **kwargs):
+        limit_change_request: models.ResourceLimitChangeRequest = self.get_object()
+        if limit_change_request.created_by != request.user:
+            raise PermissionDenied(
+                _("You can only cancel your own resource limit change requests.")
+            )
+        limit_change_request.cancel()
+        return Response(
+            {"detail": _("Resource limit change request has been canceled.")},
+            status=status.HTTP_200_OK,
+        )
+
+    approve_serializer_class = reject_serializer_class = ReviewCommentSerializer
+    approve_validators = reject_validators = cancel_validators = [
+        core_validators.StateValidator(ReviewStates.PENDING, state_enum=ReviewStates)
+    ]
 
 
 class ProjectOrderAutoApprovalViewSet(core_views.ActionsViewSet):

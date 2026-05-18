@@ -1209,3 +1209,31 @@ class OfferingPartitionFactory(factory.django.DjangoModelFactory):
     def get_list_url(cls, action=None):
         url = "http://testserver" + reverse("marketplace-offering-partition-list")
         return url if action is None else url + action + "/"
+
+
+class ResourceLimitChangeRequestFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.ResourceLimitChangeRequest],
+):
+    class Meta:
+        model = models.ResourceLimitChangeRequest
+
+    resource = factory.SubFactory(ResourceFactory)
+    created_by = factory.SubFactory(structure_factories.UserFactory)
+    requested_limits = {"storage": 200}
+
+    @classmethod
+    def get_url(cls, request=None, action=None):
+        if request is None:
+            request = ResourceLimitChangeRequestFactory()
+        url = "http://testserver" + reverse(
+            "marketplace-resource-limit-change-request-detail",
+            kwargs={"uuid": request.uuid.hex},
+        )
+        return url if action is None else url + action + "/"
+
+    @classmethod
+    def get_list_url(cls):
+        return "http://testserver" + reverse(
+            "marketplace-resource-limit-change-request-list"
+        )

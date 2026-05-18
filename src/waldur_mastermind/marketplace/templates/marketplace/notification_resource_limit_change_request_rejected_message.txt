@@ -1,0 +1,10 @@
+Hello!
+
+Your request to change limits of resource {{ resource_limit_change_request.resource.name }} has been rejected.
+
+{% if resource_limit_change_request.review_comment %}Review comment: {{ resource_limit_change_request.review_comment }}{% endif %}
+
+You can view the resource here:
+{{ resource_url }}
+
+Thank you!

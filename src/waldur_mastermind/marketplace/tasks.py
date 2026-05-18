@@ -3154,3 +3154,116 @@ class ServiceResourcesListPullTask(_MarketplaceAwareServiceListPullTask):
 
     name = "waldur_mastermind.marketplace.ServiceResourcesListPullTask"
     pull_task = structure_tasks.ServiceResourcesPullTask
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.send_resource_limit_change_request_notification"
+)
+def send_resource_limit_change_request_notification(request_uuid):
+    """Notify organization owners when a resource limit change request is created."""
+    try:
+        request = models.ResourceLimitChangeRequest.objects.get(uuid=request_uuid)
+    except models.ResourceLimitChangeRequest.DoesNotExist:
+        logger.warning(
+            "Resource limit change request %s not found, skipping notification",
+            request_uuid,
+        )
+        return
+
+    mails = request.resource.project.customer.get_owner_mails()
+    if not mails:
+        logger.info(
+            "No owner emails for customer %s, skipping resource limit change request notification",
+            request.resource.project.customer.uuid,
+        )
+        return
+
+    resource_url = core_utils.format_homeport_link(
+        "projects/{project_uuid}/resources/{resource_uuid}/",
+        project_uuid=request.resource.project.uuid.hex,
+        resource_uuid=request.resource.uuid.hex,
+    )
+    context = {
+        "resource_limit_change_request": request,
+        "resource_url": resource_url,
+    }
+    core_utils.broadcast_mail(
+        "marketplace",
+        "notification_resource_limit_change_request_created",
+        context,
+        mails,
+    )
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.send_resource_limit_change_request_approved_notification"
+)
+def send_resource_limit_change_request_approved_notification(request_uuid):
+    """Notify the requester when their resource limit change request is approved."""
+    try:
+        request = models.ResourceLimitChangeRequest.objects.get(uuid=request_uuid)
+    except models.ResourceLimitChangeRequest.DoesNotExist:
+        logger.warning(
+            "Resource limit change request %s not found, skipping approved notification",
+            request_uuid,
+        )
+        return
+
+    if not request.created_by or not request.created_by.email:
+        return
+
+    if not request.created_by.notifications_enabled:
+        return
+
+    resource_url = core_utils.format_homeport_link(
+        "projects/{project_uuid}/resources/{resource_uuid}/",
+        project_uuid=request.resource.project.uuid.hex,
+        resource_uuid=request.resource.uuid.hex,
+    )
+    context = {
+        "resource_limit_change_request": request,
+        "resource_url": resource_url,
+    }
+    core_utils.broadcast_mail(
+        "marketplace",
+        "notification_resource_limit_change_request_approved",
+        context,
+        [request.created_by.email],
+    )
+
+
+@shared_task(
+    name="waldur_mastermind.marketplace.send_resource_limit_change_request_rejected_notification"
+)
+def send_resource_limit_change_request_rejected_notification(request_uuid):
+    """Notify the requester when their resource limit change request is rejected."""
+    try:
+        request = models.ResourceLimitChangeRequest.objects.get(uuid=request_uuid)
+    except models.ResourceLimitChangeRequest.DoesNotExist:
+        logger.warning(
+            "Resource limit change request %s not found, skipping rejected notification",
+            request_uuid,
+        )
+        return
+
+    if not request.created_by or not request.created_by.email:
+        return
+
+    if not request.created_by.notifications_enabled:
+        return
+
+    resource_url = core_utils.format_homeport_link(
+        "projects/{project_uuid}/resources/{resource_uuid}/",
+        project_uuid=request.resource.project.uuid.hex,
+        resource_uuid=request.resource.uuid.hex,
+    )
+    context = {
+        "resource_limit_change_request": request,
+        "resource_url": resource_url,
+    }
+    core_utils.broadcast_mail(
+        "marketplace",
+        "notification_resource_limit_change_request_rejected",
+        context,
+        [request.created_by.email],
+    )

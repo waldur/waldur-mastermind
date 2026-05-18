@@ -515,6 +515,15 @@ class QuotaFullContext(BaseModel):
     site_name: str = Field(description="Name of the site from settings.")
 
 
+class ResourceLimitChangeRequestContext(BaseModel):
+    resource_limit_change_request: Any = Field(
+        description="The ResourceLimitChangeRequest instance. Provides "
+        "resource_limit_change_request.resource.name, requested_limits, "
+        "created_by.full_name."
+    )
+    resource_url: str = Field(description="A URL to the resource's page.")
+
+
 class MarketplaceSection(NotificationSection):
     class Meta:
         key = "marketplace"
@@ -633,6 +642,21 @@ class MarketplaceSection(NotificationSection):
         key="notification_quota_75_percent",
         description="Notifies project administrators and managers when 75% of a resource component allocation has been consumed.",
         context_model=QuotaFullContext,
+    )
+    notification_resource_limit_change_request_created = Notification(
+        key="notification_resource_limit_change_request_created",
+        description="Notifies organization owners when a project member requests a resource limit change.",
+        context_model=ResourceLimitChangeRequestContext,
+    )
+    notification_resource_limit_change_request_approved = Notification(
+        key="notification_resource_limit_change_request_approved",
+        description="Notifies the requester when their resource limit change request is approved.",
+        context_model=ResourceLimitChangeRequestContext,
+    )
+    notification_resource_limit_change_request_rejected = Notification(
+        key="notification_resource_limit_change_request_rejected",
+        description="Notifies the requester when their resource limit change request is rejected.",
+        context_model=ResourceLimitChangeRequestContext,
     )
 
 

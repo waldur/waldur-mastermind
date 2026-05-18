@@ -547,6 +547,12 @@ class MarketplaceConfig(AppConfig):
             dispatch_uid="waldur_mastermind.marketplace.trigger_scim_sync_on_offering_endpoint_delete",
         )
 
+        signals.post_save.connect(
+            handlers.log_resource_limit_change_request_events,
+            sender=models.ResourceLimitChangeRequest,
+            dispatch_uid="waldur_mastermind.marketplace.log_resource_limit_change_request_events",
+        )
+
         # Register user action cleanup handlers for marketplace models
         from waldur_core.user_actions.handlers import register_cleanup_handler
 

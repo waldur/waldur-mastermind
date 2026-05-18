@@ -1,0 +1,5 @@
+<p>Hello!</p>
+<p>Your request to change limits of resource <strong>{{ resource_limit_change_request.resource.name }}</strong> has been rejected.</p>
+{% if resource_limit_change_request.review_comment %}<p>Review comment: {{ resource_limit_change_request.review_comment }}</p>{% endif %}
+<p>You can <a href="{{ resource_url }}">view the resource here</a>.</p>
+<p>Thank you!</p>
