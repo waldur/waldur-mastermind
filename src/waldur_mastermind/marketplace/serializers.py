@@ -30,7 +30,7 @@ from waldur_core.core import serializers as core_serializers
 from waldur_core.core import signals as core_signals
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
-from waldur_core.core.enums import CoreStates
+from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.exceptions import IncorrectStateException
 from waldur_core.core.fields import NaturalChoiceField
 from waldur_core.core.mixins import GetValueMixin
@@ -6076,6 +6076,154 @@ class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
         required=False,
         help_text=_("Optional PDF attachment for the limit update request."),
     )
+
+
+class ResourceLimitChangeRequestCreateSerializer(serializers.ModelSerializer):
+    resource = serializers.SlugRelatedField(
+        slug_field="uuid",
+        queryset=models.Resource.objects.all(),
+    )
+    state = serializers.CharField(source="get_state_display", read_only=True)
+    uuid = serializers.UUIDField(read_only=True)
+
+    class Meta:
+        model = models.ResourceLimitChangeRequest
+        fields = ("resource", "requested_limits", "uuid", "state")
+
+    def validate_resource(self, resource):
+        user = self.context["request"].user
+        if user.is_staff or user.is_support:
+            raise serializers.ValidationError(
+                _(
+                    "Staff and support users should use resource edit "
+                    "instead of creating a request."
+                )
+            )
+        if has_permission(
+            user, PermissionEnum.UPDATE_RESOURCE_LIMITS, resource.project
+        ) or has_permission(
+            user, PermissionEnum.UPDATE_RESOURCE_LIMITS, resource.project.customer
+        ):
+            raise serializers.ValidationError(
+                _(
+                    "You have permission to change resource limits directly. "
+                    "Use update limits instead of creating a request."
+                )
+            )
+        accessible = filter_queryset_for_user(
+            models.Resource.objects.filter(pk=resource.pk),
+            user,
+        )
+        if not accessible.exists():
+            raise serializers.ValidationError(
+                _("You don't have access to this resource.")
+            )
+        return resource
+
+    def validate_requested_limits(self, value):
+        if not value:
+            raise serializers.ValidationError(_("Requested limits must not be empty."))
+        return value
+
+    def validate(self, attrs):
+        resource = attrs.get("resource")
+        user = self.context["request"].user
+        if (
+            resource
+            and models.ResourceLimitChangeRequest.objects.filter(
+                resource=resource,
+                created_by=user,
+                state=ReviewStates.PENDING,
+            ).exists()
+        ):
+            raise serializers.ValidationError(
+                _("You already have a pending limit change request for this resource.")
+            )
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context["request"]
+        validated_data["created_by"] = request.user
+        validated_data["state"] = ReviewStates.PENDING
+        return super().create(validated_data)
+
+
+class ResourceLimitChangeRequestSerializer(serializers.HyperlinkedModelSerializer):
+    @staticmethod
+    def eager_load(queryset, request=None):
+        return queryset.select_related(
+            "resource__project__customer",
+            "resource__offering",
+            "created_by",
+            "reviewed_by",
+        )
+
+    state = serializers.CharField(source="get_state_display", read_only=True)
+    resource_uuid = serializers.UUIDField(read_only=True, source="resource.uuid")
+    resource_name = serializers.CharField(read_only=True, source="resource.name")
+    project_uuid = serializers.UUIDField(read_only=True, source="resource.project.uuid")
+    project_name = serializers.CharField(read_only=True, source="resource.project.name")
+    customer_uuid = serializers.UUIDField(
+        read_only=True, source="resource.project.customer.uuid"
+    )
+    customer_name = serializers.CharField(
+        read_only=True, source="resource.project.customer.name"
+    )
+    offering_uuid = serializers.UUIDField(
+        read_only=True, source="resource.offering.uuid"
+    )
+    offering_name = serializers.CharField(
+        read_only=True, source="resource.offering.name"
+    )
+    created_by_full_name = serializers.CharField(
+        read_only=True, source="created_by.full_name", allow_null=True
+    )
+    created_by_uuid = serializers.UUIDField(
+        read_only=True, source="created_by.uuid", allow_null=True
+    )
+    reviewed_by_full_name = serializers.CharField(
+        read_only=True, source="reviewed_by.full_name", allow_null=True
+    )
+    reviewed_by_uuid = serializers.UUIDField(
+        read_only=True, source="reviewed_by.uuid", allow_null=True
+    )
+    current_limits = serializers.DictField(read_only=True, source="resource.limits")
+
+    class Meta:
+        model = models.ResourceLimitChangeRequest
+        fields = (
+            "url",
+            "uuid",
+            "state",
+            "resource",
+            "resource_uuid",
+            "resource_name",
+            "project_uuid",
+            "project_name",
+            "customer_uuid",
+            "customer_name",
+            "offering_uuid",
+            "offering_name",
+            "requested_limits",
+            "current_limits",
+            "created",
+            "created_by_uuid",
+            "created_by_full_name",
+            "reviewed_at",
+            "reviewed_by_uuid",
+            "reviewed_by_full_name",
+            "review_comment",
+        )
+        extra_kwargs = {
+            "url": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-resource-limit-change-request-detail",
+            },
+            "resource": {
+                "lookup_field": "uuid",
+                "view_name": "marketplace-resource-detail",
+            },
+        }
 
 
 class ResourceReallocateTargetSerializer(serializers.Serializer):

@@ -806,3 +806,20 @@ class ComponentUsagePollRecordAdmin(admin.ModelAdmin):
 
 
 admin.site.register(models.ComponentUsagePollRecord, ComponentUsagePollRecordAdmin)
+
+
+class ResourceLimitChangeRequestAdmin(admin.ModelAdmin):
+    list_display = (
+        "resource",
+        "state",
+        "created_by",
+        "created",
+        "reviewed_by",
+        "reviewed_at",
+    )
+    list_filter = ("state",)
+    search_fields = ("resource__name",)
+    readonly_fields = ("uuid", "created", "modified", "reviewed_at")
+
+
+admin.site.register(models.ResourceLimitChangeRequest, ResourceLimitChangeRequestAdmin)

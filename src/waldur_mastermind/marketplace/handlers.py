@@ -20,6 +20,7 @@ from waldur_core.checklist import models as checklist_models
 from waldur_core.core import utils as core_utils
 from waldur_core.core.middleware import get_skip_side_effects
 from waldur_core.core.models import User
+from waldur_core.core.enums import ReviewStates
 from waldur_core.logging import event_logger
 from waldur_core.logging import tasks as logging_tasks
 from waldur_core.logging.enums import EventType, ObservableObjectType
@@ -2748,3 +2749,52 @@ def reconcile_offering_profile_on_offering_changed(sender, instance, **kwargs):
     transaction.on_commit(
         lambda: tasks.reconcile_offering_availabilities.delay(instance.id)
     )
+
+
+def log_resource_limit_change_request_events(sender, instance, created=False, **kwargs):
+    """Log events when resource limit change request is created or reviewed."""
+    event_context = {
+        "resource_limit_change_request": instance,
+        "resource": instance.resource,
+    }
+    if created:
+        transaction.on_commit(
+            lambda: tasks.send_resource_limit_change_request_notification.delay(
+                instance.uuid.hex
+            )
+        )
+        event_logger.emit(
+            "Resource limit change request has been created.",
+            event_type=EventType.MARKETPLACE_RESOURCE_LIMIT_CHANGE_REQUEST_CREATED,
+            event_context=event_context,
+            scopes=[instance.resource],
+        )
+        return
+
+    if not instance.tracker.has_changed("state"):
+        return
+
+    if instance.state == ReviewStates.APPROVED:
+        transaction.on_commit(
+            lambda: tasks.send_resource_limit_change_request_approved_notification.delay(
+                instance.uuid.hex
+            )
+        )
+        event_logger.emit(
+            "Resource limit change request has been approved.",
+            event_type=EventType.MARKETPLACE_RESOURCE_LIMIT_CHANGE_REQUEST_APPROVED,
+            event_context=event_context,
+            scopes=[instance.resource],
+        )
+    elif instance.state == ReviewStates.REJECTED:
+        transaction.on_commit(
+            lambda: tasks.send_resource_limit_change_request_rejected_notification.delay(
+                instance.uuid.hex
+            )
+        )
+        event_logger.emit(
+            "Resource limit change request has been rejected.",
+            event_type=EventType.MARKETPLACE_RESOURCE_LIMIT_CHANGE_REQUEST_REJECTED,
+            event_context=event_context,
+            scopes=[instance.resource],
+        )

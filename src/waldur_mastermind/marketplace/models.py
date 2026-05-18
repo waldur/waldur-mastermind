@@ -29,6 +29,7 @@ from waldur_core.core import fields as core_fields
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import models as core_models
 from waldur_core.core import utils as core_utils
+from waldur_core.core.enums import ReviewStates
 from waldur_core.core import validators as core_validators
 from waldur_core.core.models import User, generate_slug
 from waldur_core.logging.mixins import LoggableMixin
@@ -4365,3 +4366,48 @@ class CourseAccount(
     @transition(field=state, source="*", target=CourseAccountState.PENDING)
     def set_state_pending(self):
         pass
+
+
+class ResourceLimitChangeRequest(
+    core_models.UuidMixin, core_mixins.ReviewMixin, LoggableMixin
+):
+    """
+    Request from project member (without UPDATE_RESOURCE_LIMITS) to change resource limits.
+    Organization owners can approve or reject.
+    """
+
+    class Meta:
+        ordering = ["created"]
+        verbose_name = _("Resource limit change request")
+        verbose_name_plural = _("Resource limit change requests")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["resource", "created_by"],
+                condition=models.Q(state=ReviewStates.PENDING),
+                name="unique_pending_limit_change_request_per_resource_and_user",
+            )
+        ]
+
+    class Permissions:
+        customer_path = "resource__project__customer"
+        project_path = "resource__project"
+
+    tracker = cast(FieldInstanceTracker, FieldTracker())
+    resource = models.ForeignKey(
+        Resource,
+        on_delete=models.CASCADE,
+        related_name="limit_change_requests",
+    )
+    requested_limits = models.JSONField()
+    created_by = models.ForeignKey(
+        "core.User",
+        on_delete=models.SET_NULL,
+        related_name="+",
+        null=True,
+    )
+
+    def get_log_fields(self):
+        return ("uuid", "state")
+
+    def __str__(self):
+        return f"Limit change request for {self.resource} ({self.get_state_display()})"

@@ -1,0 +1,1 @@
+Resource limit change request approved for {{ resource_limit_change_request.resource.name }}

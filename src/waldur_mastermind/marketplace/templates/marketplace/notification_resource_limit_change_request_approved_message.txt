@@ -1,0 +1,8 @@
+Hello!
+
+Your request to change limits of resource {{ resource_limit_change_request.resource.name }} has been approved.
+
+A marketplace order has been created to apply the new limits. You can track its progress here:
+{{ resource_url }}
+
+Thank you!
