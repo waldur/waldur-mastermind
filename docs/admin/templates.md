@@ -1503,6 +1503,35 @@ Please visit {{ order_url }} to find out more details.
 
 ```
 
+### notification_resource_limit_change_request_rejected_message.txt (waldur_mastermind.marketplace)
+
+```txt
+
+Hello!
+
+Your request to change limits of resource {{ resource_limit_change_request.resource.name }} has been rejected.
+
+{% if resource_limit_change_request.review_comment %}Review comment: {{ resource_limit_change_request.review_comment }}{% endif %}
+
+You can view the resource here:
+{{ resource_url }}
+
+Thank you!
+
+```
+
+### notification_resource_limit_change_request_rejected_message.html (waldur_mastermind.marketplace)
+
+```html
+
+<p>Hello!</p>
+<p>Your request to change limits of resource <strong>{{ resource_limit_change_request.resource.name }}</strong> has been rejected.</p>
+{% if resource_limit_change_request.review_comment %}<p>Review comment: {{ resource_limit_change_request.review_comment }}</p>{% endif %}
+<p>You can <a href="{{ resource_url }}">view the resource here</a>.</p>
+<p>Thank you!</p>
+
+```
+
 ### tos_consent_required_message.html (waldur_mastermind.marketplace)
 
 ```html
@@ -1765,6 +1794,17 @@ Reminder about stale resources.
 
 ```
 
+### notification_resource_limit_change_request_created_message.html (waldur_mastermind.marketplace)
+
+```html
+
+<p>Hello!</p>
+<p>{{ resource_limit_change_request.created_by.full_name }} has requested to change limits of resource <strong>{{ resource_limit_change_request.resource.name }}</strong> in project <strong>{{ resource_limit_change_request.resource.project.name }}</strong>.</p>
+<p>Please <a href="{{ resource_url }}">review and approve or reject the request</a>.</p>
+<p>Thank you!</p>
+
+```
+
 ### notification_usages_message.html (waldur_mastermind.marketplace)
 
 ```html
@@ -1829,6 +1869,14 @@ Reminder about stale resources.
 </p>
 </body>
 </html>
+
+```
+
+### notification_resource_limit_change_request_created_subject.txt (waldur_mastermind.marketplace)
+
+```txt
+
+Resource limit change request for {{ resource_limit_change_request.resource.name }}
 
 ```
 
@@ -2016,6 +2064,29 @@ Plan: {{ plan.name }}{% for component in components %}
 
 ```
 
+### notification_resource_limit_change_request_approved_message.txt (waldur_mastermind.marketplace)
+
+```txt
+
+Hello!
+
+Your request to change limits of resource {{ resource_limit_change_request.resource.name }} has been approved.
+
+A marketplace order has been created to apply the new limits. You can track its progress here:
+{{ resource_url }}
+
+Thank you!
+
+```
+
+### notification_resource_limit_change_request_rejected_subject.txt (waldur_mastermind.marketplace)
+
+```txt
+
+Resource limit change request rejected for {{ resource_limit_change_request.resource.name }}
+
+```
+
 ### notification_about_project_ending_message.html (waldur_mastermind.marketplace)
 
 ```html
@@ -2166,6 +2237,17 @@ Thank you!
 
 ```
 
+### notification_resource_limit_change_request_approved_message.html (waldur_mastermind.marketplace)
+
+```html
+
+<p>Hello!</p>
+<p>Your request to change limits of resource <strong>{{ resource_limit_change_request.resource.name }}</strong> has been approved.</p>
+<p>A marketplace order has been created to apply the new limits. You can <a href="{{ resource_url }}">track its progress here</a>.</p>
+<p>Thank you!</p>
+
+```
+
 ### marketplace_resource_update_limits_succeeded_message.html (waldur_mastermind.marketplace)
 
 ```html
@@ -2236,6 +2318,14 @@ A new order by {{ order.created_by.get_full_name }} is waiting for approval.
 Hello!
 
 The resource you have - {{ resource.name }} has not been used for the past 3 months. {{ user.full_name }} has scheduled termination of that resource on {{ resource.end_date|date:"SHORT_DATE_FORMAT" }}. If you feel that you still want to keep it, please remove the resource end date {{ resource_url }}.
+
+```
+
+### notification_resource_limit_change_request_approved_subject.txt (waldur_mastermind.marketplace)
+
+```txt
+
+Resource limit change request approved for {{ resource_limit_change_request.resource.name }}
 
 ```
 
@@ -2493,6 +2583,23 @@ Resource {{ resource_name }} creation has failed.
 ```txt
 
 Resource {{ resource_name }} has been deleted.
+
+```
+
+### notification_resource_limit_change_request_created_message.txt (waldur_mastermind.marketplace)
+
+```txt
+
+Hello!
+
+{{ resource_limit_change_request.created_by.full_name }} has requested to change limits of resource {{ resource_limit_change_request.resource.name }} in project {{ resource_limit_change_request.resource.project.name }}.
+
+Requested limits: {{ resource_limit_change_request.requested_limits }}
+
+Please review and approve or reject the request:
+{{ resource_url }}
+
+Thank you!
 
 ```
 

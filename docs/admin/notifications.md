@@ -1700,6 +1700,131 @@ Notifies project administrators and managers when a resource component allocatio
 
 ```
 
+### marketplace.notification_resource_limit_change_request_approved
+
+Notifies the requester when their resource limit change request is approved.
+
+#### Templates
+
+=== "marketplace/notification_resource_limit_change_request_approved_subject.txt"
+
+```txt
+
+    Resource limit change request approved for {{ resource_limit_change_request.resource.name }}
+
+```
+
+=== "marketplace/notification_resource_limit_change_request_approved_message.txt"
+
+```txt
+
+    Hello!
+
+    Your request to change limits of resource {{ resource_limit_change_request.resource.name }} has been approved.
+
+    A marketplace order has been created to apply the new limits. You can track its progress here:
+    {{ resource_url }}
+
+    Thank you!
+
+```
+
+=== "marketplace/notification_resource_limit_change_request_approved_message.html"
+
+```txt
+
+    <p>Hello!</p>
+    <p>Your request to change limits of resource <strong>{{ resource_limit_change_request.resource.name }}</strong> has been approved.</p>
+    <p>A marketplace order has been created to apply the new limits. You can <a href="{{ resource_url }}">track its progress here</a>.</p>
+    <p>Thank you!</p>
+
+```
+
+### marketplace.notification_resource_limit_change_request_created
+
+Notifies organization owners when a project member requests a resource limit change.
+
+#### Templates
+
+=== "marketplace/notification_resource_limit_change_request_created_subject.txt"
+
+```txt
+
+    Resource limit change request for {{ resource_limit_change_request.resource.name }}
+
+```
+
+=== "marketplace/notification_resource_limit_change_request_created_message.txt"
+
+```txt
+
+    Hello!
+
+    {{ resource_limit_change_request.created_by.full_name }} has requested to change limits of resource {{ resource_limit_change_request.resource.name }} in project {{ resource_limit_change_request.resource.project.name }}.
+
+    Requested limits: {{ resource_limit_change_request.requested_limits }}
+
+    Please review and approve or reject the request:
+    {{ resource_url }}
+
+    Thank you!
+
+```
+
+=== "marketplace/notification_resource_limit_change_request_created_message.html"
+
+```txt
+
+    <p>Hello!</p>
+    <p>{{ resource_limit_change_request.created_by.full_name }} has requested to change limits of resource <strong>{{ resource_limit_change_request.resource.name }}</strong> in project <strong>{{ resource_limit_change_request.resource.project.name }}</strong>.</p>
+    <p>Please <a href="{{ resource_url }}">review and approve or reject the request</a>.</p>
+    <p>Thank you!</p>
+
+```
+
+### marketplace.notification_resource_limit_change_request_rejected
+
+Notifies the requester when their resource limit change request is rejected.
+
+#### Templates
+
+=== "marketplace/notification_resource_limit_change_request_rejected_subject.txt"
+
+```txt
+
+    Resource limit change request rejected for {{ resource_limit_change_request.resource.name }}
+
+```
+
+=== "marketplace/notification_resource_limit_change_request_rejected_message.txt"
+
+```txt
+
+    Hello!
+
+    Your request to change limits of resource {{ resource_limit_change_request.resource.name }} has been rejected.
+
+    {% if resource_limit_change_request.review_comment %}Review comment: {{ resource_limit_change_request.review_comment }}{% endif %}
+
+    You can view the resource here:
+    {{ resource_url }}
+
+    Thank you!
+
+```
+
+=== "marketplace/notification_resource_limit_change_request_rejected_message.html"
+
+```txt
+
+    <p>Hello!</p>
+    <p>Your request to change limits of resource <strong>{{ resource_limit_change_request.resource.name }}</strong> has been rejected.</p>
+    {% if resource_limit_change_request.review_comment %}<p>Review comment: {{ resource_limit_change_request.review_comment }}</p>{% endif %}
+    <p>You can <a href="{{ resource_url }}">view the resource here</a>.</p>
+    <p>Thank you!</p>
+
+```
+
 ### marketplace.notification_to_user_that_order_been_rejected
 
 Notification to user whose order been rejected.
