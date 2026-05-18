@@ -4195,6 +4195,7 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
             "availability_zone",
             "availability_zone_name",
             "connect_directly_to_external_network",
+            "config_drive",
             "runtime_state",
             "action",
             "action_details",
@@ -4212,6 +4213,7 @@ class OpenStackInstanceSerializer(structure_serializers.VirtualMachineSerializer
                 "ports",
                 "availability_zone",
                 "connect_directly_to_external_network",
+                "config_drive",
                 "tenant",
             )
         )

@@ -4720,10 +4720,13 @@ class OpenStackBackend(ServiceBackend):
             if instance.user_data:
                 server_create_parameters["userdata"] = instance.user_data
 
-            if (
-                instance.tenant.service_settings.options.get("config_drive", False)
-                is True
-            ):
+            if instance.config_drive is None:
+                config_drive = instance.tenant.service_settings.options.get(
+                    "config_drive", False
+                )
+            else:
+                config_drive = instance.config_drive
+            if config_drive:
                 server_create_parameters["config_drive"] = True
 
             if server_group:

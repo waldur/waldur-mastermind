@@ -137,6 +137,7 @@ class InstanceCreateProcessor(TenantMixin, processors.BaseCreateResourceProcesso
         "user_data",
         "availability_zone",
         "connect_directly_to_external_network",
+        "config_drive",
         "data_volumes",
     )
 

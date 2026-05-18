@@ -128,6 +128,20 @@ class InstanceCreateTest(test.APITestCase):
         self.assertEqual(self.tenant.get_quota_usage(Quotas.vcpu), instance.cores)
         self.assertEqual(self.tenant.get_quota_usage(Quotas.instances), 1)
 
+    def test_config_drive_is_persisted_on_create(self):
+        response = self.create_instance(self.get_valid_data(config_drive=True))
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        instance = models.Instance.objects.get(uuid=response.data["uuid"])
+        self.assertIs(instance.config_drive, True)
+        self.assertIs(response.data["config_drive"], True)
+
+    def test_config_drive_defaults_to_null(self):
+        response = self.create_instance(self.get_valid_data())
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        instance = models.Instance.objects.get(uuid=response.data["uuid"])
+        self.assertIsNone(instance.config_drive)
+        self.assertIsNone(response.data["config_drive"])
+
     def test_project_quotas_updated_when_instance_is_created(self):
         response = self.create_instance(self.get_valid_data())
         instance = models.Instance.objects.get(uuid=response.data["uuid"])
