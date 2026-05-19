@@ -172,7 +172,15 @@ class TestSyncSlurmPeriodicSettings(TestCase):
 
     @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
     def test_sync_skips_unchanged_settings(self, mock_publish):
-        """Second run skips resources whose settings haven't changed."""
+        """Once the reset_raw_usage flag has settled to False for the
+        current period, repeated runs become no-ops.
+
+        Three runs are needed because the first run emits
+        reset_raw_usage=True (first sync of the period) and the second
+        emits reset_raw_usage=False (period-already-synced transition),
+        so the hash changes between run 1 and run 2. From run 2 onward
+        the settings are stable.
+        """
         marketplace_factories.ResourceFactory(
             project=self.fixture.project,
             offering=self.offering,
@@ -182,17 +190,34 @@ class TestSyncSlurmPeriodicSettings(TestCase):
             state=ResourceStates.OK,
         )
 
-        # First run: sends settings
+        # First run: sends settings with reset_raw_usage=True.
         result1 = sync_slurm_periodic_settings()
         self.assertEqual(result1["sent"], 1)
         self.assertEqual(result1["skipped"], 0)
+        self.assertTrue(
+            json.loads(mock_publish.call_args[0][0][0]["payload"])["settings"][
+                "reset_raw_usage"
+            ]
+        )
 
         mock_publish.reset_mock()
 
-        # Second run: skips (settings unchanged)
+        # Second run: sends again because reset_raw_usage flips to False.
         result2 = sync_slurm_periodic_settings()
-        self.assertEqual(result2["sent"], 0)
-        self.assertEqual(result2["skipped"], 1)
+        self.assertEqual(result2["sent"], 1)
+        self.assertEqual(result2["skipped"], 0)
+        self.assertFalse(
+            json.loads(mock_publish.call_args[0][0][0]["payload"])["settings"][
+                "reset_raw_usage"
+            ]
+        )
+
+        mock_publish.reset_mock()
+
+        # Third run: settings stable, hash matches → skipped.
+        result3 = sync_slurm_periodic_settings()
+        self.assertEqual(result3["sent"], 0)
+        self.assertEqual(result3["skipped"], 1)
         mock_publish.assert_not_called()
 
     @mock.patch("waldur_core.logging.tasks.publish_messages.delay")
