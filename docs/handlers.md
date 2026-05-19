@@ -523,6 +523,7 @@ td:nth-child(4) {
 | `add_marketplace_offering` | `Custom Signal (pre_serializer_fields)` | `VmwareDiskSerializer` | Add marketplace offering related fields to the serializer. |
 | `add_marketplace_resource_count` | `Custom Signal (pre_serializer_fields)` | `ProjectSerializer` | Add a marketplace resource count field to the serializer. |
 | `add_marketplace_resource_uuid` | `Custom Signal (pre_serializer_fields)` | `OpenStackNestedVolumeSerializer` | Add a marketplace resource UUID field to the serializer. |
+| `add_openstack_config_drive_default` | `Custom Signal (pre_serializer_fields)` | `PublicOfferingDetailsSerializer` | Expose the OpenStack-wide config_drive default on public offering details. |
 | `add_payment_profile` | `Custom Signal (pre_serializer_fields)` | `CustomerSerializer` | Add a payment profile field to the serializer. |
 | `add_price_estimate` | `Custom Signal (pre_serializer_fields)` | `ProjectSerializer` | Add a billing price estimate field to the serializer. |
 | `add_price_estimate` | `Custom Signal (pre_serializer_fields)` | `ProjectEstimatedCostPolicySerializer` | Add a billing price estimate field to the serializer. |
@@ -863,14 +864,14 @@ td:nth-child(4) {
 
 ## Summary
 
-Total unique handlers found: 784
+Total unique handlers found: 785
 
 - **waldur_auth_saml2**: 1 handlers
 - **waldur_autoprovisioning**: 1 handlers
 - **waldur_core**: 412 handlers
 - **waldur_freeipa**: 12 handlers
 - **waldur_lexis**: 1 handlers
-- **waldur_mastermind**: 314 handlers
+- **waldur_mastermind**: 315 handlers
 - **waldur_openportal**: 10 handlers
 - **waldur_openstack**: 13 handlers
 - **waldur_openstack_replication**: 1 handlers
