@@ -1,6 +1,48 @@
+from django import forms
+from django.test import TestCase
 from rest_framework import status, test
 
+from waldur_core.core.constance_admin import WaldurConstanceForm
 from waldur_core.structure.tests.factories import UserFactory
+
+
+class ConstanceAdminFormChoicesTest(TestCase):
+    """Verify admin form injects CONSTANCE_CONFIG_CHOICES into dropdown fields."""
+
+    def setUp(self):
+        self.form = WaldurConstanceForm(initial={})
+
+    def test_choice_field_has_configured_choices(self):
+        field = self.form.fields["LOGIN_PAGE_LAYOUT"]
+        self.assertIsInstance(field, forms.ChoiceField)
+        self.assertNotIsInstance(field, forms.MultipleChoiceField)
+        values = [value for value, _ in field.choices]
+        self.assertIn("split-screen", values)
+        self.assertIn("centered-card", values)
+
+    def test_choice_field_validates_against_choices(self):
+        field = self.form.fields["LOGIN_PAGE_LAYOUT"]
+        self.assertEqual(field.clean("split-screen"), "split-screen")
+        with self.assertRaises(forms.ValidationError):
+            field.clean("not-a-valid-layout")
+
+    def test_multiple_choice_field_becomes_multi_select(self):
+        field = self.form.fields["DISABLED_OFFERING_TYPES"]
+        self.assertIsInstance(field, forms.MultipleChoiceField)
+        values = [value for value, _ in field.choices]
+        self.assertIn("OpenStack.Tenant", values)
+        self.assertIn("Marketplace.Booking", values)
+
+    def test_multiple_choice_field_validates_against_choices(self):
+        field = self.form.fields["DISABLED_OFFERING_TYPES"]
+        cleaned = field.clean(["OpenStack.Tenant", "Marketplace.Booking"])
+        self.assertEqual(set(cleaned), {"OpenStack.Tenant", "Marketplace.Booking"})
+        with self.assertRaises(forms.ValidationError):
+            field.clean(["InvalidType"])
+
+    def test_multiple_choice_field_accepts_empty(self):
+        field = self.form.fields["DISABLED_OFFERING_TYPES"]
+        self.assertEqual(field.clean([]), [])
 
 
 class ConstanceChoicesTest(test.APITestCase):
