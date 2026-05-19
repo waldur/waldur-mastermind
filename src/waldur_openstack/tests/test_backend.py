@@ -1214,6 +1214,65 @@ class PullInstanceFloatingIpsTest(BaseBackendTest):
         self.assertEqual(ip2, fip.port)
 
 
+class PushInstanceFloatingIpsTest(BaseBackendTest):
+    # Regression: push_instance_floating_ips calls
+    # update_floatingip(port_id=floating_ip.port.backend_id). If the port row
+    # has no backend_id (port not pushed to Neutron yet, or its push failed),
+    # Neutron silently disassociates the FIP and its status stays at DOWN.
+    # The PollRuntimeStateTask scheduled after this step then retries for
+    # ~100 minutes before failing with no actionable message. Fail fast with
+    # a clear error instead.
+
+    def _make_attached_fip(self):
+        port = PortFactory(
+            tenant=self.fixture.tenant,
+            subnet=self.fixture.subnet,
+            instance=self.fixture.instance,
+        )
+        fip = FloatingIPFactory(
+            tenant=self.fixture.tenant,
+            port=port,
+        )
+        return fip, port
+
+    def test_unpushed_port_raises_clear_backend_error(self):
+        fip, port = self._make_attached_fip()
+        port.backend_id = ""
+        port.save()
+
+        with self.assertRaises(OpenStackBackendError) as ctx:
+            self.backend.push_instance_floating_ips(self.fixture.instance)
+
+        self.assertIn("empty backend_id", str(ctx.exception))
+        self.assertIn(port.uuid.hex, str(ctx.exception))
+        self.mocked_neutron.update_floatingip.assert_not_called()
+        self.mocked_neutron.list_floatingips.assert_not_called()
+
+    def test_uncreated_floating_ip_raises_clear_backend_error(self):
+        fip, _port = self._make_attached_fip()
+        fip.backend_id = ""
+        fip.save()
+
+        with self.assertRaises(OpenStackBackendError) as ctx:
+            self.backend.push_instance_floating_ips(self.fixture.instance)
+
+        self.assertIn("no backend_id", str(ctx.exception))
+        self.assertIn("create_floating_ip", str(ctx.exception))
+        self.mocked_neutron.update_floatingip.assert_not_called()
+        self.mocked_neutron.list_floatingips.assert_not_called()
+
+    def test_happy_path_associates_floating_ip(self):
+        fip, port = self._make_attached_fip()
+        self.mocked_neutron.list_floatingips.return_value = {"floatingips": []}
+
+        self.backend.push_instance_floating_ips(self.fixture.instance)
+
+        self.mocked_neutron.update_floatingip.assert_called_once_with(
+            fip.backend_id,
+            body={"floatingip": {"port_id": port.backend_id}},
+        )
+
+
 class PushInstanceFloatingIpsNotFoundTest(BaseBackendTest):
     # Regression for the rc.10 silent-skip path: prior to this fix,
     # push_instance_floating_ips caught neutron NotFound on update_floatingip
