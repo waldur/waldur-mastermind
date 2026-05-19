@@ -3179,8 +3179,7 @@ def send_resource_limit_change_request_notification(request_uuid):
         return
 
     resource_url = core_utils.format_homeport_link(
-        "projects/{project_uuid}/resources/{resource_uuid}/",
-        project_uuid=request.resource.project.uuid.hex,
+        "resource-details/{resource_uuid}/?tab=limit-change-requests",
         resource_uuid=request.resource.uuid.hex,
     )
     context = {
@@ -3216,8 +3215,7 @@ def send_resource_limit_change_request_approved_notification(request_uuid):
         return
 
     resource_url = core_utils.format_homeport_link(
-        "projects/{project_uuid}/resources/{resource_uuid}/",
-        project_uuid=request.resource.project.uuid.hex,
+        "resource-details/{resource_uuid}/",
         resource_uuid=request.resource.uuid.hex,
     )
     context = {
@@ -3253,8 +3251,7 @@ def send_resource_limit_change_request_rejected_notification(request_uuid):
         return
 
     resource_url = core_utils.format_homeport_link(
-        "projects/{project_uuid}/resources/{resource_uuid}/",
-        project_uuid=request.resource.project.uuid.hex,
+        "resource-details/{resource_uuid}/",
         resource_uuid=request.resource.uuid.hex,
     )
     context = {
