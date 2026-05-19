@@ -3604,6 +3604,7 @@ class OfferingOverviewUpdateSerializer(
             "getting_started",
             "integration_guide",
             "slug",
+            "backend_id",
         )
 
 
