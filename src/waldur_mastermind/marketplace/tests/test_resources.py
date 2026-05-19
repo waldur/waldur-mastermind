@@ -2455,6 +2455,94 @@ class ProviderResourceLimitsSetTest(test.APITestCase):
         )
 
 
+class ProviderResourceSetLimitsWithPeriodicPolicyTest(test.APITestCase):
+    """When a SlurmPeriodicUsagePolicy is active on the offering, the
+    set_limits action must not let backend echoes overwrite LIMIT-typed
+    components — that's the trigger of the geometric inflation loop with
+    the periodic policy task (see policy/models.py:calculate_slurm_settings)."""
+
+    def setUp(self):
+        from waldur_mastermind.invoices.models import PeriodMixin
+        from waldur_mastermind.policy import models as policy_models
+
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.component = self.fixture.offering_component
+        self.component.type = "node"
+        self.component.billing_type = BillingTypes.LIMIT
+        self.component.save()
+        self.resource.limits = {"node": 18800}
+        self.resource.save()
+        self.url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, "set_limits"
+        )
+        ServiceProviderRole.MANAGER.add_permission(PermissionEnum.SET_RESOURCE_STATE)
+
+        self.policy = policy_models.SlurmPeriodicUsagePolicy.objects.create(
+            scope=self.resource.offering,
+            actions="notify_organization_owners",
+            apply_to_all=True,
+            grace_ratio=0.3,
+            carryover_enabled=False,
+            limit_type="GrpTRESMins",
+            tres_billing_enabled=False,
+            raw_usage_reset=True,
+            period=PeriodMixin.Periods.MONTH_3,
+        )
+
+    def _post(self, limits):
+        self.client.force_authenticate(self.fixture.staff)
+        return self.client.post(self.url, {"limits": limits})
+
+    def test_inflated_echo_is_dropped_silently(self):
+        """The site agent posts the grace-inflated value (18800 * 1.3 = 24440).
+        The endpoint must accept the request (no 4xx — the agent has no
+        retry/error handling for set_limits) but leave resource.limits
+        untouched for LIMIT-typed components."""
+        response = self._post({"node": int(18800 * 1.3)})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits["node"], 18800)
+
+    def test_noop_write_is_accepted(self):
+        """Idempotent retries with the unchanged value should pass through
+        cleanly — otherwise the agent's polling would generate noise."""
+        response = self._post({"node": 18800})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits["node"], 18800)
+
+    def test_change_allowed_when_no_policy(self):
+        """Sanity check: removing the policy restores the original
+        admin-override behavior of set_limits."""
+        self.policy.delete()
+        response = self._post({"node": 24440})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.limits["node"], 24440)
+
+    def test_usage_component_changes_pass_through(self):
+        """The gate only protects LIMIT-typed components. A USAGE-typed
+        component on the same offering must still be writable."""
+        from waldur_mastermind.marketplace.models import OfferingComponent
+
+        OfferingComponent.objects.create(
+            offering=self.resource.offering,
+            type="cpu",
+            name="CPU",
+            billing_type=BillingTypes.USAGE,
+        )
+        self.resource.limits = {"node": 18800, "cpu": 100}
+        self.resource.save()
+
+        response = self._post({"node": int(18800 * 1.3), "cpu": 200})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.resource.refresh_from_db()
+        # node held (gated), cpu updated (not LIMIT-typed).
+        self.assertEqual(self.resource.limits["node"], 18800)
+        self.assertEqual(self.resource.limits["cpu"], 200)
+
+
 @ddt
 class ProviderUpdateOptionsDirectTest(test.APITestCase):
     def setUp(self):

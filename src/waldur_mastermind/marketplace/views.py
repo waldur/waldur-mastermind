@@ -9047,11 +9047,50 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        new_limits = serializer.validated_data["limits"]
+        new_limits = dict(serializer.validated_data["limits"])
 
         limit_based_components = resource.offering.components.filter(
             billing_type=BillingTypes.LIMIT
         )
+
+        # When a SLURM periodic usage policy is active on the offering, the
+        # policy computes the backend-side limit from resource.limits with a
+        # grace_ratio multiplier baked in. If we accept set_limits writes
+        # for the same component, the agent's reverse-sync echoes that
+        # inflated value back into resource.limits, and the next policy
+        # cycle inflates it again — geometric growth per round-trip.
+        # Drop offending entries silently rather than rejecting: the agent
+        # has no error-handling for set_limits 4xx and would mark the
+        # resource as ERRED.
+        has_active_periodic_policy = SlurmPeriodicUsagePolicy.objects.filter(
+            scope=resource.offering
+        ).exists()
+        ignored_components = {}
+        if has_active_periodic_policy:
+            for component in limit_based_components:
+                if component.type not in new_limits:
+                    continue
+                old_value = resource.limits.get(component.type)
+                new_value = new_limits[component.type]
+                if old_value == new_value:
+                    continue
+                ignored_components[component.type] = {
+                    "from": old_value,
+                    "to": new_value,
+                }
+                if old_value is None:
+                    del new_limits[component.type]
+                else:
+                    new_limits[component.type] = old_value
+            if ignored_components:
+                logger.warning(
+                    "Ignoring set_limits change(s) on resource %s for LIMIT-typed "
+                    "components governed by an active SlurmPeriodicUsagePolicy: %s. "
+                    "Use an update_limits order to change them.",
+                    resource,
+                    ignored_components,
+                )
+
         for component in limit_based_components:
             if (
                 component.type in resource.limits

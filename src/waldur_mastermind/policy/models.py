@@ -4,6 +4,7 @@ import logging
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
 from django.core import exceptions
+from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q, Sum
@@ -684,12 +685,24 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
 
         limits = {limit_key: tres_minutes}
 
+        # reset_raw_usage wipes SLURM's RawUsage counter on the account.
+        # That belongs at the period boundary only — emitting it on every
+        # 10-min sync turns GrpTRESMins into a non-budget (usage never
+        # accumulates between resets). The sync task records the synced
+        # period on each successful send via _record_synced_period; we
+        # gate on that here.
+        raw_usage_reset_configured = final_config.get("raw_usage_reset", True)
+        last_synced_period = self._get_last_synced_period(resource)
+        reset_raw_usage = bool(
+            raw_usage_reset_configured and last_synced_period != current_period
+        )
+
         settings = {
             "fairshare": fairshare,
             "qos_threshold": qos_threshold,
             "grace_limit": grace_limit,
             "limit_type": limit_type,
-            "reset_raw_usage": final_config.get("raw_usage_reset", True),
+            "reset_raw_usage": reset_raw_usage,
             "carryover_details": carryover_details,
             **limits,
         }
@@ -701,6 +714,22 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         )
 
         return settings
+
+    def _last_synced_period_cache_key(self, resource):
+        return f"slurm_periodic_settings_period:{self.uuid}:{resource.uuid}"
+
+    def _get_last_synced_period(self, resource):
+        return cache.get(self._last_synced_period_cache_key(resource))
+
+    def _record_synced_period(self, resource, period):
+        # 90-day TTL keeps the marker alive across longer-than-monthly
+        # periods. A stale cache (cleared, evicted) just means an extra
+        # reset on the next sync — same as a fresh install.
+        cache.set(
+            self._last_synced_period_cache_key(resource),
+            period,
+            timeout=86400 * 90,
+        )
 
     def _resolve_configuration(self, config_override=None):
         """Resolve configuration from multiple sources with proper precedence."""
@@ -1281,6 +1310,9 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
                 logger.info(
                     f"Published periodic limits STOMP message for resource {resource.backend_id}"
                 )
+                # Mark the period as synced so the next sync within this
+                # same period emits reset_raw_usage=False.
+                self._record_synced_period(resource, self._get_current_period())
 
                 # Write SlurmCommandHistory records for the commands sent
                 try:
