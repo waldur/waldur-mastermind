@@ -4818,9 +4818,34 @@ class OpenStackBackend(ServiceBackend):
 
     @log_backend_action()
     def push_instance_floating_ips(self, instance: models.Instance):
+        instance_floating_ips = list(instance.floating_ips)
+
+        # Defensive guard: update_floatingip(port_id="") silently disassociates
+        # the FIP on Neutron, leaving its status stuck at DOWN. The
+        # PollRuntimeStateTask scheduled after this step then retries for
+        # max_retries × default_retry_delay = 1200 × 5s = 100 minutes before
+        # erring out with no actionable message. Fail fast instead.
+        missing = []
+        for floating_ip in instance_floating_ips:
+            if not floating_ip.backend_id:
+                missing.append(
+                    f"floating IP {floating_ip.address or floating_ip.uuid.hex} has "
+                    "no backend_id (create_floating_ip did not run or failed)"
+                )
+            elif not floating_ip.port.backend_id:
+                missing.append(
+                    f"floating IP {floating_ip.address or floating_ip.uuid.hex} "
+                    f"references port {floating_ip.port.uuid.hex} with empty "
+                    "backend_id (port not pushed to Neutron)"
+                )
+        if missing:
+            raise OpenStackBackendError(
+                f"Cannot push floating IPs for instance {instance.name}: "
+                + "; ".join(missing)
+            )
+
         session = get_tenant_session(instance.tenant)
         neutron = get_neutron_client(session)
-        instance_floating_ips = instance.floating_ips
         try:
             backend_floating_ips = neutron.list_floatingips(
                 port_id=instance.ports.values_list("backend_id", flat=True)
