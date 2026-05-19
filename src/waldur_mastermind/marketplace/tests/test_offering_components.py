@@ -11,6 +11,7 @@ from waldur_mastermind.marketplace import models
 from waldur_mastermind.marketplace.enums import (
     VMWARE_VM_OFFERING,
     BillingTypes,
+    LimitPeriods,
 )
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace.tests.test_offerings import BaseOfferingUpdateTest
@@ -128,6 +129,7 @@ class OfferingComponentCreateTest(BaseOfferingUpdateTest):
         self.assertEqual("cores", component.type)
         self.assertEqual("hours", component.measured_unit)
         self.assertEqual(BillingTypes.FIXED, component.billing_type)
+        self.assertEqual(LimitPeriods.MONTH, component.limit_period)
 
 
 class OfferingComponentUpdateTest(BaseOfferingUpdateTest):
@@ -167,6 +169,57 @@ class OfferingComponentUpdateTest(BaseOfferingUpdateTest):
         self.assertEqual("Cores", component.name)
         self.assertEqual("hours", component.measured_unit)
         self.assertEqual(BillingTypes.FIXED, component.billing_type)
+
+    def test_update_without_limit_period_preserves_existing_value(self):
+        component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="node",
+            name="Compute",
+            measured_unit="node hours",
+            billing_type=BillingTypes.LIMIT,
+            limit_period=LimitPeriods.QUARTERLY,
+        )
+
+        response = self.update_offering_component(
+            {
+                "type": "node",
+                "name": "Compute",
+                "measured_unit": "node hours",
+                "billing_type": BillingTypes.LIMIT,
+                "uuid": component.uuid.hex,
+            },
+            "owner",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        component.refresh_from_db()
+        self.assertEqual(LimitPeriods.QUARTERLY, component.limit_period)
+
+    def test_update_with_limit_period_changes_value(self):
+        component = factories.OfferingComponentFactory(
+            offering=self.offering,
+            type="node",
+            name="Compute",
+            measured_unit="node hours",
+            billing_type=BillingTypes.LIMIT,
+            limit_period=LimitPeriods.QUARTERLY,
+        )
+
+        response = self.update_offering_component(
+            {
+                "type": "node",
+                "name": "Compute",
+                "measured_unit": "node hours",
+                "billing_type": BillingTypes.LIMIT,
+                "limit_period": LimitPeriods.MONTH,
+                "uuid": component.uuid.hex,
+            },
+            "owner",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        component.refresh_from_db()
+        self.assertEqual(LimitPeriods.MONTH, component.limit_period)
 
     def test_update_event_includes_changes(self):
         """
