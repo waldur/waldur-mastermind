@@ -4869,20 +4869,28 @@ class OpenStackBackend(ServiceBackend):
                         floating_ip.backend_id,
                         body={"floatingip": {"port_id": floating_ip.port.backend_id}},
                     )
-                except neutron_exceptions.NotFound:
-                    # The local floating IP record references a Neutron object
-                    # that no longer exists (deleted out-of-band). Failing the
-                    # whole instance push for a stale reference is unhelpful —
-                    # log it so the next floating IP sync can clean it up, and
-                    # continue with the remaining FIPs.
-                    logger.warning(
-                        "Floating IP %s (backend_id=%s) referenced by instance "
-                        "%s no longer exists in Neutron; skipping attachment.",
-                        floating_ip.address,
-                        floating_ip.backend_id,
-                        instance.name,
-                    )
-                    continue
+                except neutron_exceptions.NotFound as e:
+                    # Neutron returns 404 here when *either* the floating IP or
+                    # the port_id we passed in is not visible to the current
+                    # session (deleted out-of-band, stale Waldur backend_id,
+                    # cross-tenant/RBAC mismatch, OVN driver edge case, …).
+                    # Silently skipping leaves the FIP unassociated while the
+                    # downstream PollRuntimeStateTask spins on runtime_state
+                    # `DOWN` for ~100 minutes before failing with no actionable
+                    # error — fail fast with a clear diagnostic instead, naming
+                    # both sides so the operator can see which one is missing.
+                    raise OpenStackBackendError(
+                        f"Failed to attach floating IP "
+                        f"{floating_ip.address or floating_ip.uuid.hex} "
+                        f"(backend_id={floating_ip.backend_id}) to port "
+                        f"{floating_ip.port.uuid.hex} "
+                        f"(backend_id={floating_ip.port.backend_id}) on "
+                        f"instance {instance.name}: Neutron returned NotFound. "
+                        f"The floating IP or the target port is not visible in "
+                        f"the tenant session (deleted out-of-band, stale "
+                        f"Waldur backend_id, or cross-tenant/RBAC mismatch). "
+                        f"Original error: {e}"
+                    ) from e
                 except neutron_exceptions.NeutronClientException as e:
                     raise OpenStackBackendError(e)
                 else:
