@@ -1,9 +1,12 @@
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from waldur_core.core import signals as core_signals
+from waldur_core.structure import models as structure_models
 from waldur_mastermind.marketplace import models as marketplace_models
+from waldur_mastermind.marketplace import serializers as marketplace_serializers
 from waldur_mastermind.marketplace_openstack.utils import _apply_quotas
 from waldur_openstack import models as openstack_models
 from waldur_openstack import serializers as openstack_serializers
@@ -87,6 +90,35 @@ def add_router_external_ips(sender, fields, **kwargs):
 core_signals.pre_serializer_fields.connect(
     sender=openstack_serializers.OpenStackRouterSerializer,
     receiver=add_router_external_ips,
+)
+
+
+@extend_schema_field(serializers.BooleanField())
+def get_config_drive_default(serializer, offering: marketplace_models.Offering) -> bool:
+    try:
+        service = offering.scope
+    except AttributeError:
+        return False
+    if isinstance(service, structure_models.BaseResource):
+        service = service.service_settings
+    if not isinstance(service, structure_models.ServiceSettings):
+        return False
+    return bool(service.options.get("config_drive", False))
+
+
+def add_openstack_config_drive_default(sender, fields, **kwargs):
+    """Expose the OpenStack-wide config_drive default on public offering details.
+
+    Kept here (not in marketplace core) so that OpenStack-specific concerns
+    do not leak into the generic marketplace offering serializer.
+    """
+    fields["config_drive_default"] = serializers.SerializerMethodField()
+    setattr(sender, "get_config_drive_default", get_config_drive_default)
+
+
+core_signals.pre_serializer_fields.connect(
+    sender=marketplace_serializers.PublicOfferingDetailsSerializer,
+    receiver=add_openstack_config_drive_default,
 )
 
 

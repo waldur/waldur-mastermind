@@ -777,3 +777,42 @@ class OfferingPluginOptionsMaxSecurityGroupsTest(test.APITestCase):
 
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.plugin_options["max_security_groups"], 25)
+
+
+class ConfigDriveDefaultPublicFieldTest(test.APITestCase):
+    """config_drive_default reflects the provider service_settings.options value."""
+
+    def _create_offering(self, options=None):
+        offering = marketplace_factories.OfferingFactory(state=OfferingStates.ACTIVE)
+        if options is not None:
+            offering.scope = structure_factories.ServiceSettingsFactory(options=options)
+            offering.save()
+        return offering
+
+    def test_returns_true_when_provider_enables_config_drive(self):
+        offering = self._create_offering(options={"config_drive": True})
+        url = marketplace_factories.OfferingFactory.get_public_url(offering)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIs(response.data["config_drive_default"], True)
+
+    def test_returns_false_when_provider_disables_config_drive(self):
+        offering = self._create_offering(options={"config_drive": False})
+        url = marketplace_factories.OfferingFactory.get_public_url(offering)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIs(response.data["config_drive_default"], False)
+
+    def test_returns_false_when_option_unset(self):
+        offering = self._create_offering(options={})
+        url = marketplace_factories.OfferingFactory.get_public_url(offering)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIs(response.data["config_drive_default"], False)
+
+    def test_returns_false_when_offering_has_no_service_settings(self):
+        offering = self._create_offering(options=None)
+        url = marketplace_factories.OfferingFactory.get_public_url(offering)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIs(response.data["config_drive_default"], False)
