@@ -7,6 +7,7 @@ from cinderclient.v2.volumes import Volume
 from ddt import data, ddt
 from django.test import TestCase
 from django.utils import timezone
+from neutronclient.common import exceptions as neutron_exceptions
 from novaclient import exceptions as nova_exceptions
 from novaclient.v2.flavors import Flavor
 from novaclient.v2.servers import Server
@@ -1211,6 +1212,43 @@ class PullInstanceFloatingIpsTest(BaseBackendTest):
 
         fip.refresh_from_db()
         self.assertEqual(ip2, fip.port)
+
+
+class PushInstanceFloatingIpsNotFoundTest(BaseBackendTest):
+    # Regression for the rc.10 silent-skip path: prior to this fix,
+    # push_instance_floating_ips caught neutron NotFound on update_floatingip
+    # and just logged a warning, leaving the FIP unassociated. The downstream
+    # PollRuntimeStateTask would then spin on runtime_state=DOWN for ~100 min
+    # before failing with no actionable error. Surface a clear, fail-fast
+    # OpenStackBackendError instead — Neutron NotFound here can mean either
+    # the FIP or the port_id we passed in is not visible to this session.
+
+    def test_notfound_on_update_floatingip_raises_clear_backend_error(self):
+        port = PortFactory(
+            tenant=self.fixture.tenant,
+            subnet=self.fixture.subnet,
+            instance=self.fixture.instance,
+        )
+        fip = FloatingIPFactory(
+            tenant=self.fixture.tenant,
+            port=port,
+        )
+        # Brand-new FIP not yet associated to any port in Neutron, so the
+        # initial list_floatingips returns empty and the connect-new loop
+        # calls update_floatingip — which we mock to raise NotFound.
+        self.mocked_neutron.list_floatingips.return_value = {"floatingips": []}
+        self.mocked_neutron.update_floatingip.side_effect = neutron_exceptions.NotFound(
+            "Resource not found"
+        )
+
+        with self.assertRaises(OpenStackBackendError) as ctx:
+            self.backend.push_instance_floating_ips(self.fixture.instance)
+
+        msg = str(ctx.exception)
+        # Names both sides — operator can see which is missing.
+        self.assertIn(fip.backend_id, msg)
+        self.assertIn(port.backend_id, msg)
+        self.assertIn("NotFound", msg)
 
 
 class CreateInstanceTest(VolumesBaseTest):
