@@ -494,7 +494,7 @@ class EESSINewAPIFormatTest(BaseLoaderTestCase):
         # Check that NewFormatPackage is loaded
         self.assertIn("NewFormatPackage", catalog_data.packages)
         package = catalog_data.packages["NewFormatPackage"]
-        version = package.versions["3.0.0"]
+        version = package.versions["3.0.0-foss-2023b"]
 
         # Verify module is a dict with correct structure
         module = version.version_data.metadata.get("module", {})
@@ -524,7 +524,7 @@ class EESSINewAPIFormatTest(BaseLoaderTestCase):
         catalog_data = loader.fetch_catalog_data()
 
         package = catalog_data.packages["NewFormatPackage"]
-        version = package.versions["3.0.0"]
+        version = package.versions["3.0.0-foss-2023b"]
 
         # Verify required_modules is a list of dicts
         required_modules = version.version_data.metadata.get("required_modules", [])
@@ -558,7 +558,7 @@ class EESSINewAPIFormatTest(BaseLoaderTestCase):
 
         # Check package with extensions
         package = catalog_data.packages["PackageWithExtensions"]
-        version = package.versions["2.0.0"]
+        version = package.versions["2.0.0-gfbf-2023b"]
 
         extensions = version.version_data.metadata.get("extensions", [])
         self.assertIsInstance(extensions, list)
@@ -574,7 +574,7 @@ class EESSINewAPIFormatTest(BaseLoaderTestCase):
 
         # Check package without extensions
         package_no_ext = catalog_data.packages["PackageNoExtensions"]
-        version_no_ext = package_no_ext.versions["1.5.0"]
+        version_no_ext = package_no_ext.versions["1.5.0-foss-2023a"]
         extensions_no_ext = version_no_ext.version_data.metadata.get("extensions", [])
         self.assertEqual(extensions_no_ext, [])
 
@@ -607,7 +607,11 @@ class EESSINewAPIFormatTest(BaseLoaderTestCase):
         package = SoftwarePackage.objects.get(
             catalog=catalog, name="PackageWithExtensions"
         )
-        version = SoftwareVersion.objects.get(package=package, version="2.0.0")
+        version = SoftwareVersion.objects.get(
+            package=package,
+            version="2.0.0",
+            module_version="2.0.0-gfbf-2023b",
+        )
 
         # Verify metadata contains new fields
         self.assertIn("module", version.metadata)
@@ -994,3 +998,91 @@ class EESSIVersionFilteringTest(BaseLoaderTestCase):
                 catalog=catalog, name="StalePackage"
             ).exists()
         )
+
+
+class EESSIGromacsDuplicateVersionsTest(BaseLoaderTestCase):
+    """Test that EESSI builds with the same upstream version are all loaded.
+
+    Example: GROMACS 2024.4 is published twice in EESSI - with and without CUDA.
+    Both share version='2024.4' but have different module_version values.
+    """
+
+    def setUp(self):
+        self.gromacs_data = self.load_test_fixture(
+            "eessi_gromacs_duplicate_versions_test.json"
+        )
+
+    @patch("requests.get")
+    def test_gromacs_duplicate_upstream_versions_parsed(self, mock_get):
+        """Both GROMACS 2024.4 builds are kept when parsing catalog data."""
+
+        def mock_requests_side_effect(url, **kwargs):
+            mock_response = Mock()
+            if "software.json" in url:
+                mock_response.json.return_value = self.gromacs_data
+            else:
+                mock_response.json.return_value = {}
+            mock_response.raise_for_status.return_value = None
+            return mock_response
+
+        mock_get.side_effect = mock_requests_side_effect
+
+        loader = EESSICatalogLoader(catalog_version="2023.06", include_extensions=False)
+        catalog_data = loader.fetch_catalog_data()
+
+        package = catalog_data.packages["GROMACS"]
+        self.assertEqual(len(package.versions), 2)
+        self.assertIn("2024.4-foss-2023b", package.versions)
+        self.assertIn("2024.4-foss-2023b-CUDA-12.4.0", package.versions)
+
+        cpu_build = package.versions["2024.4-foss-2023b"]
+        cuda_build = package.versions["2024.4-foss-2023b-CUDA-12.4.0"]
+        self.assertEqual(cpu_build.version_data.version, "2024.4")
+        self.assertEqual(cuda_build.version_data.version, "2024.4")
+        self.assertEqual(cpu_build.version_data.module_version, "2024.4-foss-2023b")
+        self.assertEqual(
+            cuda_build.version_data.module_version,
+            "2024.4-foss-2023b-CUDA-12.4.0",
+        )
+
+    @patch("requests.get")
+    def test_gromacs_duplicate_upstream_versions_loaded_to_database(self, mock_get):
+        """Both GROMACS 2024.4 builds are persisted as separate SoftwareVersion rows."""
+
+        def mock_requests_side_effect(url, **kwargs):
+            mock_response = Mock()
+            if "software.json" in url:
+                mock_response.json.return_value = self.gromacs_data
+            else:
+                mock_response.json.return_value = {}
+            mock_response.raise_for_status.return_value = None
+            return mock_response
+
+        mock_get.side_effect = mock_requests_side_effect
+
+        loader = EESSICatalogLoader(catalog_version="2023.06", include_extensions=False)
+        stats = loader.load_catalog(update_existing=True, dry_run=False)
+
+        self.assertEqual(stats["packages_created"], 1)
+        self.assertEqual(stats["versions_created"], 2)
+
+        catalog = SoftwareCatalog.objects.get(name="EESSI", version="2023.06")
+        package = SoftwarePackage.objects.get(catalog=catalog, name="GROMACS")
+        versions = SoftwareVersion.objects.filter(package=package).order_by(
+            "module_version"
+        )
+        self.assertEqual(versions.count(), 2)
+
+        module_versions = list(versions.values_list("version", "module_version"))
+        self.assertEqual(
+            module_versions,
+            [
+                ("2024.4", "2024.4-foss-2023b"),
+                ("2024.4", "2024.4-foss-2023b-CUDA-12.4.0"),
+            ],
+        )
+
+        cuda_version = versions.get(module_version="2024.4-foss-2023b-CUDA-12.4.0")
+        self.assertTrue(cuda_version.targets.exclude(gpu_architectures=[]).exists())
+        cpu_version = versions.get(module_version="2024.4-foss-2023b")
+        self.assertFalse(cpu_version.targets.exclude(gpu_architectures=[]).exists())

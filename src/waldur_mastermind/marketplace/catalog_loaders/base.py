@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Any
 
 import psutil
+from django.db.models import Q
 from django.db import transaction
 from django.utils import timezone
 
@@ -54,6 +55,7 @@ class VersionData:
     """Data class for version information during loading."""
 
     version: str
+    module_version: str = ""
     release_date: datetime | None = None
     dependencies: list[str] = None
     metadata: dict[str, Any] = None
@@ -63,6 +65,32 @@ class VersionData:
             self.dependencies = []
         if self.metadata is None:
             self.metadata = {}
+
+    @property
+    def storage_key(self) -> str:
+        """Unique key for version dicts and sync operations."""
+        return self.module_version or self.version
+
+
+def get_version_storage_key(version: SoftwareVersion) -> str:
+    """Return the storage key for an existing SoftwareVersion row."""
+    return version.module_version or version.version
+
+
+def fetch_versions_by_storage_keys(
+    package: SoftwarePackage, version_keys: set[str] | list[str]
+) -> dict[str, SoftwareVersion]:
+    """Fetch package versions matching loader storage keys in a single query."""
+    if not version_keys:
+        return {}
+
+    return {
+        get_version_storage_key(version): version
+        for version in SoftwareVersion.objects.filter(package=package).filter(
+            Q(module_version__in=version_keys)
+            | Q(module_version="", version__in=version_keys)
+        )
+    }
 
 
 @dataclass
@@ -744,24 +772,19 @@ class BaseCatalogLoader(ABC):
 
         # Prepare bulk data
         versions_to_create = []
-        version_names = list(versions_data.keys())
+        version_key_set = set(versions_data.keys())
 
-        # Check existing versions
-        existing_versions = {
-            v.version: v
-            for v in SoftwareVersion.objects.filter(
-                package=package, version__in=version_names
-            )
-        }
+        all_versions = fetch_versions_by_storage_keys(package, version_key_set)
 
         # Prepare new versions for bulk create
-        for version_name, version_with_targets in versions_data.items():
-            if version_name not in existing_versions:
+        for version_key, version_with_targets in versions_data.items():
+            if version_key not in all_versions:
                 version_data = version_with_targets.version_data
                 versions_to_create.append(
                     SoftwareVersion(
                         package=package,
                         version=version_data.version,
+                        module_version=version_data.module_version,
                         release_date=version_data.release_date,
                         dependencies=version_data.dependencies,
                         metadata=version_data.metadata,
@@ -774,19 +797,20 @@ class BaseCatalogLoader(ABC):
                 versions_to_create, ignore_conflicts=True
             )
             stats["versions_created"] += len(created_versions)
-
-        # Get all versions for target processing
-        all_versions = {
-            v.version: v
-            for v in SoftwareVersion.objects.filter(
-                package=package, version__in=version_names
-            )
-        }
+            missing_keys = {
+                version_key
+                for version_key in version_key_set
+                if version_key not in all_versions
+            }
+            if missing_keys:
+                all_versions.update(
+                    fetch_versions_by_storage_keys(package, missing_keys)
+                )
 
         # Bulk process targets
         targets_to_create = []
-        for version_name, version_with_targets in versions_data.items():
-            version_obj = all_versions.get(version_name)
+        for version_key, version_with_targets in versions_data.items():
+            version_obj = all_versions.get(version_key)
             if version_obj:
                 for target_data in version_with_targets.targets:
                     # Ensure location is not None (database constraint)
@@ -812,14 +836,15 @@ class BaseCatalogLoader(ABC):
 
         # Sync: delete versions not in incoming data
         if sync:
-            stale_versions = SoftwareVersion.objects.filter(package=package).exclude(
-                version__in=version_names
+            stale_count, _ = (
+                SoftwareVersion.objects.filter(package=package)
+                .exclude(
+                    Q(module_version__in=version_key_set)
+                    | Q(module_version="", version__in=version_key_set)
+                )
+                .delete()
             )
-            stale_count = stale_versions.count()
-            if stale_count > 0:
-                # Deleting versions cascades to their targets
-                stale_versions.delete()
-                stats["versions_deleted"] += stale_count
+            stats["versions_deleted"] += stale_count
 
         return stats
 

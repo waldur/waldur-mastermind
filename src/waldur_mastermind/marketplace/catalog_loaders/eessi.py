@@ -49,6 +49,19 @@ def _get_eessi_version(version_info: dict) -> str | None:
     return None
 
 
+def _get_eessi_version_key(version_info: dict) -> str:
+    """Return unique version key for EESSI builds.
+
+    EESSI may expose multiple builds with the same upstream version but
+    different module versions.
+    """
+    module = version_info.get("module", {})
+    module_version = module.get("module_version", "")
+    if module_version:
+        return module_version
+    return version_info["version"]
+
+
 class EESSICatalogLoader(BaseCatalogLoader):
     """
     Loader for EESSI software catalogs.
@@ -285,7 +298,8 @@ class EESSICatalogLoader(BaseCatalogLoader):
                 )
 
             version_with_targets = self._process_eessi_version(version_info)
-            versions[version_info["version"]] = version_with_targets
+            version_key = _get_eessi_version_key(version_info)
+            versions[version_key] = version_with_targets
 
         return PackageWithVersions(package_data=package_data, versions=versions)
 
@@ -299,6 +313,7 @@ class EESSICatalogLoader(BaseCatalogLoader):
         # Extract version metadata
         version_data = VersionData(
             version=version_info["version"],
+            module_version=module.get("module_version", ""),
             dependencies=required_modules,
             metadata={
                 "versionsuffix": version_info.get("versionsuffix", ""),

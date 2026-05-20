@@ -3455,6 +3455,12 @@ class SoftwareVersion(core_models.UuidMixin, TimeStampedModel):
         SoftwarePackage, on_delete=models.CASCADE, related_name="versions"
     )
     version = models.CharField(max_length=100)
+    module_version = models.CharField(
+        max_length=150,
+        blank=True,
+        default="",
+        help_text=_("EESSI EasyBuild module version"),
+    )
     release_date = models.DateField(null=True, blank=True)
 
     # Generic dependency tracking (catalog-agnostic)
@@ -3474,14 +3480,17 @@ class SoftwareVersion(core_models.UuidMixin, TimeStampedModel):
     )
 
     class Meta:
-        unique_together = ("package", "version")
-        ordering = ["package", "version"]
+        unique_together = ("package", "version", "module_version")
+        ordering = ["package", "version", "module_version"]
         indexes = [
             models.Index(fields=["package", "version"]),
+            models.Index(fields=["package", "module_version"]),
             models.Index(fields=["version"]),
         ]
 
     def __str__(self):
+        if self.module_version:
+            return f"{self.package.name} {self.version} ({self.module_version})"
         return f"{self.package.name} {self.version}"
 
     @property

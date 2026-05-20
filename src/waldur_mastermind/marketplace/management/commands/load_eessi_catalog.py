@@ -257,9 +257,12 @@ class Command(BaseCommand):
                 for version_name, version_info in package_info.get(
                     "versions", {}
                 ).items():
+                    module = version_info.get("module", {})
+                    module_version = module.get("module_version", "")
                     version, version_created = SoftwareVersion.objects.get_or_create(
                         package=package,
                         version=version_name,
+                        module_version=module_version,
                         defaults={
                             "dependencies": [],
                             "metadata": version_info,
