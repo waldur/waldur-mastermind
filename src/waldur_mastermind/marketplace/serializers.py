@@ -11280,6 +11280,7 @@ class NestedSoftwareVersionSerializer(serializers.ModelSerializer):
         fields = (
             "uuid",
             "version",
+            "module_version",
             "release_date",
             "targets",
             "module",
@@ -11432,6 +11433,7 @@ class SoftwareVersionSerializer(serializers.HyperlinkedModelSerializer):
             "created",
             "modified",
             "version",
+            "module_version",
             "release_date",
             "dependencies",
             "metadata",

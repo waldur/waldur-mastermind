@@ -1,0 +1,572 @@
+{
+  "timestamp": "2026-05-20T03:33:46.055201Z",
+  "architectures_map": {
+    "2023.06": {
+      "aarch64/generic": "aarch64/generic",
+      "aarch64/a64fx": "aarch64/a64fx",
+      "aarch64/neoverse_n1": "aarch64/neoverse_n1",
+      "aarch64/neoverse_v1": "aarch64/neoverse_v1",
+      "aarch64/nvidia/grace": "aarch64/nvidia/grace",
+      "x86_64/generic": "x86_64/generic",
+      "x86_64/amd/zen2": "x86_64/amd/zen2",
+      "x86_64/amd/zen3": "x86_64/amd/zen3",
+      "x86_64/amd/zen4": "x86_64/amd/zen4",
+      "x86_64/intel/haswell": "x86_64/intel/haswell",
+      "x86_64/intel/skylake_avx512": "x86_64/intel/skylake_avx512",
+      "x86_64/intel/sapphirerapids": "x86_64/intel/sapphirerapids",
+      "x86_64/intel/icelake": "x86_64/intel/icelake",
+      "x86_64/intel/cascadelake": "x86_64/intel/cascadelake"
+    },
+    "2025.06": {
+      "aarch64/generic": "aarch64/generic",
+      "aarch64/a64fx": "aarch64/a64fx",
+      "aarch64/neoverse_n1": "aarch64/neoverse_n1",
+      "aarch64/neoverse_v1": "aarch64/neoverse_v1",
+      "aarch64/nvidia/grace": "aarch64/nvidia/grace",
+      "x86_64/generic": "x86_64/generic",
+      "x86_64/amd/zen2": "x86_64/amd/zen2",
+      "x86_64/amd/zen3": "x86_64/amd/zen3",
+      "x86_64/amd/zen4": "x86_64/amd/zen4",
+      "x86_64/intel/haswell": "x86_64/intel/haswell",
+      "x86_64/intel/skylake_avx512": "x86_64/intel/skylake_avx512",
+      "x86_64/intel/sapphirerapids": "x86_64/intel/sapphirerapids",
+      "x86_64/intel/icelake": "x86_64/intel/icelake",
+      "x86_64/intel/cascadelake": "x86_64/intel/cascadelake"
+    }
+  },
+  "gpu_architectures_map": {},
+  "category_details": {},
+  "software": {
+    "GROMACS": {
+      "homepage": "https://www.gromacs.org",
+      "license": [],
+      "image": "",
+      "categories": [],
+      "identifier": "",
+      "description": "\nGROMACS is a versatile package to perform molecular dynamics, i.e. simulate the\nNewtonian equations of motion for systems with hundreds to millions of\nparticles.\n\nThis is a GPU enabled build, containing both MPI and threadMPI binaries.\n\nIt also contains the gmxapi extension for the single precision MPI build.\n",
+      "versions": [
+        {
+          "homepage": "https://www.gromacs.org",
+          "license": [],
+          "image": "",
+          "categories": [],
+          "identifier": "",
+          "toolchain": {
+            "name": "foss",
+            "version": "2023b"
+          },
+          "toolchain_families_compatibility": [
+            "2023b_foss"
+          ],
+          "module": {
+            "full_module_name": "GROMACS/2024.4-foss-2023b-CUDA-12.4.0",
+            "module_name": "GROMACS",
+            "module_version": "2024.4-foss-2023b-CUDA-12.4.0"
+          },
+          "required_modules": [
+            {
+              "full_module_name": "EESSI/2023.06",
+              "module_name": "EESSI",
+              "module_version": "2023.06"
+            },
+            {
+              "full_module_name": "GCCcore/13.2.0",
+              "module_name": "GCCcore",
+              "module_version": "13.2.0"
+            },
+            {
+              "full_module_name": "GCC/13.2.0",
+              "module_name": "GCC",
+              "module_version": "13.2.0"
+            },
+            {
+              "full_module_name": "numactl/2.0.16-GCCcore-13.2.0",
+              "module_name": "numactl",
+              "module_version": "2.0.16-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "libxml2/2.11.5-GCCcore-13.2.0",
+              "module_name": "libxml2",
+              "module_version": "2.11.5-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "libpciaccess/0.17-GCCcore-13.2.0",
+              "module_name": "libpciaccess",
+              "module_version": "0.17-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "hwloc/2.9.2-GCCcore-13.2.0",
+              "module_name": "hwloc",
+              "module_version": "2.9.2-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "OpenSSL/1.1",
+              "module_name": "OpenSSL",
+              "module_version": "1.1"
+            },
+            {
+              "full_module_name": "libevent/2.1.12-GCCcore-13.2.0",
+              "module_name": "libevent",
+              "module_version": "2.1.12-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "UCX/1.15.0-GCCcore-13.2.0",
+              "module_name": "UCX",
+              "module_version": "1.15.0-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "libfabric/1.19.0-GCCcore-13.2.0",
+              "module_name": "libfabric",
+              "module_version": "1.19.0-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "PMIx/4.2.6-GCCcore-13.2.0",
+              "module_name": "PMIx",
+              "module_version": "4.2.6-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "UCC/1.2.0-GCCcore-13.2.0",
+              "module_name": "UCC",
+              "module_version": "1.2.0-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "OpenMPI/4.1.6-GCC-13.2.0",
+              "module_name": "OpenMPI",
+              "module_version": "4.1.6-GCC-13.2.0"
+            },
+            {
+              "full_module_name": "OpenBLAS/0.3.24-GCC-13.2.0",
+              "module_name": "OpenBLAS",
+              "module_version": "0.3.24-GCC-13.2.0"
+            },
+            {
+              "full_module_name": "FlexiBLAS/3.3.1-GCC-13.2.0",
+              "module_name": "FlexiBLAS",
+              "module_version": "3.3.1-GCC-13.2.0"
+            },
+            {
+              "full_module_name": "FFTW/3.3.10-GCC-13.2.0",
+              "module_name": "FFTW",
+              "module_version": "3.3.10-GCC-13.2.0"
+            },
+            {
+              "full_module_name": "gompi/2023b",
+              "module_name": "gompi",
+              "module_version": "2023b"
+            },
+            {
+              "full_module_name": "FFTW.MPI/3.3.10-gompi-2023b",
+              "module_name": "FFTW.MPI",
+              "module_version": "3.3.10-gompi-2023b"
+            },
+            {
+              "full_module_name": "ScaLAPACK/2.2.0-gompi-2023b-fb",
+              "module_name": "ScaLAPACK",
+              "module_version": "2.2.0-gompi-2023b-fb"
+            },
+            {
+              "full_module_name": "foss/2023b",
+              "module_name": "foss",
+              "module_version": "2023b"
+            },
+            {
+              "full_module_name": "GDRCopy/2.4-GCCcore-13.2.0",
+              "module_name": "GDRCopy",
+              "module_version": "2.4-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "UCX-CUDA/1.15.0-GCCcore-13.2.0-CUDA-12.4.0",
+              "module_name": "UCX-CUDA",
+              "module_version": "1.15.0-GCCcore-13.2.0-CUDA-12.4.0"
+            },
+            {
+              "full_module_name": "Tcl/8.6.13-GCCcore-13.2.0",
+              "module_name": "Tcl",
+              "module_version": "8.6.13-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "SQLite/3.43.1-GCCcore-13.2.0",
+              "module_name": "SQLite",
+              "module_version": "3.43.1-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "libffi/3.4.4-GCCcore-13.2.0",
+              "module_name": "libffi",
+              "module_version": "3.4.4-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "Python/3.11.5-GCCcore-13.2.0",
+              "module_name": "Python",
+              "module_version": "3.11.5-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "gfbf/2023b",
+              "module_name": "gfbf",
+              "module_version": "2023b"
+            },
+            {
+              "full_module_name": "cffi/1.15.1-GCCcore-13.2.0",
+              "module_name": "cffi",
+              "module_version": "1.15.1-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "cryptography/41.0.5-GCCcore-13.2.0",
+              "module_name": "cryptography",
+              "module_version": "41.0.5-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "virtualenv/20.24.6-GCCcore-13.2.0",
+              "module_name": "virtualenv",
+              "module_version": "20.24.6-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "Python-bundle-PyPI/2023.10-GCCcore-13.2.0",
+              "module_name": "Python-bundle-PyPI",
+              "module_version": "2023.10-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "pybind11/2.11.1-GCCcore-13.2.0",
+              "module_name": "pybind11",
+              "module_version": "2.11.1-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "SciPy-bundle/2023.11-gfbf-2023b",
+              "module_name": "SciPy-bundle",
+              "module_version": "2023.11-gfbf-2023b"
+            },
+            {
+              "full_module_name": "networkx/3.2.1-gfbf-2023b",
+              "module_name": "networkx",
+              "module_version": "3.2.1-gfbf-2023b"
+            },
+            {
+              "full_module_name": "mpi4py/3.1.5-gompi-2023b",
+              "module_name": "mpi4py",
+              "module_version": "3.1.5-gompi-2023b"
+            },
+            {
+              "full_module_name": "GROMACS/2024.4-foss-2023b-CUDA-12.4.0",
+              "module_name": "GROMACS",
+              "module_version": "2024.4-foss-2023b-CUDA-12.4.0"
+            }
+          ],
+          "cpu_arch": [
+            "aarch64/generic",
+            "aarch64/neoverse_n1",
+            "aarch64/neoverse_v1",
+            "aarch64/nvidia/grace",
+            "x86_64/generic",
+            "x86_64/amd/zen2",
+            "x86_64/amd/zen3",
+            "x86_64/amd/zen4",
+            "x86_64/intel/haswell",
+            "x86_64/intel/skylake_avx512",
+            "x86_64/intel/sapphirerapids",
+            "x86_64/intel/icelake",
+            "x86_64/intel/cascadelake"
+          ],
+          "gpu_arch": {
+            "aarch64/generic": [
+              "nvidia/cc70",
+              "nvidia/cc80",
+              "nvidia/cc90"
+            ],
+            "aarch64/neoverse_n1": [
+              "nvidia/cc70",
+              "nvidia/cc80",
+              "nvidia/cc90"
+            ],
+            "aarch64/neoverse_v1": [
+              "nvidia/cc70",
+              "nvidia/cc80",
+              "nvidia/cc90"
+            ],
+            "aarch64/nvidia/grace": [
+              "nvidia/cc70",
+              "nvidia/cc80",
+              "nvidia/cc90"
+            ],
+            "x86_64/generic": [
+              "nvidia/cc70",
+              "nvidia/cc80",
+              "nvidia/cc90"
+            ],
+            "x86_64/amd/zen2": [
+              "nvidia/cc70",
+              "nvidia/cc80",
+              "nvidia/cc90"
+            ],
+            "x86_64/amd/zen3": [
+              "nvidia/cc70",
+              "nvidia/cc80",
+              "nvidia/cc90"
+            ],
+            "x86_64/amd/zen4": [
+              "nvidia/cc70",
+              "nvidia/cc80",
+              "nvidia/cc90"
+            ],
+            "x86_64/intel/haswell": [
+              "nvidia/cc70",
+              "nvidia/cc80",
+              "nvidia/cc90"
+            ],
+            "x86_64/intel/skylake_avx512": [
+              "nvidia/cc70",
+              "nvidia/cc80",
+              "nvidia/cc90"
+            ],
+            "x86_64/intel/sapphirerapids": [
+              "nvidia/cc70",
+              "nvidia/cc80",
+              "nvidia/cc90"
+            ],
+            "x86_64/intel/icelake": [
+              "nvidia/cc70",
+              "nvidia/cc80",
+              "nvidia/cc90"
+            ],
+            "x86_64/intel/cascadelake": [
+              "nvidia/cc70",
+              "nvidia/cc80",
+              "nvidia/cc90"
+            ]
+          },
+          "description": "\nGROMACS is a versatile package to perform molecular dynamics, i.e. simulate the\nNewtonian equations of motion for systems with hundreds to millions of\nparticles.\n\nThis is a GPU enabled build, containing both MPI and threadMPI binaries.\n\nIt also contains the gmxapi extension for the single precision MPI build.\n",
+          "version": "2024.4",
+          "versionsuffix": "-CUDA-12.4.0",
+          "extensions": [
+            {
+              "type": "python",
+              "name": "gmxapi",
+              "version": "0.4.2"
+            }
+          ]
+        },
+        {
+          "homepage": "https://www.gromacs.org",
+          "license": [],
+          "image": "",
+          "categories": [],
+          "identifier": "",
+          "toolchain": {
+            "name": "foss",
+            "version": "2023b"
+          },
+          "toolchain_families_compatibility": [
+            "2023b_foss"
+          ],
+          "module": {
+            "full_module_name": "GROMACS/2024.4-foss-2023b",
+            "module_name": "GROMACS",
+            "module_version": "2024.4-foss-2023b"
+          },
+          "required_modules": [
+            {
+              "full_module_name": "EESSI/2023.06",
+              "module_name": "EESSI",
+              "module_version": "2023.06"
+            },
+            {
+              "full_module_name": "GCCcore/13.2.0",
+              "module_name": "GCCcore",
+              "module_version": "13.2.0"
+            },
+            {
+              "full_module_name": "GCC/13.2.0",
+              "module_name": "GCC",
+              "module_version": "13.2.0"
+            },
+            {
+              "full_module_name": "numactl/2.0.16-GCCcore-13.2.0",
+              "module_name": "numactl",
+              "module_version": "2.0.16-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "libxml2/2.11.5-GCCcore-13.2.0",
+              "module_name": "libxml2",
+              "module_version": "2.11.5-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "libpciaccess/0.17-GCCcore-13.2.0",
+              "module_name": "libpciaccess",
+              "module_version": "0.17-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "hwloc/2.9.2-GCCcore-13.2.0",
+              "module_name": "hwloc",
+              "module_version": "2.9.2-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "OpenSSL/1.1",
+              "module_name": "OpenSSL",
+              "module_version": "1.1"
+            },
+            {
+              "full_module_name": "libevent/2.1.12-GCCcore-13.2.0",
+              "module_name": "libevent",
+              "module_version": "2.1.12-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "UCX/1.15.0-GCCcore-13.2.0",
+              "module_name": "UCX",
+              "module_version": "1.15.0-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "libfabric/1.19.0-GCCcore-13.2.0",
+              "module_name": "libfabric",
+              "module_version": "1.19.0-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "PMIx/4.2.6-GCCcore-13.2.0",
+              "module_name": "PMIx",
+              "module_version": "4.2.6-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "UCC/1.2.0-GCCcore-13.2.0",
+              "module_name": "UCC",
+              "module_version": "1.2.0-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "OpenMPI/4.1.6-GCC-13.2.0",
+              "module_name": "OpenMPI",
+              "module_version": "4.1.6-GCC-13.2.0"
+            },
+            {
+              "full_module_name": "OpenBLAS/0.3.24-GCC-13.2.0",
+              "module_name": "OpenBLAS",
+              "module_version": "0.3.24-GCC-13.2.0"
+            },
+            {
+              "full_module_name": "FlexiBLAS/3.3.1-GCC-13.2.0",
+              "module_name": "FlexiBLAS",
+              "module_version": "3.3.1-GCC-13.2.0"
+            },
+            {
+              "full_module_name": "FFTW/3.3.10-GCC-13.2.0",
+              "module_name": "FFTW",
+              "module_version": "3.3.10-GCC-13.2.0"
+            },
+            {
+              "full_module_name": "gompi/2023b",
+              "module_name": "gompi",
+              "module_version": "2023b"
+            },
+            {
+              "full_module_name": "FFTW.MPI/3.3.10-gompi-2023b",
+              "module_name": "FFTW.MPI",
+              "module_version": "3.3.10-gompi-2023b"
+            },
+            {
+              "full_module_name": "ScaLAPACK/2.2.0-gompi-2023b-fb",
+              "module_name": "ScaLAPACK",
+              "module_version": "2.2.0-gompi-2023b-fb"
+            },
+            {
+              "full_module_name": "foss/2023b",
+              "module_name": "foss",
+              "module_version": "2023b"
+            },
+            {
+              "full_module_name": "Tcl/8.6.13-GCCcore-13.2.0",
+              "module_name": "Tcl",
+              "module_version": "8.6.13-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "SQLite/3.43.1-GCCcore-13.2.0",
+              "module_name": "SQLite",
+              "module_version": "3.43.1-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "libffi/3.4.4-GCCcore-13.2.0",
+              "module_name": "libffi",
+              "module_version": "3.4.4-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "Python/3.11.5-GCCcore-13.2.0",
+              "module_name": "Python",
+              "module_version": "3.11.5-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "gfbf/2023b",
+              "module_name": "gfbf",
+              "module_version": "2023b"
+            },
+            {
+              "full_module_name": "cffi/1.15.1-GCCcore-13.2.0",
+              "module_name": "cffi",
+              "module_version": "1.15.1-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "cryptography/41.0.5-GCCcore-13.2.0",
+              "module_name": "cryptography",
+              "module_version": "41.0.5-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "virtualenv/20.24.6-GCCcore-13.2.0",
+              "module_name": "virtualenv",
+              "module_version": "20.24.6-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "Python-bundle-PyPI/2023.10-GCCcore-13.2.0",
+              "module_name": "Python-bundle-PyPI",
+              "module_version": "2023.10-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "pybind11/2.11.1-GCCcore-13.2.0",
+              "module_name": "pybind11",
+              "module_version": "2.11.1-GCCcore-13.2.0"
+            },
+            {
+              "full_module_name": "SciPy-bundle/2023.11-gfbf-2023b",
+              "module_name": "SciPy-bundle",
+              "module_version": "2023.11-gfbf-2023b"
+            },
+            {
+              "full_module_name": "networkx/3.2.1-gfbf-2023b",
+              "module_name": "networkx",
+              "module_version": "3.2.1-gfbf-2023b"
+            },
+            {
+              "full_module_name": "mpi4py/3.1.5-gompi-2023b",
+              "module_name": "mpi4py",
+              "module_version": "3.1.5-gompi-2023b"
+            },
+            {
+              "full_module_name": "GROMACS/2024.4-foss-2023b",
+              "module_name": "GROMACS",
+              "module_version": "2024.4-foss-2023b"
+            }
+          ],
+          "cpu_arch": [
+            "aarch64/generic",
+            "aarch64/a64fx",
+            "aarch64/neoverse_n1",
+            "aarch64/neoverse_v1",
+            "aarch64/nvidia/grace",
+            "x86_64/generic",
+            "x86_64/amd/zen2",
+            "x86_64/amd/zen3",
+            "x86_64/amd/zen4",
+            "x86_64/intel/haswell",
+            "x86_64/intel/skylake_avx512",
+            "x86_64/intel/sapphirerapids",
+            "x86_64/intel/icelake",
+            "x86_64/intel/cascadelake"
+          ],
+          "gpu_arch": {},
+          "description": "\nGROMACS is a versatile package to perform molecular dynamics, i.e. simulate the\nNewtonian equations of motion for systems with hundreds to millions of\nparticles.\n\nThis is a CPU only build, containing both MPI and threadMPI binaries\nfor both single and double precision.\n\nIt also contains the gmxapi extension for the single precision MPI build.\n",
+          "version": "2024.4",
+          "versionsuffix": "",
+          "extensions": [
+            {
+              "type": "python",
+              "name": "gmxapi",
+              "version": "0.4.2"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
