@@ -1,5 +1,6 @@
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace_openstack.tests.utils import BaseOpenStackTest
+from waldur_mastermind.marketplace_openstack.utils import import_instance_metadata
 from waldur_openstack.tests import factories as openstack_factories
 from waldur_openstack.tests import (
     fixtures as openstack_fixtures,
@@ -153,6 +154,25 @@ class NetworkMetadataTest(BaseOpenStackTest):
         floating_ip.delete()
         self.resource.refresh_from_db()
         self.assertEqual(self.resource.backend_metadata["external_ips"], [])
+
+
+class InstanceFlavorImageMetadataTest(BaseOpenStackTest):
+    def setUp(self):
+        super().setUp()
+        self.fixture = openstack_fixtures.OpenStackFixture()
+        self.instance = self.fixture.instance
+        self.resource = marketplace_factories.ResourceFactory(scope=self.instance)
+
+    def test_flavor_and_image_name_are_synchronized(self):
+        self.instance.flavor_name = "m1.large"
+        self.instance.image_name = "Ubuntu 22.04"
+        self.instance.save()
+
+        import_instance_metadata(self.resource)
+
+        self.resource.refresh_from_db()
+        self.assertEqual(self.resource.backend_metadata["flavor_name"], "m1.large")
+        self.assertEqual(self.resource.backend_metadata["image_name"], "Ubuntu 22.04")
 
 
 class HypervisorHostnameMetadataTest(BaseOpenStackTest):

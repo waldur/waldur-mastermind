@@ -1372,6 +1372,16 @@ class ResourceFilter(
     runtime_state = django_filters.CharFilter(
         field_name="backend_metadata__runtime_state", label="Runtime state"
     )
+    flavor_name = django_filters.CharFilter(
+        field_name="backend_metadata__flavor_name",
+        lookup_expr="icontains",
+        label="Flavor name",
+    )
+    image_name = django_filters.CharFilter(
+        field_name="backend_metadata__image_name",
+        lookup_expr="icontains",
+        label="Image name",
+    )
     downscaled = django_filters.BooleanFilter(
         field_name="downscaled", label="Downscaled"
     )
