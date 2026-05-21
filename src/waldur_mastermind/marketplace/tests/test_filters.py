@@ -131,6 +131,28 @@ class ResourceFilterTest(test.APITestCase):
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["uuid"], self.resource_1.uuid.hex)
 
+    def test_flavor_name_filter(self):
+        self.client.force_authenticate(self.fixture.staff)
+        matching = factories.ResourceFactory(
+            backend_metadata={"flavor_name": "m1.large"}
+        )
+        other = factories.ResourceFactory(backend_metadata={"flavor_name": "m1.small"})
+        response = self.client.get(self.url, {"flavor_name": "large"})
+        uuids = [r["uuid"] for r in response.data]
+        self.assertIn(matching.uuid.hex, uuids)
+        self.assertNotIn(other.uuid.hex, uuids)
+
+    def test_image_name_filter(self):
+        self.client.force_authenticate(self.fixture.staff)
+        matching = factories.ResourceFactory(
+            backend_metadata={"image_name": "Ubuntu 22.04"}
+        )
+        other = factories.ResourceFactory(backend_metadata={"image_name": "CentOS 9"})
+        response = self.client.get(self.url, {"image_name": "ubuntu"})
+        uuids = [r["uuid"] for r in response.data]
+        self.assertIn(matching.uuid.hex, uuids)
+        self.assertNotIn(other.uuid.hex, uuids)
+
     def test_field_filter(self):
         self.client.force_authenticate(self.fixture.staff)
 

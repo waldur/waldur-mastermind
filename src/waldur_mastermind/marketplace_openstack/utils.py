@@ -125,6 +125,8 @@ def import_instance_metadata(resource: marketplace_models.Resource):
     instance = cast(openstack_models.Instance, resource.scope)
     resource.backend_metadata["internal_ips"] = instance.internal_ips
     resource.backend_metadata["external_ips"] = instance.external_ips
+    resource.backend_metadata["flavor_name"] = instance.flavor_name
+    resource.backend_metadata["image_name"] = instance.image_name
     bootable_volume = instance.volumes.filter(bootable=True).first()
     if bootable_volume and (bootable_volume.image or bootable_volume.image_name):
         resource.backend_metadata["system_volume_image_name"] = (
