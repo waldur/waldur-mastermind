@@ -409,7 +409,7 @@
       "name": "Web Production",
       "description": "Production tenant for web services",
       "backend_id": "tenant-web-prod-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "",
       "service_settings_uuid": "aa000000000000000000000000000001",
       "project_uuid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -417,14 +417,56 @@
       "external_network_id": "net-external-001",
       "availability_zone": "nova",
       "user_username": "web-prod-user",
-      "user_password": "demo"
+      "user_password": "demo",
+      "quotas": [
+        {
+          "name": "vcpu",
+          "limit": 20,
+          "usage": 4
+        },
+        {
+          "name": "ram",
+          "limit": 51200,
+          "usage": 8192
+        },
+        {
+          "name": "storage",
+          "limit": 102400,
+          "usage": 10240
+        },
+        {
+          "name": "instances",
+          "limit": 10,
+          "usage": 2
+        },
+        {
+          "name": "volumes",
+          "limit": 20,
+          "usage": 3
+        },
+        {
+          "name": "snapshots",
+          "limit": 10,
+          "usage": 1
+        },
+        {
+          "name": "security_group_count",
+          "limit": 10,
+          "usage": 2
+        },
+        {
+          "name": "security_group_rule_count",
+          "limit": 50,
+          "usage": 8
+        }
+      ]
     },
     {
       "uuid": "ab000000000000000000000000000002",
       "name": "Data Analytics",
       "description": "Tenant for data analytics workloads",
       "backend_id": "tenant-analytics-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "",
       "service_settings_uuid": "aa000000000000000000000000000001",
       "project_uuid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -432,14 +474,56 @@
       "external_network_id": "net-external-001",
       "availability_zone": "nova",
       "user_username": "analytics-user",
-      "user_password": "demo"
+      "user_password": "demo",
+      "quotas": [
+        {
+          "name": "vcpu",
+          "limit": 40,
+          "usage": 16
+        },
+        {
+          "name": "ram",
+          "limit": 102400,
+          "usage": 32768
+        },
+        {
+          "name": "storage",
+          "limit": 204800,
+          "usage": 51200
+        },
+        {
+          "name": "instances",
+          "limit": 20,
+          "usage": 8
+        },
+        {
+          "name": "volumes",
+          "limit": 30,
+          "usage": 10
+        },
+        {
+          "name": "snapshots",
+          "limit": 15,
+          "usage": 3
+        },
+        {
+          "name": "security_group_count",
+          "limit": 15,
+          "usage": 3
+        },
+        {
+          "name": "security_group_rule_count",
+          "limit": 75,
+          "usage": 12
+        }
+      ]
     },
     {
       "uuid": "ab000000000000000000000000000003",
       "name": "Dev Sandbox",
       "description": "Development and testing sandbox environment",
       "backend_id": "tenant-dev-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "",
       "service_settings_uuid": "aa000000000000000000000000000001",
       "project_uuid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -447,7 +531,49 @@
       "external_network_id": "net-external-001",
       "availability_zone": "nova",
       "user_username": "dev-user",
-      "user_password": "demo"
+      "user_password": "demo",
+      "quotas": [
+        {
+          "name": "vcpu",
+          "limit": 8,
+          "usage": 0
+        },
+        {
+          "name": "ram",
+          "limit": 16384,
+          "usage": 0
+        },
+        {
+          "name": "storage",
+          "limit": 51200,
+          "usage": 0
+        },
+        {
+          "name": "instances",
+          "limit": 5,
+          "usage": 0
+        },
+        {
+          "name": "volumes",
+          "limit": 10,
+          "usage": 0
+        },
+        {
+          "name": "snapshots",
+          "limit": 5,
+          "usage": 0
+        },
+        {
+          "name": "security_group_count",
+          "limit": 5,
+          "usage": 0
+        },
+        {
+          "name": "security_group_rule_count",
+          "limit": 25,
+          "usage": 0
+        }
+      ]
     }
   ],
   "openstack_instances": [
@@ -456,7 +582,7 @@
       "name": "web-frontend-01",
       "description": "Web frontend server",
       "backend_id": "instance-web-fe-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000001",
       "cores": 2,
@@ -475,7 +601,7 @@
       "name": "web-backend-01",
       "description": "Web backend application server",
       "backend_id": "instance-web-be-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000001",
       "cores": 2,
@@ -494,7 +620,7 @@
       "name": "analytics-worker-01",
       "description": "Data analytics processing worker",
       "backend_id": "instance-analytics-w1-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000002",
       "cores": 4,
@@ -513,7 +639,7 @@
       "name": "analytics-worker-02",
       "description": "Data analytics processing worker",
       "backend_id": "instance-analytics-w2-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000002",
       "cores": 4,
@@ -532,7 +658,7 @@
       "name": "analytics-worker-03",
       "description": "Data analytics processing worker",
       "backend_id": "instance-analytics-w3-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000002",
       "cores": 4,
@@ -551,7 +677,7 @@
       "name": "analytics-worker-04",
       "description": "Data analytics processing worker",
       "backend_id": "instance-analytics-w4-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000002",
       "cores": 4,
@@ -570,7 +696,7 @@
       "name": "analytics-worker-05",
       "description": "Data analytics processing worker",
       "backend_id": "instance-analytics-w5-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000002",
       "cores": 4,
@@ -589,7 +715,7 @@
       "name": "analytics-worker-06",
       "description": "Data analytics processing worker",
       "backend_id": "instance-analytics-w6-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000002",
       "cores": 4,
@@ -608,7 +734,7 @@
       "name": "analytics-worker-07",
       "description": "Data analytics processing worker",
       "backend_id": "instance-analytics-w7-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000002",
       "cores": 2,
@@ -627,7 +753,7 @@
       "name": "analytics-worker-08",
       "description": "Data analytics processing worker",
       "backend_id": "instance-analytics-w8-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000002",
       "cores": 2,
@@ -646,7 +772,7 @@
       "name": "analytics-worker-09",
       "description": "Data analytics processing worker",
       "backend_id": "instance-analytics-w9-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000002",
       "cores": 2,
@@ -665,7 +791,7 @@
       "name": "analytics-scheduler",
       "description": "Job scheduler and coordinator",
       "backend_id": "instance-analytics-sched-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000002",
       "cores": 2,
@@ -684,7 +810,7 @@
       "name": "analytics-db-primary",
       "description": "Primary analytics database",
       "backend_id": "instance-analytics-db1-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000002",
       "cores": 4,
@@ -703,7 +829,7 @@
       "name": "analytics-db-replica",
       "description": "Replica analytics database",
       "backend_id": "instance-analytics-db2-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000002",
       "cores": 2,
@@ -722,7 +848,7 @@
       "name": "analytics-monitor",
       "description": "Monitoring and alerting server",
       "backend_id": "instance-analytics-mon-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000002",
       "cores": 1,
@@ -741,7 +867,7 @@
       "name": "analytics-gateway",
       "description": "API gateway and load balancer",
       "backend_id": "instance-analytics-gw-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000002",
       "cores": 2,
@@ -760,7 +886,7 @@
       "name": "analytics-jupyter",
       "description": "Jupyter notebook server",
       "backend_id": "instance-analytics-jup-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000002",
       "cores": 2,
@@ -779,7 +905,7 @@
       "name": "dev-test-vm",
       "description": "Development testing virtual machine",
       "backend_id": "instance-dev-test-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000003",
       "cores": 1,
@@ -798,7 +924,7 @@
       "name": "dev-build-server",
       "description": "CI/CD build server",
       "backend_id": "instance-dev-build-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "ACTIVE",
       "tenant_uuid": "ab000000000000000000000000000003",
       "cores": 2,
@@ -819,7 +945,7 @@
       "name": "web-frontend-01-system",
       "description": "System volume for web frontend server",
       "backend_id": "vol-web-fe-sys-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000001",
       "instance_uuid": "ac000000000000000000000000000001",
@@ -833,7 +959,7 @@
       "name": "web-backend-01-data",
       "description": "Data volume for web backend server",
       "backend_id": "vol-web-be-data-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000001",
       "instance_uuid": "ac000000000000000000000000000002",
@@ -847,7 +973,7 @@
       "name": "analytics-data",
       "description": "Large data storage for analytics workloads",
       "backend_id": "vol-analytics-data-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac000000000000000000000000000003",
@@ -861,7 +987,7 @@
       "name": "analytics-scratch",
       "description": "Temporary scratch storage for analytics processing",
       "backend_id": "vol-analytics-scratch-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "available",
       "tenant_uuid": "ab000000000000000000000000000002",
       "size": 51200,
@@ -874,7 +1000,7 @@
       "name": "analytics-worker-03-sys",
       "description": "System volume for analytics worker 03",
       "backend_id": "vol-analytics-w3-sys-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac000000000000000000000000000007",
@@ -888,7 +1014,7 @@
       "name": "analytics-worker-04-sys",
       "description": "System volume for analytics worker 04",
       "backend_id": "vol-analytics-w4-sys-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac000000000000000000000000000008",
@@ -902,7 +1028,7 @@
       "name": "analytics-worker-05-sys",
       "description": "System volume for analytics worker 05",
       "backend_id": "vol-analytics-w5-sys-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac000000000000000000000000000009",
@@ -916,7 +1042,7 @@
       "name": "analytics-worker-06-sys",
       "description": "System volume for analytics worker 06",
       "backend_id": "vol-analytics-w6-sys-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac00000000000000000000000000000a",
@@ -930,7 +1056,7 @@
       "name": "analytics-worker-07-sys",
       "description": "System volume for analytics worker 07",
       "backend_id": "vol-analytics-w7-sys-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac00000000000000000000000000000b",
@@ -944,7 +1070,7 @@
       "name": "analytics-worker-08-sys",
       "description": "System volume for analytics worker 08",
       "backend_id": "vol-analytics-w8-sys-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac00000000000000000000000000000c",
@@ -958,7 +1084,7 @@
       "name": "analytics-worker-09-sys",
       "description": "System volume for analytics worker 09",
       "backend_id": "vol-analytics-w9-sys-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac00000000000000000000000000000d",
@@ -972,7 +1098,7 @@
       "name": "analytics-scheduler-sys",
       "description": "System volume for scheduler",
       "backend_id": "vol-analytics-sched-sys-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac00000000000000000000000000000e",
@@ -986,7 +1112,7 @@
       "name": "analytics-db-primary-sys",
       "description": "System volume for primary database",
       "backend_id": "vol-analytics-db1-sys-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac00000000000000000000000000000f",
@@ -1000,7 +1126,7 @@
       "name": "analytics-db-primary-data",
       "description": "Data volume for primary database",
       "backend_id": "vol-analytics-db1-data-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac00000000000000000000000000000f",
@@ -1014,7 +1140,7 @@
       "name": "analytics-db-replica-sys",
       "description": "System volume for replica database",
       "backend_id": "vol-analytics-db2-sys-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac000000000000000000000000000010",
@@ -1028,7 +1154,7 @@
       "name": "analytics-db-replica-data",
       "description": "Data volume for replica database",
       "backend_id": "vol-analytics-db2-data-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac000000000000000000000000000010",
@@ -1042,7 +1168,7 @@
       "name": "analytics-monitor-sys",
       "description": "System volume for monitoring server",
       "backend_id": "vol-analytics-mon-sys-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac000000000000000000000000000011",
@@ -1056,7 +1182,7 @@
       "name": "analytics-gateway-sys",
       "description": "System volume for API gateway",
       "backend_id": "vol-analytics-gw-sys-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac000000000000000000000000000012",
@@ -1070,7 +1196,7 @@
       "name": "analytics-jupyter-sys",
       "description": "System volume for Jupyter server",
       "backend_id": "vol-analytics-jup-sys-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac000000000000000000000000000013",
@@ -1084,7 +1210,7 @@
       "name": "analytics-jupyter-data",
       "description": "Notebook storage for Jupyter server",
       "backend_id": "vol-analytics-jup-data-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000002",
       "instance_uuid": "ac000000000000000000000000000013",
@@ -1098,7 +1224,7 @@
       "name": "dev-test-system",
       "description": "System volume for development test VM",
       "backend_id": "vol-dev-test-sys-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000003",
       "instance_uuid": "ac000000000000000000000000000005",
@@ -1112,7 +1238,7 @@
       "name": "dev-build-data",
       "description": "Build artifacts and cache storage",
       "backend_id": "vol-dev-build-data-001",
-      "state": 2,
+      "state": 3,
       "runtime_state": "in-use",
       "tenant_uuid": "ab000000000000000000000000000003",
       "instance_uuid": "ac000000000000000000000000000006",
@@ -1131,7 +1257,11 @@
       "plan_uuid": "b3000000000000000000000000000002",
       "project_uuid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "attributes": {},
-      "limits": {"cores": 8, "ram": 16384, "storage": 102400},
+      "limits": {
+        "cores": 8,
+        "ram": 16384,
+        "storage": 102400
+      },
       "backend_id": "tenant-web-prod-001",
       "scope_type": "openstack.tenant",
       "scope_uuid": "ab000000000000000000000000000001"
@@ -1144,7 +1274,11 @@
       "plan_uuid": "b3000000000000000000000000000002",
       "project_uuid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "attributes": {},
-      "limits": {"cores": 64, "ram": 131072, "storage": 1024000},
+      "limits": {
+        "cores": 64,
+        "ram": 131072,
+        "storage": 1024000
+      },
       "backend_id": "tenant-analytics-001",
       "scope_type": "openstack.tenant",
       "scope_uuid": "ab000000000000000000000000000002"
@@ -1157,7 +1291,11 @@
       "plan_uuid": "b3000000000000000000000000000001",
       "project_uuid": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "attributes": {},
-      "limits": {"cores": 4, "ram": 8192, "storage": 51200},
+      "limits": {
+        "cores": 4,
+        "ram": 8192,
+        "storage": 51200
+      },
       "backend_id": "tenant-dev-001",
       "scope_type": "openstack.tenant",
       "scope_uuid": "ab000000000000000000000000000003"
