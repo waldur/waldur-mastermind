@@ -1254,6 +1254,12 @@ Controls offering visibility for regular users. 'show_all': Show all shared offe
 
 Show offering cover image as a banner above the name on the offering page.
 
+#### ENABLE_MARKDOWN_IMAGE_UPLOAD
+
+**Type:** bool
+
+Allow uploading images for embedding in offering markdown descriptions.
+
 #### ENFORCE_USER_CONSENT_FOR_OFFERINGS
 
 **Type:** bool
@@ -1311,6 +1317,20 @@ Enable reminders to owners about resources of shared offerings that have not gen
 **Default value:** 120x120
 
 Size of the thumbnail to generate when screenshot is uploaded for an offering.
+
+#### ENABLE_MARKDOWN_IMAGE_UPLOAD
+
+**Type:** bool
+
+Allow uploading images for embedding in offering markdown descriptions.
+
+#### MARKDOWN_IMAGE_MAX_SIZE_MB
+
+**Type:** int
+
+**Default value:** 5
+
+Maximum size in megabytes for a markdown image upload.
 
 #### DISABLED_OFFERING_TYPES
 
