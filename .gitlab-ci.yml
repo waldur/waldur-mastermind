@@ -658,7 +658,15 @@ Generate OpenAPI schema:
         # Find the latest tag to use as a base for the pre-release version.
         LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
         TIMESTAMP=$(date +%Y%m%d%H%M%S)
-        RELEASE_VERSION="${LATEST_TAG}-dev.${TIMESTAMP}"
+        # When LATEST_TAG already carries a pre-release suffix (e.g. 8.0.9-rc.12),
+        # extend it with a dot so the dev counter is a fresh semver identifier
+        # rather than fusing into an alphanumeric one. Otherwise comparison
+        # between rc.9-dev and rc.12-dev falls back to lexical ASCII sort
+        # (semver 2.0.0 §11.4.2), which inverts the intended order.
+        case "$LATEST_TAG" in
+          *-*) RELEASE_VERSION="${LATEST_TAG}.dev.${TIMESTAMP}" ;;
+          *)   RELEASE_VERSION="${LATEST_TAG}-dev.${TIMESTAMP}" ;;
+        esac
         echo "Latest stable tag found: $LATEST_TAG"
         echo "Building OpenAPI schema for development release version: $RELEASE_VERSION"
       fi
@@ -981,7 +989,15 @@ Generate Ansible modules:
       # Find the latest tag to use as a base for the pre-release version.
       LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "0.0.0")
       TIMESTAMP=$(date +%Y%m%d%H%M%S)
-      RELEASE_VERSION="${LATEST_TAG}-dev.${TIMESTAMP}"
+      # When LATEST_TAG already carries a pre-release suffix (e.g. 8.0.9-rc.12),
+      # extend it with a dot so the dev counter is a fresh semver identifier
+      # rather than fusing into an alphanumeric one. Otherwise comparison
+      # between rc.9-dev and rc.12-dev falls back to lexical ASCII sort
+      # (semver 2.0.0 §11.4.2), which inverts the intended order on Galaxy.
+      case "$LATEST_TAG" in
+        *-*) RELEASE_VERSION="${LATEST_TAG}.dev.${TIMESTAMP}" ;;
+        *)   RELEASE_VERSION="${LATEST_TAG}-dev.${TIMESTAMP}" ;;
+      esac
       echo "Latest stable tag found: $LATEST_TAG"
       echo "Building development release version: $RELEASE_VERSION"
     fi
