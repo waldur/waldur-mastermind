@@ -15,6 +15,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 from ddt import data, ddt, idata
 from django.core.exceptions import ObjectDoesNotExist
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import connection as db_connection
 from django.test.utils import CaptureQueriesContext
 from rest_framework import exceptions as rest_exceptions
@@ -24,6 +25,7 @@ from waldur_core.checklist import enums as checklist_enums
 from waldur_core.core import utils as core_utils
 from waldur_core.core.pagination import RESULT_COUNT_HEADER
 from waldur_core.core.tests.helpers import load_json_resource
+from waldur_core.media.models import File
 from waldur_core.media.utils import dummy_image, dummy_svg
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import (
@@ -2634,6 +2636,133 @@ class OfferingThumbnailTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.offering.refresh_from_db()
         self.assertTrue(self.offering.thumbnail)
+
+
+@ddt
+class OfferingMarkdownImageUploadTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.offering = self.fixture.offering
+        self.offering.state = OfferingStates.DRAFT
+        self.offering.save()
+        CustomerRole.OWNER.add_permission(PermissionEnum.UPDATE_OFFERING_DESCRIPTION)
+        self.url = factories.OfferingFactory.get_url(
+            self.offering, action="upload_markdown_image"
+        )
+
+    def upload_markdown_image(self):
+        return self.client.post(self.url, {"image": dummy_image()}, format="multipart")
+
+    @override_config(ENABLE_MARKDOWN_IMAGE_UPLOAD=False)
+    def test_upload_rejected_when_disabled(self):
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.upload_markdown_image()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @override_config(ENABLE_MARKDOWN_IMAGE_UPLOAD=True)
+    @data("offering_admin", "offering_manager")
+    def test_user_without_permission_cannot_upload(self, user):
+        self.client.force_authenticate(getattr(self.fixture, user))
+        response = self.upload_markdown_image()
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    @override_config(ENABLE_MARKDOWN_IMAGE_UPLOAD=True)
+    def test_unrelated_user_cannot_upload(self):
+        user = UserFactory()
+        self.client.force_authenticate(user)
+        response = self.upload_markdown_image()
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @override_config(ENABLE_MARKDOWN_IMAGE_UPLOAD=True)
+    def test_authorized_user_can_upload_markdown_image(self):
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.upload_markdown_image()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertIn("url", response.data)
+        self.assertIn("/api/media/", response.data["url"])
+
+        file_uuid = response.data["url"].rstrip("/").split("/")[-1]
+        stored_file = File.objects.get(uuid=file_uuid)
+        self.assertTrue(stored_file.name.startswith("markdown_images/"))
+
+    @override_config(ENABLE_MARKDOWN_IMAGE_UPLOAD=True, MARKDOWN_IMAGE_MAX_SIZE_MB=0)
+    def test_oversized_image_rejected(self):
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.upload_markdown_image()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_config(ENABLE_MARKDOWN_IMAGE_UPLOAD=True)
+    def test_anonymous_user_can_view_uploaded_markdown_image(self):
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.upload_markdown_image()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        self.client.logout()
+        media_response = self.client.get(response.data["url"])
+        self.assertEqual(media_response.status_code, status.HTTP_200_OK)
+        self.assertTrue(
+            media_response.headers["Content-Disposition"].startswith("inline")
+        )
+
+    @override_config(ENABLE_MARKDOWN_IMAGE_UPLOAD=True)
+    def test_upload_rejected_for_archived_offering(self):
+        self.offering.state = OfferingStates.ARCHIVED
+        self.offering.save()
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.upload_markdown_image()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_config(ENABLE_MARKDOWN_IMAGE_UPLOAD=True)
+    def test_non_image_upload_rejected(self):
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.post(
+            self.url,
+            {
+                "image": SimpleUploadedFile(
+                    "notes.txt",
+                    b"plain text content",
+                    content_type="text/plain",
+                )
+            },
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_config(ENABLE_MARKDOWN_IMAGE_UPLOAD=True)
+    def test_pdf_upload_rejected(self):
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.post(
+            self.url,
+            {
+                "image": SimpleUploadedFile(
+                    "document.pdf",
+                    b"%PDF-1.4 not really a pdf",
+                    content_type="application/pdf",
+                )
+            },
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_config(ENABLE_MARKDOWN_IMAGE_UPLOAD=True)
+    def test_svg_upload_rejected(self):
+        svg_content = b"""<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg">
+  <circle cx="50" cy="50" r="40" fill="red"/>
+</svg>"""
+        self.client.force_authenticate(self.fixture.offering_owner)
+        response = self.client.post(
+            self.url,
+            {
+                "image": SimpleUploadedFile(
+                    "chart.svg",
+                    svg_content,
+                    content_type="image/svg+xml",
+                )
+            },
+            format="multipart",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
 
 @ddt

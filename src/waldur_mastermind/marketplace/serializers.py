@@ -8587,6 +8587,24 @@ class OfferingImageSerializer(serializers.HyperlinkedModelSerializer):
         fields = ("image",)
 
 
+class MarkdownImageUploadSerializer(serializers.Serializer):
+    image = serializers.ImageField(required=True, validators=[ImageValidator])
+
+    def validate_image(self, image):
+        max_bytes = config.MARKDOWN_IMAGE_MAX_SIZE_MB * 1024 * 1024
+        if image.size > max_bytes:
+            raise serializers.ValidationError(
+                f"Image size exceeds the limit of {config.MARKDOWN_IMAGE_MAX_SIZE_MB} MB."
+            )
+        return image
+
+
+class MarkdownImageUploadResponseSerializer(serializers.Serializer):
+    url = serializers.URLField(
+        help_text="Absolute URL of the uploaded image for markdown embedding."
+    )
+
+
 class OrganizationGroupsSerializer(serializers.Serializer):
     organization_groups = serializers.HyperlinkedRelatedField(
         queryset=structure_models.OrganizationGroup.objects.all(),

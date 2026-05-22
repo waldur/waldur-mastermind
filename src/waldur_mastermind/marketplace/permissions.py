@@ -299,6 +299,11 @@ def is_service_provider_or_staff(request, view, obj=None):
     )
 
 
+def markdown_image_upload_is_enabled(request, view, obj=None):
+    if not config.ENABLE_MARKDOWN_IMAGE_UPLOAD:
+        raise exceptions.PermissionDenied(_("Markdown image upload is disabled."))
+
+
 def can_manage_offering_lifecycle(request, view, obj=None):
     """Check if non-staff users are allowed to manage offering lifecycle.
 

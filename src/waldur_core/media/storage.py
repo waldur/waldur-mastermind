@@ -43,7 +43,7 @@ class DatabaseStorage(Storage):
         content_data = content.read()
 
         mime_type = magic.from_buffer(content_data[:1024], mime=True)
-        if mime_type == "image/svg+xml":
+        if mime_type in ("image/svg", "image/svg+xml"):
             content_data = remove_scripts(content_data)
 
         if isinstance(content_data, str):
