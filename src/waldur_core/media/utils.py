@@ -1,8 +1,16 @@
 import base64
 import hashlib
+import os
 import tempfile
+import uuid as uuid_module
 
 import magic
+from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
+
+from waldur_core.media import models as media_models
+
+MARKDOWN_IMAGE_PREFIX = "markdown_images/"
 
 
 def dummy_image(filetype="gif"):
@@ -40,3 +48,12 @@ def guess_image_extension(content: bytes | str) -> str | None:
 
 def get_image_hash(content: bytes):
     return hashlib.sha256(content).hexdigest()
+
+
+def store_markdown_image(uploaded_file) -> media_models.File:
+    """Store an uploaded image for embedding in offering markdown descriptions."""
+    content = uploaded_file.read()
+    filename = os.path.basename(uploaded_file.name or "image")
+    storage_name = f"{MARKDOWN_IMAGE_PREFIX}{uuid_module.uuid4().hex}_{filename}"
+    saved_name = default_storage.save(storage_name, ContentFile(content))
+    return media_models.File.objects.get(name=saved_name)

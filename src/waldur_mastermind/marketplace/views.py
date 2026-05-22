@@ -36,6 +36,7 @@ from django.db.models.functions.math import Ceil
 from django.http import HttpResponse
 from django.http.response import JsonResponse
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.utils.translation import gettext_lazy as _
@@ -97,6 +98,7 @@ from waldur_core.core.utils import (
 from waldur_core.logging import event_logger
 from waldur_core.logging import models as logging_models
 from waldur_core.logging.enums import EventType
+from waldur_core.media import utils as media_utils
 from waldur_core.permissions import models as permission_models
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.filters import UserPermissionFilter
@@ -2838,6 +2840,38 @@ class ProviderOfferingViewSet(
     @action(detail=True, methods=["post"])
     def delete_image(self, request, uuid=None):
         return self._delete_media("image")
+
+    @extend_schema(
+        summary="Upload markdown image",
+        description=(
+            "Uploads an image for embedding in offering markdown descriptions. "
+            "Requires ENABLE_MARKDOWN_IMAGE_UPLOAD Constance setting."
+        ),
+        request=serializers.MarkdownImageUploadSerializer,
+        responses={201: serializers.MarkdownImageUploadResponseSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def upload_markdown_image(self, request, uuid=None):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        file_obj = media_utils.store_markdown_image(serializer.validated_data["image"])
+        media_url = request.build_absolute_uri(
+            reverse("media", kwargs={"uuid": file_obj.uuid.hex})
+        )
+        response_serializer = serializers.MarkdownImageUploadResponseSerializer(
+            {"url": media_url}
+        )
+        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+
+    upload_markdown_image_permissions = [
+        marketplace_permissions.markdown_image_upload_is_enabled,
+        permission_factory(
+            PermissionEnum.UPDATE_OFFERING_DESCRIPTION,
+            ["*", "customer", "customer.serviceprovider"],
+        ),
+    ]
+    upload_markdown_image_validators = update_validators
+    upload_markdown_image_serializer_class = serializers.MarkdownImageUploadSerializer
 
     media_permissions = [permissions.user_can_update_thumbnail]
     update_thumbnail_permissions = media_permissions

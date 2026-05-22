@@ -10,6 +10,7 @@ from waldur_core.checklist.models import Answer
 from waldur_core.core.models import User
 
 from . import models
+from .utils import MARKDOWN_IMAGE_PREFIX
 
 
 def check_file_permissions(file: models.File, user: User):
@@ -190,6 +191,12 @@ def _user_can_access_scope(user: User, scope_obj, checklist=None) -> bool:
     return False
 
 
+def _serve_inline(file: models.File) -> bool:
+    if file.name.startswith(MARKDOWN_IMAGE_PREFIX):
+        return True
+    return bool(file.mime_type and file.mime_type.startswith("image/"))
+
+
 class MediaView(GenericAPIView):
     permission_classes = ()
     filter_backends = ()
@@ -209,6 +216,7 @@ class MediaView(GenericAPIView):
         response.headers["Content-Length"] = file.size
         response.headers["Content-Type"] = file.mime_type or "application/octet-stream"
         response.headers["Content-Disposition"] = content_disposition_header(
-            as_attachment=True, filename=filename
+            as_attachment=not _serve_inline(file),
+            filename=filename,
         )
         return response

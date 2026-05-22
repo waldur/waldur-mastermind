@@ -322,6 +322,14 @@ CONSTANCE_CONFIG = {
         "120x120",
         "Size of the thumbnail to generate when screenshot is uploaded for an offering.",
     ),
+    "ENABLE_MARKDOWN_IMAGE_UPLOAD": (
+        False,
+        "Allow uploading images for embedding in offering markdown descriptions.",
+    ),
+    "MARKDOWN_IMAGE_MAX_SIZE_MB": (
+        5,
+        "Maximum size in megabytes for a markdown image upload.",
+    ),
     "ANONYMOUS_USER_CAN_VIEW_OFFERINGS": (
         True,
         "Allow anonymous users to see shared offerings in active, paused and archived states",
@@ -1467,6 +1475,7 @@ CONSTANCE_CONFIG_FIELDSETS = {
         "ANONYMOUS_USER_CAN_VIEW_PLANS",
         "RESTRICTED_OFFERING_VISIBILITY_MODE",
         "SHOW_OFFERING_COVER_IMAGE",
+        "ENABLE_MARKDOWN_IMAGE_UPLOAD",
         "ENFORCE_USER_CONSENT_FOR_OFFERINGS",
         "ENFORCE_OFFERING_USER_PROFILE_COMPLETENESS",
         "ALLOW_SERVICE_PROVIDER_OFFERING_MANAGEMENT",
@@ -1479,6 +1488,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
     ),
     "Offerings & orders": (
         "THUMBNAIL_SIZE",
+        "ENABLE_MARKDOWN_IMAGE_UPLOAD",
+        "MARKDOWN_IMAGE_MAX_SIZE_MB",
         "DISABLED_OFFERING_TYPES",
         "ENABLE_ORDER_START_DATE",
     ),
@@ -1809,6 +1820,7 @@ PUBLIC_CONSTANCE_SETTINGS = (
     "CURRENCY_NAME",
     "ANONYMOUS_USER_CAN_VIEW_OFFERINGS",
     "SHOW_OFFERING_COVER_IMAGE",
+    "ENABLE_MARKDOWN_IMAGE_UPLOAD",
     "RESTRICTED_OFFERING_VISIBILITY_MODE",
     "DOCS_URL",
     "SHORT_PAGE_TITLE",
