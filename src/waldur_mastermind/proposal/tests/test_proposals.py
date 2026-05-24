@@ -254,6 +254,10 @@ class ActionTest(test.APITestCase):
         self.proposal = self.fixture.proposal
         self.proposal.state = ProposalStates.DRAFT
         self.proposal.save()
+        # Tests in this class exercise the no-workflow submission path
+        # (DRAFT -> SUBMITTED). Clear the auto-seeded allocation_decision
+        # step so submit() doesn't transition the proposal into IN_REVIEW.
+        models.CallWorkflowStep.objects.filter(call=self.proposal.round.call).delete()
         self.submit_url = factories.ProposalFactory.get_url(self.proposal, "submit")
         self.approve_url = factories.ProposalFactory.get_url(self.proposal, "approve")
         self.reject_url = factories.ProposalFactory.get_url(self.proposal, "reject")

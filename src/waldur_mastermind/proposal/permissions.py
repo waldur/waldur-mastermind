@@ -115,3 +115,20 @@ def can_act_on_active_workflow_step(request, view, obj=None):
 
 # Mark check as needing the object so ActionsPermission fetches it.
 can_act_on_active_workflow_step.sources = ["*"]
+
+
+def can_advance_workflow_step(request, view, obj=None):
+    """Only call managers (or staff) may manually advance a workflow."""
+    if obj is None:
+        return
+    user = request.user
+    if user.is_staff:
+        return
+    call = obj.round.call
+    if not get_users(call, role_name=RoleEnum.CALL_MANAGER).filter(pk=user.pk).exists():
+        raise exceptions.PermissionDenied(
+            "Only the call manager can advance this workflow step."
+        )
+
+
+can_advance_workflow_step.sources = ["*"]

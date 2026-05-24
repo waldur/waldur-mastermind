@@ -42,10 +42,11 @@ from waldur_mastermind.proposal.enums import (
     RequestedOfferingStates,
     ReviewerPoolInvitationStatuses,
     RoundStatuses,
+    WorkflowStepInstanceStatuses,
     WorkflowStepOutcomes,
 )
 
-from . import models
+from . import models, workflow_service
 from .managers import get_connected_calls
 
 logger = logging.getLogger(__name__)
@@ -1500,6 +1501,7 @@ class ProposalSerializer(
     # Compliance fields
     compliance_status = serializers.SerializerMethodField()
     can_submit = serializers.SerializerMethodField()
+    awaiting_manual_advance = serializers.SerializerMethodField()
 
     class Meta:
         model = models.Proposal
@@ -1562,6 +1564,7 @@ class ProposalSerializer(
             "created",
             "compliance_status",
             "can_submit",
+            "awaiting_manual_advance",
         ]
         read_only_fields = (
             "created_by",
@@ -1693,6 +1696,23 @@ class ProposalSerializer(
         """Get whether proposal can be submitted."""
         can_submit, error = obj.can_submit()
         return {"can_submit": can_submit, "error": error}
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_awaiting_manual_advance(self, obj) -> bool:
+        """True iff the current step is completed and awaiting a manual advance.
+
+        Prefers the queryset annotations (set by ProposalViewSet.get_queryset)
+        to avoid a per-row query on list. Falls back to the DB-fresh service
+        helper for objects serialized outside that viewset (e.g. after a
+        mutation).
+        """
+        if hasattr(obj, "_awaiting_manual_step"):
+            return bool(
+                obj.workflow_step
+                and obj._awaiting_manual_step
+                and obj._latest_step_status == WorkflowStepInstanceStatuses.COMPLETED
+            )
+        return workflow_service.is_awaiting_manual_advance(obj)
 
 
 class RoundReviewerSerializer(serializers.Serializer):
@@ -4225,6 +4245,17 @@ class CallWorkflowStepSerializer(
         attrs = super().validate(attrs)
         step = attrs.get("step") or (self.instance.step if self.instance else None)
 
+        if self.instance is None and step == "award_response":
+            raise serializers.ValidationError(
+                {
+                    "step": (
+                        "award_response is provisioned automatically via the "
+                        "allocation_decision step's include_award_response flag "
+                        "and cannot be added directly."
+                    )
+                }
+            )
+
         if (
             attrs.get("include_award_response")
             and step not in AWARD_RESPONSE_ALLOWED_STEPS
@@ -4267,6 +4298,7 @@ class CallWorkflowStepSerializer(
         instance = super().create(validated_data)
         if criteria is not None:
             self._sync_criteria(instance, criteria)
+        self._sync_award_response_step(instance)
         return instance
 
     def update(self, instance, validated_data):
@@ -4274,6 +4306,7 @@ class CallWorkflowStepSerializer(
         instance = super().update(instance, validated_data)
         if criteria is not None:
             self._sync_criteria(instance, criteria)
+        self._sync_award_response_step(instance)
         return instance
 
     def _sync_criteria(self, instance, criteria):
@@ -4285,6 +4318,21 @@ class CallWorkflowStepSerializer(
                 name=entry["name"],
                 defaults={"order": entry.get("order", 0)},
             )
+
+    def _sync_award_response_step(self, instance):
+        """Provision/disable the award_response step based on include_award_response."""
+        if instance.step != "allocation_decision":
+            return
+        if instance.include_award_response:
+            models.CallWorkflowStep.objects.update_or_create(
+                call=instance.call,
+                step="award_response",
+                defaults={"is_enabled": True},
+            )
+        else:
+            models.CallWorkflowStep.objects.filter(
+                call=instance.call, step="award_response"
+            ).update(is_enabled=False)
 
 
 class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):

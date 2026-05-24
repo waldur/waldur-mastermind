@@ -708,6 +708,17 @@ class CallWorkflowStepFactory(
     is_enabled = True
 
     @classmethod
+    def _create(cls, model_class, *args, **kwargs):
+        # Mandatory steps (e.g. allocation_decision) are pre-seeded on Call
+        # creation; reuse the existing row instead of triggering unique_together.
+        call = kwargs.pop("call")
+        step = kwargs.pop("step")
+        instance, _ = model_class.objects.update_or_create(
+            call=call, step=step, defaults=kwargs
+        )
+        return instance
+
+    @classmethod
     def get_list_url(cls, call):
         return CallFactory.get_protected_url(call, action="workflow_steps")
 

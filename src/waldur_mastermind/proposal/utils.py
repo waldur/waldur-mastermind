@@ -130,6 +130,12 @@ _DUPLICATE_CALL_OVERRIDE_FIELDS = frozenset(
     {"id", "uuid", "slug", "name", "state", "created_by", "created", "modified"}
 )
 
+# call/step are the upsert lookup keys; id/uuid/created/modified are
+# identity/timestamp fields that must not be carried over from the source row.
+_DUPLICATE_WORKFLOW_STEP_OVERRIDE_FIELDS = frozenset(
+    {"id", "uuid", "call", "call_id", "step", "created", "modified"}
+)
+
 # Sections the user can include in or exclude from a duplicate. Each key maps
 # to a default value; the API surface mirrors marketplace offering import.
 DUPLICATE_CALL_SECTION_DEFAULTS: dict[str, bool] = {
@@ -217,10 +223,18 @@ def duplicate_call(
             src_round.save()
 
     if opts["copy_workflow_steps"]:
+        # Mandatory steps (e.g. allocation_decision) are pre-seeded on the new
+        # call by the post_save signal, so a blind insert would collide on the
+        # (call, step) unique constraint. Upsert keyed on (call, step) instead.
         for src_step in source.workflow_steps.all():  # type: ignore
-            _prepare_clone(src_step)
-            src_step.call = new_call
-            src_step.save()
+            step_fields = _clone_concrete_fields(
+                src_step, _DUPLICATE_WORKFLOW_STEP_OVERRIDE_FIELDS
+            )
+            proposal_models.CallWorkflowStep.objects.update_or_create(
+                call=new_call,
+                step=src_step.step,
+                defaults=step_fields,
+            )
 
     # Resource templates depend on RequestedOffering FKs — only copy when the
     # parent offerings were copied too.

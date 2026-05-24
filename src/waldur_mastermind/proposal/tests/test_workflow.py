@@ -549,14 +549,13 @@ class WorkflowStepValidationTest(test.APITestCase):
         self.assertIn("include_award_response", response.data)
 
     def test_include_award_response_allowed_on_allocation_decision(self):
-        url = factories.CallWorkflowStepFactory.get_list_url(self.call)
-        payload = {
-            "step": "allocation_decision",
-            "is_enabled": True,
-            "include_award_response": True,
-        }
-        response = self.client.post(url, payload, format="json")
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        # allocation_decision is auto-seeded on call creation; update it.
+        step = CallWorkflowStep.objects.get(call=self.call, step="allocation_decision")
+        url = factories.CallWorkflowStepFactory.get_url(self.call, step)
+        response = self.client.patch(
+            url, {"include_award_response": True}, format="json"
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
 
     def test_criteria_rejected_on_non_expert_review_step(self):
         url = factories.CallWorkflowStepFactory.get_list_url(self.call)
@@ -1021,6 +1020,155 @@ class WorkflowConfigDriftTest(test.APITestCase):
         self.assertEqual(self.proposal.workflow_step, "allocation_decision")
 
 
+class ManualTransitionTest(test.APITestCase):
+    """Steps configured with transition_mode=manual require a separate advance call."""
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.proposal = self.fixture.proposal
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.workflow_step = "administrative_check"
+        self.proposal.save()
+
+        factories.CallWorkflowStepFactory(
+            call=self.call,
+            step="administrative_check",
+            transition_mode=TransitionModes.MANUAL,
+        )
+        factories.CallWorkflowStepFactory(call=self.call, step="allocation_decision")
+
+        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="administrative_check",
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+            started_at=timezone.now(),
+        )
+        ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="allocation_decision",
+            status=WorkflowStepInstanceStatuses.PENDING,
+        )
+
+        self.complete_url = factories.ProposalFactory.get_url(
+            self.proposal, action="complete_workflow_step"
+        )
+        self.advance_url = factories.ProposalFactory.get_url(
+            self.proposal, action="advance_workflow_step"
+        )
+
+    def _complete_manual_step(self):
+        self.client.force_authenticate(self.fixture.staff)
+        return self.client.post(
+            self.complete_url,
+            {
+                "step_uuid": self.active_instance.uuid.hex,
+                "outcome": WorkflowStepOutcomes.ELIGIBLE,
+                "outcome_reason": "All criteria met",
+            },
+        )
+
+    def test_manual_completion_does_not_advance(self):
+        response = self._complete_manual_step()
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # No next_step in response — step is parked awaiting advance.
+        self.assertNotIn("next_step", response.data)
+        self.assertNotIn("proposal_state", response.data)
+
+        self.active_instance.refresh_from_db()
+        self.assertEqual(
+            self.active_instance.status, WorkflowStepInstanceStatuses.COMPLETED
+        )
+        self.assertEqual(self.active_instance.outcome, WorkflowStepOutcomes.ELIGIBLE)
+
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.state, ProposalStates.IN_REVIEW)
+        # workflow_step still points at the manual step.
+        self.assertEqual(self.proposal.workflow_step, "administrative_check")
+
+        # Downstream step is still PENDING — was not activated.
+        alloc = ProposalWorkflowStepInstance.objects.get(
+            proposal=self.proposal, step="allocation_decision"
+        )
+        self.assertEqual(alloc.status, WorkflowStepInstanceStatuses.PENDING)
+
+    def test_manual_advance_happy_path(self):
+        self._complete_manual_step()
+
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.post(self.advance_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["next_step"], "allocation_decision")
+
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.workflow_step, "allocation_decision")
+
+        alloc = ProposalWorkflowStepInstance.objects.get(
+            proposal=self.proposal, step="allocation_decision"
+        )
+        self.assertEqual(alloc.status, WorkflowStepInstanceStatuses.ACTIVE)
+        self.assertIsNotNone(alloc.started_at)
+
+    def test_manual_advance_terminates_workflow(self):
+        # Remove the downstream step so the manual step is terminal.
+        CallWorkflowStep.objects.filter(
+            call=self.call, step="allocation_decision"
+        ).delete()
+        ProposalWorkflowStepInstance.objects.filter(
+            proposal=self.proposal, step="allocation_decision"
+        ).delete()
+
+        self._complete_manual_step()
+
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.post(self.advance_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["proposal_state"], ProposalStates.ACCEPTED)
+
+        self.proposal.refresh_from_db()
+        self.assertEqual(self.proposal.state, ProposalStates.ACCEPTED)
+        self.assertIsNone(self.proposal.workflow_step)
+
+    def test_advance_forbidden_for_non_call_manager(self):
+        self._complete_manual_step()
+
+        # Reviewer is added to the call but is not a call manager.
+        self.client.force_authenticate(self.fixture.reviewer_1)
+        response = self.client.post(self.advance_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Unrelated user can't even see the proposal.
+        outsider = structure_factories.UserFactory()
+        self.client.force_authenticate(outsider)
+        response = self.client.post(self.advance_url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_advance_conflicts_when_step_still_active(self):
+        # The manual step has not been completed yet — advance must 409.
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.post(self.advance_url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_advance_conflicts_for_automatic_step(self):
+        # Switch to automatic mode; complete the step (auto-advances), then
+        # try to advance — there is no pending manual advance.
+        admin_step = CallWorkflowStep.objects.get(
+            call=self.call, step="administrative_check"
+        )
+        admin_step.transition_mode = TransitionModes.AUTOMATIC_ON_COMPLETION
+        admin_step.save()
+
+        self._complete_manual_step()
+
+        self.proposal.refresh_from_db()
+        # Auto-advance moved the proposal onto allocation_decision.
+        self.assertEqual(self.proposal.workflow_step, "allocation_decision")
+
+        self.client.force_authenticate(self.fixture.call_manager)
+        response = self.client.post(self.advance_url)
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+
 class WorkflowOutcomeValidationTest(test.APITestCase):
     """Outcome must be a known value AND in the active step's allow-list."""
 
@@ -1100,3 +1248,112 @@ class WorkflowOutcomeValidationTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("system-reserved", str(response.data))
+
+
+class CallCreationSeedsMandatoryStepsTest(test.APITestCase):
+    def test_call_creation_seeds_allocation_decision(self):
+        call = factories.CallFactory()
+        self.assertTrue(
+            CallWorkflowStep.objects.filter(
+                call=call, step="allocation_decision", is_enabled=True
+            ).exists()
+        )
+
+    def test_seeding_is_idempotent_on_resave(self):
+        call = factories.CallFactory()
+        call.name = "Updated"
+        call.save()
+        self.assertEqual(
+            CallWorkflowStep.objects.filter(
+                call=call, step="allocation_decision"
+            ).count(),
+            1,
+        )
+
+
+class CallActivateWorkflowGuardTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.draft_call = self.fixture.new_call
+        factories.RoundFactory(call=self.draft_call)
+
+    def _activate(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.CallFactory.get_protected_url(self.draft_call, "activate")
+        return self.client.post(url)
+
+    def test_activate_without_workflow_steps_returns_400(self):
+        CallWorkflowStep.objects.filter(call=self.draft_call).delete()
+        response = self._activate()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.draft_call.refresh_from_db()
+        self.assertEqual(self.draft_call.state, CallStates.DRAFT)
+
+    def test_activate_with_allocation_decision_disabled_returns_400(self):
+        CallWorkflowStep.objects.filter(
+            call=self.draft_call, step="allocation_decision"
+        ).update(is_enabled=False)
+        # Add another enabled step so the "no enabled steps" branch doesn't fire.
+        factories.CallWorkflowStepFactory(
+            call=self.draft_call, step="administrative_check"
+        )
+        response = self._activate()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Allocation decision", str(response.data))
+
+    def test_activate_with_mandatory_step_enabled_succeeds(self):
+        response = self._activate()
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.draft_call.refresh_from_db()
+        self.assertEqual(self.draft_call.state, CallStates.ACTIVE)
+
+
+class IncludeAwardResponseSyncTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.new_call
+        # allocation_decision is auto-seeded by the post_save signal
+        self.allocation_step = CallWorkflowStep.objects.get(
+            call=self.call, step="allocation_decision"
+        )
+
+    def _patch(self, payload):
+        user = self.fixture.call_organizer_user
+        self.client.force_authenticate(user)
+        url = factories.CallWorkflowStepFactory.get_url(self.call, self.allocation_step)
+        return self.client.patch(url, payload)
+
+    def test_toggle_on_creates_award_response_step(self):
+        response = self._patch({"include_award_response": True})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.assertTrue(
+            CallWorkflowStep.objects.filter(
+                call=self.call, step="award_response", is_enabled=True
+            ).exists()
+        )
+
+    def test_toggle_off_disables_award_response_step(self):
+        self.allocation_step.include_award_response = True
+        self.allocation_step.save()
+        CallWorkflowStep.objects.update_or_create(
+            call=self.call,
+            step="award_response",
+            defaults={"is_enabled": True},
+        )
+
+        response = self._patch({"include_award_response": False})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        award = CallWorkflowStep.objects.get(call=self.call, step="award_response")
+        self.assertFalse(award.is_enabled)
+
+    def test_direct_post_of_award_response_step_rejected(self):
+        user = self.fixture.call_organizer_user
+        self.client.force_authenticate(user)
+        url = factories.CallWorkflowStepFactory.get_list_url(self.call)
+        response = self.client.post(url, {"step": "award_response", "is_enabled": True})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(
+            CallWorkflowStep.objects.filter(
+                call=self.call, step="award_response"
+            ).exists()
+        )

@@ -112,7 +112,7 @@ from waldur_core.permissions.utils import (
     has_permission,
     permission_factory,
 )
-from waldur_core.permissions.views import UserRoleMixin, _user_can_view_scope_team
+from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.quotas.models import QuotaUsage
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -8248,7 +8248,7 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     @action(detail=True, methods=["get"])
     def team_members(self, request, uuid=None):
         resource = self.get_object()
-        if not _user_can_view_scope_team(request.user, resource):
+        if not self.can_view_scope_team(request.user, resource):
             raise PermissionDenied(
                 "You do not have permission to list team members of this resource."
             )

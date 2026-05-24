@@ -14,6 +14,7 @@ from waldur_mastermind.proposal import models
 from waldur_mastermind.proposal.enums import (
     WORKFLOW_STEPS,
     ProposalStates,
+    TransitionModes,
     WorkflowStepInstanceStatuses,
     WorkflowStepOutcomes,
 )
@@ -66,10 +67,12 @@ def _activate_next_step(proposal, next_step_def):
 
 @transaction.atomic
 def complete_step(proposal, current_instance, outcome, outcome_reason, completed_by):
-    """Complete the active step and advance the workflow.
+    """Complete the active step. Advance only if transition_mode is automatic.
 
     Returns the newly active next step instance, or None if the workflow
-    terminated (proposal accepted).
+    terminated (proposal accepted) OR if the step is awaiting manual advance.
+    Callers should inspect ``is_awaiting_manual_advance(proposal)`` to
+    distinguish those two cases.
     """
     current_instance.status = WorkflowStepInstanceStatuses.COMPLETED
     current_instance.outcome = outcome
@@ -86,7 +89,24 @@ def complete_step(proposal, current_instance, outcome, outcome_reason, completed
         ]
     )
 
-    next_step_def = _next_enabled_step(proposal, current_instance.step)
+    call_step = models.CallWorkflowStep.objects.filter(
+        call=proposal.round.call, step=current_instance.step
+    ).first()
+    if call_step and call_step.transition_mode == TransitionModes.MANUAL:
+        # Keep proposal.workflow_step pointing at this step so the manual
+        # advance endpoint and UI can locate it.
+        return None
+
+    return _advance_to_next(proposal, current_instance.step)
+
+
+def _advance_to_next(proposal, from_step):
+    """Advance the proposal past ``from_step`` to the next enabled step.
+
+    Returns the newly active step instance, or None if the workflow
+    terminated (proposal accepted).
+    """
+    next_step_def = _next_enabled_step(proposal, from_step)
     if next_step_def is None:
         proposal.state = ProposalStates.ACCEPTED
         proposal.workflow_step = None
@@ -96,6 +116,41 @@ def complete_step(proposal, current_instance, outcome, outcome_reason, completed
     proposal.workflow_step = next_step_def.id
     proposal.save(update_fields=["workflow_step"])
     return _activate_next_step(proposal, next_step_def)
+
+
+def is_awaiting_manual_advance(proposal) -> bool:
+    """True if the proposal's current step is COMPLETED with transition_mode=manual.
+
+    ProposalViewSet.get_queryset replicates this predicate as queryset
+    annotations to avoid an N+1 on list; keep the two in sync.
+    """
+    if not proposal.workflow_step:
+        return False
+    instance = (
+        proposal.workflow_step_instances.filter(step=proposal.workflow_step)
+        .order_by("-created")
+        .first()
+    )
+    if not instance or instance.status != WorkflowStepInstanceStatuses.COMPLETED:
+        return False
+    call_step = models.CallWorkflowStep.objects.filter(
+        call=proposal.round.call, step=proposal.workflow_step
+    ).first()
+    return bool(call_step and call_step.transition_mode == TransitionModes.MANUAL)
+
+
+@transaction.atomic
+def advance_step(proposal):
+    """Manually advance a workflow parked on a manual-mode completed step.
+
+    Returns the newly active step instance, or None if the workflow
+    terminated. Raises ValueError if the proposal is not in a state where
+    manual advance is valid. The acting user is captured by the event log
+    emitted in the calling view, not threaded through here.
+    """
+    if not is_awaiting_manual_advance(proposal):
+        raise ValueError("Workflow is not awaiting manual advance.")
+    return _advance_to_next(proposal, proposal.workflow_step)
 
 
 @transaction.atomic
