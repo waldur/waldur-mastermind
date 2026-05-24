@@ -1900,3 +1900,81 @@ class RescueBackendTest(BaseBackendTest):
         )
         # Should NOT raise.
         self.backend.unrescue_instance(self.instance)
+
+
+class PushTenantQuotasTest(BaseBackendTest):
+    """Verify that push_tenant_quotas maps Waldur quota names to the correct
+    neutron/nova/cinder API keys and passes them to the right client calls."""
+
+    def _push(self, quotas):
+        self.backend.push_tenant_quotas(self.tenant, quotas)
+
+    def test_security_group_quotas_map_to_neutron(self):
+        self._push({"security_group_count": 10, "security_group_rule_count": 20})
+        self.mocked_neutron.update_quota.assert_called_once_with(
+            self.tenant.backend_id,
+            {"quota": {"security_group": 10, "security_group_rule": 20}},
+        )
+
+    def test_floating_ip_count_maps_to_floatingip(self):
+        self._push({"floating_ip_count": 5})
+        call_args = self.mocked_neutron.update_quota.call_args
+        quota_body = call_args[0][1]["quota"]
+        self.assertEqual(quota_body["floatingip"], 5)
+        self.assertNotIn("floating_ip_count", quota_body)
+
+    def test_network_count_maps_to_network(self):
+        self._push({"network_count": 3})
+        quota_body = self.mocked_neutron.update_quota.call_args[0][1]["quota"]
+        self.assertEqual(quota_body["network"], 3)
+        self.assertNotIn("network_count", quota_body)
+
+    def test_subnet_count_maps_to_subnet(self):
+        self._push({"subnet_count": 15})
+        quota_body = self.mocked_neutron.update_quota.call_args[0][1]["quota"]
+        self.assertEqual(quota_body["subnet"], 15)
+        self.assertNotIn("subnet_count", quota_body)
+
+    def test_port_count_maps_to_port(self):
+        self._push({"port_count": 50})
+        quota_body = self.mocked_neutron.update_quota.call_args[0][1]["quota"]
+        self.assertEqual(quota_body["port"], 50)
+        self.assertNotIn("port_count", quota_body)
+
+    def test_neutron_quotas_accept_zero(self):
+        self._push({"floating_ip_count": 0})
+        quota_body = self.mocked_neutron.update_quota.call_args[0][1]["quota"]
+        self.assertEqual(quota_body["floatingip"], 0)
+
+    def test_neutron_quotas_accept_unlimited(self):
+        self._push({"floating_ip_count": -1})
+        quota_body = self.mocked_neutron.update_quota.call_args[0][1]["quota"]
+        self.assertEqual(quota_body["floatingip"], -1)
+
+    def test_all_four_neutron_quotas_sent_together(self):
+        self._push(
+            {
+                "floating_ip_count": 10,
+                "network_count": 5,
+                "subnet_count": 20,
+                "port_count": 100,
+            }
+        )
+        quota_body = self.mocked_neutron.update_quota.call_args[0][1]["quota"]
+        self.assertEqual(quota_body["floatingip"], 10)
+        self.assertEqual(quota_body["network"], 5)
+        self.assertEqual(quota_body["subnet"], 20)
+        self.assertEqual(quota_body["port"], 100)
+
+    def test_omitted_neutron_quotas_not_sent(self):
+        # Only floating_ip_count provided — other neutron keys must be absent.
+        self._push({"floating_ip_count": 5})
+        quota_body = self.mocked_neutron.update_quota.call_args[0][1]["quota"]
+        self.assertNotIn("network", quota_body)
+        self.assertNotIn("subnet", quota_body)
+        self.assertNotIn("port", quota_body)
+
+    def test_neutron_call_skipped_when_no_neutron_quotas(self):
+        # Nova-only quotas must not trigger a neutron update_quota call.
+        self._push({"instances": 10, "vcpu": 4, "ram": 8192})
+        self.mocked_neutron.update_quota.assert_not_called()

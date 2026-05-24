@@ -524,6 +524,11 @@ class OpenStackTenantQuotaSerializer(serializers.Serializer):
     storage = serializers.IntegerField(min_value=1, required=False)
     security_group_count = serializers.IntegerField(min_value=1, required=False)
     security_group_rule_count = serializers.IntegerField(min_value=1, required=False)
+    # Neutron quotas: 0 means "deny all", -1 means "unlimited"
+    floating_ip_count = serializers.IntegerField(min_value=-1, required=False)
+    network_count = serializers.IntegerField(min_value=-1, required=False)
+    subnet_count = serializers.IntegerField(min_value=-1, required=False)
+    port_count = serializers.IntegerField(min_value=-1, required=False)
 
 
 class OpenStackFixedIpSerializer(serializers.Serializer):

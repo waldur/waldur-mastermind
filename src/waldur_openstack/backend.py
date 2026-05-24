@@ -942,6 +942,10 @@ class OpenStackBackend(ServiceBackend):
         neutron_quotas = {
             "security_group": quotas.get("security_group_count"),
             "security_group_rule": quotas.get("security_group_rule_count"),
+            "floatingip": quotas.get("floating_ip_count"),
+            "network": quotas.get("network_count"),
+            "subnet": quotas.get("subnet_count"),
+            "port": quotas.get("port_count"),
         }
         neutron_quotas = {k: v for k, v in neutron_quotas.items() if v is not None}
 
