@@ -142,6 +142,7 @@
 - proposal_canceled
 - proposal_document_added
 - proposal_document_removed
+- proposal_workflow_advanced
 
 ## Providers
 
