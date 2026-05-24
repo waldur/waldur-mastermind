@@ -131,7 +131,10 @@ class SlurmPeriodicUsagePolicySTOMPTest(test.APITestCase):
         settings = payload["settings"]
         self.assertIn("fairshare", settings)
         self.assertIn("grp_tres_mins", settings)  # Should use GrpTRESMins
-        self.assertIn("qos_threshold", settings)
+        # QoS state is no longer carried in the periodic-limits payload; it
+        # flows through resource.paused / resource.downscaled instead.
+        self.assertNotIn("qos_threshold", settings)
+        self.assertNotIn("grace_limit", settings)
 
         print("✅ STOMP message structure validated")
 

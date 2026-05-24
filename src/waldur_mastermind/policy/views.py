@@ -307,8 +307,6 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
 
         settings = {
             "fairshare": data.get("fairshare", 500),
-            "threshold": allocation,
-            "grace_limit": allocation * (1 + grace_ratio) if allocation else None,
             "reset_raw_usage": data.get("raw_usage_reset", False),
         }
 

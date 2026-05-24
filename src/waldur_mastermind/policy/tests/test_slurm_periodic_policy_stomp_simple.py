@@ -57,8 +57,8 @@ class TestSlurmPeriodicUsagePolicySTOMPSimple(TestCase):
             # Validate settings structure (what site agent expects)
             self.assertIn("fairshare", settings)
             self.assertIn("grp_tres_mins", settings)
-            self.assertIn("qos_threshold", settings)
-            self.assertIn("grace_limit", settings)
+            self.assertNotIn("qos_threshold", settings)
+            self.assertNotIn("grace_limit", settings)
             self.assertIn("carryover_details", settings)
 
             # Validate carryover calculation (per-component)
@@ -196,15 +196,17 @@ class TestSlurmPeriodicUsagePolicySTOMPSimple(TestCase):
         # Validate site agent expectations
         required_for_site_agent = [
             "fairshare",  # int > 0
-            "grp_tres_mins",  # dict with 'billing' key
-            "qos_threshold",  # dict with 'billing' key
-            "grace_limit",  # dict with 'billing' key
+            "grp_tres_mins",  # dict with per-component keys
             "limit_type",  # string
             "carryover_details",  # dict with calculation info
         ]
 
         for field in required_for_site_agent:
             self.assertIn(field, settings, f"Missing field for site agent: {field}")
+
+        # QoS state is no longer carried here; it flows via paused/downscaled.
+        self.assertNotIn("qos_threshold", settings)
+        self.assertNotIn("grace_limit", settings)
 
         # Validate field types and values
         self.assertIsInstance(settings["fairshare"], int)
@@ -220,7 +222,6 @@ class TestSlurmPeriodicUsagePolicySTOMPSimple(TestCase):
         print("✅ Settings validated for site agent consumption")
         print(f"   Fairshare: {settings['fairshare']}")
         print(f"   nodeHours limit: {settings['grp_tres_mins']['nodeHours']:,} minutes")
-        print(f"   QoS threshold: {settings['qos_threshold']}")
 
 
 class TestSlurmPeriodicUsagePolicyIntegrationValidation(TestCase):
