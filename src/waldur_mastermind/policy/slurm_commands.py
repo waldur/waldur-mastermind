@@ -93,9 +93,9 @@ def generate_reset_usage_command(account: str) -> dict:
 def generate_preview_commands(
     account: str,
     settings: dict,
-    current_usage: float = 0,
-    current_qos: str = "normal",
-    qos_levels: dict | None = None,
+    current_usage: float = 0,  # noqa: ARG001
+    current_qos: str = "normal",  # noqa: ARG001
+    qos_levels: dict | None = None,  # noqa: ARG001
 ) -> list[dict]:
     """Generate all commands that would be executed for given settings.
 
@@ -106,19 +106,19 @@ def generate_preview_commands(
             - grp_tres_mins: dict - GrpTRESMins limits
             - max_tres_mins: dict - MaxTRESMins limits
             - grp_tres: dict - GrpTRES limits
-            - threshold: float - usage threshold for QoS change
-            - grace_limit: float - grace limit for blocked status
             - reset_raw_usage: bool - whether to reset usage
-        current_usage: Current usage in billing units
-        current_qos: Current QoS level name
-        qos_levels: QoS level names dict {"default": "...", "slowdown": "...", "blocked": "..."}
+        current_usage: unused; kept for backwards-compatible callers.
+        current_qos: unused; kept for backwards-compatible callers.
+        qos_levels: unused; kept for backwards-compatible callers.
+
+    QoS state is no longer derived here. It is driven by Mastermind's
+    policy engine via ``resource.paused`` / ``resource.downscaled`` and
+    propagated to the site agent through the standard RESOURCE update
+    event — not through this command-preview path.
 
     Returns:
         List of command dicts, each with type, description, command, parameters
     """
-    if qos_levels is None:
-        qos_levels = {"default": "normal", "slowdown": "slowdown", "blocked": "blocked"}
-
     commands = []
 
     # Fairshare command
@@ -140,30 +140,6 @@ def generate_preview_commands(
         commands.append(
             generate_limits_command(account, "GrpTRES", settings["grp_tres"])
         )
-
-    # QoS command based on thresholds
-    threshold = settings.get("threshold", 0)
-    grace_limit = settings.get("grace_limit", float("inf"))
-
-    # Ensure threshold and grace_limit are numeric (settings may contain dicts)
-    if not isinstance(threshold, int | float):
-        threshold = 0
-    if not isinstance(grace_limit, int | float):
-        grace_limit = float("inf")
-
-    if threshold > 0 or grace_limit < float("inf"):
-        if current_usage >= grace_limit:
-            new_qos = qos_levels.get("blocked", "blocked")
-            reason = "Usage exceeds grace limit"
-        elif current_usage >= threshold:
-            new_qos = qos_levels.get("slowdown", "slowdown")
-            reason = "Usage exceeds allocation threshold"
-        else:
-            new_qos = qos_levels.get("default", "normal")
-            reason = "Usage within normal limits"
-
-        if new_qos != current_qos:
-            commands.append(generate_qos_command(account, new_qos, reason))
 
     # Reset usage command (if enabled)
     if settings.get("reset_raw_usage"):

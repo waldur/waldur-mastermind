@@ -77,8 +77,8 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
             # Verify basic settings structure
             self.assertIn("fairshare", settings)
             self.assertIn("grp_tres_mins", settings)
-            self.assertIn("qos_threshold", settings)
-            self.assertIn("grace_limit", settings)
+            self.assertNotIn("qos_threshold", settings)
+            self.assertNotIn("grace_limit", settings)
 
             # Verify reasonable values
             self.assertGreater(settings["fairshare"], 0)
@@ -114,21 +114,12 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
                 settings["grp_tres_mins"]["mem"], int(base_mem_minutes * 1.3)
             )
 
-            # QoS threshold should still be at base level (100%)
-            self.assertEqual(
-                settings["qos_threshold"]["node"], base_cpu_minutes + base_mem_minutes
-            )
-            # Grace limit should be at 130%
-            self.assertEqual(
-                settings["grace_limit"]["node"],
-                int((base_cpu_minutes + base_mem_minutes) * 1.3),
-            )
-
-            # Invariant: SLURM hard limit must be >= grace limit for each
-            # component, otherwise SLURM blocks jobs before QoS transitions fire
+            # Invariant: the grace-multiplied SLURM hard limit must be at
+            # least the base allocation, so jobs can still run in the 100%-130%
+            # overrun band before SLURM itself blocks them.
             slurm_total = sum(settings["grp_tres_mins"].values())
-            grace_total = settings["grace_limit"]["node"]
-            self.assertGreaterEqual(slurm_total, grace_total)
+            base_total = base_cpu_minutes + base_mem_minutes
+            self.assertGreaterEqual(slurm_total, base_total)
 
     def test_zero_grace_ratio_does_not_change_slurm_limit(self):
         """Test that with grace_ratio=0, SLURM limit equals base allocation."""
@@ -211,59 +202,6 @@ class TestSlurmPeriodicUsagePolicyBasic(TestCase):
         self.assertEqual(tres_minutes["billing"], 6000)
 
         print(f"✅ TRES minutes with billing weights: {tres_minutes}")
-
-    def test_qos_threshold_calculation_scalar(self):
-        """Test QoS threshold calculation with scalar (backward compat)."""
-        policy = SlurmPeriodicUsagePolicy.objects.create(
-            scope=self.offering,
-            apply_to_all=True,
-            grace_ratio=0.25,
-            tres_billing_enabled=True,
-        )
-
-        total_allocation = 1500.0
-        config = {"grace_ratio": 0.25, "tres_billing_enabled": True}
-
-        qos_threshold, grace_limit = policy._calculate_qos_thresholds(
-            total_allocation, config
-        )
-
-        self.assertEqual(qos_threshold["billing"], 90000)
-        self.assertEqual(grace_limit["billing"], 112500)
-
-        print(
-            f"✅ QoS thresholds (scalar): {qos_threshold['billing']:,} / {grace_limit['billing']:,}"
-        )
-
-    def test_qos_threshold_calculation_dict(self):
-        """Test QoS threshold calculation with per-component dict."""
-        policy = SlurmPeriodicUsagePolicy.objects.create(
-            scope=self.offering,
-            apply_to_all=True,
-            grace_ratio=0.25,
-            tres_billing_enabled=True,
-        )
-
-        total_allocation = {"cpu": 100.0, "mem": 200.0}
-        weights = {"cpu": 0.5, "mem": 0.25}
-        config = {
-            "grace_ratio": 0.25,
-            "tres_billing_enabled": True,
-            "tres_billing_weights": weights,
-        }
-
-        qos_threshold, grace_limit = policy._calculate_qos_thresholds(
-            total_allocation, config
-        )
-
-        # scalar = 100*0.5 + 200*0.25 = 100
-        # threshold = 100 * 60 = 6000, grace = 100 * 1.25 * 60 = 7500
-        self.assertEqual(qos_threshold["billing"], 6000)
-        self.assertEqual(grace_limit["billing"], 7500)
-
-        print(
-            f"✅ QoS thresholds (dict): {qos_threshold['billing']:,} / {grace_limit['billing']:,}"
-        )
 
     def test_configuration_resolution(self):
         """Test configuration resolution without complex scenarios."""

@@ -658,15 +658,10 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
         # Convert per-component allocation to TRES minutes
         tres_minutes = self._calculate_tres_minutes(total_allocation, final_config)
 
-        # Calculate QoS thresholds (uses billing metric)
-        qos_threshold, grace_limit = self._calculate_qos_thresholds(
-            total_allocation, final_config
-        )
-
-        # When grace is configured, the SLURM hard limit (GrpTRESMins) must be
-        # set at the grace level, not the base level. Otherwise SLURM blocks jobs
-        # at 100% and the QoS slowdown/blocked transitions in the 100%-130% range
-        # are unreachable — the site agent can never apply them.
+        # When grace is configured, the SLURM hard limit (GrpTRESMins) is set
+        # at the grace level rather than the base level so SLURM itself
+        # enforces the 100%–130% overrun band that the policy engine governs
+        # via resource.paused / resource.downscaled transitions.
         grace_ratio = final_config.get("grace_ratio", 0)
         if grace_ratio > 0:
             grace_multiplier = 1 + grace_ratio
@@ -699,8 +694,6 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
 
         settings = {
             "fairshare": fairshare,
-            "qos_threshold": qos_threshold,
-            "grace_limit": grace_limit,
             "limit_type": limit_type,
             "reset_raw_usage": reset_raw_usage,
             "carryover_details": carryover_details,
@@ -709,8 +702,7 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
 
         logger.info(
             f"Calculated SLURM settings: fairshare={fairshare}, "
-            f"allocation={total_allocation}, "
-            f"threshold={list(qos_threshold.values())[0] if qos_threshold else 'N/A'}"
+            f"allocation={total_allocation}"
         )
 
         return settings
@@ -1057,53 +1049,6 @@ class SlurmPeriodicUsagePolicy(OfferingUsagePolicy):
                 tres_minutes["billing"] = int(billing_total * 60)
 
         return tres_minutes
-
-    def _calculate_qos_thresholds(self, total_allocation, config):
-        """Calculate QoS thresholds for slowdown and blocking.
-
-        QoS decisions use the unified billing metric (weighted sum of components).
-        If TRES billing is disabled, falls back to sum of all component hours.
-
-        Args:
-            total_allocation: dict[str, float] per-component allocation in hours,
-                              or float for backward compat
-            config: Policy configuration dict
-
-        Returns:
-            tuple[dict, dict]: (qos_threshold, grace_limit) each with billing/node key
-        """
-        grace_ratio = config.get("grace_ratio", 0.2)
-        tres_billing_enabled = config.get("tres_billing_enabled", True)
-
-        # Compute scalar allocation value for threshold calculation
-        if isinstance(total_allocation, dict):
-            if tres_billing_enabled:
-                weights = config.get("tres_billing_weights", {})
-                if weights:
-                    scalar = 0.0
-                    for comp, hours in total_allocation.items():
-                        weight = weights.get(comp, 0)
-                        if not weight:
-                            for wk, wv in weights.items():
-                                if wk.lower() == comp.lower():
-                                    weight = wv
-                                    break
-                        scalar += hours * weight
-                else:
-                    scalar = sum(total_allocation.values())
-            else:
-                scalar = sum(total_allocation.values())
-        else:
-            scalar = total_allocation
-
-        qos_threshold_value = scalar
-        grace_limit_value = scalar * (1 + grace_ratio)
-
-        metric_key = "billing" if tres_billing_enabled else "node"
-        qos_threshold = {metric_key: int(qos_threshold_value * 60)}
-        grace_limit = {metric_key: int(grace_limit_value * 60)}
-
-        return qos_threshold, grace_limit
 
     def is_triggered(self):
         """Check if policy should be triggered based on usage thresholds.

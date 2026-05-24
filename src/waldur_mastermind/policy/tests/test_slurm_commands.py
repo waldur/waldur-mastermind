@@ -98,8 +98,13 @@ class SlurmPreviewCommandsTest(SimpleTestCase):
         self.assertEqual(commands[0]["type"], "limits")
         self.assertIn("GrpTRESMins", commands[0]["description"])
 
-    def test_generate_preview_commands_qos_change_to_slowdown(self):
-        """Test QoS command when usage exceeds threshold."""
+    def test_generate_preview_commands_does_not_emit_qos(self):
+        """Preview no longer derives QoS commands from threshold/grace_limit.
+
+        QoS state is owned by Mastermind via resource.paused / downscaled.
+        The preview omits QoS commands even when legacy threshold fields
+        are present, so SlurmCommandHistory does not duplicate that state.
+        """
         settings = {
             "threshold": 1000,
             "grace_limit": 1200,
@@ -108,48 +113,10 @@ class SlurmPreviewCommandsTest(SimpleTestCase):
         commands = slurm_commands.generate_preview_commands(
             "test_account",
             settings,
-            current_usage=1050,  # Above threshold
-            current_qos="normal",  # Currently normal
+            current_usage=1300,
+            current_qos="normal",
         )
 
-        # Should generate QoS change command
-        qos_commands = [c for c in commands if c["type"] == "qos"]
-        self.assertEqual(len(qos_commands), 1)
-        self.assertEqual(qos_commands[0]["parameters"]["qos"], "slowdown")
-
-    def test_generate_preview_commands_qos_change_to_blocked(self):
-        """Test QoS command when usage exceeds grace limit."""
-        settings = {
-            "threshold": 1000,
-            "grace_limit": 1200,
-        }
-
-        commands = slurm_commands.generate_preview_commands(
-            "test_account",
-            settings,
-            current_usage=1300,  # Above grace limit
-            current_qos="slowdown",
-        )
-
-        qos_commands = [c for c in commands if c["type"] == "qos"]
-        self.assertEqual(len(qos_commands), 1)
-        self.assertEqual(qos_commands[0]["parameters"]["qos"], "blocked")
-
-    def test_generate_preview_commands_no_qos_change_if_same(self):
-        """Test no QoS command if already at correct level."""
-        settings = {
-            "threshold": 1000,
-            "grace_limit": 1200,
-        }
-
-        commands = slurm_commands.generate_preview_commands(
-            "test_account",
-            settings,
-            current_usage=1050,  # Above threshold -> slowdown
-            current_qos="slowdown",  # Already slowdown
-        )
-
-        # Should NOT generate QoS change command (already at correct level)
         qos_commands = [c for c in commands if c["type"] == "qos"]
         self.assertEqual(len(qos_commands), 0)
 
@@ -167,46 +134,13 @@ class SlurmPreviewCommandsTest(SimpleTestCase):
         settings = {
             "fairshare": 500,
             "grp_tres_mins": {"billing": 72000},
-            "threshold": 1000,
-            "grace_limit": 1200,
             "reset_raw_usage": True,
         }
 
-        commands = slurm_commands.generate_preview_commands(
-            "test_account",
-            settings,
-            current_usage=500,  # Normal usage
-            current_qos="normal",
-        )
+        commands = slurm_commands.generate_preview_commands("test_account", settings)
 
-        # Should have fairshare, limits, and reset_usage (no QoS change since usage is normal)
         command_types = [c["type"] for c in commands]
         self.assertIn("fairshare", command_types)
         self.assertIn("limits", command_types)
         self.assertIn("reset_usage", command_types)
-        # No QoS change since current usage is normal and qos is already normal
         self.assertNotIn("qos", command_types)
-
-    def test_generate_preview_commands_custom_qos_levels(self):
-        """Test custom QoS level names."""
-        settings = {
-            "threshold": 1000,
-            "grace_limit": 1200,
-        }
-        qos_levels = {
-            "default": "custom_normal",
-            "slowdown": "custom_slowdown",
-            "blocked": "custom_blocked",
-        }
-
-        commands = slurm_commands.generate_preview_commands(
-            "test_account",
-            settings,
-            current_usage=1050,
-            current_qos="custom_normal",
-            qos_levels=qos_levels,
-        )
-
-        qos_commands = [c for c in commands if c["type"] == "qos"]
-        self.assertEqual(len(qos_commands), 1)
-        self.assertEqual(qos_commands[0]["parameters"]["qos"], "custom_slowdown")
