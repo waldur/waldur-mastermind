@@ -215,6 +215,7 @@ class EventType(StrEnum):
     PROPOSAL_CANCELED = "proposal_canceled"
     PROPOSAL_DOCUMENT_ADDED = "proposal_document_added"
     PROPOSAL_DOCUMENT_REMOVED = "proposal_document_removed"
+    PROPOSAL_WORKFLOW_ADVANCED = "proposal_workflow_advanced"
     QUERY_EXECUTED = "query_executed"
     REDUCTION_OF_CUSTOMER_CREDIT = "reduction_of_customer_credit"
     REDUCTION_OF_CUSTOMER_CREDIT_DUE_TO_MINIMAL_CONSUMPTION = (
@@ -509,6 +510,7 @@ EVENT_GROUP_MAPPING = {
         EventType.PROPOSAL_CANCELED,
         EventType.PROPOSAL_DOCUMENT_ADDED,
         EventType.PROPOSAL_DOCUMENT_REMOVED,
+        EventType.PROPOSAL_WORKFLOW_ADVANCED,
     ],
     EventGroup.PROVIDERS: [
         EventType.MARKETPLACE_RESOURCE_CREATE_CANCELED,

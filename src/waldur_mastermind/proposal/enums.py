@@ -85,8 +85,12 @@ class ResponsibleRoles:
 
 class TransitionModes:
     AUTOMATIC_ON_COMPLETION = "automatic_on_completion"
+    MANUAL = "manual"
 
-    CHOICES = ((AUTOMATIC_ON_COMPLETION, "Advance automatically when step completes"),)
+    CHOICES = (
+        (AUTOMATIC_ON_COMPLETION, "Advance automatically when step completes"),
+        (MANUAL, "Advance manually (call manager confirms)"),
+    )
 
 
 class WorkflowStepOutcomes:

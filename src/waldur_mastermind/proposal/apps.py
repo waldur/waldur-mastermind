@@ -20,3 +20,8 @@ class ProposalConfig(AppConfig):
             sender=models.Proposal,
             dispatch_uid="waldur_mastermind.proposal.delete_checklist_completion",
         )
+        signals.post_save.connect(
+            handlers.seed_mandatory_workflow_steps,
+            sender=models.Call,
+            dispatch_uid="waldur_mastermind.proposal.seed_mandatory_workflow_steps",
+        )

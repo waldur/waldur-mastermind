@@ -3,6 +3,7 @@
 from django.contrib.contenttypes.models import ContentType
 
 from waldur_core.checklist import models as checklist_models
+from waldur_mastermind.proposal import enums, models
 
 
 def create_checklist_completion(sender, instance, created, **kwargs):
@@ -23,3 +24,15 @@ def delete_checklist_completion(sender, instance, **kwargs):
         scope_content_type=proposal_content_type,
         scope_object_id=instance.id,
     ).delete()
+
+
+def seed_mandatory_workflow_steps(sender, instance, created, **kwargs):
+    """Pre-seed mandatory workflow steps (e.g. allocation_decision) on call creation."""
+    if not created:
+        return
+    for step_id in enums.MANDATORY_STEPS:
+        models.CallWorkflowStep.objects.get_or_create(
+            call=instance,
+            step=step_id,
+            defaults={"is_enabled": True},
+        )

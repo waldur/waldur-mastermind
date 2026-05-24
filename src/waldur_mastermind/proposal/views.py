@@ -9,12 +9,14 @@ from django.db.models import (
     Avg,
     Count,
     DurationField,
+    Exists,
     ExpressionWrapper,
     F,
     Max,
     OuterRef,
     ProtectedError,
     Q,
+    Subquery,
 )
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
@@ -45,7 +47,10 @@ from waldur_core.permissions import utils as permissions_utils
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.fixtures import CallRole, ProposalRole
 from waldur_core.permissions.models import UserRole
-from waldur_core.permissions.utils import has_permission, permission_factory
+from waldur_core.permissions.utils import (
+    has_permission,
+    permission_factory,
+)
 from waldur_core.permissions.views import UserRoleMixin
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure.managers import (
@@ -69,7 +74,9 @@ from waldur_mastermind.proposal import (
 from waldur_mastermind.proposal import enums as proposal_enums
 from waldur_mastermind.proposal import permissions as proposal_permissions
 from waldur_mastermind.proposal.enums import (
+    MANDATORY_STEPS,
     WORKFLOW_STEPS,
+    WORKFLOW_STEPS_MAP,
     AffinityMatrixScopes,
     CallStates,
     COIDetectionJobStates,
@@ -82,6 +89,7 @@ from waldur_mastermind.proposal.enums import (
     RequestedOfferingStates,
     ReviewerPoolInvitationStatuses,
     ReviewerSuggestionStatuses,
+    TransitionModes,
     WorkflowStepInstanceStatuses,
 )
 
@@ -544,6 +552,23 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         if call.round_set.count() == 0:
             raise exceptions.ValidationError(
                 _("Call must have a round to be activated.")
+            )
+        if not call.workflow_steps.filter(is_enabled=True).exists():
+            raise exceptions.ValidationError(
+                _("Call must have at least one enabled workflow step.")
+            )
+        enabled_step_ids = set(
+            call.workflow_steps.filter(is_enabled=True).values_list("step", flat=True)
+        )
+        missing = [s for s in MANDATORY_STEPS if s not in enabled_step_ids]
+        if missing:
+            missing_names = [
+                WORKFLOW_STEPS_MAP[s].name if s in WORKFLOW_STEPS_MAP else s
+                for s in missing
+            ]
+            raise exceptions.ValidationError(
+                _("Mandatory workflow steps are missing: %s.")
+                % ", ".join(missing_names)
             )
         call.state = CallStates.ACTIVE
         call.save()
@@ -1300,7 +1325,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     reviewer_pool_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -1373,7 +1398,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     invite_by_email_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -1424,7 +1449,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     generate_suggestions_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -1454,7 +1479,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     suggestions_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -1531,7 +1556,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     send_invitations_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -1573,7 +1598,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     coi_configuration_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -1609,7 +1634,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     conflicts_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -1662,7 +1687,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     conflict_summary_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -1704,7 +1729,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     detect_conflicts_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -1748,7 +1773,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     matching_configuration_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -1774,7 +1799,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     compute_affinities_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -1806,7 +1831,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     affinity_matrix_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -1839,7 +1864,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     proposed_assignments_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -2107,7 +2132,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     generate_assignments_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -2162,7 +2187,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     send_all_assignments_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -2292,7 +2317,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     create_manual_assignment_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["*", "manager"],
         )
     ]
 
@@ -2311,9 +2336,38 @@ class ProposalViewSet(
     model = models.Proposal
 
     def get_queryset(self):
-        return filter_queryset_for_user(
-            models.Proposal.objects.all(), self.request.user
-        ).order_by("created")
+        # Annotate the inputs to workflow_service.is_awaiting_manual_advance so
+        # ProposalSerializer.awaiting_manual_advance is computable without a
+        # per-row query (N+1 on list). Keep these expressions in sync with
+        # workflow_service.is_awaiting_manual_advance.
+        latest_step_status = (
+            models.ProposalWorkflowStepInstance.objects.filter(
+                proposal=OuterRef("pk"), step=OuterRef("workflow_step")
+            )
+            .order_by("-created")
+            .values("status")[:1]
+        )
+        return (
+            filter_queryset_for_user(models.Proposal.objects.all(), self.request.user)
+            .annotate(
+                _awaiting_manual_step=Exists(
+                    models.CallWorkflowStep.objects.filter(
+                        call=OuterRef("round__call"),
+                        step=OuterRef("workflow_step"),
+                        transition_mode=TransitionModes.MANUAL,
+                    )
+                ),
+                _latest_step_status=Subquery(latest_step_status),
+            )
+            .order_by("created")
+        )
+
+    def can_view_scope_team(self, user, proposal):
+        # Core walks the proposal's customer/project tree, which misses a
+        # user whose only role is CALL.MANAGER directly on the call.
+        if super().can_view_scope_team(user, proposal):
+            return True
+        return proposal.round.call_id in get_connected_calls(user, CallRole.MANAGER)
 
     # Both mixins use the default implementation (obj.checklist_completion)
     # UserChecklistMixin permissions - for proposal managers only
@@ -2640,6 +2694,10 @@ class ProposalViewSet(
         outcome_reason = input_serializer.validated_data.get("outcome_reason", "")
 
         with transaction.atomic():
+            # Lock the proposal row first so complete/reject/advance serialise
+            # on the same resource, in a consistent lock order (proposal then
+            # step instance) to avoid deadlocks.
+            models.Proposal.objects.select_for_update().get(pk=proposal.pk)
             # Lock the active step row to serialise concurrent completions.
             current_instance = (
                 proposal.workflow_step_instances.select_for_update()
@@ -2668,6 +2726,15 @@ class ProposalViewSet(
             # Re-introducing them requires a debounce/digest policy first.
 
         if next_instance is None:
+            if workflow_service.is_awaiting_manual_advance(proposal):
+                response_serializer = (
+                    serializers.CompleteWorkflowStepResponseSerializer(
+                        {"detail": "Step completed. Awaiting manual advance."}
+                    )
+                )
+                return response.Response(
+                    response_serializer.data, status=status.HTTP_200_OK
+                )
             response_serializer = serializers.CompleteWorkflowStepResponseSerializer(
                 {
                     "detail": "Workflow completed. Proposal accepted.",
@@ -2717,6 +2784,9 @@ class ProposalViewSet(
         reason = input_serializer.validated_data["reason"]
 
         with transaction.atomic():
+            # Lock the proposal row first (consistent order with
+            # complete/advance) to serialise concurrent workflow mutations.
+            models.Proposal.objects.select_for_update().get(pk=proposal.pk)
             current_instance = (
                 proposal.workflow_step_instances.select_for_update()
                 .filter(
@@ -2748,6 +2818,91 @@ class ProposalViewSet(
     reject_workflow_step_permissions = [
         proposal_permissions.can_act_on_active_workflow_step
     ]
+
+    @extend_schema(
+        description=(
+            "Manually advance a workflow that is awaiting call-manager confirmation."
+        ),
+        request=None,
+        responses={
+            status.HTTP_200_OK: serializers.CompleteWorkflowStepResponseSerializer,
+        },
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def advance_workflow_step(self, request, uuid=None):
+        proposal = self.get_object()
+
+        if proposal.state != ProposalStates.IN_REVIEW:
+            return response.Response(
+                {"detail": "Proposal must be in review state."},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        from_step = proposal.workflow_step
+        actor = request.user.full_name or request.user.username
+
+        with transaction.atomic():
+            # Lock the proposal row to serialise concurrent advances.
+            locked = models.Proposal.objects.select_for_update().get(pk=proposal.pk)
+            # Re-check state under the lock: a concurrent transition could
+            # have moved the proposal out of IN_REVIEW between the pre-lock
+            # read above and the lock acquisition here.
+            if locked.state != ProposalStates.IN_REVIEW:
+                return response.Response(
+                    {"detail": "Proposal must be in review state."},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            try:
+                next_instance = workflow_service.advance_step(proposal=locked)
+            except ValueError as e:
+                return response.Response(
+                    {"detail": str(e)}, status=status.HTTP_409_CONFLICT
+                )
+
+            target = (
+                "workflow completion" if next_instance is None else next_instance.step
+            )
+            # Pass user-controlled strings as named placeholders in
+            # event_context rather than f-string interpolation. The emit
+            # helper calls .format(**context) on the template, so an f-string
+            # that already contains a name like "{user_token_lifetime}" would
+            # otherwise resolve against the event context at emit time.
+            event_logger.emit(
+                "Proposal {proposal_name} workflow manually advanced "
+                "from {from_step} to {target} by {actor}.",
+                event_type=EventType.PROPOSAL_WORKFLOW_ADVANCED,
+                event_context={
+                    "proposal": locked,
+                    "from_step": from_step,
+                    "target": target,
+                    "actor": actor,
+                },
+                scopes=[_get_customer(locked)],
+            )
+
+        if next_instance is None:
+            response_serializer = serializers.CompleteWorkflowStepResponseSerializer(
+                {
+                    "detail": "Workflow completed. Proposal accepted.",
+                    "proposal_state": ProposalStates.ACCEPTED,
+                }
+            )
+            return response.Response(
+                response_serializer.data, status=status.HTTP_200_OK
+            )
+
+        next_step_def = next(
+            (s for s in WORKFLOW_STEPS if s.id == next_instance.step), None
+        )
+        response_serializer = serializers.CompleteWorkflowStepResponseSerializer(
+            {
+                "detail": f"Advanced to: {next_step_def.name if next_step_def else next_instance.step}",
+                "next_step": next_instance.step,
+            }
+        )
+        return response.Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    advance_workflow_step_permissions = [proposal_permissions.can_advance_workflow_step]
 
     @extend_schema(
         request=serializers.ProposalDetachDocumentsSerializer,
@@ -3687,6 +3842,11 @@ class ConflictOfInterestViewSet(ActionsViewSet):
         return models.ConflictOfInterest.objects.filter(
             Q(call__in=get_connected_calls(user, CallRole.MANAGER))
             | Q(call__manager__customer__in=get_connected_customers(user))
+            | Q(
+                call__manager__customer__callmanagingorganisation__in=get_connected_call_organizers(
+                    user
+                )
+            )
             | Q(reviewer__user=user)  # Reviewers can see their own COIs
         ).order_by("-detected_at")
 
@@ -3875,6 +4035,11 @@ class COIDisclosureViewSet(ActionsViewSet):
             Q(reviewer__user=user)
             | Q(call__in=get_connected_calls(user, CallRole.MANAGER))
             | Q(call__manager__customer__in=get_connected_customers(user))
+            | Q(
+                call__manager__customer__callmanagingorganisation__in=get_connected_call_organizers(
+                    user
+                )
+            )
         ).order_by("-created")
 
     def perform_create(self, serializer):
@@ -4049,7 +4214,7 @@ class CallReviewerPoolViewSet(InvitationAcceptanceMixin, ActionsViewSet):
     partial_update_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["manager"],
+            ["call", "call.manager"],
         )
     ]
 
@@ -4061,6 +4226,11 @@ class CallReviewerPoolViewSet(InvitationAcceptanceMixin, ActionsViewSet):
             qs = models.CallReviewerPool.objects.filter(
                 Q(call__in=get_connected_calls(user, CallRole.MANAGER))
                 | Q(call__manager__customer__in=get_connected_customers(user))
+                | Q(
+                    call__manager__customer__callmanagingorganisation__in=get_connected_call_organizers(
+                        user
+                    )
+                )
                 | Q(reviewer__user=user)
                 | Q(invited_user=user)  # Include user-based invitations
                 | Q(invited_email=user.email)  # Include email-based invitations
@@ -4284,7 +4454,7 @@ class CallReviewerPoolViewSet(InvitationAcceptanceMixin, ActionsViewSet):
     force_accept_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["call.manager"],
+            ["call", "call.manager"],
         )
     ]
 
@@ -4305,6 +4475,11 @@ class COIDetectionJobViewSet(ReadOnlyActionsViewSet):
         return models.COIDetectionJob.objects.filter(
             Q(call__in=get_connected_calls(user, CallRole.MANAGER))
             | Q(call__manager__customer__in=get_connected_customers(user))
+            | Q(
+                call__manager__customer__callmanagingorganisation__in=get_connected_call_organizers(
+                    user
+                )
+            )
         ).order_by("-created")
 
 
@@ -4331,6 +4506,11 @@ class ReviewerSuggestionViewSet(ReadOnlyActionsViewSet):
         return models.ReviewerSuggestion.objects.filter(
             Q(call__in=get_connected_calls(user, CallRole.MANAGER))
             | Q(call__manager__customer__in=get_connected_customers(user))
+            | Q(
+                call__manager__customer__callmanagingorganisation__in=get_connected_call_organizers(
+                    user
+                )
+            )
         ).order_by("-affinity_score")
 
     @extend_schema(
@@ -4358,7 +4538,7 @@ class ReviewerSuggestionViewSet(ReadOnlyActionsViewSet):
     destroy_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["call.manager"],
+            ["call", "call.manager"],
         )
     ]
 
@@ -4609,6 +4789,11 @@ class ReviewerBidViewSet(ActionsViewSet):
             Q(reviewer__user=user)
             | Q(call__in=get_connected_calls(user, CallRole.MANAGER))
             | Q(call__manager__customer__in=get_connected_customers(user))
+            | Q(
+                call__manager__customer__callmanagingorganisation__in=get_connected_call_organizers(
+                    user
+                )
+            )
         ).order_by("-submitted_at")
 
     @extend_schema(
@@ -5092,7 +5277,7 @@ class AssignmentBatchViewSet(ActionsViewSet):
     send_permissions = cancel_permissions = extend_deadline_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["call.manager"],
+            ["call", "call.manager"],
         )
     ]
 
@@ -5260,7 +5445,7 @@ class AssignmentItemViewSet(ActionsViewSet):
     suggest_alternatives_permissions = reassign_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["batch.call.manager"],
+            ["batch.call", "batch.call.manager"],
         )
     ]
 
@@ -5576,7 +5761,7 @@ class AssignmentItemViewSet(ActionsViewSet):
     force_unblock_permissions = [
         permission_factory(
             PermissionEnum.MANAGE_PROPOSAL_REVIEW,
-            ["batch.call.manager"],
+            ["batch.call", "batch.call.manager"],
         )
     ]
 

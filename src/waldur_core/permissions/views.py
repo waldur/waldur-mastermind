@@ -377,6 +377,14 @@ def _get_offering_for_scope(scope):
 class UserRoleMixin:
     """Mixin to provide user role management functionality for viewsets."""
 
+    def can_view_scope_team(self, user, scope) -> bool:
+        """Authorise list_users / team listing for ``scope``.
+
+        Override in a viewset to add scope-specific authorisation paths
+        (e.g. a role held on a parent object the core walk does not reach).
+        """
+        return _user_can_view_scope_team(user, scope)
+
     @extend_schema(
         summary="List users and their roles in a scope",
         description="Retrieves a list of users who have a role within a specific scope (e.g., a project or an organization). The list can be filtered by user details or role.",
@@ -482,7 +490,7 @@ class UserRoleMixin:
     @action(detail=True, methods=["GET"])
     def list_users(self, request, uuid=None):
         scope = self.get_object()
-        if not _user_can_view_scope_team(request.user, scope):
+        if not self.can_view_scope_team(request.user, scope):
             raise PermissionDenied(
                 "You do not have permission to list team members of this scope."
             )
