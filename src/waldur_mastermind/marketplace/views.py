@@ -8983,6 +8983,43 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
     )
 
     @extend_schema(
+        summary="Set resource access endpoints",
+        description="Allows a service provider to replace the set of access "
+        "endpoints (name + URL) reported for a resource. Used to surface "
+        "dynamic per-resource endpoints (e.g. an inference API) in the UI.",
+        request=serializers.ResourceEndpointsSerializer,
+        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+    )
+    @action(detail=True, methods=["post"])
+    def set_endpoints(self, request, uuid=None):
+        resource = cast(models.Resource, self.get_object())
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        with transaction.atomic():
+            resource.endpoints.all().delete()
+            for endpoint in serializer.validated_data["endpoints"]:
+                models.ResourceAccessEndpoint.objects.create(
+                    resource=resource,
+                    name=endpoint["name"],
+                    url=endpoint["url"],
+                )
+
+        return Response(
+            {"status": _("The access endpoints are updated")},
+            status=status.HTTP_200_OK,
+        )
+
+    set_endpoints_permissions = [
+        permission_factory(
+            PermissionEnum.SET_RESOURCE_BACKEND_METADATA,
+            ["offering.customer"],
+        )
+    ]
+
+    set_endpoints_serializer_class = serializers.ResourceEndpointsSerializer
+
+    @extend_schema(
         summary="Set resource state to erred",
         description="Allows a service provider to manually set the state of a resource to 'erred'. An error message and traceback can be provided.",
         request=serializers.ResourceSetStateErredSerializer,

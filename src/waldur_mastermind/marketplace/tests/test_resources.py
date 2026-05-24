@@ -2050,6 +2050,59 @@ class ResourceBackendMetadataTest(test.APITestCase):
 
 
 @ddt
+class ResourceSetEndpointsTest(test.APITestCase):
+    def setUp(self) -> None:
+        self.fixture = MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, action="set_endpoints"
+        )
+        CustomerRole.OWNER.add_permission(PermissionEnum.SET_RESOURCE_BACKEND_METADATA)
+        ServiceProviderRole.MANAGER.add_permission(
+            PermissionEnum.SET_RESOURCE_BACKEND_METADATA
+        )
+
+    def make_request(self, role, endpoints=None):
+        self.client.force_authenticate(role)
+        payload = {
+            "endpoints": endpoints
+            if endpoints is not None
+            else [
+                {"name": "vLLM API", "url": "http://192.168.0.150:8000/v1"},
+                {"name": "Chat playground", "url": "http://192.168.0.150:8000"},
+            ]
+        }
+        return self.client.post(self.url, payload, format="json")
+
+    @data("staff", "offering_owner", "service_owner", "service_manager")
+    def test_user_can_set_endpoints_of_resource(self, user):
+        response = self.make_request(getattr(self.fixture, user))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        endpoints = {e.name: e.url for e in self.resource.endpoints.all()}
+        self.assertEqual(
+            endpoints,
+            {
+                "vLLM API": "http://192.168.0.150:8000/v1",
+                "Chat playground": "http://192.168.0.150:8000",
+            },
+        )
+
+    def test_set_endpoints_replaces_previous_set(self):
+        models.ResourceAccessEndpoint.objects.create(
+            resource=self.resource, name="stale", url="http://old:1/"
+        )
+        response = self.make_request(self.fixture.staff)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        names = set(self.resource.endpoints.values_list("name", flat=True))
+        self.assertEqual(names, {"vLLM API", "Chat playground"})
+
+    @data("owner", "admin", "manager")
+    def test_user_can_not_set_endpoints_of_resource(self, user):
+        response = self.make_request(getattr(self.fixture, user))
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+@ddt
 class ResourceSetStateErredTest(test.APITestCase):
     def setUp(self):
         self.fixture = MarketplaceFixture()

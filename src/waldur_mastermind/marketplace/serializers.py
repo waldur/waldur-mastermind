@@ -6062,6 +6062,20 @@ class ResourceBackendMetadataSerializer(serializers.ModelSerializer):
         fields = ("backend_metadata",)
 
 
+class ResourceEndpointSerializer(serializers.Serializer):
+    name = serializers.CharField(help_text="Name of the access endpoint")
+    url = serializers.CharField(
+        validators=[BackendURLValidator],
+        help_text="URL of the access endpoint",
+    )
+
+
+class ResourceEndpointsSerializer(serializers.Serializer):
+    endpoints = ResourceEndpointSerializer(
+        many=True, help_text="Access endpoints to set on the resource"
+    )
+
+
 class ResourceResponseStatusSerializer(serializers.Serializer):
     status = serializers.CharField(
         read_only=True, help_text="Status of the resource response"
