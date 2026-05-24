@@ -734,6 +734,12 @@ The following quotas are supported. All values are expected to be integers:
 - security_group_rule_count - maximal number of created security groups rules.
 - volumes - maximal number of created volumes.
 - snapshots - maximal number of created snapshots.
+- floating_ip_count - maximal number of floating IPs. Use 0 to deny, -1 for unlimited.
+- network_count - maximal number of networks. Use 0 to deny, -1 for unlimited.
+- subnet_count - maximal number of subnets. Use 0 to deny, -1 for unlimited.
+- port_count - maximal number of ports. Use 0 to deny, -1 for unlimited.
+- gigabytes_<volume_type_name> - maximal storage for a specific Cinder volume type, in GB.
+  For example, gigabytes_ssd or gigabytes___DEFAULT__. Use -1 for unlimited.
 
 It is possible to update quotas by one or by submitting all the fields in one request.
 Waldur will attempt to update the provided quotas. Please note, that if provided quotas are
@@ -747,6 +753,54 @@ In case tenant is in a non-stable status, the response would be **409 CONFLICT**
 In this case REST client is advised to repeat the request after some time.
 On successful completion the task will synchronize quotas with the backend.
 """,
+        # Named fields give SDK consumers typed hints; additionalProperties covers
+        # the dynamic gigabytes_<volume_type_name> keys (GB, min -1).
+        # Using a raw media-type dict is the drf-spectacular 0.28 way to combine
+        # both named properties and additionalProperties in one request schema.
+        request={
+            "application/json": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "integer",
+                    "minimum": -1,
+                    "description": "Per-volume-type storage quota in GB (gigabytes_<type>). Use -1 for unlimited, 0 to deny.",
+                },
+                "properties": {
+                    "instances": {"type": "integer", "minimum": 1},
+                    "volumes": {"type": "integer", "minimum": 1},
+                    "snapshots": {"type": "integer", "minimum": 1},
+                    "ram": {"type": "integer", "minimum": 1, "description": "In MiB"},
+                    "vcpu": {"type": "integer", "minimum": 1},
+                    "storage": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "In MiB",
+                    },
+                    "security_group_count": {"type": "integer", "minimum": 1},
+                    "security_group_rule_count": {"type": "integer", "minimum": 1},
+                    "floating_ip_count": {
+                        "type": "integer",
+                        "minimum": -1,
+                        "description": "Use 0 to deny, -1 for unlimited",
+                    },
+                    "network_count": {
+                        "type": "integer",
+                        "minimum": -1,
+                        "description": "Use 0 to deny, -1 for unlimited",
+                    },
+                    "subnet_count": {
+                        "type": "integer",
+                        "minimum": -1,
+                        "description": "Use 0 to deny, -1 for unlimited",
+                    },
+                    "port_count": {
+                        "type": "integer",
+                        "minimum": -1,
+                        "description": "Use 0 to deny, -1 for unlimited",
+                    },
+                },
+            }
+        },
         examples=[
             OpenApiExample(
                 request_only=True,
@@ -760,6 +814,12 @@ On successful completion the task will synchronize quotas with the backend.
                     "security_group_rule_count": 100,
                     "volumes": 10,
                     "snapshots": 20,
+                    "floating_ip_count": 50,
+                    "network_count": 10,
+                    "subnet_count": 20,
+                    "port_count": 100,
+                    "gigabytes_ssd": 500,
+                    "gigabytes___DEFAULT__": 1000,
                 },
             )
         ],

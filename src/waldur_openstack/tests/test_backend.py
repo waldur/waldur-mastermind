@@ -1978,3 +1978,33 @@ class PushTenantQuotasTest(BaseBackendTest):
         # Nova-only quotas must not trigger a neutron update_quota call.
         self._push({"instances": 10, "vcpu": 4, "ram": 8192})
         self.mocked_neutron.update_quota.assert_not_called()
+
+    def test_volume_type_quota_forwarded_to_cinder(self):
+        self._push({"gigabytes_ssd": 500})
+        self.mocked_cinder.quotas.update.assert_called_once_with(
+            self.tenant.backend_id, gigabytes_ssd=500
+        )
+
+    def test_multiple_volume_type_quotas_merged_with_cinder_quotas(self):
+        # storage (MiB) is converted to GB for Cinder; gigabytes_* are passed as-is (GB).
+        self._push(
+            {"storage": 1024, "gigabytes_ssd": 200, "gigabytes___DEFAULT__": 400}
+        )
+        call_kwargs = self.mocked_cinder.quotas.update.call_args[1]
+        self.assertEqual(call_kwargs["gigabytes"], 1)
+        self.assertEqual(call_kwargs["gigabytes_ssd"], 200)
+        self.assertEqual(call_kwargs["gigabytes___DEFAULT__"], 400)
+
+    def test_volume_type_quota_unlimited_value_forwarded(self):
+        self._push({"gigabytes_ssd": -1})
+        call_kwargs = self.mocked_cinder.quotas.update.call_args[1]
+        self.assertEqual(call_kwargs["gigabytes_ssd"], -1)
+
+    def test_volume_type_quota_zero_value_forwarded(self):
+        self._push({"gigabytes_ssd": 0})
+        call_kwargs = self.mocked_cinder.quotas.update.call_args[1]
+        self.assertEqual(call_kwargs["gigabytes_ssd"], 0)
+
+    def test_nova_not_called_when_only_volume_type_quotas(self):
+        self._push({"gigabytes_ssd": 100})
+        self.mocked_nova.quotas.update.assert_not_called()

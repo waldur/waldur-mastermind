@@ -48,6 +48,7 @@ from waldur_openstack.utils import (
     get_valid_availability_zones,
     is_flavor_valid_for_tenant,
     is_image_valid_for_tenant,
+    is_valid_volume_type_name,
     is_volume_type_valid_for_tenant,
     volume_type_name_to_quota_name,
 )
@@ -529,6 +530,36 @@ class OpenStackTenantQuotaSerializer(serializers.Serializer):
     network_count = serializers.IntegerField(min_value=-1, required=False)
     subnet_count = serializers.IntegerField(min_value=-1, required=False)
     port_count = serializers.IntegerField(min_value=-1, required=False)
+
+    def to_internal_value(self, data):
+        # Accept declared fields via default path.
+        result = super().to_internal_value(data)
+
+        # Accept dynamic per-volume-type storage quota keys of the form
+        # gigabytes_<volume_type_name> (e.g. gigabytes_ssd, gigabytes___DEFAULT__).
+        # Cinder stores and returns these in GB (not MiB), so values are passed
+        # through unchanged; no unit conversion is applied here or in push_tenant_quotas.
+        errors = {}
+        for key, value in data.items():
+            if not is_valid_volume_type_name(key):
+                continue
+            if key in result:
+                # Already handled by a declared field — should not happen, but guard anyway.
+                continue
+            try:
+                coerced = int(value)
+            except (TypeError, ValueError):
+                errors[key] = [_("A valid integer is required.")]
+                continue
+            if coerced < -1:
+                errors[key] = [_("Ensure this value is greater than or equal to -1.")]
+                continue
+            result[key] = coerced
+
+        if errors:
+            raise serializers.ValidationError(errors)
+
+        return result
 
 
 class OpenStackFixedIpSerializer(serializers.Serializer):
