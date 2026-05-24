@@ -482,6 +482,56 @@ class TenantQuotasTest(BaseTenantActionsTest):
         self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
         mocked_task.assert_called_once_with(self.tenant, quotas=quotas_data)
 
+    def test_staff_can_set_neutron_quotas(self, mocked_task):
+        self.client.force_authenticate(self.fixture.staff)
+        quotas_data = {
+            "floating_ip_count": 10,
+            "network_count": 5,
+            "subnet_count": 20,
+            "port_count": 100,
+        }
+        response = self.client.post(self.get_url(), data=quotas_data)
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mocked_task.assert_called_once_with(self.tenant, quotas=quotas_data)
+
+    def test_service_manager_can_set_neutron_quotas(self, mocked_task):
+        self.client.force_authenticate(self.fixture.service_manager)
+        quotas_data = {
+            "floating_ip_count": 10,
+            "network_count": 5,
+            "subnet_count": 20,
+            "port_count": 100,
+        }
+        response = self.client.post(self.get_url(), data=quotas_data)
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mocked_task.assert_called_once_with(self.tenant, quotas=quotas_data)
+
+    def test_neutron_quotas_allow_zero(self, mocked_task):
+        self.client.force_authenticate(self.fixture.staff)
+        quotas_data = {"floating_ip_count": 0}
+        response = self.client.post(self.get_url(), data=quotas_data)
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mocked_task.assert_called_once_with(self.tenant, quotas=quotas_data)
+
+    def test_neutron_quotas_allow_unlimited(self, mocked_task):
+        self.client.force_authenticate(self.fixture.staff)
+        quotas_data = {"floating_ip_count": -1}
+        response = self.client.post(self.get_url(), data=quotas_data)
+
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        mocked_task.assert_called_once_with(self.tenant, quotas=quotas_data)
+
+    def test_neutron_quotas_reject_below_minus_one(self, mocked_task):
+        self.client.force_authenticate(self.fixture.staff)
+        quotas_data = {"floating_ip_count": -2}
+        response = self.client.post(self.get_url(), data=quotas_data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(mocked_task.called)
+
     def get_url(self):
         return factories.TenantFactory.get_url(self.tenant, "set_quotas")
 
