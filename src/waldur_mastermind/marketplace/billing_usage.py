@@ -99,7 +99,7 @@ class BillingUsageProcessor:
                 resource=resource,
                 offering_component=offering_component,
                 usage_to_bill=component_usage.usage,
-                date=component_usage.date,
+                date=component_usage.billing_period,
                 plan_period=plan_period,
             )
 
@@ -151,7 +151,7 @@ class BillingUsageProcessor:
                 resource=resource,
                 offering_component=offering_component.overage_component,
                 usage_to_bill=overage_amount,
-                date=component_usage.date,
+                date=component_usage.billing_period,
                 plan_period=plan_period,
                 is_overage=True,
             )
