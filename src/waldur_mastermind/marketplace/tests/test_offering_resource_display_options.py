@@ -25,12 +25,16 @@ class OfferingResourceDisplayOptionsSerializerTest(test.APITestCase):
         self.assertEqual(
             validated_data.get("backend_id_display_label", "Backend ID"), "Backend ID"
         )
+        self.assertEqual(
+            validated_data.get("expose_inference_playground", False), False
+        )
 
     def test_serializer_custom_values(self):
         """Test that the serializer accepts custom values"""
         data = {
             "highlight_backend_id_display": True,
             "backend_id_display_label": "Custom Backend Identifier",
+            "expose_inference_playground": True,
         }
 
         serializer = serializers.OfferingResourceDisplayOptionsSerializer(data=data)
@@ -42,6 +46,7 @@ class OfferingResourceDisplayOptionsSerializerTest(test.APITestCase):
         self.assertEqual(
             validated_data["backend_id_display_label"], "Custom Backend Identifier"
         )
+        self.assertEqual(validated_data["expose_inference_playground"], True)
 
     def test_serializer_boolean_validation(self):
         """Test that boolean field validates correctly"""
