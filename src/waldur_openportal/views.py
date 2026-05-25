@@ -18,7 +18,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.permissions import IsAdminOrReadOnly
-from waldur_core.core.serializers import ReviewCommentSerializer
+from waldur_core.core.serializers import ReviewCommentSerializer, StatusSerializer
 from waldur_core.core.validators import StateValidator
 from waldur_core.permissions.fixtures import ServiceProviderRole
 from waldur_core.structure import filters as structure_filters
@@ -52,6 +52,9 @@ class AllocationViewSet(structure_views.ResourceViewSet):
     set_limits_permissions = [structure_permissions.is_staff]
     set_limits_serializer_class = serializers.AllocationSetLimitsSerializer
 
+    @extend_schema(
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
+    )
     @action(detail=True, methods=["post"])
     def set_limits(self, request, uuid=None):
         instance = self.get_object()
@@ -81,6 +84,9 @@ class RemoteAllocationViewSet(structure_views.ResourceViewSet):
     set_limits_permissions = [structure_permissions.is_staff]
     set_limits_serializer_class = serializers.RemoteAllocationSetLimitsSerializer
 
+    @extend_schema(
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
+    )
     @action(detail=True, methods=["post"])
     def set_limits(self, request, uuid=None):
         instance = self.get_object()

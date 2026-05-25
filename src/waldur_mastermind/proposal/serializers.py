@@ -1413,6 +1413,23 @@ class ProposalUpdateProjectDetailsSerializer(serializers.ModelSerializer):
         ]
 
 
+class ProposalComplianceStatusSerializer(serializers.Serializer):
+    error = serializers.CharField(required=False)
+    has_checklist = serializers.BooleanField()
+    is_completed = serializers.BooleanField()
+    requires_review = serializers.BooleanField()
+    completion_percentage = serializers.IntegerField()
+    reviewed_by = serializers.CharField(allow_null=True)
+    reviewed_at = serializers.DateTimeField(allow_null=True)
+    checklist_name = serializers.CharField(required=False)
+    unanswered_required_count = serializers.IntegerField(required=False)
+
+
+class ProposalCanSubmitResponseSerializer(serializers.Serializer):
+    can_submit = serializers.BooleanField()
+    error = serializers.CharField(allow_null=True)
+
+
 class ProposalSerializer(
     core_serializers.AugmentedSerializerMixin,
     serializers.HyperlinkedModelSerializer,
@@ -1662,7 +1679,7 @@ class ProposalSerializer(
 
         return fields
 
-    @extend_schema_field(serializers.DictField(allow_null=True))
+    @extend_schema_field(ProposalComplianceStatusSerializer(allow_null=True))
     def get_compliance_status(self, obj):
         """Get compliance checklist status."""
         if not obj.round.call.compliance_checklist:
@@ -1691,7 +1708,7 @@ class ProposalSerializer(
             "unanswered_required_count": completion.get_unanswered_required_questions().count(),
         }
 
-    @extend_schema_field(serializers.DictField())
+    @extend_schema_field(ProposalCanSubmitResponseSerializer)
     def get_can_submit(self, obj):
         """Get whether proposal can be submitted."""
         can_submit, error = obj.can_submit()
@@ -1914,13 +1931,47 @@ ProposalComplianceChecklistResponseSerializer = (
 )
 
 
+class CallComplianceChecklistInfoSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+    description = serializers.CharField()
+    total_questions = serializers.IntegerField()
+    required_questions = serializers.IntegerField()
+
+
+class CallComplianceOverviewProposalReviewTriggerSerializer(serializers.Serializer):
+    question = serializers.CharField()
+    answer = serializers.JSONField()
+    trigger_value = serializers.JSONField()
+    operator = serializers.CharField()
+
+
+class CallComplianceOverviewProposalComplianceSerializer(serializers.Serializer):
+    is_completed = serializers.BooleanField()
+    requires_review = serializers.BooleanField()
+    completion_percentage = serializers.IntegerField()
+    reviewed_by = serializers.CharField(allow_null=True)
+    reviewed_at = serializers.DateTimeField(allow_null=True)
+    review_triggers = CallComplianceOverviewProposalReviewTriggerSerializer(many=True)
+    unanswered_required_count = serializers.IntegerField()
+
+
+class CallComplianceOverviewProposalSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+    state = serializers.CharField()
+    created_by = serializers.CharField(allow_null=True)
+    created_by_uuid = serializers.UUIDField(allow_null=True)
+    compliance = CallComplianceOverviewProposalComplianceSerializer(allow_null=True)
+
+
 class CallComplianceOverviewSerializer(serializers.Serializer):
     """Serializer for call manager compliance overview."""
 
     checklist = serializers.SerializerMethodField()
     proposals = serializers.SerializerMethodField()
 
-    @extend_schema_field(serializers.DictField(allow_null=True))
+    @extend_schema_field(CallComplianceChecklistInfoSerializer(allow_null=True))
     def get_checklist(self, call):
         """Get checklist information."""
         if not call.compliance_checklist:
@@ -1936,7 +1987,7 @@ class CallComplianceOverviewSerializer(serializers.Serializer):
             ).count(),
         }
 
-    @extend_schema_field(serializers.ListField())
+    @extend_schema_field(CallComplianceOverviewProposalSerializer(many=True))
     def get_proposals(self, call):
         """Get proposal compliance status."""
         proposals_data = []
@@ -2554,6 +2605,13 @@ class COIDisclosureFormSerializer(
         }
 
 
+class COIPersonalRelationshipSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    relationship_type = serializers.CharField()
+    organization = serializers.CharField(required=False, allow_blank=True)
+    description = serializers.CharField(required=False, allow_blank=True)
+
+
 class COIDisclosureSubmitSerializer(serializers.Serializer):
     """Serializer for submitting a COI disclosure."""
 
@@ -2563,8 +2621,8 @@ class COIDisclosureSubmitSerializer(serializers.Serializer):
         many=True, required=False, default=list
     )
     has_personal_relationships = serializers.BooleanField(default=False)
-    personal_relationships = serializers.ListField(
-        child=serializers.DictField(), required=False, default=list
+    personal_relationships = COIPersonalRelationshipSerializer(
+        many=True, required=False, default=list
     )
     has_other_conflicts = serializers.BooleanField(default=False)
     other_conflicts_description = serializers.CharField(
@@ -4007,14 +4065,20 @@ class GenerateAssignmentsSerializer(serializers.Serializer):
     )
 
 
+class SkippedProposalSerializer(serializers.Serializer):
+    proposal_uuid = serializers.UUIDField()
+    proposal_name = serializers.CharField()
+    reason = serializers.CharField()
+
+
 class GenerateAssignmentsResponseSerializer(serializers.Serializer):
     """Response for generate_assignments action."""
 
     batches_created = serializers.IntegerField()
     items_created = serializers.IntegerField()
     proposals_processed = serializers.IntegerField()
-    skipped_proposals = serializers.ListField(
-        child=serializers.DictField(),
+    skipped_proposals = SkippedProposalSerializer(
+        many=True,
         help_text="Proposals that were skipped with reasons",
     )
 
@@ -4102,11 +4166,19 @@ class ReassignItemResponseSerializer(serializers.Serializer):
     new_batch_uuid = serializers.UUIDField()
 
 
+class ReviewerSuggestionItemSerializer(serializers.Serializer):
+    pool_entry_uuid = serializers.UUIDField()
+    reviewer_name = serializers.CharField()
+    affinity_score = serializers.FloatField(allow_null=True)
+    current_assignments = serializers.IntegerField()
+    max_assignments = serializers.IntegerField()
+
+
 class SuggestAlternativeReviewersSerializer(serializers.Serializer):
     """Response for suggesting alternative reviewers for a declined item."""
 
-    suggestions = serializers.ListField(
-        child=serializers.DictField(),
+    suggestions = ReviewerSuggestionItemSerializer(
+        many=True,
         help_text="List of alternative reviewers with affinity scores",
     )
 
@@ -4171,8 +4243,8 @@ class CreateManualAssignmentResponseSerializer(serializers.Serializer):
 
     batch_uuid = serializers.UUIDField()
     items_created = serializers.IntegerField()
-    skipped_proposals = serializers.ListField(
-        child=serializers.DictField(),
+    skipped_proposals = SkippedProposalSerializer(
+        many=True,
         help_text="Proposals that were skipped with reasons",
     )
 

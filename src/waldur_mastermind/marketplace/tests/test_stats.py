@@ -2056,6 +2056,24 @@ class ProviderOfferingsStatsTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         self.assertIn("offerings", response.data)
+        if response.data["offerings"]:
+            offering = response.data["offerings"][0]
+            self.assertIn("offering_uuid", offering)
+            self.assertIn("offering_name", offering)
+            self.assertIn("category_name", offering)
+            self.assertIn("state", offering)
+            self.assertIn("active_resources", offering)
+            self.assertIn("total_resources", offering)
+            self.assertIn("revenue", offering)
+            self.assertIn("plans", offering)
+
+            if offering["plans"]:
+                plan = offering["plans"][0]
+                self.assertIn("plan_uuid", plan)
+                self.assertIn("plan_name", plan)
+                self.assertIn("usage", plan)
+                self.assertIn("limit", plan)
+                self.assertIn("utilization", plan)
 
     def test_offering_statistics(self):
         """Test that offering statistics are correctly calculated."""

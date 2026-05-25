@@ -218,34 +218,100 @@ class CleanupRequestSerializer(serializers.Serializer):
     )
 
 
+class CleanupResponseItemSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+    offering__name = serializers.CharField(required=False)
+    created = serializers.DateTimeField(required=False)
+    identity__name = serializers.CharField(required=False)
+    state = serializers.CharField(required=False)
+    modified = serializers.DateTimeField(required=False)
+
+
 class CleanupResponseSerializer(serializers.Serializer):
     deleted_count = serializers.IntegerField(
         help_text="Number of items deleted (or would be deleted in dry run)"
     )
     dry_run = serializers.BooleanField(help_text="Whether this was a dry run")
-    items = serializers.ListField(
-        child=serializers.DictField(),
+    items = CleanupResponseItemSerializer(
+        many=True,
         help_text="List of deleted (or to-be-deleted) items",
     )
 
 
+class AgentStatsOfferingCountSerializer(serializers.Serializer):
+    offering__name = serializers.CharField()
+    offering__uuid = serializers.UUIDField()
+    count = serializers.IntegerField()
+
+
+class AgentStatsIdentitiesSerializer(serializers.Serializer):
+    total = serializers.IntegerField()
+    by_offering = AgentStatsOfferingCountSerializer(many=True)
+
+
+class AgentStatsServicesStateSerializer(serializers.Serializer):
+    active = serializers.IntegerField()
+    idle = serializers.IntegerField()
+    error = serializers.IntegerField()
+
+
+class AgentStatsServicesSerializer(serializers.Serializer):
+    total = serializers.IntegerField()
+    by_state = AgentStatsServicesStateSerializer()
+    stale_count = serializers.IntegerField()
+
+
+class AgentStatsBackendTypeSerializer(serializers.Serializer):
+    backend_type = serializers.CharField(allow_null=True)
+    count = serializers.IntegerField()
+
+
+class AgentStatsProcessorsSerializer(serializers.Serializer):
+    total = serializers.IntegerField()
+    by_backend_type = AgentStatsBackendTypeSerializer(many=True)
+    stale_count = serializers.IntegerField()
+
+
 class AgentStatsResponseSerializer(serializers.Serializer):
-    identities = serializers.DictField(help_text="Statistics about agent identities")
-    services = serializers.DictField(help_text="Statistics about agent services")
-    processors = serializers.DictField(help_text="Statistics about agent processors")
+    identities = AgentStatsIdentitiesSerializer(
+        help_text="Statistics about agent identities"
+    )
+    services = AgentStatsServicesSerializer(help_text="Statistics about agent services")
+    processors = AgentStatsProcessorsSerializer(
+        help_text="Statistics about agent processors"
+    )
+
+
+class ActiveAgentTaskSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    name = serializers.CharField()
+    args = serializers.ListField(child=serializers.CharField(), required=False)
+    worker = serializers.CharField()
+
+
+class ScheduledAgentTaskSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    name = serializers.CharField()
+    eta = serializers.CharField()
+
+
+class ReservedAgentTaskSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    name = serializers.CharField()
 
 
 class AgentTaskStatsResponseSerializer(serializers.Serializer):
-    active_tasks = serializers.ListField(
-        child=serializers.DictField(),
+    active_tasks = ActiveAgentTaskSerializer(
+        many=True,
         help_text="Currently running agent-related tasks",
     )
-    scheduled_tasks = serializers.ListField(
-        child=serializers.DictField(),
+    scheduled_tasks = ScheduledAgentTaskSerializer(
+        many=True,
         help_text="Scheduled agent-related tasks",
     )
-    reserved_tasks = serializers.ListField(
-        child=serializers.DictField(),
+    reserved_tasks = ReservedAgentTaskSerializer(
+        many=True,
         help_text="Reserved agent-related tasks",
     )
     error = serializers.CharField(

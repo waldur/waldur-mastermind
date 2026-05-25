@@ -6076,12 +6076,6 @@ class ResourceEndpointsSerializer(serializers.Serializer):
     )
 
 
-class ResourceResponseStatusSerializer(serializers.Serializer):
-    status = serializers.CharField(
-        read_only=True, help_text="Status of the resource response"
-    )
-
-
 class ResourceUpdateLimitsSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Order
@@ -11295,6 +11289,16 @@ class NestedSoftwareTargetSerializer(serializers.ModelSerializer):
         )
 
 
+class SoftwareModuleSerializer(serializers.Serializer):
+    module_name = serializers.CharField(required=False)
+    module_version = serializers.CharField(required=False)
+
+
+class SoftwareToolchainSerializer(serializers.Serializer):
+    name = serializers.CharField(required=False)
+    version = serializers.CharField(required=False)
+
+
 class NestedSoftwareVersionSerializer(serializers.ModelSerializer):
     """Nested serializer for SoftwareVersion model."""
 
@@ -11322,7 +11326,7 @@ class NestedSoftwareVersionSerializer(serializers.ModelSerializer):
             "toolchain_families_compatibility",
         )
 
-    @extend_schema_field(serializers.DictField())
+    @extend_schema_field(SoftwareModuleSerializer(allow_null=True))
     def get_module(self, obj):
         """Return structured module info."""
         return obj.metadata.get("module", {})
@@ -11337,7 +11341,7 @@ class NestedSoftwareVersionSerializer(serializers.ModelSerializer):
         """Return extensions bundled with this version."""
         return obj.metadata.get("extensions", [])
 
-    @extend_schema_field(serializers.DictField())
+    @extend_schema_field(SoftwareToolchainSerializer(allow_null=True))
     def get_toolchain(self, obj):
         """Return toolchain info."""
         return obj.metadata.get("toolchain", {})
@@ -11491,7 +11495,7 @@ class SoftwareVersionSerializer(serializers.HyperlinkedModelSerializer):
         """Get number of targets for this version."""
         return obj.targets.count()
 
-    @extend_schema_field(serializers.DictField())
+    @extend_schema_field(SoftwareModuleSerializer(allow_null=True))
     def get_module(self, obj):
         """Return structured module info."""
         return obj.metadata.get("module", {})
@@ -11506,7 +11510,7 @@ class SoftwareVersionSerializer(serializers.HyperlinkedModelSerializer):
         """Return extensions bundled with this version."""
         return obj.metadata.get("extensions", [])
 
-    @extend_schema_field(serializers.DictField())
+    @extend_schema_field(SoftwareToolchainSerializer(allow_null=True))
     def get_toolchain(self, obj):
         """Return toolchain info."""
         return obj.metadata.get("toolchain", {})
@@ -12326,6 +12330,17 @@ class MaintenanceStatsResponseSerializer(serializers.Serializer):
 # Provider reporting serializers
 
 
+class ProviderResourceTopOfferingSerializer(serializers.Serializer):
+    offering_uuid = serializers.UUIDField()
+    offering_name = serializers.CharField()
+    count = serializers.IntegerField()
+
+
+class ProviderResourceMonthlySerializer(serializers.Serializer):
+    month = serializers.CharField()
+    count = serializers.IntegerField()
+
+
 class ProviderResourceStatsSerializer(serializers.Serializer):
     """Resource statistics for a service provider."""
 
@@ -12334,14 +12349,31 @@ class ProviderResourceStatsSerializer(serializers.Serializer):
         child=serializers.IntegerField(),
         help_text="Resource counts grouped by state",
     )
-    by_offering = serializers.ListField(
-        child=serializers.DictField(),
+    by_offering = ProviderResourceTopOfferingSerializer(
+        many=True,
         help_text="Resource counts grouped by offering",
     )
-    monthly = serializers.ListField(
-        child=serializers.DictField(),
+    monthly = ProviderResourceMonthlySerializer(
+        many=True,
         help_text="Monthly resource counts",
     )
+
+
+class ProviderCustomerTopRevenueSerializer(serializers.Serializer):
+    customer_uuid = serializers.UUIDField()
+    customer_name = serializers.CharField()
+    revenue = serializers.DecimalField(max_digits=20, decimal_places=2, allow_null=True)
+
+
+class ProviderCustomerTopResourceSerializer(serializers.Serializer):
+    customer_uuid = serializers.UUIDField()
+    customer_name = serializers.CharField()
+    resource_count = serializers.IntegerField()
+
+
+class ProviderCustomerMonthlySerializer(serializers.Serializer):
+    month = serializers.CharField()
+    customer_count = serializers.IntegerField()
 
 
 class ProviderCustomerStatsSerializer(serializers.Serializer):
@@ -12349,25 +12381,44 @@ class ProviderCustomerStatsSerializer(serializers.Serializer):
 
     total = serializers.IntegerField(help_text="Total number of customers")
     new_this_month = serializers.IntegerField(help_text="New customers this month")
-    top_by_revenue = serializers.ListField(
-        child=serializers.DictField(),
+    top_by_revenue = ProviderCustomerTopRevenueSerializer(
+        many=True,
         help_text="Top customers by revenue",
     )
-    top_by_resources = serializers.ListField(
-        child=serializers.DictField(),
+    top_by_resources = ProviderCustomerTopResourceSerializer(
+        many=True,
         help_text="Top customers by resource count",
     )
-    monthly = serializers.ListField(
-        child=serializers.DictField(),
+    monthly = ProviderCustomerMonthlySerializer(
+        many=True,
         help_text="Monthly customer counts",
     )
+
+
+class ProviderOfferingPlanStatsSerializer(serializers.Serializer):
+    plan_uuid = serializers.UUIDField()
+    plan_name = serializers.CharField()
+    usage = serializers.IntegerField()
+    limit = serializers.IntegerField(allow_null=True)
+    utilization = serializers.FloatField(allow_null=True)
+
+
+class ProviderOfferingStatsItemSerializer(serializers.Serializer):
+    offering_uuid = serializers.UUIDField()
+    offering_name = serializers.CharField()
+    category_name = serializers.CharField()
+    state = serializers.CharField()
+    active_resources = serializers.IntegerField()
+    total_resources = serializers.IntegerField()
+    revenue = serializers.DecimalField(max_digits=20, decimal_places=2, allow_null=True)
+    plans = ProviderOfferingPlanStatsSerializer(many=True)
 
 
 class ProviderOfferingStatsSerializer(serializers.Serializer):
     """Offering performance statistics for a service provider."""
 
-    offerings = serializers.ListField(
-        child=serializers.DictField(),
+    offerings = ProviderOfferingStatsItemSerializer(
+        many=True,
         help_text="Offering statistics including resources, revenue, and utilization",
     )
 

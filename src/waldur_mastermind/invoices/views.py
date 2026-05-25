@@ -17,6 +17,8 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.utils import is_uuid_like
 from waldur_core.logging import event_logger
+from waldur_core.core.serializers import StatusSerializer
+from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.logging.enums import EventType
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import models as structure_models
@@ -1056,7 +1058,10 @@ class PaymentViewSet(core_views.ActionsViewSet):
         )
 
 
-@extend_schema(request=serializers.FinancialReportEmailSerializer, responses=None)
+@extend_schema(
+    request=serializers.FinancialReportEmailSerializer,
+    responses={status.HTTP_202_ACCEPTED: StatusSerializer},
+)
 @api_view(["POST"])
 @permission_classes((IsStaffOrSupportUser,))
 def send_financial_report_by_mail(request):

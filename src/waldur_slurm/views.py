@@ -1,5 +1,6 @@
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, response, status, viewsets
 from rest_framework.decorators import action
 
@@ -7,6 +8,7 @@ from waldur_core.core import executors as core_executors
 from waldur_core.structure import filters as structure_filters
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import views as structure_views
+from waldur_core.core.serializers import StatusSerializer
 
 from . import executors, filters, models, serializers
 
@@ -26,6 +28,9 @@ class AllocationViewSet(structure_views.ResourceViewSet):
     set_limits_permissions = [structure_permissions.is_staff]
     set_limits_serializer_class = serializers.SlurmAllocationSetLimitsSerializer
 
+    @extend_schema(
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
+    )
     @action(detail=True, methods=["post"])
     def set_limits(self, request, uuid=None):
         instance: models.Allocation = self.get_object()

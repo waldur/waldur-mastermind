@@ -4,6 +4,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, response, status, viewsets
 
 from waldur_core.core import validators as core_validators
+from waldur_core.core.serializers import StatusSerializer
 from waldur_core.core.enums import CoreStates
 from waldur_core.structure import views as structure_views
 
@@ -58,7 +59,7 @@ class VirtualMachineViewSet(
     delete_executor = executors.VirtualMachineDeleteExecutor
     pull_executor = executors.VirtualMachinePullExecutor
 
-    @extend_schema(request=None)
+    @extend_schema(request=None, responses={status.HTTP_202_ACCEPTED: StatusSerializer})
     @decorators.action(detail=True, methods=["post"])
     def start(self, request, uuid=None):
         virtual_machine: models.VirtualMachine = self.get_object()
@@ -72,7 +73,7 @@ class VirtualMachineViewSet(
         core_validators.RuntimeStateValidator("stopped"),
     ]
 
-    @extend_schema(request=None)
+    @extend_schema(request=None, responses={status.HTTP_202_ACCEPTED: StatusSerializer})
     @decorators.action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
         virtual_machine: models.VirtualMachine = self.get_object()
@@ -86,7 +87,7 @@ class VirtualMachineViewSet(
         core_validators.RuntimeStateValidator("running"),
     ]
 
-    @extend_schema(request=None)
+    @extend_schema(request=None, responses={status.HTTP_202_ACCEPTED: StatusSerializer})
     @decorators.action(detail=True, methods=["post"])
     def restart(self, request, uuid=None):
         virtual_machine: models.VirtualMachine = self.get_object()

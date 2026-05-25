@@ -63,31 +63,41 @@ class _ResourceListBlockSerializer(_BaseBlockSerializer):
     state = serializers.ListField(required=False, child=serializers.CharField())
 
 
+class HomeportNavLinkSerializer(serializers.Serializer):
+    label = serializers.CharField()
+    url = serializers.CharField()
+    variant = serializers.CharField(required=False, allow_blank=True)
+    subtitle = serializers.CharField(required=False, allow_blank=True)
+    description_excerpt = serializers.CharField(required=False, allow_blank=True)
+
+
 class _HomeportNavBlockSerializer(_BaseBlockSerializer):
     """Navigation links with optional intro caption."""
 
-    # TODO(WAL-9688 follow-up): tighten the link child schema to an
-    # explicit serializer with fields {label, url, variant, subtitle,
-    # description_excerpt}. Currently DictField accepts arbitrary keys
-    # — if a future tool emits the same block kind with extra fields
-    # (e.g. internal scoring/debug data), they'd pass straight through
-    # to the persisted Message.blocks and to the judge audit. Not a
-    # leak today (search_offerings is the only emitter and constructs
-    # the dict explicitly) but a typed serializer would prevent
-    # future-tool data leakage.
-    links = serializers.ListField(child=serializers.DictField())
+    links = HomeportNavLinkSerializer(many=True)
     content = serializers.CharField(required=False, allow_blank=True)
 
 
+class AskUserFormOptionSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    label = serializers.CharField()
+    description = serializers.CharField(required=False, allow_blank=True)
+    value = serializers.CharField(required=False)
+
+
+class AskUserFormQuestionSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    question = serializers.CharField()
+    options = AskUserFormOptionSerializer(many=True, required=False)
+    multiSelect = serializers.BooleanField(required=False)
+    header = serializers.CharField(required=False, allow_blank=True)
+    allowFreeText = serializers.BooleanField(required=False)
+
+
 class _AskUserFormBlockSerializer(_BaseBlockSerializer):
-    """Question form emitted by ``ask_user`` and ``plan_vm``.
+    """Question form emitted by ``ask_user`` and ``plan_vm``."""
 
-    Per-question shape (id, question, options, multiSelect, header) is
-    validated by ``AskUserTool.execute`` before the block is enqueued, so
-    here we only need a permissive list. `context` is optional.
-    """
-
-    questions = serializers.ListField(child=serializers.DictField())
+    questions = AskUserFormQuestionSerializer(many=True)
     context = serializers.CharField(required=False, allow_blank=True)
 
 

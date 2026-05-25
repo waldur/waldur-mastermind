@@ -419,6 +419,16 @@ class AllocationCandidatesQuerySerializer(serializers.Serializer):
         return result
 
 
+class ResourceClassSummarySerializer(serializers.Serializer):
+    used = serializers.IntegerField()
+    capacity = serializers.IntegerField()
+
+
+class ProviderSummarySerializer(serializers.Serializer):
+    resources = serializers.DictField(child=ResourceClassSummarySerializer())
+    traits = serializers.ListField(child=serializers.CharField())
+
+
 class AllocationCandidatesResponseSerializer(serializers.Serializer):
     """Response shape for the allocation-candidates endpoint."""
 
@@ -426,7 +436,7 @@ class AllocationCandidatesResponseSerializer(serializers.Serializer):
         help_text="Total number of allocation candidates Placement returned."
     )
     provider_summaries = serializers.DictField(
-        child=serializers.DictField(),
+        child=ProviderSummarySerializer(),
         help_text=(
             "Placement's per-provider summary: maps resource_provider_uuid → "
             "{resources: {CLASS: {used, capacity}, ...}, traits: [...]}."
@@ -1617,6 +1627,15 @@ class OpenStackRouterSetRoutesSerializer(serializers.Serializer):
         return attrs
 
 
+class SetExternalGatewayFixedIPSerializer(serializers.Serializer):
+    ip_address = serializers.CharField(
+        help_text=_("IP address specification for the gateway port.")
+    )
+    subnet_id = serializers.CharField(
+        required=False, help_text=_("Backend ID of the subnet.")
+    )
+
+
 class SetExternalGatewaySerializer(serializers.Serializer):
     external_network_id = serializers.CharField(
         help_text=_("Backend ID (OpenStack UUID) of the external network."),
@@ -1631,8 +1650,8 @@ class SetExternalGatewaySerializer(serializers.Serializer):
             "Requires advanced permissions."
         ),
     )
-    external_fixed_ips = serializers.ListField(
-        child=serializers.DictField(),
+    external_fixed_ips = SetExternalGatewayFixedIPSerializer(
+        many=True,
         required=False,
         default=list,
         help_text=_(
@@ -1746,12 +1765,18 @@ class SetExternalGatewaySerializer(serializers.Serializer):
         return attrs
 
 
+class AvailableExternalNetworkSubnetSerializer(serializers.Serializer):
+    backend_id = serializers.CharField()
+    name = serializers.CharField()
+    cidr = serializers.CharField()
+
+
 class AvailableExternalNetworkSerializer(serializers.Serializer):
     backend_id = serializers.CharField()
     name = serializers.CharField()
     description = serializers.CharField()
     source = serializers.ChoiceField(choices=["global", "rbac"])
-    subnets = serializers.ListField(child=serializers.DictField())
+    subnets = AvailableExternalNetworkSubnetSerializer(many=True)
 
 
 class OpenStackAllowedAddressPairSerializer(serializers.Serializer):
@@ -2548,6 +2573,12 @@ class OpenStackRouterSerializer(structure_serializers.BaseResourceSerializer):
         )
 
 
+class OpenStackLoadBalancerVIPSecurityGroupSerializer(serializers.Serializer):
+    uuid = serializers.CharField()
+    name = serializers.CharField()
+    url = serializers.URLField()
+
+
 class OpenStackLoadBalancerSerializer(structure_serializers.BaseResourceSerializer):
     tenant_name = serializers.CharField(source="tenant.name", read_only=True)
     tenant_uuid = serializers.UUIDField(source="tenant.uuid", read_only=True)
@@ -2570,8 +2601,8 @@ class OpenStackLoadBalancerSerializer(structure_serializers.BaseResourceSerializ
     vip_security_groups = serializers.SerializerMethodField()
 
     @extend_schema_field(
-        serializers.ListField(
-            child=serializers.DictField(),
+        OpenStackLoadBalancerVIPSecurityGroupSerializer(
+            many=True,
             help_text="Security groups assigned to the VIP port.",
         )
     )

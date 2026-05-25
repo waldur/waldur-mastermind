@@ -133,8 +133,14 @@ class UserActionSummarySerializer(serializers.Serializer):
     """Serializer for action summary statistics"""
 
     total = serializers.IntegerField()
-    by_urgency = serializers.DictField()
-    by_type = serializers.DictField()
+    by_urgency = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Map of urgency level to count of actions",
+    )
+    by_type = serializers.DictField(
+        child=serializers.IntegerField(),
+        help_text="Map of action type string to count of actions",
+    )
     overdue = serializers.IntegerField()
 
 

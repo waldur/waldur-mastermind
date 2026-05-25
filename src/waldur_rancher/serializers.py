@@ -1671,3 +1671,8 @@ class ClusterSecurityGroupSerializer(serializers.ModelSerializer):
         for rule in rules:
             rule.save()
         return group
+
+
+class SecretSerializer(serializers.Serializer):
+    name = serializers.CharField()
+    id = serializers.CharField()

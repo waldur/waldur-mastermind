@@ -46,7 +46,7 @@ from waldur_core.core import validators as core_validators
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates, ReviewStates
 from waldur_core.core.permissions import PATScopeAwareIsAdminUser
-from waldur_core.core.serializers import ReviewCommentSerializer
+from waldur_core.core.serializers import DetailSerializer, ReviewCommentSerializer
 from waldur_core.core.user_attributes import get_profile_completeness_details
 from waldur_core.core.utils import get_ip_address, is_uuid_like
 from waldur_core.core.views import ActionsViewSet
@@ -2207,14 +2207,8 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         ),
         request=None,
         responses={
-            202: inline_serializer(
-                "PullResponse",
-                fields={"detail": rf_serializers.CharField()},
-            ),
-            409: inline_serializer(
-                "PullConflictResponse",
-                fields={"detail": rf_serializers.CharField()},
-            ),
+            202: DetailSerializer,
+            409: DetailSerializer,
         },
     )
     @action(detail=True, methods=["post"])
@@ -2263,10 +2257,7 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
             "Staff-only operation."
         ),
         responses={
-            200: inline_serializer(
-                "SetErredResponse",
-                fields={"detail": rf_serializers.CharField()},
-            )
+            200: DetailSerializer,
         },
     )
     @action(detail=True, methods=["post"])
@@ -2293,10 +2284,7 @@ class ResourceViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         ),
         request=None,
         responses={
-            200: inline_serializer(
-                "SetOkResponse",
-                fields={"detail": rf_serializers.CharField()},
-            )
+            200: DetailSerializer,
         },
     )
     @action(detail=True, methods=["post"])

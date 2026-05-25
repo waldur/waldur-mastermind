@@ -242,6 +242,20 @@ class WaldurFieldSuggestionSerializer(serializers.Serializer):
     )
 
 
+class OidcEndpointsSerializer(serializers.Serializer):
+    authorization_endpoint = serializers.URLField(
+        help_text="OIDC authorization endpoint"
+    )
+    token_endpoint = serializers.URLField(help_text="OIDC token endpoint")
+    userinfo_endpoint = serializers.URLField(help_text="OIDC userinfo endpoint")
+    end_session_endpoint = serializers.URLField(
+        required=False, allow_null=True, help_text="OIDC end session endpoint"
+    )
+    jwks_uri = serializers.URLField(
+        required=False, allow_null=True, help_text="OIDC JWKS URI"
+    )
+
+
 class DiscoverMetadataResponseSerializer(serializers.Serializer):
     claims_supported = serializers.ListField(
         child=serializers.CharField(),
@@ -251,8 +265,7 @@ class DiscoverMetadataResponseSerializer(serializers.Serializer):
         child=serializers.CharField(),
         help_text="List of scopes supported by the OIDC provider",
     )
-    endpoints = serializers.DictField(
-        child=serializers.CharField(),
+    endpoints = OidcEndpointsSerializer(
         help_text="OIDC endpoints (authorization, token, userinfo, logout)",
     )
     waldur_fields = WaldurFieldSuggestionSerializer(

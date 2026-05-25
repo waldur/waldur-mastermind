@@ -1385,9 +1385,12 @@ class ImportUsageSerializer(serializers.Serializer):
         return value
 
 
+class ImportUsageErrorSerializer(serializers.Serializer):
+    customer_name = serializers.CharField()
+    reason = serializers.CharField()
+
+
 class ImportUsageResponseSerializer(serializers.Serializer):
     created = serializers.IntegerField()
     skipped = serializers.IntegerField()
-    errors = serializers.ListField(
-        child=serializers.DictField(child=serializers.CharField())
-    )
+    errors = ImportUsageErrorSerializer(many=True)
