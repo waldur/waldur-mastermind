@@ -483,6 +483,13 @@ class OfferingResourceDisplayOptionsSerializer(serializers.Serializer):
         allow_blank=True,
         help_text="Label used by UI for showing value of the backend_id",
     )
+    expose_inference_playground = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="Show an in-browser inference playground action for resources "
+        "of this offering (for offerings whose resources expose an "
+        "OpenAI-compatible endpoint).",
+    )
     disabled_resource_actions = serializers.ListField(
         child=serializers.CharField(),
         required=False,

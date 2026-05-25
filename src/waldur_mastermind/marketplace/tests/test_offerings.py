@@ -1064,6 +1064,7 @@ class OfferingCreateTest(test.APITestCase):
             "auto_approve_marketplace_script": True,
             "backend_id_display_label": "Backend ID",
             "enable_display_of_order_actions_for_service_provider": True,
+            "expose_inference_playground": False,
             "highlight_backend_id_display": False,
             "homedir_prefix": "/home/",
             "initial_primarygroup_number": 5000,
