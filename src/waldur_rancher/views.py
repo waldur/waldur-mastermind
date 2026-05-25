@@ -429,7 +429,11 @@ class ProjectViewSet(structure_views.BaseServicePropertyViewSet):
     filterset_class = filters.ProjectFilter
     lookup_field = "uuid"
 
-    @extend_schema(filters=False, description="Returns project's secrets.")
+    @extend_schema(
+        filters=False,
+        description="Returns project's secrets.",
+        responses=serializers.SecretSerializer(many=True),
+    )
     @decorators.action(detail=True, methods=["get"])
     def secrets(self, request, uuid=None):
         project: models.Project = self.get_object()

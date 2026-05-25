@@ -7,13 +7,7 @@ import openportal
 from django.contrib import auth
 from django.core.cache import cache
 from django.http import JsonResponse
-from drf_spectacular.utils import (
-    OpenApiParameter,
-    OpenApiTypes,
-    extend_schema,
-    inline_serializer,
-)
-from rest_framework import serializers as drf_serializers
+from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from rest_framework import status
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import (
@@ -888,17 +882,7 @@ def get_api_token(request):
             description="OpenPortal destination string (repeatable).",
         ),
     ],
-    responses={
-        200: inline_serializer(
-            name="OfferingMappingResponse",
-            fields={
-                "uuid": drf_serializers.CharField(),
-                "name": drf_serializers.CharField(),
-                "description": drf_serializers.CharField(),
-                "slug": drf_serializers.CharField(),
-            },
-        )
-    },
+    responses={200: OpenApiTypes.OBJECT},
 )
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -975,17 +959,7 @@ def offering_mapping(request):
             description="OpenPortal ProjectIdentifier string (repeatable).",
         ),
     ],
-    responses={
-        200: inline_serializer(
-            name="ProjectMappingResponse",
-            fields={
-                "uuid": drf_serializers.CharField(),
-                "name": drf_serializers.CharField(),
-                "customer_uuid": drf_serializers.CharField(),
-                "customer_name": drf_serializers.CharField(),
-            },
-        )
-    },
+    responses={200: OpenApiTypes.OBJECT},
 )
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -1060,17 +1034,7 @@ def project_mapping(request):
             ),
         ),
     ],
-    responses={
-        200: inline_serializer(
-            name="UserMappingResponse",
-            fields={
-                "uuid": drf_serializers.CharField(),
-                "full_name": drf_serializers.CharField(),
-                "email": drf_serializers.EmailField(),
-                "username": drf_serializers.CharField(),
-            },
-        )
-    },
+    responses={200: OpenApiTypes.OBJECT},
 )
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])

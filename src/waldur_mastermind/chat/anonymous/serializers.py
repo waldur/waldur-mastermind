@@ -154,6 +154,24 @@ class AnonymousChatInteractionSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class DailyVolumeSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    count = serializers.IntegerField()
+
+
+class SeverityByDaySeriesSerializer(serializers.Serializer):
+    NONE = serializers.ListField(child=serializers.IntegerField())
+    LOW = serializers.ListField(child=serializers.IntegerField())
+    MEDIUM = serializers.ListField(child=serializers.IntegerField())
+    HIGH = serializers.ListField(child=serializers.IntegerField())
+    CRITICAL = serializers.ListField(child=serializers.IntegerField())
+
+
+class SeverityByDaySerializer(serializers.Serializer):
+    labels = serializers.ListField(child=serializers.DateField())
+    series = SeverityByDaySeriesSerializer()
+
+
 class AnonymousChatKpiResponseSerializer(serializers.Serializer):
     interactions_total = serializers.IntegerField()
     sessions_total = serializers.IntegerField()
@@ -198,12 +216,12 @@ class AnonymousChatKpiResponseSerializer(serializers.Serializer):
     )
 
     # Time-series & operational aggregates
-    daily_volume = serializers.ListField(
-        child=serializers.DictField(),
+    daily_volume = DailyVolumeSerializer(
+        many=True,
         required=False,
         help_text="Per-day query counts across the filter window.",
     )
-    severity_by_day = serializers.DictField(
+    severity_by_day = SeverityByDaySerializer(
         required=False,
         help_text=(
             "Stacked-bar input. Shape: {labels: [iso-date], series: "

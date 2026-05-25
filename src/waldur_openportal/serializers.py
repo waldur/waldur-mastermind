@@ -706,3 +706,24 @@ class AccessResponseSerializer(rf_serializers.Serializer):
     projects = rf_serializers.DictField(child=AccessProjectSerializer())
     invited_by = rf_serializers.CharField(allow_blank=True)
     reason = rf_serializers.CharField(allow_blank=True)
+
+
+class OfferingMappingSerializer(rf_serializers.Serializer):
+    uuid = rf_serializers.CharField()
+    name = rf_serializers.CharField()
+    description = rf_serializers.CharField()
+    slug = rf_serializers.CharField()
+
+
+class ProjectMappingSerializer(rf_serializers.Serializer):
+    uuid = rf_serializers.CharField()
+    name = rf_serializers.CharField()
+    customer_uuid = rf_serializers.CharField()
+    customer_name = rf_serializers.CharField()
+
+
+class UserMappingSerializer(rf_serializers.Serializer):
+    uuid = rf_serializers.CharField()
+    full_name = rf_serializers.CharField()
+    email = rf_serializers.EmailField()
+    username = rf_serializers.CharField()

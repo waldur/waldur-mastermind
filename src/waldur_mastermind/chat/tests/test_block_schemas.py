@@ -95,9 +95,20 @@ def test_ask_user_form_block_round_trips_with_questions_and_context():
                 "question": "What's your workload?",
                 "header": "Workload",
                 "multiSelect": False,
+                "allowFreeText": True,
                 "options": [
-                    {"id": "q0o0", "label": "Training"},
-                    {"id": "q0o1", "label": "Inference"},
+                    {
+                        "id": "q0o0",
+                        "label": "Training",
+                        "description": "ML Training",
+                        "value": "train",
+                    },
+                    {
+                        "id": "q0o1",
+                        "label": "Inference",
+                        "description": "ML Inference",
+                        "value": "infer",
+                    },
                 ],
             }
         ],

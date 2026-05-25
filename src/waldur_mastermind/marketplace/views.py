@@ -88,6 +88,7 @@ from waldur_core.core.serializers import (
     EmptySerializer,
     RestrictedSerializerMixin,
     ReviewCommentSerializer,
+    StatusSerializer,
 )
 from waldur_core.core.utils import (
     SubqueryCount,
@@ -3911,7 +3912,7 @@ class ProviderOfferingViewSet(
     ]
 
     @extend_schema(
-        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        responses={status.HTTP_200_OK: StatusSerializer},
         request=None,
         summary="Refresh offering user usernames",
         description="Triggers a refresh of usernames for all non-restricted users associated with this offering, based on the current username generation policy.",
@@ -7275,12 +7276,15 @@ class OrderViewSet(
         description="Allows a service provider or staff to set or update the backend ID associated with an order. This is useful for linking the order to an external system's identifier.",
         request=serializers.OrderBackendIDSerializer,
         responses={
-            200: {
-                "type": "object",
-                "properties": {"status": {"type": "string"}},
-                "example": {"status": "Order backend_id has been changed."},
-            }
+            status.HTTP_200_OK: StatusSerializer,
         },
+        examples=[
+            OpenApiExample(
+                "Success",
+                value={"status": "Order backend_id has been changed."},
+                response_only=True,
+            )
+        ],
     )
     @action(detail=True, methods=["POST"])
     def set_backend_id(self, request, uuid=None):
@@ -7610,10 +7614,7 @@ class BaseResourceViewSet(
         description="Updates the slug for a resource. Requires staff permissions.",
         request=serializers.ResourceSlugSerializer,
         responses={
-            status.HTTP_200_OK: {
-                "type": "object",
-                "properties": {"status": {"type": "string"}},
-            }
+            status.HTTP_200_OK: StatusSerializer,
         },
     )
     @action(detail=True, methods=["post"])
@@ -7655,10 +7656,7 @@ class BaseResourceViewSet(
         description="Sets the 'downscaled' flag for a resource. Requires staff permissions.",
         request=serializers.ResourceDownscaledSerializer,
         responses={
-            status.HTTP_200_OK: {
-                "type": "object",
-                "properties": {"status": {"type": "string"}},
-            }
+            status.HTTP_200_OK: StatusSerializer,
         },
     )
     @action(detail=True, methods=["post"])
@@ -7702,10 +7700,7 @@ class BaseResourceViewSet(
         description="Sets the 'paused' flag for a resource. Requires staff permissions.",
         request=serializers.ResourcePausedSerializer,
         responses={
-            status.HTTP_200_OK: {
-                "type": "object",
-                "properties": {"status": {"type": "string"}},
-            }
+            status.HTTP_200_OK: StatusSerializer,
         },
     )
     @action(detail=True, methods=["post"])
@@ -7749,10 +7744,7 @@ class BaseResourceViewSet(
         description="Sets the 'restrict_member_access' flag for a resource. Requires staff permissions.",
         request=serializers.ResourceRestrictMemberAccessSerializer,
         responses={
-            status.HTTP_200_OK: {
-                "type": "object",
-                "properties": {"status": {"type": "string"}},
-            }
+            status.HTTP_200_OK: StatusSerializer,
         },
     )
     @action(detail=True, methods=["post"])
@@ -7802,7 +7794,7 @@ class BaseResourceViewSet(
             "Does not regenerate invoices, issue credits, or send notifications."
         ),
         request=serializers.AdjustResourceDatesSerializer,
-        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        responses={status.HTTP_200_OK: StatusSerializer},
     )
     @action(detail=True, methods=["post"])
     def adjust_dates(self, request, uuid=None):
@@ -8151,7 +8143,7 @@ class BaseResourceViewSet(
         description="Updates the options of a resource. If the offering is configured to create orders for option changes, a new UPDATE order will be created. Otherwise, the options are updated directly.",
         request=serializers.ResourceOptionsSerializer,
         responses={
-            status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer,
+            status.HTTP_200_OK: StatusSerializer,
             status.HTTP_201_CREATED: serializers.OrderUUIDSerializer,
             status.HTTP_409_CONFLICT: None,
         },
@@ -8789,7 +8781,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         summary="Set resource backend ID",
         description="Allows a service provider to set or update the backend ID for a resource, linking it to an external system's identifier.",
         request=serializers.ResourceBackendIDSerializer,
-        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        responses={status.HTTP_200_OK: StatusSerializer},
     )
     @action(detail=True, methods=["post"])
     def set_backend_id(self, request, uuid=None):
@@ -8833,7 +8825,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         summary="Set resource effective ID",
         description="Allows a service provider to set or update the effective ID for a resource. The effective ID represents the backend identifier assigned by a downstream provider in federated Waldur deployments.",
         request=serializers.ResourceEffectiveIDSerializer,
-        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        responses={status.HTTP_200_OK: StatusSerializer},
     )
     @action(detail=True, methods=["post"])
     def set_effective_id(self, request, uuid=None):
@@ -8873,7 +8865,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         summary="Update resource options directly",
         description="Allows a service provider to directly update the options of a resource without creating an order. This is typically used for administrative changes or backend synchronization.",
         request=serializers.ResourceOptionsSerializer,
-        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        responses={status.HTTP_200_OK: StatusSerializer},
     )
     @action(detail=True, methods=["post"])
     def update_options_direct(self, request, uuid=None):
@@ -8899,7 +8891,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         summary="Submit a report for a resource",
         description="Allows a service provider to submit a report (e.g., usage or status report) for a resource.",
         request=serializers.ResourceReportSerializer,
-        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        responses={status.HTTP_200_OK: StatusSerializer},
     )
     @action(detail=True, methods=["post"])
     def submit_report(self, request, uuid=None):
@@ -8924,7 +8916,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         description="Allows a service provider to manually set the resource state to OK. This is useful for recovering from Erred state.",
         methods=["POST"],
         request=None,
-        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        responses={status.HTTP_200_OK: StatusSerializer},
     )
     @action(detail=True, methods=["post"])
     def set_state_ok(self, request, uuid=None):
@@ -8956,7 +8948,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         summary="Set resource backend metadata",
         description="Allows a service provider to set or update the backend-specific metadata for a resource.",
         request=serializers.ResourceBackendMetadataSerializer,
-        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        responses={status.HTTP_200_OK: StatusSerializer},
     )
     @action(detail=True, methods=["post"])
     def set_backend_metadata(self, request, uuid=None):
@@ -8988,7 +8980,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         "endpoints (name + URL) reported for a resource. Used to surface "
         "dynamic per-resource endpoints (e.g. an inference API) in the UI.",
         request=serializers.ResourceEndpointsSerializer,
-        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        responses={status.HTTP_200_OK: StatusSerializer},
     )
     @action(detail=True, methods=["post"])
     def set_endpoints(self, request, uuid=None):
@@ -9110,7 +9102,7 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
         summary="Set resource limits",
         description="Allows a service provider to directly set the limits for a resource. This is typically used for administrative changes or backend synchronization, bypassing the normal order process.",
         request=serializers.ResourceSetLimitsSerializer,
-        responses={status.HTTP_200_OK: serializers.ResourceResponseStatusSerializer},
+        responses={status.HTTP_200_OK: StatusSerializer},
     )
     @action(detail=True, methods=["post"])
     def set_limits(self, request, uuid=None):
@@ -12661,7 +12653,7 @@ class StatsViewSet(EagerLoadMixin, rf_viewsets.GenericViewSet):
                     "state": offering.state,
                     "active_resources": active_count,
                     "total_resources": total_count,
-                    "revenue": float(revenue),
+                    "revenue": revenue,
                     "plans": plans_data,
                 }
             )
@@ -14519,10 +14511,7 @@ class BackendResourceRequestViewSet(core_views.ActionsViewSet):
         description="Transitions the request state from 'Sent' to 'Processing'. This is used by a site agent to acknowledge that it has started fetching the resource list.",
         request=None,
         responses={
-            status.HTTP_200_OK: {
-                "type": "object",
-                "properties": {"status": {"type": "string"}},
-            }
+            status.HTTP_200_OK: StatusSerializer,
         },
     )
     @action(detail=True, methods=["post"])
@@ -14544,10 +14533,7 @@ class BackendResourceRequestViewSet(core_views.ActionsViewSet):
         description="Transitions the request state from 'Processing' to 'Done'. This is used by a site agent to signal that it has successfully reported all available resources.",
         request=None,
         responses={
-            status.HTTP_200_OK: {
-                "type": "object",
-                "properties": {"status": {"type": "string"}},
-            }
+            status.HTTP_200_OK: StatusSerializer,
         },
     )
     @action(detail=True, methods=["post"])
@@ -14570,10 +14556,7 @@ class BackendResourceRequestViewSet(core_views.ActionsViewSet):
         description="Transitions the request state to 'Erred'. This is used by a site agent to report a failure during the resource fetching process. An error message and traceback should be provided.",
         request=serializers.BackendResourceRequestSetErredSerializer,
         responses={
-            status.HTTP_200_OK: {
-                "type": "object",
-                "properties": {"status": {"type": "string"}},
-            }
+            status.HTTP_200_OK: StatusSerializer,
         },
         examples=[
             OpenApiExample(

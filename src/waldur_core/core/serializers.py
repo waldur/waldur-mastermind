@@ -1698,3 +1698,11 @@ class AvailableBindingTargetSerializer(serializers.Serializer):
 
     permission = serializers.CharField()
     types = serializers.ListField(child=serializers.CharField())
+
+
+class DetailSerializer(serializers.Serializer):
+    detail = serializers.CharField()
+
+
+class StatusSerializer(serializers.Serializer):
+    status = serializers.CharField()

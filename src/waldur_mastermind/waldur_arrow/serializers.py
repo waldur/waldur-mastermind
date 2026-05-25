@@ -22,7 +22,10 @@ class ArrowCredentialsValidationResponseSerializer(serializers.Serializer):
     valid = serializers.BooleanField()
     message = serializers.CharField(required=False)
     error = serializers.CharField(required=False)
-    partner_info = serializers.DictField(required=False)
+    partner_info = serializers.DictField(
+        required=False,
+        help_text="Raw partner info data from Arrow API",
+    )
 
 
 class ArrowExportTypeSerializer(serializers.Serializer):
@@ -520,13 +523,24 @@ class SyncResourcesResponseSerializer(serializers.Serializer):
     synced = serializers.IntegerField()
     created = serializers.IntegerField()
     updated = serializers.IntegerField()
-    orders_created = serializers.IntegerField(required=False)
+
+
+class ArrowSyncErrorSerializer(serializers.Serializer):
+    error = serializers.CharField(required=False)
+    period = serializers.CharField(required=False)
+    subscription_id = serializers.CharField(required=False)
+    customer_id = serializers.CharField(required=False)
+
+
+class ArrowExportTypeSerializer(serializers.Serializer):
+    """Serializer for Arrow export type."""
+
     customers_created = serializers.IntegerField(required=False)
     projects_created = serializers.IntegerField(required=False)
     mappings_created = serializers.IntegerField(required=False)
     invoices_created = serializers.IntegerField(required=False)
     invoice_items_created = serializers.IntegerField(required=False)
-    errors = serializers.ListField(child=serializers.DictField(), required=False)
+    errors = ArrowSyncErrorSerializer(many=True, required=False)
 
 
 # -------------------- Staff Maintenance Serializers --------------------
@@ -607,6 +621,12 @@ class SyncResourceHistoricalConsumptionRequestSerializer(serializers.Serializer)
         return value
 
 
+class PreviewPeriodSerializer(serializers.Serializer):
+    period = serializers.CharField()
+    status = serializers.CharField(required=False)
+    row_count = serializers.IntegerField(required=False)
+
+
 class SyncResourceHistoricalConsumptionResponseSerializer(serializers.Serializer):
     """Response serializer for historical consumption sync."""
 
@@ -615,11 +635,22 @@ class SyncResourceHistoricalConsumptionResponseSerializer(serializers.Serializer
     periods_synced = serializers.IntegerField()
     periods_skipped = serializers.IntegerField()
     periods_no_data = serializers.IntegerField(default=0)
-    errors = serializers.ListField(child=serializers.DictField())
+    errors = ArrowSyncErrorSerializer(many=True, required=False, default=list)
     dry_run = serializers.BooleanField(default=False)
-    preview_periods = serializers.ListField(
-        child=serializers.DictField(), required=False, default=list
-    )
+    preview_periods = PreviewPeriodSerializer(many=True, required=False, default=list)
+
+
+class SyncStatsResponseSerializer(serializers.Serializer):
+    """Response serializer for sync actions."""
+
+    resource_uuid = serializers.UUIDField()
+    resource_name = serializers.CharField()
+    periods_synced = serializers.IntegerField()
+    periods_skipped = serializers.IntegerField()
+    periods_no_data = serializers.IntegerField(default=0)
+    errors = ArrowSyncErrorSerializer(many=True, required=False, default=list)
+    dry_run = serializers.BooleanField(default=False)
+    preview_periods = PreviewPeriodSerializer(many=True, required=False, default=list)
 
 
 class SyncPauseRequestSerializer(serializers.Serializer):
@@ -725,7 +756,10 @@ class FetchConsumptionResponseSerializer(serializers.Serializer):
     license_reference = serializers.CharField()
     period = serializers.CharField()
     row_count = serializers.IntegerField()
-    data = serializers.ListField(child=serializers.DictField())
+    data = serializers.ListField(
+        child=serializers.DictField(),
+        help_text="Raw consumption data from Arrow API",
+    )
 
 
 class FetchBillingExportResponseSerializer(serializers.Serializer):
@@ -735,7 +769,10 @@ class FetchBillingExportResponseSerializer(serializers.Serializer):
     period_to = serializers.CharField()
     classification = serializers.CharField()
     row_count = serializers.IntegerField()
-    data = serializers.ListField(child=serializers.DictField())
+    data = serializers.ListField(
+        child=serializers.DictField(),
+        help_text="Raw billing export data from Arrow API",
+    )
 
 
 class FetchLicenseInfoResponseSerializer(serializers.Serializer):

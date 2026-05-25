@@ -3520,6 +3520,11 @@ class QuestionAnswerSerializer(serializers.ModelSerializer):
         return answer_data
 
 
+class AvailableProjectDigestSectionSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    title = serializers.CharField()
+
+
 class ProjectDigestConfigSerializer(serializers.ModelSerializer):
     available_sections = serializers.SerializerMethodField()
     enabled_sections = serializers.ListField(
@@ -3540,11 +3545,7 @@ class ProjectDigestConfigSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ["uuid", "last_sent_at", "available_sections"]
 
-    @extend_schema_field(
-        serializers.ListSerializer(
-            child=serializers.DictField(child=serializers.CharField())
-        )
-    )
+    @extend_schema_field(AvailableProjectDigestSectionSerializer(many=True))
     def get_available_sections(self, obj):
         from waldur_core.structure.digest_providers import get_available_providers
 

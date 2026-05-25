@@ -87,6 +87,18 @@ class PermissionEnumStaticSerializer(serializers.DictField):
         super().__init__(child=child, **kwargs)
 
 
+class PermissionDescriptionOptionSerializer(serializers.Serializer):
+    label = serializers.CharField(help_text="Human-readable permission label")
+    value = AllPermissionEnumField(help_text="Permission enum value")
+
+
+class PermissionDescriptionSerializer(serializers.Serializer):
+    label = serializers.CharField(help_text="Category name")
+    options = PermissionDescriptionOptionSerializer(
+        many=True, help_text="List of permissions in this category"
+    )
+
+
 # Enhanced metadata response serializers with complete enum information
 class PermissionMetadataResponseSerializer(serializers.Serializer):
     """Permission metadata including all roles and permissions with complete enum values"""
@@ -100,8 +112,8 @@ class PermissionMetadataResponseSerializer(serializers.Serializer):
     permission_map = PermissionEnumStaticSerializer(
         help_text="Map of resource types to create permission enums"
     )
-    permission_descriptions = serializers.ListField(
-        child=serializers.DictField(),
+    permission_descriptions = PermissionDescriptionSerializer(
+        many=True,
         help_text="Grouped permission descriptions for UI",
     )
 
@@ -114,23 +126,46 @@ class EventMetadataResponseSerializer(serializers.Serializer):
     )
 
 
+class FeatureItemSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    description = serializers.CharField()
+
+
+class FeatureSectionSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    description = serializers.CharField()
+    items = FeatureItemSerializer(many=True)
+
+
 class FeatureMetadataResponseSerializer(serializers.Serializer):
     """Feature metadata including all features and toggles"""
 
-    features = serializers.ListField(
-        child=serializers.DictField(),
-        help_text="List of feature sections with descriptions",
-    )
+    features = FeatureSectionSerializer(many=True)
     feature_enums = serializers.DictField(
         child=serializers.DictField(child=serializers.CharField()),
         help_text="Nested feature enum values by section",
     )
 
 
+class SettingsItemOptionSerializer(serializers.Serializer):
+    value = serializers.CharField()
+    label = serializers.CharField()
+
+
+class SettingsItemSerializer(serializers.Serializer):
+    key = serializers.CharField()
+    description = serializers.CharField()
+    default = serializers.JSONField(required=False)
+    type = serializers.CharField()
+    options = SettingsItemOptionSerializer(many=True, required=False)
+
+
+class SettingsSectionSerializer(serializers.Serializer):
+    description = serializers.CharField()
+    items = SettingsItemSerializer(many=True)
+
+
 class SettingsMetadataResponseSerializer(serializers.Serializer):
     """Settings metadata from Constance configuration"""
 
-    settings = serializers.ListField(
-        child=serializers.DictField(),
-        help_text="List of settings sections with configuration items",
-    )
+    settings = SettingsSectionSerializer(many=True)

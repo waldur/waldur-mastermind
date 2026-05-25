@@ -23,6 +23,7 @@ from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
+from waldur_core.core.serializers import StatusSerializer
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
 from waldur_core.logging import event_logger
@@ -477,7 +478,7 @@ class SecurityGroupViewSet(structure_views.ResourceViewSet):
         summary="Set security group rules",
         description="Update the rules for a specific security group. This overwrites all existing rules.",
         request=serializers.OpenStackSecurityGroupRuleListUpdateSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
         examples=[
             OpenApiExample(
                 request_only=True,
@@ -600,7 +601,7 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
         summary="Attach floating IP to a port",
         description="Attach floating IP to port",
         request=serializers.OpenStackFloatingIPAttachSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def attach_to_port(self, request, uuid=None):
@@ -643,7 +644,7 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
         summary="Detach floating IP from port",
         description="Detach floating IP from port",
         request=None,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def detach_from_port(self, request=None, uuid=None):
@@ -666,7 +667,7 @@ class FloatingIPViewSet(structure_views.ResourceViewSet):
         summary="Update floating IP description",
         description="Update description of the floating IP",
         request=serializers.OpenStackFloatingIPDescriptionUpdateSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def update_description(self, request=None, uuid=None):
@@ -1004,7 +1005,7 @@ On successful completion the task will synchronize quotas with the backend.
 
         To reference a remote group within a rule, use 'remote_group_name' field.""",
         request=serializers.TenantPushSecurityGroupsSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def push_security_groups(self, request, uuid=None):
@@ -1082,7 +1083,7 @@ On successful completion the task will synchronize quotas with the backend.
         summary="Change tenant user password",
         description="Change password for tenant user",
         request=serializers.OpenStackTenantChangePasswordSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def change_password(self, request, uuid=None):
@@ -1105,7 +1106,7 @@ On successful completion the task will synchronize quotas with the backend.
         summary="Pull tenant quotas",
         description="It triggers celery job to pull quotas from remote VPC",
         request=None,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def pull_quotas(self, request, uuid=None):
@@ -1187,6 +1188,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     @extend_schema(
         summary="Set static routes",
         description="Define or overwrite the static routes for the router.",
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["POST"])
     def set_routes(self, request, uuid=None):
@@ -1233,7 +1235,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         summary="Add router interface",
         description="Add interface to router. Either subnet or port must be provided.",
         request=serializers.OpenStackRouterInterfaceSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def add_router_interface(self, request, uuid=None):
@@ -1336,7 +1338,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         summary="Remove router interface",
         description="Remove interface from router. Either subnet or port must be provided.",
         request=serializers.OpenStackRouterInterfaceSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def remove_router_interface(self, request, uuid=None):
@@ -2181,7 +2183,7 @@ class PortViewSet(structure_views.ResourceViewSet):
         summary="Update port security groups",
         description="Update security groups of the port",
         request=serializers.OpenStackInstanceSecurityGroupsUpdateSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def update_security_groups(self, request, uuid=None):
@@ -2558,7 +2560,7 @@ class VolumeViewSet(
         summary="Extend volume size",
         description="Increase volume size",
         request=serializers.OpenStackVolumeExtendSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def extend(self, request, uuid=None):
@@ -2611,7 +2613,7 @@ class VolumeViewSet(
         summary="Attach volume to instance",
         description="Attach volume to instance",
         request=serializers.VolumeAttachSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def attach(self, request, uuid=None):
@@ -2635,7 +2637,7 @@ class VolumeViewSet(
         summary="Detach volume from instance",
         description="Detach instance from volume",
         request=None,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def detach(self, request, uuid=None):
@@ -2656,7 +2658,7 @@ class VolumeViewSet(
         summary="Change volume type",
         description="Retype detached volume",
         request=serializers.OpenStackVolumeRetypeSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def retype(self, request, uuid=None):
@@ -2839,7 +2841,7 @@ class InstanceViewSet(
         summary="Change instance flavor",
         description="Change flavor of the instance",
         request=serializers.InstanceFlavorChangeSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def change_flavor(self, request, uuid=None):
@@ -2879,7 +2881,7 @@ class InstanceViewSet(
         summary="Start instance",
         description="Start the instance",
         request=None,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def start(self, request, uuid=None):
@@ -2909,7 +2911,7 @@ class InstanceViewSet(
         summary="Stop instance",
         description="Stop the instance",
         request=None,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
@@ -2939,7 +2941,7 @@ class InstanceViewSet(
         summary="Restart instance",
         description="Restart the instance",
         request=None,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def restart(self, request, uuid=None):
@@ -2973,7 +2975,7 @@ class InstanceViewSet(
             "explicit rescue_image with hw_rescue_device or hw_rescue_bus set."
         ),
         request=serializers.InstanceRescueSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def rescue(self, request, uuid=None):
@@ -3000,7 +3002,7 @@ class InstanceViewSet(
         summary="Unrescue instance",
         description="Restore the instance from rescue mode.",
         request=None,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def unrescue(self, request, uuid=None):
@@ -3020,7 +3022,7 @@ class InstanceViewSet(
         summary="Update instance security groups",
         description="Update security groups of the instance",
         request=serializers.OpenStackInstanceSecurityGroupsUpdateSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def update_security_groups(self, request, uuid=None):
@@ -3072,7 +3074,7 @@ class InstanceViewSet(
         summary="Update instance allowed address pairs",
         description="Update allowed address pairs of the instance",
         request=serializers.OpenStackInstanceAllowedAddressPairsUpdateSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def update_allowed_address_pairs(self, request, uuid=None):
@@ -3124,7 +3126,7 @@ class InstanceViewSet(
         summary="Update instance ports",
         description="Update ports of the instance",
         request=serializers.OpenStackInstancePortsUpdateSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def update_ports(self, request, uuid=None):
@@ -3162,7 +3164,7 @@ class InstanceViewSet(
         summary="Update instance floating IPs",
         description="Update floating IPs of the instance",
         request=serializers.OpenStackInstanceFloatingIPsUpdateSerializer,
-        responses=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def update_floating_ips(self, request, uuid=None):

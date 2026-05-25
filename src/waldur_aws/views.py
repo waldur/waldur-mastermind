@@ -4,6 +4,7 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, response, status, viewsets
 
 from waldur_core.core import exceptions as core_exceptions
+from waldur_core.core.serializers import StatusSerializer
 from waldur_core.core import validators as core_validators
 from waldur_core.core.enums import CoreStates
 from waldur_core.structure import views as structure_views
@@ -60,7 +61,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
             )
         )
 
-    @extend_schema(request=None)
+    @extend_schema(request=None, responses={status.HTTP_202_ACCEPTED: StatusSerializer})
     @decorators.action(detail=True, methods=["post"])
     def start(self, request, uuid=None):
         instance: models.Instance = self.get_object()
@@ -74,7 +75,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         core_validators.RuntimeStateValidator("stopped"),
     ]
 
-    @extend_schema(request=None)
+    @extend_schema(request=None, responses={status.HTTP_202_ACCEPTED: StatusSerializer})
     @decorators.action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
         instance: models.Instance = self.get_object()
@@ -88,7 +89,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         core_validators.RuntimeStateValidator("running"),
     ]
 
-    @extend_schema(request=None)
+    @extend_schema(request=None, responses={status.HTTP_202_ACCEPTED: StatusSerializer})
     @decorators.action(detail=True, methods=["post"])
     def restart(self, request, uuid=None):
         instance: models.Instance = self.get_object()
@@ -131,7 +132,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
                 _("Volume is already detached.")
             )
 
-    @extend_schema(request=None)
+    @extend_schema(request=None, responses={status.HTTP_202_ACCEPTED: StatusSerializer})
     @decorators.action(detail=True, methods=["post"])
     def detach(self, request, uuid=None):
         executors.VolumeDetachExecutor.execute(self.get_object())

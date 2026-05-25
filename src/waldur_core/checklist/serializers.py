@@ -187,6 +187,60 @@ class QuestionSerializer(
         ]
 
 
+class AnswerSerializer(serializers.ModelSerializer):
+    """Comprehensive serializer for checklist answers with question details."""
+
+    question_uuid = serializers.UUIDField(write_only=True)
+    question_description = serializers.CharField(
+        source="question.description", read_only=True
+    )
+    question_type = serializers.CharField(
+        source="question.question_type", read_only=True
+    )
+    question_required = serializers.BooleanField(
+        source="question.required", read_only=True
+    )
+    user_name = serializers.CharField(source="user.full_name", read_only=True)
+
+    class Meta:
+        model = models.Answer
+        fields = (
+            "uuid",
+            "question_uuid",
+            "question_description",
+            "question_type",
+            "question_required",
+            "answer_data",
+            "requires_review",
+            "user",
+            "user_name",
+            "created",
+            "modified",
+        )
+        read_only_fields = (
+            "uuid",
+            "question_description",
+            "question_type",
+            "question_required",
+            "requires_review",
+            "user",
+            "user_name",
+            "created",
+            "modified",
+        )
+
+
+class QuestionConditionSerializer(serializers.Serializer):
+    question_description = serializers.CharField()
+    operator = serializers.CharField()
+    required_value = serializers.JSONField()
+
+
+class QuestionDependencyInfoSerializer(serializers.Serializer):
+    logic = serializers.CharField()
+    conditions = QuestionConditionSerializer(many=True)
+
+
 class QuestionWithAnswerSerializer(serializers.ModelSerializer):
     """Generic serializer for questions with existing answer context (basic view - no review logic)."""
 
@@ -244,7 +298,7 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
             "dependencies_info",
         )
 
-    @extend_schema_field(serializers.DictField(allow_null=True))
+    @extend_schema_field(AnswerSerializer(allow_null=True))
     def get_existing_answer(self, obj):
         """Get existing answer for this question in the current completion context."""
         request = self.context.get("request")
@@ -312,7 +366,7 @@ class QuestionWithAnswerSerializer(serializers.ModelSerializer):
                 return obj.user_guidance if obj.user_guidance.strip() else None
             return None
 
-    @extend_schema_field(serializers.DictField(allow_null=True))
+    @extend_schema_field(QuestionDependencyInfoSerializer(allow_null=True))
     def get_dependencies_info(self, obj):
         """Return dependency information for conditional questions."""
         if not obj.is_dependant():
@@ -586,49 +640,6 @@ class QuestionAdminSerializer(QuestionSerializer):
         }
 
 
-class AnswerSerializer(serializers.ModelSerializer):
-    """Comprehensive serializer for checklist answers with question details."""
-
-    question_uuid = serializers.UUIDField(write_only=True)
-    question_description = serializers.CharField(
-        source="question.description", read_only=True
-    )
-    question_type = serializers.CharField(
-        source="question.question_type", read_only=True
-    )
-    question_required = serializers.BooleanField(
-        source="question.required", read_only=True
-    )
-    user_name = serializers.CharField(source="user.full_name", read_only=True)
-
-    class Meta:
-        model = models.Answer
-        fields = (
-            "uuid",
-            "question_uuid",
-            "question_description",
-            "question_type",
-            "question_required",
-            "answer_data",
-            "requires_review",
-            "user",
-            "user_name",
-            "created",
-            "modified",
-        )
-        read_only_fields = (
-            "uuid",
-            "question_description",
-            "question_type",
-            "question_required",
-            "requires_review",
-            "user",
-            "user_name",
-            "created",
-            "modified",
-        )
-
-
 class AnswerSubmitSerializer(serializers.Serializer):
     """Generic serializer for submitting checklist answers."""
 
@@ -753,6 +764,13 @@ class AnswerSubmitResponseSerializer(serializers.Serializer):
     completion = ChecklistCompletionSerializer()
 
 
+class ChecklistShortSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+    description = serializers.CharField()
+    checklist_type = serializers.CharField()
+
+
 class ChecklistResponseSerializer(serializers.Serializer):
     """Generic response serializer for checklist with questions and completion (basic view)."""
 
@@ -760,7 +778,7 @@ class ChecklistResponseSerializer(serializers.Serializer):
     completion = ChecklistCompletionSerializer()
     questions = QuestionWithAnswerSerializer(many=True)
 
-    @extend_schema_field(serializers.DictField())
+    @extend_schema_field(ChecklistShortSerializer)
     def get_checklist(self, obj):
         """Get checklist basic information."""
         return {
@@ -778,7 +796,7 @@ class ChecklistReviewerResponseSerializer(serializers.Serializer):
     completion = ChecklistCompletionReviewerSerializer()
     questions = QuestionWithAnswerReviewerSerializer(many=True)
 
-    @extend_schema_field(serializers.DictField())
+    @extend_schema_field(ChecklistShortSerializer)
     def get_checklist(self, obj):
         """Get checklist basic information."""
         return {
@@ -796,7 +814,7 @@ class ChecklistTemplateSerializer(serializers.Serializer):
     questions = QuestionSerializer(many=True)
     initial_visible_questions = QuestionSerializer(many=True)
 
-    @extend_schema_field(serializers.DictField())
+    @extend_schema_field(ChecklistShortSerializer)
     def get_checklist(self, obj):
         """Get checklist basic information."""
         return {
