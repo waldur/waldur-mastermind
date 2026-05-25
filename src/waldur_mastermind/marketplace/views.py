@@ -4950,6 +4950,12 @@ class ProviderOfferingViewSet(
                         f"Category with name '{category_name}' not found, using first available category"
                     )
                     category = models.Category.objects.first()
+                except models.Category.MultipleObjectsReturned:
+                    raise rf_exceptions.ValidationError(
+                        f"Multiple categories match title '{category_name}'. Resolve "
+                        "the duplicate category titles, or specify the target category "
+                        "explicitly via the 'category' parameter."
+                    )
 
         # If we still don't have a category, try to get the first available one
         if not category:
