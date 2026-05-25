@@ -91,16 +91,19 @@ collections:
     modules:
       - name: offering_facts
         plugin: facts
+        many: true
         base_operation_id: "marketplace_public_offerings"
         resolvers:
           <<: *customer_context_resolver
 
       - name: order_facts
         plugin: facts
+        many: true
         base_operation_id: "marketplace_orders"
 
       - name: resource_facts
         plugin: facts
+        many: true
         base_operation_id: "marketplace_resources"
         resolvers:
           <<: *project_context_resolver
@@ -159,54 +162,64 @@ collections:
       # --- Facts Modules (Read-Only) ---
       - name: vpc_facts
         plugin: facts
+        many: true
         base_operation_id: "openstack_tenants"
         resolvers:
           <<: *project_customer_resolvers
 
       - name: volume_facts
         plugin: facts
+        many: true
         base_operation_id: "openstack_volumes"
         resolvers:
           <<: *base_openstack_resolvers
 
       - name: instance_facts
         plugin: facts
+        many: true
         base_operation_id: "openstack_instances"
         resolvers:
           <<: *base_openstack_resolvers
 
       - name: security_group_facts
         plugin: facts
+        many: true
         base_operation_id: "openstack_security_groups"
         resolvers:
           <<: *base_openstack_resolvers
 
       - name: subnet_facts
         plugin: facts
+        many: true
         base_operation_id: "openstack_subnets"
         resolvers:
           <<: *base_openstack_resolvers
 
       - name: network_facts
         plugin: facts
+        many: true
         base_operation_id: "openstack_networks"
         resolvers:
           <<: *base_openstack_resolvers
 
       - name: flavor_facts
         plugin: facts
+        many: true
         base_operation_id: "openstack_flavors"
 
       - name: image_facts
         plugin: facts
+        many: true
         base_operation_id: "openstack_images"
 
       - name: volume_type_facts
         plugin: facts
+        many: true
         base_operation_id: "openstack_volume_types"
 
       - name: port_facts
         plugin: facts
+        many: true
         base_operation_id: "openstack_ports"
 
       # --- Order Modules (Marketplace Resources) ---
