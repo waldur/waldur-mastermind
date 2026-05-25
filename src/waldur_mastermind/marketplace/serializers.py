@@ -9,7 +9,11 @@ from dateutil.parser import parse as parse_datetime
 from dateutil.relativedelta import relativedelta
 from django import forms
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.core.exceptions import (
+    MultipleObjectsReturned,
+    ObjectDoesNotExist,
+    ValidationError,
+)
 from django.core.validators import DomainNameValidator
 from django.db import transaction
 from django.db.models import Count, Q, QuerySet, Sum
@@ -11875,6 +11879,24 @@ class OfferingExportDataSerializer(serializers.Serializer):
     resource_options = serializers.JSONField(required=False)
 
 
+class CategoryByTitleField(serializers.SlugRelatedField):
+    """Resolve a category by title, returning 400 (not 500) on an ambiguous title.
+
+    Category titles are not unique, so a plain ``SlugRelatedField`` lookup can
+    raise ``MultipleObjectsReturned``, which would surface as a 500.
+    """
+
+    def to_internal_value(self, data):
+        try:
+            return super().to_internal_value(data)
+        except MultipleObjectsReturned:
+            raise serializers.ValidationError(
+                f"Multiple categories match title '{data}'. Resolve the duplicate "
+                "category titles, or omit the category to use the value from the "
+                "imported data."
+            )
+
+
 class OfferingImportParametersSerializer(serializers.Serializer):
     """
     Serializer to configure offering import parameters.
@@ -11889,7 +11911,7 @@ class OfferingImportParametersSerializer(serializers.Serializer):
         allow_null=True,
         help_text="Target customer for imported offering. If not provided, uses current user's customer",
     )
-    category = serializers.SlugRelatedField(
+    category = CategoryByTitleField(
         slug_field="title",
         queryset=models.Category.objects.all(),
         required=False,

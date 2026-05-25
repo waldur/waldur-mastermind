@@ -476,6 +476,52 @@ class OfferingExportImportTestCase(test.APITestCase):
             )
         )
 
+    def test_import_offering_ambiguous_category_param_returns_400(self):
+        """Ambiguous category title in the 'category' param -> 400, not 500."""
+        self.client.force_authenticate(self.user)
+        factories.CategoryFactory(title="Duplicate Title")
+        factories.CategoryFactory(title="Duplicate Title")
+
+        yaml_data = yaml.safe_dump({"offering": {"name": "Ambiguous Cat Offering"}})
+        url = reverse("marketplace-provider-offering-import-offering")
+        response = self.client.post(
+            url,
+            {
+                "customer": self.customer.uuid.hex,
+                "category": "Duplicate Title",
+                "offering_data": yaml_data,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Multiple categories", str(response.data))
+
+    def test_import_offering_ambiguous_category_name_returns_400(self):
+        """Ambiguous category title from offering_data.category_name -> 400, not 500."""
+        self.client.force_authenticate(self.user)
+        factories.CategoryFactory(title="Duplicate Title")
+        factories.CategoryFactory(title="Duplicate Title")
+
+        yaml_data = yaml.safe_dump(
+            {
+                "offering": {
+                    "name": "Ambiguous Cat Name Offering",
+                    "category_name": "Duplicate Title",
+                }
+            }
+        )
+        url = reverse("marketplace-provider-offering-import-offering")
+        response = self.client.post(
+            url,
+            {
+                "customer": self.customer.uuid.hex,
+                "offering_data": yaml_data,
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Multiple categories", str(response.data))
+
     def test_import_offering_components_with_missing_components_in_plans(self):
         """Test import handles plan components referencing non-existent components."""
         self.client.force_authenticate(self.user)
