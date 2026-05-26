@@ -378,7 +378,12 @@ class OIDCAuthentication(BaseAuthentication):
                 f"Token does not contain required user identifier field: '{user_field}'"
             )
 
-        user, _ = models.User.objects.get_or_create(username=user_identifier)
+        # Use all_objects so the lookup also matches deactivated users; otherwise
+        # the active-only default manager hides an existing inactive row and the
+        # subsequent create() collides on the unique username constraint (500).
+        user, _ = models.User.all_objects.get_or_create(username=user_identifier)
+        if not user.is_active:
+            raise AuthenticationFailed("User inactive or deleted.")
         set_user_context(user)
 
         return (user, parsed_token)
