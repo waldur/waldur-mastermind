@@ -691,9 +691,16 @@ Generate TypeScript SDK:
   needs:
     - Generate OpenAPI schema
   script: |
-    npx --yes @hey-api/openapi-ts@0.77.0
-    # drop querySerializer because it is producing explode: false for multiple choice filter
-    sed -i '/querySerializer: {/,/},/d' waldur-typescript-sdk/sdk.gen.ts
+    npx --yes @hey-api/openapi-ts@0.97.3
+    # drop querySerializer because it is producing explode: false for multiple choice filter.
+    # The generator emits it as a single line, or wrapped across lines when an operation has
+    # several array params, so a line-range sed over-deletes; strip the whole property instead.
+    awk '
+    /querySerializer: \{ parameters:/ { if ($0 ~ /\} \},[[:space:]]*$/) { next } skip=1; next }
+    skip==1 { if ($0 ~ /^[[:space:]]*\} \},[[:space:]]*$/) skip=0; next }
+    { print }
+    ' waldur-typescript-sdk/sdk.gen.ts > waldur-typescript-sdk/sdk.gen.ts.tmp
+    mv waldur-typescript-sdk/sdk.gen.ts.tmp waldur-typescript-sdk/sdk.gen.ts
     sed -i '1i export { formDataBodySerializer, RequestResult } from "./client";' waldur-typescript-sdk/index.ts
   artifacts:
     paths:
