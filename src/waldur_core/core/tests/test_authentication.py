@@ -323,6 +323,32 @@ class OIDCAuthenticationTest(test.APITestCase):
         self.assertEqual(response.data["detail"], "Token has expired.")
 
     @respx.mock
+    def test_existing_inactive_user_is_rejected(self):
+        """An existing deactivated user must be rejected, not crash on re-creation.
+
+        The default User.objects manager filters out inactive users, so a naive
+        get_or_create would miss the existing row and then collide on the unique
+        username constraint, producing a 500. Authentication must return 401.
+        """
+        username = "deactivated_user"
+        User.objects.create_user(username=username, is_active=False)
+
+        respx.post("http://oidc.example.com/introspect").mock(
+            return_value=httpx.Response(
+                200, json={"active": True, "username": username}
+            )
+        )
+
+        response = self.client.get(
+            "/api/users/me/",
+            HTTP_AUTHORIZATION=f"Bearer {VALID_JWT_TOKEN}",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        # No duplicate row was created.
+        self.assertEqual(User.all_objects.filter(username=username).count(), 1)
+
+    @respx.mock
     def test_user_created_if_not_exists(self):
         """Test that a new user is created when they don't exist in the system"""
         non_existent_username = "new_test_user"
