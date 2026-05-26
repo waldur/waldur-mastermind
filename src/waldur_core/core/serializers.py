@@ -1561,6 +1561,11 @@ class PersonalAccessTokenCreateSerializer(serializers.Serializer):
     def validate(self, attrs):
         user = self.context["request"].user
 
+        if not (user.is_staff or user.can_use_personal_access_tokens):
+            raise serializers.ValidationError(
+                "You are not allowed to create personal access tokens."
+            )
+
         # Check token count limit
         active_count = PersonalAccessToken.objects.filter(
             user=user, is_active=True
