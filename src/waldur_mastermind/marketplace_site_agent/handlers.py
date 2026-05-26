@@ -305,3 +305,33 @@ def send_course_account_deletion_info(
         return
 
     send_account_message(instance, created=False)
+
+
+def send_resource_messages_on_project_move(
+    sender, project, old_customer, new_customer, **kwargs
+):
+    """Push a RESOURCE message for every active site-agent resource in a moved project.
+
+    Waldur does not emit a RESOURCE event when a project changes its customer,
+    so STOMP-mode agents would never learn about the new account hierarchy.
+    force=True bypasses the idempotency guard because the resource's own fields
+    (downscaled, paused, …) haven't changed, but the hierarchy has.
+    """
+    if get_skip_side_effects():
+        return
+
+    resources = marketplace_models.Resource.objects.filter(
+        project=project,
+        offering__type=SITE_AGENT_OFFERING,
+        state=ResourceStates.OK,
+    )
+
+    for resource in resources:
+        utils.push_resource_update_message(resource, force=True)
+        logger.info(
+            "Pushed resource message for %s after project %s moved from %s to %s",
+            resource,
+            project,
+            old_customer,
+            new_customer,
+        )

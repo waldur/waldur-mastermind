@@ -3,6 +3,8 @@ from unittest import mock
 from django.test import TestCase, override_settings
 from rest_framework import status, test
 
+from waldur_core.structure import utils as structure_utils
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.marketplace.enums import ResourceStates
 from waldur_mastermind.marketplace.tests import factories
 from waldur_mastermind.marketplace_site_agent import utils
@@ -116,3 +118,32 @@ class PushResourceUpdateMessageTest(TestCase):
         # Periodic call sees same content in cache — skipped
         utils.push_resource_update_message(self.resource, force=False)
         self.assertEqual(mock_publish.call_count, 1)
+
+
+class ProjectMoveResourceMessageTest(test.APITestCase):
+    def setUp(self):
+        self.fixture = site_agent_fixtures.MarketplaceSiteAgentFixture()
+        resource = self.fixture.resource
+        resource.state = ResourceStates.OK
+        resource.save()
+        self.new_customer = structure_factories.CustomerFactory()
+
+    @mock.patch(
+        "waldur_mastermind.marketplace_site_agent.utils.push_resource_update_message"
+    )
+    def test_resource_message_sent_on_project_move(self, mock_push):
+        structure_utils.move_project(
+            self.fixture.project, self.new_customer, preserve_permissions=True
+        )
+        mock_push.assert_called_once_with(self.fixture.resource, force=True)
+
+    @mock.patch(
+        "waldur_mastermind.marketplace_site_agent.utils.push_resource_update_message"
+    )
+    def test_non_ok_resource_not_notified_on_project_move(self, mock_push):
+        self.fixture.resource.state = ResourceStates.ERRED
+        self.fixture.resource.save()
+        structure_utils.move_project(
+            self.fixture.project, self.new_customer, preserve_permissions=True
+        )
+        mock_push.assert_not_called()

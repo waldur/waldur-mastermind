@@ -11,6 +11,7 @@ class MarketplaceSlurmConfig(AppConfig):
 
     def ready(self):
         from waldur_core.permissions import signals as permission_signals
+        from waldur_core.structure import signals as structure_signals
         from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.marketplace.plugins import manager
         from waldur_mastermind.marketplace_site_agent import (
@@ -86,4 +87,9 @@ class MarketplaceSlurmConfig(AppConfig):
             handlers.send_course_account_deletion_info,
             sender=marketplace_models.CourseAccount,
             dispatch_uid="waldur_mastermind.marketplace_site_agent.send_course_account_deletion_info",
+        )
+
+        structure_signals.project_moved.connect(
+            handlers.send_resource_messages_on_project_move,
+            dispatch_uid="waldur_mastermind.marketplace_site_agent.send_resource_messages_on_project_move",
         )
