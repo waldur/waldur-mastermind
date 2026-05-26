@@ -129,3 +129,11 @@ class DryRunSerializer(
 
 class PullMarketplaceScriptResourceSerializer(serializers.Serializer):
     resource_uuid = serializers.UUIDField()
+
+
+class ScriptDryRunResponseSerializer(serializers.Serializer):
+    output = serializers.CharField()
+
+
+class ScriptAsyncDryRunResponseSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()

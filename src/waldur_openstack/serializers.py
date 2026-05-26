@@ -2655,14 +2655,6 @@ class LoadBalancerAttachFloatingIPSerializer(serializers.Serializer):
     )
 
 
-class LoadBalancerAsyncOperationResponseSerializer(serializers.Serializer):
-    """Response body when a load balancer backend operation is accepted (HTTP 202)."""
-
-    status = serializers.CharField(
-        help_text="Message that execution of the operation was scheduled.",
-    )
-
-
 class LoadBalancerSetSecurityGroupsSerializer(serializers.Serializer):
     security_groups = serializers.ListField(
         child=serializers.HyperlinkedRelatedField(
@@ -3435,6 +3427,12 @@ class OpenStackCreateFloatingIPSerializer(serializers.Serializer):
 class OpenStackUsageStatsSerializer(serializers.Serializer):
     shared = serializers.BooleanField()
     service_provider = serializers.ListField(child=serializers.CharField())
+
+
+class OpenStackUsageStatsResponseSerializer(serializers.Serializer):
+    name = serializers.CharField(read_only=True)
+    running_instances_count = serializers.IntegerField(read_only=True)
+    created_instances_count = serializers.IntegerField(read_only=True)
 
 
 class BaseAvailabilityZoneSerializer(structure_serializers.BasePropertySerializer):

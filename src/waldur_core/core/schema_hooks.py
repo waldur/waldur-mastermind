@@ -4,6 +4,7 @@ from typing import Any
 from unittest import mock
 
 from django.urls import Resolver404, resolve
+from drf_spectacular.drainage import error
 from drf_spectacular.generators import SchemaGenerator
 from drf_spectacular.openapi import AutoSchema
 
@@ -742,8 +743,8 @@ def validate_waldur_operation_ids(result, generator, **kwargs):
                     )
 
     if errors:
-        # Raising an error here will stop the 'waldur spectacular' command and show these messages
-        raise ValueError("\n" + "\n".join(errors))
+        for err in errors:
+            error(err)
 
     return result
 
@@ -797,7 +798,8 @@ def validate_go_sdk_naming_collisions(result, generator, **kwargs):
                 )
 
     if errors:
-        raise ValueError("\n" + "\n".join(errors))
+        for err in errors:
+            error(err)
 
     return result
 
@@ -935,5 +937,56 @@ def sanitize_schema(result, generator, **kwargs):
                         and media_type.get("schema") is None
                     ):
                         del media_type["schema"]
+
+    return result
+
+
+def check_action_responses(result, generator, **kwargs):
+    """
+    Ensure that all custom DRF actions have explicitly defined responses.
+    This prevents drf-spectacular from defaulting to 200 OK + the viewset serializer,
+    which is often incorrect for custom actions that return status dicts or empty responses.
+    """
+    import inspect
+
+    errors = []
+
+    for path, path_regex, method, callback in generator.endpoints:
+        if not hasattr(callback, "cls") or not hasattr(callback, "actions"):
+            continue
+
+        viewset_class = callback.cls
+        action_name = callback.actions.get(method.lower())
+
+        if not action_name or action_name in [
+            "list",
+            "retrieve",
+            "create",
+            "update",
+            "partial_update",
+            "destroy",
+        ]:
+            continue
+
+        action_method = getattr(viewset_class, action_name, None)
+        if not action_method:
+            continue
+
+        try:
+            # Unwrap method to get original source if decorated
+            while hasattr(action_method, "__wrapped__"):
+                action_method = action_method.__wrapped__
+            source = inspect.getsource(action_method)
+        except (TypeError, OSError):
+            continue
+
+        if "responses=" not in source:
+            errors.append(
+                f"Action '{action_name}' on {viewset_class.__name__} must specify responses explicitly via @extend_schema(responses=...)."
+            )
+
+    if errors:
+        for err in errors:
+            error(err)
 
     return result

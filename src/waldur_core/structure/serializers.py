@@ -2344,6 +2344,17 @@ class ProfileCompletenessSerializer(serializers.Serializer):
     )
 
 
+class UserMeSerializer(UserSerializer):
+    ip_address = serializers.CharField(read_only=True)
+    profile_completeness = ProfileCompletenessSerializer(read_only=True)
+
+    class Meta(UserSerializer.Meta):
+        fields = UserSerializer.Meta.fields + (
+            "ip_address",
+            "profile_completeness",
+        )
+
+
 class UserActiveStatusCountSerializer(serializers.Serializer):
     """Serializer for user active status counts."""
 

@@ -151,3 +151,7 @@ core_signals.pre_serializer_fields.connect(
     sender=marketplace_serializers.PublicOfferingDetailsSerializer,
     receiver=add_google_calendar_link,
 )
+
+
+class BookingOrderUUIDSerializer(serializers.Serializer):
+    order_uuid = serializers.UUIDField()

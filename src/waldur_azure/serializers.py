@@ -388,3 +388,8 @@ class AzureSqlDatabaseCreateSerializer(serializers.ModelSerializer):
         validated_data["service_settings"] = server.service_settings
         validated_data["project"] = server.project
         return super().create(validated_data)
+
+
+class AzureSqlDatabaseCreateResponseSerializer(serializers.Serializer):
+    status = serializers.CharField()
+    database_uuid = serializers.UUIDField()

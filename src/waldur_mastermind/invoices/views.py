@@ -1,3 +1,6 @@
+from waldur_core.core.serializers import DetailSerializer
+from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
 import datetime
 import decimal
 import uuid
@@ -129,6 +132,7 @@ class InvoiceViewSet(core_views.HistoryViewSetMixin, core_views.ReadOnlyActionsV
         return Response(serializer.data)
 
     @extend_schema(
+        responses={status.HTTP_200_OK: DetailSerializer},
         request=None,
         summary="Send invoice notification",
         description="Schedule sending of a notification for the specified invoice.",
@@ -151,6 +155,7 @@ class InvoiceViewSet(core_views.HistoryViewSetMixin, core_views.ReadOnlyActionsV
     send_notification_validators = [_is_invoice_created]
 
     @extend_schema(
+        responses={status.HTTP_200_OK: None},
         description="Mark invoice as paid and optionally create payment record with proof of payment.",
         request=serializers.PaidSerializer,
     )
@@ -563,6 +568,7 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         return Response(serializer.data)
 
     @extend_schema(
+        responses={status.HTTP_201_CREATED: serializers.InvoiceItemUUIDSerializer},
         request=serializers.InvoiceItemCompensationSerializer,
         description="Create compensation invoice item for selected invoice item.",
     )
@@ -606,6 +612,7 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         )
 
     @extend_schema(
+        responses={status.HTTP_200_OK: serializers.InvoiceItemUUIDSerializer},
         description="Move invoice item from one invoice to another one.",
         request=serializers.InvoiceItemMigrateToSerializer,
     )
@@ -886,6 +893,13 @@ class InvoiceItemViewSet(core_views.ActionsViewSet):
         partial_update_permissions
     ) = destroy_permissions = migrate_to_permissions = [structure_permissions.is_staff]
 
+    @extend_schema(
+        responses={
+            status.HTTP_200_OK: serializers.CustomerCreditConsumptionByMonthSerializer(
+                many=True
+            )
+        }
+    )
     @action(detail=True, methods=["get"])
     def consumptions(self, request, uuid=None):
         customer_credit = self.get_object()
@@ -921,7 +935,7 @@ class PaymentProfileViewSet(core_views.ActionsViewSet):
     queryset = models.PaymentProfile.objects.all().order_by("name")
     serializer_class = serializers.PaymentProfileSerializer
 
-    @extend_schema(request=None)
+    @extend_schema(responses={status.HTTP_200_OK: StatusSerializer}, request=None)
     @action(detail=True, methods=["post"])
     def enable(self, request, uuid=None):
         profile: models.PaymentProfile = self.get_object()
@@ -950,7 +964,8 @@ class PaymentViewSet(core_views.ActionsViewSet):
     serializer_class = serializers.PaymentSerializer
 
     @extend_schema(
-        description="Link a payment to an invoice. Payment can be linked to an invoice only if they belong to the same customer."
+        responses={status.HTTP_200_OK: DetailSerializer},
+        description="Link a payment to an invoice. Payment can be linked to an invoice only if they belong to the same customer.",
     )
     @action(detail=True, methods=["post"])
     def link_to_invoice(self, request, uuid=None):
@@ -996,6 +1011,7 @@ class PaymentViewSet(core_views.ActionsViewSet):
             raise exceptions.ValidationError(_("Link to an invoice does not exist."))
 
     @extend_schema(
+        responses={status.HTTP_200_OK: DetailSerializer},
         request=None,
         description="Unlink a payment from an invoice. Remove connection between payment and existing linked invoice.",
     )
@@ -1094,7 +1110,7 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
         partial_update_serializer_class
     ) = serializers.CreateCustomerCreditSerializer
 
-    @extend_schema(request=None)
+    @extend_schema(responses={status.HTTP_200_OK: None}, request=None)
     @transaction.atomic
     @action(detail=True, methods=["post"])
     def apply_compensations(self, request, uuid=None):
@@ -1103,7 +1119,7 @@ class CustomerCreditViewSet(core_views.ActionsViewSet):
             customer_credit.customer
         ).apply_compensations()
 
-    @extend_schema(request=None)
+    @extend_schema(responses={status.HTTP_200_OK: None}, request=None)
     @transaction.atomic
     @action(detail=True, methods=["post"])
     def clear_compensations(self, request, uuid=None):

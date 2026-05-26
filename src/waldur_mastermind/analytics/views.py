@@ -13,8 +13,9 @@ from drf_spectacular.plumbing import (
     build_array_type,
     build_basic_type,
 )
-from drf_spectacular.utils import extend_schema, extend_schema_view
+from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
 from rest_framework import generics, permissions, status, viewsets
+from rest_framework import serializers as rf_serializers
 from rest_framework.response import Response
 
 from waldur_core.core.serializers import EmptySerializer

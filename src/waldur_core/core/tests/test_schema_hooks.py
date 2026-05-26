@@ -2,6 +2,7 @@ import unittest
 from unittest import mock
 
 import pytest
+from drf_spectacular.drainage import reset_generator_stats
 from drf_spectacular.generators import SchemaGenerator
 from rest_framework import serializers, viewsets
 
@@ -258,8 +259,8 @@ class TestAddResultCountHeader(unittest.TestCase):
         self.assertNotIn("headers", response)
 
 
-def test_validate_waldur_operation_ids():
-    import pytest
+def test_validate_waldur_operation_ids(capsys):
+    reset_generator_stats()
 
     # 1. Test failure
     schema = {
@@ -278,10 +279,9 @@ def test_validate_waldur_operation_ids():
             }
         }
     }
-    with pytest.raises(
-        ValueError, match="is a UUID but is missing 'x-waldur-operation-id'"
-    ):
-        validate_waldur_operation_ids(schema, None)
+    validate_waldur_operation_ids(schema, None)
+    captured = capsys.readouterr()
+    assert "is a UUID but is missing 'x-waldur-operation-id'" in captured.err
 
     # 2. Test whitelist
     for field in ["uuid", "scope_uuid", "scope", "parent_uuid"]:
@@ -346,10 +346,9 @@ def test_validate_waldur_operation_ids():
             }
         }
     }
-    with pytest.raises(
-        ValueError, match="does not match any operationId in the schema"
-    ):
-        validate_waldur_operation_ids(schema, None)
+    validate_waldur_operation_ids(schema, None)
+    captured = capsys.readouterr()
+    assert "does not match any operationId in the schema" in captured.err
 
 
 def test_inject_waldur_operation_ids():
@@ -409,9 +408,9 @@ def test_to_pascal_case():
     assert _to_pascal_case("simple") == "Simple"
 
 
-def test_validate_go_sdk_naming_collisions_detects_collision():
+def test_validate_go_sdk_naming_collisions_detects_collision(capsys):
     """Schema component 'IdentityBridgeResponse' collides with wrapper for operation 'identity_bridge'."""
-    import pytest
+    reset_generator_stats()
 
     schema = {
         "paths": {
@@ -430,8 +429,9 @@ def test_validate_go_sdk_naming_collisions_detects_collision():
             }
         },
     }
-    with pytest.raises(ValueError, match="Go SDK naming collision"):
-        validate_go_sdk_naming_collisions(schema, None)
+    validate_go_sdk_naming_collisions(schema, None)
+    captured = capsys.readouterr()
+    assert "IdentityBridgeResponse" in captured.err
 
 
 def test_validate_go_sdk_naming_collisions_passes_for_safe_names():
@@ -465,9 +465,9 @@ def test_validate_go_sdk_naming_collisions_empty_schema():
     assert result is schema
 
 
-def test_validate_go_sdk_naming_collisions_multiple_collisions():
+def test_validate_go_sdk_naming_collisions_multiple_collisions(capsys):
     """Multiple collisions should all be reported in a single error."""
-    import pytest
+    reset_generator_stats()
 
     schema = {
         "paths": {
@@ -483,11 +483,12 @@ def test_validate_go_sdk_naming_collisions_multiple_collisions():
             }
         },
     }
-    with pytest.raises(ValueError, match="IdentityBridgeResponse") as exc_info:
-        validate_go_sdk_naming_collisions(schema, None)
+    validate_go_sdk_naming_collisions(schema, None)
+    captured = capsys.readouterr()
 
     # Both collisions should be in the error message
-    assert "IdentityBridgeRemoveResponse" in str(exc_info.value)
+    assert "IdentityBridgeResponse" in captured.err
+    assert "IdentityBridgeRemoveResponse" in captured.err
 
 
 class _DummySerializer(serializers.Serializer):

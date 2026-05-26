@@ -1,3 +1,5 @@
+from rest_framework import status
+from drf_spectacular.utils import extend_schema
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import OpenApiExample, extend_schema
@@ -9,6 +11,7 @@ from waldur_core.core.enums import CoreStates
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.structure import views as structure_views
+from waldur_core.core.serializers import StatusSerializer
 
 from . import executors, filters, models, serializers
 
@@ -74,7 +77,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
             )
         )
 
-    @extend_schema(request=None)
+    @extend_schema(request=None, responses={status.HTTP_202_ACCEPTED: StatusSerializer})
     @decorators.action(detail=True, methods=["post"])
     def start(self, request, uuid=None):
         instance: models.Droplet = self.get_object()
@@ -88,7 +91,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
         core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.OFFLINE),
     ]
 
-    @extend_schema(request=None)
+    @extend_schema(request=None, responses={status.HTTP_202_ACCEPTED: StatusSerializer})
     @decorators.action(detail=True, methods=["post"])
     def stop(self, request, uuid=None):
         instance: models.Droplet = self.get_object()
@@ -102,7 +105,7 @@ class DropletViewSet(structure_views.ResourceViewSet):
         core_validators.RuntimeStateValidator(models.Droplet.RuntimeStates.ONLINE),
     ]
 
-    @extend_schema(request=None)
+    @extend_schema(request=None, responses={status.HTTP_202_ACCEPTED: StatusSerializer})
     @decorators.action(detail=True, methods=["post"])
     def restart(self, request, uuid=None):
         instance: models.Droplet = self.get_object()
@@ -125,7 +128,8 @@ class DropletViewSet(structure_views.ResourceViewSet):
                     "size": "http://example.com/api/digitalocean-sizes/1ee385bc043249498cfeb8c7e3e079f0/"
                 },
             )
-        ]
+        ],
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def resize(self, request, uuid=None):

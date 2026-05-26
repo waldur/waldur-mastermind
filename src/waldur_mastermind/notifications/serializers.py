@@ -116,3 +116,20 @@ class AdminAnnouncementSerializer(
             "type",
             "created",
         )
+
+
+class NotificationRecipientOfferingSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+
+
+class NotificationRecipientCustomerSerializer(serializers.Serializer):
+    uuid = serializers.UUIDField()
+    name = serializers.CharField()
+
+
+class NotificationRecipientSerializer(serializers.Serializer):
+    full_name = serializers.CharField(required=False, allow_null=True)
+    email = serializers.EmailField()
+    offerings = NotificationRecipientOfferingSerializer(many=True)
+    customers = NotificationRecipientCustomerSerializer(many=True)

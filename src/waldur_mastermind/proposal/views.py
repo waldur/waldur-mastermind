@@ -1,3 +1,5 @@
+from rest_framework import status
+from drf_spectacular.utils import extend_schema
 import logging
 import secrets
 from datetime import datetime, timedelta
@@ -24,6 +26,7 @@ from django.utils import timezone as timezone
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
+from drf_spectacular.types import OpenApiTypes
 from rest_framework import decorators, exceptions, mixins, response, status, viewsets
 from rest_framework import permissions as rf_permissions
 
@@ -528,6 +531,9 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     offerings_serializer_class = serializers.RequestedOfferingSerializer
 
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.RequestedOfferingSerializer}
+    )
     def offering_detail(self, request, uuid=None, obj_uuid=None):
         return self.action_detail_method(
             "requestedoffering_set",
@@ -753,6 +759,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
     rounds_bulk_set_permissions = [permission_factory(PermissionEnum.UPDATE_CALL)]
     rounds_bulk_set_serializer_class = serializers.BulkRoundCreateRequestSerializer
 
+    @extend_schema(responses={status.HTTP_200_OK: serializers.ProtectedRoundSerializer})
     def round_detail(self, request, uuid=None, obj_uuid=None):
         def validate_call_state(call_round):
             if call_round.call.state == CallStates.ARCHIVED:
@@ -775,6 +782,7 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     round_detail_serializer_class = serializers.ProtectedRoundSerializer
 
+    @extend_schema(responses={status.HTTP_200_OK: OpenApiTypes.STR})
     def close_round(self, request, uuid=None, obj_uuid=None):
         call: models.Call = self.get_object()
 
@@ -884,12 +892,16 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
         responses=serializers.CallResourceTemplateSerializer,
         description="Create resource template for a call.",
     )
+    @extend_schema(responses={status.HTTP_200_OK: dict})
     @decorators.action(detail=True, methods=["get", "post"])
     def resource_templates(self, request, uuid=None):
         return self.action_list_method("resource_templates")(self, request, uuid)
 
     resource_templates_serializer_class = serializers.CallResourceTemplateSerializer
 
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.CallResourceTemplateSerializer}
+    )
     def resource_template_detail(self, request, uuid=None, obj_uuid=None):
         return self.action_detail_method(
             "resource_templates", delete_validators=[], update_validators=[]
@@ -944,6 +956,9 @@ class ProtectedCallViewSet(UserRoleMixin, ActionsViewSet, ActionMethodMixin):
 
     workflow_steps_serializer_class = serializers.CallWorkflowStepSerializer
 
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.CallWorkflowStepSerializer}
+    )
     def workflow_step_detail(self, request, uuid=None, obj_uuid=None):
         return self.action_detail_method(
             "workflow_steps", delete_validators=[], update_validators=[]
@@ -2594,6 +2609,9 @@ class ProposalViewSet(
 
     resources_serializer_class = serializers.RequestedResourceSerializer
 
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.RequestedResourceSerializer}
+    )
     def resource_detail(self, request, uuid=None, obj_uuid=None):
         def validate_proposal_state(requested_resource):
             if requested_resource.proposal.state != ProposalStates.DRAFT:

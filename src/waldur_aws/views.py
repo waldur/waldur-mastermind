@@ -103,6 +103,7 @@ class InstanceViewSet(structure_views.ResourceViewSet):
         core_validators.RuntimeStateValidator("running"),
     ]
 
+    @extend_schema(responses={status.HTTP_202_ACCEPTED: StatusSerializer})
     @decorators.action(detail=True, methods=["post"])
     def resize(self, request, uuid=None):
         instance: models.Instance = self.get_object()
@@ -142,6 +143,7 @@ class VolumeViewSet(structure_views.ResourceViewSet):
         _has_instance,
     ]
 
+    @extend_schema(responses={status.HTTP_202_ACCEPTED: None})
     @decorators.action(detail=True, methods=["post"])
     def attach(self, request, volume, uuid=None):
         serializer = self.get_serializer(volume, data=request.data)

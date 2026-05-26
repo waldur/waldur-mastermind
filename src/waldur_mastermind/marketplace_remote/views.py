@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema
 from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
@@ -423,7 +424,10 @@ class RemoteSynchronisationViewSet(core_views.ActionsViewSet):
     )
     permission_classes = [rf_permissions.IsAuthenticated, core_permissions.IsStaff]
 
-    @extend_schema(request=None)
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.RemoteSynchronisationSerializer},
+        request=None,
+    )
     @action(detail=True, methods=["post"])
     def run_synchronisation(self, request, **kwargs):
         sync: RemoteSynchronisation = self.get_object()

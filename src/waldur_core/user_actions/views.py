@@ -8,6 +8,7 @@ from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 
 from waldur_core.core.permissions import PATScopeAwareIsAdminUser
+from waldur_core.core.serializers import StatusSerializer
 
 from . import filters as user_action_filters
 from . import models, serializers, tasks
@@ -88,7 +89,7 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
 
     @extend_schema(
         request=None,
-        responses={200: serializers.UnsilenceActionResponseSerializer},
+        responses={200: StatusSerializer},
         description="Remove silence from an action",
     )
     @decorators.action(detail=True, methods=["post"])
@@ -109,9 +110,7 @@ class UserActionViewSet(viewsets.ReadOnlyModelViewSet):
         logger.info(f"User {request.user.username} unsilenced action {action.uuid}")
 
         response_data = {"status": "unsilenced"}
-        response_serializer = serializers.UnsilenceActionResponseSerializer(
-            response_data
-        )
+        response_serializer = StatusSerializer(response_data)
         return Response(response_serializer.data)
 
     @extend_schema(
