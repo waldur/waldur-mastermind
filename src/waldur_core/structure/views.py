@@ -1,3 +1,6 @@
+from rest_framework import status
+from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
 import logging
 from datetime import datetime
 
@@ -22,7 +25,6 @@ from drf_spectacular.utils import (
     OpenApiParameter,
     extend_schema,
     extend_schema_view,
-    inline_serializer,
 )
 from rest_framework import filters as rf_filters
 from rest_framework import mixins, status, viewsets
@@ -1482,6 +1484,7 @@ class UserViewSet(core_views.HistoryViewSetMixin, core_views.ActionsViewSet):
         super().check_permissions(request)
 
     @extend_schema(
+        responses={status.HTTP_200_OK: serializers.UserMeSerializer},
         summary="Get current user details",
         description="Get current user details, including authentication token and profile completeness status.",
         parameters=[],

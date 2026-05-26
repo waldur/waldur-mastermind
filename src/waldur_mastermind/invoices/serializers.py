@@ -291,6 +291,10 @@ class InvoiceItemMigrateToSerializer(serializers.HyperlinkedModelSerializer):
         fields = ("invoice",)
 
 
+class InvoiceItemUUIDSerializer(serializers.Serializer):
+    invoice_item_uuid = serializers.UUIDField()
+
+
 class CustomerDetailsSerializer(serializers.ModelSerializer):
     country_name = serializers.ReadOnlyField(source="get_country_display")
 
@@ -1349,6 +1353,13 @@ class CostsForPeriodSerializer(serializers.Serializer):
 
 class CustomerCreditConsumptionSerializer(serializers.Serializer):
     date = serializers.DateField(read_only=True)
+    price = serializers.DecimalField(
+        read_only=True, max_digits=PRICE_MAX_DIGITS, decimal_places=2
+    )
+
+
+class CustomerCreditConsumptionByMonthSerializer(serializers.Serializer):
+    month = serializers.CharField(read_only=True)
     price = serializers.DecimalField(
         read_only=True, max_digits=PRICE_MAX_DIGITS, decimal_places=2
     )

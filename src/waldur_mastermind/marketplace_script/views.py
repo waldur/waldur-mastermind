@@ -1,3 +1,6 @@
+from rest_framework import status
+from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
@@ -59,6 +62,11 @@ class DryRunView(ActionsViewSet):
             )
         ],
     )
+    @extend_schema(
+        responses={
+            status.HTTP_200_OK: marketplace_script_serializers.ScriptDryRunResponseSerializer
+        }
+    )
     @action(detail=True, methods=["post"])
     def run(self, request, *args, **kwargs):
         serializer = DryRunSerializer(data=request.data)
@@ -99,7 +107,12 @@ class DryRunView(ActionsViewSet):
         output = executor.send_request(request.user, dry_run=True)
         return Response({"output": output})
 
-    @extend_schema(request=DryRunSerializer)
+    @extend_schema(
+        responses={
+            status.HTTP_202_ACCEPTED: marketplace_script_serializers.ScriptAsyncDryRunResponseSerializer
+        },
+        request=DryRunSerializer,
+    )
     @action(detail=True, methods=["post"])
     def async_run(self, request, *args, **kwargs):
         serializer = DryRunSerializer(data=request.data)

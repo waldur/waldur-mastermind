@@ -1,3 +1,6 @@
+from rest_framework import status
+from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
 import logging
 
 from django.contrib.contenttypes.models import ContentType
@@ -13,7 +16,6 @@ from drf_spectacular.utils import (
     OpenApiTypes,
     extend_schema,
     extend_schema_view,
-    inline_serializer,
 )
 from keystoneauth1.exceptions.connection import ConnectFailure
 from rest_framework import decorators, exceptions, generics, response, status
@@ -23,7 +25,7 @@ from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core import mixins as core_mixins
 from waldur_core.core import utils as core_utils
 from waldur_core.core import validators as core_validators
-from waldur_core.core.serializers import StatusSerializer
+from waldur_core.core.serializers import StatusSerializer, DetailSerializer
 from waldur_core.core import views as core_views
 from waldur_core.core.enums import CoreStates
 from waldur_core.logging import event_logger
@@ -205,6 +207,7 @@ class FlavorViewSet(structure_views.BaseServicePropertyViewSet):
     @extend_schema(
         summary="Get flavor usage statistics",
         description="Retrieve usage statistics for VM instance flavors, showing running and created instance counts for each flavor.",
+        responses={status.HTTP_200_OK: OpenApiTypes.OBJECT},
     )
     @decorators.action(detail=False)
     def usage_stats(self, request):
@@ -231,6 +234,9 @@ class ImageViewSet(structure_views.BaseServicePropertyViewSet):
     @extend_schema(
         summary="Get image usage statistics",
         description="Retrieve usage statistics for VM instance images, showing running and created instance counts for each image.",
+        responses={
+            status.HTTP_200_OK: serializers.OpenStackUsageStatsResponseSerializer
+        },
     )
     @decorators.action(detail=False)
     def usage_stats(self, request):
@@ -824,7 +830,9 @@ On successful completion the task will synchronize quotas with the backend.
                 },
             )
         ],
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
+    @extend_schema(responses={status.HTTP_200_OK: StatusSerializer})
     @decorators.action(detail=True, methods=["post"])
     def set_quotas(self, request, uuid=None):
         tenant: models.Tenant = self.get_object()
@@ -851,6 +859,7 @@ On successful completion the task will synchronize quotas with the backend.
     @extend_schema(
         summary="Create network for tenant",
         description="Create network for tenant",
+        responses={status.HTTP_201_CREATED: serializers.OpenStackNetworkSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def create_network(self, request, uuid=None):
@@ -1030,6 +1039,7 @@ On successful completion the task will synchronize quotas with the backend.
         summary="Pull security groups",
         description="Trigger job to pull security groups from remote VPC",
         request=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def pull_security_groups(self, request, uuid=None):
@@ -1045,6 +1055,7 @@ On successful completion the task will synchronize quotas with the backend.
         summary="Pull server groups",
         description="Trigger job to pull server groups from remote VPC",
         request=None,
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def pull_server_groups(self, request, uuid=None):
@@ -1066,6 +1077,10 @@ On successful completion the task will synchronize quotas with the backend.
                 value={"name": "Server group name", "policy": "affinity"},
             )
         ],
+        responses={status.HTTP_201_CREATED: serializers.OpenStackServerGroupSerializer},
+    )
+    @extend_schema(
+        responses={status.HTTP_201_CREATED: serializers.OpenStackServerGroupSerializer}
     )
     @decorators.action(detail=True, methods=["post"])
     def create_server_group(self, request, uuid=None):
@@ -1368,7 +1383,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
             "Advanced options (SNAT control, fixed IPs) require additional permissions."
         ),
         request=serializers.SetExternalGatewaySerializer,
-        responses={202: None},
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def set_external_gateway(self, request, uuid=None):
@@ -1407,7 +1422,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         summary="Remove external gateway",
         description="Remove the external gateway from this router.",
         request=None,
-        responses={202: None},
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def remove_external_gateway(self, request, uuid=None):
@@ -1522,12 +1537,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
             "(CREATING, UPDATING, DELETING) that cannot be synced via pull. "
             "Staff-only operation."
         ),
-        responses={
-            200: inline_serializer(
-                "RouterSetErredResponse",
-                fields={"detail": rf_serializers.CharField()},
-            )
-        },
+        responses={status.HTTP_200_OK: DetailSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def set_erred(self, request, uuid=None):
@@ -1552,12 +1562,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
             "Staff-only operation."
         ),
         request=None,
-        responses={
-            200: inline_serializer(
-                "RouterSetOkResponse",
-                fields={"detail": rf_serializers.CharField()},
-            )
-        },
+        responses={status.HTTP_200_OK: DetailSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def set_ok(self, request, uuid=None):
@@ -1643,9 +1648,7 @@ class LoadBalancerViewSet(
         summary="Attach floating IP to VIP",
         description="Attach a floating IP to the load balancer VIP port.",
         request=serializers.LoadBalancerAttachFloatingIPSerializer,
-        responses={
-            status.HTTP_202_ACCEPTED: serializers.LoadBalancerAsyncOperationResponseSerializer
-        },
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def attach_floating_ip(self, request, uuid=None):
@@ -1692,9 +1695,7 @@ class LoadBalancerViewSet(
         summary="Detach floating IP from VIP",
         description="Detach floating IP from the load balancer VIP port.",
         request=None,
-        responses={
-            status.HTTP_202_ACCEPTED: serializers.LoadBalancerAsyncOperationResponseSerializer
-        },
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def detach_floating_ip(self, request, uuid=None):
@@ -1717,9 +1718,7 @@ class LoadBalancerViewSet(
         summary="Set security groups on VIP port",
         description="Set security groups on the load balancer VIP port to control access.",
         request=serializers.LoadBalancerSetSecurityGroupsSerializer,
-        responses={
-            status.HTTP_202_ACCEPTED: serializers.LoadBalancerAsyncOperationResponseSerializer
-        },
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def set_security_groups(self, request, uuid=None):
@@ -2307,6 +2306,7 @@ class NetworkViewSet(structure_views.ResourceViewSet):
     @extend_schema(
         summary="Create subnet",
         description="Create a new subnet within the network.",
+        responses={status.HTTP_201_CREATED: serializers.OpenStackSubNetSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def create_subnet(self, request, uuid=None):
@@ -2322,6 +2322,7 @@ class NetworkViewSet(structure_views.ResourceViewSet):
     @extend_schema(
         summary="Set network MTU",
         description="Update the Maximum Transmission Unit (MTU) for the network.",
+        responses={status.HTTP_202_ACCEPTED: serializers.SetMtuSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def set_mtu(self, request, uuid=None):
@@ -2492,6 +2493,7 @@ class SubNetViewSet(structure_views.ResourceViewSet):
         request=None,
         summary="Connect subnet to router",
         description="Connect the subnet to the default tenant router.",
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def connect(self, request, uuid=None):
@@ -2504,6 +2506,7 @@ class SubNetViewSet(structure_views.ResourceViewSet):
         request=None,
         summary="Disconnect subnet from router",
         description="Disconnect the subnet from the default tenant router.",
+        responses={status.HTTP_202_ACCEPTED: StatusSerializer},
     )
     @decorators.action(detail=True, methods=["post"])
     def disconnect(self, request, uuid=None):

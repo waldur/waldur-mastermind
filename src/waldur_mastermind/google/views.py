@@ -1,3 +1,5 @@
+from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -24,7 +26,10 @@ class GoogleAuthViewSet(core_views.ReadOnlyActionsViewSet):
     serializer_class = serializers.GoogleCredentialsSerializer
     lookup_field = "uuid"
 
-    @extend_schema(filters=False)
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.GoogleAuthUrlSerializer},
+        filters=False,
+    )
     @action(detail=True, methods=["get"])
     def authorize(self, request, uuid=None):
         service_provider: marketplace_models.ServiceProvider = self.get_object()
@@ -54,7 +59,7 @@ class GoogleAuthViewSet(core_views.ReadOnlyActionsViewSet):
                 location=OpenApiParameter.QUERY,
             ),
         ],
-        responses={200: None},
+        responses={200: str},
     )
     @action(detail=False, methods=["get"])
     def callback(self, request):

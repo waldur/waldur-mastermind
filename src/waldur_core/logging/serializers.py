@@ -1047,15 +1047,6 @@ class PublishingMetricsSerializer(serializers.Serializer):
     )
 
 
-class MetricsResetSerializer(serializers.Serializer):
-    """Serializer for metrics reset response."""
-
-    status = serializers.CharField(
-        read_only=True,
-        help_text="Operation status",
-    )
-
-
 class MessageStateCacheFilterSerializer(serializers.Serializer):
     """Serializer for message state cache filter params."""
 

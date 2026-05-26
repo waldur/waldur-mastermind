@@ -34,3 +34,7 @@ class GoogleCalendarSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = google_models.GoogleCalendar
         fields = ("backend_id", "public", "http_link")
+
+
+class GoogleAuthUrlSerializer(serializers.Serializer):
+    request_url = serializers.CharField()

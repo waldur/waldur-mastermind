@@ -111,6 +111,11 @@ class SQLServerViewSet(
     create_executor = executors.SQLServerCreateExecutor
     delete_executor = executors.SQLServerDeleteExecutor
 
+    @extend_schema(
+        responses={
+            status.HTTP_202_ACCEPTED: serializers.AzureSqlDatabaseCreateResponseSerializer
+        }
+    )
     @decorators.action(detail=True, methods=["post"])
     def create_database(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)

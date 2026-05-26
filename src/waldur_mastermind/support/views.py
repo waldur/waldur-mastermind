@@ -1,3 +1,5 @@
+from waldur_core.core.serializers import StatusSerializer
+from rest_framework import status
 import logging
 from datetime import date, datetime
 
@@ -10,6 +12,7 @@ from django.shortcuts import get_object_or_404
 from django.utils.translation import gettext_lazy as _
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
 from rest_framework import (
     decorators,
     generics,
@@ -140,6 +143,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         if not backend.get_active_backend().comment_create_is_available(issue):
             raise ValidationError("Creating is not available.")
 
+    @extend_schema(responses={status.HTTP_201_CREATED: serializers.CommentSerializer})
     @decorators.action(detail=True, methods=["post"])
     def comment(self, request, uuid=None):
         serializer = self.get_serializer(data=request.data)
@@ -153,7 +157,7 @@ class IssueViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
     comment_permissions = [_comment_permission]
     comment_validators = [_comment_create_is_available_validator]
 
-    @extend_schema(request=None)
+    @extend_schema(responses={status.HTTP_200_OK: None}, request=None)
     @decorators.action(detail=True, methods=["post"])
     def sync(self, request, uuid=None):
         issue: models.Issue = self.get_object()
@@ -205,7 +209,7 @@ class RequestTypeAdminViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
         structure_permissions.is_staff
     ]
 
-    @extend_schema(request=None)
+    @extend_schema(responses={status.HTTP_200_OK: StatusSerializer}, request=None)
     @decorators.action(detail=True, methods=["post"])
     def activate(self, request, uuid=None):
         """Activate a request type so it appears in issue creation."""
@@ -216,7 +220,7 @@ class RequestTypeAdminViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     activate_permissions = [structure_permissions.is_staff]
 
-    @extend_schema(request=None)
+    @extend_schema(responses={status.HTTP_200_OK: StatusSerializer}, request=None)
     @decorators.action(detail=True, methods=["post"])
     def deactivate(self, request, uuid=None):
         """Deactivate a request type so it no longer appears in issue creation."""
@@ -227,7 +231,10 @@ class RequestTypeAdminViewSet(CheckExtensionMixin, core_views.ActionsViewSet):
 
     deactivate_permissions = [structure_permissions.is_staff]
 
-    @extend_schema(request=serializers.RequestTypeReorderSerializer)
+    @extend_schema(
+        responses={status.HTTP_200_OK: StatusSerializer},
+        request=serializers.RequestTypeReorderSerializer,
+    )
     @decorators.action(detail=False, methods=["post"])
     def reorder(self, request):
         """Bulk update order for multiple request types."""

@@ -627,7 +627,7 @@ def get_public_settings(request=None):
     summary="Get public configuration",
     description="Returns a dictionary of public settings for the Waldur deployment. This includes feature flags, authentication methods, and other configuration details that are safe to expose to any user.",
     request=None,
-    responses={status.HTTP_200_OK: dict},
+    responses={status.HTTP_200_OK: OpenApiTypes.OBJECT},
 )
 @api_view(["GET"])
 @permission_classes((rf_permissions.AllowAny,))

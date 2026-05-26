@@ -1,3 +1,5 @@
+from rest_framework import status
+from drf_spectacular.utils import extend_schema
 import base64
 import copy
 import datetime
@@ -1404,6 +1406,11 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
             raise PermissionDenied()
         return service_provider
 
+    @extend_schema(
+        responses={
+            status.HTTP_200_OK: serializers.ServiceProviderComplianceOverviewSerializer
+        }
+    )
     @action(detail=False, methods=["get"])
     def compliance_overview(self, request, service_provider_uuid=None):
         """Get compliance overview statistics for all offerings."""
@@ -1512,6 +1519,11 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
         )
         return self.get_paginated_response(serializer.data)
 
+    @extend_schema(
+        responses={
+            status.HTTP_200_OK: serializers.ServiceProviderOfferingUserComplianceSerializer
+        }
+    )
     @action(detail=False, methods=["get"])
     def offering_users(self, request, service_provider_uuid=None):
         """List offering users with their compliance status."""
@@ -1569,6 +1581,11 @@ class ServiceProviderComplianceViewSet(rf_viewsets.GenericViewSet):
         )
         return Response(serializer.data)
 
+    @extend_schema(
+        responses={
+            status.HTTP_200_OK: serializers.ServiceProviderChecklistSummarySerializer
+        }
+    )
     @action(detail=False, methods=["get"])
     def checklists_summary(self, request, service_provider_uuid=None):
         """Get summary of all checklists used by this service provider's offerings."""
@@ -3399,6 +3416,9 @@ class ProviderOfferingViewSet(
             ),
         ],
         filters=False,
+    )
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.UserHasResourceAccessSerializer}
     )
     @action(detail=True, methods=["GET"])
     def user_has_resource_access(self, request, uuid=None):
@@ -5779,6 +5799,7 @@ class ProviderResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
         )
         return qs.filter(resource__in=provider_resources)
 
+    @extend_schema(responses={status.HTTP_200_OK: StatusSerializer})
     @action(detail=True, methods=["post"])
     def set_backend_id(self, request, uuid=None):
         project = self.get_object()
@@ -5788,7 +5809,7 @@ class ProviderResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
         project.save(update_fields=["backend_id"])
         return Response({"status": "backend_id updated"}, status=status.HTTP_200_OK)
 
-    @extend_schema(request=None, responses={200: OpenApiTypes.OBJECT})
+    @extend_schema(request=None, responses={200: StatusSerializer})
     @action(detail=True, methods=["post"])
     def set_state_ok(self, request, uuid=None):
         project = self.get_object()
@@ -5804,6 +5825,7 @@ class ProviderResourceProjectViewSet(UserRoleMixin, core_views.ActionsViewSet):
         project.save(update_fields=["state", "error_message"])
         return Response({"status": "state set to OK"}, status=status.HTTP_200_OK)
 
+    @extend_schema(responses={status.HTTP_200_OK: StatusSerializer})
     @action(detail=True, methods=["post"])
     def set_state_erred(self, request, uuid=None):
         project = self.get_object()
@@ -5952,6 +5974,9 @@ class OfferingProfileViewSet(core_views.ActionsViewSet):
         self._check_staff()
         instance.delete()
 
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.OfferingProfileSerializer}
+    )
     @action(detail=True, methods=["post"])
     def add_role(self, request, uuid=None):
         self._check_staff()
@@ -5971,6 +5996,9 @@ class OfferingProfileViewSet(core_views.ActionsViewSet):
 
     add_role_serializer_class = serializers.OfferingProfileRoleAssignSerializer
 
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.OfferingProfileSerializer}
+    )
     @action(detail=True, methods=["post"])
     def remove_role(self, request, uuid=None):
         self._check_staff()
@@ -7529,6 +7557,7 @@ class BaseResourceViewSet(
             attributes=attributes,
         )
 
+    @extend_schema(responses={status.HTTP_200_OK: serializers.OrderUUIDSerializer})
     @action(detail=True, methods=["post"])
     def restore(self, request, uuid=None):
         resource: models.Resource = self.get_object()
@@ -9536,6 +9565,7 @@ class ComponentUsageViewSet(core_views.ReadOnlyActionsViewSet):
             )
         ],
     )
+    @extend_schema(responses={status.HTTP_201_CREATED: None})
     @transaction.atomic
     @action(detail=False, methods=["post"])
     def set_usage(self, request, *args, **kwargs):
@@ -9840,12 +9870,14 @@ class MarketplaceAPIViewSet(rf_viewsets.ViewSet):
 
         return serializer.validated_data, dry_run
 
+    @extend_schema(responses={status.HTTP_200_OK: None})
     @action(detail=False, methods=["post"])
     @csrf_exempt
     def check_signature(self, request, *args, **kwargs):
         self.get_validated_data(request)
         return Response(status=status.HTTP_200_OK)
 
+    @extend_schema(responses={status.HTTP_201_CREATED: None})
     @action(detail=False, methods=["post"])
     @csrf_exempt
     def set_usage(self, request, *args, **kwargs):

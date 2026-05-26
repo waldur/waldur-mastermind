@@ -7,8 +7,14 @@ import openportal
 from django.contrib import auth
 from django.core.cache import cache
 from django.http import JsonResponse
-from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    OpenApiTypes,
+    extend_schema,
+    inline_serializer,
+)
 from rest_framework import status
+from rest_framework import serializers as rf_serializers
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import (
     api_view,
@@ -882,7 +888,12 @@ def get_api_token(request):
             description="OpenPortal destination string (repeatable).",
         ),
     ],
-    responses={200: OpenApiTypes.OBJECT},
+    responses={
+        200: inline_serializer(
+            "OfferingMappingMap",
+            fields={"*": serializers.OfferingMappingSerializer(allow_null=True)},
+        )
+    },
 )
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -959,7 +970,12 @@ def offering_mapping(request):
             description="OpenPortal ProjectIdentifier string (repeatable).",
         ),
     ],
-    responses={200: OpenApiTypes.OBJECT},
+    responses={
+        200: inline_serializer(
+            "ProjectMappingMap",
+            fields={"*": serializers.ProjectMappingSerializer(allow_null=True)},
+        )
+    },
 )
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -1034,7 +1050,12 @@ def project_mapping(request):
             ),
         ),
     ],
-    responses={200: OpenApiTypes.OBJECT},
+    responses={
+        200: inline_serializer(
+            "UserMappingMap",
+            fields={"*": serializers.UserMappingSerializer(allow_null=True)},
+        )
+    },
 )
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])

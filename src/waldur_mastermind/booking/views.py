@@ -37,7 +37,10 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
     lookup_field = "uuid"
     serializer_class = serializers.BookingResourceSerializer
 
-    @extend_schema(request=None)
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.BookingOrderUUIDSerializer},
+        request=None,
+    )
     @action(detail=True, methods=["post"])
     def reject(self, request, uuid=None):
         resource: models.Resource = self.get_object()
@@ -47,7 +50,10 @@ class ResourceViewSet(core_views.ReadOnlyActionsViewSet):
 
         return Response({"order_uuid": order.uuid.hex}, status=status.HTTP_200_OK)
 
-    @extend_schema(request=None)
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.BookingOrderUUIDSerializer},
+        request=None,
+    )
     @action(detail=True, methods=["post"])
     def accept(self, request, uuid=None):
         resource: models.Resource = self.get_object()

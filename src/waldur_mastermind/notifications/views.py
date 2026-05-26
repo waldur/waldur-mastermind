@@ -1,3 +1,4 @@
+from rest_framework import status
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 from rest_framework import decorators, permissions, status
@@ -6,6 +7,7 @@ from rest_framework.response import Response
 from waldur_core.core import permissions as core_permissions
 from waldur_core.core import validators as core_validators
 from waldur_core.core.views import ActionsViewSet
+
 
 from . import filters, models, serializers, tasks, utils
 
@@ -39,7 +41,10 @@ class BroadcastMessageViewSet(ActionsViewSet):
         broadcast_message.save(update_fields=["state"])
         return Response(status=status.HTTP_200_OK)
 
-    @extend_schema(request=serializers.QuerySerializer)
+    @extend_schema(
+        responses={status.HTTP_200_OK: serializers.NotificationRecipientSerializer},
+        request=serializers.QuerySerializer,
+    )
     @decorators.action(detail=False)
     def recipients(self, request, *args, **kwargs):
         serializer = serializers.QuerySerializer(

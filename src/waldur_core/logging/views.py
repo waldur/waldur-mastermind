@@ -1,3 +1,5 @@
+from rest_framework import status
+from drf_spectacular.utils import extend_schema
 import fnmatch
 import logging
 
@@ -5,7 +7,12 @@ import rest_framework
 from django.db import connection
 from django.db.models import Count, Max
 from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import OpenApiExample, extend_schema, extend_schema_view
+from drf_spectacular.utils import (
+    OpenApiExample,
+    extend_schema,
+    extend_schema_view,
+    inline_serializer,
+)
 from rest_framework import (
     decorators,
     generics,
@@ -25,6 +32,7 @@ from waldur_core.logging.event_logger import get_event_groups
 from waldur_core.structure.serializers_data_access import (
     GlobalUserDataAccessLogSerializer,
 )
+from waldur_core.core.serializers import StatusSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +48,12 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_class = filters.EventFilter
 
     @extend_schema(
+        responses={
+            status.HTTP_200_OK: inline_serializer(
+                "EventCount",
+                fields={"count": rest_framework.serializers.IntegerField()},
+            )
+        },
         examples=[
             OpenApiExample(
                 name="Valid example",
@@ -55,11 +69,13 @@ class EventViewSet(viewsets.ReadOnlyModelViewSet):
             {"count": self.queryset.count()}, status=status.HTTP_200_OK
         )
 
+    @extend_schema(responses={status.HTTP_200_OK: list[str]})
     @decorators.action(detail=False)
     def scope_types(self, request, *args, **kwargs):
         """Returns a list of scope types acceptable by events filter."""
         return response.Response(utils.get_scope_types_mapping().keys())
 
+    @extend_schema(responses={status.HTTP_200_OK: dict[str, list[str]]})
     @decorators.action(detail=False)
     def event_groups(self, request, *args, **kwargs):
         """
@@ -942,7 +958,7 @@ Requires staff permissions.""",
 
 Requires staff permissions.""",
         responses={
-            status.HTTP_200_OK: serializers.MetricsResetSerializer,
+            status.HTTP_200_OK: StatusSerializer,
         },
     )
     @decorators.action(detail=False, methods=["post"])

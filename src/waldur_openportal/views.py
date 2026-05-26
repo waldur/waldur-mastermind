@@ -1,3 +1,5 @@
+from rest_framework import status
+from drf_spectacular.utils import extend_schema
 import logging
 
 from django.http import Http404
@@ -303,6 +305,7 @@ class UserInfoViewSet(core_views.ActionsViewSet):
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(responses={status.HTTP_200_OK: serializers.UserInfoSerializer})
     @action(detail=False, methods=["get"])
     def me(self, request):
         logger.info(f"Retrieving UserInfo for 'me'=user {request.user}")
@@ -319,6 +322,7 @@ class UserInfoViewSet(core_views.ActionsViewSet):
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(responses={status.HTTP_200_OK: serializers.UserInfoSerializer})
     @action(detail=True, methods=["PUT"])
     def set_shortname(self, request, user=None):
         try:
@@ -393,6 +397,7 @@ class ProjectInfoViewSet(core_views.ActionsViewSet):
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(responses={status.HTTP_200_OK: serializers.ProjectInfoSerializer})
     @action(detail=True, methods=["PUT"])
     def set_shortname(self, request, project=None):
         try:
@@ -428,6 +433,7 @@ class ProjectInfoViewSet(core_views.ActionsViewSet):
 
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @extend_schema(responses={status.HTTP_200_OK: serializers.ProjectInfoSerializer})
     @action(detail=True, methods=["PUT"])
     def set_allowed_destinations(self, request, project=None):
         try:

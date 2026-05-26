@@ -12868,3 +12868,7 @@ class ProjectOrderAutoApprovalSerializer(serializers.HyperlinkedModelSerializer)
         validated_data.pop("project", None)
         validated_data["modified_by"] = self.context["request"].user
         return super().update(instance, validated_data)
+
+
+class UserHasResourceAccessSerializer(serializers.Serializer):
+    has_access = serializers.BooleanField(read_only=True)

@@ -57,7 +57,7 @@ class ProjectEstimatedCostPolicyViewSet(ActionsViewSet):
         self._check_terminated_project(policy)
         return super().partial_update(request, *args, **kwargs)
 
-    @extend_schema(parameters=[])
+    @extend_schema(responses={status.HTTP_200_OK: list[str]}, parameters=[])
     @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
         data = list(models.ProjectEstimatedCostPolicy.available_actions)
@@ -77,7 +77,7 @@ class CustomerEstimatedCostPolicyViewSet(ActionsViewSet):
         structure_permissions.is_staff
     ]
 
-    @extend_schema(parameters=[])
+    @extend_schema(responses={status.HTTP_200_OK: list[str]}, parameters=[])
     @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
         data = list(models.CustomerEstimatedCostPolicy.available_actions)
@@ -98,6 +98,7 @@ class OfferingEstimatedCostPolicyViewSet(ActionsViewSet):
     ]
 
     @extend_schema(
+        responses={status.HTTP_200_OK: list[str]},
         parameters=[],
         description="List available actions for OfferingEstimatedCostPolicy",
     )
@@ -120,7 +121,7 @@ class OfferingUsagePolicyViewSet(ActionsViewSet):
         structure_permissions.is_owner
     ]
 
-    @extend_schema(parameters=[])
+    @extend_schema(responses={status.HTTP_200_OK: list[str]}, parameters=[])
     @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
         data = list(models.OfferingUsagePolicy.available_actions)
@@ -140,7 +141,7 @@ class CustomerComponentUsagePolicyViewSet(ActionsViewSet):
         partial_update_permissions
     ) = [structure_permissions.is_staff]
 
-    @extend_schema(parameters=[])
+    @extend_schema(responses={status.HTTP_200_OK: list[str]}, parameters=[])
     @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
         data = list(models.CustomerComponentUsagePolicy.available_actions)
@@ -168,7 +169,7 @@ class SlurmPeriodicUsagePolicyViewSet(ActionsViewSet):
     dry_run_permissions = [structure_permissions.is_staff]
     evaluate_permissions = [structure_permissions.is_staff]
 
-    @extend_schema(parameters=[])
+    @extend_schema(responses={status.HTTP_200_OK: list[str]}, parameters=[])
     @action(detail=False, methods=["get"])
     def actions(self, request, *args, **kwargs):
         data = list(models.SlurmPeriodicUsagePolicy.available_actions)

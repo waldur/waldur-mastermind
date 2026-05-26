@@ -227,12 +227,6 @@ class SilenceActionResponseSerializer(serializers.Serializer):
     duration_days = serializers.IntegerField(required=False, allow_null=True)
 
 
-class UnsilenceActionResponseSerializer(serializers.Serializer):
-    """Serializer for unsilence action response"""
-
-    status = serializers.CharField()
-
-
 class ExecuteActionResponseSerializer(serializers.Serializer):
     """Serializer for execute action response"""
 
