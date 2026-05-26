@@ -98,13 +98,14 @@ Add the new type to the frontend constants:
 **File**: `src/marketplace/offerings/update/options/constants.ts`
 
 ```typescript
-export const FIELD_TYPES: Array<{ value: OptionFieldTypeEnum; label: string }> = [
-  // ... existing types ...
-  {
-    value: 'your_custom_type',
-    label: 'Your Custom Type',
-  },
-];
+export const FIELD_TYPES: Array<{ value: OptionFieldTypeEnum; label: string }> =
+  [
+    // ... existing types ...
+    {
+      value: "your_custom_type",
+      label: "Your Custom Type",
+    },
+  ];
 ```
 
 ### 5. Frontend: Create Configuration Component
@@ -114,7 +115,7 @@ Create an admin configuration component:
 **File**: `src/marketplace/offerings/update/options/YourCustomConfiguration.tsx`
 
 ```typescript
-import { Field } from 'redux-form';
+import { Field } from 'react-final-form';
 import { InputField } from '@waldur/form/InputField';
 import { translate } from '@waldur/i18n';
 import { FormGroup } from '../../FormGroup';
@@ -207,8 +208,8 @@ Add your type to the option configuration form:
 import { YourCustomConfiguration } from './YourCustomConfiguration';
 
 export const OptionForm = ({ resourceType }) => {
-  const optionValue = useSelector(selector) as any;
-  const type = optionValue.type.value;
+  const {values} = useFormState();
+  const type = values.type.value;
 
   return (
     <>
@@ -229,7 +230,7 @@ Add your field to the order form renderer:
 **File**: `src/marketplace/common/OptionsForm.tsx`
 
 ```typescript
-import { YourCustomField } from './YourCustomField';
+import { YourCustomField } from "./YourCustomField";
 
 const getComponentAndParams = (option, key, customer, finalForm = false) => {
   let OptionField: FC<Partial<FormGroupProps>> = StringField;
@@ -238,7 +239,7 @@ const getComponentAndParams = (option, key, customer, finalForm = false) => {
   switch (option.type) {
     // ... existing cases ...
 
-    case 'your_custom_type':
+    case "your_custom_type":
       OptionField = YourCustomField;
       params = {
         field: option,
@@ -265,7 +266,7 @@ export const formatOption = (option: OptionFormData) => {
   };
 
   // Handle your custom configuration
-  if (your_custom_config && item.type === 'your_custom_type') {
+  if (your_custom_config && item.type === "your_custom_type") {
     item.your_custom_config = your_custom_config;
   }
 
@@ -276,19 +277,19 @@ export const formatOption = (option: OptionFormData) => {
 **File**: `src/marketplace/details/utils.ts`
 
 ```typescript
-const formatAttributes = (props): OrderCreateRequest['attributes'] => {
+const formatAttributes = (props): OrderCreateRequest["attributes"] => {
   // ... existing logic ...
 
   for (const [key, value] of Object.entries(attributes)) {
     const optionConfig = props.offering.options?.options?.[key];
 
-    if (optionConfig?.type === 'your_custom_type') {
+    if (optionConfig?.type === "your_custom_type") {
       // Handle your custom type's data format
-      newAttributes[key] = value;  // Keep as-is or transform as needed
-    } else if (optionConfig?.type === 'conditional_cascade') {
-      newAttributes[key] = value;  // Existing cascade handling
-    } else if (typeof value === 'object' && !Array.isArray(value)) {
-      newAttributes[key] = value['value'];  // Regular select handling
+      newAttributes[key] = value; // Keep as-is or transform as needed
+    } else if (optionConfig?.type === "conditional_cascade") {
+      newAttributes[key] = value; // Existing cascade handling
+    } else if (typeof value === "object" && !Array.isArray(value)) {
+      newAttributes[key] = value["value"]; // Regular select handling
     } else {
       newAttributes[key] = value;
     }
@@ -360,8 +361,7 @@ class YourCustomTypeTest(test.APITestCase):
 
 ### Form Integration
 
-- **Redux-form compatibility**: For admin configuration interfaces
-- **React-final-form compatibility**: For some user interfaces (when `finalForm=true`)
+- **React-final-form compatibility**: For configuration and user interfaces
 - **FormContainer integration**: For most user order forms
 
 ### Performance
@@ -382,9 +382,9 @@ The `conditional_cascade` type demonstrates all these concepts:
 
 ### Frontend Components
 
-- `ConditionalCascadeConfiguration` - Admin configuration interface (redux-form)
-- `ConditionalCascadeWidget` - Admin form component (redux-form)
-- `ConditionalCascadeField` - User order form component (FormContainer/redux-form)
+- `ConditionalCascadeConfiguration` - Admin configuration interface
+- `ConditionalCascadeWidget` - Admin form component
+- `ConditionalCascadeField` - User order form component
 
 ### Key Features
 
