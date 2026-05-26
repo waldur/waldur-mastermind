@@ -351,6 +351,13 @@ class User(
             "Designates whether the user is allowed to manage remote user identities."
         ),
     )
+    can_use_personal_access_tokens = models.BooleanField(
+        default=False,
+        help_text=_(
+            "Designates whether the user is allowed to create and use "
+            "personal access tokens."
+        ),
+    )
     deactivation_reason = models.CharField(
         max_length=512,
         blank=True,
@@ -524,6 +531,7 @@ class User(
         "preferred_language",
         "backend_id",
         "is_identity_manager",
+        "can_use_personal_access_tokens",
         "affiliations",
         "first_name",
         "last_name",

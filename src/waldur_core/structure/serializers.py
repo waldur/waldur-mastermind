@@ -2041,6 +2041,7 @@ class UserSerializer(
             "eduperson_assurance",
             # Identity Bridge fields (staff-only, see get_fields)
             "is_identity_manager",
+            "can_use_personal_access_tokens",
             "attribute_sources",
             "managed_isds",
             "active_isds",
@@ -2096,6 +2097,7 @@ class UserSerializer(
                 "managed_isds",
                 "active_isds",
                 "is_identity_manager",
+                "can_use_personal_access_tokens",
             )
             staff_only_fields = (
                 "attribute_sources",

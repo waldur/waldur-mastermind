@@ -40,6 +40,8 @@ class PersonalAccessTokenCRUDTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         self.user = self.fixture.owner
+        self.user.can_use_personal_access_tokens = True
+        self.user.save(update_fields=["can_use_personal_access_tokens"])
         self.client.force_authenticate(user=self.user)
 
     def test_create_returns_plaintext_once(self):
@@ -127,6 +129,8 @@ class PersonalAccessTokenAuthenticationTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         self.user = self.fixture.owner
+        self.user.can_use_personal_access_tokens = True
+        self.user.save(update_fields=["can_use_personal_access_tokens"])
         # Ensure a DRF Token exists so other auth code doesn't break
         Token.objects.get_or_create(user=self.user)
 
@@ -226,6 +230,8 @@ class PersonalAccessTokenSecurityTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         self.user = self.fixture.owner
+        self.user.can_use_personal_access_tokens = True
+        self.user.save(update_fields=["can_use_personal_access_tokens"])
         Token.objects.get_or_create(user=self.user)
 
     def test_pat_via_pat_blocked_create(self):
@@ -333,6 +339,8 @@ class PersonalAccessTokenUsageTrackingTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         self.user = self.fixture.owner
+        self.user.can_use_personal_access_tokens = True
+        self.user.save(update_fields=["can_use_personal_access_tokens"])
         Token.objects.get_or_create(user=self.user)
 
     def test_usage_stats_updated_on_use(self):
@@ -429,6 +437,8 @@ class PersonalAccessTokenStaffScopeEnforcementTest(test.APITestCase):
         self.fixture = fixtures.CustomerFixture()
         self.staff_user = self.fixture.staff
         self.regular_user = self.fixture.owner
+        self.regular_user.can_use_personal_access_tokens = True
+        self.regular_user.save(update_fields=["can_use_personal_access_tokens"])
         Token.objects.get_or_create(user=self.staff_user)
         Token.objects.get_or_create(user=self.regular_user)
 
@@ -568,6 +578,8 @@ class PersonalAccessTokenAvailableScopesTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.CustomerFixture()
         self.user = self.fixture.owner
+        self.user.can_use_personal_access_tokens = True
+        self.user.save(update_fields=["can_use_personal_access_tokens"])
         self.client.force_authenticate(user=self.user)
 
     def test_available_scopes_returns_permissions(self):
@@ -661,6 +673,8 @@ class PersonalAccessTokenBindingCreateTest(test.APITestCase):
 
     def test_reject_binding_to_entity_user_lacks_permission_on(self):
         # `member` only holds PROJECT.MEMBER → no customer-level permission.
+        self.fixture.member.can_use_personal_access_tokens = True
+        self.fixture.member.save(update_fields=["can_use_personal_access_tokens"])
         self.client.force_authenticate(user=self.fixture.member)
         response = self.client.post(
             PAT_URL,
@@ -951,6 +965,8 @@ class PersonalAccessTokenRotatePreservesBindingsTest(test.APITestCase):
     def setUp(self):
         self.fixture = fixtures.ProjectFixture()
         self.user = self.fixture.owner
+        self.user.can_use_personal_access_tokens = True
+        self.user.save(update_fields=["can_use_personal_access_tokens"])
         Token.objects.get_or_create(user=self.user)
         self.client.force_authenticate(user=self.user)
 
@@ -997,3 +1013,62 @@ class PersonalAccessTokenAvailableBindingTargetsTest(test.APITestCase):
         self.assertIn("project", by_perm[PermissionEnum.UPDATE_CUSTOMER.value])
         # STAFF/SUPPORT not advertised (they can't be bound).
         self.assertNotIn(PermissionEnum.STAFF_ACCESS.value, by_perm)
+
+
+@override_config(PAT_ENABLED=True)
+class PersonalAccessTokenPerUserGateTest(test.APITestCase):
+    """Per-user enablement: only staff or users with the flag may create/use PATs."""
+
+    def setUp(self):
+        self.fixture = fixtures.CustomerFixture()
+
+    def _create_payload(self):
+        return {
+            "name": "My token",
+            "scopes": [PermissionEnum.LIST_ORDERS.value],
+            "expires_at": (timezone.now() + timedelta(days=30)).isoformat(),
+        }
+
+    def test_user_without_flag_cannot_create(self):
+        user = self.fixture.owner
+        self.assertFalse(user.can_use_personal_access_tokens)
+        self.client.force_authenticate(user=user)
+        response = self.client.post(PAT_URL, self._create_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_user_with_flag_can_create(self):
+        user = self.fixture.owner
+        user.can_use_personal_access_tokens = True
+        user.save(update_fields=["can_use_personal_access_tokens"])
+        self.client.force_authenticate(user=user)
+        response = self.client.post(PAT_URL, self._create_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_staff_can_create_without_flag(self):
+        staff = self.fixture.staff
+        self.assertFalse(staff.can_use_personal_access_tokens)
+        self.client.force_authenticate(user=staff)
+        response = self.client.post(PAT_URL, self._create_payload(), format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+    def test_revoking_flag_disables_existing_token(self):
+        user = self.fixture.owner
+        user.can_use_personal_access_tokens = True
+        user.save(update_fields=["can_use_personal_access_tokens"])
+        pat = _create_pat(user)
+
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {pat._plaintext_token}")
+        response = self.client.get("/api/customers/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        user.can_use_personal_access_tokens = False
+        user.save(update_fields=["can_use_personal_access_tokens"])
+        response = self.client.get("/api/customers/")
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_staff_token_works_without_flag(self):
+        staff = self.fixture.staff
+        pat = _create_pat(staff)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {pat._plaintext_token}")
+        response = self.client.get("/api/customers/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)

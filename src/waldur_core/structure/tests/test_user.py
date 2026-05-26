@@ -258,6 +258,32 @@ class UserPermissionApiTest(test.APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
+    def test_user_cannot_grant_pat_access_to_himself(self):
+        owner = self.users["owner"]
+        self.assertFalse(owner.can_use_personal_access_tokens)
+        self.client.force_authenticate(user=owner)
+
+        response = self.client.patch(
+            factories.UserFactory.get_url(owner),
+            {"can_use_personal_access_tokens": True},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        owner.refresh_from_db()
+        self.assertFalse(owner.can_use_personal_access_tokens)
+
+    def test_staff_can_grant_pat_access_to_user(self):
+        owner = self.users["owner"]
+        self.assertFalse(owner.can_use_personal_access_tokens)
+        self.client.force_authenticate(user=self.users["staff"])
+
+        response = self.client.patch(
+            factories.UserFactory.get_url(owner),
+            {"can_use_personal_access_tokens": True},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        owner.refresh_from_db()
+        self.assertTrue(owner.can_use_personal_access_tokens)
+
     # Deletion tests
     def user_cannot_delete_his_account(self):
         self._ensure_user_cannot_delete_account(

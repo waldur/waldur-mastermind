@@ -268,6 +268,9 @@ class PATAuthentication(BaseAuthentication):
         if not pat.user.is_active:
             raise AuthenticationFailed("Invalid token.")
 
+        if not (pat.user.is_staff or pat.user.can_use_personal_access_tokens):
+            raise AuthenticationFailed("Invalid token.")
+
         if pat.is_expired:
             raise AuthenticationFailed("Invalid token.")
 
