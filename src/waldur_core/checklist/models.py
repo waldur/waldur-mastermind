@@ -424,6 +424,15 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
         processed_files = []
 
         for file_data in files:
+            # Skip already-processed files (have stored_file_id, no raw content)
+            if (
+                isinstance(file_data, dict)
+                and "stored_file_id" in file_data
+                and "content" not in file_data
+            ):
+                processed_files.append(file_data)
+                continue
+
             try:
                 # Use the helper method to process and validate the file
                 processed_data = self._process_single_file(
@@ -786,11 +795,13 @@ class Answer(core_models.UuidMixin, TimeStampedModel):
 
     def save(self, *args, **kwargs):
         """Auto-check if review is required and process file content when saving"""
-        if not self.pk:
-            # Process file content if this is a file question
-            if self.question.question_type in ["file", "multiple_files"]:
-                self.answer_data = self.question.process_file_answer(self.answer_data)
+        # Process file content on both create and update.
+        # process_file_answer is idempotent: already-processed files (with stored_file_id)
+        # are skipped, so re-saving a processed answer is safe.
+        if self.question.question_type in ["file", "multiple_files"]:
+            self.answer_data = self.question.process_file_answer(self.answer_data)
 
+        if not self.pk:
             self.requires_review = self.question.should_trigger_review(self.answer_data)
 
         super().save(*args, **kwargs)
