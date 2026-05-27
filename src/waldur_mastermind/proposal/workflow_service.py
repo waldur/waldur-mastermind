@@ -20,6 +20,18 @@ from waldur_mastermind.proposal.enums import (
 )
 
 
+def _merge_notes(existing, addition):
+    """Append a new note to existing internal notes with a blank-line break.
+
+    Notes accumulate across the step's lifecycle (e.g. a manager records a
+    holding note before deciding on the outcome). Overwriting on every save
+    would silently discard earlier context.
+    """
+    if not existing:
+        return addition
+    return f"{existing}\n\n{addition}"
+
+
 def _next_enabled_step(proposal, current_step_id):
     """Return the next step the proposal should advance to.
 
@@ -66,24 +78,40 @@ def _activate_next_step(proposal, next_step_def):
 
 
 @transaction.atomic
-def complete_step(proposal, current_instance, outcome, outcome_reason, completed_by):
+def complete_step(
+    proposal,
+    current_instance,
+    outcome,
+    outcome_reason,
+    completed_by,
+    internal_notes="",
+):
     """Complete the active step. Advance only if transition_mode is automatic.
 
     Returns the newly active next step instance, or None if the workflow
     terminated (proposal accepted) OR if the step is awaiting manual advance.
     Callers should inspect ``is_awaiting_manual_advance(proposal)`` to
     distinguish those two cases.
+
+    ``internal_notes`` is a call-management-team-only free-text field; it is
+    appended (not overwritten) so completing a step never erases notes
+    captured earlier in the same step's lifecycle.
     """
     current_instance.status = WorkflowStepInstanceStatuses.COMPLETED
     current_instance.outcome = outcome
     current_instance.outcome_reason = outcome_reason or ""
     current_instance.completed_at = timezone.now()
     current_instance.completed_by = completed_by
+    if internal_notes:
+        current_instance.internal_notes = _merge_notes(
+            current_instance.internal_notes, internal_notes
+        )
     current_instance.save(
         update_fields=[
             "status",
             "outcome",
             "outcome_reason",
+            "internal_notes",
             "completed_at",
             "completed_by",
         ]
@@ -154,18 +182,27 @@ def advance_step(proposal):
 
 
 @transaction.atomic
-def reject_at_step(proposal, current_instance, reason, completed_by):
-    """Mark the active step as completed with rejection and reject the proposal."""
+def reject_at_step(proposal, current_instance, reason, completed_by, internal_notes=""):
+    """Mark the active step as completed with rejection and reject the proposal.
+
+    ``internal_notes`` is appended to any pre-existing internal notes on the
+    instance; see ``complete_step`` for the rationale.
+    """
     current_instance.status = WorkflowStepInstanceStatuses.COMPLETED
     current_instance.outcome = WorkflowStepOutcomes.REJECTED
     current_instance.outcome_reason = reason
     current_instance.completed_at = timezone.now()
     current_instance.completed_by = completed_by
+    if internal_notes:
+        current_instance.internal_notes = _merge_notes(
+            current_instance.internal_notes, internal_notes
+        )
     current_instance.save(
         update_fields=[
             "status",
             "outcome",
             "outcome_reason",
+            "internal_notes",
             "completed_at",
             "completed_by",
         ]

@@ -2665,10 +2665,36 @@ class ProposalViewSet(
     )
     @decorators.action(detail=True, methods=["get"])
     def workflow_states(self, request, uuid=None):
+        # Access control is the viewset-level queryset filter
+        # (filter_queryset_for_user): unrelated users get an empty queryset
+        # and self.get_object() returns 404 before any of this code runs.
+        # Applicants, project members, and call team all reach the same
+        # response shape — the per-field visibility (internal_notes) is
+        # gated below via the serializer context.
         proposal = self.get_object()
         instances = proposal.workflow_step_instances.all()
+        # Pre-load step configs once (max ~6 rows per proposal) so the
+        # serializer's derived fields don't trigger a per-row query for
+        # applicant_visible / duration_in_days / responsible_role. Use
+        # ``call_id`` rather than ``call`` so we don't fetch the Call row
+        # we never read fields from.
+        step_configs_by_key = {
+            cs.step: cs
+            for cs in models.CallWorkflowStep.objects.filter(
+                call_id=proposal.round.call_id
+            ).only("step", "applicant_visible", "duration_in_days", "responsible_role")
+        }
         serializer = serializers.ProposalWorkflowStepInstanceSerializer(
-            instances, many=True
+            instances,
+            many=True,
+            context={
+                "step_configs_by_key": step_configs_by_key,
+                "can_view_internal_notes": (
+                    proposal_permissions.user_can_view_internal_notes(
+                        request.user, proposal
+                    )
+                ),
+            },
         )
         return response.Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -2710,6 +2736,16 @@ class ProposalViewSet(
         outcome = input_serializer.validated_data["outcome"]
         client_step_uuid = input_serializer.validated_data["step_uuid"]
         outcome_reason = input_serializer.validated_data.get("outcome_reason", "")
+        # Drop internal_notes for callers who can't read it back. The
+        # responsible-role check on this action lets an applicant act on
+        # applicant-owned steps (e.g. award_response); without this guard
+        # they could silently inject text into a field the call-management
+        # team treats as internal.
+        internal_notes = (
+            input_serializer.validated_data.get("internal_notes", "")
+            if proposal_permissions.user_can_view_internal_notes(request.user, proposal)
+            else ""
+        )
 
         with transaction.atomic():
             # Lock the proposal row first so complete/reject/advance serialise
@@ -2738,6 +2774,7 @@ class ProposalViewSet(
                 outcome=outcome,
                 outcome_reason=outcome_reason,
                 completed_by=request.user,
+                internal_notes=internal_notes,
             )
             # Step-activation notifications were intentionally removed; see
             # commit d2d5fb77c "Drop step-activation notifications [WAL-9346]".
@@ -2800,6 +2837,14 @@ class ProposalViewSet(
 
         client_step_uuid = input_serializer.validated_data["step_uuid"]
         reason = input_serializer.validated_data["reason"]
+        # See complete_workflow_step for the symmetric write-side gate: only
+        # call-management-team users may persist internal_notes; applicants
+        # acting on their own step would otherwise leak private text.
+        internal_notes = (
+            input_serializer.validated_data.get("internal_notes", "")
+            if proposal_permissions.user_can_view_internal_notes(request.user, proposal)
+            else ""
+        )
 
         with transaction.atomic():
             # Lock the proposal row first (consistent order with
@@ -2825,6 +2870,7 @@ class ProposalViewSet(
                 current_instance=current_instance,
                 reason=reason,
                 completed_by=request.user,
+                internal_notes=internal_notes,
             )
 
         response_serializer = serializers.RejectWorkflowStepResponseSerializer(
