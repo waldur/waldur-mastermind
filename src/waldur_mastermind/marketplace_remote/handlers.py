@@ -10,7 +10,6 @@ from waldur_core.core.utils import serialize_instance
 from waldur_core.logging import event_logger
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions import signals as permission_signals
-from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.fixtures import ServiceProviderRole
 from waldur_core.permissions.models import UserRole
 from waldur_core.structure import models as structure_models
@@ -38,10 +37,22 @@ def sync_permission_with_remote(sender, instance: UserRole, signal, **kwargs):
     # Skip synchronization of custom roles
     if not instance.role.is_system_role:
         return
-    if not isinstance(
-        instance.scope, structure_models.Customer | structure_models.Project
+
+    # Only project-level permissions are synced to remote Waldur instances;
+    # organization owners are intentionally not propagated.
+    if not isinstance(instance.scope, structure_models.Project):
+        return
+
+    # Only update remote project permissions if project has active remote resources
+    if (
+        not marketplace_models.Resource.objects.filter(
+            project=instance.scope, offering__type=REMOTE_OFFERING
+        )
+        .exclude(state__in=INVALID_RESOURCE_STATES)
+        .exists()
     ):
         return
+
     args = (
         serialize_instance(instance.scope),
         serialize_instance(instance.user),
@@ -49,23 +60,9 @@ def sync_permission_with_remote(sender, instance: UserRole, signal, **kwargs):
         signal in (permission_signals.role_granted, permission_signals.role_updated),
         instance.expiration_time and instance.expiration_time.isoformat() or None,
     )
-    if isinstance(instance.scope, structure_models.Customer):
-        if instance.role.name == RoleEnum.CUSTOMER_OWNER:
-            transaction.on_commit(
-                lambda: tasks.update_remote_customer_permissions.apply_async(args=args)
-            )
-    elif isinstance(instance.scope, structure_models.Project):
-        # Only update remote project permissions if project has active remote resources
-        if (
-            marketplace_models.Resource.objects.filter(
-                project=instance.scope, offering__type=REMOTE_OFFERING
-            )
-            .exclude(state__in=INVALID_RESOURCE_STATES)
-            .exists()
-        ):
-            transaction.on_commit(
-                lambda: tasks.update_remote_project_permissions.apply_async(args=args)
-            )
+    transaction.on_commit(
+        lambda: tasks.update_remote_project_permissions.apply_async(args=args)
+    )
 
 
 def create_request_when_project_is_updated(

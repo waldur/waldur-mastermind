@@ -73,7 +73,6 @@ from waldur_core.core.client import get_waldur_client
 from waldur_core.core.utils import get_system_robot, validate_uuid
 from waldur_core.media import models as media_models
 from waldur_core.media import utils as media_utils
-from waldur_core.permissions.enums import RoleEnum
 from waldur_core.permissions.models import UserRole
 from waldur_core.permissions.utils import get_permissions
 from waldur_core.structure import models as structure_models
@@ -483,21 +482,8 @@ def collect_local_permissions(
             permission.role.name,
             permission.expiration_time,
         )
-    # Skip mapping for owners if offering belongs to the same customer
-    if offering.customer == project.customer:
-        return permissions
-    for permission in get_permissions(project.customer).filter(
-        Q(role__name=RoleEnum.CUSTOMER_OWNER)
-        & (
-            Q(user__registration_method=ProviderChoices.EDUTEAMS)
-            | Q(user__identity_source=ProviderChoices.EDUTEAMS)
-        )
-    ):
-        # Organization owner is mapped to project manager in remote Waldur
-        permissions[permission.user.username] = (
-            RoleEnum.PROJECT_MANAGER,
-            permission.expiration_time,
-        )
+    # Only project-level permissions are synced to remote Waldur instances;
+    # organization owners are intentionally not propagated.
     return permissions
 
 

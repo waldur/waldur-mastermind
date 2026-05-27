@@ -279,8 +279,9 @@ class SyncRemoteProjectPermissionsTest(testcases.TransactionTestCase):
             },
         )
 
-    def test_if_user_is_owner_and_admin_then_manager_role_is_created(self):
-        # Arrange
+    def test_if_user_is_owner_and_admin_then_project_role_is_kept(self):
+        # A user who is both an organization owner and a project admin keeps
+        # their project-level role on the remote; owner status is not synced.
         self.fixture.admin.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.admin.save()
         self.fixture.customer.add_user(self.fixture.admin, CustomerRole.OWNER)
@@ -298,18 +299,16 @@ class SyncRemoteProjectPermissionsTest(testcases.TransactionTestCase):
             get_request_data(create_mock),
             {
                 "user": self.remote_user_uuid,
-                "role": RoleEnum.PROJECT_MANAGER.value,
+                "role": RoleEnum.PROJECT_ADMIN.value,
                 "expiration_time": None,
             },
         )
 
-    def test_skip_mapping_for_owners_if_offering_belongs_to_the_same_customer(self):
-        # Arrange
+    def test_organization_owner_is_not_synced(self):
+        # Organization owners without a project-level role are not propagated
+        # to remote Waldur instances.
         self.fixture.owner.registration_method = ProviderChoices.EDUTEAMS
         self.fixture.owner.save()
-
-        self.resource.project.customer = self.fixture.resource.offering.customer
-        self.resource.project.save()
 
         self.mock_project_exists(exists=True)
         self.mock_user_creation()

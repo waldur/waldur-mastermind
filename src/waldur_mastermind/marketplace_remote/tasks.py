@@ -76,7 +76,6 @@ from waldur_core.core.client import ClientValidationError, get_waldur_client
 from waldur_core.core.enums import ReviewStates
 from waldur_core.core.utils import (
     broadcast_mail,
-    chunked_queryset,
     deserialize_instance,
     format_homeport_link,
     month_start,
@@ -1209,45 +1208,6 @@ def update_remote_project_permissions(
         else expiration_time
     )
     sync_project_permission(grant, project, role_name, user, new_expiration_time)
-
-
-@shared_task(
-    name="waldur_mastermind.marketplace_remote.update_remote_customer_permissions"
-)
-def update_remote_customer_permissions(
-    serialized_customer,
-    serialized_user,
-    role_name,
-    grant=True,
-    expiration_time=None,
-):
-    """Update customer permissions in remote Waldur instances.
-
-    This task grants or revokes a specific role for a user on all projects
-    belonging to a customer in remote Waldur instances. Used to synchronize
-    customer-level permission changes.
-
-    Args:
-        serialized_customer: Serialized customer instance
-        serialized_user: Serialized user instance
-        role_name: Name of the role to grant/revoke
-        grant: Whether to grant (True) or revoke (False) the permission
-        expiration_time: Optional expiration time for the permission
-    """
-    customer = deserialize_instance(serialized_customer)
-    user = deserialize_instance(serialized_user)
-    new_expiration_time = (
-        dateparse.parse_datetime(expiration_time)
-        if expiration_time
-        else expiration_time
-    )
-
-    for project in chunked_queryset(
-        structure_models.Project.available_objects.filter(customer=customer),
-        chunk_size=50,
-        max_records=10_000,
-    ):
-        sync_project_permission(grant, project, role_name, user, new_expiration_time)
 
 
 @shared_task(
