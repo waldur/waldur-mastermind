@@ -8,7 +8,7 @@ from rest_framework import test
 
 from waldur_auth_social.const import ProviderChoices
 from waldur_core.permissions.enums import RoleEnum
-from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
 from waldur_core.structure.tests.factories import UserFactory
 from waldur_mastermind.marketplace.enums import REMOTE_OFFERING
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
@@ -220,6 +220,19 @@ class RemoteProjectPermissionsTestCase(test.APITransactionTestCase):
                 "role": RoleEnum.PROJECT_ADMIN.value,
             },
         )
+
+    def test_organization_owner_is_not_synced(self):
+        # Only project-level permissions are propagated to remote Waldur;
+        # granting an organization owner must not trigger any remote calls.
+        mock_eduteams = self.mock_remote_eduteams()
+        mock_list_projects = self.mock_list_projects()
+        add_user_mock = self.mock_add_user()
+
+        self.customer.add_user(user=self.new_user, role=CustomerRole.OWNER)
+
+        self.assertFalse(mock_eduteams.called)
+        self.assertFalse(mock_list_projects.called)
+        self.assertFalse(add_user_mock.called)
 
     @skip("Unstable in CI/CD")
     def test_sync_resource_team(self):
