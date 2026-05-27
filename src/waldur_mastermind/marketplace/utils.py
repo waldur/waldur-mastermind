@@ -875,15 +875,28 @@ def schedule_resources_termination(resources, termination_comment=None, user=Non
     if not resources:
         return
 
+    system_robot = core_utils.get_system_robot()
+
     for resource in resources:
         # A separate `actor` variable per iteration is required: rebinding
         # `user` would short-circuit the fallback chain on the next iteration
         # and attribute every later resource to the first resource's actor.
-        actor = (
-            user
-            or resource.end_date_requested_by
-            or resource.project.end_date_requested_by
-            or core_utils.get_system_robot()
+        #
+        # Inactive candidates are skipped: termination runs as an internal API
+        # request authenticated as the actor, and an inactive user is rejected
+        # with HTTP 401 "User inactive or deleted.", so the resource would never
+        # be terminated. The system robot is always active and is the fallback.
+        actor = next(
+            (
+                candidate
+                for candidate in (
+                    user,
+                    resource.end_date_requested_by,
+                    resource.project.end_date_requested_by,
+                )
+                if candidate is not None and candidate.is_active
+            ),
+            system_robot,
         )
 
         if not actor:
