@@ -208,7 +208,9 @@ class UserChecklistMixin(BaseChecklistMixin):
                     user=request.user,
                 ).delete()
             else:
-                # Create or update answer using direct foreign key
+                # Create or update answer using direct foreign key.
+                # File processing (for file/multiple_files questions) is handled
+                # inside Answer.save() via process_file_answer(), which is idempotent.
                 checklist_models.Answer.objects.update_or_create(
                     completion=completion,
                     question=question,

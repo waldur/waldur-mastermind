@@ -1,11 +1,15 @@
 import base64
+import os
 
+from django.contrib.contenttypes.models import ContentType
 from ddt import data, ddt
 from rest_framework import status, test
 
-from waldur_core.checklist import models
+from waldur_core.checklist import models, utils
 from waldur_core.checklist.tests import factories, fixtures
+from waldur_core.media import models as media_models
 from waldur_core.structure.tests import fixtures as structure_fixtures
+from waldur_core.structure.tests.factories import ProjectFactory
 
 from .. import enums
 
@@ -19,8 +23,6 @@ class FileQuestionValidationTest(test.APITestCase):
         self.fixture = fixtures.CheckListFixture()
 
         # Load real test files
-        import os
-
         test_dir = os.path.dirname(__file__)
 
         with open(os.path.join(test_dir, "minimal_word_file.pdf"), "rb") as f:
@@ -190,10 +192,6 @@ class FileQuestionAnswerProcessingTest(test.APITestCase):
         self.checklist = factories.ChecklistFactory()
 
         # Create completion manually since no factory exists
-        from django.contrib.contenttypes.models import ContentType
-
-        from waldur_core.structure.tests.factories import ProjectFactory
-
         project = ProjectFactory()
         self.completion = models.ChecklistCompletion.objects.create(
             checklist=self.checklist,
@@ -203,8 +201,6 @@ class FileQuestionAnswerProcessingTest(test.APITestCase):
         )
 
         # Load real test files
-        import os
-
         test_dir = os.path.dirname(__file__)
 
         with open(os.path.join(test_dir, "minimal_word_file.pdf"), "rb") as f:
@@ -237,8 +233,6 @@ class FileQuestionAnswerProcessingTest(test.APITestCase):
         self.assertIn("size", processed_data)
 
         # Verify the file was stored in media system
-        from waldur_core.media import models as media_models
-
         stored_file = media_models.File.objects.get(
             uuid=processed_data["stored_file_id"]
         )
@@ -401,8 +395,6 @@ class FileQuestionIntegrationTest(test.APITestCase):
         self.checklist = factories.ChecklistFactory()
 
         # Load real test files
-        import os
-
         test_dir = os.path.dirname(__file__)
 
         with open(os.path.join(test_dir, "minimal_word_file.pdf"), "rb") as f:
@@ -423,10 +415,6 @@ class FileQuestionIntegrationTest(test.APITestCase):
         )
 
         # Create completion manually since no factory exists
-        from django.contrib.contenttypes.models import ContentType
-
-        from waldur_core.structure.tests.factories import ProjectFactory
-
         project = ProjectFactory()
         completion = models.ChecklistCompletion.objects.create(
             checklist=self.checklist,
@@ -456,13 +444,146 @@ class FileQuestionIntegrationTest(test.APITestCase):
         self.assertEqual(processed_data["name"], "compliance_document.pdf")
 
 
+class FileAnswerUpdateTest(test.APITestCase):
+    """Test that updating file answers processes the new file content correctly."""
+
+    def setUp(self):
+        self.fixture = fixtures.CheckListFixture()
+        self.checklist = factories.ChecklistFactory()
+
+        test_dir = os.path.dirname(__file__)
+
+        with open(os.path.join(test_dir, "minimal_word_file.pdf"), "rb") as f:
+            self.pdf_content = f.read()
+            self.pdf_base64 = base64.b64encode(self.pdf_content).decode("utf-8")
+
+        project = ProjectFactory()
+        self.completion = models.ChecklistCompletion.objects.create(
+            checklist=self.checklist,
+            scope_content_type=ContentType.objects.get_for_model(project),
+            scope_object_id=project.id,
+            scope=project,
+        )
+
+    def test_update_file_answer_processes_new_file(self):
+        """Test that updating a file answer replaces old file with new processed file."""
+        question = factories.QuestionFactory(
+            checklist=self.checklist,
+            question_type=enums.QuestionTypes.FILE,
+        )
+
+        # Create initial answer
+        initial_data = {"name": "original.pdf", "content": self.pdf_base64}
+        answer, created = models.Answer.objects.update_or_create(
+            completion=self.completion,
+            question=question,
+            user=self.fixture.staff,
+            defaults={"answer_data": initial_data},
+        )
+        self.assertTrue(created)
+        initial_stored_id = answer.answer_data.get("stored_file_id")
+        self.assertIsNotNone(initial_stored_id)
+
+        # Update with new file via update_or_create
+        new_data = {"name": "updated.pdf", "content": self.pdf_base64}
+        updated_answer, created = models.Answer.objects.update_or_create(
+            completion=self.completion,
+            question=question,
+            user=self.fixture.staff,
+            defaults={"answer_data": new_data},
+        )
+        self.assertFalse(created)
+
+        updated_answer.refresh_from_db()
+        processed = updated_answer.answer_data
+
+        # Must be processed, not raw
+        self.assertIsInstance(processed, dict)
+        self.assertNotIn("content", processed)
+        self.assertIn("stored_file_id", processed)
+        self.assertEqual(processed["name"], "updated.pdf")
+
+    def test_update_multiple_files_answer_processes_new_files(self):
+        """Test that updating a multiple_files answer processes all new files."""
+        question = factories.QuestionFactory(
+            checklist=self.checklist,
+            question_type=enums.QuestionTypes.MULTIPLE_FILES,
+        )
+
+        text_content = b"First file content"
+        text_base64 = base64.b64encode(text_content).decode("utf-8")
+
+        # Create initial answer with one file
+        initial_data = [{"name": "first.pdf", "content": self.pdf_base64}]
+        models.Answer.objects.update_or_create(
+            completion=self.completion,
+            question=question,
+            user=self.fixture.staff,
+            defaults={"answer_data": initial_data},
+        )
+
+        # Update with two files
+        new_data = [
+            {"name": "new_doc.pdf", "content": self.pdf_base64},
+            {"name": "notes.txt", "content": text_base64},
+        ]
+        updated_answer, created = models.Answer.objects.update_or_create(
+            completion=self.completion,
+            question=question,
+            user=self.fixture.staff,
+            defaults={"answer_data": new_data},
+        )
+        self.assertFalse(created)
+
+        updated_answer.refresh_from_db()
+        processed = updated_answer.answer_data
+
+        # Must be list of processed files, not raw
+        self.assertIsInstance(processed, list)
+        self.assertEqual(len(processed), 2)
+        for f in processed:
+            self.assertNotIn("content", f)
+            self.assertIn("stored_file_id", f)
+
+    def test_idempotent_update_does_not_duplicate_files(self):
+        """Test that re-submitting already-processed file data does not create duplicate files."""
+        question = factories.QuestionFactory(
+            checklist=self.checklist,
+            question_type=enums.QuestionTypes.FILE,
+        )
+
+        # Create initial answer (processes the file)
+        initial_data = {"name": "doc.pdf", "content": self.pdf_base64}
+        answer, _ = models.Answer.objects.update_or_create(
+            completion=self.completion,
+            question=question,
+            user=self.fixture.staff,
+            defaults={"answer_data": initial_data},
+        )
+        answer.refresh_from_db()
+        stored_id_before = answer.answer_data["stored_file_id"]
+        file_count_before = media_models.File.objects.count()
+
+        # Re-submit already-processed data (simulates frontend sending back server response)
+        processed_data = answer.answer_data  # Already has stored_file_id, no content
+        models.Answer.objects.update_or_create(
+            completion=self.completion,
+            question=question,
+            user=self.fixture.staff,
+            defaults={"answer_data": processed_data},
+        )
+        answer.refresh_from_db()
+
+        # stored_file_id must not change, no duplicate file created
+        self.assertEqual(answer.answer_data["stored_file_id"], stored_id_before)
+        self.assertEqual(media_models.File.objects.count(), file_count_before)
+
+
 class FileQuestionUtilsTest(test.APITestCase):
     """Test utility functions for file question types."""
 
     def test_file_type_is_valid_answer_format(self):
         """Test is_valid_answer utility for file types."""
-        from waldur_core.checklist import utils
-
         # FILE type should accept dict
         self.assertTrue(utils.is_valid_answer({}, enums.QuestionTypes.FILE))
         self.assertFalse(utils.is_valid_answer([], enums.QuestionTypes.FILE))
@@ -473,8 +594,6 @@ class FileQuestionUtilsTest(test.APITestCase):
 
     def test_file_operators_supported(self):
         """Test that appropriate operators are supported for file types."""
-        from waldur_core.checklist import utils
-
         # FILE type supports equals, not_equals, contains
         self.assertTrue(
             utils.is_valid_operator_for_question_type(
