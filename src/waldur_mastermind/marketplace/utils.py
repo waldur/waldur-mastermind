@@ -2226,6 +2226,19 @@ def check_pending_order_exists(resource):
     ).exists()
 
 
+def get_pending_consumer_terminate_order(resource):
+    return (
+        models.Order.objects.filter(
+            resource=resource,
+            type=OrderTypes.TERMINATE,
+            state=OrderStates.PENDING_CONSUMER,
+        )
+        .select_related("offering", "project__customer")
+        .order_by("-created")
+        .first()
+    )
+
+
 def refresh_integration_agent_status(request, agent_type):
     user_agent = core_utils.get_user_agent(request)
     if "waldur-site-agent" not in user_agent:

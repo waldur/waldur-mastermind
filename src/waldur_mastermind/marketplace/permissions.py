@@ -2,12 +2,17 @@ from constance import config
 from django.utils.translation import gettext_lazy as _
 from rest_framework import exceptions
 
+from waldur_core.core import exceptions as core_exceptions
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission, permission_factory
 from waldur_core.structure import permissions as structure_permissions
-from waldur_mastermind.marketplace.enums import OfferingStates, OrderTypes
+from waldur_mastermind.marketplace.enums import (
+    OfferingStates,
+    OrderTypes,
+    ResourceStates,
+)
 
-from . import models
+from . import models, utils
 
 
 def can_register_service_provider(request, customer):
@@ -24,6 +29,14 @@ def has_project_permission(request, permission, project):
     return has_permission(request, permission, project) or has_permission(
         request, permission, project.customer
     )
+
+
+def user_can_approve_order_as_consumer(user, order: models.Order) -> bool:
+    if user.is_staff:
+        return True
+    return has_permission(
+        user, PermissionEnum.APPROVE_ORDER, order.project
+    ) or has_permission(user, PermissionEnum.APPROVE_ORDER, order.project.customer)
 
 
 def order_should_not_be_reviewed_by_consumer(order: models.Order):
@@ -116,6 +129,31 @@ user_can_terminate_resource = permission_factory(
     PermissionEnum.TERMINATE_RESOURCE,
     ["project", "project.customer", "offering.customer"],
 )
+
+
+def validate_resource_terminate_state(resource: models.Resource) -> None:
+    """Allow terminate on OK/ERRED resources and on TERMINATING with pending approval."""
+    if resource.state in (ResourceStates.OK, ResourceStates.ERRED):
+        return
+    if (
+        resource.state == ResourceStates.TERMINATING
+        and utils.get_pending_consumer_terminate_order(resource)
+    ):
+        return
+
+    states_names = dict(ResourceStates.CHOICES)
+    ok_or_erred = ", ".join(
+        str(states_names[state]) for state in (ResourceStates.OK, ResourceStates.ERRED)
+    )
+    terminating_pending = str(states_names[ResourceStates.TERMINATING])
+    raise core_exceptions.IncorrectStateException(
+        _(
+            "Valid states for operation: %(ok_or_erred)s, or %(terminating)s "
+            "when a termination order is pending consumer approval."
+        )
+        % {"ok_or_erred": ok_or_erred, "terminating": terminating_pending}
+    )
+
 
 user_can_manage_offering_user_group = permission_factory(
     PermissionEnum.MANAGE_OFFERING_USER_GROUP,

@@ -29,6 +29,7 @@ from waldur_mastermind.invoices.tests import factories as invoices_factories
 from waldur_mastermind.marketplace import callbacks, models, plugins
 from waldur_mastermind.marketplace import utils as marketplace_utils
 from waldur_mastermind.marketplace.enums import (
+    BASIC_OFFERING,
     SUPPORT_OFFERING,
     BillingTypes,
     LimitPeriods,
@@ -945,7 +946,6 @@ class ResourceTerminateTest(test.APITestCase):
     @data(
         ResourceStates.CREATING,
         ResourceStates.UPDATING,
-        ResourceStates.TERMINATING,
     )
     def test_termination_request_is_not_accepted_if_resource_is_not_ok_or_erred(
         self, state
@@ -958,6 +958,16 @@ class ResourceTerminateTest(test.APITestCase):
         response = self.terminate(self.fixture.owner)
 
         # Assert
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_termination_request_is_not_accepted_if_resource_is_terminating_without_pending_order(
+        self,
+    ):
+        self.resource.state = ResourceStates.TERMINATING
+        self.resource.save()
+
+        response = self.terminate(self.fixture.owner)
+
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
 
     @data(ResourceStates.OK, ResourceStates.ERRED)
@@ -993,6 +1003,108 @@ class ResourceTerminateTest(test.APITestCase):
         response = self.terminate(self.fixture.staff)
 
         # Assert
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @mock.patch("waldur_mastermind.marketplace.tasks.process_order.delay")
+    def test_owner_confirms_pending_terminate_order_on_terminate(
+        self, mocked_process_order
+    ):
+        """Default offering (Support) skips provider review and project is active."""
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+
+        order = factories.OrderFactory(
+            resource=self.resource,
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+            type=OrderTypes.TERMINATE,
+            state=OrderStates.PENDING_CONSUMER,
+            created_by=self.fixture.admin,
+        )
+
+        owner_response = self.terminate(self.fixture.owner)
+        self.assertEqual(owner_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(owner_response.data["order_uuid"], order.uuid.hex)
+
+        order.refresh_from_db()
+        self.assertEqual(order.state, OrderStates.EXECUTING)
+        self.assertEqual(order.consumer_reviewed_by, self.fixture.owner)
+        self.assertEqual(models.Order.objects.filter(resource=self.resource).count(), 1)
+
+    @mock.patch(
+        "waldur_mastermind.marketplace.tasks.notify_provider_about_pending_order.delay"
+    )
+    def test_owner_confirms_pending_terminate_order_moves_to_pending_provider(
+        self, mocked_notify
+    ):
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        offering = factories.OfferingFactory(
+            customer=self.fixture.customer, type=BASIC_OFFERING
+        )
+        plan = factories.PlanFactory(offering=offering)
+        self.resource.offering = offering
+        self.resource.plan = plan
+        self.resource.save()
+
+        order = factories.OrderFactory(
+            resource=self.resource,
+            project=self.project,
+            offering=offering,
+            plan=plan,
+            type=OrderTypes.TERMINATE,
+            state=OrderStates.PENDING_CONSUMER,
+            created_by=self.fixture.admin,
+        )
+
+        response = self.terminate(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["order_uuid"], order.uuid.hex)
+
+        order.refresh_from_db()
+        self.assertEqual(order.state, OrderStates.PENDING_PROVIDER)
+        self.assertEqual(order.consumer_reviewed_by, self.fixture.owner)
+        mocked_notify.assert_called_once()
+
+    def test_owner_confirms_pending_terminate_order_moves_to_pending_project(self):
+        CustomerRole.OWNER.add_permission(PermissionEnum.APPROVE_ORDER)
+        self.project.start_date = datetime.date(2030, 1, 1)
+        self.project.save()
+
+        order = factories.OrderFactory(
+            resource=self.resource,
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+            type=OrderTypes.TERMINATE,
+            state=OrderStates.PENDING_CONSUMER,
+            created_by=self.fixture.admin,
+        )
+
+        response = self.terminate(self.fixture.owner)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["order_uuid"], order.uuid.hex)
+
+        order.refresh_from_db()
+        self.assertEqual(order.state, OrderStates.PENDING_PROJECT)
+        self.assertEqual(order.consumer_reviewed_by, self.fixture.owner)
+
+    def test_user_without_approve_permission_cannot_terminate_with_pending_order(self):
+        member = UserFactory()
+        self.project.add_user(member, ProjectRole.MEMBER)
+        ProjectRole.MEMBER.add_permission(PermissionEnum.TERMINATE_RESOURCE)
+        ProjectRole.MEMBER.add_permission(PermissionEnum.LIST_RESOURCES)
+
+        factories.OrderFactory(
+            resource=self.resource,
+            project=self.project,
+            offering=self.offering,
+            plan=self.plan,
+            type=OrderTypes.TERMINATE,
+            state=OrderStates.PENDING_CONSUMER,
+            created_by=self.fixture.admin,
+        )
+
+        response = self.terminate(member)
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_resource_terminating_is_not_available_for_blocked_organization(self):
