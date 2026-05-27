@@ -488,6 +488,25 @@ class ResourceEndDateTest(test.APITestCase):
         self.assertEqual(first_order.created_by, first_user)
         self.assertEqual(second_order.created_by, self.system_robot)
 
+    def test_terminate_resource_when_end_date_requested_by_is_inactive(self):
+        # Regression: if the user who requested the end date was later
+        # deactivated, the actor must fall through to the system robot.
+        # Otherwise the internal termination request is rejected with HTTP 401
+        # "User inactive or deleted." and the resource is never terminated.
+        with freeze_time("2020-01-01"):
+            inactive_user = structure_factories.UserFactory(is_active=False)
+            self.resource.end_date_requested_by = inactive_user
+            self.resource.save()
+
+            self.assertTrue(self.resource.is_expired)
+            tasks.terminate_expired_resources()
+            self.resource.refresh_from_db()
+
+            order = models.Order.objects.get(
+                resource=self.fixture.resource, type=OrderTypes.TERMINATE
+            )
+            self.assertEqual(order.created_by, self.system_robot)
+
     def test_notification_about_resource_ending(self):
         self.fixture.manager
         self.fixture.admin
