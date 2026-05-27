@@ -4,6 +4,8 @@ from decimal import Decimal
 from constance import config
 from django.db import transaction
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+from rest_framework import serializers
 
 from waldur_core.permissions.enums import PermissionEnum
 from waldur_core.permissions.utils import has_permission
@@ -76,6 +78,28 @@ def evaluate_auto_approval(
         return None
 
     return rule
+
+
+def confirm_pending_terminate_order(order: models.Order, reviewer) -> models.Order:
+    """Approve an existing pending-consumer terminate order.
+
+    Used when a user with consumer approval rights submits terminate for a
+    resource that already has a pending termination request.
+    """
+    if order.type != OrderTypes.TERMINATE:
+        raise serializers.ValidationError(_("Order is not a termination order."))
+    if order.state != OrderStates.PENDING_CONSUMER:
+        raise serializers.ValidationError(_("Order is not pending consumer review."))
+
+    with transaction.atomic():
+        order = (
+            models.Order.objects.select_for_update(of=("self",))
+            .select_related("project", "offering", "plan")
+            .get(pk=order.pk)
+        )
+        order.review_by_consumer(reviewer)
+        transition_order_from_consumer_approval(order, reviewer)
+    return order
 
 
 def transition_order_from_consumer_approval(order: models.Order, reviewer) -> str:

@@ -700,9 +700,9 @@ class InstanceDeleteTest(test.APITransactionTestCase):
             },
         )
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertTrue(
-            b"Valid states for operation: OK, Erred." in response.rendered_content
-        )
+        self.assertIn(b"OK", response.rendered_content)
+        self.assertIn(b"Erred", response.rendered_content)
+        self.assertIn(b"pending consumer approval", response.rendered_content)
 
     def trigger_deletion(self):
         InstanceDeleteProcessor(self.order).process_order(self.fixture.staff)

@@ -7550,6 +7550,28 @@ class BaseResourceViewSet(
         serializer.is_valid(raise_exception=True)
         attributes = serializer.validated_data.get("attributes", {})
 
+        pending_order = utils.get_pending_consumer_terminate_order(resource)
+        if pending_order:
+            if not permissions.user_can_approve_order_as_consumer(
+                request.user, pending_order
+            ):
+                raise ValidationError(_("Pending order for resource already exists."))
+            if (
+                pending_order.offering.plugin_options.get(
+                    "require_purchase_order_upload"
+                )
+                and not pending_order.attachment
+            ):
+                raise ValidationError(_("Purchase order is required for approval."))
+            self.ensure_resource_operations_allowed(resource)
+            structure_utils.check_customer_blocked_or_archived(
+                pending_order.project.customer
+            )
+            order = order_approval.confirm_pending_terminate_order(
+                pending_order, request.user
+            )
+            return Response({"order_uuid": order.uuid.hex}, status=status.HTTP_200_OK)
+
         return self.create_resource_order(
             request=request,
             resource=resource,
@@ -7597,9 +7619,7 @@ class BaseResourceViewSet(
 
     terminate_permissions = [permissions.user_can_terminate_resource]
 
-    terminate_validators = [
-        core_validators.StateValidator(ResourceStates.OK, ResourceStates.ERRED),
-    ]
+    terminate_validators = [permissions.validate_resource_terminate_state]
 
     @extend_schema(
         summary="List resource plan periods",
