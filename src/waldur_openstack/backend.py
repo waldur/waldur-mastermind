@@ -4175,7 +4175,12 @@ class OpenStackBackend(ServiceBackend):
         volume.backend_id = backend_volume.id
         if hasattr(backend_volume, "volume_image_metadata"):
             volume.image_metadata = backend_volume.volume_image_metadata
-        volume.bootable = backend_volume.bootable == "true"
+        # Cinder reports bootable="false" right after create for image-backed
+        # volumes until the image copy finishes, so only ever upgrade the flag
+        # here. Downgrading would clear the bootable flag that the serializer
+        # set on a system volume, making create_instance fail its
+        # `volumes.get(bootable=True)` guard (PUHURI-PORTALS-T2B).
+        volume.bootable = volume.bootable or backend_volume.bootable == "true"
         volume.runtime_state = backend_volume.status
         volume.save()
         return volume

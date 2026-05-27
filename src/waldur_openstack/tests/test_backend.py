@@ -183,15 +183,41 @@ class CreateVolumesTest(VolumesBaseTest):
         self.assertEqual(volume.availability_zone, None)
         mock_logger.error.assert_called_once()
 
-    def _get_volume(self):
+    def test_intended_bootable_flag_survives_cinder_reporting_false_at_create(self):
+        # Cinder reports bootable="false" right after create for an image-backed
+        # volume until the image copy completes. The flag the serializer set on
+        # a system volume must survive so create_instance can find it via
+        # `volumes.get(bootable=True)` (regression for PUHURI-PORTALS-T2B).
+        backend_volume = self._get_valid_volume("new-backend-id")
+        backend_volume.bootable = "false"
+        self.mocked_cinder.volumes.create.return_value = backend_volume
+
+        volume = self._get_volume(bootable=True)
+
+        self.assertTrue(volume.bootable)
+
+    def test_bootable_flag_is_set_when_cinder_reports_true(self):
+        # A volume created from an image that Cinder already reports as bootable
+        # gets the flag even if it was not pre-set in the DB.
+        backend_volume = self._get_valid_volume("new-backend-id")
+        backend_volume.bootable = "true"
+        self.mocked_cinder.volumes.create.return_value = backend_volume
+
+        volume = self._get_volume(bootable=False)
+
+        self.assertTrue(volume.bootable)
+
+    def _get_volume(self, bootable=False):
         volume = factories.VolumeFactory(
             tenant=self.fixture.tenant,
             project=self.fixture.project,
             backend_id=None,
+            bootable=bootable,
         )
 
         backend = OpenStackBackend(self.openstack_settings)
         backend.create_volume(volume)
+        volume.refresh_from_db()
         return volume
 
 

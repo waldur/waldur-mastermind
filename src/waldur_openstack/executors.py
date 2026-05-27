@@ -1227,12 +1227,18 @@ class InstanceCreateExecutor(core_executors.CreateExecutor):
                 .set(countdown=30 if index == 0 else 0)
             )
 
-            # Pull volume runtime state
+            # Pull volume runtime state. Deliberately omit "bootable" from
+            # update_fields: Cinder may still report bootable="false" in the
+            # window right after the volume becomes available, which would
+            # clear the flag the serializer set on a system volume and make
+            # create_instance fail its bootable-volume guard
+            # (PUHURI-PORTALS-T2B). The periodic volume pull reconciles the
+            # flag later once Cinder has settled.
             _tasks.append(
                 core_tasks.BackendMethodTask().si(
                     serialized_volume,
                     "pull_volume",
-                    update_fields=["runtime_state", "bootable"],
+                    update_fields=["runtime_state"],
                 )
             )
 
