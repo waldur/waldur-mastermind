@@ -2308,6 +2308,82 @@ class ResourceGetTeamTest(test.APITestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual(1, len(response.data))
 
+    def test_consumer_team_returns_all_members_without_consent_filter(self):
+        self.client.force_authenticate(self.admin)
+
+        response = self.client.get(self.customer_url)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, len(response.data))
+
+
+@override_config(ENFORCE_USER_CONSENT_FOR_OFFERINGS=True)
+class ResourceProviderTeamConsentEnforcementTest(test.APITestCase):
+    def setUp(self) -> None:
+        self.fixture = fixtures.ProjectFixture()
+        self.project = self.fixture.project
+        self.offering = factories.OfferingFactory(customer=self.fixture.customer)
+        self.service_owner = self.fixture.owner
+        self.admin = self.fixture.admin
+        self.staff = self.fixture.staff
+
+        models.OfferingTermsOfService.objects.create(
+            offering=self.offering,
+            terms_of_service="Test ToS",
+            version="1.0",
+            is_active=True,
+        )
+
+        self.resource = factories.ResourceFactory(
+            project=self.project, offering=self.offering
+        )
+        self.provider_url = factories.ResourceFactory.get_provider_resource_url(
+            self.resource, action="team"
+        )
+        self.customer_url = factories.ResourceFactory.get_url(
+            self.resource, action="team"
+        )
+
+    def test_provider_team_hides_users_without_consent(self):
+        self.client.force_authenticate(self.service_owner)
+
+        response = self.client.get(self.provider_url)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(0, len(response.data))
+
+    def test_provider_team_includes_users_with_active_consent(self):
+        models.UserOfferingConsent.objects.create(
+            user=self.admin,
+            offering=self.offering,
+            version="1.0",
+        )
+        self.client.force_authenticate(self.service_owner)
+
+        response = self.client.get(self.provider_url)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, len(response.data))
+        self.assertEqual(self.admin.full_name, response.data[0]["full_name"])
+
+    def test_provider_team_staff_sees_all_members_without_consent(self):
+        self.client.force_authenticate(self.staff)
+
+        response = self.client.get(self.provider_url)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, len(response.data))
+
+    def test_consumer_team_returns_all_members_when_enforcement_enabled(self):
+        self.client.force_authenticate(self.admin)
+
+        response = self.client.get(self.customer_url)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(1, len(response.data))
+
+    def test_consumer_team_has_consent_filter_still_works(self):
+        self.client.force_authenticate(self.admin)
+
+        response = self.client.get(self.customer_url, {"has_consent": "true"})
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(0, len(response.data))
+
 
 class ResourceUsageLimitsTest(test.APITestCase):
     def setUp(self):

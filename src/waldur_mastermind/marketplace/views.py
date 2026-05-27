@@ -8069,66 +8069,6 @@ class BaseResourceViewSet(
         return Response(result)
 
     @extend_schema(
-        summary="Get resource team",
-        description="Returns a list of users connected to the project of this resource, including their project roles and offering-specific usernames.",
-        request=None,
-        responses=serializers.ProjectUserSerializer(many=True),
-        filters=False,
-        parameters=[
-            OpenApiParameter(
-                name="has_consent",
-                type=OpenApiTypes.BOOL,
-                location=OpenApiParameter.QUERY,
-                description="When true, return only users who have active consent for this offering.",
-                required=False,
-            ),
-        ],
-    )
-    @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
-    def team(self, request, uuid=None):
-        resource: models.Resource = self.get_object()
-        project = resource.project
-        offering = resource.offering
-        users = project.get_users()
-
-        has_consent_param = request.query_params.get("has_consent")
-        if has_consent_param is not None and has_consent_param.lower() == "true":
-            users = users.filter(
-                offering_consents__offering=offering,
-                offering_consents__revocation_date__isnull=True,
-            ).distinct()
-
-        # Prefetch permissions for all users in bulk to avoid N+1
-        from waldur_core.permissions.utils import get_permissions
-
-        permissions_qs = get_permissions(project).select_related("role")
-        permissions_map = {}
-        for perm in permissions_qs:
-            if perm.user_id not in permissions_map:
-                permissions_map[perm.user_id] = perm
-
-        # Prefetch offering users for all users in bulk to avoid N+1
-        offering_users_qs = models.OfferingUser.objects.filter(
-            offering=offering, user__in=users
-        )
-        offering_users_map = {ou.user_id: ou for ou in offering_users_qs}
-
-        return Response(
-            serializers.ProjectUserSerializer(
-                instance=users,
-                many=True,
-                context={
-                    "project": project,
-                    "offering": offering,
-                    "request": request,
-                    "permissions_map": permissions_map,
-                    "offering_users_map": offering_users_map,
-                },
-            ).data,
-            status=status.HTTP_200_OK,
-        )
-
-    @extend_schema(
         summary="Pull resource data",
         description="Schedules a task to pull the latest data for the resource from its backend.",
         request=None,
@@ -8278,6 +8218,36 @@ class ConsumerResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             "plan",
         )
         return queryset
+
+    @extend_schema(
+        summary="Get resource team",
+        description=(
+            "Returns project users for this resource, including project roles and "
+            "offering-specific usernames. Use has_consent=true to list only users "
+            "with active Terms of Service consent for the offering."
+        ),
+        request=None,
+        responses=serializers.ProjectUserSerializer(many=True),
+        filters=False,
+        parameters=[
+            OpenApiParameter(
+                name="has_consent",
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                description="When true, return only users who have active consent for this offering.",
+                required=False,
+            ),
+        ],
+    )
+    @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
+    def team(self, request, uuid=None):
+        resource: models.Resource = self.get_object()
+        users = resource.project.get_users()
+        if request.query_params.get("has_consent", "").lower() == "true":
+            users = utils.filter_users_with_active_offering_consent(
+                users, resource.offering
+            )
+        return utils.build_resource_team_response(resource, request, users)
 
     def get_user_roles_queryset(self, scope, user=None):
         """Return UserRoles scoped to this resource AND all its resource projects."""
@@ -8778,6 +8748,43 @@ class ProviderResourceViewSet(UserRoleMixin, BaseResourceViewSet):
             "project__customer",
             "plan",
         )
+
+    @extend_schema(
+        summary="Get resource team",
+        description=(
+            "Returns project users for this resource from the service provider "
+            "perspective. When ENFORCE_USER_CONSENT_FOR_OFFERINGS is enabled and the "
+            "offering has active Terms of Service, only users with active consent are "
+            "returned (staff and support still see the full team)."
+        ),
+        request=None,
+        responses=serializers.ProjectUserSerializer(many=True),
+        filters=False,
+        parameters=[
+            OpenApiParameter(
+                name="has_consent",
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                description=(
+                    "When ENFORCE_USER_CONSENT_FOR_OFFERINGS is disabled, passing true "
+                    "returns only users who have active consent for this offering."
+                ),
+                required=False,
+            ),
+        ],
+    )
+    @action(detail=True, methods=["get"], filter_backends=[], pagination_class=None)
+    def team(self, request, uuid=None):
+        resource: models.Resource = self.get_object()
+        offering = resource.offering
+        users = resource.project.get_users()
+        if utils.should_filter_provider_resource_team_by_consent(
+            request.user, offering
+        ):
+            users = utils.filter_users_with_active_offering_consent(users, offering)
+        elif request.query_params.get("has_consent", "").lower() == "true":
+            users = utils.filter_users_with_active_offering_consent(users, offering)
+        return utils.build_resource_team_response(resource, request, users)
 
     @extend_schema(
         summary="Set end date by provider",
