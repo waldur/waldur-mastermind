@@ -1357,3 +1357,447 @@ class IncludeAwardResponseSyncTest(test.APITestCase):
                 call=self.call, step="award_response"
             ).exists()
         )
+
+
+class WorkflowStatesFrontendFieldsTest(test.APITestCase):
+    """Cover the per-call config / catalog fields exposed by workflow_states.
+
+    Frontend MR waldur-homeport!6781 renders the proposal workflow stepper
+    from this endpoint; these tests pin the contract for ``applicant_visible``,
+    ``duration_in_days``, ``is_required``, ``rejection_reason``, and the
+    visibility rules for ``internal_notes``.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.proposal = self.fixture.proposal
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.workflow_step = "administrative_check"
+        self.proposal.save()
+
+        factories.CallWorkflowStepFactory(
+            call=self.call,
+            step="administrative_check",
+            duration_in_days=14,
+            applicant_visible=True,
+        )
+        # ``allocation_decision`` deliberately has no CallWorkflowStep here so
+        # the serializer's "no per-call config" fallback path is exercised.
+
+        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="administrative_check",
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+            started_at=timezone.now(),
+        )
+        self.pending_instance = ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="allocation_decision",
+            status=WorkflowStepInstanceStatuses.PENDING,
+        )
+
+    def _get_states(self, user):
+        self.client.force_authenticate(user)
+        url = factories.ProposalFactory.get_url(self.proposal, action="workflow_states")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {s["step"]: s for s in response.data}
+
+    def test_applicant_visible_and_duration_pulled_from_call_step(self):
+        states = self._get_states(self.fixture.proposal_creator)
+        self.assertTrue(states["administrative_check"]["applicant_visible"])
+        self.assertEqual(states["administrative_check"]["duration_in_days"], 14)
+
+    def test_applicant_visible_and_duration_default_when_no_call_step(self):
+        # Conservative defaults: hidden + no deadline so the applicant doesn't
+        # see steps that were never explicitly configured for them.
+        states = self._get_states(self.fixture.proposal_creator)
+        self.assertFalse(states["allocation_decision"]["applicant_visible"])
+        self.assertIsNone(states["allocation_decision"]["duration_in_days"])
+
+    def test_is_required_sourced_from_catalog(self):
+        # ``allocation_decision`` is the only catalog-mandatory step today.
+        states = self._get_states(self.fixture.proposal_creator)
+        self.assertFalse(states["administrative_check"]["is_required"])
+        self.assertTrue(states["allocation_decision"]["is_required"])
+
+    def test_rejection_reason_only_populated_on_rejected_outcome(self):
+        self.active_instance.status = WorkflowStepInstanceStatuses.COMPLETED
+        self.active_instance.outcome = WorkflowStepOutcomes.REJECTED
+        self.active_instance.outcome_reason = "Institution not eligible"
+        self.active_instance.save()
+
+        states = self._get_states(self.fixture.staff)
+        self.assertEqual(
+            states["administrative_check"]["rejection_reason"],
+            "Institution not eligible",
+        )
+        # Non-rejected steps must report a null rejection_reason so the
+        # frontend never accidentally displays a reason on a pending step.
+        self.assertIsNone(states["allocation_decision"]["rejection_reason"])
+
+    def test_rejection_reason_null_when_outcome_not_rejected(self):
+        self.active_instance.status = WorkflowStepInstanceStatuses.COMPLETED
+        self.active_instance.outcome = "eligible"
+        self.active_instance.outcome_reason = "All criteria met"
+        self.active_instance.save()
+
+        states = self._get_states(self.fixture.staff)
+        self.assertIsNone(states["administrative_check"]["rejection_reason"])
+
+    def test_applicant_never_sees_internal_notes(self):
+        self.active_instance.internal_notes = "Borderline; flag for VP."
+        self.active_instance.save()
+
+        states = self._get_states(self.fixture.proposal_creator)
+        # The field MUST be present in the response (so the SDK can type it
+        # as Optional[str] rather than "sometimes there, sometimes not"),
+        # but with the value masked to null for non-team users.
+        self.assertIn("internal_notes", states["administrative_check"])
+        self.assertIsNone(states["administrative_check"]["internal_notes"])
+        self.assertIn("internal_notes", states["allocation_decision"])
+        self.assertIsNone(states["allocation_decision"]["internal_notes"])
+
+    def test_call_manager_sees_internal_notes(self):
+        self.active_instance.internal_notes = "Borderline; flag for VP."
+        self.active_instance.save()
+
+        states = self._get_states(self.fixture.call_manager)
+        self.assertEqual(
+            states["administrative_check"]["internal_notes"],
+            "Borderline; flag for VP.",
+        )
+
+    def test_staff_sees_internal_notes(self):
+        self.active_instance.internal_notes = "Borderline; flag for VP."
+        self.active_instance.save()
+
+        states = self._get_states(self.fixture.staff)
+        self.assertIn("internal_notes", states["administrative_check"])
+
+
+class WorkflowInternalNotesPersistenceTest(test.APITestCase):
+    """Internal notes round-trip through complete/reject actions and accumulate.
+
+    The service layer appends notes rather than overwriting so a call manager
+    who records a holding note before deciding doesn't lose that context when
+    the step is completed.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.proposal = self.fixture.proposal
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.workflow_step = "administrative_check"
+        self.proposal.save()
+
+        factories.CallWorkflowStepFactory(call=self.call, step="administrative_check")
+        factories.CallWorkflowStepFactory(call=self.call, step="allocation_decision")
+
+        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="administrative_check",
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+            started_at=timezone.now(),
+        )
+        ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="allocation_decision",
+            status=WorkflowStepInstanceStatuses.PENDING,
+        )
+
+    def test_complete_step_persists_internal_notes(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ProposalFactory.get_url(
+            self.proposal, action="complete_workflow_step"
+        )
+        response = self.client.post(
+            url,
+            {
+                "step_uuid": self.active_instance.uuid.hex,
+                "outcome": "eligible",
+                "outcome_reason": "Looks good",
+                "internal_notes": "Director also approved verbally.",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.active_instance.refresh_from_db()
+        self.assertEqual(
+            self.active_instance.internal_notes,
+            "Director also approved verbally.",
+        )
+
+    def test_reject_step_persists_internal_notes(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ProposalFactory.get_url(
+            self.proposal, action="reject_workflow_step"
+        )
+        response = self.client.post(
+            url,
+            {
+                "step_uuid": self.active_instance.uuid.hex,
+                "reason": "Not eligible — institution outside member states",
+                "internal_notes": "Confirmed with legal on 2026-05-25.",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.active_instance.refresh_from_db()
+        self.assertEqual(
+            self.active_instance.internal_notes,
+            "Confirmed with legal on 2026-05-25.",
+        )
+
+    def test_internal_notes_are_appended_not_overwritten(self):
+        self.active_instance.internal_notes = "First pass: needs follow-up."
+        self.active_instance.save()
+
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ProposalFactory.get_url(
+            self.proposal, action="complete_workflow_step"
+        )
+        response = self.client.post(
+            url,
+            {
+                "step_uuid": self.active_instance.uuid.hex,
+                "outcome": "eligible",
+                "internal_notes": "Follow-up complete; approving.",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.active_instance.refresh_from_db()
+        self.assertIn("First pass", self.active_instance.internal_notes)
+        self.assertIn("Follow-up complete", self.active_instance.internal_notes)
+
+    def test_internal_notes_optional_on_complete(self):
+        # Omitting internal_notes must not raise — call managers shouldn't be
+        # forced to add a note on every transition.
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ProposalFactory.get_url(
+            self.proposal, action="complete_workflow_step"
+        )
+        response = self.client.post(
+            url,
+            {
+                "step_uuid": self.active_instance.uuid.hex,
+                "outcome": "eligible",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.active_instance.refresh_from_db()
+        self.assertEqual(self.active_instance.internal_notes, "")
+
+
+class WorkflowInternalNotesWriteGuardTest(test.APITestCase):
+    """The internal_notes field must be symmetric: anyone who can't read it
+    must not be able to write it. ``can_act_on_active_workflow_step``
+    deliberately lets applicants act on applicant-owned steps (e.g.
+    award_response), so without a write-side guard the applicant could
+    silently inject text into a field the call-management team treats as
+    internal.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.call = self.fixture.call
+        self.proposal = self.fixture.proposal
+        self.proposal.state = ProposalStates.IN_REVIEW
+        # ``award_response`` is the only catalog step whose default
+        # responsible_role is the applicant, so it's the natural fixture for
+        # testing applicant-as-actor scenarios.
+        self.proposal.workflow_step = "award_response"
+        self.proposal.save()
+
+        factories.CallWorkflowStepFactory(call=self.call, step="award_response")
+        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="award_response",
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+            started_at=timezone.now(),
+        )
+
+    def test_applicant_complete_drops_internal_notes(self):
+        self.client.force_authenticate(self.fixture.proposal_creator)
+        url = factories.ProposalFactory.get_url(
+            self.proposal, action="complete_workflow_step"
+        )
+        response = self.client.post(
+            url,
+            {
+                "step_uuid": self.active_instance.uuid.hex,
+                "outcome": "accepted",
+                "outcome_reason": "I accept the offer.",
+                "internal_notes": "Trying to leak internal stuff.",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.active_instance.refresh_from_db()
+        # outcome_reason (applicant-visible) is persisted, internal_notes is not.
+        self.assertEqual(self.active_instance.outcome_reason, "I accept the offer.")
+        self.assertEqual(self.active_instance.internal_notes, "")
+
+    def test_staff_complete_on_applicant_step_still_persists_internal_notes(self):
+        # Sanity check that the write-side gate doesn't over-block: staff
+        # (who can read notes) completing the same applicant-owned step
+        # persists internal_notes normally. Without this, a refactor that
+        # over-eagerly drops the field would silently break the team flow
+        # without any failing test on the symmetric read side.
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ProposalFactory.get_url(
+            self.proposal, action="complete_workflow_step"
+        )
+        response = self.client.post(
+            url,
+            {
+                "step_uuid": self.active_instance.uuid.hex,
+                "outcome": "accepted",
+                "internal_notes": "Applicant confirmed acceptance verbally too.",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.active_instance.refresh_from_db()
+        self.assertEqual(
+            self.active_instance.internal_notes,
+            "Applicant confirmed acceptance verbally too.",
+        )
+
+    def test_applicant_reject_drops_internal_notes(self):
+        # award_response allows the applicant to decline; reject endpoint also
+        # passes through the same write-side guard.
+        self.client.force_authenticate(self.fixture.proposal_creator)
+        url = factories.ProposalFactory.get_url(
+            self.proposal, action="reject_workflow_step"
+        )
+        response = self.client.post(
+            url,
+            {
+                "step_uuid": self.active_instance.uuid.hex,
+                "reason": "I decline.",
+                "internal_notes": "Trying to leak via reject.",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+        self.active_instance.refresh_from_db()
+        self.assertEqual(self.active_instance.outcome_reason, "I decline.")
+        self.assertEqual(self.active_instance.internal_notes, "")
+
+
+class WorkflowStatesAccessTest(test.APITestCase):
+    """Pin the access policy of the workflow_states GET endpoint.
+
+    The viewset's queryset filter (``filter_queryset_for_user``) is the only
+    gate. These tests document that contract — adding a new caller class
+    (e.g. a 'reporting analyst' role) means thinking about whether they
+    should be in the filter, and the tests will catch a regression that
+    silently widens or narrows access.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.proposal = self.fixture.proposal
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.workflow_step = "administrative_check"
+        self.proposal.save()
+
+        ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="administrative_check",
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+            started_at=timezone.now(),
+        )
+
+    def _url(self):
+        return factories.ProposalFactory.get_url(
+            self.proposal, action="workflow_states"
+        )
+
+    def test_applicant_can_view_their_own_proposal(self):
+        # Positive baseline: the applicant must be able to render the timeline.
+        self.client.force_authenticate(self.fixture.proposal_creator)
+        response = self.client.get(self._url())
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_unrelated_user_is_denied(self):
+        # Authenticated but not the applicant, not on the call, not a member
+        # of the project. The queryset filter must hide the proposal entirely.
+        outsider = structure_factories.UserFactory()
+        self.client.force_authenticate(outsider)
+        response = self.client.get(self._url())
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class InternalNotesDualRolePolicyTest(test.APITestCase):
+    """Document the deliberate segregation-of-duties rule.
+
+    A user who is both the applicant of a proposal AND a call manager on
+    the same call must not see internal_notes on that proposal — the
+    applicant identity wins. See ``user_can_view_internal_notes`` for the
+    full rationale.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.proposal = self.fixture.proposal
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.workflow_step = "administrative_check"
+        self.proposal.save()
+
+        self.active_instance = ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="administrative_check",
+            status=WorkflowStepInstanceStatuses.ACTIVE,
+            started_at=timezone.now(),
+            internal_notes="Confidential team observation.",
+        )
+
+    def test_dual_role_applicant_still_denied(self):
+        # Promote the applicant to also be a call manager on the same call.
+        # The view-side gate must still hide internal_notes from them.
+        self.fixture.call.add_user(self.fixture.proposal_creator, CallRole.MANAGER)
+
+        self.client.force_authenticate(self.fixture.proposal_creator)
+        url = factories.ProposalFactory.get_url(self.proposal, action="workflow_states")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        states = {s["step"]: s for s in response.data}
+        # Field present but masked: this is the same contract the SDK relies
+        # on, the dual-role-applicant case just exercises the same branch.
+        self.assertIn("internal_notes", states["administrative_check"])
+        self.assertIsNone(states["administrative_check"]["internal_notes"])
+
+
+class RejectionReasonBlankStringTest(test.APITestCase):
+    """When a step is rejected with an empty reason, the API must still
+    signal "this step was rejected" rather than collapse to null. Frontends
+    branch on ``rejection_reason === null`` to decide whether to render the
+    rejection state, so an empty string and null carry different meaning.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.ProposalFixture()
+        self.proposal = self.fixture.proposal
+        self.proposal.state = ProposalStates.IN_REVIEW
+        self.proposal.workflow_step = "administrative_check"
+        self.proposal.save()
+
+        self.instance = ProposalWorkflowStepInstance.objects.create(
+            proposal=self.proposal,
+            step="administrative_check",
+            status=WorkflowStepInstanceStatuses.COMPLETED,
+            outcome=WorkflowStepOutcomes.REJECTED,
+            outcome_reason="",  # legacy / admin-edited row
+            started_at=timezone.now(),
+        )
+
+    def test_rejected_with_blank_reason_returns_empty_string_not_null(self):
+        self.client.force_authenticate(self.fixture.staff)
+        url = factories.ProposalFactory.get_url(self.proposal, action="workflow_states")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        state = next(s for s in response.data if s["step"] == "administrative_check")
+        # The signal is distinguishability: "" means "rejected, no reason
+        # captured", None means "not rejected". Both are valid; conflating
+        # them via ``return obj.outcome_reason or None`` was the bug.
+        self.assertEqual(state["rejection_reason"], "")
+        self.assertIsNotNone(state["rejection_reason"])

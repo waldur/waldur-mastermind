@@ -103,6 +103,39 @@ def _user_can_act_on_active_step(user, proposal):
     return get_users(call, role_name=role_name).filter(pk=user.pk).exists()
 
 
+def user_can_view_internal_notes(user, proposal):
+    """True iff the user is part of the call-management team for this proposal.
+
+    Applicants never see internal workflow notes (the entire point of the
+    field is to be hidden from them). Staff always see them. Otherwise the
+    user must hold any active role on the proposal's call — call manager,
+    offering manager, reviewer, panel member, or any future call-level role —
+    so that callers don't lose access to historical notes once the workflow
+    moves past the step they personally owned.
+
+    Dual-role policy (applicant who also holds a call role on their own
+    proposal): the applicant-first deny is intentional segregation of duties.
+    A user reading notes about their own proposal is the read-counterparty,
+    not the reviewing team — even if they happen to be a call manager on the
+    same call. ``_user_can_act_on_active_step`` makes the opposite trade-off
+    (lets dual-role users act on call-manager-owned steps) because acting on
+    a step is governed by the step's responsible role, not by the proposal's
+    subject; viewing notes about a proposal is the reverse. See the test
+    ``test_dual_role_applicant_still_denied`` for the pinned behaviour.
+    """
+    if user.is_staff:
+        return True
+    if user.id == proposal.created_by_id:
+        return False
+    call_ct = ContentType.objects.get_for_model(proposal_models.Call)
+    return permissions_models.UserRole.objects.filter(
+        is_active=True,
+        user=user,
+        content_type=call_ct,
+        object_id=proposal.round.call_id,
+    ).exists()
+
+
 def can_act_on_active_workflow_step(request, view, obj=None):
     """ActionsPermission check for complete/reject workflow step actions."""
     if obj is None:

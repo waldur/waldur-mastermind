@@ -983,6 +983,15 @@ class ProposalWorkflowStepInstance(
         blank=True,
         help_text="Computed from started_at + step duration_in_days.",
     )
+    internal_notes = models.TextField(
+        blank=True,
+        help_text=(
+            "Notes captured by the call-management team when completing or "
+            "rejecting the step. Never shown to the applicant. Visible in API "
+            "responses to staff and to any user who holds an active role on "
+            "the proposal's call (see permissions.user_can_view_internal_notes)."
+        ),
+    )
 
     class Meta:
         unique_together = ("proposal", "step")

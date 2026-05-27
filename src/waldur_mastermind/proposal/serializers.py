@@ -4414,6 +4414,17 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
     completed_by = serializers.SlugRelatedField(
         slug_field="uuid", read_only=True, allow_null=True
     )
+    applicant_visible = serializers.SerializerMethodField()
+    duration_in_days = serializers.SerializerMethodField()
+    is_required = serializers.SerializerMethodField()
+    rejection_reason = serializers.SerializerMethodField()
+    # Declared as a SerializerMethodField (rather than letting ModelSerializer
+    # auto-generate it from the model field) so the schema can mark it as
+    # nullable: the response is asymmetric — call-management team gets the
+    # text, everyone else gets null. Without allow_null=True the generated
+    # SDK types it as a required string and frontends crash on the applicant
+    # view (CLAUDE.md "Nullable FKs MUST use allow_null=True").
+    internal_notes = serializers.SerializerMethodField()
 
     class Meta:
         model = models.ProposalWorkflowStepInstance
@@ -4426,12 +4437,51 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
             "status",
             "outcome",
             "outcome_reason",
+            "rejection_reason",
+            "internal_notes",
             "started_at",
             "completed_at",
             "completed_by",
             "deadline",
+            "applicant_visible",
+            "duration_in_days",
+            "is_required",
         ]
         read_only_fields = fields
+
+    def _get_call_step(self, obj):
+        """Resolve the per-call ``CallWorkflowStep`` for this instance.
+
+        When the view pre-loads configs into ``context['step_configs_by_key']``
+        (recommended for list endpoints, max 6 rows per proposal), use that
+        cache. Otherwise fall back to a per-instance query memoised on the
+        serializer so the four SerializerMethodFields that consult it don't
+        each issue their own SELECT — and re-issue it on every render of the
+        same instance.
+        """
+        configs = self.context.get("step_configs_by_key")
+        if configs is not None:
+            return configs.get(obj.step)
+        # Local cache keyed by (proposal_id, step). One query per (instance,
+        # step) pair rather than per SerializerMethodField call.
+        cache = self.context.setdefault("_call_step_fallback_cache", {})
+        key = (obj.proposal_id, obj.step)
+        if key in cache:
+            return cache[key]
+        config = (
+            models.CallWorkflowStep.objects.filter(
+                call_id=obj.proposal.round.call_id, step=obj.step
+            )
+            .only(
+                "step",
+                "applicant_visible",
+                "duration_in_days",
+                "responsible_role",
+            )
+            .first()
+        )
+        cache[key] = config
+        return config
 
     @extend_schema_field(serializers.CharField())
     def get_step_name(self, obj):
@@ -4446,17 +4496,55 @@ class ProposalWorkflowStepInstanceSerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_responsible_role(self, obj):
         # Per-call configuration takes precedence over the catalog default.
-        config = (
-            models.CallWorkflowStep.objects.filter(
-                call=obj.proposal.round.call, step=obj.step
-            )
-            .only("responsible_role")
-            .first()
-        )
+        config = self._get_call_step(obj)
         if config and config.responsible_role:
             return config.responsible_role
         step_def = WORKFLOW_STEPS_MAP.get(obj.step)
         return step_def.default_responsible_role if step_def else None
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_applicant_visible(self, obj):
+        # The applicant-visible flag is sourced from the per-call config; when
+        # no config exists the conservative default is False so applicants
+        # never see steps that were not explicitly opted into.
+        config = self._get_call_step(obj)
+        return bool(config and config.applicant_visible)
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_duration_in_days(self, obj):
+        config = self._get_call_step(obj)
+        return config.duration_in_days if config else None
+
+    @extend_schema_field(serializers.BooleanField())
+    def get_is_required(self, obj):
+        # Sourced from the catalog, not per-call config: mandatory steps are
+        # an invariant of the workflow definition, not configurable per call.
+        step_def = WORKFLOW_STEPS_MAP.get(obj.step)
+        return bool(step_def and step_def.is_mandatory)
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_rejection_reason(self, obj):
+        # Sugar: ``outcome_reason`` is the underlying field, but only carries
+        # rejection text when ``outcome`` is ``rejected``. The frontend
+        # otherwise has to know that convention; this surfaces it cleanly.
+        #
+        # Return the raw value (which is ``""`` when blank, not None) so a
+        # rejected step with an empty reason is still distinguishable from a
+        # non-rejected step. Frontends should branch on ``=== null`` to detect
+        # "not rejected" rather than truthiness on the string.
+        if obj.outcome == WorkflowStepOutcomes.REJECTED:
+            return obj.outcome_reason
+        return None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_internal_notes(self, obj):
+        # ``can_view_internal_notes`` is set by the view after the same
+        # permission check used to gate write access. Returning None (not
+        # absent) keeps the response shape stable so SDK consumers can type
+        # the field as Optional[str] instead of "sometimes present".
+        if not self.context.get("can_view_internal_notes"):
+            return None
+        return obj.internal_notes or None
 
 
 class CompleteWorkflowStepSerializer(serializers.Serializer):
@@ -4480,6 +4568,15 @@ class CompleteWorkflowStepSerializer(serializers.Serializer):
         allow_blank=True,
         default="",
         help_text="Explanation for the outcome.",
+    )
+    internal_notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text=(
+            "Internal notes captured by the call-management team. Stored on "
+            "the step instance and never returned to applicants."
+        ),
     )
 
     def validate_outcome(self, value):
@@ -4509,6 +4606,15 @@ class RejectWorkflowStepSerializer(serializers.Serializer):
     reason = serializers.CharField(
         required=True,
         help_text="Reason for rejecting the proposal at this step.",
+    )
+    internal_notes = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        help_text=(
+            "Internal notes captured by the call-management team alongside "
+            "the rejection. Never returned to applicants."
+        ),
     )
 
 
