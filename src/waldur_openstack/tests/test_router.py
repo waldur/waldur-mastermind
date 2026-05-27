@@ -4,6 +4,8 @@ from ddt import data, ddt
 from django.test import override_settings
 from rest_framework import status, test
 
+from waldur_core.logging import models as logging_models
+from waldur_core.logging.enums import EventType
 from waldur_core.permissions.fixtures import ProjectRole
 from waldur_openstack import models
 
@@ -535,6 +537,43 @@ class RemoveExternalGatewayTest(BaseExternalGatewayTest):
         response = self.client.post(self.remove_url)
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
         executor_mock.assert_not_called()
+
+
+@mock.patch("waldur_openstack.executors.RouterSetExternalGatewayExecutor.execute")
+@mock.patch("waldur_openstack.executors.RouterRemoveExternalGatewayExecutor.execute")
+class ExternalGatewayAuditTest(BaseExternalGatewayTest):
+    def _events(self):
+        return logging_models.Event.objects.filter(
+            event_type=EventType.OPENSTACK_ROUTER_UPDATED
+        ).order_by("id")
+
+    def test_set_gateway_emits_event(self, remove_mock, set_mock):
+        response = self.client.post(
+            self.set_url,
+            {"external_network_id": self.external_network.backend_id},
+        )
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        event = self._events().last()
+        self.assertIsNotNone(event)
+        self.assertEqual(
+            event.context["new_external_network_id"],
+            self.external_network.backend_id,
+        )
+
+    def test_remove_gateway_emits_event(self, remove_mock, set_mock):
+        self.router.external_network_id = self.external_network.backend_id
+        self.router.external_network_ref = self.external_network
+        self.router.save()
+
+        response = self.client.post(self.remove_url)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED)
+        event = self._events().last()
+        self.assertIsNotNone(event)
+        self.assertEqual(
+            event.context["old_external_network_id"],
+            self.external_network.backend_id,
+        )
+        self.assertEqual(event.context["new_external_network_id"], "")
 
 
 class AvailableExternalNetworksTest(BaseExternalGatewayTest):

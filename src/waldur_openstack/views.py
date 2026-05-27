@@ -1392,6 +1392,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
+        old_external_network_id = router.external_network_id
         router.external_network_id = data["external_network_id"]
         router.external_network_ref = data.get("external_network_ref")
         router.enable_snat = data.get("enable_snat")
@@ -1405,6 +1406,30 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
             ]
         )
         executors.RouterSetExternalGatewayExecutor.execute(router)
+
+        event_logger.emit(
+            "External gateway has been set on router.",
+            event_type=EventType.OPENSTACK_ROUTER_UPDATED,
+            event_context={
+                "router": router,
+                "tenant_backend_id": router.tenant.backend_id,
+                "old_external_network_id": old_external_network_id,
+                "new_external_network_id": router.external_network_id,
+                "enable_snat": router.enable_snat,
+                "external_fixed_ips": router.external_fixed_ips,
+            },
+            scopes=[router, router.project, router.project.customer],
+        )
+
+        logger.info(
+            "External gateway has been set on router %s to network %s "
+            "(enable_snat=%s, external_fixed_ips=%s).",
+            router,
+            router.external_network_id,
+            router.enable_snat,
+            router.external_fixed_ips,
+        )
+
         return response.Response(
             {"status": _("External gateway update was successfully scheduled.")},
             status=status.HTTP_202_ACCEPTED,
@@ -1448,7 +1473,27 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
                 },
                 status=status.HTTP_409_CONFLICT,
             )
+        old_external_network_id = router.external_network_id
         executors.RouterRemoveExternalGatewayExecutor.execute(router)
+
+        event_logger.emit(
+            "External gateway has been removed from router.",
+            event_type=EventType.OPENSTACK_ROUTER_UPDATED,
+            event_context={
+                "router": router,
+                "tenant_backend_id": router.tenant.backend_id,
+                "old_external_network_id": old_external_network_id,
+                "new_external_network_id": "",
+            },
+            scopes=[router, router.project, router.project.customer],
+        )
+
+        logger.info(
+            "External gateway (network %s) removal has been scheduled for router %s.",
+            old_external_network_id,
+            router,
+        )
+
         return response.Response(
             {"status": _("External gateway removal was successfully scheduled.")},
             status=status.HTTP_202_ACCEPTED,
