@@ -36,6 +36,7 @@ from django.utils.translation import gettext_lazy as _
 from PIL import Image
 from rest_framework import exceptions as rf_exceptions
 from rest_framework import serializers, status
+from rest_framework.response import Response
 
 from waldur_core.core import models as core_models
 from waldur_core.core import serializers as core_serializers
@@ -4212,3 +4213,54 @@ def build_incomplete_profile_q():
             incomplete_q |= Q(**{config_flag: True}) & _is_field_empty_q(user_fields[0])
 
     return incomplete_q
+
+
+def filter_users_with_active_offering_consent(users, offering):
+    return users.filter(
+        offering_consents__offering=offering,
+        offering_consents__revocation_date__isnull=True,
+    ).distinct()
+
+
+def should_filter_provider_resource_team_by_consent(user, offering) -> bool:
+    if user.is_staff or user.is_support:
+        return False
+    if not config.ENFORCE_USER_CONSENT_FOR_OFFERINGS:
+        return False
+    return offering.has_terms_of_service()
+
+
+def build_resource_team_response(resource, request, users):
+    from waldur_mastermind.marketplace import (
+        models,
+        serializers,
+    )  # to avoid circular import
+
+    project = resource.project
+    offering = resource.offering
+
+    permissions_qs = get_permissions(project).select_related("role")
+    permissions_map = {}
+    for perm in permissions_qs:
+        if perm.user_id not in permissions_map:
+            permissions_map[perm.user_id] = perm
+
+    offering_users_qs = models.OfferingUser.objects.filter(
+        offering=offering, user__in=users
+    )
+    offering_users_map = {ou.user_id: ou for ou in offering_users_qs}
+
+    return Response(
+        serializers.ProjectUserSerializer(
+            instance=users,
+            many=True,
+            context={
+                "project": project,
+                "offering": offering,
+                "request": request,
+                "permissions_map": permissions_map,
+                "offering_users_map": offering_users_map,
+            },
+        ).data,
+        status=status.HTTP_200_OK,
+    )
