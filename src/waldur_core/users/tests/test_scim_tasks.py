@@ -593,6 +593,248 @@ class ScimReconcileTasksTest(BaseScimTestCase):
         client.get_user.assert_not_called()
 
     @mock.patch("waldur_core.users.scim.tasks.sync_user_batch_entitlements.delay")
+    def test_sync_recent_entitlements_includes_recent_offering_user_change(
+        self, mock_batch_delay
+    ):
+        """Reconcile users when OfferingUser became ready but project role is unchanged."""
+        resource = self._create_resource_with_ssh_endpoint(
+            self.project, "login.example.org"
+        )
+        self._grant_project_role(modified=timezone.now() - timedelta(hours=3))
+        offering_user = self._create_offering_user(
+            user=self.user, offering=resource.offering
+        )
+        marketplace_models.OfferingUser.objects.filter(pk=offering_user.pk).update(
+            modified=timezone.now() - timedelta(hours=1)
+        )
+
+        client = mock.Mock(spec=ScimClient)
+        client.build_entitlement = ScimClient.build_entitlement
+        client.get_user.return_value = {"entitlements": []}
+        mock_batch_delay.side_effect = lambda *args, **kwargs: (
+            tasks.sync_user_batch_entitlements(*args, **kwargs)
+        )
+
+        with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):
+            tasks.sync_recent_entitlements()
+
+        client.get_user.assert_called_once_with(self.user.username)
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_batch_entitlements.delay")
+    def test_sync_recent_entitlements_includes_recent_resource_change(
+        self, mock_batch_delay
+    ):
+        """Reconcile offering users when a resource became OK but project role is unchanged."""
+        offering = self._create_offering_with_ssh_endpoint("login.example.org")
+        resource = marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=offering,
+            state=ResourceStates.OK,
+        )
+        self._grant_project_role(modified=timezone.now() - timedelta(hours=3))
+        self._create_offering_user(user=self.user, offering=offering)
+        marketplace_models.Resource.objects.filter(pk=resource.pk).update(
+            modified=timezone.now() - timedelta(hours=1)
+        )
+
+        client = mock.Mock(spec=ScimClient)
+        client.build_entitlement = ScimClient.build_entitlement
+        client.get_user.return_value = {"entitlements": []}
+        mock_batch_delay.side_effect = lambda *args, **kwargs: (
+            tasks.sync_user_batch_entitlements(*args, **kwargs)
+        )
+
+        with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):
+            tasks.sync_recent_entitlements()
+
+        client.get_user.assert_called_once_with(self.user.username)
+
+    def test_sync_recent_entitlements_excludes_stale_marketplace_changes(self):
+        """Old OfferingUser/Resource changes do not trigger reconcile without role updates."""
+        offering = self._create_offering_with_ssh_endpoint("login.example.org")
+        resource = marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=offering,
+            state=ResourceStates.OK,
+        )
+        self._grant_project_role(modified=timezone.now() - timedelta(hours=3))
+        offering_user = self._create_offering_user(user=self.user, offering=offering)
+        stale_time = timezone.now() - timedelta(hours=3)
+        marketplace_models.OfferingUser.objects.filter(pk=offering_user.pk).update(
+            modified=stale_time
+        )
+        marketplace_models.Resource.objects.filter(pk=resource.pk).update(
+            modified=stale_time
+        )
+
+        client = mock.Mock(spec=ScimClient)
+        client.build_entitlement = ScimClient.build_entitlement
+        client.get_user.return_value = {"entitlements": []}
+
+        with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):
+            tasks.sync_recent_entitlements()
+
+        client.get_user.assert_not_called()
+
+    def test_get_users_for_reconciliation_unions_role_and_marketplace_sources(self):
+        """Unit check that marketplace changes expand the reconcile user set."""
+        offering = self._create_offering_with_ssh_endpoint("login.example.org")
+        resource = marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=offering,
+            state=ResourceStates.OK,
+        )
+        self._grant_project_role(modified=timezone.now() - timedelta(hours=3))
+        offering_user = self._create_offering_user(user=self.user, offering=offering)
+        marketplace_models.OfferingUser.objects.filter(pk=offering_user.pk).update(
+            modified=timezone.now() - timedelta(hours=1)
+        )
+        marketplace_models.Resource.objects.filter(pk=resource.pk).update(
+            modified=timezone.now() - timedelta(hours=3)
+        )
+
+        users = tasks.get_users_for_reconciliation()
+
+        self.assertEqual(users.count(), 1)
+        self.assertEqual(users.get(), self.user)
+
+    def test_get_users_for_reconciliation_includes_recently_revoked_role(self):
+        """Revoked roles are reconcile candidates so stale entitlements can be cleared."""
+        role = self._grant_project_role(modified=timezone.now() - timedelta(hours=3))
+        role.revoke()
+
+        users = tasks.get_users_for_reconciliation()
+
+        self.assertEqual(users.count(), 1)
+        self.assertEqual(users.get(), self.user)
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_batch_entitlements.delay")
+    def test_sync_recent_entitlements_clears_entitlements_after_recent_role_revocation(
+        self, mock_batch_delay
+    ):
+        """Reconcile runs cleanup when a revocation event was missed."""
+        resource = self._create_resource_with_ssh_endpoint(
+            self.project, "login.example.org"
+        )
+        offering_username = "user-on-offering"
+        self._create_offering_user(
+            user=self.user,
+            offering=resource.offering,
+            username=offering_username,
+        )
+        role = self._grant_project_role(modified=timezone.now() - timedelta(hours=3))
+        role.revoke()
+
+        entitlement = ScimClient.build_entitlement(
+            "urn:ietf:dev", "login.example.org", offering_username
+        )
+        client = mock.Mock(spec=ScimClient)
+        client.build_entitlement = ScimClient.build_entitlement
+        client.get_user.return_value = {"entitlements": [{"value": entitlement}]}
+        mock_batch_delay.side_effect = lambda *args, **kwargs: (
+            tasks.sync_user_batch_entitlements(*args, **kwargs)
+        )
+
+        with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):
+            tasks.sync_recent_entitlements()
+
+        client.clear_all_entitlements.assert_called_once_with(self.user.username)
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_batch_entitlements.delay")
+    def test_sync_recent_entitlements_includes_recent_offering_user_deactivation(
+        self, mock_batch_delay
+    ):
+        """Reconcile users when OfferingUser left OK but project role is unchanged."""
+        resource = self._create_resource_with_ssh_endpoint(
+            self.project, "login.example.org"
+        )
+        offering_username = "user-on-offering"
+        self._grant_project_role(modified=timezone.now() - timedelta(hours=3))
+        offering_user = self._create_offering_user(
+            user=self.user,
+            offering=resource.offering,
+            username=offering_username,
+        )
+        offering_user.state = OfferingUserStates.DELETED
+        offering_user.save()
+        marketplace_models.OfferingUser.objects.filter(pk=offering_user.pk).update(
+            modified=timezone.now() - timedelta(hours=1)
+        )
+
+        entitlement = ScimClient.build_entitlement(
+            "urn:ietf:dev", "login.example.org", offering_username
+        )
+        client = mock.Mock(spec=ScimClient)
+        client.build_entitlement = ScimClient.build_entitlement
+        client.get_user.return_value = {"entitlements": [{"value": entitlement}]}
+        mock_batch_delay.side_effect = lambda *args, **kwargs: (
+            tasks.sync_user_batch_entitlements(*args, **kwargs)
+        )
+
+        with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):
+            tasks.sync_recent_entitlements()
+
+        client.clear_all_entitlements.assert_called_once_with(self.user.username)
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_batch_entitlements.delay")
+    def test_sync_recent_entitlements_includes_recent_resource_termination(
+        self, mock_batch_delay
+    ):
+        """Reconcile offering users when a resource left OK but project role is unchanged."""
+        offering = self._create_offering_with_ssh_endpoint("login.example.org")
+        offering_username = "user-on-offering"
+        resource = marketplace_factories.ResourceFactory(
+            project=self.project,
+            offering=offering,
+            state=ResourceStates.OK,
+        )
+        self._grant_project_role(modified=timezone.now() - timedelta(hours=3))
+        self._create_offering_user(
+            user=self.user, offering=offering, username=offering_username
+        )
+        resource.set_state_terminated()
+        resource.save()
+        marketplace_models.Resource.objects.filter(pk=resource.pk).update(
+            modified=timezone.now() - timedelta(hours=1)
+        )
+
+        entitlement = ScimClient.build_entitlement(
+            "urn:ietf:dev", "login.example.org", offering_username
+        )
+        client = mock.Mock(spec=ScimClient)
+        client.build_entitlement = ScimClient.build_entitlement
+        client.get_user.return_value = {"entitlements": [{"value": entitlement}]}
+        mock_batch_delay.side_effect = lambda *args, **kwargs: (
+            tasks.sync_user_batch_entitlements(*args, **kwargs)
+        )
+
+        with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):
+            tasks.sync_recent_entitlements()
+
+        client.clear_all_entitlements.assert_called_once_with(self.user.username)
+
+    def test_sync_recent_entitlements_excludes_stale_role_revocation(self):
+        """Old revocations outside the lookback window are not reconciled."""
+        resource = self._create_resource_with_ssh_endpoint(
+            self.project, "login.example.org"
+        )
+        self._create_offering_user(user=self.user, offering=resource.offering)
+        role = self._grant_project_role(modified=timezone.now() - timedelta(hours=3))
+        role.revoke()
+        UserRole.objects.filter(pk=role.pk).update(
+            modified=timezone.now() - timedelta(hours=3)
+        )
+
+        client = mock.Mock(spec=ScimClient)
+        client.build_entitlement = ScimClient.build_entitlement
+        client.get_user.return_value = {"entitlements": [{"value": "stale"}]}
+
+        with mock.patch("waldur_core.users.scim.tasks.ScimClient", return_value=client):
+            tasks.sync_recent_entitlements()
+
+        client.get_user.assert_not_called()
+
+    @mock.patch("waldur_core.users.scim.tasks.sync_user_batch_entitlements.delay")
     def test_sync_all_entitlements_includes_all_users_with_roles(
         self, mock_batch_delay
     ):
