@@ -212,15 +212,50 @@ def sync_user(user: User, client: ScimClient, urn_namespace: str) -> None:
         logger.warning("SCIM update failed for %s: %s", user.username, exc)
 
 
-def get_users_for_reconciliation():
+def _get_reconciliation_cutoff():
     # Lookback window is 2x the schedule interval to ensure no missed updates
     lookback_hours = DEFAULT_SCIM_RECONCILIATION_SCHEDULE_HOURS * 2
-    cutoff = timezone.now() - timedelta(hours=lookback_hours)
-    user_ids = (
-        UserRole.objects.filter(is_active=True, modified__gte=cutoff)
+    return timezone.now() - timedelta(hours=lookback_hours)
+
+
+def _get_offering_user_ids_for_reconciliation(**filters):
+    """Offering users tied to a reconcile candidate; sync_user applies add/remove/clear."""
+    return (
+        marketplace_models.OfferingUser.objects.filter(**filters)
         .values_list("user_id", flat=True)
         .distinct()
     )
+
+
+def get_users_for_reconciliation():
+    """Users with recent entitlement-relevant changes (grants and revocations).
+
+    Selection is state-agnostic: active/inactive roles, any OfferingUser state,
+    any Resource state. ``sync_user`` decides whether to add, remove, or clear
+    remote entitlements.
+    """
+    cutoff = _get_reconciliation_cutoff()
+    user_ids: set[int] = set()
+
+    user_ids.update(
+        UserRole.objects.filter(modified__gte=cutoff).values_list("user_id", flat=True)
+    )
+
+    user_ids.update(
+        _get_offering_user_ids_for_reconciliation(modified__gte=cutoff),
+    )
+
+    offering_ids_from_resources = (
+        marketplace_models.Resource.objects.filter(modified__gte=cutoff)
+        .values_list("offering_id", flat=True)
+        .distinct()
+    )
+    user_ids.update(
+        _get_offering_user_ids_for_reconciliation(
+            offering_id__in=offering_ids_from_resources
+        ),
+    )
+
     users = User.objects.filter(id__in=user_ids)
     logger.debug("SCIM reconcile users count=%s", users.count())
     return users
