@@ -185,6 +185,95 @@ class SecurityGroupCreateTest(BaseSecurityGroupTest):
         self.assertEqual(models.SecurityGroup.objects.count(), 0)
         self.assertEqual(models.SecurityGroupRule.objects.count(), 0)
 
+    def test_user_can_create_security_group_rule_for_numeric_protocol(self):
+        # IANA protocol number 112 (VRRP) — required for HA load-balancer VIP.
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(
+            self.url,
+            data={
+                "name": "vrrp",
+                "rules": [
+                    {
+                        "protocol": "112",
+                        "from_port": -1,
+                        "to_port": -1,
+                        "cidr": "0.0.0.0/0",
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        self.assertEqual(models.SecurityGroup.objects.count(), 1)
+        self.assertEqual(models.SecurityGroupRule.objects.count(), 1)
+        self.assertEqual(models.SecurityGroupRule.objects.get().protocol, "112")
+
+    def test_can_not_create_security_group_rule_for_numeric_protocol_with_port_range(
+        self,
+    ):
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(
+            self.url,
+            data={
+                "name": "vrrp",
+                "rules": [
+                    {
+                        "protocol": "112",
+                        "from_port": 80,
+                        "to_port": 80,
+                        "cidr": "0.0.0.0/0",
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(models.SecurityGroup.objects.count(), 0)
+
+    def test_can_not_create_security_group_rule_with_out_of_range_protocol(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(
+            self.url,
+            data={
+                "name": "bad",
+                "rules": [
+                    {
+                        "protocol": "999",
+                        "from_port": -1,
+                        "to_port": -1,
+                        "cidr": "0.0.0.0/0",
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(models.SecurityGroup.objects.count(), 0)
+
+    def test_can_not_create_security_group_rule_with_negative_protocol(self):
+        self.client.force_authenticate(self.fixture.staff)
+
+        response = self.client.post(
+            self.url,
+            data={
+                "name": "bad",
+                "rules": [
+                    {
+                        "protocol": "-1",
+                        "from_port": -1,
+                        "to_port": -1,
+                        "cidr": "0.0.0.0/0",
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(models.SecurityGroup.objects.count(), 0)
+
     def test_can_not_create_security_group_with_invalid_port(self):
         self.client.force_authenticate(self.fixture.staff)
 
