@@ -182,6 +182,75 @@ class FileQuestionValidationTest(test.APITestCase):
 
         self.assertTrue(question.is_valid_answer(text_file_data))
 
+    def test_file_question_accepts_already_processed_file(self):
+        """Already-processed file (stored_file_id, no content) must pass validation."""
+        question = factories.QuestionFactory(
+            checklist=self.checklist,
+            question_type=enums.QuestionTypes.FILE,
+            allowed_file_types=[".pdf"],
+            allowed_mime_types=["application/pdf"],
+            max_file_size_mb=10,
+        )
+
+        processed_file_data = {
+            "name": "report.pdf",
+            "size": 12345,
+            "mime_type": "application/pdf",
+            "stored_file_id": "abc123def456abc123def456abc123de",
+        }
+
+        self.assertTrue(question.is_valid_answer(processed_file_data))
+
+    def test_multiple_files_question_accepts_mixed_processed_and_new_files(self):
+        """Mixed array of already-processed and new files must pass validation."""
+        question = factories.QuestionFactory(
+            checklist=self.checklist,
+            question_type=enums.QuestionTypes.MULTIPLE_FILES,
+            allowed_file_types=[".pdf"],
+            allowed_mime_types=["application/pdf"],
+            max_file_size_mb=10,
+            max_files_count=5,
+        )
+
+        mixed_files_data = [
+            # Already processed (returned from backend earlier)
+            {
+                "name": "existing.pdf",
+                "size": 744347,
+                "mime_type": "application/pdf",
+                "stored_file_id": "abc123def456abc123def456abc123de",
+            },
+            # New upload (base64 content)
+            {"name": "new_upload.pdf", "content": self.pdf_base64},
+        ]
+
+        self.assertTrue(question.is_valid_answer(mixed_files_data))
+
+    def test_multiple_files_question_accepts_all_already_processed(self):
+        """Array of all already-processed files must pass validation."""
+        question = factories.QuestionFactory(
+            checklist=self.checklist,
+            question_type=enums.QuestionTypes.MULTIPLE_FILES,
+            max_files_count=5,
+        )
+
+        processed_files = [
+            {
+                "name": "file1.pdf",
+                "size": 1000,
+                "mime_type": "application/pdf",
+                "stored_file_id": "aaa111bbb222aaa111bbb222aaa111bb",
+            },
+            {
+                "name": "file2.pdf",
+                "size": 2000,
+                "mime_type": "application/pdf",
+                "stored_file_id": "ccc333ddd444ccc333ddd444ccc333dd",
+            },
+        ]
+
+        self.assertTrue(question.is_valid_answer(processed_files))
+
 
 @ddt
 class FileQuestionAnswerProcessingTest(test.APITestCase):
