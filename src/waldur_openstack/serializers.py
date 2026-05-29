@@ -1789,6 +1789,27 @@ class AvailableExternalNetworkSerializer(serializers.Serializer):
     subnets = AvailableExternalNetworkSubnetSerializer(many=True)
 
 
+class EffectiveRouteSerializer(serializers.Serializer):
+    destination = serializers.CharField()
+    nexthop = serializers.IPAddressField(allow_null=True)
+    source = serializers.ChoiceField(choices=["default", "connected", "static"])
+    subnet_uuid = serializers.CharField(allow_null=True, required=False)
+    subnet_name = serializers.CharField(allow_blank=True, required=False)
+    subnet_cidr = serializers.CharField(allow_blank=True, required=False)
+    port_uuid = serializers.CharField(allow_null=True, required=False)
+    port_backend_id = serializers.CharField(allow_blank=True, required=False)
+    ip_on_router = serializers.IPAddressField(allow_null=True, required=False)
+    gateway_ip_on_router = serializers.IPAddressField(allow_null=True, required=False)
+    external_network_uuid = serializers.CharField(allow_null=True, required=False)
+    external_network_name = serializers.CharField(allow_blank=True, required=False)
+
+
+class EffectiveRoutesResponseSerializer(serializers.Serializer):
+    snat = serializers.BooleanField(allow_null=True)
+    has_external_gateway = serializers.BooleanField()
+    routes = EffectiveRouteSerializer(many=True)
+
+
 class OpenStackAllowedAddressPairSerializer(serializers.Serializer):
     ip_address = serializers.CharField(
         default="192.168.42.0/24",
