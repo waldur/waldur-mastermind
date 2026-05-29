@@ -124,11 +124,8 @@ SPECTACULAR_SETTINGS = {
         # Pool and Listener share the same TCP/UDP choices - use single enum name to avoid duplication
         # Lazy import path (no waldur_openstack.models at settings load — AppRegistryNotReady)
         "LoadBalancerProtocolEnum": "waldur_openstack.models.PROTOCOL_CHOICES",
-        "SecurityGroupRuleProtocolEnum": (
-            ("tcp", "tcp"),
-            ("udp", "udp"),
-            ("icmp", "icmp"),
-        ),
+        # SecurityGroupRule.protocol is free-form: "tcp", "udp", "icmp", "" or any
+        # IANA protocol number 0-255 — too large for an enum.
         # Marketplace attribute type (string, integer, boolean, choice, list, etc.)
         "AttributeTypeEnum": ATTRIBUTE_TYPES,
     },

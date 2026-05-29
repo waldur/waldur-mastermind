@@ -806,14 +806,16 @@ def validate_security_group_rule(rule: dict):
                 }
             )
 
-    elif protocol == "":
+    elif protocol == "" or _is_numeric_ip_protocol(protocol):
         # See also: https://github.com/openstack/neutron/blob/af130e79cbe5d12b7c9f9f4dcbcdc8d972bfcfd4/neutron/db/securitygroups_db.py#L500
+        # Neutron rejects port_range_min/max for protocols other than tcp/udp/icmp.
 
         if from_port != -1:
             raise serializers.ValidationError(
                 {
                     "from_port": _(
-                        "Port range is not supported if protocol is not specified."
+                        "Port range is not supported if protocol is not specified "
+                        "or is not tcp/udp/icmp."
                     )
                 }
             )
@@ -822,7 +824,8 @@ def validate_security_group_rule(rule: dict):
             raise serializers.ValidationError(
                 {
                     "to_port": _(
-                        "Port range is not supported if protocol is not specified."
+                        "Port range is not supported if protocol is not specified "
+                        "or is not tcp/udp/icmp."
                     )
                 }
             )
@@ -830,10 +833,17 @@ def validate_security_group_rule(rule: dict):
     else:
         raise serializers.ValidationError(
             {
-                "protocol": _("Value should be one of (tcp, udp, icmp), found %s")
+                "protocol": _(
+                    "Value should be one of (tcp, udp, icmp) or an IANA protocol "
+                    "number 0-255, found %s"
+                )
                 % protocol
             }
         )
+
+
+def _is_numeric_ip_protocol(value) -> bool:
+    return isinstance(value, str) and value.isdigit() and 0 <= int(value) <= 255
 
 
 class OpenStackSecurityGroupRuleSerializer(

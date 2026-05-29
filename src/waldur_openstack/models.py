@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, cast
 from urllib.parse import urlparse
 
 from django.core import validators
+from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 from django.db import models
 from django.db.models import F, OuterRef, Q, Subquery
@@ -589,6 +590,21 @@ class SecurityGroup(structure_models.BaseResource):
         return super().get_backend_fields() + ("name", "description")
 
 
+def validate_security_group_rule_protocol(value):
+    """Accept "", named protocols (tcp/udp/icmp) or an IANA protocol number 0-255."""
+    if value in ("", "tcp", "udp", "icmp"):
+        return
+    if value.isdigit() and 0 <= int(value) <= 255:
+        return
+    raise ValidationError(
+        _(
+            'Protocol must be one of "tcp", "udp", "icmp", empty (any) '
+            "or an IANA protocol number between 0 and 255, got %(value)r."
+        ),
+        params={"value": value},
+    )
+
+
 class BaseSecurityGroupRule(core_models.DescribableMixin, models.Model):
     class Meta:
         abstract = True
@@ -597,11 +613,7 @@ class BaseSecurityGroupRule(core_models.DescribableMixin, models.Model):
     UDP = "udp"
     ICMP = "icmp"
 
-    PROTOCOLS = (
-        (TCP, "tcp"),
-        (UDP, "udp"),
-        (ICMP, "icmp"),
-    )
+    NAMED_PROTOCOLS = (TCP, UDP, ICMP)
 
     INGRESS = "ingress"
     EGRESS = "egress"
@@ -622,8 +634,11 @@ class BaseSecurityGroupRule(core_models.DescribableMixin, models.Model):
     protocol = models.CharField(
         max_length=40,
         blank=True,
-        choices=PROTOCOLS,
-        help_text=_("The network protocol (TCP, UDP, ICMP, or empty for any protocol)"),
+        validators=[validate_security_group_rule_protocol],
+        help_text=_(
+            "Network protocol: 'tcp', 'udp', 'icmp', empty (any) "
+            "or an IANA protocol number 0-255 (e.g. '112' for VRRP)."
+        ),
     )
     from_port = models.IntegerField(
         validators=[validators.MaxValueValidator(65535)],
