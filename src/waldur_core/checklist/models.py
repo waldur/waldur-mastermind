@@ -406,6 +406,13 @@ class Question(core_models.UuidMixin, core_models.DescribableMixin):
         # Validate each file using the helper method
         try:
             for file_data in files:
+                # Skip already-processed files (have stored_file_id, no raw content)
+                if (
+                    isinstance(file_data, dict)
+                    and "stored_file_id" in file_data
+                    and "content" not in file_data
+                ):
+                    continue
                 self._process_single_file(file_data, validate_only=True)
             return True
         except Exception:
