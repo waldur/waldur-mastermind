@@ -43,6 +43,7 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.serializers import ConsoleUrlSerializer
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.marketplace_openstack.utils import delete_instance
+from waldur_openstack import routes
 from waldur_openstack.apps import OpenStackConfig
 from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.exceptions import OpenStackBackendError
@@ -1505,6 +1506,27 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
     remove_external_gateway_validators = [
         core_validators.StateValidator(CoreStates.OK, CoreStates.ERRED)
     ]
+
+    @extend_schema(
+        summary="Effective routes for this router",
+        description=(
+            "Compose the router's routing table from three sources: the "
+            "default route inherited from the external gateway subnet, the "
+            "on-link routes implied by each attached interface, and the "
+            "user-set static routes. SNAT state is reported alongside."
+        ),
+        request=None,
+        responses={
+            status.HTTP_200_OK: serializers.EffectiveRoutesResponseSerializer,
+        },
+    )
+    @decorators.action(detail=True, methods=["get"])
+    def effective_routes(self, request, uuid=None):
+        router: models.Router = self.get_object()
+        return response.Response(
+            routes.compute_effective_routes(router),
+            status=status.HTTP_200_OK,
+        )
 
     @extend_schema(
         summary="List available external networks",
