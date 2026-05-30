@@ -43,7 +43,7 @@ from waldur_core.structure.managers import filter_queryset_for_user
 from waldur_core.structure.serializers import ConsoleUrlSerializer
 from waldur_core.structure.signals import resource_imported
 from waldur_mastermind.marketplace_openstack.utils import delete_instance
-from waldur_openstack import routes
+from waldur_openstack import routes, topology
 from waldur_openstack.apps import OpenStackConfig
 from waldur_openstack.backend import OpenStackBackend
 from waldur_openstack.exceptions import OpenStackBackendError
@@ -1169,6 +1169,23 @@ On successful completion the task will synchronize quotas with the backend.
         except (ConnectFailure, OpenStackBackendError) as e:
             raise exceptions.ValidationError(e)
         return response.Response(serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        summary="Tenant network topology",
+        description=(
+            "Compose the tenant's network topology — routers, networks, subnets, "
+            "ports, instances, floating IPs, external networks, and inbound RBAC "
+            "shares — as a graph (nodes + edges). Read-only; all data comes from "
+            "already-pulled state, no Neutron calls."
+        ),
+        request=None,
+        responses={status.HTTP_200_OK: serializers.TenantTopologySerializer},
+    )
+    @decorators.action(detail=True, methods=["get"])
+    def topology(self, request, uuid=None):
+        tenant: models.Tenant = self.get_object()
+        graph = topology.build_tenant_topology(tenant)
+        return response.Response(graph, status=status.HTTP_200_OK)
 
 
 @extend_schema_view(

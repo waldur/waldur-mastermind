@@ -1789,6 +1789,48 @@ class AvailableExternalNetworkSerializer(serializers.Serializer):
     subnets = AvailableExternalNetworkSubnetSerializer(many=True)
 
 
+class TopologyNodeSerializer(serializers.Serializer):
+    id = serializers.CharField()
+    type = serializers.ChoiceField(
+        choices=[
+            "tenant",
+            "router",
+            "network",
+            "subnet",
+            "port",
+            "instance",
+            "floating_ip",
+            "external_network",
+            "rbac_share",
+        ]
+    )
+    name = serializers.CharField(allow_blank=True)
+    uuid = serializers.CharField(allow_null=True, required=False)
+    attrs = serializers.DictField(child=serializers.JSONField())
+
+
+class TopologyEdgeSerializer(serializers.Serializer):
+    source = serializers.CharField()
+    target = serializers.CharField()
+    kind = serializers.ChoiceField(
+        choices=[
+            "contains",
+            "has_subnet",
+            "has_port",
+            "has_interface",
+            "attached_to",
+            "gateway",
+            "floating_for",
+            "shared_with",
+        ]
+    )
+
+
+class TenantTopologySerializer(serializers.Serializer):
+    nodes = TopologyNodeSerializer(many=True)
+    edges = TopologyEdgeSerializer(many=True)
+
+
 class EffectiveRouteSerializer(serializers.Serializer):
     destination = serializers.CharField()
     nexthop = serializers.IPAddressField(allow_null=True)
