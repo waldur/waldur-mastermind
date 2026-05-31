@@ -6,6 +6,7 @@ import logging
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import (
     Count,
+    Q,
     Sum,
 )
 from django.utils.translation import gettext_lazy as _
@@ -3612,11 +3613,36 @@ class NetworkRBACPolicyViewSet(core_views.ActionsViewSet):
     lookup_field = "uuid"
     queryset = models.NetworkRBACPolicy.objects.all().order_by("-created")
     serializer_class = serializers.NetworkRBACPolicySerializer
-    filter_backends = (DjangoFilterBackend, structure_filters.GenericRoleFilter)
+    # Visibility is handled explicitly in get_queryset (outbound + inbound),
+    # so we don't layer GenericRoleFilter on top — it would re-apply the
+    # source-side filter and drop inbound rows.
+    filter_backends = (DjangoFilterBackend,)
     filterset_class = filters.NetworkRBACPolicyFilter
 
     def get_queryset(self):
-        return filter_queryset_for_user(self.queryset, self.request.user)
+        user = self.request.user
+        if user.is_staff or user.is_support:
+            return self.queryset
+        # Build a single Q that covers both directions:
+        # - outbound: user has admin/manager on the source network's project,
+        #   or owns the source customer (mirrors the GenericRoleFilter logic
+        #   that the legacy view applied via filter_queryset_for_user).
+        # - inbound: user has admin/manager on the target tenant's project,
+        #   or owns the target customer — they are the consumer of the share
+        #   and need to inspect/audit it.
+        from waldur_core.structure.managers import (
+            get_connected_customers,
+            get_connected_projects,
+        )
+
+        connected_projects = get_connected_projects(user)
+        connected_customers = get_connected_customers(user)
+        return self.queryset.filter(
+            Q(network__tenant__project__in=connected_projects)
+            | Q(network__tenant__project__customer__in=connected_customers)
+            | Q(target_tenant__project__in=connected_projects)
+            | Q(target_tenant__project__customer__in=connected_customers)
+        ).distinct()
 
     def _check_rbac_policy_permissions(self, user, network, target_tenant):
         if user.is_staff:
@@ -3672,6 +3698,21 @@ class NetworkRBACPolicyViewSet(core_views.ActionsViewSet):
 
         logger.info("RBAC policy record created in database with UUID: %s", policy.uuid)
 
+        event_logger.emit(
+            "RBAC policy created: network {network_name} shared with {target_tenant_name} "
+            "(policy type: {policy_type}).",
+            event_type=EventType.OPENSTACK_RBAC_POLICY_CREATED,
+            event_context={
+                "rbac_policy_uuid": str(policy.uuid),
+                "network": network,
+                "target_tenant": target_tenant,
+                "network_name": network.name,
+                "target_tenant_name": target_tenant.name,
+                "policy_type": policy_type,
+            },
+            scopes=[network, network.tenant, target_tenant, network.tenant.project],
+        )
+
         result_serializer = self.get_serializer(policy, context={"request": request})
         return response.Response(result_serializer.data, status=status.HTTP_201_CREATED)
 
@@ -3688,7 +3729,28 @@ class NetworkRBACPolicyViewSet(core_views.ActionsViewSet):
             request.user, policy.network, policy.target_tenant
         )
 
-        backend = policy.network.tenant.get_backend()
+        network = policy.network
+        target_tenant = policy.target_tenant
+        policy_uuid = str(policy.uuid)
+        policy_type = policy.policy_type
+
+        backend = network.tenant.get_backend()
         backend.delete_network_rbac_policy(rbac_id=policy.backend_id)
         policy.delete()
+
+        event_logger.emit(
+            "RBAC policy removed: network {network_name} no longer shared with "
+            "{target_tenant_name} (policy type: {policy_type}).",
+            event_type=EventType.OPENSTACK_RBAC_POLICY_DELETED,
+            event_context={
+                "rbac_policy_uuid": policy_uuid,
+                "network": network,
+                "target_tenant": target_tenant,
+                "network_name": network.name,
+                "target_tenant_name": target_tenant.name,
+                "policy_type": policy_type,
+            },
+            scopes=[network, network.tenant, target_tenant, network.tenant.project],
+        )
+
         return response.Response(status=status.HTTP_204_NO_CONTENT)

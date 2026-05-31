@@ -2050,6 +2050,9 @@ class OpenStackPortSerializer(structure_serializers.BaseResourceActionSerializer
 class NetworkRBACPolicySerializer(
     core_serializers.AugmentedSerializerMixin, serializers.HyperlinkedModelSerializer
 ):
+    DIRECTION_OUTBOUND = "outbound"
+    DIRECTION_INBOUND = "inbound"
+
     network = serializers.HyperlinkedRelatedField(
         view_name="openstack-network-detail",
         lookup_field="uuid",
@@ -2065,9 +2068,17 @@ class NetworkRBACPolicySerializer(
         view_name="openstack-network-rbac-policy-detail", lookup_field="uuid"
     )
     network_name = serializers.CharField(source="network.name", read_only=True)
+    source_tenant_uuid = serializers.UUIDField(
+        source="network.tenant.uuid", read_only=True
+    )
+    source_tenant_name = serializers.CharField(
+        source="network.tenant.name", read_only=True
+    )
     target_tenant_name = serializers.CharField(
         source="target_tenant.name", read_only=True
     )
+    target_label = serializers.SerializerMethodField()
+    direction = serializers.SerializerMethodField()
 
     class Meta:
         model = models.NetworkRBACPolicy
@@ -2076,13 +2087,47 @@ class NetworkRBACPolicySerializer(
             "uuid",
             "network",
             "network_name",
+            "source_tenant_uuid",
+            "source_tenant_name",
             "target_tenant",
             "target_tenant_name",
+            "target_label",
+            "direction",
             "backend_id",
             "policy_type",
             "created",
         )
         read_only_fields = ("uuid", "created", "backend_id")
+
+    @extend_schema_field(serializers.CharField())
+    def get_target_label(self, obj: models.NetworkRBACPolicy) -> str:
+        return obj.target_tenant.name if obj.target_tenant_id else _("All projects")
+
+    @extend_schema_field(
+        serializers.ChoiceField(choices=[DIRECTION_OUTBOUND, DIRECTION_INBOUND])
+    )
+    def get_direction(self, obj: models.NetworkRBACPolicy) -> str:
+        """Direction relative to the requesting user.
+
+        ``outbound`` if the user can manage the source network's project
+        (they are the sharer); ``inbound`` otherwise (they are the
+        consumer). Staff/support default to ``outbound`` for parity with
+        the legacy view; the explicit filter handles their case.
+        """
+        request = self.context.get("request") if self.context else None
+        user = getattr(request, "user", None) if request else None
+        if user is None or not user.is_authenticated:
+            return self.DIRECTION_OUTBOUND
+        if user.is_staff or user.is_support:
+            return self.DIRECTION_OUTBOUND
+        source_project = obj.network.tenant.project
+        if (
+            source_project.has_user(user, ProjectRole.ADMIN)
+            or source_project.has_user(user, ProjectRole.MANAGER)
+            or source_project.customer.has_user(user, CustomerRole.OWNER)
+        ):
+            return self.DIRECTION_OUTBOUND
+        return self.DIRECTION_INBOUND
 
     def validate_target_tenant(self, target_tenant):
         network = self.context.get("network")
