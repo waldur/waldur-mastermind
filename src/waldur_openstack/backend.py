@@ -6035,6 +6035,26 @@ class OpenStackBackend(ServiceBackend):
             raise OpenStackBackendError(e)
 
     @log_backend_action()
+    def set_port_allowed_address_pairs(
+        self, port: models.Port, allowed_address_pairs: list[dict]
+    ):
+        """Replace a Port's allowed_address_pairs in Neutron and re-pull.
+
+        Used by ``PortViewSet.set_allowed_address_pairs`` so cluster-VIP
+        workloads (keepalived, MetalLB, OpenShift ingress, OVN router-as-VM)
+        can permit additional IP/MAC pairs on their ports.
+        """
+        session = get_tenant_session(port.tenant)
+        neutron = get_neutron_client(session)
+        try:
+            neutron.update_port(
+                port.backend_id,
+                {"port": {"allowed_address_pairs": allowed_address_pairs}},
+            )
+        except neutron_exceptions.NeutronClientException as e:
+            raise OpenStackBackendError(e)
+
+    @log_backend_action()
     def pull_instance_security_groups(self, instance: models.Instance):
         session = get_tenant_session(instance.tenant)
         nova = get_nova_client(session)

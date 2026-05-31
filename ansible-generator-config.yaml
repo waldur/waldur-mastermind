@@ -480,6 +480,15 @@ collections:
                 operation: "openstack_ports_update_security_groups"
                 param: "security_groups"
                 compare_key: "security_groups"
+              # Cluster-VIP workloads (keepalived, MetalLB, OVN router) need
+              # ports to permit additional IP/MAC pairs beyond their fixed
+              # IPs. The generator emits an idempotent ``allowed_address_pairs``
+              # play parameter whose desired list is compared against the live
+              # port's pairs and pushed via the set action only on drift.
+              set_allowed_address_pairs:
+                operation: "openstack_ports_set_allowed_address_pairs"
+                param: "allowed_address_pairs"
+                compare_key: "allowed_address_pairs"
         resolvers:
           <<: *tenant_context_resolver
           network:
