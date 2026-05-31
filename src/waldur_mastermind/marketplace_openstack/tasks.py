@@ -2,13 +2,12 @@ import logging
 from typing import cast
 
 from celery import shared_task
-from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
+from django.contrib.contenttypes.models import ContentType
 
 from waldur_core.core import utils as core_utils
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_openstack import models as openstack_models
 
-from ..marketplace.enums import OPENSTACK_INSTANCE_OFFERING, OPENSTACK_VOLUME_OFFERING
 from . import utils
 
 logger = logging.getLogger(__name__)
@@ -55,21 +54,43 @@ def sync_instances_and_volumes_of_tenant(serialized_resource: str):
     name="waldur_mastermind.marketplace_openstack.create_resources_for_lost_instances_and_volumes"
 )
 def create_resources_for_lost_instances_and_volumes():
-    """Create marketplace resources for OpenStack instances and volumes that exist in backend but are missing from marketplace."""
-    for offering_type, klass in (
-        (OPENSTACK_INSTANCE_OFFERING, openstack_models.Instance),
-        (OPENSTACK_VOLUME_OFFERING, openstack_models.Volume),
-    ):
-        ids = marketplace_models.Resource.objects.filter(
-            offering__type=offering_type
-        ).values_list("object_id", flat=True)
-        instances = klass.objects.exclude(id__in=ids)
+    """Heal marketplace state for every tenant that has orphan OpenStack
+    instances or volumes.
 
-        for instance in instances:
-            try:
-                utils.create_marketplace_resource_for_imported_resources(instance)
-            except (ObjectDoesNotExist, MultipleObjectsReturned):
-                continue
+    Previously this task called create_marketplace_resource_for_imported_resources
+    directly, which silently no-ops when the per-tenant Instance/Volume offering
+    is missing. That left orphan VMs invisible in the marketplace UI even after
+    the periodic task ran. Routing through self_heal_tenant_marketplace_model
+    recreates archived/missing per-tenant offerings first, then backfills the
+    orphan resources — so tenants no longer need a manual "Synchronise" click
+    after the offering-side state drifts.
+    """
+    affected_tenant_ids: set[int] = set()
+    for klass in (openstack_models.Instance, openstack_models.Volume):
+        content_type = ContentType.objects.get_for_model(klass)
+        linked_ids = set(
+            marketplace_models.Resource.objects.filter(
+                content_type=content_type
+            ).values_list("object_id", flat=True)
+        )
+        affected_tenant_ids.update(
+            klass.objects.exclude(id__in=linked_ids)
+            .exclude(tenant__isnull=True)
+            .values_list("tenant_id", flat=True)
+            .distinct()
+        )
+
+    if not affected_tenant_ids:
+        return
+
+    for tenant in openstack_models.Tenant.objects.filter(id__in=affected_tenant_ids):
+        try:
+            utils.self_heal_tenant_marketplace_model(tenant)
+        except Exception:
+            logger.exception(
+                "Periodic self-heal failed for tenant %s; continuing.",
+                tenant.id,
+            )
 
 
 @shared_task(
