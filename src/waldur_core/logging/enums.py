@@ -159,7 +159,12 @@ class EventType(StrEnum):
         "openstack_port_allowed_address_pairs_changed"
     )
     OPENSTACK_PORT_SECURITY_GROUPS_CHANGED = "openstack_port_security_groups_changed"
+    OPENSTACK_RBAC_POLICY_CREATED = "openstack_rbac_policy_created"
+    OPENSTACK_RBAC_POLICY_DELETED = "openstack_rbac_policy_deleted"
+    OPENSTACK_ROUTER_INTERFACE_ADDED = "openstack_router_interface_added"
+    OPENSTACK_ROUTER_INTERFACE_REMOVED = "openstack_router_interface_removed"
     OPENSTACK_ROUTER_UPDATED = "openstack_router_updated"
+    OPENSTACK_SUBNET_HOST_ROUTES_CHANGED = "openstack_subnet_host_routes_changed"
     OPENSTACK_SECURITY_GROUP_CLEANED = "openstack_security_group_cleaned"
     OPENSTACK_SECURITY_GROUP_CREATED = "openstack_security_group_created"
     OPENSTACK_SECURITY_GROUP_DELETED = "openstack_security_group_deleted"
@@ -378,6 +383,17 @@ class EventGroup(StrEnum):
     INVOICES = "invoices"
     OFFERING_ACCOUNTING = "offering_accounting"
     ONBOARDING = "onboarding"
+    # Per-category OpenStack network event chips. Consumed via the
+    # existing /api/events/?feature=<group> filter — no dedicated
+    # endpoint. Each maps to a discrete subset of OPENSTACK_*
+    # event types in EVENT_GROUP_MAPPING below.
+    OPENSTACK_FLOATING_IP = "openstack_floating_ip"
+    OPENSTACK_NETWORK = "openstack_network"
+    OPENSTACK_PORT = "openstack_port"
+    OPENSTACK_RBAC = "openstack_rbac"
+    OPENSTACK_ROUTER = "openstack_router"
+    OPENSTACK_SECURITY_GROUP = "openstack_security_group"
+    OPENSTACK_SUBNET = "openstack_subnet"
     PERMISSIONS = "permissions"
     PROJECTS = "projects"
     PROPOSAL = "proposal"
@@ -606,7 +622,12 @@ EVENT_GROUP_MAPPING = {
         EventType.OPENSTACK_PORT_SECURITY_DISABLED,
         EventType.OPENSTACK_PORT_ALLOWED_ADDRESS_PAIRS_CHANGED,
         EventType.OPENSTACK_PORT_SECURITY_GROUPS_CHANGED,
+        EventType.OPENSTACK_RBAC_POLICY_CREATED,
+        EventType.OPENSTACK_RBAC_POLICY_DELETED,
+        EventType.OPENSTACK_ROUTER_INTERFACE_ADDED,
+        EventType.OPENSTACK_ROUTER_INTERFACE_REMOVED,
         EventType.OPENSTACK_ROUTER_UPDATED,
+        EventType.OPENSTACK_SUBNET_HOST_ROUTES_CHANGED,
         EventType.OPENSTACK_SECURITY_GROUP_CLEANED,
         EventType.OPENSTACK_SECURITY_GROUP_CREATED,
         EventType.OPENSTACK_SECURITY_GROUP_DELETED,
@@ -748,6 +769,66 @@ EVENT_GROUP_MAPPING = {
         EventType.CHAT_INJECTION_DETECTED,
         EventType.CHAT_PII_DETECTED,
         EventType.CHAT_FEEDBACK_SUBMITTED,
+    ],
+    # Per-category OpenStack networking chips for the tenant audit view.
+    # Consumed via /api/events/?feature=openstack_router (multi-select)
+    # alongside ?scope=<tenant-URL>&created_from=&created_to=.
+    EventGroup.OPENSTACK_ROUTER: [
+        EventType.OPENSTACK_ROUTER_UPDATED,
+        EventType.OPENSTACK_ROUTER_INTERFACE_ADDED,
+        EventType.OPENSTACK_ROUTER_INTERFACE_REMOVED,
+    ],
+    EventGroup.OPENSTACK_NETWORK: [
+        EventType.OPENSTACK_NETWORK_CREATED,
+        EventType.OPENSTACK_NETWORK_UPDATED,
+        EventType.OPENSTACK_NETWORK_DELETED,
+        EventType.OPENSTACK_NETWORK_IMPORTED,
+        EventType.OPENSTACK_NETWORK_PULLED,
+        EventType.OPENSTACK_NETWORK_CLEANED,
+    ],
+    EventGroup.OPENSTACK_SUBNET: [
+        EventType.OPENSTACK_SUBNET_CREATED,
+        EventType.OPENSTACK_SUBNET_UPDATED,
+        EventType.OPENSTACK_SUBNET_DELETED,
+        EventType.OPENSTACK_SUBNET_IMPORTED,
+        EventType.OPENSTACK_SUBNET_PULLED,
+        EventType.OPENSTACK_SUBNET_CLEANED,
+        EventType.OPENSTACK_SUBNET_HOST_ROUTES_CHANGED,
+    ],
+    EventGroup.OPENSTACK_PORT: [
+        EventType.OPENSTACK_PORT_CREATED,
+        EventType.OPENSTACK_PORT_UPDATED,
+        EventType.OPENSTACK_PORT_DELETED,
+        EventType.OPENSTACK_PORT_IMPORTED,
+        EventType.OPENSTACK_PORT_PULLED,
+        EventType.OPENSTACK_PORT_CLEANED,
+        EventType.OPENSTACK_PORT_SECURITY_ENABLED,
+        EventType.OPENSTACK_PORT_SECURITY_DISABLED,
+        EventType.OPENSTACK_PORT_SECURITY_GROUPS_CHANGED,
+        EventType.OPENSTACK_PORT_ALLOWED_ADDRESS_PAIRS_CHANGED,
+    ],
+    EventGroup.OPENSTACK_FLOATING_IP: [
+        EventType.OPENSTACK_FLOATING_IP_ATTACHED,
+        EventType.OPENSTACK_FLOATING_IP_DETACHED,
+        EventType.OPENSTACK_FLOATING_IP_CONNECTED,
+        EventType.OPENSTACK_FLOATING_IP_DISCONNECTED,
+        EventType.OPENSTACK_FLOATING_IP_DESCRIPTION_UPDATED,
+    ],
+    EventGroup.OPENSTACK_RBAC: [
+        EventType.OPENSTACK_RBAC_POLICY_CREATED,
+        EventType.OPENSTACK_RBAC_POLICY_DELETED,
+    ],
+    EventGroup.OPENSTACK_SECURITY_GROUP: [
+        EventType.OPENSTACK_SECURITY_GROUP_CREATED,
+        EventType.OPENSTACK_SECURITY_GROUP_UPDATED,
+        EventType.OPENSTACK_SECURITY_GROUP_DELETED,
+        EventType.OPENSTACK_SECURITY_GROUP_IMPORTED,
+        EventType.OPENSTACK_SECURITY_GROUP_PULLED,
+        EventType.OPENSTACK_SECURITY_GROUP_CLEANED,
+        EventType.OPENSTACK_SECURITY_GROUP_RULE_CREATED,
+        EventType.OPENSTACK_SECURITY_GROUP_RULE_UPDATED,
+        EventType.OPENSTACK_SECURITY_GROUP_RULE_DELETED,
+        EventType.OPENSTACK_SECURITY_GROUP_RULES_CHANGED,
     ],
 }
 
