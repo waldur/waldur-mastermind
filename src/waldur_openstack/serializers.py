@@ -1852,6 +1852,32 @@ class EffectiveRoutesResponseSerializer(serializers.Serializer):
     routes = EffectiveRouteSerializer(many=True)
 
 
+class DiagnoseCheckSerializer(serializers.Serializer):
+    check = serializers.CharField()
+    status = serializers.ChoiceField(choices=("ok", "warn", "fail", "skip"))
+    detail = serializers.CharField()
+    fix_hint = serializers.CharField(allow_blank=True)
+
+
+class DiagnoseConnectivityRequestSerializer(serializers.Serializer):
+    target = serializers.CharField(
+        default="external",
+        required=False,
+        help_text=_(
+            "Connectivity target. 'external' (default) checks outbound "
+            "internet; 'internal:<ip>' checks east-west to another IP; "
+            "'fip:<address>' verifies a specific floating-IP mapping."
+        ),
+    )
+
+
+class DiagnoseConnectivityResponseSerializer(serializers.Serializer):
+    target = serializers.CharField()
+    target_address = serializers.CharField(allow_null=True)
+    checks = DiagnoseCheckSerializer(many=True)
+    root_cause = serializers.CharField(allow_null=True)
+
+
 class OpenStackAllowedAddressPairSerializer(serializers.Serializer):
     ip_address = serializers.CharField(
         default="192.168.42.0/24",

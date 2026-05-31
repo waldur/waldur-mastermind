@@ -539,6 +539,13 @@ collections:
           - restart
           - pull
           - unlink
+          # Read-only check walking the cached state (ports, subnets,
+          # routers, gateway, FIPs, AAP) to report whether the instance
+          # can reach the requested target (external by default,
+          # ``internal:<ip>``, or ``fip:<addr>``). Output goes to
+          # ``ansible_facts.diagnose_connectivity`` so plays can branch
+          # on ``root_cause`` / individual check statuses.
+          - diagnose_connectivity
         resolvers:
           <<: *base_openstack_resolvers
 
