@@ -119,6 +119,70 @@
 - onboarding_verification_deleted
 - onboarding_verification_deleted_by_task
 
+## Openstack_floating_ip
+
+- openstack_floating_ip_attached
+- openstack_floating_ip_connected
+- openstack_floating_ip_description_updated
+- openstack_floating_ip_detached
+- openstack_floating_ip_disconnected
+
+## Openstack_network
+
+- openstack_network_cleaned
+- openstack_network_created
+- openstack_network_deleted
+- openstack_network_imported
+- openstack_network_pulled
+- openstack_network_updated
+
+## Openstack_port
+
+- openstack_port_allowed_address_pairs_changed
+- openstack_port_cleaned
+- openstack_port_created
+- openstack_port_deleted
+- openstack_port_imported
+- openstack_port_pulled
+- openstack_port_security_disabled
+- openstack_port_security_enabled
+- openstack_port_security_groups_changed
+- openstack_port_updated
+
+## Openstack_rbac
+
+- openstack_rbac_policy_created
+- openstack_rbac_policy_deleted
+
+## Openstack_router
+
+- openstack_router_interface_added
+- openstack_router_interface_removed
+- openstack_router_updated
+
+## Openstack_security_group
+
+- openstack_security_group_cleaned
+- openstack_security_group_created
+- openstack_security_group_deleted
+- openstack_security_group_imported
+- openstack_security_group_pulled
+- openstack_security_group_rule_created
+- openstack_security_group_rule_deleted
+- openstack_security_group_rule_updated
+- openstack_security_group_rules_changed
+- openstack_security_group_updated
+
+## Openstack_subnet
+
+- openstack_subnet_cleaned
+- openstack_subnet_created
+- openstack_subnet_deleted
+- openstack_subnet_host_routes_changed
+- openstack_subnet_imported
+- openstack_subnet_pulled
+- openstack_subnet_updated
+
 ## Permissions
 
 - role_granted
@@ -231,6 +295,10 @@
 - openstack_port_security_enabled
 - openstack_port_security_groups_changed
 - openstack_port_updated
+- openstack_rbac_policy_created
+- openstack_rbac_policy_deleted
+- openstack_router_interface_added
+- openstack_router_interface_removed
 - openstack_router_updated
 - openstack_security_group_cleaned
 - openstack_security_group_created
@@ -252,6 +320,7 @@
 - openstack_subnet_cleaned
 - openstack_subnet_created
 - openstack_subnet_deleted
+- openstack_subnet_host_routes_changed
 - openstack_subnet_imported
 - openstack_subnet_pulled
 - openstack_subnet_updated
