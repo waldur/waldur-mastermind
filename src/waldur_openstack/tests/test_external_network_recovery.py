@@ -2,9 +2,11 @@
 
 from unittest import mock
 
+from neutronclient.common import exceptions as neutron_exceptions
 from rest_framework import test
 
 from waldur_openstack.backend import OpenStackBackend
+from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.tests import factories, fixtures
 
 
@@ -359,3 +361,89 @@ class FloatingIPCreationRecoveryTest(test.APITestCase):
             self.assertEqual(
                 call_args["floatingip"]["floating_network_id"], "existing-ext-net"
             )
+
+
+class FloatingIPPoolExhaustionMessageTest(test.APITestCase):
+    """When Neutron rejects FIP allocation because the external network's
+    pool is exhausted, the user-facing error must name the pool so the
+    caller knows what to do."""
+
+    def setUp(self):
+        self.fixture = fixtures.OpenStackFixture()
+        self.tenant = self.fixture.tenant
+        self.tenant.external_network_id = "ext-net-cached"
+        self.tenant.save(update_fields=["external_network_id"])
+        # Pre-create the ExternalNetwork cache row so the helper finds a name.
+        factories.ExternalNetworkFactory(
+            settings=self.tenant.service_settings,
+            backend_id="ext-net-cached",
+            name="public-pool",
+        )
+        self.backend = OpenStackBackend(self.tenant.service_settings)
+        self.floating_ip = factories.FloatingIPFactory(tenant=self.tenant)
+
+    @mock.patch("waldur_openstack.backend.get_tenant_session")
+    @mock.patch("waldur_openstack.backend.get_neutron_client")
+    def test_ip_address_generation_failure_raises_named_pool_error(
+        self, mock_neutron_client, _mock_session
+    ):
+        mock_client = mock.MagicMock()
+        mock_neutron_client.return_value = mock_client
+        mock_client.create_floatingip.side_effect = (
+            neutron_exceptions.IpAddressGenerationFailureClient(
+                "No more IP addresses available on network"
+            )
+        )
+
+        with self.assertRaises(OpenStackBackendError) as ctx:
+            self.backend.create_floating_ip(self.floating_ip)
+
+        message = str(ctx.exception)
+        # The named pool must appear in the message so the caller can act.
+        self.assertIn("public-pool", message)
+        self.assertIn("cloud administrator", message)
+        # The FIP row must be marked ERRED.
+        self.floating_ip.refresh_from_db()
+        self.assertEqual(self.floating_ip.runtime_state, "ERRED")
+
+    @mock.patch("waldur_openstack.backend.get_tenant_session")
+    @mock.patch("waldur_openstack.backend.get_neutron_client")
+    def test_external_ip_exhausted_raises_named_pool_error(
+        self, mock_neutron_client, _mock_session
+    ):
+        mock_client = mock.MagicMock()
+        mock_neutron_client.return_value = mock_client
+        mock_client.create_floatingip.side_effect = (
+            neutron_exceptions.ExternalIpAddressExhaustedClient(
+                "All external IPs allocated"
+            )
+        )
+
+        with self.assertRaises(OpenStackBackendError) as ctx:
+            self.backend.create_floating_ip(self.floating_ip)
+
+        self.assertIn("public-pool", str(ctx.exception))
+
+    @mock.patch("waldur_openstack.backend.get_tenant_session")
+    @mock.patch("waldur_openstack.backend.get_neutron_client")
+    def test_pool_error_falls_back_to_backend_id_if_name_not_cached(
+        self, mock_neutron_client, _mock_session
+    ):
+        # Remove the cached ExternalNetwork row.
+        from waldur_openstack import models
+
+        models.ExternalNetwork.objects.filter(
+            settings=self.tenant.service_settings, backend_id="ext-net-cached"
+        ).delete()
+
+        mock_client = mock.MagicMock()
+        mock_neutron_client.return_value = mock_client
+        mock_client.create_floatingip.side_effect = (
+            neutron_exceptions.IpAddressGenerationFailureClient("pool exhausted")
+        )
+
+        with self.assertRaises(OpenStackBackendError) as ctx:
+            self.backend.create_floating_ip(self.floating_ip)
+
+        # Backend ID must appear when the human name isn't cached.
+        self.assertIn("ext-net-cached", str(ctx.exception))
