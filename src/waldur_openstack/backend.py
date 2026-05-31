@@ -3354,6 +3354,19 @@ class OpenStackBackend(ServiceBackend):
                 scopes=[floating_ip, floating_ip.tenant],
             )
 
+    def _lookup_external_network_name(self, backend_id: str) -> str | None:
+        """Best-effort cache lookup for the human-readable external-network name."""
+        if not backend_id:
+            return None
+        net = (
+            models.ExternalNetwork.objects.filter(
+                settings=self.settings, backend_id=backend_id
+            )
+            .values_list("name", flat=True)
+            .first()
+        )
+        return net or None
+
     @log_backend_action("create floating ip")
     def create_floating_ip(
         self, floating_ip: models.FloatingIP, serialized_router=None, **kwargs
@@ -3398,6 +3411,33 @@ class OpenStackBackend(ServiceBackend):
                     }
                 }
             )["floatingip"]
+        except (
+            neutron_exceptions.IpAddressGenerationFailureClient,
+            neutron_exceptions.ExternalIpAddressExhaustedClient,
+        ) as e:
+            # The external network's allocation pool is exhausted. Bare
+            # 'IpAddressGenerationFailureClient: No more IP addresses
+            # available' is unactionable; tell the caller exactly which
+            # pool is full and who to escalate to.
+            external_network_name = self._lookup_external_network_name(
+                external_network_id
+            )
+            logger.warning(
+                "Floating IP allocation failed for tenant %s on external "
+                "network %s (%s): pool exhausted. Original error: %s",
+                floating_ip.tenant.backend_id,
+                external_network_name or "?",
+                external_network_id,
+                e,
+            )
+            floating_ip.runtime_state = "ERRED"
+            floating_ip.save()
+            raise OpenStackBackendError(
+                f"Cannot allocate floating IP: the external network "
+                f"'{external_network_name or external_network_id}' has no "
+                f"free addresses in its allocation pool. Contact your "
+                f"cloud administrator to extend the pool."
+            ) from e
         except neutron_exceptions.NeutronClientException as e:
             floating_ip.runtime_state = "ERRED"
             floating_ip.save()
