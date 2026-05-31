@@ -2962,6 +2962,55 @@ class InstanceViewSet(
         core_validators.StateValidator(CoreStates.OK),
         core_validators.RuntimeStateValidator(models.Instance.RuntimeStates.SHUTOFF),
     ]
+
+    @extend_schema(
+        summary="Diagnose connectivity",
+        description=(
+            "Walks the wiring that connects this instance to the requested "
+            "target (default 'external') and returns a per-check report "
+            "computed from Waldur's already-pulled state — no live "
+            "OpenStack call. Use to triage 'VM can't reach the internet' "
+            "or 'VIP doesn't work' tickets in one click."
+        ),
+        request=serializers.DiagnoseConnectivityRequestSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.DiagnoseConnectivityResponseSerializer,
+        },
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def diagnose_connectivity(self, request, uuid=None):
+        from waldur_openstack import diagnose
+
+        instance: models.Instance = self.get_object()
+        serializer = serializers.DiagnoseConnectivityRequestSerializer(
+            data=request.data or {}
+        )
+        serializer.is_valid(raise_exception=True)
+        target = serializer.validated_data.get("target") or "external"
+
+        report = diagnose.run_diagnose(instance, target=target)
+        payload = {
+            "target": report.target,
+            "target_address": report.target_address,
+            "checks": [
+                {
+                    "check": c.check,
+                    "status": c.status,
+                    "detail": c.detail,
+                    "fix_hint": c.fix_hint,
+                }
+                for c in report.checks
+            ],
+            "root_cause": report.root_cause,
+        }
+        response_serializer = serializers.DiagnoseConnectivityResponseSerializer(
+            payload
+        )
+        return response.Response(response_serializer.data)
+
+    diagnose_connectivity_serializer_class = (
+        serializers.DiagnoseConnectivityRequestSerializer
+    )
     change_flavor_permissions = [openstack_permissions.can_manage_openstack_instance]
 
     @extend_schema(
