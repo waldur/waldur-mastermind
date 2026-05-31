@@ -2300,6 +2300,53 @@ class PortViewSet(structure_views.ResourceViewSet):
         serializers.OpenStackInstanceSecurityGroupsUpdateSerializer
     )
 
+    @extend_schema(
+        summary="Set allowed address pairs",
+        description=(
+            "Replace the Port's allowed_address_pairs list. Cluster-VIP "
+            "workloads (keepalived, MetalLB, OpenShift ingress, OVN router) "
+            "need ports to permit additional IP/MAC pairs beyond their "
+            "fixed IPs. Values are validated and pushed to Neutron."
+        ),
+        request=serializers.SetAllowedAddressPairsSerializer,
+        responses={
+            status.HTTP_200_OK: serializers.OpenStackPortSerializer,
+        },
+    )
+    @decorators.action(detail=True, methods=["post"])
+    def set_allowed_address_pairs(self, request, uuid=None):
+        port: models.Port = self.get_object()
+        serializer = serializers.SetAllowedAddressPairsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        new_pairs = list(serializer.validated_data["allowed_address_pairs"])
+        old_pairs = list(port.allowed_address_pairs or [])
+
+        backend = port.get_backend()
+        backend.set_port_allowed_address_pairs(port, new_pairs)
+        port.allowed_address_pairs = new_pairs
+        port.save(update_fields=["allowed_address_pairs"])
+
+        audit.emit_allowed_address_pairs_changed(
+            port, old_pairs=old_pairs, new_pairs=new_pairs
+        )
+
+        result = self.get_serializer(port, context={"request": request})
+        return response.Response(result.data, status=status.HTTP_200_OK)
+
+    set_allowed_address_pairs_serializer_class = (
+        serializers.SetAllowedAddressPairsSerializer
+    )
+    set_allowed_address_pairs_validators = [
+        core_validators.StateValidator(CoreStates.OK),
+    ]
+    # AAP is a layer-2/3 spoofing primitive — must match the gate used by
+    # the existing instance-level ``update_allowed_address_pairs`` action,
+    # not the default ``is_administrator`` that ``ResourceViewSet`` would
+    # otherwise apply.
+    set_allowed_address_pairs_permissions = [
+        openstack_permissions.can_manage_openstack_instance
+    ]
+
 
 @extend_schema_view(
     list=extend_schema(

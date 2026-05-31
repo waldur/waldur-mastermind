@@ -1864,6 +1864,64 @@ class OpenStackAllowedAddressPairSerializer(serializers.Serializer):
         return validate_private_cidr(value)
 
 
+# Neutron MAC format: six 2-character hex groups separated by colons.
+_MAC_ADDRESS_RE = re.compile(r"^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$")
+# Neutron's typical per-port cap on allowed_address_pairs entries.
+_AAP_MAX_ENTRIES = 64
+
+
+class AllowedAddressPairEntrySerializer(serializers.Serializer):
+    """One {ip_address, mac_address?} entry. Used by the set action.
+
+    Reuses ``validate_private_cidr`` to enforce that the spoofable range
+    is bounded to RFC1918 — accepting ``0.0.0.0/0``, the port's subnet
+    gateway, link-local, multicast, or public IPs would let a port
+    impersonate the upstream router, metadata service, or other
+    tenants' fixed IPs (the textbook AAP-escalation attack the
+    instance-level path explicitly guards against).
+    """
+
+    ip_address = serializers.CharField()
+    mac_address = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_ip_address(self, value):
+        return validate_private_cidr(value)
+
+    def validate_mac_address(self, value):
+        if not value:
+            return value
+        if not _MAC_ADDRESS_RE.match(value):
+            raise serializers.ValidationError(
+                _("MAC address must match aa:bb:cc:dd:ee:ff.")
+            )
+        return value.lower()
+
+
+class SetAllowedAddressPairsSerializer(serializers.Serializer):
+    """Body shape for ``POST .../ports/{uuid}/set_allowed_address_pairs/``."""
+
+    allowed_address_pairs = AllowedAddressPairEntrySerializer(
+        many=True, allow_empty=True
+    )
+
+    def validate_allowed_address_pairs(self, value):
+        if len(value) > _AAP_MAX_ENTRIES:
+            raise serializers.ValidationError(
+                _("At most {limit} address pairs are supported per port.").format(
+                    limit=_AAP_MAX_ENTRIES
+                )
+            )
+        seen = set()
+        for entry in value:
+            key = (entry.get("ip_address"), entry.get("mac_address") or "")
+            if key in seen:
+                raise serializers.ValidationError(
+                    _("Duplicate address pair entries are not allowed.")
+                )
+            seen.add(key)
+        return value
+
+
 @extend_schema_field(OpenStackAllowedAddressPairSerializer(many=True))
 class OpenStackAllowedAddressPairField(serializers.JSONField):
     pass
