@@ -712,6 +712,43 @@ class NetworkRBACPolicyFilter(django_filters.FilterSet):
         label="Target tenant URL",
     )
 
+    DIRECTION_CHOICES = (
+        ("outbound", "Outbound"),
+        ("inbound", "Inbound"),
+        ("all", "All"),
+    )
+    direction = django_filters.ChoiceFilter(
+        choices=DIRECTION_CHOICES,
+        method="filter_direction",
+        label="Direction relative to the requesting user",
+    )
+
+    def filter_direction(self, queryset, name, value):
+        request = self.request
+        user = getattr(request, "user", None) if request else None
+        if value == "all" or user is None or not user.is_authenticated:
+            return queryset
+        if user.is_staff or user.is_support:
+            return queryset
+        from waldur_core.structure.managers import (
+            get_connected_customers,
+            get_connected_projects,
+        )
+
+        connected_projects = get_connected_projects(user)
+        connected_customers = get_connected_customers(user)
+        if value == "outbound":
+            return queryset.filter(
+                Q(network__tenant__project__in=connected_projects)
+                | Q(network__tenant__project__customer__in=connected_customers)
+            )
+        if value == "inbound":
+            return queryset.filter(
+                Q(target_tenant__project__in=connected_projects)
+                | Q(target_tenant__project__customer__in=connected_customers)
+            )
+        return queryset
+
     class Meta:
         model = models.NetworkRBACPolicy
         fields = ["policy_type"]

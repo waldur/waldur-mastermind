@@ -128,6 +128,19 @@ SPECTACULAR_SETTINGS = {
         # IANA protocol number 0-255 — too large for an enum.
         # Marketplace attribute type (string, integer, boolean, choice, list, etc.)
         "AttributeTypeEnum": ATTRIBUTE_TYPES,
+        # Three distinct ``direction`` enum sources need explicit names so
+        # drf-spectacular doesn't fall back to opaque hash-suffixed
+        # ``DirectionXxxEnum`` names that change on every schema regen:
+        #  - SecurityGroupRule field (ingress / egress)
+        #  - NetworkRBACPolicy filter param (outbound / inbound / all)
+        #  - NetworkRBACPolicy serializer field (outbound / inbound)
+        "SecurityGroupRuleDirectionEnum": ["ingress", "egress"],
+        "RbacPolicyDirectionFilterEnum": (
+            ("outbound", "Outbound"),
+            ("inbound", "Inbound"),
+            ("all", "All"),
+        ),
+        "RbacPolicyDirectionEnum": ["outbound", "inbound"],
     },
     "VERSION": None,
 }
