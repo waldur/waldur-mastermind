@@ -1783,7 +1783,13 @@ class SetExternalGatewaySerializer(serializers.Serializer):
                     )
                 )
 
-        # Validate external_fixed_ips entries
+        # Validate external_fixed_ips entries against the chosen network's subnets.
+        # A subnet_id pinned to a different external network would let a caller
+        # bind the gateway to a subnet they should never reach (e.g. provider
+        # admin pool), so the per-entry subnet_id must belong to network_obj.
+        subnets_by_backend_id = {
+            s.backend_id: s.cidr for s in network_obj.subnets.all()
+        }
         for entry in external_fixed_ips:
             if "ip_address" not in entry:
                 raise serializers.ValidationError(
@@ -1793,6 +1799,45 @@ class SetExternalGatewaySerializer(serializers.Serializer):
                         )
                     }
                 )
+            subnet_id = entry.get("subnet_id")
+            if subnet_id is not None:
+                if subnet_id not in subnets_by_backend_id:
+                    raise serializers.ValidationError(
+                        {
+                            "external_fixed_ips": _(
+                                "subnet_id '%s' does not belong to the chosen "
+                                "external network."
+                            )
+                            % subnet_id
+                        }
+                    )
+                cidr = subnets_by_backend_id[subnet_id]
+                if cidr:
+                    try:
+                        addr_in_net = ip_address(entry["ip_address"]) in ip_network(
+                            cidr, strict=False
+                        )
+                    except ValueError:
+                        raise serializers.ValidationError(
+                            {
+                                "external_fixed_ips": _("Invalid ip_address '%s'.")
+                                % entry["ip_address"]
+                            }
+                        )
+                    if not addr_in_net:
+                        raise serializers.ValidationError(
+                            {
+                                "external_fixed_ips": _(
+                                    "ip_address '%(ip)s' is not inside subnet "
+                                    "'%(subnet)s' (%(cidr)s)."
+                                )
+                                % {
+                                    "ip": entry["ip_address"],
+                                    "subnet": subnet_id,
+                                    "cidr": cidr,
+                                }
+                            }
+                        )
 
         # Store resolved data for the view
         attrs["network_source"] = network_source

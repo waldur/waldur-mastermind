@@ -409,6 +409,77 @@ class SetExternalGatewayGlobalNetworkTest(BaseExternalGatewayTest):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         executor_mock.assert_not_called()
 
+    def test_set_gateway_fixed_ips_with_valid_subnet_id_and_ip(self, executor_mock):
+        subnet = factories.ExternalSubnetFactory(
+            network=self.external_network,
+            cidr="192.168.240.96/28",
+            backend_id="ext-subnet-belongs",
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.set_url,
+            {
+                "external_network_id": self.external_network.backend_id,
+                "external_fixed_ips": [
+                    {"ip_address": "192.168.240.104", "subnet_id": subnet.backend_id}
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+
+    def test_set_gateway_fixed_ips_rejects_subnet_from_different_network(
+        self, executor_mock
+    ):
+        other_network = factories.ExternalNetworkFactory(
+            settings=self.fixture.settings, backend_id="ext-net-other"
+        )
+        foreign_subnet = factories.ExternalSubnetFactory(
+            network=other_network,
+            cidr="10.10.10.0/24",
+            backend_id="ext-subnet-foreign",
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.set_url,
+            {
+                "external_network_id": self.external_network.backend_id,
+                "external_fixed_ips": [
+                    {
+                        "ip_address": "10.10.10.5",
+                        "subnet_id": foreign_subnet.backend_id,
+                    }
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(
+            b"does not belong to the chosen external network", response.content
+        )
+        executor_mock.assert_not_called()
+
+    def test_set_gateway_fixed_ips_rejects_ip_outside_subnet_cidr(self, executor_mock):
+        subnet = factories.ExternalSubnetFactory(
+            network=self.external_network,
+            cidr="192.168.240.96/28",
+            backend_id="ext-subnet-cidr-check",
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.set_url,
+            {
+                "external_network_id": self.external_network.backend_id,
+                "external_fixed_ips": [
+                    {"ip_address": "10.10.10.5", "subnet_id": subnet.backend_id}
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn(b"is not inside subnet", response.content)
+        executor_mock.assert_not_called()
+
 
 @mock.patch("waldur_openstack.executors.RouterSetExternalGatewayExecutor.execute")
 class SetExternalGatewayRBACNetworkTest(BaseExternalGatewayTest):
