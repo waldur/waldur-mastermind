@@ -12,6 +12,7 @@ from constance.test import override_config
 from django.db import connection, transaction
 from django.test import TestCase, TransactionTestCase
 from django.utils import timezone
+from freezegun import freeze_time
 
 from waldur_mastermind.chat.anonymous.models import (
     AnonymousChatBudget,
@@ -54,6 +55,12 @@ class AnonymousChatBudgetForIPTest(TestCase):
             self.assertEqual(budget.ip_address, "1.2.3.4")
 
 
+# Pin to a Wednesday mid-month, mid-day. Avoids day/week/month boundary
+# flakes when the suite happens to run within the first few minutes/hours
+# of midnight, Monday, or the 1st (the previous "X ago is always within
+# the current period" assumption broke at month boundaries — see HPCMP-484
+# pipeline run on 2026-06-01 00:05 UTC).
+@freeze_time("2024-04-17 12:00:00")
 class AnonymousChatBudgetLazyResetTest(TestCase):
     def test_resets_when_reset_predates_today(self):
         with transaction.atomic():
