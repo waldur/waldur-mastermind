@@ -99,6 +99,12 @@ class ActionsFunctionsTest(test.APITestCase):
             self.block_creation_of_new_resources_mock.reset_mock()
 
     def test_calling_of_threshold_actions(self):
+        # The pre-flight handler reads policy.actions (CharField) directly and
+        # would block creation before the post-save threshold runs. Drop the
+        # blocking action from the stored string; the mock-patched
+        # get_all_actions still injects it for the post-save check.
+        self.policy.actions = "notify_project_team"
+        self.policy.save()
         with mock.patch.object(
             ProjectEstimatedCostPolicy,
             "get_all_actions",

@@ -113,17 +113,18 @@ class ActionsTest(test.APITestCase):
             "limits": {"cpu": 10},  # Cost = 10 * 10 = 100
             "attributes": {"name": "test_resource"},
         }
+        order_count_before = marketplace_models.Order.objects.count()
+        resource_count_before = marketplace_models.Resource.objects.count()
         self.client.force_login(self.fixture.staff)
         url = marketplace_factories.OrderFactory.get_list_url()
         response = self.client.post(url, payload)
 
-        # Expected: Order created but resource in ERRED state due to PolicyException
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        resource = marketplace_models.Resource.objects.get(
-            uuid=response.data["marketplace_resource_uuid"]
+        # Expected: order rejected at API boundary; no resource is persisted [HPCMP-484].
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(marketplace_models.Order.objects.count(), order_count_before)
+        self.assertEqual(
+            marketplace_models.Resource.objects.count(), resource_count_before
         )
-        self.assertEqual(resource.state, ResourceStates.ERRED)
-        self.assertIn("Policy is violated", resource.error_message)
 
     @mock.patch("waldur_mastermind.marketplace.tasks.process_order")
     def test_allow_first_resource_creation_when_under_limit(self, mock_process_order):
@@ -242,13 +243,8 @@ class ActionsTest(test.APITestCase):
         url = marketplace_factories.OrderFactory.get_list_url()
         response = self.client.post(url, payload)
 
-        # Expected: Blocked by policy2
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        resource = marketplace_models.Resource.objects.get(
-            uuid=response.data["marketplace_resource_uuid"]
-        )
-        self.assertEqual(resource.state, ResourceStates.ERRED)
-        self.assertIn("Policy is violated", resource.error_message)
+        # Expected: blocked by policy2 at the API boundary [HPCMP-484].
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @mock.patch("waldur_core.core.utils.send_mail")
     def test_notify_organization_owners(self, mock_send_mail):
