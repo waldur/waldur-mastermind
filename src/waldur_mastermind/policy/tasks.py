@@ -240,13 +240,19 @@ def evaluate_resource_against_policy(resource_uuid: str, policy_uuid: str):
             stomp_message_sent=stomp_sent,
         )
 
-        # Emit structured event
-        event_logger.emit(
-            "SLURM policy evaluation completed for resource %s: "
-            "usage=%.1f%%, actions=%s"
-            % (resource.uuid, usage_percentage, actions_needed),
-            event_type=EventType.SLURM_POLICY_EVALUATION,
-        )
+        if actions_needed or state_changed:
+            event_logger.emit(
+                "SLURM policy evaluation completed for resource %s: "
+                "usage=%.1f%%, actions=%s"
+                % (resource.uuid, usage_percentage, actions_needed),
+                event_type=EventType.SLURM_POLICY_EVALUATION,
+            )
+        else:
+            logger.debug(
+                "SLURM policy evaluation no-op for resource %s: usage=%.1f%%",
+                resource.uuid,
+                usage_percentage,
+            )
 
         # Update policy state if any resource actions were applied
         if actions_needed and not policy.has_fired:
