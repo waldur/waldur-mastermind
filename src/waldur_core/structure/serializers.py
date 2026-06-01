@@ -533,7 +533,7 @@ class ProjectSerializer(
         source="customer.grace_period_days",
         help_text="Grace period days set at the customer (organization) level. Used as default when project-level is not set.",
     )
-    affiliation = AffiliatedOrganizationSerializer(read_only=True)
+    affiliation = AffiliatedOrganizationSerializer(read_only=True, allow_null=True)
     affiliation_uuid = serializers.SlugRelatedField(
         slug_field="uuid",
         source="affiliation",
