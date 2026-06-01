@@ -45,9 +45,11 @@ from waldur_core.structure import models as structure_models
 from waldur_core.structure import permissions as structure_permissions
 from waldur_core.structure import serializers as structure_serializers
 from waldur_openstack.utils import (
+    get_tenant_external_networks,
     get_valid_availability_zones,
     is_flavor_valid_for_tenant,
     is_image_valid_for_tenant,
+    is_openstack_service_provider,
     is_valid_volume_type_name,
     is_volume_type_valid_for_tenant,
     volume_type_name_to_quota_name,
@@ -1671,17 +1673,21 @@ class SetExternalGatewaySerializer(serializers.Serializer):
         ),
     )
 
-    def _resolve_network_source(self, external_network_id, router):
-        """Resolve the external network and determine its source type."""
-        # Check global ExternalNetwork catalog
-        ext_net = models.ExternalNetwork.objects.filter(
-            settings=router.tenant.service_settings,
-            backend_id=external_network_id,
-        ).first()
+    def _resolve_network_source(self, external_network_id, router, user):
+        """Resolve the external network and determine its source type.
+
+        The global path is gated by ``get_tenant_external_networks`` so that
+        non-provider users cannot attach a router to a provider-internal
+        (non-shared) external network they don't have RBAC access to.
+        """
+        ext_net = (
+            get_tenant_external_networks(router.tenant, user)
+            .filter(backend_id=external_network_id)
+            .first()
+        )
         if ext_net:
             return "global", ext_net
 
-        # Check RBAC-exposed-as-external networks
         rbac_network = models.Network.objects.filter(
             backend_id=external_network_id,
             rbac_policies__target_tenant=router.tenant,
@@ -1696,16 +1702,12 @@ class SetExternalGatewaySerializer(serializers.Serializer):
         self, user, router, network_source, network_obj
     ):
         """Check if user can set enable_snat=False or external_fixed_ips."""
-        if user.is_staff:
-            return True
-
         if network_source == "global":
-            # Global external networks: provider (service settings owner) only
-            service_settings = router.tenant.service_settings
-            return service_settings.customer.has_user(user, CustomerRole.OWNER)
+            return is_openstack_service_provider(user, router.tenant.service_settings)
 
         if network_source == "rbac":
-            # RBAC-exposed networks: user must have admin/manager on source project
+            if user.is_staff:
+                return True
             source_project = network_obj.tenant.project
             return source_project.has_user(
                 user, ProjectRole.ADMIN
@@ -1724,7 +1726,7 @@ class SetExternalGatewaySerializer(serializers.Serializer):
         external_network_id = attrs["external_network_id"]
 
         network_source, network_obj = self._resolve_network_source(
-            external_network_id, router
+            external_network_id, router, user
         )
         if network_source is None:
             raise serializers.ValidationError(
