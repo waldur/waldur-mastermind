@@ -84,8 +84,10 @@ from waldur_mastermind.marketplace.enums import (
     OrderStates,
     ResourceStates,
     RobotAccountStates,
+    OPENSTACK_TENANT_OFFERING,
 )
 
+from waldur_mastermind.marketplace_openstack import get_mb_component_types
 from . import models, plugins
 from .enums import BASIC_OFFERING as BASIC_PLUGIN_NAME
 from .enums import OrderTypes
@@ -1186,16 +1188,27 @@ def get_components_usage_data(resources, for_current_month=False):
 
     Used by the Customer/Project stats endpoints. All usage data is
     sourced from ComponentUsage records (not current_usages snapshot).
+
+    Child offerings (OpenStack VM/Volume sub-offerings) are excluded so that
+    VPC-level allocation and individual-VM usage are not double-counted.
+    OpenStack RAM and storage values are stored in MB; they are divided by
+    1024 before returning so the caller always receives GB.
     """
-    from collections import defaultdict
+    MB_COMPONENT_TYPES = get_mb_component_types()
+
+    # Exclude child offerings (OpenStack VM/Volume) — their component usages
+    # overlap with the parent tenant offering and must not be summed together.
+    resources = resources.filter(offering__parent__isnull=True)
 
     offerings = models.Offering.objects.filter(
         id__in=resources.values_list("offering_id", flat=True)
     ).distinct()
 
-    components = models.OfferingComponent.objects.filter(
-        offering__in=offerings
-    ).distinct()
+    components = (
+        models.OfferingComponent.objects.filter(offering__in=offerings)
+        .select_related("offering")
+        .distinct()
+    )
 
     # Key by (component_type, billing_type) to avoid mixing usage and limit
     # components that share the same type name across different offerings.
@@ -1256,6 +1269,11 @@ def get_components_usage_data(resources, for_current_month=False):
             component_limit_usage[key] += limit_period_usage.get(component.type, 0)
 
     components_data = {}
+    # Track keys whose values need MB→GB conversion (OpenStack offerings only).
+    # Only marked when the first-writing component belongs to an OpenStack tenant
+    # offering, so a non-OpenStack offering that happens to share the same
+    # (type, billing_type) key is never incorrectly divided by 1024.
+    openstack_mb_keys: set[tuple[str, str]] = set()
     for component in components:
         key = (component.type, component.billing_type)
         if key not in components_data:
@@ -1271,6 +1289,21 @@ def get_components_usage_data(resources, for_current_month=False):
                 "offering_name": component.offering.name,
                 "offering_uuid": component.offering.uuid.hex,
             }
+            if (
+                component.offering.type == OPENSTACK_TENANT_OFFERING
+                and component.type in MB_COMPONENT_TYPES
+            ):
+                openstack_mb_keys.add(key)
+
+    # OpenStack persists RAM and storage in MB; convert to GB for the caller.
+    for key in openstack_mb_keys:
+        data = components_data[key]
+        data["usage"] = round(data["usage"] / 1024, 2)
+        data["limit_usage"] = round(data["limit_usage"] / 1024, 2)
+        if data["limit"] is not None:
+            data["limit"] = round(data["limit"] / 1024, 2)
+        if data["measured_unit"] == "MB":
+            data["measured_unit"] = "GB"
 
     return list(components_data.values())
 
@@ -1341,8 +1374,18 @@ def get_components_usage_data_per_offering(resources):
     yearly report year-to-date, total report lifetime, monthly report
     current month. The current period bounds are returned alongside
     each row so callers can render period-correct labels.
+
+    Child offerings (OpenStack VM/Volume sub-offerings) are excluded to
+    prevent double-counting with the parent tenant offering.
+    OpenStack RAM and storage values are stored in MB; they are divided
+    by 1024 before returning so the caller always receives GB.
     """
     today = datetime.date.today()
+    MB_COMPONENT_TYPES = get_mb_component_types()
+
+    # Exclude child offerings (OpenStack VM/Volume) — same rationale as
+    # get_components_usage_data: VPC-level and VM-level usages must not be summed.
+    resources = resources.filter(offering__parent__isnull=True)
 
     resources_by_offering = defaultdict(list)
     for resource in resources:
@@ -1403,16 +1446,30 @@ def get_components_usage_data_per_offering(resources):
             usage = 0.0
             limit_usage = 0.0
 
+        # OpenStack persists RAM and storage in MB; convert to GB for the caller.
+        measured_unit = component.measured_unit
+        limit_value = total_limit if any_limit else None
+        if (
+            offering.type == OPENSTACK_TENANT_OFFERING
+            and component.type in MB_COMPONENT_TYPES
+        ):
+            usage = round(usage / 1024, 2)
+            limit_usage = round(limit_usage / 1024, 2)
+            if limit_value is not None:
+                limit_value = round(limit_value / 1024, 2)
+            if measured_unit == "MB":
+                measured_unit = "GB"
+
         rows.append(
             {
                 "type": component.type,
                 "name": component.name,
                 "description": component.description,
-                "measured_unit": component.measured_unit,
+                "measured_unit": measured_unit,
                 "billing_type": component.billing_type,
                 "usage": usage,
                 "limit_usage": limit_usage,
-                "limit": total_limit if any_limit else None,
+                "limit": limit_value,
                 "offering_name": offering.name,
                 "offering_uuid": offering.uuid.hex,
                 "limit_period": component.limit_period,
