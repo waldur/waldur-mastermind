@@ -789,7 +789,7 @@ td:nth-child(4) {
 | `update_resource_scope_availability_on_offering_state_change` | `Django Signal (post_save)` | `marketplace.Offering` | No description |
 | `update_resource_state_on_order_creation` | `Django Signal (post_save)` | `marketplace.Order` | Update resource state when an order is created. |
 | `update_resource_state_on_order_rejection_error_or_cancellation` | `Django Signal (post_save)` | `marketplace.Order` | Update resource state when an order is rejected, erred or canceled. |
-| `validate_resource_creation_against_cost_policies` | `Custom Signal (resource_creation_validation)` | `—` | Proactively validate that creating a resource won't violate project cost policies. |
+| `validate_resource_creation_against_cost_policies` | `Custom Signal (resource_creation_validation)` | `—` | Proactively validate that creating a resource won't violate any cost policy |
 
 ## Application: `waldur_openportal`
 
