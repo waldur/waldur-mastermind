@@ -679,10 +679,38 @@ class OpenStackFloatingIPSerializer(structure_serializers.BaseResourceActionSeri
         attrs["project"] = tenant.project
 
         router = attrs.get("router")
-        if router and router.tenant != tenant:
-            raise serializers.ValidationError(
-                {"router": _("Router must belong to the same tenant.")}
-            )
+        if router:
+            if router.tenant != tenant:
+                raise serializers.ValidationError(
+                    {"router": _("Router must belong to the same tenant.")}
+                )
+            # When supplied, the router determines which network the FIP is
+            # allocated from (via detect_external_network). Apply the same
+            # is_shared / RBAC predicate as set_external_gateway so a consumer
+            # cannot indirectly target a provider-internal pool by picking a
+            # router whose gateway was set before WAL-9987 closed that hole.
+            ext_id = router.external_network_id
+            if ext_id:
+                user = self.context["request"].user
+                visible_global = (
+                    get_tenant_external_networks(tenant, user)
+                    .filter(backend_id=ext_id)
+                    .exists()
+                )
+                visible_rbac = models.Network.objects.filter(
+                    backend_id=ext_id,
+                    rbac_policies__target_tenant=tenant,
+                    rbac_policies__policy_type=models.NetworkRBACPolicy.NetworkShareType.EXTERNAL,
+                ).exists()
+                if not (visible_global or visible_rbac):
+                    raise serializers.ValidationError(
+                        {
+                            "router": _(
+                                "Router's external network is not available to you "
+                                "for floating IP allocation."
+                            )
+                        }
+                    )
 
         return super().validate(attrs)
 

@@ -771,6 +771,73 @@ class TenantCreateFloatingIPTest(BaseTenantActionsTest):
         self.assertIn("router", executor_kwargs)
         self.assertEqual(executor_kwargs["router"], router)
 
+    def test_create_floating_ip_with_router_on_non_shared_external_is_denied(
+        self, mocked_task
+    ):
+        # WAL-9991: project admin (consumer-side, not a customer owner) must not
+        # be able to indirectly target a provider-internal pool by picking a
+        # router whose gateway points at a non-shared external network.
+        private_net = factories.ExternalNetworkFactory(
+            settings=self.fixture.settings,
+            backend_id="private-ext-fip",
+            is_shared=False,
+        )
+        router = factories.RouterFactory(
+            tenant=self.tenant,
+            external_network_id=private_net.backend_id,
+            external_network_ref=private_net,
+        )
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.post(
+            self.url,
+            {"router": factories.RouterFactory.get_url(router)},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("router", response.data)
+        mocked_task.assert_not_called()
+
+    def test_create_floating_ip_with_router_on_shared_external_is_allowed(
+        self, mocked_task
+    ):
+        shared_net = factories.ExternalNetworkFactory(
+            settings=self.fixture.settings,
+            backend_id="shared-ext-fip",
+            is_shared=True,
+        )
+        router = factories.RouterFactory(
+            tenant=self.tenant,
+            external_network_id=shared_net.backend_id,
+            external_network_ref=shared_net,
+        )
+        self.client.force_authenticate(self.fixture.admin)
+        response = self.client.post(
+            self.url,
+            {"router": factories.RouterFactory.get_url(router)},
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        mocked_task.assert_called_once()
+
+    def test_create_floating_ip_with_router_on_non_shared_external_allowed_for_staff(
+        self, mocked_task
+    ):
+        private_net = factories.ExternalNetworkFactory(
+            settings=self.fixture.settings,
+            backend_id="private-ext-fip-staff",
+            is_shared=False,
+        )
+        router = factories.RouterFactory(
+            tenant=self.tenant,
+            external_network_id=private_net.backend_id,
+            external_network_ref=private_net,
+        )
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.post(
+            self.url,
+            {"router": factories.RouterFactory.get_url(router)},
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED, response.data)
+        mocked_task.assert_called_once()
+
 
 @patch("waldur_openstack.executors.NetworkCreateExecutor.execute")
 class TenantCreateNetworkTest(BaseTenantActionsTest):
