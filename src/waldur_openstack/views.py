@@ -1560,10 +1560,7 @@ class RouterViewSet(core_mixins.ExecutorMixin, core_views.ActionsViewSet):
         tenant = router.tenant
         result = []
 
-        # Global external networks
-        for ext_net in models.ExternalNetwork.objects.filter(
-            settings=tenant.service_settings
-        ):
+        for ext_net in utils.get_tenant_external_networks(tenant, request.user):
             subnets = [
                 {
                     "backend_id": s.backend_id,

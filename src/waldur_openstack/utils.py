@@ -2,6 +2,7 @@ from django.utils.translation import gettext_lazy as _
 
 from waldur_core.core import exceptions as core_exceptions
 from waldur_core.core.utils import stable_topological_sort
+from waldur_core.permissions.fixtures import CustomerRole
 from waldur_openstack.models import (
     CustomerOpenStack,
     ExternalNetwork,
@@ -42,6 +43,34 @@ def get_valid_availability_zones(instance):
     return (
         instance.tenant.service_settings.options.get("valid_availability_zones") or {}
     )
+
+
+def is_openstack_service_provider(user, service_settings) -> bool:
+    """User is staff or owner of the customer that owns the OpenStack service settings.
+
+    Provider users can manage provider-internal resources (non-shared externals,
+    advanced gateway options); consumer-side users may not.
+    """
+    if user.is_staff:
+        return True
+    customer = service_settings.customer
+    if customer is None:
+        return False
+    return customer.has_user(user, CustomerRole.OWNER)
+
+
+def get_tenant_external_networks(tenant: Tenant, user):
+    """Global ExternalNetwork rows usable as gateway by `user` on routers in `tenant`.
+
+    Non-shared external networks are provider-internal (e.g. management or
+    upstream-peering pools) and must not be exposed to consumer-side users, even
+    if Neutron has synced them into the deployment-wide catalog. Providers
+    (staff or service settings customer owners) still see the full set.
+    """
+    qs = ExternalNetwork.objects.filter(settings=tenant.service_settings)
+    if not is_openstack_service_provider(user, tenant.service_settings):
+        qs = qs.filter(is_shared=True)
+    return qs
 
 
 def get_external_network(tenant: Tenant) -> ExternalNetwork | None:

@@ -4,9 +4,12 @@ from ddt import data, ddt
 from django.test import override_settings
 from rest_framework import status, test
 
+from waldur_core.core.enums import CoreStates
 from waldur_core.logging import models as logging_models
 from waldur_core.logging.enums import EventType
-from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.permissions.enums import PermissionEnum
+from waldur_core.permissions.fixtures import CustomerRole, ProjectRole
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_openstack import models
 
 from . import factories, fixtures
@@ -504,6 +507,166 @@ class SetExternalGatewayRBACNetworkTest(BaseExternalGatewayTest):
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         executor_mock.assert_not_called()
+
+
+@ddt
+@mock.patch("waldur_openstack.executors.RouterSetExternalGatewayExecutor.execute")
+class ExternalGatewayTenantScopeTest(test.APITransactionTestCase):
+    """Regression tests for WAL-9987: consumer-side users must not be able to
+    attach a router to a provider-internal (non-shared) external network, even
+    by calling the API directly and bypassing the homeport dropdown.
+    """
+
+    def setUp(self):
+        # Provider side: a customer owning the OpenStack service settings.
+        self.provider_customer = structure_factories.CustomerFactory()
+        self.provider_owner = structure_factories.UserFactory()
+        self.provider_customer.add_user(self.provider_owner, CustomerRole.OWNER)
+
+        # Consumer side: a different customer + project under it.
+        self.consumer_customer = structure_factories.CustomerFactory()
+        self.consumer_project = structure_factories.ProjectFactory(
+            customer=self.consumer_customer
+        )
+        self.consumer_owner = structure_factories.UserFactory()
+        self.consumer_customer.add_user(self.consumer_owner, CustomerRole.OWNER)
+        self.consumer_admin = structure_factories.UserFactory()
+        self.consumer_project.add_user(self.consumer_admin, ProjectRole.ADMIN)
+        self.consumer_manager = structure_factories.UserFactory()
+        self.consumer_project.add_user(self.consumer_manager, ProjectRole.MANAGER)
+        self.staff = structure_factories.UserFactory(is_staff=True)
+
+        # Roles need the gateway permission for the role check to reach the
+        # network-scope validation we want to exercise.
+        CustomerRole.OWNER.add_permission(
+            PermissionEnum.CAN_MANAGE_OPENSTACK_ROUTER_GATEWAY
+        )
+        ProjectRole.ADMIN.add_permission(
+            PermissionEnum.CAN_MANAGE_OPENSTACK_ROUTER_GATEWAY
+        )
+        ProjectRole.MANAGER.add_permission(
+            PermissionEnum.CAN_MANAGE_OPENSTACK_ROUTER_GATEWAY
+        )
+
+        # Service settings owned by the provider, shared with consumers.
+        self.settings = factories.SettingsFactory(
+            customer=self.provider_customer,
+            shared=True,
+            state=CoreStates.OK,
+        )
+        self.tenant = factories.TenantFactory(
+            service_settings=self.settings, project=self.consumer_project
+        )
+        self.router = factories.RouterFactory(
+            tenant=self.tenant,
+            project=self.consumer_project,
+            service_settings=self.settings,
+        )
+
+        # Two global external networks on the provider's deployment:
+        # one explicitly shared with tenants, one provider-internal.
+        self.shared_net = factories.ExternalNetworkFactory(
+            settings=self.settings, backend_id="shared-ext", is_shared=True
+        )
+        self.private_net = factories.ExternalNetworkFactory(
+            settings=self.settings, backend_id="private-ext", is_shared=False
+        )
+
+        self.set_url = factories.RouterFactory.get_url(
+            self.router, action="set_external_gateway"
+        )
+        self.available_url = factories.RouterFactory.get_url(
+            self.router, action="available_external_networks"
+        )
+
+    def _post_set(self, network):
+        return self.client.post(
+            self.set_url, {"external_network_id": network.backend_id}
+        )
+
+    @data("consumer_owner", "consumer_admin", "consumer_manager")
+    def test_consumer_user_can_attach_shared_external_network(
+        self, user, executor_mock
+    ):
+        self.client.force_authenticate(getattr(self, user))
+        response = self._post_set(self.shared_net)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+
+    @data("consumer_owner", "consumer_admin", "consumer_manager")
+    def test_consumer_user_cannot_attach_non_shared_external_network(
+        self, user, executor_mock
+    ):
+        """Direct API call bypassing the dropdown must still be rejected."""
+        self.client.force_authenticate(getattr(self, user))
+        response = self._post_set(self.private_net)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("external_network_id", response.data)
+        executor_mock.assert_not_called()
+        self.router.refresh_from_db()
+        self.assertEqual(self.router.external_network_id, "")
+
+    def test_staff_can_attach_non_shared_external_network(self, executor_mock):
+        self.client.force_authenticate(self.staff)
+        response = self._post_set(self.private_net)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+
+    def test_provider_owner_can_attach_non_shared_external_network(self, executor_mock):
+        """Provider's customer owner can attach a non-shared global network on
+        consumer's router when they are also granted access to the project
+        (the typical Waldur configuration for service-provider operators)."""
+        self.consumer_project.add_user(self.provider_owner, ProjectRole.ADMIN)
+        self.client.force_authenticate(self.provider_owner)
+        response = self._post_set(self.private_net)
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+
+    def test_consumer_user_can_attach_rbac_shared_network(self, executor_mock):
+        """RBAC-shared networks remain attachable regardless of is_shared."""
+        rbac_source = fixtures.OpenStackFixture()
+        rbac_network = factories.NetworkFactory(
+            tenant=rbac_source.tenant,
+            project=rbac_source.project,
+            service_settings=rbac_source.settings,
+            backend_id="rbac-ext",
+        )
+        factories.NetworkRBACPolicyFactory(
+            network=rbac_network,
+            target_tenant=self.tenant,
+            policy_type=models.NetworkRBACPolicy.NetworkShareType.EXTERNAL,
+        )
+        self.client.force_authenticate(self.consumer_admin)
+        response = self.client.post(
+            self.set_url, {"external_network_id": rbac_network.backend_id}
+        )
+        self.assertEqual(response.status_code, status.HTTP_202_ACCEPTED, response.data)
+
+    def test_available_external_networks_hides_non_shared_from_consumer(
+        self, executor_mock
+    ):
+        self.client.force_authenticate(self.consumer_admin)
+        response = self.client.get(self.available_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        backend_ids = {n["backend_id"] for n in response.data}
+        self.assertIn(self.shared_net.backend_id, backend_ids)
+        self.assertNotIn(self.private_net.backend_id, backend_ids)
+
+    def test_available_external_networks_shows_non_shared_to_staff(self, executor_mock):
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(self.available_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        backend_ids = {n["backend_id"] for n in response.data}
+        self.assertIn(self.shared_net.backend_id, backend_ids)
+        self.assertIn(self.private_net.backend_id, backend_ids)
+
+    def test_available_external_networks_shows_non_shared_to_provider_owner(
+        self, executor_mock
+    ):
+        self.consumer_project.add_user(self.provider_owner, ProjectRole.ADMIN)
+        self.client.force_authenticate(self.provider_owner)
+        response = self.client.get(self.available_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        backend_ids = {n["backend_id"] for n in response.data}
+        self.assertIn(self.shared_net.backend_id, backend_ids)
+        self.assertIn(self.private_net.backend_id, backend_ids)
 
 
 @mock.patch("waldur_openstack.executors.RouterRemoveExternalGatewayExecutor.execute")
