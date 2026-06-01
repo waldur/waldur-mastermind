@@ -1782,8 +1782,10 @@ class CategoryViewSet(PublicViewsetMixin, EagerLoadMixin, core_views.ActionsView
     queryset = models.Category.objects.all()
     serializer_class = serializers.MarketplaceCategorySerializer
     lookup_field = "uuid"
-    filter_backends = (DjangoFilterBackend,)
+    filter_backends = (DjangoFilterBackend, OrderingFilter)
     filterset_class = filters.CategoryFilter
+    ordering_fields = ("title", "group__title")
+    ordering = ("group__title", "title")
 
     create_permissions = update_permissions = partial_update_permissions = (
         destroy_permissions
