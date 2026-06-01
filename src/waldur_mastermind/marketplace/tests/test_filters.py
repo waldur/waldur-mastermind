@@ -8,7 +8,7 @@ from waldur_core.core import utils as core_utils
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_mastermind.common.utils import parse_datetime
-from waldur_mastermind.marketplace import plugins
+from waldur_mastermind.marketplace import models, plugins
 from waldur_mastermind.marketplace.enums import (
     OfferingStates,
     OrderStates,
@@ -415,6 +415,48 @@ class CategoryFilterTest(test.APITestCase):
         response = self.client.get(self.url, {"has_shared": True})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 1)
+
+
+class CategoryOrderingTest(test.APITestCase):
+    def setUp(self):
+        self.url = factories.CategoryFactory.get_list_url()
+        self.staff = structure_factories.UserFactory(is_staff=True)
+        models.Category.objects.all().delete()
+
+        self.group_a = factories.CategoryGroupFactory(title="Alpha")
+        self.group_b = factories.CategoryGroupFactory(title="Beta")
+        self.cat_b_storage = factories.CategoryFactory(
+            title="Storage", group=self.group_b
+        )
+        self.cat_a_storage = factories.CategoryFactory(
+            title="Storage", group=self.group_a
+        )
+        self.cat_a_compute = factories.CategoryFactory(
+            title="Compute", group=self.group_a
+        )
+
+    def _uuids(self, response):
+        return [row["uuid"] for row in response.data if row["group"]]
+
+    def test_default_ordering_is_by_group_then_title(self):
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            self._uuids(response),
+            [
+                self.cat_a_compute.uuid.hex,
+                self.cat_a_storage.uuid.hex,
+                self.cat_b_storage.uuid.hex,
+            ],
+        )
+
+    def test_ordering_by_title_desc(self):
+        self.client.force_authenticate(self.staff)
+        response = self.client.get(self.url, {"o": "-title"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        titles = [row["title"] for row in response.data]
+        self.assertEqual(titles, sorted(titles, reverse=True))
 
 
 class PlanComponentFilterTest(test.APITestCase):
