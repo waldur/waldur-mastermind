@@ -5,6 +5,7 @@ from rest_framework import status, test
 
 from waldur_core.logging.enums import EventType
 from waldur_core.permissions.fixtures import ProjectRole
+from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures as structure_fixtures
 from waldur_openstack import models
 
@@ -83,6 +84,28 @@ class CreateRbacPolicyTest(test.APITestCase):
         }
         response = self.client.post(self.url, payload)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_user_with_only_target_tenant_permissions_cannot_create_rbac_policy(self):
+        # Symmetric guard for the source-side AND-clause in
+        # NetworkRBACPolicyViewSet._check_rbac_policy_permissions: a user who is
+        # only an admin on the *recipient* tenant must not be able to share
+        # someone else's network into their own tenant.
+        target_only_admin = structure_factories.UserFactory()
+        self.target_tenant.project.add_user(target_only_admin, ProjectRole.ADMIN)
+
+        self.client.force_authenticate(target_only_admin)
+        payload = {
+            "network": factories.NetworkFactory.get_url(self.network),
+            "target_tenant": factories.TenantFactory.get_url(self.target_tenant),
+            "policy_type": models.NetworkRBACPolicy.NetworkShareType.SHARED,
+        }
+        response = self.client.post(self.url, payload)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertFalse(
+            models.NetworkRBACPolicy.objects.filter(
+                network=self.network, target_tenant=self.target_tenant
+            ).exists()
+        )
 
 
 @ddt
