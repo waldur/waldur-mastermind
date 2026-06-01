@@ -58,7 +58,6 @@ from waldur_mastermind.marketplace.enums import (
     RobotAccountStates,
     ServiceAccountState,
 )
-from waldur_mastermind.marketplace.exceptions import PolicyException
 from waldur_mastermind.notifications import models as notifications_models
 from waldur_pid import mixins as pid_mixins
 
@@ -1605,17 +1604,14 @@ class CostEstimateMixin(models.Model):
     def init_cost(self):
         if not self.plan:
             return
-        try:
-            start_date, end_date = self._get_cost_dates()
-            self.cost = self.plan.get_estimate(self.limits, start_date, end_date)
+        start_date, end_date = self._get_cost_dates()
+        self.cost = self.plan.get_estimate(self.limits, start_date, end_date)
 
-            # Proactive policy validation for new resources
-            if self._should_validate_cost_policies():
-                self._validate_project_cost_policies()
-
-        except PolicyException:
-            self.set_state_erred()
-            self.error_message = "Policy is violated."
+        # Proactive policy validation for new resources. PolicyException is
+        # a DRF ValidationError, so letting it propagate yields HTTP 400
+        # from OrderCreateSerializer.create and rolls back the transaction.
+        if self._should_validate_cost_policies():
+            self._validate_project_cost_policies()
 
     def _should_validate_cost_policies(self):
         """
@@ -2349,6 +2345,29 @@ class Order(
                 self.cost += self.plan.non_prepaid_init_price
             elif self.type == OrderTypes.UPDATE:
                 self.cost += self.plan.switch_price
+        # Pre-flight check for UPDATE / plan-switch orders. CREATE orders are
+        # validated at Resource.init_cost; here we cover the case where an
+        # existing resource is scaled up or moved to a more expensive plan
+        # and the increase would push the customer/project/offering over a
+        # cost policy limit [HPCMP-484].
+        self._validate_update_cost_policies()
+
+    def _validate_update_cost_policies(self):
+        if self.pk is not None:
+            return
+        if self.type != OrderTypes.UPDATE or not self.resource_id:
+            return
+        if self.cost is None:
+            return
+        old_cost = self.resource.cost or 0
+        delta = self.cost - old_cost
+        if delta <= 0:
+            return
+        signals.resource_creation_validation.send(
+            sender=type(self.resource),
+            resource=self.resource,
+            cost=delta,
+        )
 
     @property
     def fixed_price(self) -> float:
