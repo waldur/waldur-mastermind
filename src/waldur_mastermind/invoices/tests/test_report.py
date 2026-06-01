@@ -1,13 +1,15 @@
 import datetime
+from decimal import Decimal
+from types import SimpleNamespace
 from unittest import mock
 
-from django.test import TransactionTestCase
+from django.test import SimpleTestCase, TransactionTestCase
 from django.utils import timezone
 from freezegun import freeze_time
 
 from waldur_core.core.tests.helpers import override_waldur_core_settings
 from waldur_mastermind.common.enums import Units
-from waldur_mastermind.invoices import models, tasks
+from waldur_mastermind.invoices import models, serializers, tasks
 from waldur_mastermind.invoices import utils as invoices_utils
 from waldur_mastermind.invoices.tasks import format_invoice_csv
 from waldur_mastermind.invoices.tests import factories, fixtures, utils
@@ -106,6 +108,13 @@ class SafReportFormatterTest(BaseReportFormatterTest):
         report = format_invoice_csv(self.invoice)
         lines = report.splitlines()[1:]
         self.assertEqual(0, len(lines))
+
+
+class SAPReportCondValueTest(SimpleTestCase):
+    def test_cond_value_uses_comma_decimal_separator_without_system_locale(self):
+        serializer = serializers.SAPReportSerializer()
+        item = SimpleNamespace(unit_price=Decimal("1234.5"))
+        self.assertEqual(serializer.get_cond_value(item), "1234,5000")
 
 
 @freeze_time("2017-11-01")
