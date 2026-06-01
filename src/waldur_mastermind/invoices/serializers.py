@@ -608,10 +608,7 @@ class SAPReportSerializer(serializers.Serializer):
             )
 
     def get_cond_value(self, invoice_item):
-        import locale
-
-        locale.setlocale(locale.LC_ALL, "de_DE.UTF-8")
-        return locale.format_string("%.4f", invoice_item.unit_price)
+        return f"{invoice_item.unit_price:.4f}".replace(".", ",")
 
     def get_material_code(self, invoice_item):
         try:
