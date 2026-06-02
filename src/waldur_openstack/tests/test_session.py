@@ -187,6 +187,30 @@ class TestPlacementClient:
         assert result == {"VCPU": {"total": 40, "reserved": 0}}
         assert "/resource_providers/rp-uuid/inventories" in session.get.call_args.args
 
+    def test_get_traits_returns_traits_list(self):
+        response = mock.MagicMock()
+        response.json.return_value = {
+            "traits": ["HW_CPU_X86_AVX2", "STORAGE_DISK_SSD", "CUSTOM_GOLD"],
+            "resource_provider_generation": 7,
+        }
+        session = mock.MagicMock()
+        session.get.return_value = response
+
+        client = PlacementClient(session)
+        result = client.get_traits("rp-uuid")
+
+        assert result == ["HW_CPU_X86_AVX2", "STORAGE_DISK_SSD", "CUSTOM_GOLD"]
+        assert "/resource_providers/rp-uuid/traits" in session.get.call_args.args
+
+    def test_get_traits_returns_empty_list_when_absent(self):
+        response = mock.MagicMock()
+        response.json.return_value = {}
+        session = mock.MagicMock()
+        session.get.return_value = response
+
+        client = PlacementClient(session)
+        assert client.get_traits("rp-uuid") == []
+
     def test_pinned_microversion_header_is_sent(self):
         # Without this header Placement defaults to microversion 1.0 and
         # silently drops parent_provider_uuid/traits/aggregates that downstream

@@ -160,6 +160,11 @@ class ExternalNetworkFilter(structure_filters.ServicePropertySettingsFilter):
 
 
 class HypervisorFilter(structure_filters.ServicePropertySettingsFilter):
+    trait = django_filters.CharFilter(
+        method="filter_traits_and",
+        label="Trait names with AND logic (comma-separated)",
+    )
+
     class Meta(structure_filters.ServicePropertySettingsFilter.Meta):
         model = models.Hypervisor
         fields = structure_filters.ServicePropertySettingsFilter.Meta.fields + (
@@ -167,6 +172,21 @@ class HypervisorFilter(structure_filters.ServicePropertySettingsFilter):
             "state",
             "status",
         )
+
+    def filter_traits_and(self, queryset, name, value):
+        """Filter hypervisors that have ALL specified traits (AND logic).
+
+        Accepts comma-separated trait names (case-insensitive exact match);
+        a single value degenerates to a plain single-trait filter. Note that
+        CUSTOM_* trait names are only meaningful within a single source, so
+        callers should scope by settings_uuid when filtering on them.
+        """
+        if not value:
+            return queryset
+        names = [n.strip() for n in value.split(",") if n.strip()]
+        for trait_name in names:
+            queryset = queryset.filter(traits__name__iexact=trait_name)
+        return queryset.distinct()
 
 
 class HypervisorInventoryFilter(django_filters.FilterSet):

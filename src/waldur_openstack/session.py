@@ -247,6 +247,15 @@ class PlacementClient:
     def get_usages(self, rp_uuid):
         return self._get(f"/resource_providers/{rp_uuid}/usages").get("usages", {})
 
+    def get_traits(self, rp_uuid):
+        """Return the list of trait names associated with a resource provider.
+
+        Placement responds with ``{"traits": [...], "resource_provider_generation": N}``;
+        we only surface the names. Requires microversion 1.6+ (covered by the
+        pinned 1.36).
+        """
+        return self._get(f"/resource_providers/{rp_uuid}/traits").get("traits", [])
+
     def list_allocation_candidates(self, resources, required=None, limit=None):
         """Pre-flight scheduler check: ask Placement which resource providers
         could currently satisfy a request for the given resources (and traits,

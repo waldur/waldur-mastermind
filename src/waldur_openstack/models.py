@@ -351,6 +351,31 @@ class ExternalNetwork(core_models.DescribableMixin, structure_models.ServiceProp
         return self.settings.get_backend()
 
 
+class Trait(core_models.UuidMixin, models.Model):
+    """OpenStack Placement trait — a capability flag on a resource provider.
+
+    Examples: HW_CPU_X86_AVX2, STORAGE_DISK_SSD, COMPUTE_ACCELERATORS,
+    HW_GPU_API_VULKAN, CUSTOM_*.
+
+    This is a global catalog keyed by ``name``: standard traits (the os-traits
+    catalog) mean the same thing on every cloud, so deduplicating them across
+    all ServiceSettings is correct. CUSTOM_* traits, however, are operator-
+    defined and are only guaranteed to be meaningful within a single source /
+    ServiceSettings — two unrelated clouds may both define CUSTOM_GOLD_TIER
+    with different semantics. Because hypervisor queries are normally scoped by
+    settings_uuid this is harmless in practice, but filtering hypervisors by a
+    CUSTOM_* trait WITHOUT scoping by settings is not semantically safe.
+    """
+
+    name = models.CharField(max_length=255, unique=True)
+
+    class Meta:
+        ordering = ("name",)
+
+    def __str__(self):
+        return self.name
+
+
 class Hypervisor(structure_models.ServiceProperty):
     """OpenStack hypervisor node pulled from Nova admin API.
 
@@ -359,6 +384,13 @@ class Hypervisor(structure_models.ServiceProperty):
 
     class Permissions:
         customer_path = "settings__customer"
+
+    traits = models.ManyToManyField(
+        Trait,
+        related_name="hypervisors",
+        blank=True,
+        help_text=_("Placement traits (capability flags) reported for this host."),
+    )
 
     hypervisor_type = models.CharField(
         max_length=50,

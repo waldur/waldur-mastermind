@@ -461,6 +461,8 @@ class InstancePlacementAllocationSerializer(serializers.Serializer):
 
 
 class HypervisorSerializer(structure_serializers.BasePropertySerializer):
+    traits = serializers.SlugRelatedField(slug_field="name", many=True, read_only=True)
+
     class Meta(structure_serializers.BasePropertySerializer.Meta):
         model = models.Hypervisor
         fields = (
@@ -479,6 +481,7 @@ class HypervisorSerializer(structure_serializers.BasePropertySerializer):
             "running_vms",
             "state",
             "status",
+            "traits",
         )
         extra_kwargs = {
             "url": {"lookup_field": "uuid"},

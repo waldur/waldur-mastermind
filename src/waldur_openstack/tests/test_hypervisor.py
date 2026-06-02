@@ -118,6 +118,73 @@ class HypervisorApiTest(test.APITestCase):
         for h in response.data:
             self.assertEqual(h["hypervisor_type"], "KVM")
 
+    def test_retrieve_exposes_traits_as_name_list(self):
+        avx2 = factories.TraitFactory(name="HW_CPU_X86_AVX2")
+        ssd = factories.TraitFactory(name="STORAGE_DISK_SSD")
+        self.hypervisor.traits.set([avx2, ssd])
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(factories.HypervisorFactory.get_url(self.hypervisor))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            sorted(response.data["traits"]), ["HW_CPU_X86_AVX2", "STORAGE_DISK_SSD"]
+        )
+
+    def test_filter_by_single_trait(self):
+        ssd = factories.TraitFactory(name="STORAGE_DISK_SSD")
+        self.hypervisor.traits.set([ssd])
+        # Another host without the trait must be excluded.
+        factories.HypervisorFactory(settings=self.fixture.settings)
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            factories.HypervisorFactory.get_list_url(),
+            {
+                "settings_uuid": self.fixture.settings.uuid.hex,
+                "trait": "STORAGE_DISK_SSD",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        uuids = [h["uuid"] for h in response.data]
+        self.assertEqual(uuids, [self.hypervisor.uuid.hex])
+
+    def test_filter_by_single_trait_is_case_insensitive(self):
+        ssd = factories.TraitFactory(name="STORAGE_DISK_SSD")
+        self.hypervisor.traits.set([ssd])
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            factories.HypervisorFactory.get_list_url(),
+            {
+                "settings_uuid": self.fixture.settings.uuid.hex,
+                "trait": "storage_disk_ssd",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        uuids = [h["uuid"] for h in response.data]
+        self.assertIn(self.hypervisor.uuid.hex, uuids)
+
+    def test_filter_by_multiple_traits_uses_and_logic(self):
+        avx2 = factories.TraitFactory(name="HW_CPU_X86_AVX2")
+        ssd = factories.TraitFactory(name="STORAGE_DISK_SSD")
+        # This host has both traits.
+        self.hypervisor.traits.set([avx2, ssd])
+        # This host has only one of them and must be excluded by AND logic.
+        partial = factories.HypervisorFactory(settings=self.fixture.settings)
+        partial.traits.set([avx2])
+
+        self.client.force_authenticate(self.fixture.staff)
+        response = self.client.get(
+            factories.HypervisorFactory.get_list_url(),
+            {
+                "settings_uuid": self.fixture.settings.uuid.hex,
+                "trait": "HW_CPU_X86_AVX2,STORAGE_DISK_SSD",
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        uuids = [h["uuid"] for h in response.data]
+        self.assertEqual(uuids, [self.hypervisor.uuid.hex])
+
     def test_list_is_read_only(self):
         self.client.force_authenticate(self.fixture.staff)
         response = self.client.post(
@@ -312,12 +379,14 @@ class PullHypervisorsTest(test.APITestCase):
         self.mock_placement = self.placement_patcher.start()
         # Default: empty placement (resource provider list returns nothing).
         self.mock_placement.return_value.list_resource_providers.return_value = []
+        # Default: no traits on any resource provider (overridden per-test).
+        self.mock_placement.return_value.get_traits.return_value = []
         mock_session()
 
     def tearDown(self):
         mock.patch.stopall()
 
-    def _set_placement(self, hostname_to_capacity):
+    def _set_placement(self, hostname_to_capacity, hostname_to_traits=None):
         """Convenience: set up Placement mock to return one resource provider
         per hostname with the given (vcpus, memory_mb, local_gb) capacity and
         usage tuples. Format:
@@ -329,10 +398,15 @@ class PullHypervisorsTest(test.APITestCase):
           },
           ...
         }
+
+        Optionally, ``hostname_to_traits`` maps the same hostnames to a list of
+        Placement trait names, e.g. {"oscompute01": ["HW_CPU_X86_AVX2"]}.
         """
+        hostname_to_traits = hostname_to_traits or {}
         rps = []
         inventories_by_uuid = {}
         usages_by_uuid = {}
+        traits_by_uuid = {}
         for idx, (hostname, classes) in enumerate(hostname_to_capacity.items()):
             uuid_str = f"rp-uuid-{idx}"
             rps.append({"uuid": uuid_str, "name": hostname})
@@ -347,12 +421,16 @@ class PullHypervisorsTest(test.APITestCase):
             usages_by_uuid[uuid_str] = {
                 cls: used for cls, (_, _, _, used) in classes.items()
             }
+            traits_by_uuid[uuid_str] = list(hostname_to_traits.get(hostname, []))
         self.mock_placement.return_value.list_resource_providers.return_value = rps
         self.mock_placement.return_value.get_inventories.side_effect = (
             lambda u: inventories_by_uuid.get(u, {})
         )
         self.mock_placement.return_value.get_usages.side_effect = (
             lambda u: usages_by_uuid.get(u, {})
+        )
+        self.mock_placement.return_value.get_traits.side_effect = (
+            lambda u: traits_by_uuid.get(u, [])
         )
 
     def _make_remote_hypervisor(self, id, hostname, hypervisor_type="KVM", **kwargs):
@@ -577,6 +655,100 @@ class PullHypervisorsTest(test.APITestCase):
         hypervisor.refresh_from_db()
         self.assertFalse(hypervisor.inventories.filter(resource_class="VGPU").exists())
         self.assertTrue(hypervisor.inventories.filter(resource_class="VCPU").exists())
+
+    def test_traits_are_populated_from_placement(self):
+        remote = self._make_remote_hypervisor(1, "oscompute01")
+        self.mock_nova.return_value.hypervisors.list.return_value = [remote]
+        self._set_placement(
+            {"oscompute01": {"VCPU": (40, 0, 1.0, 2)}},
+            {"oscompute01": ["HW_CPU_X86_AVX2", "STORAGE_DISK_SSD"]},
+        )
+
+        backend = OpenStackBackend(self.fixture.settings)
+        backend.pull_hypervisors()
+
+        hypervisor = models.Hypervisor.objects.get(
+            settings=self.fixture.settings, backend_id="1"
+        )
+        self.assertEqual(
+            set(hypervisor.traits.values_list("name", flat=True)),
+            {"HW_CPU_X86_AVX2", "STORAGE_DISK_SSD"},
+        )
+
+    def test_custom_trait_round_trips(self):
+        remote = self._make_remote_hypervisor(1, "oscompute01")
+        self.mock_nova.return_value.hypervisors.list.return_value = [remote]
+        self._set_placement(
+            {"oscompute01": {"VCPU": (40, 0, 1.0, 2)}},
+            {"oscompute01": ["CUSTOM_GOLD_TIER"]},
+        )
+
+        backend = OpenStackBackend(self.fixture.settings)
+        backend.pull_hypervisors()
+
+        hypervisor = models.Hypervisor.objects.get(
+            settings=self.fixture.settings, backend_id="1"
+        )
+        self.assertEqual(
+            list(hypervisor.traits.values_list("name", flat=True)),
+            ["CUSTOM_GOLD_TIER"],
+        )
+
+    def test_trait_removed_from_provider_is_detached_on_next_pull(self):
+        remote = self._make_remote_hypervisor(1, "oscompute01")
+        self.mock_nova.return_value.hypervisors.list.return_value = [remote]
+        # First pull: two traits present.
+        self._set_placement(
+            {"oscompute01": {"VCPU": (40, 0, 1.0, 2)}},
+            {"oscompute01": ["HW_CPU_X86_AVX2", "STORAGE_DISK_SSD"]},
+        )
+        backend = OpenStackBackend(self.fixture.settings)
+        backend.pull_hypervisors()
+        hypervisor = models.Hypervisor.objects.get(
+            settings=self.fixture.settings, backend_id="1"
+        )
+        self.assertEqual(hypervisor.traits.count(), 2)
+
+        # Second pull: SSD trait dropped from the resource provider.
+        self._set_placement(
+            {"oscompute01": {"VCPU": (40, 0, 1.0, 2)}},
+            {"oscompute01": ["HW_CPU_X86_AVX2"]},
+        )
+        backend.pull_hypervisors()
+        hypervisor.refresh_from_db()
+        self.assertEqual(
+            list(hypervisor.traits.values_list("name", flat=True)),
+            ["HW_CPU_X86_AVX2"],
+        )
+        # The Trait row stays in the catalog even though no host references it.
+        self.assertTrue(models.Trait.objects.filter(name="STORAGE_DISK_SSD").exists())
+
+    def test_trait_is_shared_between_hypervisors(self):
+        remotes = [
+            self._make_remote_hypervisor(1, "oscompute01"),
+            self._make_remote_hypervisor(2, "oscompute02"),
+        ]
+        self.mock_nova.return_value.hypervisors.list.return_value = remotes
+        self._set_placement(
+            {
+                "oscompute01": {"VCPU": (40, 0, 1.0, 2)},
+                "oscompute02": {"VCPU": (40, 0, 1.0, 2)},
+            },
+            {
+                "oscompute01": ["STORAGE_DISK_SSD"],
+                "oscompute02": ["STORAGE_DISK_SSD"],
+            },
+        )
+
+        backend = OpenStackBackend(self.fixture.settings)
+        backend.pull_hypervisors()
+
+        # A single Trait row is shared via the M2M, not duplicated per host.
+        self.assertEqual(
+            models.Trait.objects.filter(name="STORAGE_DISK_SSD").count(), 1
+        )
+        trait = models.Trait.objects.get(name="STORAGE_DISK_SSD")
+        self.assertEqual(trait.hypervisors.count(), 2)
 
 
 class HypervisorInventoryApiTest(test.APITestCase):
