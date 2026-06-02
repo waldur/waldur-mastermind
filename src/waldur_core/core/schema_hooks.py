@@ -272,6 +272,28 @@ def _make_fields_optional(schema_obj, full_schema):
                 _make_fields_optional(sub_schema, full_schema)
 
 
+def relax_user_optional_fields(result, generator, **kwargs):
+    """
+    Mark fields that UserSerializer.get_fields() may strip from the response
+    as optional in the generated schema, so SDKs do not require them.
+    """
+    optional_fields = {
+        "token",
+        "token_lifetime",
+        "attribute_sources",
+        "active_isds",
+        "has_active_session",
+        "has_usable_password",
+    }
+    schemas = result.get("components", {}).get("schemas", {})
+    for schema_name in ("User", "UserMe"):
+        schema = schemas.get(schema_name)
+        if not schema or "required" not in schema:
+            continue
+        schema["required"] = [f for f in schema["required"] if f not in optional_fields]
+    return result
+
+
 def remove_waldur_cookie_auth(result, generator, **kwargs):
     """
     Remove waldurCookieAuth from security schemes in an OpenAPI schema.
