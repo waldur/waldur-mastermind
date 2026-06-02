@@ -1,3 +1,4 @@
+import socket
 import warnings
 from datetime import timedelta
 
@@ -41,8 +42,10 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 # "prepared statement _pg3_N does not exist" errors.
 CELERY_DATABASE_ENGINE_OPTIONS = {"connect_args": {"prepare_threshold": None}}
 
-# Memory management - restart workers after N tasks to prevent memory leaks
-CELERY_WORKER_MAX_TASKS_PER_CHILD = 100
+# Memory management - restart workers after N tasks to prevent memory leaks.
+# Higher value reduces broker reconnect churn (each fork re-handshakes
+# connections); see broker-resilience block below.
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 2000
 
 # Time limits - prevent runaway tasks
 CELERY_TASK_SOFT_TIME_LIMIT = (
@@ -58,6 +61,79 @@ CELERY_RESULT_EXPIRES = 3600
 
 # Memory optimization for RabbitMQ connection pool
 CELERY_BROKER_POOL_LIMIT = 10
+
+# --- Broker resilience settings (CSCS-4VC / CSCS-4KB follow-up) ---
+#
+# Goal: detect dead/half-open AMQP connections inside gunicorn's worker
+# timeout window so a stuck `recv()` waiting for a publish ACK can't ride out
+# the whole 30s and trip `WORKER TIMEOUT` → `SystemExit`.
+#
+# Three layers of dead-connection detection, in increasing depth:
+#
+# 1. AMQP heartbeat (BROKER_HEARTBEAT). py-amqp sends a heartbeat frame at
+#    half this interval; the broker considers the connection dead after two
+#    missed heartbeats. So heartbeat=30s ⇒ ~30s detection budget on top of
+#    AMQP idle.
+#
+# 2. TCP keepalive (socket_settings). The kernel sends SYN probes after
+#    TCP_KEEPIDLE seconds of socket idle, then probes every TCP_KEEPINTVL
+#    until TCP_KEEPCNT failures ⇒ socket closed at kernel level. This
+#    catches half-open connections that AMQP heartbeats may miss because
+#    they share the same broken socket. ~30s detection budget.
+#
+# 3. Connection-pool turnover (BROKER_POOL_LIMIT existing setting). A pool
+#    of 10 connections per process turns over enough to keep individual
+#    sockets fresh even without per-publish reconnect.
+#
+# We keep `confirm_publish: True` because durable invoice / billing writes
+# need broker durability guarantees; the resilience settings above bound
+# the worst-case wait that confirm-publish can introduce.
+#
+# Heartbeat: py-amqp ticks at half this interval; broker drops the
+# connection after ~30s of missed heartbeats. Without this, kombu
+# negotiates the broker's default (60s) and dead-connection detection
+# takes 120s+ — well after gunicorn's 30s worker timeout.
+#
+# IMPORTANT: the top-level ``CELERY_BROKER_HEARTBEAT`` setting is
+# silently ignored on the publisher path (Celery does not propagate it
+# to ``app.broker_connection()`` / ``app.producer_pool``). It must be
+# set via ``broker_transport_options["heartbeat"]`` to actually reach
+# the kombu Connection.
+#
+# SO_KEEPALIVE is enabled unconditionally by py-amqp
+# (amqp/transport.py:_init_socket). py-amqp also ships defaults of
+# TCP_KEEPIDLE=60s, TCP_KEEPINTVL=10s, TCP_KEEPCNT=9 — too slow to fire
+# before gunicorn's 30s worker timeout. The overrides below tighten the
+# probe schedule to detect a dead socket in ~25s
+# (KEEPIDLE + KEEPINTVL * KEEPCNT = 10 + 5*3 = 25s).
+#
+# ``socket_settings`` keys must be integer constants from the ``socket``
+# module (py-amqp passes them straight to setsockopt(SOL_TCP, opt, val)).
+# Some keys are Linux-only (TCP_KEEPIDLE in particular); we resolve them
+# conditionally so the settings load on macOS dev too, even though the
+# full effect requires Linux.
+#
+# What's NOT here: a per-publish ``confirm_timeout`` kwarg. py-amqp's
+# Channel._basic_publish accepts it but kombu's Producer does not expose
+# it through Celery's app config (see celery#9259). A future MR could
+# add a custom Producer subclass to inject ``confirm_timeout=5`` on
+# every publish; for now the heartbeat + keepalive combo bounds the
+# worst-case wait at the transport layer.
+_BROKER_SOCKET_SETTINGS = {}
+for _opt, _val in (
+    ("TCP_KEEPIDLE", 10),
+    ("TCP_KEEPINTVL", 5),
+    ("TCP_KEEPCNT", 3),
+):
+    _const = getattr(socket, _opt, None)
+    if _const is not None:
+        _BROKER_SOCKET_SETTINGS[_const] = _val
+
+CELERY_BROKER_TRANSPORT_OPTIONS = {
+    "confirm_publish": True,
+    "heartbeat": 30,
+    "socket_settings": _BROKER_SOCKET_SETTINGS,
+}
 
 # Prevent Celery from auto-declaring exchanges/queues to avoid type conflicts
 # Only use explicitly defined queues and exchanges
