@@ -846,7 +846,8 @@ class RemoteOpenPortalBackend(ServiceBackend):
             # New usage created - need to adjust credits by the full amount
             usage_change = actual_usage
         else:
-            # Update the usage - this will trigger BillingUsageProcessor.update_invoice_when_usage_is_reported
+            # Update the usage - schedule_component_usage_billing enqueues
+            # process_component_usage_billing on commit; billing is async.
             old_usage = float(component_usage.usage)
             component_usage.usage = actual_usage
             component_usage.date = datetime.datetime(

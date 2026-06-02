@@ -19,7 +19,9 @@ from rest_framework import status, test
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.marketplace import models as marketplace_models
-from waldur_mastermind.marketplace.billing_usage import BillingUsageProcessor
+from waldur_mastermind.marketplace.billing_usage import (
+    schedule_component_usage_billing,
+)
 from waldur_mastermind.marketplace.handlers import process_billing_on_resource_save
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures
@@ -35,10 +37,9 @@ def _disconnect_billing_signals():
         dispatch_uid="waldur_mastermind.marketplace.process_billing_on_resource_save",
     )
     signals.post_save.disconnect(
-        BillingUsageProcessor.update_invoice_when_usage_is_reported,
+        schedule_component_usage_billing,
         sender=marketplace_models.ComponentUsage,
-        dispatch_uid="waldur_mastermind.marketplace."
-        "update_invoice_when_usage_is_reported",
+        dispatch_uid="waldur_mastermind.marketplace.schedule_component_usage_billing",
     )
 
 
@@ -50,10 +51,9 @@ def _reconnect_billing_signals():
         dispatch_uid="waldur_mastermind.marketplace.process_billing_on_resource_save",
     )
     signals.post_save.connect(
-        BillingUsageProcessor.update_invoice_when_usage_is_reported,
+        schedule_component_usage_billing,
         sender=marketplace_models.ComponentUsage,
-        dispatch_uid="waldur_mastermind.marketplace."
-        "update_invoice_when_usage_is_reported",
+        dispatch_uid="waldur_mastermind.marketplace.schedule_component_usage_billing",
     )
 
 

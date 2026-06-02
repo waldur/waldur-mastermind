@@ -10,6 +10,7 @@ class PolicyConfig(AppConfig):
 
         from waldur_core.core.utils import camel_case_to_underscore
         from waldur_mastermind.invoices import models as invoices_models
+        from waldur_mastermind.marketplace import models as marketplace_models
         from waldur_mastermind.policy import handlers
 
         from . import models
@@ -25,6 +26,12 @@ class PolicyConfig(AppConfig):
             klass_name = camel_case_to_underscore(klass.__name__)
 
             if klass.trigger_class:
+                # Handlers whose trigger_class is ComponentUsage are invoked
+                # from process_component_usage_billing instead of from the
+                # request thread, so they're not wired as direct post_save
+                # listeners.
+                if klass.trigger_class is marketplace_models.ComponentUsage:
+                    continue
                 signals.post_save.connect(
                     getattr(handlers, f"{klass_name}_trigger_handler"),
                     sender=klass.trigger_class,

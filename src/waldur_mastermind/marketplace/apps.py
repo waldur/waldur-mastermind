@@ -17,7 +17,9 @@ class MarketplaceConfig(AppConfig):
         from waldur_core.structure import signals as structure_signals
         from waldur_core.structure.serializers import BaseResourceSerializer
         from waldur_freeipa import models as freeipa_models
-        from waldur_mastermind.marketplace.billing_usage import BillingUsageProcessor
+        from waldur_mastermind.marketplace.billing_usage import (
+            schedule_component_usage_billing,
+        )
         from waldur_mastermind.marketplace.handlers import (
             process_billing_on_resource_save,
         )
@@ -55,10 +57,10 @@ class MarketplaceConfig(AppConfig):
             )
 
         signals.post_save.connect(
-            BillingUsageProcessor.update_invoice_when_usage_is_reported,
+            schedule_component_usage_billing,
             sender=models.ComponentUsage,
             dispatch_uid="waldur_mastermind.marketplace."
-            "update_invoice_when_usage_is_reported",
+            "schedule_component_usage_billing",
         )
 
         signals.post_save.connect(
