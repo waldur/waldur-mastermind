@@ -1,6 +1,7 @@
 import logging
 from typing import cast
 
+from celery import shared_task
 from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 
@@ -28,15 +29,16 @@ class BillingUsageProcessor:
 
     @classmethod
     @transaction.atomic
-    def update_invoice_when_usage_is_reported(
+    def _run_billing(
         cls,
-        sender,
-        instance: marketplace_models.ComponentUsage,
-        created=False,
-        **kwargs,
+        component_usage: marketplace_models.ComponentUsage,
+        *,
+        created: bool,
     ):
         """
-        Handles billing when component usage is reported, with integrated prepaid logic.
+        Run billing for a ComponentUsage. Callers must have filtered out the
+        import path (``skip_side_effects``) and no-op saves
+        (``tracker.has_changed("usage")``), so this method assumes work to do.
 
         This method acts as a dispatcher based on the component's configuration:
 
@@ -58,27 +60,9 @@ class BillingUsageProcessor:
 
             Requires valid plan period for proper billing period calculation.
             Creates invoice items with usage-based quantities and pricing.
-
-        Args:
-            sender: Signal sender (model class)
-            instance: ComponentUsage instance that triggered the signal
-            created: Whether the usage record was just created
-            **kwargs: Additional signal arguments
         """
-        # Skip billing during import operations
-        if get_skip_side_effects():
-            logger.debug(
-                "Skipping billing for component usage during import/maintenance mode"
-            )
-            return
-
-        component_usage = instance
         resource = component_usage.resource
         offering_component = component_usage.component
-
-        # Ignore signal if usage value has not changed
-        if not created and not component_usage.tracker.has_changed("usage"):
-            return
 
         plan_period = component_usage.plan_period
         if not plan_period:
@@ -267,3 +251,82 @@ class BillingUsageProcessor:
                 f"Created new invoice item for resource '{resource.uuid}' and "
                 f"component '{offering_component.type}' with quantity {converted_usage}."
             )
+
+
+@shared_task(name="waldur_mastermind.marketplace.process_component_usage_billing")
+def process_component_usage_billing(
+    component_usage_id: int, created: bool, usage_changed: bool
+):
+    """
+    Async billing + policy fan-out for a single ComponentUsage save.
+
+    Loads the row by id, optionally re-runs billing (when the usage value
+    has actually changed), then fires every policy handler that used to
+    attach to ComponentUsage.post_save directly. All RabbitMQ publishes now
+    happen here, on a celery worker, so gunicorn is never blocked by a
+    stalled broker.
+
+    The policy handlers fire on every save (not just usage-field changes)
+    to match the pre-existing semantics — they used to be independently
+    wired to post_save and ran regardless of which field changed. The
+    billing branch is gated on ``usage_changed`` because re-billing for a
+    non-usage save (e.g. billing_period change) is wasteful.
+
+    Idempotent: re-running ``_run_billing`` for the same usage is safe
+    because ``_create_or_update_usage_invoice_item`` does upsert by
+    (resource, component, billing_period).
+    """
+    from waldur_mastermind.policy import handlers as policy_handlers
+
+    try:
+        usage = marketplace_models.ComponentUsage.objects.get(pk=component_usage_id)
+    except marketplace_models.ComponentUsage.DoesNotExist:
+        logger.info(
+            "ComponentUsage %s no longer exists; skipping async billing",
+            component_usage_id,
+        )
+        return
+
+    if usage_changed:
+        BillingUsageProcessor._run_billing(usage, created=created)
+
+    # Fire every handler that used to be wired directly to ComponentUsage
+    # post_save in policy/apps.py (those with trigger_class=ComponentUsage).
+    # These fire on every save to match the pre-MR semantics.
+    policy_handlers.offering_usage_policy_trigger_handler(
+        sender=marketplace_models.ComponentUsage,
+        instance=usage,
+        created=created,
+    )
+    policy_handlers.slurm_periodic_usage_policy_trigger_handler(
+        sender=marketplace_models.ComponentUsage,
+        instance=usage,
+        created=created,
+    )
+    policy_handlers.customer_component_usage_policy_trigger_handler(
+        sender=marketplace_models.ComponentUsage,
+        instance=usage,
+        created=created,
+    )
+
+
+def schedule_component_usage_billing(
+    sender,
+    instance: marketplace_models.ComponentUsage,
+    created: bool = False,
+    **kwargs,
+):
+    """
+    Thin post_save handler — schedules the async billing+policy task on commit.
+    """
+    if get_skip_side_effects():
+        return
+    usage_changed = created or instance.tracker.has_changed("usage")
+    usage_id = instance.pk
+    transaction.on_commit(
+        lambda: process_component_usage_billing.delay(
+            component_usage_id=usage_id,
+            created=created,
+            usage_changed=usage_changed,
+        )
+    )

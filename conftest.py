@@ -30,3 +30,22 @@ def _immediate_on_commit(monkeypatch):
     from django.db import transaction
 
     monkeypatch.setattr(transaction, "on_commit", lambda func, using=None: func())
+
+
+@pytest.fixture(autouse=True)
+def _eager_component_usage_billing(monkeypatch):
+    # In production, the post_save signal for ComponentUsage schedules
+    # process_component_usage_billing on the celery worker. In tests there's
+    # no broker, so patch this one task's .delay to call the function inline.
+    # This keeps tests on the same code path as production without globally
+    # enabling CELERY_TASK_ALWAYS_EAGER (which would wake up many unrelated
+    # tasks across the codebase).
+    from waldur_mastermind.marketplace import billing_usage
+
+    monkeypatch.setattr(
+        billing_usage.process_component_usage_billing,
+        "delay",
+        lambda *args, **kwargs: billing_usage.process_component_usage_billing(
+            *args, **kwargs
+        ),
+    )
