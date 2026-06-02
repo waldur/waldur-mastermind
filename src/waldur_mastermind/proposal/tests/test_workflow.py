@@ -10,6 +10,7 @@ from waldur_core.checklist.tests import factories as checklist_factories
 from waldur_core.permissions.fixtures import CallRole
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_mastermind.proposal.enums import (
+    WORKFLOW_STEPS,
     CallStates,
     ProposalStates,
     ResponsibleRoles,
@@ -33,6 +34,9 @@ class WorkflowStepCreateTest(test.APITestCase):
         self.call = self.fixture.call
         self.call.state = CallStates.DRAFT
         self.call.save()
+        # Call creation seeds all 6 workflow steps as enabled. Clear them so
+        # these tests can exercise the create endpoint from a clean slate.
+        CallWorkflowStep.objects.filter(call=self.call).delete()
 
     def test_create_workflow_step(self):
         user = self.fixture.call_organizer_user
@@ -88,12 +92,18 @@ class ProposalSubmitWorkflowTest(test.APITestCase):
         self.call = self.fixture.call
         self.proposal = self.fixture.proposal
 
-        # Configure workflow steps
+        # Configure workflow steps. The call creation signal seeds all 6 steps
+        # as enabled by default; the factory uses update_or_create so these
+        # calls tune durations on the seeded rows. expert_review is explicitly
+        # disabled to exercise the SKIPPED submit-time branch.
         factories.CallWorkflowStepFactory(
             call=self.call, step="administrative_check", duration_in_days=5
         )
         factories.CallWorkflowStepFactory(
             call=self.call, step="allocation_decision", duration_in_days=10
+        )
+        factories.CallWorkflowStepFactory(
+            call=self.call, step="expert_review", is_enabled=False
         )
 
     def test_submit_creates_step_instances(self):
@@ -481,6 +491,9 @@ class WorkflowStepCriteriaTest(test.APITestCase):
         self.call = self.fixture.call
         self.call.state = CallStates.DRAFT
         self.call.save()
+        # Call creation seeds workflow steps; clear so these tests can exercise
+        # the create endpoint from a clean state.
+        CallWorkflowStep.objects.filter(call=self.call).delete()
         self.client.force_authenticate(self.fixture.call_organizer_user)
 
     def test_create_step_with_criteria(self):
@@ -535,6 +548,9 @@ class WorkflowStepValidationTest(test.APITestCase):
         self.call = self.fixture.call
         self.call.state = CallStates.DRAFT
         self.call.save()
+        # Call creation seeds workflow steps; clear so these tests can exercise
+        # the create endpoint and its validators from a clean state.
+        CallWorkflowStep.objects.filter(call=self.call).delete()
         self.client.force_authenticate(self.fixture.call_organizer_user)
 
     def test_include_award_response_rejected_on_non_allocation_step(self):
@@ -549,8 +565,9 @@ class WorkflowStepValidationTest(test.APITestCase):
         self.assertIn("include_award_response", response.data)
 
     def test_include_award_response_allowed_on_allocation_decision(self):
-        # allocation_decision is auto-seeded on call creation; update it.
-        step = CallWorkflowStep.objects.get(call=self.call, step="allocation_decision")
+        step = factories.CallWorkflowStepFactory(
+            call=self.call, step="allocation_decision"
+        )
         url = factories.CallWorkflowStepFactory.get_url(self.call, step)
         response = self.client.patch(
             url, {"include_award_response": True}, format="json"
@@ -598,6 +615,9 @@ class WorkflowStepDisplayOrderTest(test.APITestCase):
         self.call = self.fixture.call
         self.call.state = CallStates.DRAFT
         self.call.save()
+        # These tests assert the exact listing; wipe the seeded rows so only
+        # the steps explicitly created by each test appear.
+        CallWorkflowStep.objects.filter(call=self.call).delete()
         self.client.force_authenticate(self.fixture.call_organizer_user)
 
     def test_display_order_overrides_catalog_order_in_listing(self):
@@ -1250,24 +1270,33 @@ class WorkflowOutcomeValidationTest(test.APITestCase):
         self.assertIn("system-reserved", str(response.data))
 
 
-class CallCreationSeedsMandatoryStepsTest(test.APITestCase):
-    def test_call_creation_seeds_allocation_decision(self):
+class CallCreationSeedsWorkflowStepsTest(test.APITestCase):
+    def test_call_creation_seeds_evaluation_workflow_steps(self):
         call = factories.CallFactory()
-        self.assertTrue(
-            CallWorkflowStep.objects.filter(
-                call=call, step="allocation_decision", is_enabled=True
-            ).exists()
+        seeded = set(
+            CallWorkflowStep.objects.filter(call=call, is_enabled=True).values_list(
+                "step", flat=True
+            )
+        )
+        expected = {s.id for s in WORKFLOW_STEPS if s.id != "award_response"}
+        self.assertEqual(seeded, expected)
+
+    def test_award_response_is_not_seeded(self):
+        # award_response is provisioned via allocation_decision's
+        # include_award_response toggle, not by the signal.
+        call = factories.CallFactory()
+        self.assertFalse(
+            CallWorkflowStep.objects.filter(call=call, step="award_response").exists()
         )
 
     def test_seeding_is_idempotent_on_resave(self):
         call = factories.CallFactory()
         call.name = "Updated"
         call.save()
+        expected_count = len([s for s in WORKFLOW_STEPS if s.id != "award_response"])
         self.assertEqual(
-            CallWorkflowStep.objects.filter(
-                call=call, step="allocation_decision"
-            ).count(),
-            1,
+            CallWorkflowStep.objects.filter(call=call).count(),
+            expected_count,
         )
 
 

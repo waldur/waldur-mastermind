@@ -26,13 +26,25 @@ def delete_checklist_completion(sender, instance, **kwargs):
     ).delete()
 
 
-def seed_mandatory_workflow_steps(sender, instance, created, **kwargs):
-    """Pre-seed mandatory workflow steps (e.g. allocation_decision) on call creation."""
+def seed_workflow_steps(sender, instance, created, **kwargs):
+    """Pre-seed catalog workflow steps as enabled on call creation.
+
+    Matches Figma F17: applicants should see the full evaluation tracker on
+    any submitted proposal. Call managers can still disable individual steps
+    from the call config UI; mandatory steps (e.g. allocation_decision) are
+    protected separately and cannot be disabled.
+
+    ``award_response`` is intentionally excluded: it is provisioned via
+    ``allocation_decision.include_award_response`` and direct creation is
+    blocked by the serializer.
+    """
     if not created:
         return
-    for step_id in enums.MANDATORY_STEPS:
+    for step_def in enums.WORKFLOW_STEPS:
+        if step_def.id == "award_response":
+            continue
         models.CallWorkflowStep.objects.get_or_create(
             call=instance,
-            step=step_id,
+            step=step_def.id,
             defaults={"is_enabled": True},
         )
