@@ -357,6 +357,16 @@ class HypervisorFactory(
         return "http://testserver" + reverse("openstack-hypervisor-list")
 
 
+class TraitFactory(
+    factory.django.DjangoModelFactory,
+    metaclass=BaseMetaFactory[models.Trait],
+):
+    class Meta:
+        model = models.Trait
+
+    name = factory.Sequence(lambda n: "CUSTOM_TRAIT_%s" % n)
+
+
 class ExternalSubnetFactory(
     factory.django.DjangoModelFactory,
     metaclass=BaseMetaFactory[models.ExternalSubnet],

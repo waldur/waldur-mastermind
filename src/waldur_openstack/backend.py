@@ -601,10 +601,12 @@ class OpenStackBackend(ServiceBackend):
         total = max(inv.get("total", 0) - inv.get("reserved", 0), 0)
         return int(total * (inv.get("allocation_ratio", 1.0) or 1.0))
 
-    def _collect_placement_capacity(self):
-        """Return a dict mapping resource-provider name → per-class inventory.
+    def _collect_placement_data(self):
+        """Return per-resource-provider capacity and traits, keyed by RP name.
 
-        Shape::
+        Returns a ``(capacity, traits)`` tuple.
+
+        ``capacity`` maps resource-provider name → per-class inventory::
 
             {
               "compute01": {
@@ -622,13 +624,18 @@ class OpenStackBackend(ServiceBackend):
         rows. Compute the effective total via `_effective_total(inv)` when
         needed.
 
+        ``traits`` maps resource-provider name → list of trait names::
+
+            {"compute01": ["HW_CPU_X86_AVX2", "STORAGE_DISK_SSD", "CUSTOM_GOLD"]}
+
         For compute-node resource providers, the provider name equals
         hypervisor_hostname, which is how we link Placement back to the Nova
         Hypervisor records below.
         """
         placement = get_placement_client(self.admin_session)
         rps = placement.list_resource_providers()
-        result = {}
+        capacity = {}
+        traits = {}
         for rp in rps:
             rp_uuid = rp.get("uuid")
             if not rp_uuid:
@@ -636,6 +643,7 @@ class OpenStackBackend(ServiceBackend):
             try:
                 inventories = placement.get_inventories(rp_uuid)
                 usages = placement.get_usages(rp_uuid)
+                rp_traits = placement.get_traits(rp_uuid)
             except OpenStackBackendError as e:
                 logger.warning(
                     "Skipping Placement resource provider %s due to error: %s",
@@ -653,8 +661,9 @@ class OpenStackBackend(ServiceBackend):
                     "allocation_ratio": float(inv.get("allocation_ratio", 1.0) or 1.0),
                     "used": int(usages.get(resource_class, 0)),
                 }
-            result[rp.get("name")] = per_class
-        return result
+            capacity[rp.get("name")] = per_class
+            traits[rp.get("name")] = list(rp_traits)
+        return capacity, traits
 
     def pull_hypervisors(self):
         nova = get_nova_client(self.admin_session)
@@ -667,7 +676,7 @@ class OpenStackBackend(ServiceBackend):
         # documented as misleading (ignored CPU pinning, file-backed memory,
         # shared storage) and removed at microversion 2.88. running_vms, state
         # and status remain Nova-sourced for now (still present at 2.87).
-        placement_capacity = self._collect_placement_capacity()
+        placement_capacity, placement_traits = self._collect_placement_data()
 
         remote_ids = [str(h.id) for h in remote_hypervisors]
         stale_qs = models.Hypervisor.objects.filter(settings=self.settings).exclude(
@@ -736,6 +745,17 @@ class OpenStackBackend(ServiceBackend):
                 )
                 seen_classes.add(resource_class)
             hypervisor.inventories.exclude(resource_class__in=seen_classes).delete()
+
+            # Sync Placement traits (capability flags) as an M2M. Trait rows
+            # form a global catalog shared across hosts; .set() replaces the
+            # host's links, so traits dropped from the resource provider are
+            # detached on the next pull. Orphan Trait rows are left in place —
+            # they are a harmless name catalog.
+            trait_objs = [
+                models.Trait.objects.get_or_create(name=name)[0]
+                for name in placement_traits.get(remote.hypervisor_hostname, [])
+            ]
+            hypervisor.traits.set(trait_objs)
 
     def pull_global_images(self):
         glance = get_glance_client(self.admin_session)
@@ -3697,7 +3717,7 @@ class OpenStackBackend(ServiceBackend):
         # effective totals (allocation_ratio applied, reserved subtracted) used
         # by pull_hypervisors. This replaces nova.hypervisor_stats.statistics()
         # which is removed at microversion 2.88.
-        placement_capacity = self._collect_placement_capacity()
+        placement_capacity, _ = self._collect_placement_data()
 
         def aggregate(resource_class):
             total = used = 0
