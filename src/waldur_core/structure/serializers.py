@@ -2105,7 +2105,11 @@ class UserSerializer(
             )
             is_own_profile = self._can_see_token(user)
             for field in staff_only_fields:
-                if field in fields:
+                if field not in fields:
+                    continue
+                if is_own_profile and field == "has_usable_password":
+                    fields[field].read_only = True
+                else:
                     del fields[field]
             if is_own_profile:
                 for field in self_visible_fields:
@@ -2121,7 +2125,11 @@ class UserSerializer(
                         fields[field].read_only = True
             else:
                 for field in protected_fields:
-                    if field in fields:
+                    if field not in fields:
+                        continue
+                    if is_own_profile and field == "has_active_session":
+                        fields[field].read_only = True
+                    else:
                         del fields[field]
             if "notifications_enabled" in fields:
                 fields["notifications_enabled"].read_only = True
