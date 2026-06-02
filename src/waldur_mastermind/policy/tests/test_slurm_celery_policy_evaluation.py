@@ -488,15 +488,10 @@ class TestSlurmPolicySignalHandlers(TestCase):
         """Test that signal handler queues background evaluation task."""
 
         # Create ComponentUsage (this automatically triggers the signal)
-        component_usage = self._create_component_usage(
-            self.resource, self.component, 800
-        )
+        self._create_component_usage(self.resource, self.component, 800)
 
-        # Verify background task was queued
-        mock_delay.assert_called_once_with(
-            resource_uuid=str(self.resource.uuid),
-            component_usage_uuid=str(component_usage.uuid),
-        )
+        # Verify background task was queued for the resource
+        mock_delay.assert_called_once_with(str(self.resource.uuid))
 
     def test_signal_handler_no_policy_no_task(self):
         """Test signal handler doesn't queue tasks when no SLURM policies exist."""
@@ -885,15 +880,10 @@ class TestSlurmPolicyIntegration(TestCase):
         )
 
         # Create ComponentUsage (this automatically triggers the signal)
-        component_usage = self._create_component_usage(
-            self.resource, self.component, 1200
-        )
+        self._create_component_usage(self.resource, self.component, 1200)
 
-        # Verify background task was queued
-        mock_delay.assert_called_once_with(
-            resource_uuid=str(self.resource.uuid),
-            component_usage_uuid=str(component_usage.uuid),
-        )
+        # Verify background task was queued for the resource
+        mock_delay.assert_called_once_with(str(self.resource.uuid))
 
     def test_end_to_end_policy_application(self):
         """Test end-to-end policy application without mocks."""
