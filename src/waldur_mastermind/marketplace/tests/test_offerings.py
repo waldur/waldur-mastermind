@@ -34,6 +34,8 @@ from waldur_core.permissions.fixtures import (
     ProjectRole,
     ServiceProviderRole,
 )
+from waldur_core.logging.enums import EventType
+from waldur_core.logging.models import Event
 from waldur_core.structure.tests import factories as structure_factories
 from waldur_core.structure.tests import fixtures
 from waldur_core.structure.tests.factories import UserFactory
@@ -1644,6 +1646,65 @@ class OfferingPartialUpdateTest(test.APITestCase):
 
         self.offering.refresh_from_db()
         self.assertEqual(self.offering.options, options)
+
+    def test_update_options_generates_audit_log(self):
+        Event.objects.all().delete()
+        url = factories.OfferingFactory.get_url(self.offering, "update_options")
+        self.client.force_authenticate(self.fixture.owner)
+        options = {
+            "order": ["email"],
+            "options": {
+                "email": {
+                    "type": "string",
+                    "label": "email",
+                    "default": "user@example.com",
+                    "required": False,
+                }
+            },
+        }
+        response = self.client.post(url, {"options": options})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        event = Event.objects.filter(
+            event_type=EventType.MARKETPLACE_OFFERING_OPTIONS_UPDATED
+        ).first()
+        self.assertIsNotNone(event)
+        self.assertIn(self.offering.name, event.message)
+        self.assertIn("email", event.message)
+        self.assertIn("Details:", event.message)
+        self.assertEqual(event.context.get("offering_uuid"), self.offering.uuid.hex)
+        self.assertEqual(
+            event.context.get("user_username"), self.fixture.owner.username
+        )
+
+    def test_update_resource_options_generates_audit_log(self):
+        Event.objects.all().delete()
+        url = factories.OfferingFactory.get_url(
+            self.offering, "update_resource_options"
+        )
+        self.client.force_authenticate(self.fixture.owner)
+        resource_options = {
+            "order": ["storageRequest"],
+            "options": {
+                "storageRequest": {
+                    "type": "integer",
+                    "label": "Storage request (GB)",
+                    "required": True,
+                    "min": 0,
+                    "max": 102400,
+                }
+            },
+        }
+        response = self.client.post(url, {"resource_options": resource_options})
+        self.assertEqual(response.status_code, status.HTTP_200_OK, response.data)
+
+        event = Event.objects.filter(
+            event_type=EventType.MARKETPLACE_OFFERING_RESOURCE_OPTIONS_UPDATED
+        ).first()
+        self.assertIsNotNone(event)
+        self.assertIn(self.offering.name, event.message)
+        self.assertIn("storageRequest", event.message)
+        self.assertIn("Details:", event.message)
 
     @data("staff", "owner")
     def test_update_secret_options(self, user):

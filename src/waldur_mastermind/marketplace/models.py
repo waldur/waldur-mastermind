@@ -770,6 +770,8 @@ class Offering(
             fields=[
                 "compliance_checklist",
                 "state",
+                "options",
+                "resource_options",
                 "plugin_options",
                 "secret_options",
                 "name",
