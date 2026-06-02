@@ -139,7 +139,7 @@ class OfferingEstimatedCostPolicyTriggerTest(test.APITestCase):
         self.customer = self.fixture.customer
         self.resource = self.fixture.resource
         self.policy = factories.OfferingEstimatedCostPolicyFactory(
-            scope=self.offering, limit_cost=10
+            scope=self.offering, limit_cost=10, apply_to_all=False
         )
         self.organization_group = structure_factories.OrganizationGroupFactory()
         self.policy.organization_groups.add(self.organization_group)

@@ -27,8 +27,8 @@ def _get_debounce_seconds():
     )
 
 
-def _debounced_evaluate(policy_path, filters, cache_key):
-    """Schedule a debounced policy evaluation.
+def _debounced_call(task, args, cache_key):
+    """Schedule a debounced Celery task call.
 
     Uses cache.add() (atomic SETNX) to ensure only one task is scheduled
     per cache_key within the debounce window. Subsequent triggers for the
@@ -41,21 +41,23 @@ def _debounced_evaluate(policy_path, filters, cache_key):
     """
     debounce_seconds = _get_debounce_seconds()
     if debounce_seconds <= 0:
-        # Debounce disabled — evaluate immediately (used in tests).
-        tasks.evaluate_policies_async.delay(policy_path, filters)
+        # Debounce disabled — dispatch immediately (used in tests).
+        task.delay(*args)
         return
     if not cache.add(cache_key, True, timeout=debounce_seconds):
-        return  # Evaluation already scheduled for this scope
+        return  # Already scheduled for this cache_key
     logger.info(
         "Debounce: scheduling %s (key %s), countdown=%ds",
-        policy_path,
+        task.name,
         cache_key,
         debounce_seconds,
     )
-    tasks.evaluate_policies_async.apply_async(
-        args=[policy_path, filters],
-        countdown=debounce_seconds,
-    )
+    task.apply_async(args=list(args), countdown=debounce_seconds)
+
+
+def _debounced_evaluate(policy_path, filters, cache_key):
+    """Debounced dispatch of ``evaluate_policies_async`` — convenience wrapper."""
+    _debounced_call(tasks.evaluate_policies_async, (policy_path, filters), cache_key)
 
 
 _CUSTOMER_POLICY_PATH = "waldur_mastermind.policy.models.CustomerEstimatedCostPolicy"
@@ -98,20 +100,16 @@ def project_estimated_cost_policy_trigger_handler(
 def get_offering_trigger_handler(klass_path):
     def handler(sender, instance, created=False, **kwargs):
         resource = instance.resource
-
-        if resource:
-            org_group_ids = list(
-                resource.project.customer.organization_groups.values_list(
-                    "id", flat=True
-                )
-            )
-            tasks.evaluate_policies_async.delay(
-                klass_path,
-                {
-                    "scope_id": resource.offering_id,
-                    "organization_groups__in": org_group_ids,
-                },
-            )
+        if not resource:
+            return
+        offering_id = resource.offering_id
+        # `is_triggered()` on each offering policy re-filters customers by its
+        # own `organization_groups`, so a single `scope_id` filter is enough.
+        _debounced_evaluate(
+            klass_path,
+            {"scope_id": offering_id},
+            f"cost_policy_debounce:{klass_path}:offering:{offering_id}",
+        )
 
     return handler
 
@@ -133,27 +131,22 @@ def slurm_periodic_usage_policy_trigger_handler(
     component_usage = instance
     resource = component_usage.resource
 
-    if resource and resource.offering:
-        # Check if resource's offering has SLURM policies
-        has_slurm_policies = models.SlurmPeriodicUsagePolicy.objects.filter(
-            scope=resource.offering
-        ).exists()
-
-        if has_slurm_policies:
-            # Queue background evaluation for this specific resource
-            tasks.evaluate_slurm_resource_policy.delay(
-                resource_uuid=str(resource.uuid),
-                component_usage_uuid=str(component_usage.uuid),
-            )
-
-            logger.info(
-                f"Queued SLURM policy evaluation for resource {resource.uuid} "
-                f"(usage: {component_usage.usage})"
-            )
-    else:
+    if not (resource and resource.offering):
         logger.warning(
             "ComponentUsage signal received without valid resource/offering context"
         )
+        return
+
+    if not models.SlurmPeriodicUsagePolicy.objects.filter(
+        scope=resource.offering
+    ).exists():
+        return
+
+    _debounced_call(
+        tasks.evaluate_slurm_resource_policy,
+        (str(resource.uuid),),
+        f"slurm_policy_debounce:resource:{resource.uuid.hex}",
+    )
 
 
 offering_estimated_cost_policy_trigger_handler = get_offering_trigger_handler(
@@ -170,12 +163,16 @@ def customer_component_usage_policy_trigger_handler(
     if not usage:
         return
 
-    tasks.evaluate_policies_async.delay(
+    customer_id = usage.resource.project.customer_id
+    component_id = usage.component_id
+    _debounced_evaluate(
         _CUSTOMER_COMPONENT_USAGE_POLICY_PATH,
         {
-            "scope_id": usage.resource.project.customer_id,
-            "component_limits_set__component_id": usage.component_id,
+            "scope_id": customer_id,
+            "component_limits_set__component_id": component_id,
         },
+        f"cost_policy_debounce:{_CUSTOMER_COMPONENT_USAGE_POLICY_PATH}"
+        f":customer:{customer_id}:component:{component_id}",
     )
 
 
@@ -285,24 +282,25 @@ def project_credit_changed_handler(
 def customer_credit_offerings_list_changed_handler(
     sender, instance, action, reverse, model, pk_set, **kwargs
 ):
-    if action in ("post_add", "post_remove", "post_clear"):
-        if pk_set is None:
-            # For clear operations, evaluate policies for the customer credit instance
-            tasks.evaluate_policies_async.delay(
-                _CUSTOMER_POLICY_PATH,
-                {"scope_id": instance.customer_id},
-            )
-        else:
-            customer_ids = list(
-                invoices_models.CustomerCredit.objects.filter(
-                    offerings__pk__in=list(pk_set),
-                ).values_list("customer_id", flat=True)
-            )
-            if customer_ids:
-                tasks.evaluate_policies_async.delay(
-                    _CUSTOMER_POLICY_PATH,
-                    {"scope_id__in": customer_ids},
-                )
+    if action not in ("post_add", "post_remove", "post_clear"):
+        return
+    if pk_set is None:
+        customer_ids = [instance.customer_id]
+    else:
+        customer_ids = list(
+            invoices_models.CustomerCredit.objects.filter(
+                offerings__pk__in=list(pk_set),
+            ).values_list("customer_id", flat=True)
+        )
+    # Per-customer dispatch with a cache key shared by
+    # ``customer_estimated_cost_policy_trigger_handler`` so credit edits and
+    # invoice-item saves dedupe with each other inside the debounce window.
+    for cid in customer_ids:
+        _debounced_evaluate(
+            _CUSTOMER_POLICY_PATH,
+            {"scope_id": cid},
+            f"cost_policy_debounce:customer:{cid}",
+        )
 
 
 def run_reset_actions_upon_cost_policy_deletion(

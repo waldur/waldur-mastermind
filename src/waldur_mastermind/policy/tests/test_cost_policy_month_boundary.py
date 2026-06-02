@@ -22,11 +22,17 @@ from rest_framework import test
 
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.tests import factories as invoices_factories
+from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.tests import fixtures as marketplace_fixtures
 from waldur_mastermind.policy.handlers import (
+    _CUSTOMER_COMPONENT_USAGE_POLICY_PATH,
+    _CUSTOMER_POLICY_PATH,
+    _OFFERING_ESTIMATED_COST_POLICY_PATH,
+    _OFFERING_USAGE_POLICY_PATH,
     COST_POLICY_DEBOUNCE_SECONDS,
     _debounced_evaluate,
 )
+from waldur_mastermind.policy.tests import factories as policy_factories
 
 
 @override_settings(WALDUR_COST_POLICY_DEBOUNCE_SECONDS=120)
@@ -146,10 +152,10 @@ class CostPolicyHandlerIntegrationTest(test.APITestCase):
                 f"_debounced_evaluate. Got calls: {mock_debounce.call_args_list}",
             )
 
-    def test_rapid_saves_debounce_to_two_tasks(self):
-        """5 rapid InvoiceItem saves should result in at most 2 scheduled tasks
-        (one per unique debounce key: project + customer), even though
-        _debounced_evaluate is called many times."""
+    def test_rapid_saves_debounce_to_three_tasks(self):
+        """5 rapid InvoiceItem saves should result in 3 scheduled tasks
+        (one per unique debounce key: project + customer + offering), even
+        though _debounced_evaluate is called many times."""
         with mock.patch(
             "waldur_mastermind.policy.tasks.evaluate_policies_async.apply_async"
         ) as mock_apply:
@@ -163,16 +169,273 @@ class CostPolicyHandlerIntegrationTest(test.APITestCase):
                     resource=self.resource,
                 )
 
-            # Count only debounced calls (those with countdown kwarg).
-            # Other handlers (.delay()) also hit apply_async but without countdown.
             debounced_calls = [
                 c
                 for c in mock_apply.call_args_list
                 if c.kwargs.get("countdown") == COST_POLICY_DEBOUNCE_SECONDS
             ]
+            scheduled_paths = {c.kwargs["args"][0] for c in debounced_calls}
             self.assertEqual(
                 len(debounced_calls),
+                3,
+                f"Expected 3 debounced tasks (project + customer + offering), "
+                f"got {len(debounced_calls)}: {scheduled_paths}",
+            )
+            self.assertIn(_OFFERING_ESTIMATED_COST_POLICY_PATH, scheduled_paths)
+
+
+def _publishes_for(apply_async_mock, delay_mock, policy_path):
+    """Combine apply_async + delay call lists, filtered by leading positional arg."""
+    publishes = []
+    for c in apply_async_mock.call_args_list:
+        args = c.kwargs.get("args") or c.args
+        if args and args[0] == policy_path:
+            publishes.append(("apply_async", c))
+    for c in delay_mock.call_args_list:
+        if c.args and c.args[0] == policy_path:
+            publishes.append(("delay", c))
+    return publishes
+
+
+@override_settings(task_always_eager=True, WALDUR_COST_POLICY_DEBOUNCE_SECONDS=120)
+@freeze_time("2026-04-01")
+class OfferingPolicyDebounceTest(test.APITestCase):
+    """Regression: the offering trigger handler must debounce just like
+    customer/project handlers (Sentry CSCS-4VC)."""
+
+    def setUp(self):
+        cache.clear()
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.state = 2
+        self.resource.save()
+        self.invoice = invoices_models.Invoice.objects.get(
+            customer=self.fixture.customer, month=4, year=2026
+        )
+
+    def test_rapid_invoice_item_saves_debounce_offering_handler(self):
+        with (
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_policies_async.apply_async"
+            ) as apply_async,
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_policies_async.delay"
+            ) as delay,
+        ):
+            cache.clear()  # setUp may have populated cache via auto-created items
+            for _ in range(5):
+                invoices_factories.InvoiceItemFactory(
+                    invoice=self.invoice,
+                    project=self.fixture.project,
+                    resource=self.resource,
+                    unit_price=Decimal("10"),
+                    quantity=1,
+                )
+
+            publishes = _publishes_for(
+                apply_async, delay, _OFFERING_ESTIMATED_COST_POLICY_PATH
+            )
+            self.assertEqual(
+                len(publishes),
+                1,
+                f"Expected 1 debounced offering publish, got {len(publishes)}",
+            )
+            kind, call = publishes[0]
+            self.assertEqual(kind, "apply_async")
+            self.assertEqual(call.kwargs["countdown"], COST_POLICY_DEBOUNCE_SECONDS)
+
+    def test_rapid_component_usage_saves_debounce_offering_usage_handler(self):
+        with (
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_policies_async.apply_async"
+            ) as apply_async,
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_policies_async.delay"
+            ) as delay,
+        ):
+            cache.clear()
+            for _ in range(5):
+                marketplace_factories.ComponentUsageFactory(resource=self.resource)
+
+            publishes = _publishes_for(apply_async, delay, _OFFERING_USAGE_POLICY_PATH)
+            self.assertEqual(len(publishes), 1)
+            self.assertEqual(publishes[0][0], "apply_async")
+
+
+@override_settings(task_always_eager=True, WALDUR_COST_POLICY_DEBOUNCE_SECONDS=120)
+@freeze_time("2026-04-01")
+class CustomerComponentUsageDebounceTest(test.APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.state = 2
+        self.resource.save()
+        self.component = self.fixture.offering_component
+
+    def test_rapid_same_component_usage_saves_collapse_to_one_publish(self):
+        with (
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_policies_async.apply_async"
+            ) as apply_async,
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_policies_async.delay"
+            ) as delay,
+        ):
+            cache.clear()
+            for _ in range(5):
+                marketplace_factories.ComponentUsageFactory(
+                    resource=self.resource, component=self.component
+                )
+
+            publishes = _publishes_for(
+                apply_async, delay, _CUSTOMER_COMPONENT_USAGE_POLICY_PATH
+            )
+            self.assertEqual(len(publishes), 1)
+            call = publishes[0][1]
+            filters = call.kwargs["args"][1]
+            self.assertIn("scope_id", filters)
+            self.assertIn("component_limits_set__component_id", filters)
+
+    def test_different_components_get_separate_publishes(self):
+        c2 = marketplace_factories.OfferingComponentFactory(
+            offering=self.fixture.offering, type="ram", name="RAM"
+        )
+        with (
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_policies_async.apply_async"
+            ) as apply_async,
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_policies_async.delay"
+            ) as delay,
+        ):
+            cache.clear()
+            marketplace_factories.ComponentUsageFactory(
+                resource=self.resource, component=self.component
+            )
+            marketplace_factories.ComponentUsageFactory(
+                resource=self.resource, component=c2
+            )
+
+            publishes = _publishes_for(
+                apply_async, delay, _CUSTOMER_COMPONENT_USAGE_POLICY_PATH
+            )
+            self.assertEqual(
+                len(publishes),
                 2,
-                f"Expected 2 debounced tasks (project + customer), "
-                f"got {len(debounced_calls)}.",
+                "Different components on the same customer must not coalesce.",
+            )
+
+
+@override_settings(task_always_eager=True, WALDUR_COST_POLICY_DEBOUNCE_SECONDS=120)
+@freeze_time("2026-04-01")
+class SlurmPeriodicUsageDebounceTest(test.APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.state = 2
+        self.resource.save()
+
+    def test_no_publishes_without_policy(self):
+        """The exists() gate must short-circuit before any publish."""
+        with (
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_slurm_resource_policy.apply_async"
+            ) as apply_async,
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_slurm_resource_policy.delay"
+            ) as delay,
+        ):
+            cache.clear()
+            marketplace_factories.ComponentUsageFactory(resource=self.resource)
+
+            self.assertEqual(apply_async.call_count, 0)
+            self.assertEqual(delay.call_count, 0)
+
+    def test_rapid_component_usage_saves_debounce_slurm_handler(self):
+        policy_factories.SlurmPeriodicUsagePolicyFactory(scope=self.fixture.offering)
+        with (
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_slurm_resource_policy.apply_async"
+            ) as apply_async,
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_slurm_resource_policy.delay"
+            ) as delay,
+        ):
+            cache.clear()
+            for _ in range(5):
+                marketplace_factories.ComponentUsageFactory(resource=self.resource)
+
+            self.assertEqual(apply_async.call_count, 1)
+            self.assertEqual(delay.call_count, 0)
+            call = apply_async.call_args
+            self.assertEqual(call.kwargs["countdown"], COST_POLICY_DEBOUNCE_SECONDS)
+            self.assertEqual(call.kwargs["args"], [str(self.resource.uuid)])
+
+
+@override_settings(task_always_eager=True, WALDUR_COST_POLICY_DEBOUNCE_SECONDS=120)
+@freeze_time("2026-04-01")
+class CustomerCreditOfferingsListDebounceTest(test.APITestCase):
+    """When offerings are linked/unlinked from a CustomerCredit, the
+    customer policy evaluation must be debounced under the same cache key
+    as ``customer_estimated_cost_policy_trigger_handler``."""
+
+    def setUp(self):
+        cache.clear()
+        self.fixture = marketplace_fixtures.MarketplaceFixture()
+        self.resource = self.fixture.resource
+        self.resource.state = 2
+        self.resource.save()
+        self.invoice = invoices_models.Invoice.objects.get(
+            customer=self.fixture.customer, month=4, year=2026
+        )
+        self.credit = invoices_factories.CustomerCreditFactory(
+            customer=self.fixture.customer
+        )
+
+    def test_adding_offerings_debounces_to_one_publish(self):
+        offerings = [marketplace_factories.OfferingFactory() for _ in range(5)]
+        with (
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_policies_async.apply_async"
+            ) as apply_async,
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_policies_async.delay"
+            ) as delay,
+        ):
+            cache.clear()
+            self.credit.offerings.add(*offerings)
+
+            publishes = _publishes_for(apply_async, delay, _CUSTOMER_POLICY_PATH)
+            self.assertEqual(len(publishes), 1)
+            self.assertEqual(publishes[0][0], "apply_async")
+
+    def test_shares_debounce_key_with_invoice_item_handler(self):
+        """A credit edit followed by an InvoiceItem save on the same customer
+        must not double-publish — both routes share the per-customer cache key."""
+        with (
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_policies_async.apply_async"
+            ) as apply_async,
+            mock.patch(
+                "waldur_mastermind.policy.tasks.evaluate_policies_async.delay"
+            ) as delay,
+        ):
+            cache.clear()
+            offering = marketplace_factories.OfferingFactory()
+            self.credit.offerings.add(offering)
+            invoices_factories.InvoiceItemFactory(
+                invoice=self.invoice,
+                project=self.fixture.project,
+                resource=self.resource,
+                unit_price=Decimal("10"),
+                quantity=1,
+            )
+
+            publishes = _publishes_for(apply_async, delay, _CUSTOMER_POLICY_PATH)
+            self.assertEqual(
+                len(publishes),
+                1,
+                f"Credit-edit + invoice-item save must dedupe; got {publishes}",
             )
