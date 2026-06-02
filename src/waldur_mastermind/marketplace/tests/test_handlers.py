@@ -33,6 +33,63 @@ def add_user_to_project(user, project, role=None):
     tasks.create_or_restore_offering_users_for_user(user.uuid.hex, project.uuid.hex)
 
 
+class OfferingOptionsHandlerTest(APITestCase):
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+
+    def test_event_emitted_when_offering_options_are_updated(self):
+        Event.objects.all().delete()
+        self.fixture.offering.options = {"options": {}, "order": []}
+        self.fixture.offering.save()
+
+        self.fixture.offering.options = {
+            "order": ["storageRequest"],
+            "options": {
+                "storageRequest": {
+                    "type": "integer",
+                    "label": "Storage request (GB)",
+                    "required": True,
+                    "min": 0,
+                    "max": 102400,
+                }
+            },
+        }
+        self.fixture.offering.save()
+
+        event = Event.objects.filter(
+            event_type="marketplace_offering_options_updated"
+        ).first()
+        self.assertIsNotNone(event)
+        self.assertIn(self.fixture.offering.name, event.message)
+        self.assertIn("storageRequest", event.message)
+        self.assertIn("Details:", event.message)
+
+    def test_event_emitted_when_offering_resource_options_are_updated(self):
+        Event.objects.all().delete()
+        self.fixture.offering.resource_options = {"options": {}, "order": []}
+        self.fixture.offering.save()
+
+        self.fixture.offering.resource_options = {
+            "order": ["researchFields"],
+            "options": {
+                "researchFields": {
+                    "type": "string",
+                    "label": "Research fields",
+                    "required": False,
+                }
+            },
+        }
+        self.fixture.offering.save()
+
+        event = Event.objects.filter(
+            event_type="marketplace_offering_resource_options_updated"
+        ).first()
+        self.assertIsNotNone(event)
+        self.assertIn(self.fixture.offering.name, event.message)
+        self.assertIn("researchFields", event.message)
+        self.assertIn("Details:", event.message)
+
+
 class ResourceHandlerTest(APITestCase):
     def setUp(self):
         self.fixture = fixtures.MarketplaceFixture()

@@ -1135,10 +1135,35 @@ def plan_has_been_created_or_updated(sender, instance: Plan, created=False, **kw
                 )
 
 
+def _summarize_offering_form_options_diff(old_value, new_value) -> str:
+    old_options = (old_value or {}).get("options") or {}
+    new_options = (new_value or {}).get("options") or {}
+    old_order = (old_value or {}).get("order") or []
+    new_order = (new_value or {}).get("order") or []
+
+    parts = []
+    added = sorted(set(new_options) - set(old_options))
+    removed = sorted(set(old_options) - set(new_options))
+    changed = sorted(
+        key
+        for key in set(old_options) & set(new_options)
+        if old_options[key] != new_options[key]
+    )
+    if added:
+        parts.append(f"added option keys: {', '.join(added)}")
+    if removed:
+        parts.append(f"removed option keys: {', '.join(removed)}")
+    if changed:
+        parts.append(f"changed option keys: {', '.join(changed)}")
+    if old_order != new_order:
+        parts.append("option order changed")
+    return ". ".join(parts) + "." if parts else "No changes detected."
+
+
 def offering_has_been_created_or_updated(
     sender, instance: Offering, created=False, **kwargs
 ):
-    """Log offering creation and state updates."""
+    """Log offering creation and updates."""
     if created:
         event_logger.emit(
             "Offering has been created.",
@@ -1159,6 +1184,37 @@ def offering_has_been_created_or_updated(
                         state=instance.tracker.previous("state")
                     ).get_state_display(),
                     "new_value": instance.get_state_display(),
+                },
+                scopes=[instance, instance.customer],
+            )
+
+        if instance.tracker.has_changed("options"):
+            changes_summary = _summarize_offering_form_options_diff(
+                instance.tracker.previous("options"), instance.options
+            )
+            event_logger.emit(
+                f"Offering {instance.name} order form options have been updated. "
+                f"Details: {changes_summary}",
+                event_type=EventType.MARKETPLACE_OFFERING_OPTIONS_UPDATED,
+                event_context={
+                    "offering": instance,
+                    "changes_summary": changes_summary,
+                },
+                scopes=[instance, instance.customer],
+            )
+
+        if instance.tracker.has_changed("resource_options"):
+            changes_summary = _summarize_offering_form_options_diff(
+                instance.tracker.previous("resource_options"),
+                instance.resource_options,
+            )
+            event_logger.emit(
+                f"Offering {instance.name} resource report form options have been "
+                f"updated. Details: {changes_summary}",
+                event_type=EventType.MARKETPLACE_OFFERING_RESOURCE_OPTIONS_UPDATED,
+                event_context={
+                    "offering": instance,
+                    "changes_summary": changes_summary,
                 },
                 scopes=[instance, instance.customer],
             )
