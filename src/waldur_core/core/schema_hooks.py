@@ -272,21 +272,64 @@ def _make_fields_optional(schema_obj, full_schema):
                 _make_fields_optional(sub_schema, full_schema)
 
 
-def relax_user_optional_fields(result, generator, **kwargs):
-    """
-    Mark fields that UserSerializer.get_fields() may strip from the response
-    as optional in the generated schema, so SDKs do not require them.
-    """
-    optional_fields = {
+# Maps a response schema component name to the set of read-only fields that
+# its serializer's get_fields() may strip from the response depending on the
+# requester's role, ownership, or a runtime setting. drf-spectacular forces
+# every read-only field into required[], so without this hook the generated
+# SDKs (notably the attrs-based Python client) reject legitimate responses
+# that omit those fields.
+CONDITIONALLY_OPTIONAL_RESPONSE_FIELDS: dict[str, set[str]] = {
+    # UserSerializer / UserMeSerializer (waldur_core.structure.serializers)
+    "User": {
         "token",
         "token_lifetime",
         "attribute_sources",
         "active_isds",
         "has_active_session",
         "has_usable_password",
-    }
+    },
+    "UserMe": {
+        "token",
+        "token_lifetime",
+        "attribute_sources",
+        "active_isds",
+        "has_active_session",
+        "has_usable_password",
+    },
+    # IdentityProviderSerializer (waldur_auth_social.serializers)
+    # OAuth credentials dropped for non-staff users.
+    "IdentityProvider": {
+        "client_id",
+        "client_secret",
+        "discovery_url",
+        "token_url",
+        "userinfo_url",
+        "auth_url",
+        "logout_url",
+    },
+    # MessageSerializer (waldur_mastermind.chat.serializers)
+    # Moderation metadata dropped for non-staff/support users.
+    "Message": {
+        "is_flagged",
+        "severity",
+        "injection_categories",
+        "pii_categories",
+        "action_taken",
+    },
+    # IssueSerializer (waldur_mastermind.support.serializers)
+    # Internal triage links dropped for non-staff/support users.
+    "Issue": {"link", "processing_log"},
+}
+
+
+def relax_conditionally_optional_fields(result, generator, **kwargs):
+    """
+    Strip fields that the serializer's get_fields() may delete at runtime from
+    each response component's required[] array, so SDKs accept responses that
+    legitimately omit them. See CONDITIONALLY_OPTIONAL_RESPONSE_FIELDS above.
+    """
     schemas = result.get("components", {}).get("schemas", {})
-    for schema_name in ("User", "UserMe"):
+    for schema_name, optional_fields in CONDITIONALLY_OPTIONAL_RESPONSE_FIELDS.items():
         schema = schemas.get(schema_name)
         if not schema or "required" not in schema:
             continue
