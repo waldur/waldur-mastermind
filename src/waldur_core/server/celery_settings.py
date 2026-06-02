@@ -34,6 +34,13 @@ CELERY_SEND_EVENTS = True
 # Fix for Celery 6.0 deprecation warning
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
+# Disable psycopg3 server-side prepared statements for the database result backend.
+# psycopg3 caches prepared statements per-connection; PgBouncer in transaction
+# pooling mode reassigns connections between transactions, so a prepared statement
+# created on connection A is invisible on connection B — causing
+# "prepared statement _pg3_N does not exist" errors.
+CELERY_DATABASE_ENGINE_OPTIONS = {"connect_args": {"prepare_threshold": None}}
+
 # Memory management - restart workers after N tasks to prevent memory leaks
 CELERY_WORKER_MAX_TASKS_PER_CHILD = 100
 
