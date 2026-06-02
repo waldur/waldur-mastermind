@@ -106,6 +106,8 @@
 - marketplace_offering_component_created
 - marketplace_offering_component_deleted
 - marketplace_offering_component_updated
+- marketplace_offering_options_updated
+- marketplace_offering_resource_options_updated
 - marketplace_plan_archived
 - marketplace_plan_component_current_price_updated
 - marketplace_plan_component_future_price_updated
