@@ -107,6 +107,17 @@ class UserPermissionApiTest(test.APITestCase):
         self.assertIsNotNone("token", response.data)
         self.assertIsNotNone("token_lifetime", response.data)
 
+    def test_me_endpoint_includes_session_fields_for_regular_user(self):
+        user = factories.UserFactory()
+        self.client.force_authenticate(user)
+
+        response = self.client.get(factories.UserFactory.get_list_url("me"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("has_active_session", response.data)
+        self.assertIn("has_usable_password", response.data)
+        self.assertIsInstance(response.data["has_active_session"], bool)
+        self.assertIsInstance(response.data["has_usable_password"], bool)
+
     def test_me_endpoint_includes_ip_address_from_x_forwarded_for(self):
         self.client.force_authenticate(self.users["owner"])
         response = self.client.get(
@@ -989,13 +1000,21 @@ class UserPasswordManagementTest(test.APITestCase):
         self.assertIn("has_usable_password", response.data)
         self.assertTrue(response.data["has_usable_password"])
 
-    @data("global_support", "user")
-    def test_non_staff_cannot_see_has_usable_password(self, user):
-        url = factories.UserFactory.get_url(self.fixture.user)
-        self.client.force_authenticate(getattr(self.fixture, user))
+    def test_support_cannot_see_has_usable_password_of_other_user(self):
+        other_user = factories.UserFactory()
+        url = factories.UserFactory.get_url(other_user)
+        self.client.force_authenticate(self.fixture.global_support)
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertNotIn("has_usable_password", response.data)
+
+    def test_user_can_see_has_usable_password_on_own_profile(self):
+        url = factories.UserFactory.get_url(self.fixture.user)
+        self.client.force_authenticate(self.fixture.user)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("has_usable_password", response.data)
+        self.assertTrue(response.data["has_usable_password"])
 
     def test_has_usable_password_false_after_removal(self):
         self.fixture.user.set_unusable_password()
