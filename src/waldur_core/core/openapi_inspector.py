@@ -9,11 +9,53 @@ from drf_spectacular.plumbing import (
     build_basic_type,
     get_doc,
 )
-from drf_spectacular.utils import OpenApiParameter
-from rest_framework.serializers import ListSerializer
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse
+from rest_framework.serializers import BaseSerializer, ListSerializer
 
 from waldur_core.core.serializers import RestrictedSerializerMixin
 from waldur_core.core.signals import pre_serializer_fields
+
+
+def _resolve_response_serializer(response):
+    """Coerce a drf-spectacular response declaration into a serializer instance.
+
+    ``@extend_schema(responses=...)`` accepts several shapes and stores the
+    value verbatim — ``get_response_serializers()`` then returns it as-is.
+    Without normalisation we must instance-check against every variant, which
+    is fragile (and was missed for the dict case, silently dropping the
+    ``?field=`` projection from the schema for every endpoint that uses
+    ``responses={status: SerializerClass}``).
+    """
+    if response is None:
+        return None
+    if isinstance(response, OpenApiResponse):
+        return _resolve_response_serializer(response.response)
+    if isinstance(response, dict):
+        # Prefer a 2xx entry; fall back to whatever resolves first.
+        def _is_success(code):
+            try:
+                return 200 <= int(code) < 300
+            except (TypeError, ValueError):
+                return False
+
+        ordered = sorted(
+            response.items(), key=lambda item: 0 if _is_success(item[0]) else 1
+        )
+        for _code, value in ordered:
+            resolved = _resolve_response_serializer(value)
+            if resolved is not None:
+                return resolved
+        return None
+    if isinstance(response, ListSerializer):
+        return response.child
+    if isinstance(response, BaseSerializer):
+        return response
+    if isinstance(response, type) and issubclass(response, BaseSerializer):
+        try:
+            return response()
+        except Exception:
+            return None
+    return None
 
 
 class WaldurOpenApiInspector(AutoSchema):
@@ -90,10 +132,7 @@ class WaldurOpenApiInspector(AutoSchema):
         if self.method != "GET":
             return []
 
-        serializer = self.get_response_serializers()
-
-        if isinstance(serializer, ListSerializer):
-            serializer = serializer.child
+        serializer = _resolve_response_serializer(self.get_response_serializers())
 
         if not isinstance(serializer, RestrictedSerializerMixin):
             return []
