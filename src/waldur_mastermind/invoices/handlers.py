@@ -94,10 +94,19 @@ def set_project_name_on_invoice_item_creation(
     sender, instance: InvoiceItem, created=False, **kwargs
 ):
     if created and instance.project:
-        item = instance
-        item.project_name = item.project.name
-        item.project_uuid = item.project.uuid.hex
-        item.save(update_fields=("project_name", "project_uuid"))
+        # Use ``QuerySet.update`` instead of ``instance.save`` to avoid
+        # firing a second ``post_save`` for the same row — the recursive
+        # signal would re-trigger every InvoiceItem handler (policy
+        # triggers in particular) for what is essentially a denormalised
+        # field write. Keep the in-memory instance in sync with the DB.
+        project_name = instance.project.name
+        project_uuid = instance.project.uuid.hex
+        type(instance).objects.filter(pk=instance.pk).update(
+            project_name=project_name,
+            project_uuid=project_uuid,
+        )
+        instance.project_name = project_name
+        instance.project_uuid = project_uuid
 
 
 def update_invoice_item_on_project_name_update(sender, instance: Project, **kwargs):
