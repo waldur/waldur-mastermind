@@ -48,12 +48,13 @@ class CostPolicyDebounceTest(test.APITestCase):
         with mock.patch(
             "waldur_mastermind.policy.tasks.evaluate_policies_async.apply_async"
         ) as mock_apply:
-            for _ in range(5):
-                _debounced_evaluate(
-                    "test.PolicyPath",
-                    {"scope_id": 42},
-                    "test_debounce_key",
-                )
+            with self.captureOnCommitCallbacks(execute=True):
+                for _ in range(5):
+                    _debounced_evaluate(
+                        "test.PolicyPath",
+                        {"scope_id": 42},
+                        "test_debounce_key",
+                    )
 
             self.assertEqual(
                 mock_apply.call_count,
@@ -70,9 +71,10 @@ class CostPolicyDebounceTest(test.APITestCase):
         with mock.patch(
             "waldur_mastermind.policy.tasks.evaluate_policies_async.apply_async"
         ) as mock_apply:
-            _debounced_evaluate("test.Path", {"scope_id": 1}, "key_project_1")
-            _debounced_evaluate("test.Path", {"scope_id": 2}, "key_project_2")
-            _debounced_evaluate("test.Path", {"scope_id": 3}, "key_project_3")
+            with self.captureOnCommitCallbacks(execute=True):
+                _debounced_evaluate("test.Path", {"scope_id": 1}, "key_project_1")
+                _debounced_evaluate("test.Path", {"scope_id": 2}, "key_project_2")
+                _debounced_evaluate("test.Path", {"scope_id": 3}, "key_project_3")
 
             self.assertEqual(mock_apply.call_count, 3)
 
@@ -81,8 +83,9 @@ class CostPolicyDebounceTest(test.APITestCase):
         with mock.patch(
             "waldur_mastermind.policy.tasks.evaluate_policies_async.apply_async"
         ) as mock_apply:
-            _debounced_evaluate("test.Path", {"scope_id": 1}, "same_key")
-            _debounced_evaluate("test.Path", {"scope_id": 2}, "same_key")
+            with self.captureOnCommitCallbacks(execute=True):
+                _debounced_evaluate("test.Path", {"scope_id": 1}, "same_key")
+                _debounced_evaluate("test.Path", {"scope_id": 2}, "same_key")
 
             self.assertEqual(mock_apply.call_count, 1)
 
@@ -91,13 +94,15 @@ class CostPolicyDebounceTest(test.APITestCase):
         with mock.patch(
             "waldur_mastermind.policy.tasks.evaluate_policies_async.apply_async"
         ) as mock_apply:
-            _debounced_evaluate("test.Path", {"scope_id": 1}, "expiry_key")
+            with self.captureOnCommitCallbacks(execute=True):
+                _debounced_evaluate("test.Path", {"scope_id": 1}, "expiry_key")
             self.assertEqual(mock_apply.call_count, 1)
 
             # Simulate cache expiry
             cache.delete("expiry_key")
 
-            _debounced_evaluate("test.Path", {"scope_id": 1}, "expiry_key")
+            with self.captureOnCommitCallbacks(execute=True):
+                _debounced_evaluate("test.Path", {"scope_id": 1}, "expiry_key")
             self.assertEqual(mock_apply.call_count, 2)
 
 
@@ -160,14 +165,15 @@ class CostPolicyHandlerIntegrationTest(test.APITestCase):
             "waldur_mastermind.policy.tasks.evaluate_policies_async.apply_async"
         ) as mock_apply:
             cache.clear()  # Ensure clean state
-            for _ in range(5):
-                invoices_factories.InvoiceItemFactory(
-                    invoice=self.invoice,
-                    project=self.project,
-                    unit_price=Decimal("10"),
-                    quantity=1,
-                    resource=self.resource,
-                )
+            with self.captureOnCommitCallbacks(execute=True):
+                for _ in range(5):
+                    invoices_factories.InvoiceItemFactory(
+                        invoice=self.invoice,
+                        project=self.project,
+                        unit_price=Decimal("10"),
+                        quantity=1,
+                        resource=self.resource,
+                    )
 
             debounced_calls = [
                 c
@@ -223,14 +229,15 @@ class OfferingPolicyDebounceTest(test.APITestCase):
             ) as delay,
         ):
             cache.clear()  # setUp may have populated cache via auto-created items
-            for _ in range(5):
-                invoices_factories.InvoiceItemFactory(
-                    invoice=self.invoice,
-                    project=self.fixture.project,
-                    resource=self.resource,
-                    unit_price=Decimal("10"),
-                    quantity=1,
-                )
+            with self.captureOnCommitCallbacks(execute=True):
+                for _ in range(5):
+                    invoices_factories.InvoiceItemFactory(
+                        invoice=self.invoice,
+                        project=self.fixture.project,
+                        resource=self.resource,
+                        unit_price=Decimal("10"),
+                        quantity=1,
+                    )
 
             publishes = _publishes_for(
                 apply_async, delay, _OFFERING_ESTIMATED_COST_POLICY_PATH
@@ -254,8 +261,9 @@ class OfferingPolicyDebounceTest(test.APITestCase):
             ) as delay,
         ):
             cache.clear()
-            for _ in range(5):
-                marketplace_factories.ComponentUsageFactory(resource=self.resource)
+            with self.captureOnCommitCallbacks(execute=True):
+                for _ in range(5):
+                    marketplace_factories.ComponentUsageFactory(resource=self.resource)
 
             publishes = _publishes_for(apply_async, delay, _OFFERING_USAGE_POLICY_PATH)
             self.assertEqual(len(publishes), 1)
@@ -283,10 +291,11 @@ class CustomerComponentUsageDebounceTest(test.APITestCase):
             ) as delay,
         ):
             cache.clear()
-            for _ in range(5):
-                marketplace_factories.ComponentUsageFactory(
-                    resource=self.resource, component=self.component
-                )
+            with self.captureOnCommitCallbacks(execute=True):
+                for _ in range(5):
+                    marketplace_factories.ComponentUsageFactory(
+                        resource=self.resource, component=self.component
+                    )
 
             publishes = _publishes_for(
                 apply_async, delay, _CUSTOMER_COMPONENT_USAGE_POLICY_PATH
@@ -310,12 +319,13 @@ class CustomerComponentUsageDebounceTest(test.APITestCase):
             ) as delay,
         ):
             cache.clear()
-            marketplace_factories.ComponentUsageFactory(
-                resource=self.resource, component=self.component
-            )
-            marketplace_factories.ComponentUsageFactory(
-                resource=self.resource, component=c2
-            )
+            with self.captureOnCommitCallbacks(execute=True):
+                marketplace_factories.ComponentUsageFactory(
+                    resource=self.resource, component=self.component
+                )
+                marketplace_factories.ComponentUsageFactory(
+                    resource=self.resource, component=c2
+                )
 
             publishes = _publishes_for(
                 apply_async, delay, _CUSTOMER_COMPONENT_USAGE_POLICY_PATH
@@ -348,7 +358,8 @@ class SlurmPeriodicUsageDebounceTest(test.APITestCase):
             ) as delay,
         ):
             cache.clear()
-            marketplace_factories.ComponentUsageFactory(resource=self.resource)
+            with self.captureOnCommitCallbacks(execute=True):
+                marketplace_factories.ComponentUsageFactory(resource=self.resource)
 
             self.assertEqual(apply_async.call_count, 0)
             self.assertEqual(delay.call_count, 0)
@@ -364,8 +375,9 @@ class SlurmPeriodicUsageDebounceTest(test.APITestCase):
             ) as delay,
         ):
             cache.clear()
-            for _ in range(5):
-                marketplace_factories.ComponentUsageFactory(resource=self.resource)
+            with self.captureOnCommitCallbacks(execute=True):
+                for _ in range(5):
+                    marketplace_factories.ComponentUsageFactory(resource=self.resource)
 
             self.assertEqual(apply_async.call_count, 1)
             self.assertEqual(delay.call_count, 0)
@@ -405,7 +417,8 @@ class CustomerCreditOfferingsListDebounceTest(test.APITestCase):
             ) as delay,
         ):
             cache.clear()
-            self.credit.offerings.add(*offerings)
+            with self.captureOnCommitCallbacks(execute=True):
+                self.credit.offerings.add(*offerings)
 
             publishes = _publishes_for(apply_async, delay, _CUSTOMER_POLICY_PATH)
             self.assertEqual(len(publishes), 1)
@@ -423,15 +436,16 @@ class CustomerCreditOfferingsListDebounceTest(test.APITestCase):
             ) as delay,
         ):
             cache.clear()
-            offering = marketplace_factories.OfferingFactory()
-            self.credit.offerings.add(offering)
-            invoices_factories.InvoiceItemFactory(
-                invoice=self.invoice,
-                project=self.fixture.project,
-                resource=self.resource,
-                unit_price=Decimal("10"),
-                quantity=1,
-            )
+            with self.captureOnCommitCallbacks(execute=True):
+                offering = marketplace_factories.OfferingFactory()
+                self.credit.offerings.add(offering)
+                invoices_factories.InvoiceItemFactory(
+                    invoice=self.invoice,
+                    project=self.fixture.project,
+                    resource=self.resource,
+                    unit_price=Decimal("10"),
+                    quantity=1,
+                )
 
             publishes = _publishes_for(apply_async, delay, _CUSTOMER_POLICY_PATH)
             self.assertEqual(

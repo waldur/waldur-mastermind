@@ -1,6 +1,7 @@
 import logging
 
 from django.core.cache import cache
+from django.db import transaction
 
 from waldur_mastermind.invoices import models as invoices_models
 from waldur_mastermind.invoices.models import CustomerCredit, ProjectCredit
@@ -35,24 +36,47 @@ def _debounced_call(task, args, cache_key):
     same key are silently dropped — the scheduled task will pick up all
     changes when it runs.
 
-    The cache key is set with a timeout equal to the debounce interval.
-    After that time, both the cache key expires (allowing new triggers)
-    and the scheduled task executes (evaluating with complete data).
+    The actual broker publish is deferred to ``transaction.on_commit`` so
+    it runs after the surrounding DB transaction commits. Two reasons:
+
+    1. If the publish fails (broker stalled, connection half-open), the
+       caller's state changes are already durable. The HTTP request can
+       return success even if policy evaluation is briefly skipped — the
+       next trigger will catch up.
+    2. Outside any transaction (e.g. a one-off shell), ``on_commit``
+       runs the callback immediately, so the helper is safe in both
+       request and non-request contexts.
+
+    Publish exceptions are swallowed and logged: policy evaluation is a
+    side-effect, not a correctness requirement, so a transient broker
+    blip must not propagate up to a 5xx on the parent operation.
     """
     debounce_seconds = _get_debounce_seconds()
     if debounce_seconds <= 0:
         # Debounce disabled — dispatch immediately (used in tests).
         task.delay(*args)
         return
-    if not cache.add(cache_key, True, timeout=debounce_seconds):
-        return  # Already scheduled for this cache_key
-    logger.info(
-        "Debounce: scheduling %s (key %s), countdown=%ds",
-        task.name,
-        cache_key,
-        debounce_seconds,
-    )
-    task.apply_async(args=list(args), countdown=debounce_seconds)
+
+    def _publish() -> None:
+        if not cache.add(cache_key, True, timeout=debounce_seconds):
+            return  # Already scheduled for this cache_key
+        logger.info(
+            "Debounce: scheduling %s (key %s), countdown=%ds",
+            task.name,
+            cache_key,
+            debounce_seconds,
+        )
+        try:
+            task.apply_async(args=list(args), countdown=debounce_seconds)
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "Deferred policy publish failed for %s key=%s; "
+                "policy evaluation will catch up on the next trigger.",
+                task.name,
+                cache_key,
+            )
+
+    transaction.on_commit(_publish)
 
 
 def _debounced_evaluate(policy_path, filters, cache_key):
