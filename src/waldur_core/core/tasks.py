@@ -621,8 +621,30 @@ class PollBackendCheckTask(Task):
     def execute(self, instance, backend_check_method):
         # backend_check_method should return True if object does not exist at backend
         backend = self.get_backend(instance)
+        retries = getattr(self.request, "retries", 0) or 0
         if not getattr(backend, backend_check_method)(instance):
+            if retries == 0:
+                logger.info(
+                    "Polling backend check `%s` for `%s` started "
+                    "(interval=%ds, max_retries=%d).",
+                    backend_check_method,
+                    instance,
+                    self.default_retry_delay,
+                    self.max_retries,
+                )
             self.retry()
+        # Approximate elapsed wall time as polls * interval; not exact because
+        # Celery retry scheduling has small jitter and queue delays, but close
+        # enough to distinguish "OpenStack was slow" from "we polled a lot".
+        if retries > 0:
+            logger.info(
+                "Polling backend check `%s` for `%s` completed after %d poll(s) "
+                "(~%ds wall time).",
+                backend_check_method,
+                instance,
+                retries + 1,
+                (retries + 1) * self.default_retry_delay,
+            )
         return instance
 
 

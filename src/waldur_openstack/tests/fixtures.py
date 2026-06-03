@@ -214,7 +214,9 @@ class OpenStackFixture(ProjectFixture):
 
 
 def mock_session():
-    session_mock = mock.patch("keystoneauth1.session.Session").start()()
+    # Patch the subclass we actually instantiate in create_session/recover_cached_session
+    # so test code never makes real keystone HTTP calls.
+    session_mock = mock.patch("waldur_openstack.session.TimedSession").start()()
     session_mock.auth.auth_url = "auth_url"
     session_mock.auth.project_id = "project_id"
     session_mock.auth.project_domain_name = None
