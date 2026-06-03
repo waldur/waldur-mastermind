@@ -1343,6 +1343,20 @@ CONSTANCE_CONFIG = {
         "Default reminder schedule (days before expiration) for expiring resources. Can be overridden per offering via plugin_options.resource_expiration_reminders.",
         "list_field",
     ),
+    # OpenStack call tracing settings
+    "OPENSTACK_LOG_CALLS_ENABLED": (
+        False,
+        "Emit one log line per OpenStack HTTP call on logger "
+        "`waldur_openstack.calls` (method, host+path, status, elapsed ms, "
+        "originating backend action). Useful for diagnosing slow tenant "
+        "operations; off by default because chatty under steady-state load.",
+    ),
+    "OPENSTACK_LOG_CALLS_THRESHOLD_MS": (
+        0,
+        "When OPENSTACK_LOG_CALLS_ENABLED is on, only emit lines for calls "
+        "slower than this many milliseconds. 0 logs every call. Errors are "
+        "always logged regardless of this threshold.",
+    ),
     # User Data Access Logging settings
     "USER_DATA_ACCESS_LOGGING_ENABLED": (
         False,
@@ -1765,6 +1779,8 @@ CONSTANCE_CONFIG_FIELDSETS = {
     "System Logging": (
         "SYSTEM_LOG_ENABLED",
         "SYSTEM_LOG_MAX_ROWS_PER_SOURCE",
+        "OPENSTACK_LOG_CALLS_ENABLED",
+        "OPENSTACK_LOG_CALLS_THRESHOLD_MS",
     ),
     "Table Growth Monitoring": (
         "TABLE_GROWTH_MONITORING_ENABLED",

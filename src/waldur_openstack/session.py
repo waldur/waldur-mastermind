@@ -3,9 +3,12 @@ import hashlib
 import logging
 import os.path
 import tempfile
+import time
+from urllib.parse import urlsplit
 
 from cinderclient import exceptions as cinder_exceptions
 from cinderclient.v3 import client as cinder_client
+from constance import config
 from django.core.cache import cache
 from glanceclient import exc as glance_exceptions
 from glanceclient.v2 import client as glance_client
@@ -21,15 +24,108 @@ from novaclient import exceptions as nova_exceptions
 from novaclient.v2 import client as nova2_client
 
 from waldur_core.core.utils import QuietSession
+from waldur_core.structure.backend import current_backend_action
 from waldur_openstack.exceptions import (
     OpenStackAuthorizationFailed,
     OpenStackBackendError,
 )
 
 logger = logging.getLogger(__name__)
+# Dedicated logger for per-call OpenStack HTTP traces; operators can raise it
+# to INFO to see one line per outgoing call without enabling DEBUG on every
+# keystoneauth/requests module.
+call_logger = logging.getLogger("waldur_openstack.calls")
 
 
 SESSION_LIFETIME = 10 * 60 * 60
+
+
+class TimedSession(keystone_session.Session):
+    """keystoneauth Session that emits one log line per HTTP call.
+
+    Each line carries method, host+path, status code and elapsed milliseconds,
+    plus the currently-active backend action (set by `@log_backend_action`) so
+    a slow tenant teardown can be unpicked into individual OpenStack calls.
+
+    The class is a drop-in for `keystone_session.Session`; all keystoneauth
+    SDK clients route their HTTP through `Session.request`, so subclassing
+    once at session construction time instruments every downstream SDK.
+    """
+
+    def request(self, url, method, **kwargs):
+        start = time.perf_counter()
+        status: int | str = "-"
+        error: str | None = None
+        response = None
+        try:
+            response = super().request(url, method, **kwargs)
+            status = response.status_code
+            return response
+        except Exception as exc:
+            error = type(exc).__name__
+            # keystoneauth raises typed exceptions (e.g. NotFound) that carry
+            # the HTTP status — surface it so 4xx/5xx still shows up cleanly.
+            status = getattr(exc, "http_status", None) or status
+            response = getattr(exc, "response", None)
+            raise
+        finally:
+            elapsed_ms = (time.perf_counter() - start) * 1000
+            # Errors always log so failures aren't hidden by the threshold.
+            # SDK clients (nova/cinder/…) pass raise_exc=False to keystoneauth
+            # and handle HTTP failures themselves, so 4xx/5xx return as a
+            # status code rather than as a raised exception — treat both as
+            # "always log".
+            failed = bool(error) or (isinstance(status, int) and status >= 400)
+            should_log = failed
+            if not should_log:
+                try:
+                    if config.OPENSTACK_LOG_CALLS_ENABLED:
+                        threshold_ms = config.OPENSTACK_LOG_CALLS_THRESHOLD_MS or 0
+                        should_log = elapsed_ms >= threshold_ms
+                except Exception:
+                    # Constance failures (DB unavailable during boot, etc.)
+                    # must not break OpenStack calls. Stay quiet on success path.
+                    should_log = False
+            if should_log:
+                # Defer URL parsing and auth/context lookups to the log path
+                # so calls that won't be emitted (the default, disabled case)
+                # don't pay for them.
+                # SDK clients pass relative paths; the resolved absolute URL
+                # is only available on the response. Prefer it; fall back to
+                # the caller's url. Strip the query string to avoid leaking
+                # tokens or other sensitive params into logs.
+                resolved = getattr(response, "url", None) or url
+                try:
+                    parts = urlsplit(resolved)
+                    if parts.netloc:
+                        short_url = f"{parts.scheme}://{parts.netloc}{parts.path}"
+                    else:
+                        short_url = parts.path or resolved
+                except Exception:
+                    short_url = resolved
+                action = current_backend_action.get()
+                project_id = getattr(
+                    getattr(self.auth, "auth_ref", None), "project_id", None
+                ) or getattr(self.auth, "project_id", None)
+                call_logger.info(
+                    "OpenStack %s %s -> %s in %.0fms (action=%s, project=%s%s)",
+                    method,
+                    short_url,
+                    status,
+                    elapsed_ms,
+                    action or "-",
+                    project_id or "-",
+                    f", error={error}" if error else "",
+                    extra={
+                        "openstack_method": method,
+                        "openstack_url": short_url,
+                        "openstack_status": status,
+                        "openstack_duration_ms": round(elapsed_ms, 1),
+                        "openstack_project_id": project_id,
+                        "openstack_action": action,
+                        "openstack_error": error,
+                    },
+                )
 
 
 def get_cached_session_key(credentials: dict[str, str]):
@@ -85,7 +181,7 @@ def recover_cached_session(cached_session: dict[str, str], verify_ssl=False):
     auth_state = cached_session.pop("auth_state")
     auth_method = v3.Token(**cached_session)
     auth_method.set_auth_state(auth_state)
-    return keystone_session.Session(auth=auth_method, verify=verify_ssl)
+    return TimedSession(auth=auth_method, verify=verify_ssl)
 
 
 def create_session(credentials: dict[str, str], verify_ssl=False):
@@ -108,7 +204,7 @@ def create_session(credentials: dict[str, str], verify_ssl=False):
     else:
         raise OpenStackBackendError(f"Unsupported auth_type: {auth_type}")
 
-    ks_session = keystone_session.Session(
+    ks_session = TimedSession(
         auth=auth,
         verify=verify_ssl,
         session=http_session,

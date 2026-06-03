@@ -1,15 +1,22 @@
+import logging
 from unittest import mock
 
 import pytest
+from constance.test.unittest import override_config
 from keystoneauth1 import exceptions as keystoneauth_exceptions
+from keystoneauth1 import session as keystone_session
 from keystoneauth1.identity import v3
 
+from waldur_core.structure.backend import current_backend_action
 from waldur_openstack.exceptions import OpenStackBackendError
 from waldur_openstack.session import (
     PlacementClient,
+    TimedSession,
     create_session,
     get_nova_client,
 )
+
+CALLS_LOGGER = "waldur_openstack.calls"
 
 
 @pytest.fixture
@@ -24,7 +31,7 @@ def password_credentials():
     }
 
 
-@mock.patch("waldur_openstack.session.keystone_session.Session")
+@mock.patch("waldur_openstack.session.TimedSession")
 class TestCreateSessionAuthType:
     def test_default_auth_type_uses_password(
         self, mock_session_class, password_credentials
@@ -226,3 +233,254 @@ class TestPlacementClient:
 
         headers = session.get.call_args.kwargs["headers"]
         assert headers["OpenStack-API-Version"] == "placement 1.36"
+
+
+def _make_response(status_code=200, url=None):
+    resp = mock.MagicMock()
+    resp.status_code = status_code
+    resp.url = url
+    return resp
+
+
+def _calls_records(caplog):
+    return [r for r in caplog.records if r.name == CALLS_LOGGER]
+
+
+@pytest.fixture
+def patched_parent_request():
+    """Patch keystoneauth1.session.Session.request so super().request() is mocked."""
+    with mock.patch.object(keystone_session.Session, "request") as m:
+        yield m
+
+
+@pytest.fixture
+def deterministic_clock():
+    """Patch time.perf_counter in session module to a controllable iterator."""
+    with mock.patch("waldur_openstack.session.time.perf_counter") as m:
+        yield m
+
+
+@pytest.fixture(autouse=True)
+def reset_backend_action():
+    token = current_backend_action.set(None)
+    try:
+        yield
+    finally:
+        current_backend_action.reset(token)
+
+
+@pytest.mark.django_db
+class TestTimedSession:
+    """Direct tests for TimedSession.request logging branches.
+
+    super().request is patched at the parent class so no real HTTP is involved;
+    time.perf_counter is patched so threshold gating is deterministic.
+    """
+
+    def _set_elapsed_ms(self, clock_mock, ms):
+        clock_mock.side_effect = [1000.0, 1000.0 + ms / 1000.0]
+
+    @override_config(OPENSTACK_LOG_CALLS_ENABLED=False)
+    def test_disabled_constance_suppresses_success_log(
+        self, patched_parent_request, deterministic_clock, caplog
+    ):
+        patched_parent_request.return_value = _make_response(
+            200, "https://nova/v2.1/servers"
+        )
+        self._set_elapsed_ms(deterministic_clock, 250)
+        session = TimedSession()
+
+        with caplog.at_level(logging.INFO, logger=CALLS_LOGGER):
+            session.request("/v2.1/servers", "GET")
+
+        assert _calls_records(caplog) == []
+
+    @override_config(
+        OPENSTACK_LOG_CALLS_ENABLED=True, OPENSTACK_LOG_CALLS_THRESHOLD_MS=100
+    )
+    def test_enabled_above_threshold_logs_success(
+        self, patched_parent_request, deterministic_clock, caplog
+    ):
+        patched_parent_request.return_value = _make_response(
+            200, "https://nova/v2.1/servers"
+        )
+        self._set_elapsed_ms(deterministic_clock, 250)
+        session = TimedSession()
+
+        with caplog.at_level(logging.INFO, logger=CALLS_LOGGER):
+            session.request("/v2.1/servers", "GET")
+
+        records = _calls_records(caplog)
+        assert len(records) == 1
+        record = records[0]
+        assert record.openstack_status == 200
+        assert record.openstack_method == "GET"
+        assert record.openstack_duration_ms == pytest.approx(250.0, abs=1.0)
+        assert record.openstack_error is None
+
+    @override_config(
+        OPENSTACK_LOG_CALLS_ENABLED=True, OPENSTACK_LOG_CALLS_THRESHOLD_MS=500
+    )
+    def test_enabled_below_threshold_suppresses_success_log(
+        self, patched_parent_request, deterministic_clock, caplog
+    ):
+        patched_parent_request.return_value = _make_response(
+            200, "https://nova/v2.1/servers"
+        )
+        self._set_elapsed_ms(deterministic_clock, 100)
+        session = TimedSession()
+
+        with caplog.at_level(logging.INFO, logger=CALLS_LOGGER):
+            session.request("/v2.1/servers", "GET")
+
+        assert _calls_records(caplog) == []
+
+    @override_config(
+        OPENSTACK_LOG_CALLS_ENABLED=False, OPENSTACK_LOG_CALLS_THRESHOLD_MS=10_000
+    )
+    def test_4xx_logs_even_when_disabled(
+        self, patched_parent_request, deterministic_clock, caplog
+    ):
+        # SDK clients (nova/cinder/...) pass raise_exc=False, so 4xx returns
+        # as a status code rather than as a raised exception. Errors must log
+        # regardless of ENABLED or THRESHOLD.
+        patched_parent_request.return_value = _make_response(
+            404, "https://nova/v2.1/servers/missing"
+        )
+        self._set_elapsed_ms(deterministic_clock, 5)
+        session = TimedSession()
+
+        with caplog.at_level(logging.INFO, logger=CALLS_LOGGER):
+            session.request("/v2.1/servers/missing", "GET")
+
+        records = _calls_records(caplog)
+        assert len(records) == 1
+        assert records[0].openstack_status == 404
+        assert records[0].openstack_error is None
+
+    @override_config(
+        OPENSTACK_LOG_CALLS_ENABLED=False, OPENSTACK_LOG_CALLS_THRESHOLD_MS=10_000
+    )
+    def test_5xx_logs_even_when_disabled(
+        self, patched_parent_request, deterministic_clock, caplog
+    ):
+        patched_parent_request.return_value = _make_response(
+            503, "https://nova/v2.1/servers"
+        )
+        self._set_elapsed_ms(deterministic_clock, 5)
+        session = TimedSession()
+
+        with caplog.at_level(logging.INFO, logger=CALLS_LOGGER):
+            session.request("/v2.1/servers", "GET")
+
+        records = _calls_records(caplog)
+        assert len(records) == 1
+        assert records[0].openstack_status == 503
+
+    @override_config(
+        OPENSTACK_LOG_CALLS_ENABLED=False, OPENSTACK_LOG_CALLS_THRESHOLD_MS=10_000
+    )
+    def test_exception_logs_even_when_disabled(
+        self, patched_parent_request, deterministic_clock, caplog
+    ):
+        patched_parent_request.side_effect = keystoneauth_exceptions.NotFound(
+            "missing", http_status=404
+        )
+        self._set_elapsed_ms(deterministic_clock, 5)
+        session = TimedSession()
+
+        with caplog.at_level(logging.INFO, logger=CALLS_LOGGER):
+            with pytest.raises(keystoneauth_exceptions.NotFound):
+                session.request("/v2.1/servers/missing", "GET")
+
+        records = _calls_records(caplog)
+        assert len(records) == 1
+        assert records[0].openstack_error == "NotFound"
+        assert records[0].openstack_status == 404
+
+    @override_config(
+        OPENSTACK_LOG_CALLS_ENABLED=True, OPENSTACK_LOG_CALLS_THRESHOLD_MS=0
+    )
+    def test_query_string_is_stripped_from_logged_url(
+        self, patched_parent_request, deterministic_clock, caplog
+    ):
+        patched_parent_request.return_value = _make_response(
+            200,
+            "https://nova:8774/v2.1/servers?marker=abc&fields=name",
+        )
+        self._set_elapsed_ms(deterministic_clock, 5)
+        session = TimedSession()
+
+        with caplog.at_level(logging.INFO, logger=CALLS_LOGGER):
+            session.request("/v2.1/servers", "GET")
+
+        records = _calls_records(caplog)
+        assert len(records) == 1
+        assert records[0].openstack_url == "https://nova:8774/v2.1/servers"
+        assert "?" not in records[0].getMessage()
+
+    @override_config(
+        OPENSTACK_LOG_CALLS_ENABLED=True, OPENSTACK_LOG_CALLS_THRESHOLD_MS=0
+    )
+    def test_relative_url_falls_back_to_caller_arg_with_query_stripped(
+        self, patched_parent_request, deterministic_clock, caplog
+    ):
+        # No response.url available (e.g. transport error path); the caller's
+        # relative URL is used and its query string is still stripped.
+        patched_parent_request.return_value = _make_response(200, url=None)
+        self._set_elapsed_ms(deterministic_clock, 5)
+        session = TimedSession()
+
+        with caplog.at_level(logging.INFO, logger=CALLS_LOGGER):
+            session.request("/v2.1/servers?marker=abc", "GET")
+
+        records = _calls_records(caplog)
+        assert len(records) == 1
+        assert records[0].openstack_url == "/v2.1/servers"
+
+    def test_constance_failure_does_not_break_call(
+        self, patched_parent_request, deterministic_clock, caplog
+    ):
+        # Constance can fail during boot (DB unavailable, migration mid-flight).
+        # The HTTP call must still succeed, and the success path stays quiet —
+        # no log line if we can't even tell whether logging is enabled.
+        response = _make_response(200, "https://nova/v2.1/servers")
+        patched_parent_request.return_value = response
+        self._set_elapsed_ms(deterministic_clock, 5)
+
+        broken_config = mock.MagicMock()
+        type(broken_config).OPENSTACK_LOG_CALLS_ENABLED = mock.PropertyMock(
+            side_effect=RuntimeError("db unavailable")
+        )
+
+        session = TimedSession()
+        with mock.patch("waldur_openstack.session.config", broken_config):
+            with caplog.at_level(logging.INFO, logger=CALLS_LOGGER):
+                result = session.request("/v2.1/servers", "GET")
+
+        assert result is response
+        assert _calls_records(caplog) == []
+
+    @override_config(
+        OPENSTACK_LOG_CALLS_ENABLED=True, OPENSTACK_LOG_CALLS_THRESHOLD_MS=0
+    )
+    def test_action_contextvar_is_captured(
+        self, patched_parent_request, deterministic_clock, caplog
+    ):
+        patched_parent_request.return_value = _make_response(
+            200, "https://neutron/v2.0/routers"
+        )
+        self._set_elapsed_ms(deterministic_clock, 5)
+        session = TimedSession()
+
+        token = current_backend_action.set("delete tenant routers")
+        try:
+            with caplog.at_level(logging.INFO, logger=CALLS_LOGGER):
+                session.request("/v2.0/routers", "DELETE")
+        finally:
+            current_backend_action.reset(token)
+
+        records = _calls_records(caplog)
+        assert len(records) == 1
+        assert records[0].openstack_action == "delete tenant routers"
+        assert "action=delete tenant routers" in records[0].getMessage()
