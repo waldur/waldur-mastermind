@@ -2092,7 +2092,14 @@ class GroupInvitationSubmitRequestTest(test.APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Verify response has exactly the expected fields from SubmitRequestResponseSerializer
-        expected_fields = {"uuid", "scope_name", "scope_uuid", "auto_approved"}
+        expected_fields = {
+            "uuid",
+            "scope_name",
+            "scope_uuid",
+            "auto_approved",
+            "project_uuid",
+            "project_created",
+        }
         actual_fields = set(response.data.keys())
         self.assertEqual(actual_fields, expected_fields)
 
@@ -2101,6 +2108,9 @@ class GroupInvitationSubmitRequestTest(test.APITestCase):
         self.assertIsInstance(response.data["scope_name"], str)
         self.assertIsInstance(response.data["scope_uuid"], str)
         self.assertIsInstance(response.data["auto_approved"], bool)
+        # project_uuid and project_created are null when no project workflow runs
+        self.assertIsNone(response.data["project_uuid"])
+        self.assertIsNone(response.data["project_created"])
 
 
 class PermissionRequestCancelTest(test.APITestCase):

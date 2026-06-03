@@ -1184,6 +1184,62 @@ class PermissionRequestProjectCreationTest(BaseInvitationTest):
             ).exists()
         )
 
+    def test_approve_returns_created_project(self):
+        """approve() returns the project and created flag for downstream consumers."""
+        invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_create_project=True,
+            project_role=ProjectRole.ADMIN,
+            project_name_template="{username}_project",
+        )
+        permission_request = factories.PermissionRequestFactory(
+            invitation=invitation, created_by=self.user_with_template
+        )
+
+        result = permission_request.approve(self.staff)
+
+        self.assertIsNotNone(result)
+        self.assertTrue(result["project_created"])
+        self.assertEqual(result["project"].name, "template_user_project")
+        self.assertEqual(result["project"].customer, self.customer)
+
+    def test_approve_returns_reused_project(self):
+        """approve() reports project_created=False when get_or_create matched."""
+        invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_create_project=True,
+            project_role=ProjectRole.ADMIN,
+            project_name_template="{username}_project",
+        )
+        existing = structure_factories.ProjectFactory(
+            customer=self.customer, name="template_user_project"
+        )
+        permission_request = factories.PermissionRequestFactory(
+            invitation=invitation, created_by=self.user_with_template
+        )
+
+        result = permission_request.approve(self.staff)
+
+        self.assertFalse(result["project_created"])
+        self.assertEqual(result["project"], existing)
+
+    def test_approve_without_auto_create_project_returns_no_project(self):
+        """approve() returns project=None when invitation has no auto_create_project."""
+        invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_create_project=False,
+            role=CustomerRole.OWNER,
+        )
+        permission_request = factories.PermissionRequestFactory(
+            invitation=invitation, created_by=self.user_with_template
+        )
+
+        result = permission_request.approve(self.staff)
+
+        self.assertIsNotNone(result)
+        self.assertIsNone(result["project"])
+        self.assertFalse(result["project_created"])
+
 
 class GroupInvitationPatternTest(BaseGroupInvitationTest):
     def setUp(self):
@@ -1375,6 +1431,70 @@ class GroupInvitationAutoApprovalTest(BaseGroupInvitationTest):
             customer=self.customer, name=user.username
         )
         self.assertTrue(has_user(created_project, user, ProjectRole.ADMIN))
+
+        # New project_uuid / project_created fields are populated for downstream routing
+        self.assertEqual(response.data["project_uuid"], created_project.uuid.hex)
+        self.assertTrue(response.data["project_created"])
+
+    def test_pending_response_omits_project_fields(self):
+        """When approval is required, project_uuid and project_created are null."""
+        manual_approval_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_approve=False,
+            user_email_patterns=[".*@example.com"],
+        )
+        url = factories.CustomerGroupInvitationFactory.get_url(
+            manual_approval_invitation, "submit_request"
+        )
+
+        user = structure_factories.UserFactory(email="user@example.com")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["auto_approved"])
+        self.assertIsNone(response.data["project_uuid"])
+        self.assertIsNone(response.data["project_created"])
+
+    def test_auto_approval_without_project_creation_omits_project_fields(self):
+        """Auto-approve at customer scope (no auto_create_project) -> no project fields."""
+        # self.auto_approve_invitation has auto_create_project=False (the default)
+        user = structure_factories.UserFactory(email="user@example.com")
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["auto_approved"])
+        self.assertIsNone(response.data["project_uuid"])
+        self.assertIsNone(response.data["project_created"])
+
+    def test_auto_approval_reuses_existing_project(self):
+        """When a project with the resolved name already exists, it is reused (project_created=False)."""
+        project_invitation = factories.CustomerGroupInvitationFactory(
+            scope=self.customer,
+            auto_approve=True,
+            auto_create_project=True,
+            user_email_patterns=[".*@example.com"],
+            role=ProjectRole.ADMIN,
+            project_role=ProjectRole.ADMIN,
+        )
+        url = factories.CustomerGroupInvitationFactory.get_url(
+            project_invitation, "submit_request"
+        )
+
+        user = structure_factories.UserFactory(email="user@example.com")
+        # Pre-create the project that would be auto-created.
+        existing_project = structure_factories.ProjectFactory(
+            customer=self.customer, name=user.username
+        )
+        self.client.force_authenticate(user=user)
+
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["auto_approved"])
+        self.assertEqual(response.data["project_uuid"], existing_project.uuid.hex)
+        self.assertFalse(response.data["project_created"])
+        self.assertTrue(has_user(existing_project, user, ProjectRole.ADMIN))
 
 
 class GroupInvitationDuplicateRolePreventionTest(BaseGroupInvitationTest):

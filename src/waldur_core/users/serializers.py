@@ -758,6 +758,24 @@ class SubmitRequestResponseSerializer(serializers.Serializer):
     auto_approved = serializers.BooleanField(
         help_text="Whether the request was automatically approved"
     )
+    project_uuid = serializers.CharField(
+        required=False,
+        allow_null=True,
+        help_text=(
+            "UUID of the project the user was added to. Present when the "
+            "invitation has auto_approve and auto_create_project enabled. "
+            "Null otherwise."
+        ),
+    )
+    project_created = serializers.BooleanField(
+        required=False,
+        allow_null=True,
+        help_text=(
+            "True if a new project was created for the user; false if an "
+            "existing project with the same name was reused. Null when no "
+            "project workflow ran."
+        ),
+    )
 
 
 class CancelRequestResponseSerializer(serializers.Serializer):
