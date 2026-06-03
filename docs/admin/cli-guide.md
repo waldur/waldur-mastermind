@@ -59,6 +59,10 @@ options:
 
 ```
 
+## audit_broker_config
+
+Audit Celery / RabbitMQ broker configuration for common publisher-reliability misconfigurations.
+
 ## axes_list_attempts
 
 List access attempts
@@ -1084,6 +1088,38 @@ options:
 ## print_settings_description
 
 Prints all Waldur feature description as typescript code.
+
+## probe_broker_latency
+
+Publish N no-op messages and report publish-confirm RTT percentiles. Safe on production; messages have no effect.
+
+```bash
+
+usage: waldur probe_broker_latency [--samples SAMPLES] [--countdown COUNTDOWN]
+                                   [--p99-threshold-ms P99_THRESHOLD_MS]
+                                   [--policy-class POLICY_CLASS] [--json]
+
+options:
+  --samples SAMPLES     Number of publishes to attempt (default: 100).
+  --countdown COUNTDOWN
+                        Celery countdown in seconds. The probe payload lands
+                        in a celery_delayed_* bucket sized for this delay and
+                        never executes within the probe's lifetime (default:
+                        86400).
+  --p99-threshold-ms P99_THRESHOLD_MS
+                        If set, exit non-zero when p99 publish-confirm RTT
+                        exceeds this many milliseconds. Useful for CI
+                        alerting.
+  --policy-class POLICY_CLASS
+                        Dotted path of a policy class for the no-op payload
+                        (default: waldur_mastermind.policy.models.OfferingEsti
+                        matedCostPolicy). Any class that
+                        evaluate_policies_async can import will work; the task
+                        body short-circuits because scope_id=-1 matches no
+                        rows.
+  --json                Emit results as a single JSON object on stdout.
+
+```
 
 ## pull_openstack_usage
 
