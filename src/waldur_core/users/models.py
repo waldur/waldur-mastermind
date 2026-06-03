@@ -282,18 +282,20 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
     def approve(self, user: core_models.User, comment: str = None):
         super().approve(user, comment)
 
+        created_project = None
+        project_created = False
         if self.invitation.auto_create_project:
             # Create project and grant project permission instead of customer permission
-            project = self._create_project_for_user(user)
+            created_project, project_created = self._create_project_for_user(user)
             role = self.invitation.project_role or self.invitation.role
-            scope = project
+            scope = created_project
         else:
             scope = self.invitation.scope
             role = self.invitation.role
 
         # Defense-in-depth: skip if user already has the role
         if has_user(scope, self.created_by, role):
-            return
+            return {"project": created_project, "project_created": project_created}
 
         validate_role_grant(scope, self.created_by, role)
 
@@ -310,6 +312,8 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
             structure=scope,
         )
 
+        return {"project": created_project, "project_created": project_created}
+
     def _create_project_for_user(self, approving_user):
         from waldur_core.structure.models import Project
 
@@ -322,7 +326,7 @@ class PermissionRequest(core_mixins.ReviewMixin, core_models.UuidMixin):
             defaults={"description": self.project_description},
         )
 
-        return project
+        return project, created
 
     def _resolve_project_name(self):
         return self.invitation.resolve_project_name(self.created_by)

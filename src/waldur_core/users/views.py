@@ -650,9 +650,14 @@ class GroupInvitationViewSet(ActionsViewSet):
 
         # Auto-approve if invitation is configured for auto-approval
         auto_approved = False
+        project_uuid = None
+        project_created = None
         if invitation.auto_approve:
-            permission_request.approve(request.user)
+            result = permission_request.approve(request.user)
             auto_approved = True
+            if result and result.get("project") is not None:
+                project_uuid = result["project"].uuid.hex
+                project_created = bool(result.get("project_created"))
 
         # Get scope details safely
         scope_name = ""
@@ -668,6 +673,8 @@ class GroupInvitationViewSet(ActionsViewSet):
                 "scope_name": scope_name,
                 "scope_uuid": scope_uuid,
                 "auto_approved": auto_approved,
+                "project_uuid": project_uuid,
+                "project_created": project_created,
             }
         )
         response_serializer.is_valid(raise_exception=True)
