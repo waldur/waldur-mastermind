@@ -1,3 +1,4 @@
+import datetime
 from datetime import UTC, timedelta
 from decimal import Decimal
 
@@ -12,6 +13,7 @@ from waldur_mastermind.invoices.tasks import create_monthly_invoices
 from waldur_mastermind.marketplace import models as marketplace_models
 from waldur_mastermind.marketplace.billing import (
     LimitPeriodProcessor,
+    MarketplaceBillingService,
 )
 from waldur_mastermind.marketplace.enums import (
     BillingTypes,
@@ -2029,4 +2031,54 @@ class NonBillableChildOfferingTest(test.APITestCase):
             child_items.count(),
             0,
             "Child non-billable offering should NOT be billed monthly",
+        )
+
+
+@freeze_time("2026-06-15")
+class GetOrCreateInvoiceWithDateInputTest(test.APITestCase):
+    """
+    Regression test for CSCS-5AK.
+
+    `process_component_usage_billing` passes `ComponentUsage.billing_period`
+    (a `datetime.date`) into `MarketplaceBillingService.get_or_create_invoice`.
+    When that call creates a new invoice and bulk-processes the customer's
+    existing LIMIT-billed resources, the downstream period arithmetic in
+    `serialize_resource_limit_period` must not blow up with
+    `TypeError: unsupported operand type(s) for -: 'datetime.datetime' and 'datetime.date'`.
+    """
+
+    def setUp(self):
+        self.fixture = fixtures.MarketplaceFixture()
+        self.component = self.fixture.offering_component
+        self.component.billing_type = BillingTypes.LIMIT
+        self.component.limit_period = LimitPeriods.MONTH
+        self.component.save()
+
+        self.resource = ResourceFactory(
+            offering=self.fixture.offering,
+            plan=self.fixture.plan,
+            project=self.fixture.project,
+            limits={self.component.type: 10},
+        )
+        self.resource.set_state_ok()
+        self.resource.save()
+
+    def test_get_or_create_invoice_accepts_date_for_new_month(self):
+        future_month_date = datetime.date(2026, 7, 1)
+
+        invoice, created = MarketplaceBillingService.get_or_create_invoice(
+            self.resource.project.customer, future_month_date
+        )
+
+        self.assertTrue(created)
+        self.assertEqual(invoice.year, 2026)
+        self.assertEqual(invoice.month, 7)
+        # Bulk-processing must have produced an item for the LIMIT resource
+        # without raising on the date/datetime subtraction.
+        self.assertEqual(
+            invoice.items.filter(
+                resource_id=self.resource.id,
+                details__offering_component_type=self.component.type,
+            ).count(),
+            1,
         )

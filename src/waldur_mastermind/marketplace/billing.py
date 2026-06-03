@@ -208,10 +208,18 @@ class MarketplaceBillingService:
                 .filter(offering__billable=True)
                 .distinct()
             )
+            # `date` may be a `datetime.date` (e.g. `ComponentUsage.billing_period`).
+            # Downstream period arithmetic subtracts `start` from `end`, so both
+            # must be datetimes — otherwise `(end - start)` raises TypeError.
+            start = (
+                date
+                if isinstance(date, datetime.datetime)
+                else core_utils.month_start(date)
+            )
             end = core_utils.month_end(date)
             for resource in resources:
                 cls._process_resource(
-                    resource, invoice=invoice, start=date, end=end, **kwargs
+                    resource, invoice=invoice, start=start, end=end, **kwargs
                 )
 
         return invoice, created
