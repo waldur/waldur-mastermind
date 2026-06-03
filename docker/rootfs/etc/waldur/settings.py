@@ -71,7 +71,10 @@ if env.get("POSTGRESQL_READONLY_USER"):
 CELERY_RESULT_BACKEND = f"db+postgresql+psycopg://{DATABASES['default']['USER']}:{DATABASES['default']['PASSWORD']}@{DATABASES['default']['HOST']}:{DATABASES['default']['PORT']}/{DATABASES['default']['NAME']}"
 
 CELERY_DEFAULT_QUEUE_TYPE = "quorum"
-CELERY_BROKER_TRANSPORT_OPTIONS = {"confirm_publish": True}
+# CELERY_BROKER_TRANSPORT_OPTIONS now lives in
+# ``waldur_core/server/celery_settings.py`` with the full dict
+# (confirm_publish + heartbeat + socket_settings). Assigning here would
+# replace the dict wholesale and silently strip the resilience knobs.
 
 # Static files
 # See also: https://docs.djangoproject.com/en/4.2/ref/settings/#static-files
