@@ -990,6 +990,10 @@ class OpenStackBackend(ServiceBackend):
             tenant.set_quota_limit(quota_name, limit)
         for quota_name, usage in self.get_tenant_quotas_usage(tenant).items():
             tenant.set_quota_usage(quota_name, usage)
+        # Notify downstream integrations that a fresh pull completed, even when
+        # set_quota_usage produced no deltas. Without this, stable workloads
+        # never refresh marketplace-side snapshots that key off QuotaUsage saves.
+        signals.tenant_quotas_pulled.send(models.Tenant, instance=tenant)
 
     @log_backend_action("pull floating IPs for tenant")
     def pull_tenant_floating_ips(self, tenant: models.Tenant):

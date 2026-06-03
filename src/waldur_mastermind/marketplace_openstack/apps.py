@@ -257,6 +257,13 @@ class MarketplaceOpenStackConfig(AppConfig):
             "import_instances_and_volumes_if_tenant_has_been_imported_if_tenant_has_been_pulled",
         )
 
+        openstack_signals.tenant_quotas_pulled.connect(
+            handlers.import_usage_on_tenant_quotas_pulled,
+            sender=openstack_models.Tenant,
+            dispatch_uid="waldur_mastermind.marketplace_openstack."
+            "import_usage_on_tenant_quotas_pulled",
+        )
+
         signals.post_save.connect(
             handlers.synchronize_router_backend_metadata,
             sender=openstack_models.Router,
