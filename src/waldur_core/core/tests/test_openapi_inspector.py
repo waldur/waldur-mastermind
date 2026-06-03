@@ -4,8 +4,8 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from django.apps import apps
 from drf_spectacular.openapi import AutoSchema
-from drf_spectacular.utils import OpenApiParameter
-from rest_framework import serializers, viewsets
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse
+from rest_framework import serializers, status, viewsets
 from rest_framework.serializers import ListSerializer
 
 from waldur_core.core import signals as core_signals
@@ -287,6 +287,73 @@ class TestWaldurOpenApiInspectorSignalFields(unittest.TestCase):
         result = self.inspector.get_override_parameters()
         # Should return empty list for no fields
         self.assertEqual(result, [])
+
+    def test_get_override_parameters_dict_response_with_serializer_class(self):
+        """``responses={200: SerializerClass}`` must still surface ``?field=``.
+
+        ``@extend_schema(responses={status.HTTP_200_OK: SomeSerializer})`` makes
+        drf-spectacular's ``get_response_serializers()`` return the raw dict
+        keyed by status code. Without normalisation, the inspector's
+        ``isinstance(serializer, RestrictedSerializerMixin)`` check fails and
+        the ``field`` projection parameter silently disappears from the schema,
+        breaking SDK clients that rely on it (e.g. site-agent healthz).
+        """
+        self.inspector.get_response_serializers = Mock(
+            return_value={status.HTTP_200_OK: _TestSerializer}
+        )
+
+        result = self.inspector.get_override_parameters()
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].name, RestrictedSerializerMixin.FIELDS_PARAM_NAME)
+        self.assertEqual(set(result[0].enum), {"id", "name", "url"})
+
+    def test_get_override_parameters_dict_response_with_serializer_instance(self):
+        """``responses={200: SerializerClass()}`` must also work."""
+        self.inspector.get_response_serializers = Mock(
+            return_value={status.HTTP_200_OK: _TestSerializer()}
+        )
+
+        result = self.inspector.get_override_parameters()
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(set(result[0].enum), {"id", "name", "url"})
+
+    def test_get_override_parameters_bare_serializer_class(self):
+        """``responses=SerializerClass`` (no dict wrapper) must work."""
+        self.inspector.get_response_serializers = Mock(return_value=_TestSerializer)
+
+        result = self.inspector.get_override_parameters()
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(set(result[0].enum), {"id", "name", "url"})
+
+    def test_get_override_parameters_openapi_response_wrapper(self):
+        """``responses={200: OpenApiResponse(response=SerializerClass)}`` must work."""
+        self.inspector.get_response_serializers = Mock(
+            return_value={
+                status.HTTP_200_OK: OpenApiResponse(response=_TestSerializer),
+            }
+        )
+
+        result = self.inspector.get_override_parameters()
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(set(result[0].enum), {"id", "name", "url"})
+
+    def test_get_override_parameters_dict_response_picks_2xx(self):
+        """When responses dict mixes 2xx and error codes, the 2xx serializer wins."""
+        self.inspector.get_response_serializers = Mock(
+            return_value={
+                status.HTTP_400_BAD_REQUEST: serializers.Serializer,
+                status.HTTP_200_OK: _TestSerializer,
+            }
+        )
+
+        result = self.inspector.get_override_parameters()
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(set(result[0].enum), {"id", "name", "url"})
 
 
 @pytest.mark.django_db
