@@ -12,6 +12,7 @@ from waldur_mastermind.marketplace.enums import (
 from waldur_mastermind.marketplace.tests import factories as marketplace_factories
 from waldur_mastermind.marketplace.utils import create_offering_components
 from waldur_openstack import models as openstack_models
+from waldur_openstack import signals as openstack_signals
 from waldur_openstack.tests import fixtures as openstack_fixtures
 
 TenantQuotas = openstack_models.Tenant.Quotas
@@ -84,6 +85,31 @@ class UsagesSynchronizationTest(test.APITransactionTestCase):
 
         self.resource.refresh_from_db()
         self.assertGreater(self.resource.last_sync, initial)
+
+    def test_stable_usage_resyncs_via_tenant_quotas_pulled_signal(self):
+        """A tenant with steady-state usage produces no QuotaUsage delta on
+        subsequent polls, so the post_save chain never fires. The pull-completion
+        signal must still trigger import_usage so the current-month ComponentUsage
+        row is materialised and limit_usage stops returning 0."""
+        self.tenant.set_quota_usage("vcpu", 10)
+        marketplace_models.ComponentUsage.objects.filter(
+            resource=self.resource, component__type="cores"
+        ).delete()
+        self.resource.current_usages = {}
+        self.resource.save(update_fields=["current_usages"])
+
+        self.tenant.set_quota_usage("vcpu", 10)
+        self.assertFalse(
+            marketplace_models.ComponentUsage.objects.filter(
+                resource=self.resource, component__type="cores"
+            ).exists()
+        )
+
+        openstack_signals.tenant_quotas_pulled.send(
+            openstack_models.Tenant, instance=self.tenant
+        )
+
+        self.assert_usage_equal("cores", 10)
 
 
 @freeze_time("2026-04-15 12:00:00")

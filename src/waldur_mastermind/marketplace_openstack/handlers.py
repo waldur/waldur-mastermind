@@ -366,6 +366,23 @@ def update_openstack_tenant_usages(
     transaction.on_commit(lambda: utils.import_usage(resource))
 
 
+def import_usage_on_tenant_quotas_pulled(
+    sender, instance: openstack_models.Tenant, **kwargs
+):
+    tenant = instance
+    try:
+        resource = marketplace_models.Resource.objects.get(scope=tenant)
+    except ObjectDoesNotExist:
+        logger.debug(
+            "Skipping usages synchronization for tenant because "
+            "resource does not exist. OpenStack tenant ID: %s",
+            tenant.id,
+        )
+        return
+
+    utils.import_usage(resource)
+
+
 def create_offering_component_for_volume_type(
     sender, instance: VolumeType, created=False, **kwargs
 ):
