@@ -15,7 +15,7 @@ Common use cases:
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
 
-![Waldur Screenshot](https://docs.waldur.com/latest/about/img/Organization-dashboard.png)
+![Waldur Screenshot](https://waldur.com/img/Illustration.svg)
 
 ## Features
 
