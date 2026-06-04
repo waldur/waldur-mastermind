@@ -9,11 +9,15 @@ from waldur_mastermind.support.backend.zammad_utils import User
 from . import fixtures
 
 
+ZAMMAD_WEBHOOK_TEST_SECRET = "zammad-test-secret"  # noqa: S105
+
+
 @pytest.mark.override_config(
     WALDUR_SUPPORT_ENABLED=True,
     WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE=SupportBackendType.ZAMMAD,
     ZAMMAD_API_URL="http://localhost:8080",
     ZAMMAD_TOKEN="token",
+    ZAMMAD_WEBHOOK_SHARED_SECRET=ZAMMAD_WEBHOOK_TEST_SECRET,
 )
 class BaseTest(test.APITestCase):
     def setUp(self):

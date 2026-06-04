@@ -85,7 +85,11 @@ class SyncFromSmaxTest(smax_base.BaseTest):
 
     def test_web_hook(self):
         url = "/api/support-smax-webhook/"
-        response = self.client.post(url, data={"id": self.issue.backend_id})
+        response = self.client.post(
+            url,
+            data={"id": self.issue.backend_id},
+            HTTP_X_WEBHOOK_SECRET=smax_base.SMAX_WEBHOOK_TEST_SECRET,
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.mock_smax().get_issue.assert_called_once()
         self.issue.refresh_from_db()

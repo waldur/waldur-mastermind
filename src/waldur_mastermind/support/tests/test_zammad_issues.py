@@ -58,7 +58,11 @@ class IssueWebHookTest(zammad_base.BaseTest):
         self.mock_zammad().get_issue.return_value = self.zammad_issue
 
     def test_update_issue(self):
-        response = self.client.post(self.url, data={"ticket": {"id": "1"}})
+        response = self.client.post(
+            self.url,
+            data={"ticket": {"id": "1"}},
+            HTTP_X_WEBHOOK_SECRET=zammad_base.ZAMMAD_WEBHOOK_TEST_SECRET,
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.mock_zammad().get_issue.assert_called_once()
         self.issue.refresh_from_db()

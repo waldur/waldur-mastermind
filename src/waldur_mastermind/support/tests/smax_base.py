@@ -10,6 +10,9 @@ from waldur_mastermind.support.backend.smax import SmaxServiceBackend
 from . import fixtures
 
 
+SMAX_WEBHOOK_TEST_SECRET = "smax-test-secret"  # noqa: S105
+
+
 @pytest.mark.override_config(
     WALDUR_SUPPORT_ENABLED=True,
     WALDUR_SUPPORT_ACTIVE_BACKEND_TYPE=SupportBackendType.SMAX,
@@ -17,6 +20,7 @@ from . import fixtures
     SMAX_TENANT_ID="123456789",
     SMAX_LOGIN="user@example.com",
     SMAX_PASSWORD="password",
+    SMAX_WEBHOOK_SHARED_SECRET=SMAX_WEBHOOK_TEST_SECRET,
 )
 class BaseTest(test.APITestCase):
     def setUp(self):

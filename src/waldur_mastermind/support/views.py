@@ -1,6 +1,8 @@
+import hmac
+import logging
+
 from waldur_core.core.serializers import StatusSerializer
 from rest_framework import status
-import logging
 from datetime import date, datetime
 
 from constance import config
@@ -345,12 +347,44 @@ class SupportStatsViewSet(CheckExtensionMixin, generics.GenericAPIView):
         return JsonResponse(data)
 
 
+_WEBHOOK_SECRET_HEADER = "HTTP_X_WEBHOOK_SECRET"
+
+
+def _webhook_shared_secret_check(request, constance_setting_name):
+    """
+    Validate the inbound webhook against a shared secret stored in
+    Constance. Returns a Response on rejection, or None on success.
+
+    Opt-in: if the operator has not configured a secret, the check is
+    skipped and the request is allowed through (preserves the legacy
+    unauthenticated behaviour). Once a secret is set, requests must
+    carry a matching `X-Webhook-Secret` header.
+    """
+    expected = getattr(config, constance_setting_name, "") or ""
+    if not expected:
+        return None
+    received = request.META.get(_WEBHOOK_SECRET_HEADER, "")
+    if not received or not hmac.compare_digest(received, expected):
+        logger.warning(
+            "Inbound webhook rejected: invalid or missing X-Webhook-Secret for %s.",
+            constance_setting_name,
+        )
+        return response.Response(
+            {"detail": "Invalid or missing X-Webhook-Secret header."},
+            status=status.HTTP_403_FORBIDDEN,
+        )
+    return None
+
+
 class WebHookReceiverView(CheckExtensionMixin, views.APIView):
     authentication_classes = ()
     permission_classes = ()
     serializer_class = serializers.WebHookReceiverSerializer
 
     def post(self, request):
+        rejection = _webhook_shared_secret_check(request, "JIRA_WEBHOOK_SHARED_SECRET")
+        if rejection is not None:
+            return rejection
         serializer = self.serializer_class(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -534,6 +568,11 @@ class ZammadWebHookReceiverView(CheckExtensionMixin, generics.GenericAPIView):
     pagination_class = None
 
     def post(self, request):
+        rejection = _webhook_shared_secret_check(
+            request, "ZAMMAD_WEBHOOK_SHARED_SECRET"
+        )
+        if rejection is not None:
+            return rejection
         ticket_id = request.data.get("ticket", {}).get("id")
 
         if not ticket_id:
@@ -618,6 +657,9 @@ class SmaxWebHookReceiverView(CheckExtensionMixin, generics.GenericAPIView):
     serializer_class = serializers.SmaxWebHookReceiverSerializer
 
     def post(self, request):
+        rejection = _webhook_shared_secret_check(request, "SMAX_WEBHOOK_SHARED_SECRET")
+        if rejection is not None:
+            return rejection
         issue_id = request.data.get("id")
 
         if not issue_id:
